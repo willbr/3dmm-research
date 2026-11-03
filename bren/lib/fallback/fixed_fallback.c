@@ -33,13 +33,13 @@ br_fixed_ls BrFixedMul(br_fixed_ls a, br_fixed_ls b)
 
 br_fixed_ls BrFixedDiv(br_fixed_ls a, br_fixed_ls b)
 {
-    return (br_fixed_ls)(((int64_t)a << 16) / b);
+    return (br_fixed_ls)(((int64_t)a * 65536) / b);
 }
 
 br_fixed_ls BrFixedDivR(br_fixed_ls a, br_fixed_ls b)
 {
     /* Rounded divide: add 0.5 to the high half before the divide. */
-    int64_t num = ((int64_t)a << 16);
+    int64_t num = (int64_t)a * 65536;
     return (br_fixed_ls)((num + (b >> 1)) / b);
 }
 
@@ -62,7 +62,7 @@ br_fixed_ls BrFixedDivF(br_fixed_ls a, br_fixed_ls b)
      * word, breaking z-test ordering. Symptom: props-overlap divergence
      * had x64 picking the wrong (instance-3) color in the dead-centre tile
      * because the depth buffer never advanced past zero on x64. */
-    return (br_fixed_ls)(((int64_t)a << 31) / b);
+    return (br_fixed_ls)(((int64_t)a * INT64_C(2147483648)) / b);
 }
 
 br_fixed_ls BrFixedRcp(br_fixed_ls a)
@@ -275,7 +275,7 @@ static br_fixed_ls sincos_lookup(br_angle input, int table_offset)
     int product = low * (int)delta;
     int16_t interp = (int16_t)(product >> 8); /* asm grabs bits 8..23 of dx:ax */
     int16_t sum = (int16_t)(base + interp);
-    return ((br_fixed_ls)sum) << 1;
+    return ((br_fixed_ls)sum) * 2;
 }
 
 br_fixed_ls BrFixedSin(br_angle input)
@@ -295,7 +295,7 @@ br_angle BrFixedASin(br_fixed_ls input)
         r = 1.0;
     if (r < -1.0)
         r = -1.0;
-    return (br_angle)(asin(r) * (65536.0 / (2.0 * BR_PI)));
+    return (br_angle)(int32_t)(asin(r) * (65536.0 / (2.0 * BR_PI)));
 }
 
 br_angle BrFixedACos(br_fixed_ls input)
@@ -305,7 +305,7 @@ br_angle BrFixedACos(br_fixed_ls input)
         r = 1.0;
     if (r < -1.0)
         r = -1.0;
-    return (br_angle)(acos(r) * (65536.0 / (2.0 * BR_PI)));
+    return (br_angle)(int32_t)(acos(r) * (65536.0 / (2.0 * BR_PI)));
 }
 
 /* Note: BRender's asm signature is `BrFixedATan2(_F x, _F y)` -- x then y.
@@ -322,7 +322,9 @@ br_angle BrFixedACos(br_fixed_ls input)
  * in/out". Match the asm exactly. */
 br_angle BrFixedATan2(br_fixed_ls x, br_fixed_ls y)
 {
-    return (br_angle)(atan2((double)x, (double)y) * (65536.0 / (2.0 * BR_PI)));
+    // Convert through signed integer space before wrapping to the 16-bit
+    // angle; converting a negative double directly to unsigned is undefined.
+    return (br_angle)(int32_t)(atan2((double)x, (double)y) * (65536.0 / (2.0 * BR_PI)));
 }
 
 br_angle BrFixedATan2Fast(br_fixed_ls x, br_fixed_ls y)

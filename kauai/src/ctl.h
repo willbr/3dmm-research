@@ -16,11 +16,12 @@
 #ifndef Control_H
 #define Control_H
 
-#ifdef WIN
-typedef HWND HControl;
-#elif defined(MAC)
+#include "core_native.h"
+#ifdef MAC
 typedef ControlHandle HControl;
-#endif // MAC
+#else
+using HControl = CoreNative::WindowHandle;
+#endif
 
 // general control
 typedef class Control *PControl;

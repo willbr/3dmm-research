@@ -10,8 +10,13 @@
     Standard dialogs.
 
 ***************************************************************************/
+#include "dialog_resource.h"
+#include "dialog_session.h"
+#include "platform_text.h"
+#include "text_utf8.h"
 #include "kauai_core.h"
 #include "dlg.h"
+
 ASSERTNAME
 
 RTCLASS(Dialog)
@@ -19,15 +24,105 @@ RTCLASS(Dialog)
 /***************************************************************************
     Constructor for a dialog object.
 ***************************************************************************/
-Dialog::Dialog(long rid) : GeneralGroup(size(DialogItem))
+Dialog::Dialog(LegacyLong rid) : GeneralGroup(sizeof(DialogItem))
 {
     _rid = rid;
+    _session = nullptr;
+}
+
+bool Dialog::_FInitItems(const KauaiDialogs::Resource &resource)
+{
+    std::vector<KauaiDialogs::Binding> bindings;
+    if (!KauaiDialogs::BuildBindings(resource, bindings) || bindings.empty())
+    {
+        PushErc(ercDlgCantFind);
+        return false;
+    }
+    static_assert(static_cast<int>(KauaiDialogs::ItemKind::button) == ditkButton &&
+                      static_cast<int>(KauaiDialogs::ItemKind::checkBox) == ditkCheckBox &&
+                      static_cast<int>(KauaiDialogs::ItemKind::radioGroup) == ditkRadioGroup &&
+                      static_cast<int>(KauaiDialogs::ItemKind::editText) == ditkEditText &&
+                      static_cast<int>(KauaiDialogs::ItemKind::combo) == ditkCombo,
+                  "dialog item kind drift");
+    if (!FEnsureSpace(static_cast<LegacyLong>((bindings.size)()), sizeof(LegacyLong), fgrpNil))
+    {
+        PushErc(ercDlgOom);
+        return false;
+    }
+    for (const auto &binding : bindings)
+    {
+        // The legacy callback API uses signed 32-bit half-open item ranges.
+        if (binding.limit > INT32_MAX)
+        {
+            PushErc(ercDlgCantFind);
+            return false;
+        }
+        DialogItem item = {static_cast<LegacyLong>(binding.first), static_cast<LegacyLong>(binding.limit),
+                           static_cast<LegacyLong>(binding.kind)};
+        const LegacyLong extra =
+            binding.kind == KauaiDialogs::ItemKind::checkBox || binding.kind == KauaiDialogs::ItemKind::radioGroup
+                ? sizeof(LegacyLong)
+                : 0;
+        if (!FInsert(IvMac(), extra, nullptr, &item))
+        {
+            PushErc(ercDlgOom);
+            return false;
+        }
+        if (extra)
+            ClearPb(QvGet(IvMac() - 1), extra);
+    }
+    FEnsureSpace(0, 0, fgrpShrink);
+    return true;
+}
+
+bool Dialog::_FSessionText(LegacyLong item, PString text, bool read, bool append)
+{
+    auto &value = _session->values[item];
+    std::vector<std::uint16_t> units;
+    if (read)
+    {
+        if (!KauaiText::DecodeUtf8(value.text, units))
+            return false;
+#ifdef UNICODE
+        text->SetRgch(reinterpret_cast<achar *>(units.data()),
+                      LwMin(static_cast<LegacyLong>((units.size)()), kcchMaxStn));
+#else
+        const auto source = BigLittle(KauaiText::Encoding::Utf16BE, KauaiText::Encoding::Utf16LE);
+        const auto count = KauaiText::ToAnsi(units.data(), (units.size)() * 2, source, nullptr, 0);
+        if (!(units.empty)() && !count)
+            return false;
+        std::vector<char> bytes(count);
+        if (count && !KauaiText::ToAnsi(units.data(), (units.size)() * 2, source, bytes.data(), count))
+            return false;
+        text->SetRgch(bytes.data(), LwMin(static_cast<LegacyLong>(count), kcchMaxStn));
+#endif
+        return true;
+    }
+#ifdef UNICODE
+    const auto encoding = BigLittle(KauaiText::Encoding::Utf16BE, KauaiText::Encoding::Utf16LE);
+#else
+    const auto encoding = KauaiText::Encoding::WindowsAnsi;
+#endif
+    const auto count = KauaiText::ToUtf16(text->Prgch(), text->Cch() * sizeof(achar), encoding, nullptr, 0);
+    if (text->Cch() && !count)
+        return false;
+    units.resize(count);
+    if (count && !KauaiText::ToUtf16(text->Prgch(), text->Cch() * sizeof(achar), encoding, units.data(), count))
+        return false;
+    std::string utf8;
+    if (!KauaiText::EncodeUtf8(units, utf8))
+        return false;
+    if (append)
+        value.choices.push_back(std::move(utf8));
+    else
+        value.text = std::move(utf8);
+    return true;
 }
 
 /***************************************************************************
     Static method to create a new Dialog.  Does NewObj then calls _FInit.
 ***************************************************************************/
-PDialog Dialog::PdlgNew(long rid, PFNDLG pfn, void *pv)
+PDialog Dialog::PdlgNew(LegacyLong rid, PFNDLG pfn, void *pv)
 {
     PDialog pdlg;
 
@@ -47,16 +142,16 @@ PDialog Dialog::PdlgNew(long rid, PFNDLG pfn, void *pv)
     Get the values for [iditMin, iditLim) from the actual dialog and put
     them in the GGDIT.
 ***************************************************************************/
-bool Dialog::FGetValues(long iditMin, long iditLim)
+bool Dialog::FGetValues(LegacyLong iditMin, LegacyLong iditLim)
 {
     AssertThis(0);
-    long idit;
+    LegacyLong idit;
     DialogItem dit;
-    long lw;
+    LegacyLong lw;
     String stn;
 
     AssertIn(iditMin, 0, iditLim);
-    if (_pgob == pvNil)
+    if (_pgob == pvNil && !_session)
     {
         Bug("why are you calling this when the dialog doesn't exist?");
         return fFalse;
@@ -69,18 +164,19 @@ bool Dialog::FGetValues(long iditMin, long iditLim)
         switch (dit.ditk)
         {
         case ditkCheckBox:
-            lw = _FGetCheckBox(idit);
+            lw = _session ? _session->values[idit].number != 0 : _FGetCheckBox(idit);
             goto LPutLw;
 
         case ditkRadioGroup:
-            lw = _LwGetRadioGroup(idit);
+            lw = _session ? _session->values[idit].number : _LwGetRadioGroup(idit);
         LPutLw:
-            PutRgb(idit, 0, size(lw), &lw);
+            PutRgb(idit, 0, sizeof(lw), &lw);
             break;
 
         case ditkEditText:
         case ditkCombo:
-            _GetEditText(idit, &stn);
+            if (_session) { if (!_FSessionText(idit,&stn,true)) return false; }
+            else _GetEditText(idit, &stn);
             if (!FPutStn(idit, &stn))
                 return fFalse;
             break;
@@ -94,17 +190,17 @@ bool Dialog::FGetValues(long iditMin, long iditLim)
     Set the values for [iditMin, iditLim) from the GGDIT into the actual
     dialog.
 ***************************************************************************/
-void Dialog::SetValues(long iditMin, long iditLim)
+void Dialog::SetValues(LegacyLong iditMin, LegacyLong iditLim)
 {
     AssertThis(0);
-    long idit;
+    LegacyLong idit;
     DialogItem dit;
     String stn;
-    long lw;
-    long cb, cbT, ib;
+    LegacyLong lw;
+    LegacyLong cb, cbT, ib;
     byte *prgb;
 
-    if (_pgob == pvNil)
+    if (_pgob == pvNil && !_session)
     {
         Bug("why are you calling this when the dialog doesn't exist?");
         return;
@@ -117,27 +213,42 @@ void Dialog::SetValues(long iditMin, long iditLim)
         switch (dit.ditk)
         {
         case ditkCheckBox:
-            GetRgb(idit, 0, size(lw), &lw);
-            _SetCheckBox(idit, lw);
+            GetRgb(idit, 0, sizeof(lw), &lw);
+            if (_session)
+                _session->values[idit].number = FPure(lw);
+            else
+                _SetCheckBox(idit, lw);
             break;
 
         case ditkRadioGroup:
-            GetRgb(idit, 0, size(lw), &lw);
-            _SetRadioGroup(idit, lw);
+            GetRgb(idit, 0, sizeof(lw), &lw);
+            if (_session)
+                _session->values[idit].number = lw;
+            else
+                _SetRadioGroup(idit, lw);
             break;
 
         case ditkEditText:
             GetStn(idit, &stn);
-            _SetEditText(idit, &stn);
+            if (_session)
+                _FSessionText(idit, &stn, false);
+            else
+                _SetEditText(idit, &stn);
             break;
 
         case ditkCombo:
-            _ClearList(idit);
+            if (_session)
+                _session->values[idit].choices.clear();
+            else
+                _ClearList(idit);
             cb = Cb(idit);
             if (cb <= 0)
             {
                 stn.SetNil();
-                _SetEditText(idit, &stn);
+                if (_session)
+                    _FSessionText(idit, &stn, false);
+                else
+                    _SetEditText(idit, &stn);
                 break;
             }
             prgb = (byte *)PvLock(idit);
@@ -146,7 +257,10 @@ void Dialog::SetValues(long iditMin, long iditLim)
                 Bug("bad combo item");
                 cbT = cb;
             }
-            _SetEditText(idit, &stn);
+            if (_session)
+                _FSessionText(idit, &stn, false);
+            else
+                _SetEditText(idit, &stn);
             for (ib = cbT; ib < cb;)
             {
                 if (!stn.FSetData(prgb + ib, cb - ib, &cbT))
@@ -155,7 +269,10 @@ void Dialog::SetValues(long iditMin, long iditLim)
                     break;
                 }
                 ib += cbT;
-                _FAddToList(idit, &stn);
+                if (_session)
+                    _FSessionText(idit, &stn, false, true);
+                else
+                    _FAddToList(idit, &stn);
             }
             Unlock();
             break;
@@ -166,9 +283,9 @@ void Dialog::SetValues(long iditMin, long iditLim)
 /***************************************************************************
     Get the item number from a system item number.
 ***************************************************************************/
-long Dialog::IditFromSit(long sit)
+LegacyLong Dialog::IditFromSit(LegacyLong sit)
 {
-    long idit;
+    LegacyLong idit;
     DialogItem dit;
 
     for (idit = IvMac(); idit-- != 0;)
@@ -186,7 +303,7 @@ long Dialog::IditFromSit(long sit)
     to change *pidit.  If a nil PFNDLG was specified (in PdlgNew),
     this returns true (dismisses the dialog) on any button hit.
 ***************************************************************************/
-bool Dialog::_FDitChange(long *pidit)
+bool Dialog::_FDitChange(LegacyLong *pidit)
 {
     if (pvNil == _pfn)
     {
@@ -205,12 +322,12 @@ bool Dialog::_FDitChange(long *pidit)
 /***************************************************************************
     Get the stn (for an edit item).
 ***************************************************************************/
-void Dialog::GetStn(long idit, PString pstn)
+void Dialog::GetStn(LegacyLong idit, PString pstn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
     AssertPo(pstn, 0);
-    long cb;
+    LegacyLong cb;
 
 #ifdef DEBUG
     DialogItem dit;
@@ -231,13 +348,13 @@ void Dialog::GetStn(long idit, PString pstn)
 /***************************************************************************
     Put the stn into the Dialog.
 ***************************************************************************/
-bool Dialog::FPutStn(long idit, PString pstn)
+bool Dialog::FPutStn(LegacyLong idit, PString pstn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
     AssertPo(pstn, 0);
     DialogItem dit;
-    long cbOld, cbNew;
+    LegacyLong cbOld, cbNew;
 
     GetDit(idit, &dit);
     cbOld = Cb(idit);
@@ -280,11 +397,11 @@ bool Dialog::FPutStn(long idit, PString pstn)
 /***************************************************************************
     Get the value of a radio group.
 ***************************************************************************/
-long Dialog::LwGetRadio(long idit)
+LegacyLong Dialog::LwGetRadio(LegacyLong idit)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
-    long lw;
+    LegacyLong lw;
 
 #ifdef DEBUG
     DialogItem dit;
@@ -292,14 +409,14 @@ long Dialog::LwGetRadio(long idit)
     Assert(ditkRadioGroup == dit.ditk, "not a radio group");
 #endif // DEBUG
 
-    GetRgb(idit, 0, size(long), &lw);
+    GetRgb(idit, 0, sizeof(LegacyLong), &lw);
     return lw;
 }
 
 /***************************************************************************
     Set the value of the radio group.
 ***************************************************************************/
-void Dialog::PutRadio(long idit, long lw)
+void Dialog::PutRadio(LegacyLong idit, LegacyLong lw)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -311,17 +428,17 @@ void Dialog::PutRadio(long idit, long lw)
     AssertIn(lw, 0, dit.sitLim - dit.sitMin);
 #endif // DEBUG
 
-    PutRgb(idit, 0, size(long), &lw);
+    PutRgb(idit, 0, sizeof(LegacyLong), &lw);
 }
 
 /***************************************************************************
     Get the value of a check box.
 ***************************************************************************/
-bool Dialog::FGetCheck(long idit)
+bool Dialog::FGetCheck(LegacyLong idit)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
-    long lw;
+    LegacyLong lw;
 
 #ifdef DEBUG
     DialogItem dit;
@@ -329,18 +446,18 @@ bool Dialog::FGetCheck(long idit)
     Assert(ditkCheckBox == dit.ditk, "not a check box");
 #endif // DEBUG
 
-    GetRgb(idit, 0, size(long), &lw);
+    GetRgb(idit, 0, sizeof(LegacyLong), &lw);
     return lw;
 }
 
 /***************************************************************************
     Set the value of a check box item.
 ***************************************************************************/
-void Dialog::PutCheck(long idit, bool fOn)
+void Dialog::PutCheck(LegacyLong idit, bool fOn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
-    long lw;
+    LegacyLong lw;
 
 #ifdef DEBUG
     DialogItem dit;
@@ -349,16 +466,16 @@ void Dialog::PutCheck(long idit, bool fOn)
 #endif // DEBUG
 
     lw = FPure(fOn);
-    PutRgb(idit, 0, size(long), &lw);
+    PutRgb(idit, 0, sizeof(LegacyLong), &lw);
 }
 
 /***************************************************************************
-    Get the indicated edit item from the dialog and convert it to a long.
+    Get the indicated edit item from the dialog and convert it to a LegacyLong.
     If the string is empty, sets *plw to zero and sets *pfEmpty (if pfEmpty
     is not nil) and returns false.  If the string doesn't parse as a number,
     returns false.
 ***************************************************************************/
-bool Dialog::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
+bool Dialog::FGetLwFromEdit(LegacyLong idit, LegacyLong *plw, bool *pfEmpty)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -384,9 +501,9 @@ bool Dialog::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
 }
 
 /***************************************************************************
-    Put the long into the indicated edit item (in decimal).
+    Put the LegacyLong into the indicated edit item (in decimal).
 ***************************************************************************/
-bool Dialog::FPutLwInEdit(long idit, long lw)
+bool Dialog::FPutLwInEdit(LegacyLong idit, LegacyLong lw)
 {
     AssertThis(0);
     String stn;
@@ -398,10 +515,10 @@ bool Dialog::FPutLwInEdit(long idit, long lw)
 /***************************************************************************
     Add the string to the given list item.
 ***************************************************************************/
-bool Dialog::FAddToList(long idit, PString pstn)
+bool Dialog::FAddToList(LegacyLong idit, PString pstn)
 {
     AssertThis(0);
-    long cb, cbTot;
+    LegacyLong cb, cbTot;
 
 #ifdef DEBUG
     DialogItem dit;
@@ -432,11 +549,11 @@ bool Dialog::FAddToList(long idit, PString pstn)
 /***************************************************************************
     Empty the list of options for the list item.
 ***************************************************************************/
-void Dialog::ClearList(long idit)
+void Dialog::ClearList(LegacyLong idit)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
-    long cbOld, cbNew;
+    LegacyLong cbOld, cbNew;
     String stn;
 
 #ifdef DEBUG

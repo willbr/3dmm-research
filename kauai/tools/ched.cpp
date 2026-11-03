@@ -6,6 +6,7 @@
     Chunky editor.
 
 ***************************************************************************/
+#include "launch_context.h"
 #include "ched.h"
 ASSERTNAME
 
@@ -45,7 +46,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     PDocumentDisplayGraphicsObject pddg;
     PDocumentBase pdocb;
     long lw;
-    PZString psz = vwig.pszCmdLine;
+    const achar *psz = KauaiLaunch::CommandLine();
 
     fSkip = fTrue;
     fScript = fFalse;

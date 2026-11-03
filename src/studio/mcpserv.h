@@ -18,7 +18,7 @@
 namespace mcp
 {
 // Returns true if `--mcp-server` was found in `pszCmdLine`. Cheap; safe to call
-// before any kauai init (used in WinMain to suppress AllocConsole).
+// before any kauai init. Framework console setup is independent of MCP.
 bool FParseEnabledFromCommandLine(const char *pszCmdLine);
 
 // Initialize the server: open stdin/stdout handles, spawn the reader thread.

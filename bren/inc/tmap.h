@@ -29,7 +29,7 @@ struct TextureMapFile
     short ypOrigin;
     // void *rgb; 		// pixels follow immediately after TextureMapFile
 };
-const ulong kbomTmapf = 0x54555000;
+const br_uint_32 kbomTmapf = 0x54555000;
 
 /* A TeXture XransForm on File */
 typedef struct TextureTransformFile
@@ -63,7 +63,7 @@ class TextureMap : public TextureMap_PAR
     {
     } // can't instantiate directly; must use PtmapRead
 #ifdef NOT_YET_REVIEWED
-    void TextureMap::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrHi);
+    void TextureMap::_SortInverseTable(byte *prgb, br_int_32 cbRgb, BRCLR brclrLo, BRCLR brclrHi);
 #endif // NOT_YET_REVIEWED
   public:
     ~TextureMap(void);
@@ -79,7 +79,7 @@ class TextureMap : public TextureMap_PAR
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TextureMap
-    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, br_int_32 *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TextureMap
     static PTextureMap PtmapNewFromBpmp(BPMP *pbpmp);
@@ -97,10 +97,10 @@ class TextureMap : public TextureMap_PAR
     bool FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr = pvNil);
 
     // Creates a TextureMap from the width, height, and an array of bytes
-    static PTextureMap PtmapNew(byte *prgbPixels, long dxWidth, long dxHeight);
+    static PTextureMap PtmapNew(byte *prgbPixels, br_int_32 dxWidth, br_int_32 dxHeight);
 
     // Some useful file methods
-    long CbOnFile(void)
+    br_int_32 CbOnFile(void)
     {
         return (size(TextureMapFile) + LwMul(_bpmp.row_bytes, _bpmp.height));
     }

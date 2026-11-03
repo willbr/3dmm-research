@@ -16,11 +16,33 @@
     It also is used to display a splash screen, and to find AVIs on the CD.
 
 ***************************************************************************/
+#include "studio_startup.h"
+#include "studio_content.h"
+#include "launch_context.h"
+#include "studio_product_names.h"
+#include "platform_files.h"
+#include "platform_users.h"
+#include <cstdio>
+#include "settings_store.h"
+#ifdef WIN
+#include "settings_store_win.h"
+#else
+#include "settings_store_posix.h"
+#endif
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "studio_shortcuts.h"
+#endif
 #include "studio.h"
+#include "studio_resources.h"
 #include "socres.h"
+#ifdef WIN
 #include "mminstal.h"
+#endif
 #include "mcpserv.h"
-#include <shlobj.h> // SHGetFolderPathA, CSIDL_LOCAL_APPDATA, SHCreateDirectoryExA
+
+// Expand shared resource constants before PszLit's Unicode token concatenation.
+#define STUDIO_NAME_LITERAL(value) PszLit(value)
 
 ASSERTNAME
 
@@ -51,7 +73,11 @@ const ulong kdtsMaxResSwitchDlg = 15 * kdtsSecond;
 // 2MB cache per source for TagManager
 const ulong kcbCacheTagm = 2048 * 1024;
 
+#ifdef KAUAI_SDL3
+static PZString kpszAppWndCls = PszLit("3DMOVIE-SDL3");
+#else
 static PZString kpszAppWndCls = PszLit("3DMOVIE");
+#endif
 const PZString kpszOpenFile = PszLit("3DMMOpen.tmp");
 
 const long klwOpenDoc = 0x12123434; // arbitrary wParam for WM_USER
@@ -72,7 +98,6 @@ ON_CID_GEN(cidDeactivate, &Application::FCmdDeactivate, pvNil)
 END_CMD_MAP_NIL()
 
 Application vapp;
-PTagManager vptagm;
 
 RTCLASS(Application)
 RTCLASS(KidWorld)
@@ -105,6 +130,7 @@ void Application::Run(ulong grfapp, ulong grfgob, long ginDef)
 
     _CleanupTemp();
 
+#ifdef WIN
     // SEH context captured by the filter; used by the handler body below for
     // a diagnostic dialog. Lifetime extends through __except by being a local
     // of Run(), not the filter expression.
@@ -248,6 +274,9 @@ void Application::Run(ulong grfapp, ulong grfgob, long ginDef)
 #endif // WIN
         _CleanUp();
     }
+#else
+    Application_PAR::Run(grfapp, grfgob, ginDef);
+#endif
 }
 
 /***************************************************************************
@@ -264,7 +293,9 @@ void Application::GetStnAppName(PString pstn)
 
     if (_stnAppName.Cch() == 0)
     {
-#ifdef WIN
+#ifdef KAUAI_SDL3
+        _stnAppName = STUDIO_NAME_LITERAL(STUDIO_APPLICATION_NAME);
+#elif defined(WIN)
         ZString sz;
 
         if (0 != LoadString(vwig.hinst, stidAppName, sz, kcchMaxSz))
@@ -281,8 +312,9 @@ void Application::GetStnAppName(PString pstn)
 #ifdef DEBUG
 struct DBINFO
 {
-    long cactAV;
+    LegacyLong cactAV;
 };
+static_assert(sizeof(DBINFO) == 4, "debug preference layout must remain 32-bit");
 #endif // DEBUG
 
 /***************************************************************************
@@ -296,7 +328,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     ulong tsSplashScreen;
     Filename fniUserDoc;
     long fFirstTimeUser;
-    long fSkipSplashScreen = fFalse;
+    LegacyLong fSkipSplashScreen = fFalse;
 
 
     FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
@@ -643,6 +675,9 @@ bool Application::_FAppAlreadyRunning(void)
 
     GetStnAppName(&stn);
 
+#ifdef KAUAI_SDL3
+    stn.FAppendSz(PszLit("-SDL3"));
+#endif
     hsem = CreateSemaphore(NULL, 0, 1, stn.Psz());
     if (hsem != NULL && GetLastError() == ERROR_ALREADY_EXISTS)
     {
@@ -670,7 +705,13 @@ void Application::_TryToActivateWindow(void)
     Filename fniUserDoc;
 
     GetStnAppName(&stn);
+#ifdef KAUAI_SDL3
+    FGetStnApp(idsWindowTitle, &stn);
+    stn.FAppendSz(PszLit(" [SDL3]"));
+    hwnd = FindWindow(PszLit("SDL_app"), stn.Psz());
+#else
     hwnd = FindWindow(kpszAppWndCls, stn.Psz());
+#endif
     if (NULL != hwnd)
     {
         SetForegroundWindow(hwnd);
@@ -728,12 +769,15 @@ bool Application::_FEnsureAudio(void)
 {
     AssertBaseThis(0);
 
-#ifdef WIN
+#if defined(WIN) && !defined(KAUAI_SDL3)
+#ifndef KAUAI_SDL3
     long cwod; // count of wave-out devices
+#endif
     long cmod; // count of midi-out devices
-    bool fShowMessage;
+    LegacyLong fShowMessage;
     PDialog pdlg;
 
+#ifndef KAUAI_SDL3
     cwod = waveOutGetNumDevs();
     if (cwod <= 0)
     {
@@ -776,6 +820,7 @@ bool Application::_FEnsureAudio(void)
             return fFalse;
         }
     } // have wave device
+#endif // !KAUAI_SDL3: SDL owns WAVE devices and codecs.
 
     cmod = midiOutGetNumDevs();
     if (cmod <= 0)
@@ -813,6 +858,7 @@ bool Application::_FEnsureAudio(void)
 ***************************************************************************/
 bool Application::_FEnsureVideo(void)
 {
+#if defined(WIN) && !defined(KAUAI_SDL3)
     if (wHaveMCI("AVIVIDEO"))
     {
         // MCI for video is not installed
@@ -829,6 +875,8 @@ bool Application::_FEnsureVideo(void)
         return fFalse;
     }
 
+#endif // SDL uses its built-in AVI decoders; no MCI/ICM installation is needed.
+
     return fTrue;
 }
 
@@ -842,11 +890,11 @@ bool Application::_FEnsureColorDepth(void)
 {
     AssertBaseThis(0);
 
-#ifdef WIN
+#if defined(WIN) && !defined(KAUAI_SDL3)
     HDC hdc;
     long cbitPixel;
     PDialog pdlg;
-    bool fShowMessage;
+    LegacyLong fShowMessage;
     bool fDontShowAgain = fFalse;
 
     hdc = GetDC(NULL);
@@ -941,6 +989,12 @@ bool _FDlgResSwitch(PDialog pdlg, long *pidit, void *pv)
 bool Application::_FEnsureDisplayResolution(void)
 {
     AssertBaseThis(0);
+#ifdef KAUAI_SDL3
+    // The SDL host scales Studio's original 640x480 canvas. It does not need
+    // to change the desktop display mode or overwrite the native preference.
+    _fRunInWindow = fTrue;
+    return fTrue;
+#else
 
     PDialog pdlg;
     long idit;
@@ -1056,6 +1110,7 @@ LSwitchFailed:
 LWriteReg:
     FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
     return fTrue;
+#endif
 }
 
 /***************************************************************************
@@ -1065,6 +1120,9 @@ bool Application::_FDisplayIs640480(void)
 {
 #ifdef WIN
     return (GetSystemMetrics(SM_CXSCREEN) == 640 && GetSystemMetrics(SM_CYSCREEN) == 480);
+#elif defined(KAUAI_SDL3)
+    // A fixed SDL canvas does not impose the native desktop-resolution restriction.
+    return fFalse;
 #endif // WIN
 #ifdef MAC
     RawRtn();
@@ -1079,7 +1137,26 @@ bool Application::_FInitOS(void)
 {
     AssertBaseThis(0);
 
+#ifdef KAUAI_SDL3
+    if (_fMainWindowCreated)
+        return fTrue;
+    String stnWindowTitle;
+    if (!FGetStnApp(idsWindowTitle, &stnWindowTitle))
+        return fFalse;
+    stnWindowTitle.FAppendSz(PszLit(" [SDL3]"));
+    char title[kcchMaxStz];
+    stnWindowTitle.GetSzs(title);
+    if (!_FInitSDLWindow(title, 640, 480))
+    {
+        fprintf(stderr, "Cannot initialize the Studio SDL3 host: %s\n", KauaiSDL::Main().Error());
+        return fFalse;
+    }
 #ifdef WIN
+    SendMessage(vwig.hwndApp, WM_SETICON, ICON_BIG, (LPARAM)LoadIcon(vwig.hinst, MAKEINTRESOURCE(IDI_APP)));
+#endif
+    _fMainWindowCreated = fTrue;
+    return fTrue;
+#elif defined(WIN)
     long dxpWindow;
     long dypWindow;
     long xpWindow;
@@ -1092,6 +1169,7 @@ bool Application::_FInitOS(void)
 
     if (!FGetStnApp(idsWindowTitle, &stnWindowTitle))
         return fFalse;
+
 
     // register the window classes
     if (vwig.hinstPrev == hNil)
@@ -1150,6 +1228,7 @@ bool Application::_FInitOS(void)
     should pass in the current dwStyle if the window already exists.  If
     the window does not already exist, pass in 0.
 ***************************************************************************/
+#ifdef WIN
 void Application::_GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle)
 {
     AssertBaseThis(0);
@@ -1187,6 +1266,8 @@ void Application::_GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, 
     }
 }
 
+#endif
+
 /***************************************************************************
     Change main window properties based on whether we're running in a
     window or fullscreen.
@@ -1195,6 +1276,12 @@ void Application::_RebuildMainWindow(void)
 {
     AssertBaseThis(0);
     Assert(_fMainWindowCreated, 0);
+
+#ifdef KAUAI_SDL3
+    if (!KauaiSDL::Main().SetFullscreen(!_fRunInWindow))
+        fprintf(stderr, "Cannot change Studio SDL3 window mode: %s\n", KauaiSDL::Main().Error());
+    return;
+#endif
 
 #ifdef WIN
     long dxpWindow;
@@ -1288,7 +1375,7 @@ bool Application::_FGenericError(Filename *path)
 ***************************************************************************/
 bool Application::_FGenericError(PSTZ message)
 {
-    String stn = message;
+    String stn(message);
     return _FGenericError(&stn);
 }
 /***************************************************************************
@@ -1405,24 +1492,15 @@ bool Application::_FGetUserDirectories(void)
         bool fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniMoveToDir);
         if (!fHaveUserDir)
             fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniCreateDir | ffniMoveToDir);
-#ifdef WIN
-        // Modern Win locks down Program Files for non-admin users. If the
-        // install lives under Program Files (typical) and we don't have
-        // elevation, the create above hits ERROR_ACCESS_DENIED. Fall back
-        // to %LOCALAPPDATA%\Microsoft Kids\Users\<user> -- the canonical
-        // place for per-user app data on Vista+. This is also where new
-        // saved movies will land going forward, so the registry HomeDir
-        // value below pins the user to that location for next launch.
+        // Preserve the installed profile first; fall back to the platform's
+        // writable user-data root if that location cannot be used.
         if (!fHaveUserDir)
         {
-            char szLocal[MAX_PATH];
-            if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, szLocal) == S_OK)
+            ZString szLocal;
+            if (KauaiUsers::DataRoot(szLocal, kcchTotSz) && KauaiFiles::MakeDirectories(szLocal))
             {
                 String stnLocal;
                 stnLocal.SetSz(szLocal);
-                stnLocal.FAppendSz(PszLit("\\Microsoft Kids\\Users"));
-                // SHCreateDirectoryEx makes intermediates as needed.
-                SHCreateDirectoryExA(NULL, stnLocal.Psz(), NULL);
                 if (_fniUserDir.FBuildFromPath(&stnLocal, kftgDir))
                 {
                     fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniMoveToDir);
@@ -1431,19 +1509,20 @@ bool Application::_FGetUserDirectories(void)
                 }
             }
         }
-#endif // WIN
+
         if (!fHaveUserDir)
         {
-            char szDetail[512];
-            char szUserDir[MAX_PATH];
-            char szUser[64];
+            char szDetail[768];
+            char szUserDir[kcchTotSz];
+            char szUser[kcchTotSz];
             String stnDir;
             _fniUsersDir.GetStnPath(&stnDir);
             stnDir.GetSzs(szUserDir);
             _stnUser.GetSzs(szUser);
-            wsprintfA(szDetail,
-                      "_FGetUserDirectories: could not find or create per-user directory \"%s\" under \"%s\" (or LocalAppData fallback)",
-                      szUser, szUserDir);
+            std::snprintf(szDetail, sizeof(szDetail),
+                          "_FGetUserDirectories: could not find or create per-user directory \"%s\" under \"%s\" (or "
+                          "writable user-data fallback)",
+                          szUser, szUserDir);
             AppendCrashLog("STEP_FAIL", szDetail);
             return fFalse;
         }
@@ -1451,21 +1530,20 @@ bool Application::_FGetUserDirectories(void)
         // Try to write path to user dir to the registry
         _fniUserDir.GetStnPath(&stn);
         stn.GetSz(szDir);
-        FGetSetRegKey(kszHomeDirValue, szDir, CchSz(szDir) + kcchExtraSz,
+        FGetSetRegKey(kszHomeDirValue, szDir, (CchSz(szDir) + kcchExtraSz) * sizeof(achar),
                       fregSetKey | fregString); // ignore failure
     }
-#ifdef WIN
-    if (SetCurrentDirectory(szDir) == FALSE)
+    std::uint32_t directoryError = 0;
+    if (!KauaiFiles::ChangeDirectory(szDir, &directoryError))
     {
-        char szDetail[MAX_PATH + 64];
-        wsprintfA(szDetail, "_FGetUserDirectories: SetCurrentDirectory(%s) failed, GetLastError=%lu",
-                  szDir, GetLastError());
+        char szDetail[512], szPath[kcchTotSz];
+        stn.SetSz(szDir);
+        stn.GetSzs(szPath);
+        std::snprintf(szDetail, sizeof(szDetail), "_FGetUserDirectories: ChangeDirectory(%s) failed, error=%u", szPath,
+                      static_cast<unsigned>(directoryError));
         AppendCrashLog("STEP_FAIL", szDetail);
         return fFalse;
     }
-#else  //! WIN
-    RawRtn();
-#endif //! WIN
     AssertPo(&_fniUserDir, ffniDir);
 
     if (!FSetProp(kpridFirstTimeUser, fFirstTimeUser))
@@ -1493,55 +1571,39 @@ bool Application::_FGetUserName(void)
 {
     AssertBaseThis(0);
 
-#ifdef WIN
     bool fRet = fTrue;
-    DWORD dwCbUser = size(ZString);
-    ZString szT;
-
-    switch (WNetGetUser(NULL, szT, &dwCbUser))
+    const auto user = KauaiUsers::QueryName();
+    switch (user.status)
     {
-    case ERROR_EXTENDED_ERROR: {
-        DWORD dwError;
-        ZString szProvider;
-        String stnMessage;
-
-        if (WNetGetLastError(&dwError, szT, size(ZString), szProvider, size(ZString)) == NO_ERROR)
+    case KauaiUsers::NameStatus::ProviderError: {
+        String stnFormat, stnMessage;
+        if (FGetStnApp(idsWNetError, &stnFormat))
         {
-            String stnFormat;
-
-            if (FGetStnApp(idsWNetError, &stnFormat))
-            {
-                stnMessage.FFormat(&stnFormat, szProvider, dwError, szT);
-                TGiveAlertSz(stnMessage.Psz(), bkOk, cokExclamation);
-            }
+            stnMessage.FFormat(&stnFormat, const_cast<achar *>(user.provider.c_str()),
+                               static_cast<LegacyUlong>(user.error), const_cast<achar *>(user.message.c_str()));
+            TGiveAlertSz(stnMessage.Psz(), bkOk, cokExclamation);
         }
-        else
-            Bug("Call to WNetGetLastError failed; this should never happen");
         _stnUser.SetNil();
         fRet = fFalse;
         break;
     }
-
-    case NO_ERROR:
-        _stnUser = szT;
+    case KauaiUsers::NameStatus::ProviderErrorUnavailable:
+        Bug("Call to retrieve user provider error failed; this should never happen");
+        _stnUser.SetNil();
+        fRet = fFalse;
+        break;
+    case KauaiUsers::NameStatus::Found:
+        _stnUser.SetRgch(const_cast<achar *>(user.name.data()), static_cast<long>(user.name.length()));
         if (_stnUser.Cch() > 0)
-            break; // else fall through...
-
-    case ERROR_MORE_DATA:
-    case ERROR_NO_NETWORK:
-    case ERROR_NO_NET_OR_BAD_PATH:
+            break;
+        // Empty names use the localized default, as before.
     default:
         if (!FGetStnApp(idsDefaultUser, &_stnUser))
             fRet = fFalse;
         break;
     }
-
     Assert(!fRet || _stnUser.Cch() > 0, "Bug in _FGetUserName");
     return fRet;
-#else  // WIN
-    RawRtn();
-    return fFalse;
-#endif // !WIN
 }
 
 /******************************
@@ -1549,8 +1611,9 @@ bool Application::_FGetUserName(void)
 *******************************/
 struct UserData
 {
-    long rglw[kcpridUserData];
+    LegacyLong rglw[kcpridUserData];
 };
+static_assert(sizeof(UserData) == 4 * kcpridUserData, "user preferences must retain their 32-bit layout");
 
 /***************************************************************************
     Reads the "user data" from the registry and SetProp's the data onto
@@ -1590,8 +1653,10 @@ bool Application::_FWriteUserData(void)
 
     for (iprid = 0; iprid < kcpridUserData; iprid++)
     {
-        if (!FGetProp(kpridUserDataBase + iprid, &UserData.rglw[iprid]))
+        long value;
+        if (!FGetProp(kpridUserDataBase + iprid, &value) || value < INT32_MIN || value > INT32_MAX)
             return fFalse;
+        UserData.rglw[iprid] = static_cast<LegacyLong>(value);
     }
     if (!FGetSetRegKey(kszUserDataValue, &UserData, size(UserData), fregSetKey | fregBinary))
     {
@@ -1627,81 +1692,28 @@ bool Application::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData
     AssertPvCb(pvData, cbData);
     AssertNilOrVarMem(pfNoValue);
 
-    bool fRet = fFalse;
-    bool fSetKey, fSetDefault, fString, fBinary;
-
-    fSetKey = grfreg & fregSetKey;
-    fSetDefault = grfreg & fregSetDefault;
-    fString = grfreg & fregString;
-    fBinary = grfreg & fregBinary;
+    KauaiSettings::Request request;
+    request.write = (grfreg & fregSetKey) != 0;
+    request.setDefault = (grfreg & fregSetDefault) != 0;
+    request.machine = (grfreg & fregMachine) != 0;
+    request.type = (grfreg & fregBinary)   ? KauaiSettings::Type::Binary
+                   : (grfreg & fregString) ? KauaiSettings::Type::String
+                                           : KauaiSettings::Type::Number;
+    if (cbData < 0 || static_cast<std::uint64_t>(cbData) > UINT32_MAX)
+        return fFalse;
+    if (request.write && request.type == KauaiSettings::Type::String)
+        Assert(CchSz((PZString)pvData) < cbData, "Invalid string for reg key");
 
 #ifdef WIN
-    DWORD dwDisposition;
-    DWORD dwCbData = cbData;
-    DWORD dwType;
-    HKEY hkey = 0;
-
-    // KEY_WOW64_32KEY: see comment in _FReadTitlesFromReg -- the 1995 installer
-    // populates the WOW6432Node view; an x64 build must opt in to read it.
-    if (RegCreateKeyEx((grfreg & fregMachine) ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER, kszSocratesKey, 0, NULL,
-                       REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS | KEY_WOW64_32KEY, NULL, &hkey,
-                       &dwDisposition) != ERROR_SUCCESS)
-    {
-        goto LFail;
-    }
-
-    if ((dwDisposition == REG_CREATED_NEW_KEY && fSetDefault) || fSetKey)
-    {
-    LWriteValue:
-        if (fBinary)
-        {
-            dwType = REG_BINARY;
-        }
-        else if (fString)
-        {
-            if (!fSetKey)
-                dwCbData = CchSz((PZString)pvData) + kcchExtraSz;
-            else
-                Assert(CchSz((PZString)pvData) < cbData, "Invalid string for reg key");
-            dwType = REG_SZ;
-        }
-        else
-        {
-            Assert(cbData == size(DWORD), "Unknown reg key type");
-            dwType = REG_DWORD;
-        }
-
-        if (RegSetValueEx(hkey, pszValueName, NULL, dwType, (byte *)pvData, dwCbData) != ERROR_SUCCESS)
-        {
-            goto LFail;
-        }
-    }
-    else
-    {
-        long lwRet;
-
-        if ((lwRet = RegQueryValueEx(hkey, pszValueName, NULL, &dwType, (byte *)pvData, &dwCbData)) != ERROR_SUCCESS)
-        {
-            if (lwRet == ERROR_FILE_NOT_FOUND && fSetDefault)
-                goto LWriteValue;
-            /* If the caller gave us a way to differentiate a genuine registry
-                failure from simply not having set the value yet, do so */
-            if (pfNoValue != pvNil)
-                fRet = *pfNoValue = (lwRet == ERROR_FILE_NOT_FOUND);
-            goto LFail;
-        }
-        Assert(dwType == (DWORD)(fString ? REG_SZ : (fBinary ? REG_BINARY : REG_DWORD)), "Invalid key type");
-    }
-    if (pfNoValue != pvNil)
-        *pfNoValue = fFalse;
-    fRet = fTrue;
-LFail:
-    if (hkey != 0)
-        RegCloseKey(hkey);
-#else  // WIN
-    RawRtn();
-#endif // !WIN
-    return fRet;
+    const auto &backend = KauaiSettings::WindowsBackend();
+#else
+    const auto &backend = KauaiSettings::PosixBackend();
+#endif
+    bool wrongType = false;
+    const bool result = KauaiSettings::Access(backend, kszSocratesKey, pszValueName, pvData,
+                                              static_cast<std::uint32_t>(cbData), request, pfNoValue, &wrongType);
+    Assert(!wrongType, "Invalid key type");
+    return result;
 }
 
 /***************************************************************************
@@ -1759,9 +1771,9 @@ bool Application::_FInitProductNames(void)
         return fFalse;
     }
 
-    if (!_FReadTitlesFromReg(&pgst))
+    if (!_FReadProductTitles(&pgst))
     {
-        _FGenericError(PszLit("_FInitProductNames: _FReadTitlesFromReg"));
+        _FGenericError(PszLit("_FInitProductNames: _FReadProductTitles"));
         goto LFail;
     }
 
@@ -1792,85 +1804,53 @@ LFail:
 }
 
 /***************************************************************************
-    Read the sids and titles of installed 3DMovie products from the registry
+    Read the sids and titles of installed 3DMovie products.
 ***************************************************************************/
-bool Application::_FReadTitlesFromReg(PStringTable_GST *ppgst)
+bool Application::_FReadProductTitles(PStringTable_GST *ppgst)
 {
     AssertBaseThis(0);
     AssertVarMem(ppgst);
-
-#ifdef WIN
-    HKEY hkey = 0;
-    DWORD dwDisposition;
-    DWORD iValue;
-    ZString szSid;
-    String stnSid;
-    DWORD cchSid = kcchMaxSz;
-    ZString szTitle;
-    String stnTitle;
-    DWORD cchTitle = kcchMaxSz;
-    PStringTable_GST pgst;
-    long sid;
-    LSTATUS lStatus;
-
-    if ((pgst = StringTable_GST::PgstNew(size(long))) == pvNil)
-        goto LFail;
-    // KEY_WOW64_32KEY: 1995 3DMM is a 32-bit app and its installer writes the
-    // Products key under HKLM\Software\WOW6432Node\... on Win64. Without this
-    // flag, an x64 build of this exe looks at the native 64-bit registry hive
-    // and finds nothing -- even on a machine where the x86 build works.
-    //
-    // KEY_READ (not KEY_ALL_ACCESS): we only enumerate values here, never
-    // write. KEY_ALL_ACCESS requires admin on HKLM and previously failed with
-    // ERROR_ACCESS_DENIED for non-elevated runs.
-    lStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, kszProductsKey, 0, KEY_READ | KEY_WOW64_32KEY, &hkey);
-    dwDisposition = REG_OPENED_EXISTING_KEY; // unused after this; quiet uninit-var
-    if (lStatus != ERROR_SUCCESS)
+    *ppgst = pvNil;
+    String root;
+    _fniMsKidsDir.GetStnPath(&root);
+    const auto products = StudioContent::ReadProducts(root.Psz());
+    if (products.status != StudioContent::Status::Ready)
     {
-        char szDetail[256];
-        wsprintfA(szDetail, "Missing InstallDirectory registry entry or registry error: RegOpenKeyEx(%s) returned %ld",
-                  kszProductsKey, lStatus);
-        Warn("Missing InstallDirectory registry entry or registry error");
-        _FGenericError(szDetail);
-        goto LFail;
+        char detail[160];
+        std::snprintf(detail, sizeof(detail), "Cannot read installed product titles (status %u, native error %u)",
+                      static_cast<unsigned>(products.status), static_cast<unsigned>(products.error));
+        _FGenericError(detail);
+        return fFalse;
     }
-
-    for (iValue = 0; RegEnumValue(hkey, iValue, szSid, &cchSid, NULL, NULL, (unsigned char *)szTitle, &cchTitle) !=
-                     ERROR_NO_MORE_ITEMS;
-         iValue++)
+    PStringTable_GST pgst = StringTable_GST::PgstNew(size(LegacyLong));
+    if (pgst == pvNil)
+        return fFalse;
+    for (const auto &product : products.entries)
     {
-        stnSid.SetSz(szSid);
+        String stnSid, stnTitle;
+        LegacyLong sid;
+        stnSid.SetSz(const_cast<achar *>(product.sourceId.c_str()));
         if (!stnSid.FGetLw(&sid))
         {
-            Warn("Invalid registry name for Products key value");
+            Warn("Invalid installed product source id");
             continue;
         }
-        stnTitle.SetSz(&szTitle[0]);
+        stnTitle.SetSz(const_cast<achar *>(product.title.c_str()));
         if (!pgst->FAddStn(&stnTitle, &sid))
             goto LFail;
-        cchTitle = kcchMaxSz;
-        cchSid = kcchMaxSz;
     }
-
     if (pgst->IvMac() == 0)
     {
-        stnTitle.SetSz(PszLit("3D Movie Maker/3DMovie"));
-        sid = 1;
+        achar fallbackTitle[] = PszLit("3D Movie Maker/3DMovie");
+        String stnTitle(fallbackTitle);
+        LegacyLong sid = 1;
         if (!pgst->FAddStn(&stnTitle, &sid))
-        {
-            Warn("Failed to add fallback Title!");
             goto LFail;
-        }
     }
-#else  //! WIN
-    RawRtn();
-#endif //! WIN
     *ppgst = pgst;
     return fTrue;
-
 LFail:
     ReleasePpo(&pgst);
-    *ppgst = pvNil;
     return fFalse;
 }
 
@@ -1888,7 +1868,7 @@ bool Application::_FInitTdt(void)
     pgst = _PgstRead(kcnoGstAction);
     if (pvNil == pgst)
         return fFalse;
-    Assert(pgst->CbExtra() == size(long), "bad Action string table");
+    Assert(pgst->CbExtra() == size(LegacyLong), "bad Action string table");
     if (!ThreeDText::FSetActionNames(pgst))
     {
         ReleasePpo(&pgst);
@@ -1907,29 +1887,11 @@ PStringTable_GST Application::_PgstRead(ChunkNumber cno)
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    PStringTable_GST pgst;
     DataBlock blck;
-    short bo;
-    short osk;
-    long istn;
-    long lwExtra;
 
     if (!_pcfl->FFind(kctgGst, cno, &blck))
         return pvNil;
-    pgst = StringTable_GST::PgstRead(&blck, &bo, &osk);
-    if (pvNil == pgst)
-        return pvNil;
-    Assert(pgst->CbExtra() == 0 || pgst->CbExtra() == size(long), "unexpected extra size");
-    if (kboCur != bo && 0 != pgst->CbExtra())
-    {
-        for (istn = 0; istn < pgst->IvMac(); istn++)
-        {
-            pgst->GetExtra(istn, &lwExtra);
-            SwapBytesRglw(&lwExtra, 1);
-            pgst->PutExtra(istn, &lwExtra);
-        }
-    }
-    return pgst;
+    return StudioResources::ReadStringTable(&blck);
 }
 
 /***************************************************************************
@@ -2039,11 +2001,11 @@ bool Application::_FInitCrm(void)
     if (pvNil == _pcrmAll)
         goto LFail;
 
-    _pglicrfBuilding = DynamicArray::PglNew(size(long), _pgstBuildingFiles->IvMac());
+    _pglicrfBuilding = DynamicArray::PglNew(size(LegacyLong), _pgstBuildingFiles->IvMac());
     if (pvNil == _pglicrfBuilding)
         goto LFail;
 
-    _pglicrfStudio = DynamicArray::PglNew(size(long), _pgstStudioFiles->IvMac());
+    _pglicrfStudio = DynamicArray::PglNew(size(LegacyLong), _pgstStudioFiles->IvMac());
     if (pvNil == _pglicrfStudio)
         goto LFail;
 
@@ -2095,9 +2057,9 @@ bool Application::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager 
     Filename fni;
     String stn;
     long istn;
-    long cbCache;
+    LegacyLong cbCache;
     PChunkyFile pcfl = pvNil;
-    long icfl;
+    LegacyLong icfl;
 
     for (istn = 0; istn < pgstFiles->IvMac(); istn++)
     {
@@ -2162,8 +2124,8 @@ bool Application::_FInitBuilding(void)
 
     bool fRet = fFalse;
     long i;
-    long cbCache;
-    long iv;
+    LegacyLong cbCache;
+    LegacyLong iv;
     PChunkyResourceFile pcrfT;
     PGraphicsObjectInterpreter psceg = pvNil;
     PScript pscpt = pvNil;
@@ -2219,8 +2181,8 @@ bool Application::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
     AssertBaseThis(0);
 
     long i;
-    long cbCache;
-    long iv;
+    LegacyLong cbCache;
+    LegacyLong iv;
     PChunkyResourceFile pcrfT;
     bool fRet = fFalse;
 
@@ -2378,7 +2340,7 @@ void Application::_ParseCommandLine(void)
 {
     AssertBaseThis(0);
 
-#ifdef WIN
+#if defined(WIN) || defined(KAUAI_SDL3)
     ZString sz;
     String stn;
     achar *pch;
@@ -2386,69 +2348,53 @@ void Application::_ParseCommandLine(void)
     Filename fniT;
 
     // Get path to current directory
-    GetCurrentDirectory(kcchMaxSz, sz);
+    if (!KauaiFiles::CurrentDirectory(sz, kcchMaxSz))
+    {
+        Warn("Cannot resolve current directory");
+        return;
+    }
     stn.SetSz(sz);
     if (!_fniCurrentDir.FBuildFromPath(&stn, kftgDir))
         Bug("Bad current directory?");
 
     // Get path to exe
-    GetModuleFileName(NULL, sz, kcchMaxSz);
+    if (!KauaiFiles::ExecutablePath(sz, kcchMaxSz))
+    {
+        Warn("Cannot resolve executable path");
+        return;
+    }
     stn.SetSz(sz);
     if (!_fniExe.FBuildFromPath(&stn))
         Bug("Bad module filename?");
 
-    pch = vwig.pszCmdLine;
-    // first argument (app name) is useless...skip it
-    _SkipToSpace(&pch);
-    _SkipSpace(&pch);
-
-    while (*pch != chNil)
+    StudioStartup::Options<achar> options;
+    const bool parsed = KauaiLaunch::HasArguments() ? StudioStartup::ParseArguments(KauaiLaunch::ArgumentCount(),
+                                                                                    KauaiLaunch::Arguments(), options)
+                                                    : StudioStartup::Parse(KauaiLaunch::CommandLine(), options);
+    if (!parsed)
     {
-        // Look for /options or -options
-        if (*pch == ChLit('/') || *pch == ChLit('-'))
+        Warn("Malformed startup arguments");
+        return;
+    }
+    if (options.dontMinimize)
+        _fDontMinimize = fTrue;
+    if (options.hasSpeed)
+        _fSlowCPU = options.slow;
+    if (options.hasLongName)
+        _stnProductLong.SetRgch(const_cast<achar *>(options.longName.data()),
+                                static_cast<long>(options.longName.length()));
+    if (options.hasShortName)
+        _stnProductShort.SetRgch(const_cast<achar *>(options.shortName.data()),
+                                 static_cast<long>(options.shortName.length()));
+    if (options.unknownSwitches)
+        Warn("Bad command-line switch");
+    if (options.document)
+    {
+        if (options.documentIsLiteral)
+            stn.SetSz(const_cast<achar *>(options.document));
+        else
         {
-            switch (ChUpper(*(pch + 1)))
-            {
-            case ChLit('M'):
-                _fDontMinimize = fTrue;
-                break;
-            case ChLit('S'):
-                _fSlowCPU = fTrue;
-                break;
-            case ChLit('F'):
-                _fSlowCPU = fFalse;
-                break;
-            case ChLit('P'): {
-                pch += 2; // skip "-p"
-                pchT = pch;
-                _SkipToSpace(&pchT);
-                // skip quotes
-                if (*pch == ChLit('"'))
-                    _stnProductLong.SetRgch(pch + 1, pchT - pch - 2);
-                else
-                    _stnProductLong.SetRgch(pch, pchT - pch);
-            }
-            break;
-            case ChLit('T'): {
-                pch += 2; // skip "-t"
-                pchT = pch;
-                _SkipToSpace(&pchT);
-                // skip quotes
-                if (*pch == ChLit('"'))
-                    _stnProductShort.SetRgch(pch + 1, pchT - pch - 2);
-                else
-                    _stnProductShort.SetRgch(pch, pchT - pch);
-            }
-            break;
-            default:
-                Warn("Bad command-line switch");
-                break;
-            }
-            _SkipToSpace(&pch);
-            _SkipSpace(&pch);
-        }
-        else // try to parse as fni string
-        {
+            pch = const_cast<achar *>(options.document);
             // get to end of string
             pchT = pch + CchSz(pch);
 
@@ -2467,33 +2413,26 @@ void Application::_ParseCommandLine(void)
             stn.SetRgch(pch, pchT - pch);
 
             // try to map to long file name if we can
-            HANDLE hFile = pvNil;
-            WIN32_FIND_DATA W32FindData;
-
-            hFile = FindFirstFile(pch, &W32FindData);
-            if (INVALID_HANDLE_VALUE != hFile)
+            if (KauaiFiles::LookupLeafName(pch, sz, kcchMaxSz))
             {
                 // append the longfile name returned...
-                stn.FAppendSz(W32FindData.cFileName);
-                FindClose(hFile);
+                stn.FAppendSz(sz);
             }
             else
                 // just use what was passed orginally...
                 stn.SetSz(pch);
 
             // remove ending quotes since FBuildFromPath can't deal
-            if (stn.Psz()[stn.Cch() - 1] == ChLit('\"'))
+            if (stn.Cch() && stn.Psz()[stn.Cch() - 1] == ChLit('\"'))
                 stn.Delete(stn.Cch() - 1, 1);
-            if (fniT.FBuildFromPath(&stn))
-            {
-                SetPortfolioDoc(&fniT);
-            }
-            // move to end of string, we now assume that everything past options is the document name
-            pch += CchSz(pch);
+        }
+        if (fniT.FBuildFromPath(&stn))
+        {
+            SetPortfolioDoc(&fniT);
         }
     }
-#endif // WIN
-#ifdef MAC
+#endif // WIN or SDL
+#if defined(MAC) && !defined(KAUAI_SDL3)
     RawRtn();
 #endif // MAC
 }
@@ -2511,7 +2450,10 @@ bool Application::_FEnsureProductNames(void)
 
     if (_stnProductLong.Cch() == 0)
     {
-#ifdef WIN
+#ifdef KAUAI_SDL3
+        _stnProductLong = STUDIO_NAME_LITERAL(STUDIO_PRODUCT_LONG_NAME);
+        _stnProductShort = STUDIO_NAME_LITERAL(STUDIO_PRODUCT_SHORT_NAME);
+#elif defined(WIN)
         ZString sz;
 
         if (0 == LoadString(vwig.hinst, stid3DMovieNameLong, sz, kcchMaxSz))
@@ -2542,6 +2484,46 @@ bool Application::_FFindMsKidsDir(void)
 
     String stn;
 
+#ifdef KAUAI_SDL3
+    const auto configured = StudioContent::ConfiguredRoot();
+    if (configured.status != StudioContent::Status::Ready)
+    {
+        _FGenericError(PszLit("Invalid THREEDMM_CONTENT_ROOT: expected an absolute content root of at most 255 characters"));
+        return fFalse;
+    }
+    if (!configured.path.empty())
+    {
+        stn.SetSz(const_cast<achar *>(configured.path.c_str()));
+        Filename candidate;
+        if (!candidate.FBuildFromPath(&stn, kftgDir) || !_FMsKidsDirIsComplete(&candidate))
+        {
+            _FGenericError(PszLit("THREEDMM_CONTENT_ROOT does not contain the selected product's BLDGDATA.CHK"));
+            return fFalse;
+        }
+        _fniMsKidsDir = candidate;
+        return fTrue;
+    }
+    // SDL development launches supply the product directory as cwd, and an
+    // installed executable may live there too. Recognize that tree before
+    // searching unrelated system installs. Filename keeps this filesystem-only.
+    for (int source = 0; source < 2; ++source)
+    {
+        Filename candidate = source == 0 ? _fniCurrentDir : _fniExe;
+        if (source == 1 && !candidate.FSetLeaf(pvNil, kftgDir))
+            continue;
+        for (int parent = 0; parent < 3; ++parent)
+        {
+            if (_FMsKidsDirIsComplete(&candidate))
+            {
+                _fniMsKidsDir = candidate;
+                return fTrue;
+            }
+            if (!candidate.FUpDir(pvNil, ffniMoveToDir))
+                break;
+        }
+    }
+#endif
+
     // Candidate kids-dir roots, in priority order. We descend each through
     // _FFindMsKidsDirAt (Microsoft Kids/MSKIDS) and prefer the first one whose
     // 3D Movie Maker subdir contains BLDGDATA.CHK -- that file ships only with
@@ -2560,6 +2542,7 @@ bool Application::_FFindMsKidsDir(void)
     if (rgfniCand[cfniCand].FSetLeaf(pvNil, kftgDir))
         cfniCand++;
 
+#ifdef WIN
     stn = PszLit("C:\\Program Files (x86)");
     if (rgfniCand[cfniCand].FBuildFromPath(&stn, kftgDir) && tYes == rgfniCand[cfniCand].TExists())
         cfniCand++;
@@ -2567,6 +2550,8 @@ bool Application::_FFindMsKidsDir(void)
     stn = PszLit("C:\\Program Files");
     if (rgfniCand[cfniCand].FBuildFromPath(&stn, kftgDir) && tYes == rgfniCand[cfniCand].TExists())
         cfniCand++;
+
+#endif
 
     Filename fniFirstHit;
     bool fHaveFirstHit = fFalse;
@@ -2726,38 +2711,6 @@ LFail:
 }
 
 /***************************************************************************
-    Advances *ppch until it points to either the next space character or
-    the end of the string.  Exception: if the space character is surrounded
-    by double quotes, this function skips by it.
-***************************************************************************/
-void Application::_SkipToSpace(char **ppch)
-{
-    AssertBaseThis(0);
-    AssertVarMem(ppch);
-
-    bool fQuote = fFalse;
-
-    while (**ppch != chNil && (fQuote || **ppch != kchSpace))
-    {
-        if (**ppch == ChLit('"'))
-            fQuote = !fQuote;
-        (*ppch)++;
-    }
-}
-
-/***************************************************************************
-    Advances *ppch to the next non-space character.
-***************************************************************************/
-void Application::_SkipSpace(char **ppch)
-{
-    AssertBaseThis(0);
-    AssertVarMem(ppch);
-
-    while (**ppch == kchSpace)
-        (*ppch)++;
-}
-
-/***************************************************************************
     Socrates window was activated or deactivated.
 ***************************************************************************/
 void Application::_Activate(bool fActive)
@@ -2768,6 +2721,10 @@ void Application::_Activate(bool fActive)
     bool fIsIconic;
 
     Application_PAR::_Activate(fActive);
+
+#ifdef KAUAI_SDL3
+    return; // SDL manages focus without legacy desktop-mode/minimize changes.
+#endif
 
     fIsIconic = IsIconic(vwig.hwndApp);
 
@@ -3591,7 +3548,8 @@ bool Application::FCmdInfo(PCommand pcmd)
 #endif // DEBUG
     // Surface the build's pointer width so users (and bug reports) can tell
     // an x64 build from an x86 build at a glance.
-    stn.FAppendSz(sizeof(void *) == 8 ? PszLit(" (64-bit)") : PszLit(" (32-bit)"));
+    achar architecture64[] = PszLit(" (64-bit)"), architecture32[] = PszLit(" (32-bit)");
+    stn.FAppendSz(sizeof(void *) == 8 ? architecture64 : architecture32);
     extern const char kszBuildStamp[]; // generated each build (cmake/WriteBuildStamp.cmake)
     stnT.FFormatSz(PszLit(" %d.%d.%04d  built %z"), rmj, rmm, rup, kszBuildStamp);
     stn.FAppendStn(&stnT);
@@ -3732,7 +3690,7 @@ bool Application::FCmdInfo(PCommand pcmd)
 #ifdef DEBUG
     {
         bool fEmpty;
-        long lwT;
+        LegacyLong lwT;
 
         if (pdlg->FGetLwFromEdit(iditCactAV, &lwT, &fEmpty) && !fEmpty)
         {
@@ -3802,6 +3760,10 @@ bool Application::_FDisplaySwitchSupported(void)
 {
     AssertBaseThis(0);
 
+#ifdef KAUAI_SDL3
+    return fTrue; // Desktop fullscreen does not require a display-mode switch.
+#endif
+
 #ifdef WIN
     DWORD dwVersion;
     byte bVersionMajor;
@@ -3826,6 +3788,12 @@ bool Application::_FDisplaySwitchSupported(void)
 bool Application::_FSwitch640480(bool fTo640480)
 {
     AssertBaseThis(0);
+
+#ifdef KAUAI_SDL3
+    // SDL scales the original canvas in desktop fullscreen; never change the
+    // desktop's resolution or palette depth.
+    return !KauaiSDL::Main().Active() || KauaiSDL::Main().SetFullscreen(fTo640480 && !_fRunInWindow);
+#endif
 
 #ifdef WIN
 #ifdef BUG1920
@@ -3967,7 +3935,26 @@ void Application::_CleanUp(void)
 }
 
 /***************************************************************************
-    Put up a modal help balloon
+    Bring the Studio forward before opening a modal dialog.
+***************************************************************************/
+void Application::EnsureInteractive(void)
+{
+#ifdef KAUAI_SDL3
+    KauaiSDL::Main().EnsureInteractive();
+#elif defined(WIN)
+    if (_fMinimized || GetForegroundWindow() != vwig.hwndApp)
+    {
+        SetForegroundWindow(vwig.hwndApp);
+        ShowWindow(vwig.hwndApp, SW_RESTORE);
+    }
+#else
+    if (_fMinimized)
+        RawRtn();
+#endif
+}
+
+/***************************************************************************
+    Put up a modal help balloon.
 ***************************************************************************/
 tribool Application::TModal(PResourceCache prca, long tpc, PString pstnBackup, long bkBackup, long stidSubst, PString pstnSubst)
 {
@@ -4055,7 +4042,7 @@ void Application::DisplayErrors(void)
 {
     AssertThis(0);
 
-    long erc;
+    LegacyLong erc;
     String stnMessage;
 
     if (vpers->FPop(&erc))
@@ -4068,7 +4055,7 @@ void Application::DisplayErrors(void)
         // routed through _FGenericError or AppendCrashLog otherwise.
         {
             char szDiag[64];
-            wsprintfA(szDiag, "DisplayErrors: erc=%ld", erc);
+            std::snprintf(szDiag, sizeof(szDiag), "DisplayErrors: erc=%ld", static_cast<long>(erc));
             AppendCrashLog("DISPLAY_ERROR", szDiag);
         }
 
@@ -4174,7 +4161,7 @@ void Application::DisplayErrors(void)
                 // Mirror to crash log so the on-screen text is recoverable later.
                 {
                     char szLog[256];
-                    wsprintfA(szLog, "DisplayErrors -> generic: erc=%ld %s -- %s", erc, pszName, pszDesc);
+                    std::snprintf(szLog, sizeof(szLog), "DisplayErrors -> generic: erc=%ld %s -- %s", static_cast<long>(erc), pszName, pszDesc);
                     AppendCrashLog("DISPLAY_ERROR", szLog);
                 }
             }
@@ -4558,6 +4545,16 @@ LFail:
     Override standard _FGetNextEvt to catch WM_USER event.  Otherwise
     the event will get thrown away, because the event's hwnd is nil.
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+bool Application::_FDispatchShortcut(const EVT &event)
+{
+    if (event.kind != KauaiInput::Kind::keyDown) return false;
+    const auto command = StudioInput::ShortcutCommand(event.key, event.modifiers, _cactDisable > 0);
+    if (!command) return false;
+    if (vpcex) vpcex->EnqueueCid(command);
+    return true;
+}
+#endif
 bool Application::_FGetNextEvt(PEVT pevt)
 {
     AssertThis(0);
@@ -4565,10 +4562,14 @@ bool Application::_FGetNextEvt(PEVT pevt)
 
     if (!Application_PAR::_FGetNextEvt(pevt))
         return fFalse;
+#ifdef KAUAI_SDL3
+    return fTrue;
+#else
     if (pevt->message != WM_USER || pevt->wParam != klwOpenDoc)
         return fTrue;
     _FProcessOpenDocCmd(); // ignore failure
     return fFalse;         // we've handled the WM_USER event
+#endif
 }
 #endif // WIN
 
@@ -4598,7 +4599,7 @@ void Application::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grf
 /***************************************************************************
     Override default UpdateHwnd to optionally skip offscreen buffer
 ***************************************************************************/
-void Application::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void Application::UpdateHwnd(CoreNative::WindowHandle hwnd, RC *prc, ulong grfapp)
 {
     AssertBaseThis(0); // Application may not be completely valid
 
@@ -4632,6 +4633,22 @@ bool Application::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, L
 {
     AssertBaseThis(0);
     AssertVarMem(plwRet);
+
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        if (wm == WM_SIZE)
+        {
+            _fMinimized = wParam == SIZE_MINIMIZED;
+            return Application_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
+        }
+        if (wm == WM_DISPLAYCHANGE)
+        {
+            *plwRet = 0;
+            return fTrue; // SDL handles display changes and renderer resizing.
+        }
+    }
+#endif
 
     switch (wm)
     {
@@ -4786,6 +4803,7 @@ void Application::DisableAccel(void)
 {
     AssertBaseThis(0); // Gets called from destructors
 
+#ifndef KAUAI_SDL3
     if (_cactDisable == 0)
     {
 #ifdef WIN
@@ -4795,6 +4813,7 @@ void Application::DisableAccel(void)
         RawRtn();
 #endif
     }
+#endif
 
     _cactDisable++;
 }
@@ -4809,6 +4828,7 @@ void Application::EnableAccel(void)
 
     _cactDisable--;
 
+#ifndef KAUAI_SDL3
     if (_cactDisable == 0)
     {
 #ifdef WIN
@@ -4817,6 +4837,7 @@ void Application::EnableAccel(void)
         RawRtn();
 #endif
     }
+#endif
 }
 
 /***************************************************************************
@@ -4967,7 +4988,7 @@ void Application::PopCurs(void)
 /***************************************************************************
     Assert the validity of the Application
 ***************************************************************************/
-void Application::AssertValid(ulong grf)
+void Application::AssertValid(LegacyUlong grf)
 {
     Application_PAR::AssertValid(0);
     AssertNilOrPo(_pstdio, 0);
@@ -5106,7 +5127,7 @@ bool KidWorld::FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwR
 /***************************************************************************
     Assert the validity of the KidWorld
 ***************************************************************************/
-void KidWorld::AssertValid(ulong grf)
+void KidWorld::AssertValid(LegacyUlong grf)
 {
     KidWorld_PAR::AssertValid(0);
     AssertNilOrPo(_pmbmp, 0);

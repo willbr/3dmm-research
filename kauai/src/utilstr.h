@@ -56,7 +56,7 @@ void AssertOsk(short osk);
 /***************************************************************************
     Return the number of bytes a character occupies in the given osk.
 ***************************************************************************/
-inline long CbCharOsk(short osk)
+inline LegacyLong CbCharOsk(short osk)
 {
     switch (osk)
     {
@@ -84,18 +84,18 @@ const achar kchSpace = ChLit(' ');
 const wchar kchwUnicode = 0xFEFF;
 const wchar kchwUnicodeSwap = 0xFFFE;
 
-const long kcchMaxSz = 255;
-const long kcchMaxSt = 255;
-const long kcchMaxStz = 255;
-const long kcchExtraSz = 1;
-const long kcchExtraSt = 1;
-const long kcchExtraStz = 2;
-const long kcchTotSz = kcchMaxSz + kcchExtraSz;
-const long kcchTotSt = kcchMaxSt + kcchExtraSt;
-const long kcchTotStz = kcchMaxStz + kcchExtraStz;
+const LegacyLong kcchMaxSz = 255;
+const LegacyLong kcchMaxSt = 255;
+const LegacyLong kcchMaxStz = 255;
+const LegacyLong kcchExtraSz = 1;
+const LegacyLong kcchExtraSt = 1;
+const LegacyLong kcchExtraStz = 2;
+const LegacyLong kcchTotSz = kcchMaxSz + kcchExtraSz;
+const LegacyLong kcchTotSt = kcchMaxSt + kcchExtraSt;
+const LegacyLong kcchTotStz = kcchMaxStz + kcchExtraStz;
 
-const long kcchMaxStn = 255;
-const long kcbMaxDataStn = kcchTotStz * size(wchar) + size(short);
+const LegacyLong kcchMaxStn = 255;
+const LegacyLong kcbMaxDataStn = kcchTotStz * size(wchar) + size(short);
 
 enum
 {
@@ -119,7 +119,7 @@ typedef schar SZS[kcchTotSz];
     String related asserts
 ***************************************************************************/
 #ifdef DEBUG
-void AssertRgch(achar *prgch, long cch);
+void AssertRgch(achar *prgch, LegacyLong cch);
 void AssertStz(PSTZ pstz);
 void AssertSt(PPascalString pst);
 void AssertSz(PZString psz);
@@ -143,30 +143,30 @@ bool FValidSt(PPascalString pst);
     bytes) and CchTot means the total number of characters including
     overhead.
 ***************************************************************************/
-long CchSz(PZString psz);
-inline long CchTotSz(PZString psz)
+LegacyLong CchSz(PZString psz);
+inline LegacyLong CchTotSz(PZString psz)
 {
     return CchSz(psz) + kcchExtraSz;
 }
-inline long CchSt(PPascalString pst)
+inline LegacyLong CchSt(PPascalString pst)
 {
     AssertSt(pst);
-    return (long)(byte)pst[0];
+    return (LegacyLong)(byte)pst[0];
 }
-inline long CchTotSt(PPascalString pst)
+inline LegacyLong CchTotSt(PPascalString pst)
 {
     AssertSt(pst);
-    return (long)(byte)pst[0] + kcchExtraSt;
+    return (LegacyLong)(byte)pst[0] + kcchExtraSt;
 }
-inline long CchStz(PSTZ pstz)
+inline LegacyLong CchStz(PSTZ pstz)
 {
     AssertStz(pstz);
-    return (long)(byte)pstz[0];
+    return (LegacyLong)(byte)pstz[0];
 }
-inline long CchTotStz(PSTZ pstz)
+inline LegacyLong CchTotStz(PSTZ pstz)
 {
     AssertStz(pstz);
-    return (long)(byte)pstz[0] + kcchExtraStz;
+    return (LegacyLong)(byte)pstz[0] + kcchExtraStz;
 }
 
 inline achar *PrgchSt(PPascalString pst)
@@ -184,20 +184,20 @@ inline PZString PszStz(PSTZ pstz)
     comparison, including any length and/or terminating bytes and should
     be used only for internal sorting (for binary search etc).
 ***************************************************************************/
-bool FEqualRgch(achar *prgch1, long cch1, achar *prgch2, long cch2);
-ulong FcmpCompareRgch(achar *prgch1, long cch1, achar *prgch2, long cch2);
+bool FEqualRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2);
+LegacyUlong FcmpCompareRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2);
 
 /***************************************************************************
     User level (case insensitive, locale aware) comparison and sorting.
 ***************************************************************************/
-bool FEqualUserRgch(achar *prgch1, long cch1, achar *prgch2, long cch2, ulong grfstn = fstnIgnoreCase);
-ulong FcmpCompareUserRgch(achar *prgch1, long cch1, achar *prgch2, long cch2, ulong grfstn = fstnIgnoreCase);
+bool FEqualUserRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2, LegacyUlong grfstn = fstnIgnoreCase);
+LegacyUlong FcmpCompareUserRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2, LegacyUlong grfstn = fstnIgnoreCase);
 
 /***************************************************************************
     Upper and lower case utilies
 ***************************************************************************/
-void UpperRgchs(schar *prgchs, long cchs);
-void LowerRgchs(schar *prgchs, long cchs);
+void UpperRgchs(schar *prgchs, LegacyLong cchs);
+void LowerRgchs(schar *prgchs, LegacyLong cchs);
 inline schar ChsUpper(schar chs)
 {
     UpperRgchs(&chs, 1);
@@ -208,8 +208,8 @@ inline schar ChsLower(schar chs)
     LowerRgchs(&chs, 1);
     return chs;
 }
-void UpperRgchw(wchar *prgchw, long cchw);
-void LowerRgchw(wchar *prgchw, long cchw);
+void UpperRgchw(wchar *prgchw, LegacyLong cchw);
+void LowerRgchw(wchar *prgchw, LegacyLong cchw);
 inline wchar ChwUpper(wchar chw)
 {
     UpperRgchw(&chw, 1);
@@ -222,11 +222,11 @@ inline wchar ChwLower(wchar chw)
 }
 
 #ifdef UNICODE
-inline void UpperRgch(achar *prgch, long cch)
+inline void UpperRgch(achar *prgch, LegacyLong cch)
 {
     UpperRgchw(prgch, cch);
 }
-inline void LowerRgch(achar *prgch, long cch)
+inline void LowerRgch(achar *prgch, LegacyLong cch)
 {
     LowerRgchw(prgch, cch);
 }
@@ -241,11 +241,11 @@ inline achar ChLower(achar ch)
     return ch;
 }
 #else  //! UNICODE
-inline void UpperRgch(achar *prgch, long cch)
+inline void UpperRgch(achar *prgch, LegacyLong cch)
 {
     UpperRgchs(prgch, cch);
 }
-inline void LowerRgch(achar *prgch, long cch)
+inline void LowerRgch(achar *prgch, LegacyLong cch)
 {
     LowerRgchs(prgch, cch);
 }
@@ -265,13 +265,13 @@ inline achar ChLower(achar ch)
     Translation from one OS to another (eg, Win to Mac, single byte to
     unicode, etc).
 ***************************************************************************/
-long CchTranslateRgb(void *pvSrc, long cbSrc, short oskSrc, achar *prgchDst, long cchMaxDst);
+LegacyLong CchTranslateRgb(void *pvSrc, LegacyLong cbSrc, short oskSrc, achar *prgchDst, LegacyLong cchMaxDst);
 
 /***************************************************************************
     These APIs assert if osk specifies a different sized character than
     koskCur uses.
 ***************************************************************************/
-void TranslateRgch(achar *prgch, long cch, short osk, bool fToCur = fTrue);
+void TranslateRgch(achar *prgch, LegacyLong cch, short osk, bool fToCur = fTrue);
 inline void TranslateSt(PPascalString pst, short osk, bool fToCur = fTrue)
 {
     TranslateRgch(pst + 1, CchSt(pst), osk, fToCur);
@@ -311,7 +311,7 @@ enum
     fchTab = 0x20,
 };
 
-ulong GrfchFromCh(achar ch);
+LegacyUlong GrfchFromCh(achar ch);
 
 /***************************************************************************
     The hexadecimal digits 0 - 9, A - F.
@@ -359,7 +359,7 @@ class String
         AssertThis(0);
         return _rgch;
     }
-    long Cch(void)
+    LegacyLong Cch(void)
     {
         AssertThis(0);
         return (uchar)_rgch[0];
@@ -371,7 +371,7 @@ class String
         AssertThis(0);
         _rgch[0] = _rgch[1] = 0;
     }
-    void SetRgch(achar *prgchSrc, long cch);
+    void SetRgch(achar *prgchSrc, LegacyLong cch);
     void SetSz(PZString pszSrc)
     {
         SetRgch(pszSrc, CchSz(pszSrc));
@@ -418,8 +418,8 @@ class String
     void GetSzs(PSZS pszs);
 
     // modifying the string
-    void Delete(long ich, long cch = kcchMaxStn);
-    bool FAppendRgch(achar *prgchSrc, long cch);
+    void Delete(LegacyLong ich, LegacyLong cch = kcchMaxStn);
+    bool FAppendRgch(achar *prgchSrc, LegacyLong cch);
     bool FAppendCh(achar chSrc)
     {
         return FAppendRgch(&chSrc, 1);
@@ -432,18 +432,18 @@ class String
     {
         return FAppendRgch(pstnSrc->Prgch(), pstnSrc->Cch());
     }
-    bool FInsertRgch(long ich, achar *prgchSrc, long cch);
-    bool FInsertCh(long ich, achar chSrc)
+    bool FInsertRgch(LegacyLong ich, achar *prgchSrc, LegacyLong cch);
+    bool FInsertCh(LegacyLong ich, achar chSrc)
     {
         return FInsertRgch(ich, &chSrc, 1);
     }
-    bool FInsertStn(long ich, PString pstnSrc)
+    bool FInsertStn(LegacyLong ich, PString pstnSrc)
     {
         return FInsertRgch(ich, pstnSrc->Prgch(), pstnSrc->Cch());
     }
 
     // for testing equality
-    bool FEqualRgch(achar *prgch, long cch);
+    bool FEqualRgch(achar *prgch, LegacyLong cch);
     bool FEqualSz(PZString psz)
     {
         return FEqualRgch(psz, CchSz(psz));
@@ -452,37 +452,38 @@ class String
     {
         return FEqualRgch(pstn->Prgch(), pstn->Cch());
     }
-    bool FEqualUserRgch(achar *prgch, long cch, ulong grfstn = fstnIgnoreCase);
-    bool FEqualUserSz(PZString psz, ulong grfstn = fstnIgnoreCase)
+    bool FEqualUserRgch(achar *prgch, LegacyLong cch, LegacyUlong grfstn = fstnIgnoreCase);
+    bool FEqualUserSz(PZString psz, LegacyUlong grfstn = fstnIgnoreCase)
     {
         return FEqualUserRgch(psz, CchSz(psz), grfstn);
     }
-    bool FEqualUser(PString pstn, ulong grfstn = fstnIgnoreCase)
+    bool FEqualUser(PString pstn, LegacyUlong grfstn = fstnIgnoreCase)
     {
         return FEqualUserRgch(pstn->Prgch(), pstn->Cch(), grfstn);
     }
 
     // for sorting
-    ulong FcmpCompare(PString pstn)
+    LegacyUlong FcmpCompare(PString pstn)
     {
         return ::FcmpCompareRgch(Prgch(), Cch(), pstn->Prgch(), pstn->Cch());
     }
-    ulong FcmpCompareUser(PString pstn, ulong grfstn = fstnIgnoreCase)
+    LegacyUlong FcmpCompareUser(PString pstn, LegacyUlong grfstn = fstnIgnoreCase)
     {
         return ::FcmpCompareUserRgch(Prgch(), Cch(), pstn->Prgch(), pstn->Cch(), grfstn);
     }
 
     // storing and retrieving strings to other buffers (or file).
-    long CbData(void);
+    LegacyLong CbData(void);
     void GetData(void *pv);
-    bool FSetData(void *pv, long cbMax, long *pcbRead = pvNil);
-    bool FWrite(PDataBlock pblck, long ib);
-    bool FRead(PDataBlock pblck, long ib, long *pcbRead = pvNil);
+    bool FSetData(void *pv, LegacyLong cbMax, LegacyLong *pcbRead = pvNil);
+    bool FWrite(PDataBlock pblck, LegacyLong ib);
+    bool FRead(PDataBlock pblck, LegacyLong ib, LegacyLong *pcbRead = pvNil);
 
     bool FFormat(PString pstnFormat, ...);
     bool FFormatSz(PZString pszFormat, ...);
-    bool FFormatRgch(achar *prgchFormat, long cchFormat, va_list va);
-    bool FGetLw(long *plw, long lwBase = 0);
+    bool FFormatSz(const achar *pszFormat, ...);
+    bool FFormatRgch(achar *prgchFormat, LegacyLong cchFormat, va_list va);
+    bool FGetLw(LegacyLong *plw, LegacyLong lwBase = 0);
     bool FExpandControls(void);
 };
 

@@ -83,7 +83,7 @@ RTCLASS(Clock)
 BEGIN_CMD_MAP_BASE(Clock)
 END_CMD_MAP(&Clock::FCmdAll, pvNil, kgrfcmmAll)
 
-const long kcmhlClok = kswMin; // put clocks at the head of the list
+const LegacyLong kcmhlClok = kswMin; // put clocks at the head of the list
 PClock Clock::_pclokFirst;
 
 /***************************************************************************
@@ -91,7 +91,7 @@ PClock Clock::_pclokFirst;
     that this clock should reset itself to zero on key or mouse input.
     fclokNoSlip specifies that the clok should not let time slip.
 ***************************************************************************/
-Clock::Clock(long hid, ulong grfclok) : CommandHandler(hid)
+Clock::Clock(LegacyLong hid, LegacyUlong grfclok) : CommandHandler(hid)
 {
     _pclokNext = _pclokFirst;
     _pclokFirst = this;
@@ -124,7 +124,7 @@ Clock::~Clock(void)
 /***************************************************************************
     Static method to find the first clok with the given id.
 ***************************************************************************/
-PClock Clock::PclokFromHid(long hid)
+PClock Clock::PclokFromHid(LegacyLong hid)
 {
     PClock pclok;
 
@@ -156,7 +156,7 @@ void Clock::RemoveCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     AlarmDescriptor *qalad;
-    long ialad;
+    LegacyLong ialad;
 
     if (pvNil == _pglalad)
         return;
@@ -172,7 +172,7 @@ void Clock::RemoveCmh(PCommandHandler pcmh)
 /***************************************************************************
     Start the clock.
 ***************************************************************************/
-void Clock::Start(ulong tim)
+void Clock::Start(LegacyUlong tim)
 {
     AssertThis(0);
     _timBase = _timCur = tim;
@@ -199,7 +199,7 @@ void Clock::Stop(void)
     last computed time value is returned, otherwise the time is computed
     from the current application time.
 ***************************************************************************/
-ulong Clock::TimCur(bool fAdjustForDelay)
+LegacyUlong Clock::TimCur(bool fAdjustForDelay)
 {
     AssertThis(0);
 
@@ -213,14 +213,14 @@ ulong Clock::TimCur(bool fAdjustForDelay)
     Set an alarm for the given time and for the given command handler.
     Alarms are sorted in _decreasing_ order.
 ***************************************************************************/
-bool Clock::FSetAlarm(long dtim, PCommandHandler pcmhNotify, long lwUser, bool fAdjustForDelay)
+bool Clock::FSetAlarm(LegacyLong dtim, PCommandHandler pcmhNotify, LegacyLong lwUser, bool fAdjustForDelay)
 {
     AssertThis(0);
     AssertIn(dtim, 0, kcbMax);
     AssertNilOrPo(pcmhNotify, 0);
     AlarmDescriptor alad;
     AlarmDescriptor *qalad;
-    long ialad, ialadMin, ialadLim;
+    LegacyLong ialad, ialadMin, ialadLim;
 
     alad.pcmh = pcmhNotify;
     alad.tim = TimCur(fAdjustForDelay) + LwMax(dtim, 1);
@@ -253,9 +253,9 @@ bool Clock::FCmdAll(PCommand pcmd)
     AssertVarMem(pcmd);
 
     Command cmd;
-    long ialad;
+    LegacyLong ialad;
     AlarmDescriptor alad;
-    ulong tsCur, timCur;
+    LegacyUlong tsCur, timCur;
 
     _dtimAlarm = 0;
     if (pcmd->cid == cidAlarm)
@@ -352,7 +352,7 @@ bool Clock::FCmdAll(PCommand pcmd)
 /***************************************************************************
     Assert the validity of a Clock.
 ***************************************************************************/
-void Clock::AssertValid(ulong grf)
+void Clock::AssertValid(LegacyUlong grf)
 {
     Clock_PAR::AssertValid(0);
     AssertNilOrPo(_pglalad, 0);

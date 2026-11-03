@@ -1,0 +1,217 @@
+/* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include "sdl_file_dialog.h"
+#include "sdl_dialog.h"
+#include "sdl_host.h"
+#include "pixel_canvas.h"
+#include "platform_text.h"
+#include "text_utf8.h"
+#include <exception>
+#include "studio.h"
+#include "portfolio_host.h"
+#include "portfolio_data.h"
+ASSERTNAME
+namespace StudioPortfolio
+{
+namespace
+{
+std::string Utf8(const achar *text)
+{
+    if (!text)
+        return {};
+    const auto bytes = CchSz(const_cast<achar *>(text)) * sizeof(achar);
+#ifdef UNICODE
+    const auto encoding = BigLittle(KauaiText::Encoding::Utf16BE, KauaiText::Encoding::Utf16LE);
+#else
+    const auto encoding = KauaiText::Encoding::WindowsAnsi;
+#endif
+    const auto count = KauaiText::ToUtf16(text, bytes, encoding, nullptr, 0);
+    std::vector<std::uint16_t> units(count);
+    std::string result;
+    if ((bytes && !count) || (count && !KauaiText::ToUtf16(text, bytes, encoding, units.data(), count)) ||
+        !KauaiText::EncodeUtf8(units, result))
+        return {};
+    return result;
+}
+bool Legacy(const std::string &text, String &result)
+{
+    std::vector<std::uint16_t> units;
+    if (!KauaiText::DecodeUtf8(text, units))
+        return false;
+#ifdef UNICODE
+    if ((units.size)() > kcchMaxStn)
+        return false;
+    result.SetRgch(reinterpret_cast<achar *>(units.data()), static_cast<LegacyLong>((units.size)()));
+#else
+    const auto encoding = BigLittle(KauaiText::Encoding::Utf16BE, KauaiText::Encoding::Utf16LE);
+    const auto count = KauaiText::ToAnsi(units.data(), (units.size)() * 2, encoding, nullptr, 0);
+    if (count > kcchMaxStn || (!(units.empty)() && !count))
+        return false;
+    std::vector<char> bytes(count);
+    if (count && !KauaiText::ToAnsi(units.data(), (units.size)() * 2, encoding, bytes.data(), count))
+        return false;
+    result.SetRgch(bytes.data(), static_cast<LegacyLong>(count));
+#endif
+    return true;
+}
+struct Preview
+{
+    LegacyUlong flags;
+    std::vector<Color> palette;
+    bool Image(PMaskedBitmapMBMP bitmap, KauaiSDL::DialogImage &image, int width = 0, int height = 0)
+    {
+        if (!bitmap || (palette.empty)())
+            return false;
+        RC bounds;
+        bitmap->GetRc(&bounds);
+        image.width = width ? width : bounds.Dxp();
+        image.height = height ? height : bounds.Dyp();
+        if (image.width <= 0 || image.height <= 0 || image.width > 4096 || image.height > 4096)
+            return false;
+        image.pixels.assign(static_cast<std::size_t>(image.width) * image.height, 0xFF000000);
+        RC rectangle(0, 0, image.width, image.height);
+        if (!bitmap->FDraw32({image.pixels.data(), image.width, image.height, image.width * 4}, rectangle,
+                             palette.data(), static_cast<LegacyLong>((palette.size)())))
+            return false;
+        for (auto &pixel : image.pixels)
+            pixel |= 0xFF000000;
+        return true;
+    }
+    void Asset(ChunkNumber number, KauaiSDL::DialogImage &image)
+    {
+        auto bitmap =
+            static_cast<PMaskedBitmapMBMP>(vapp.PcrmAll()->PbacoFetch(kctgMbmp, number, MaskedBitmapMBMP::FReadMbmp));
+        if (bitmap)
+        {
+            Image(bitmap, image);
+            ReleasePpo(&bitmap);
+        }
+    }
+    static bool Load(void *context, const std::string &path, KauaiSDL::DialogImage &image)
+    {
+        auto &preview = *static_cast<Preview *>(context);
+        String legacy;
+        if (!Legacy(path, legacy))
+            return false;
+        auto bitmap = LoadPreviewPath(&legacy, preview.flags);
+        if (!bitmap)
+            return false;
+        const bool result = preview.Image(bitmap, image, 144, 80);
+        ReleasePpo(&bitmap);
+        return result;
+    }
+};
+} // namespace
+bool Choose(Filename *selection, const Request &request)
+{
+    if (!request.open)
+        selection->SetNil();
+    auto &host = KauaiSDL::Main();
+    bool accepted = false;
+    try
+    {
+        KauaiSDL::FileDialog dialog;
+        auto &browser = dialog.browser;
+        browser.open = request.open;
+        browser.defaultExtension = Utf8(request.defaultExtension);
+        dialog.title = Utf8(request.title);
+        Filename userDirectory;
+        String path;
+        vapp.GetFniUser(&userDirectory);
+        userDirectory.GetStnPath(&path);
+        browser.home = Utf8(path.Psz());
+        if (request.open && request.initialDirectory)
+            request.initialDirectory->GetStnPath(&path);
+        else if (request.open)
+            path.SetSz(PszLit("."));
+        if (!browser.Navigate(Utf8(path.Psz())) && !browser.Navigate(browser.home))
+            return false;
+        if (!request.open && request.defaultName)
+            browser.name = Utf8(request.defaultName->Psz());
+        // Original label/pattern pairs are double-NUL terminated.
+        for (auto filter = request.filter; filter && *filter;)
+        {
+            auto label = Utf8(filter);
+            filter += CchSz(filter) + 1;
+            auto pattern = Utf8(filter);
+            filter += CchSz(filter) + 1;
+            browser.filters.push_back({std::move(label), std::move(pattern)});
+        }
+        browser.Refresh();
+        Preview preview{request.previews};
+        auto palette = GraphicsPort::PglclrGetPalette();
+        if (palette)
+        {
+            for (LegacyLong i = 0; i < palette->IvMac(); ++i)
+            {
+                Color color;
+                palette->Get(i, &color);
+                preview.palette.push_back(color);
+            }
+            ReleasePpo(&palette);
+        }
+        preview.Asset(request.open ? kcnoMbmpPortBackOpen : kcnoMbmpPortBackSave, dialog.artwork);
+        preview.Asset(kcnoMbmpPortBtnOk, dialog.acceptButton);
+        preview.Asset(kcnoMbmpPortBtnCancel, dialog.cancelButton);
+        preview.Asset(kcnoMbmpPortBtnHome, dialog.homeButton);
+        dialog.preview = Preview::Load;
+        dialog.context = &preview;
+        do
+        {
+            if (request.sound != cnoNil)
+            {
+                auto resource = vapp.PcrmAll()->PcrfFindChunk(kctgWave, request.sound);
+                if (resource)
+                    vpsndm->SiiPlay(resource, kctgWave, request.sound);
+            }
+            host.FlushInput(true, true);
+            host.SuspendFocusEvents(true);
+            const bool shown =
+                KauaiSDL::RunFileDialog(dialog, host.WindowID(), [](void *) { KauaiSDL::Main().Present(); });
+            if (!KauaiSDL::CurrentDialog().active)
+                host.ResumeAfterModal();
+            if (!shown)
+                PushErc(ercSocPortfolioFailed);
+            if (!shown || !dialog.accepted)
+                break;
+            String chosen;
+            Filename candidate;
+            if (!Legacy(browser.selection, chosen) || !candidate.FBuildFromPath(&chosen, 0))
+            {
+                browser.error = "This file name is too long or unavailable.";
+                continue;
+            }
+            if (!request.open)
+            {
+                const auto exists = candidate.TExists();
+                if (exists == tMaybe)
+                {
+                    vapp.DisplayErrors();
+                    continue;
+                }
+                if (exists == tYes)
+                {
+                    String leaf, message;
+                    candidate.GetLeaf(&leaf);
+                    RemoveSaveExtension(&leaf);
+                    if (!vapp.FGetStnApp(idsReplaceFile, &message) ||
+                        vapp.TModal(vapp.PcrmAll(), ktpcQueryOverwrite, &message, bkYesNo, kstidQueryOverwrite,
+                                    &leaf) != tYes)
+                        continue;
+                }
+            }
+            *selection = candidate;
+            accepted = true;
+            break;
+        } while (true);
+    }
+    catch (const std::exception &)
+    {
+        PushErc(ercSocPortfolioFailed);
+    }
+    if (!KauaiSDL::CurrentDialog().active)
+        host.ResumeAfterModal();
+    if (!accepted && !request.open)
+        selection->SetNil();
+    return accepted;
+}
+} // namespace StudioPortfolio

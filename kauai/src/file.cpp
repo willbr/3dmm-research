@@ -24,7 +24,7 @@ RTCLASS(MessageSinkFile)
 /***************************************************************************
     Constructor for a file.
 ***************************************************************************/
-FileObject::FileObject(Filename *pfni, ulong grffil)
+FileObject::FileObject(Filename *pfni, LegacyUlong grffil)
 {
     AssertPo(pfni, ffniFile);
     _fni = *pfni;
@@ -52,7 +52,7 @@ FileObject::~FileObject(void)
 /***************************************************************************
     Static method to open an existing file.  Increments the open count.
 ***************************************************************************/
-PFileObject FileObject::PfilOpen(Filename *pfni, ulong grffil)
+PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
 {
     AssertPo(pfni, ffniFile);
     PFileObject pfil;
@@ -86,7 +86,7 @@ PFileObject FileObject::PfilOpen(Filename *pfni, ulong grffil)
 /***************************************************************************
     Create a new file.  Increments the open count.
 ***************************************************************************/
-PFileObject FileObject::PfilCreate(Filename *pfni, ulong grffil)
+PFileObject FileObject::PfilCreate(Filename *pfni, LegacyUlong grffil)
 {
     AssertPo(pfni, ffniFile);
     PFileObject pfil;
@@ -168,7 +168,7 @@ PFileObject FileObject::PfilFromFni(Filename *pfni)
     Set the file flags according to grffil and grffilMask.  Write enabling
     is only set, never cleared.  Same with marking.
 ***************************************************************************/
-bool FileObject::FSetGrffil(ulong grffil, ulong grffilMask)
+bool FileObject::FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask)
 {
     AssertThis(0);
     bool fRet = fFalse;
@@ -201,7 +201,7 @@ bool FileObject::FSetGrffil(ulong grffil, ulong grffilMask)
 
 LRet:
     _mutx.Leave();
-    return fTrue;
+    return fRet;
 }
 
 /***************************************************************************
@@ -332,7 +332,7 @@ void FileObject::ShutDown(void)
 /***************************************************************************
     Validate a pfil.
 ***************************************************************************/
-void FileObject::AssertValid(ulong grf)
+void FileObject::AssertValid(LegacyUlong grf)
 {
     PFileObject pfil;
 
@@ -357,7 +357,7 @@ void FileObject::AssertValid(ulong grf)
 /***************************************************************************
     Determine if the given range is within cbTot.
 ***************************************************************************/
-priv bool _FRangeIn(long cbTot, long cb, long ib)
+priv bool _FRangeIn(LegacyLong cbTot, LegacyLong cb, LegacyLong ib)
 {
     return FIn(ib, 0, cbTot + 1) && FIn(cb, 0, cbTot - ib + 1);
 }
@@ -365,7 +365,7 @@ priv bool _FRangeIn(long cbTot, long cb, long ib)
 /***************************************************************************
     Read a piece of a flo into pv.
 ***************************************************************************/
-bool FileLocation::FReadRgb(void *pv, long cbRead, FilePosition dfp)
+bool FileLocation::FReadRgb(void *pv, LegacyLong cbRead, FilePosition dfp)
 {
     AssertThis(ffloReadable);
 
@@ -383,7 +383,7 @@ bool FileLocation::FReadRgb(void *pv, long cbRead, FilePosition dfp)
 /***************************************************************************
     Write a piece of a flo from pv.
 ***************************************************************************/
-bool FileLocation::FWriteRgb(void *pv, long cbWrite, FilePosition dfp)
+bool FileLocation::FWriteRgb(void *pv, LegacyLong cbWrite, FilePosition dfp)
 {
     AssertThis(0);
 
@@ -406,7 +406,7 @@ bool FileLocation::FCopy(PFileLocation pfloDst)
     AssertThis(ffloReadable);
     AssertPo(pfloDst, 0);
     byte rgb[1024];
-    long cbBlock, cbT;
+    LegacyLong cbBlock, cbT;
     void *pv;
     bool fRet = fFalse;
 
@@ -445,7 +445,7 @@ LFail:
 /***************************************************************************
     Allocate an hq and read the flo into it.
 ***************************************************************************/
-bool FileLocation::FReadHq(HQ *phq, long cbRead, FilePosition dfp)
+bool FileLocation::FReadHq(HQ *phq, LegacyLong cbRead, FilePosition dfp)
 {
     AssertThis(ffloReadable);
     AssertVarMem(phq);
@@ -469,12 +469,12 @@ bool FileLocation::FReadHq(HQ *phq, long cbRead, FilePosition dfp)
 /***************************************************************************
     Write the contents of an hq to the flo.
 ***************************************************************************/
-bool FileLocation::FWriteHq(HQ hq, long dfp)
+bool FileLocation::FWriteHq(HQ hq, LegacyLong dfp)
 {
     AssertThis(0);
     AssertHq(hq);
     bool fRet;
-    long cbWrite = CbOfHq(hq);
+    LegacyLong cbWrite = CbOfHq(hq);
 
     if (!_FRangeIn(this->cb, cbWrite, dfp))
     {
@@ -500,8 +500,8 @@ bool FileLocation::FTranslate(short osk)
     byte rgbDst[1024];
     void *pvSrc;
     void *pvDst;
-    long cchDst, cch;
-    long cbBlock, cbT;
+    LegacyLong cchDst, cch;
+    LegacyLong cbBlock, cbT;
     PFileObject pfilNew;
     FilePosition fpSrc, fpDst;
     bool fRet = fFalse;
@@ -535,7 +535,7 @@ bool FileLocation::FTranslate(short osk)
             osk = oskSig;
         else
         {
-            long dcb = CbCharOsk(osk) - CbCharOsk(oskSig);
+            LegacyLong dcb = CbCharOsk(osk) - CbCharOsk(oskSig);
 
             if (dcb < 0 || dcb == 0 && CbCharOsk(osk) == size(wchar))
                 osk = oskSig;
@@ -611,7 +611,7 @@ LFail:
 /***************************************************************************
     Assert this is a valif FileLocation.
 ***************************************************************************/
-void FileLocation::AssertValid(ulong grfflo)
+void FileLocation::AssertValid(LegacyUlong grfflo)
 {
     AssertPo(pfil, 0);
     AssertIn(fp, 0, kcbMax);
@@ -645,7 +645,7 @@ DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(PFileObject pfil, FilePosition fp, long cb, bool fPacked)
+DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pfil, 0);
@@ -717,7 +717,7 @@ void DataBlock::Set(PFileLocation pflo, bool fPacked)
 /***************************************************************************
     Set the data block to refer to the given range on the file.
 ***************************************************************************/
-void DataBlock::Set(PFileObject pfil, FilePosition fp, long cb, bool fPacked)
+void DataBlock::Set(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
@@ -809,7 +809,7 @@ HQ DataBlock::HqFree(bool fPackedOk)
 /***************************************************************************
     Return the length of the data block.
 ***************************************************************************/
-long DataBlock::Cb(bool fPackedOk)
+LegacyLong DataBlock::Cb(bool fPackedOk)
 {
     AssertThis(fPackedOk ? 0 : fblckUnpacked);
 
@@ -823,7 +823,7 @@ long DataBlock::Cb(bool fPackedOk)
 /***************************************************************************
     Create a temporary buffer.
 ***************************************************************************/
-bool DataBlock::FSetTemp(long cb, bool fForceFile)
+bool DataBlock::FSetTemp(LegacyLong cb, bool fForceFile)
 {
     AssertThis(0);
     PFileObject pfil;
@@ -854,7 +854,7 @@ bool DataBlock::FSetTemp(long cb, bool fForceFile)
     end of the block.  Fails if you try to move before the beginning of
     the physical storage or after the lim of the block.
 ***************************************************************************/
-bool DataBlock::FMoveMin(long dib)
+bool DataBlock::FMoveMin(LegacyLong dib)
 {
     AssertThis(0);
 
@@ -883,7 +883,7 @@ bool DataBlock::FMoveMin(long dib)
     beginning of the block.  Fails if you try to move before the min of the
     block or after the end of the physical storage.
 ***************************************************************************/
-bool DataBlock::FMoveLim(long dib)
+bool DataBlock::FMoveLim(LegacyLong dib)
 {
     AssertThis(0);
 
@@ -909,7 +909,7 @@ bool DataBlock::FMoveLim(long dib)
 /***************************************************************************
     Read a range of bytes from the data block.
 ***************************************************************************/
-bool DataBlock::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
+bool DataBlock::FReadRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -942,7 +942,7 @@ bool DataBlock::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Write a range of bytes to the data block.
 ***************************************************************************/
-bool DataBlock::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
+bool DataBlock::FWriteRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -975,7 +975,7 @@ bool DataBlock::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Read a range of bytes from the data block and put it in an hq.
 ***************************************************************************/
-bool DataBlock::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
+bool DataBlock::FReadHq(HQ *phq, LegacyLong cb, LegacyLong ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -1011,11 +1011,11 @@ bool DataBlock::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Write an hq to the data block.
 ***************************************************************************/
-bool DataBlock::FWriteHq(HQ hq, long ib, bool fPackedOk)
+bool DataBlock::FWriteHq(HQ hq, LegacyLong ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertHq(hq);
-    long cb = CbOfHq(hq);
+    LegacyLong cb = CbOfHq(hq);
 
     if (!fPackedOk && _fPacked)
     {
@@ -1083,7 +1083,7 @@ bool DataBlock::FWriteToBlck(PDataBlock pblckDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pblckDst, 0);
-    long cb;
+    LegacyLong cb;
 
     if (!fPackedOk && _fPacked)
     {
@@ -1162,7 +1162,7 @@ bool DataBlock::FGetFlo(PFileLocation pflo, bool fPackedOk)
     determining the compression type failed, *pcfmt is set to cfmtNil and
     true is returned.
 ***************************************************************************/
-bool DataBlock::FPacked(long *pcfmt)
+bool DataBlock::FPacked(LegacyLong *pcfmt)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcfmt);
@@ -1180,7 +1180,7 @@ bool DataBlock::FPacked(long *pcfmt)
     packing format, otherwise use the one specified. If the block is
     already packed, this doesn't change the packing format.
 ***************************************************************************/
-bool DataBlock::FPackData(long cfmt)
+bool DataBlock::FPackData(LegacyLong cfmt)
 {
     AssertThis(0);
     HQ hq;
@@ -1276,7 +1276,7 @@ bool DataBlock::FUnpackData(void)
 /***************************************************************************
     Return the amount of memory the block is using (roughly).
 ***************************************************************************/
-long DataBlock::CbMem(void)
+LegacyLong DataBlock::CbMem(void)
 {
     AssertThis(0);
 
@@ -1289,7 +1289,7 @@ long DataBlock::CbMem(void)
 /***************************************************************************
     Assert the validity of a DataBlock.
 ***************************************************************************/
-void DataBlock::AssertValid(ulong grfblck)
+void DataBlock::AssertValid(LegacyUlong grfblck)
 {
     DataBlock_PAR::AssertValid(0);
 
@@ -1303,7 +1303,7 @@ void DataBlock::AssertValid(ulong grfblck)
     {
         Assert(!(grfblck & fblckFile) || (grfblck & fblckMemory), "block should be file based");
         AssertHq(_hq);
-        long cb = CbOfHq(_hq);
+        LegacyLong cb = CbOfHq(_hq);
 
         AssertIn(_ibMin, 0, cb + 1);
         AssertIn(_ibLim, _ibMin, cb + 1);
@@ -1351,7 +1351,7 @@ MessageSinkFile::~MessageSinkFile(void)
 /***************************************************************************
     Assert the validity of a MessageSinkFile.
 ***************************************************************************/
-void MessageSinkFile::AssertValid(ulong grf)
+void MessageSinkFile::AssertValid(LegacyUlong grf)
 {
     MessageSinkFile_PAR::AssertValid(0);
     AssertNilOrPo(_pfil, 0);

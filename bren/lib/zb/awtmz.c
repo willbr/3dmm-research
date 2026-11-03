@@ -124,5 +124,3 @@ TrapezoidRenderCall TrapezoidRenderPIZ2TIANT;
 #undef BPP
 
 #endif
-
-

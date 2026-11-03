@@ -6,6 +6,7 @@
     Help authoring tool.
 
 ***************************************************************************/
+#include "launch_context.h"
 #include "chelp.h"
 ASSERTNAME
 
@@ -130,7 +131,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     // parse the command line and load any resource files and help files
     Filename fni;
     bool fQuote, fRes, fSkip;
-    PZString psz = vwig.pszCmdLine;
+    const achar *psz = KauaiLaunch::CommandLine();
 
     // skip the first token since it is the path
     fSkip = fTrue;

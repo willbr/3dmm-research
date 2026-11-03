@@ -46,31 +46,13 @@
 ***************************************************************************/
 
 #include "soc.h"
+#include "body_world.h"
+
 ASSERTNAME
 
 //
 // Scene event types
 //
-enum SceneEventType
-{                   // StartEv	FrmEv	Param
-    sevtAddActr,    //    X		  		pactr/chid
-    sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
-    sevtAddTbox,    // 	  X				ptbox/chid
-    sevtChngCamera, // 			  X		icam
-    sevtSetBkgd,    // 	  X				Background Tag
-    sevtPause       // 			  X		type, duration
-};
-
-//
-// Struct for saving event pause information
-//
-struct SceneEventPause
-{
-    WaitReason wit;
-    int32_t dts;
-};
-static_assert(sizeof(SceneEventPause) == 8, "SceneEventPause on-disk layout drift");
-
 //
 // Scene thumbnails
 //
@@ -81,30 +63,6 @@ const auto kbTransparent = 250;
 //
 // Scene event
 //
-struct SceneEvent
-{
-    int32_t nfrm;        // frame number of the event.
-    SceneEventType sevt; // event type
-};
-static_assert(sizeof(SceneEvent) == 8, "SceneEvent on-disk layout drift");
-
-const auto kbomSev = 0xF0000000;
-const auto kbomLong = 0xC0000000;
-
-//
-// Header for the scene chunk when on file
-//
-struct SceneOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t nfrmLast;
-    int32_t nfrmFirst;
-    TRANS trans;
-};
-static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
-
-const auto kbomScenh = 0x5FC00000;
 /****************************************
     TagChildPair - Tag,Chid combo
     Runtime form: embeds full TAG with runtime pcrf. Allowed to grow on x64.
@@ -570,10 +528,10 @@ Scene::Scene(PMovie pmvie)
     AssertNilOrPo(pmvie, 0);
 
     _pmvie = pmvie;
-    _nfrmCur = 1;
-    _nfrmLast = 1;
-    _nfrmFirst = 1;
-    _trans = transCut; // default transition
+    _data.currentFrame = 1;
+    _data.lastFrame = 1;
+    _data.firstFrame = 1;
+    _data.transition = transCut; // default transition
     _pglpactrSelExtra = pvNil;
 
     //
@@ -871,14 +829,14 @@ void Scene::MarkMem(void)
 /***************************************************************************
     Assert the validity of the Scene.
 ***************************************************************************/
-void Scene::AssertValid(ulong grf)
+void Scene::AssertValid(LegacyUlong grf)
 {
     long isev;
     SceneEvent sev;
 
     Scene_PAR::AssertValid(fobjAllocated);
 
-    AssertPo(&_stnName, 0);
+    AssertPo(&_data.name, 0);
     AssertNilOrPo(_pactrSelected, 0);
     AssertNilOrPo(_pglpactrSelExtra, 0);
     if (_pglpactrSelExtra != pvNil)
@@ -987,7 +945,7 @@ bool Scene::FSetName(PString pstn)
 
     if (psunt != pvNil)
     {
-        psunt->SetName(&_stnName);
+        psunt->SetName(&_data.name);
     }
 
     if (psunt == pvNil)
@@ -1024,14 +982,14 @@ bool Scene::FGotoFrm(long nfrm)
 {
     AssertThis(0);
 
-    bool fSoundInFrame = fFalse, fUpdateSndFrame = nfrm != _nfrmCur;
+    bool fSoundInFrame = fFalse, fUpdateSndFrame = nfrm != _data.currentFrame;
     SceneEvent sev;
     PMovieView pmvu;
     void *qvVar;
     long isev;
-    long nfrmOld = _nfrmCur;
+    long nfrmOld = _data.currentFrame;
 
-    if (nfrm < _nfrmCur)
+    if (nfrm < _data.currentFrame)
     {
 
         //
@@ -1042,7 +1000,7 @@ bool Scene::FGotoFrm(long nfrm)
         //
         // Go backwards
         //
-        if (nfrm < _nfrmFirst)
+        if (nfrm < _data.firstFrame)
         {
             //
             // Move first frame back in time
@@ -1051,7 +1009,7 @@ bool Scene::FGotoFrm(long nfrm)
             _MarkMovieDirty();
         }
 
-        _nfrmCur = nfrm;
+        _data.currentFrame = nfrm;
 
         //
         // Unplay all events to dest frame.
@@ -1059,7 +1017,7 @@ bool Scene::FGotoFrm(long nfrm)
         for (; _isevFrmLim > 0; _isevFrmLim--)
         {
             _pggsevFrm->GetFixed(_isevFrmLim - 1, &sev);
-            if (sev.nfrm <= _nfrmCur)
+            if (sev.nfrm <= _data.currentFrame)
             {
                 break;
             }
@@ -1078,7 +1036,7 @@ bool Scene::FGotoFrm(long nfrm)
         for (isev = _isevFrmLim - 1; isev >= 0; isev--)
         {
             _pggsevFrm->GetFixed(isev, &sev);
-            if (sev.nfrm < _nfrmCur)
+            if (sev.nfrm < _data.currentFrame)
             {
                 break;
             }
@@ -1088,11 +1046,11 @@ bool Scene::FGotoFrm(long nfrm)
                 PushErc(ercSocGotoFrameFailure);
                 return (fFalse);
             }
-            if (sev.sevt == sevtPlaySnd && sev.nfrm == _nfrmCur)
+            if (sev.sevt == sevtPlaySnd && sev.nfrm == _data.currentFrame)
                 fSoundInFrame = fTrue;
         }
     }
-    else if (nfrm > _nfrmCur)
+    else if (nfrm > _data.currentFrame)
     {
 
         pmvu = (PMovieView)Pmvie()->PddgGet(0);
@@ -1103,7 +1061,7 @@ bool Scene::FGotoFrm(long nfrm)
             Pmvie()->Pmcc()->PlayUISound(toolRecordSameAction);
         }
 
-        _nfrmCur = nfrm;
+        _data.currentFrame = nfrm;
 
         //
         // Assume no pause type
@@ -1113,9 +1071,9 @@ bool Scene::FGotoFrm(long nfrm)
         //
         // Go forwards
         //
-        if (_nfrmCur > _nfrmLast)
+        if (_data.currentFrame > _data.lastFrame)
         {
-            _nfrmLast = _nfrmCur;
+            _data.lastFrame = _data.currentFrame;
             _MarkMovieDirty();
         }
 
@@ -1125,17 +1083,18 @@ bool Scene::FGotoFrm(long nfrm)
         for (; _isevFrmLim < _pggsevFrm->IvMac(); _isevFrmLim++)
         {
             _pggsevFrm->GetFixed(_isevFrmLim, &sev);
-            if (sev.nfrm > _nfrmCur)
+            if (sev.nfrm > _data.currentFrame)
             {
                 break;
             }
             qvVar = _pggsevFrm->QvGet(_isevFrmLim);
-            if (!_FPlaySev(&sev, qvVar, (sev.nfrm == _nfrmCur ? _grfscen : (_grfscen | fscenSounds | fscenPauses))))
+            if (!_FPlaySev(&sev, qvVar,
+                           (sev.nfrm == _data.currentFrame ? _grfscen : (_grfscen | fscenSounds | fscenPauses))))
             {
                 PushErc(ercSocGotoFrameFailure);
                 return (fFalse);
             }
-            if (sev.sevt == sevtPlaySnd && sev.nfrm == _nfrmCur)
+            if (sev.sevt == sevtPlaySnd && sev.nfrm == _data.currentFrame)
                 fSoundInFrame = fTrue;
         }
     }
@@ -1213,12 +1172,12 @@ void Scene::_DoPrerenderingWork(bool fStartNow)
     // (even though there's no sevtChngCamera), or if fStartNow
     // is fTrue, or if there is a sevtChngCamera in this
     // frame.  Otherwise, just return.
-    if (_nfrmCur != _nfrmFirst && !fStartNow)
+    if (_data.currentFrame != _data.firstFrame && !fStartNow)
     {
         for (isev = _isevFrmLim - 1; isev >= 0; isev--)
         {
             _pggsevFrm->GetFixed(isev, &sev);
-            if (sev.nfrm != _nfrmCur)
+            if (sev.nfrm != _data.currentFrame)
             {
                 return; // no camera view change in this frame
             }
@@ -1234,7 +1193,7 @@ void Scene::_DoPrerenderingWork(bool fStartNow)
     }
 
     // Find when the next view change is
-    nfrmNextChange = _nfrmLast; // if no more view changes, go til end of scene
+    nfrmNextChange = _data.lastFrame; // if no more view changes, go til end of scene
     for (isev = _isevFrmLim; isev < _pggsevFrm->IvMac(); isev++)
     {
         _pggsevFrm->GetFixed(isev, &sev);
@@ -1348,7 +1307,7 @@ bool Scene::FReplayFrm(ulong grfscen)
     SceneEvent sev;
     void *qvVar;
     long isev, iactr;
-    long nfrmOld = _nfrmCur;
+    long nfrmOld = _data.currentFrame;
     PActor pactr;
 
     //
@@ -1357,7 +1316,7 @@ bool Scene::FReplayFrm(ulong grfscen)
     for (isev = _isevFrmLim - 1; isev >= 0; isev--)
     {
         _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.nfrm < _nfrmCur)
+        if (sev.nfrm < _data.currentFrame)
         {
             break;
         }
@@ -1415,14 +1374,14 @@ void Scene::InvalFrmRange(void)
         if (pactr->FGetLifetime(&nfrmStart, &nfrmLast))
         {
 
-            if (nfrmStart < _nfrmFirst)
+            if (nfrmStart < _data.firstFrame)
             {
                 _MoveBackFirstFrame(nfrmStart);
             }
 
-            if (nfrmLast > _nfrmLast)
+            if (nfrmLast > _data.lastFrame)
             {
-                _nfrmLast = nfrmLast;
+                _data.lastFrame = nfrmLast;
             }
         }
     }
@@ -1434,14 +1393,14 @@ void Scene::InvalFrmRange(void)
         if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast))
         {
 
-            if (nfrmStart < _nfrmFirst)
+            if (nfrmStart < _data.firstFrame)
             {
                 _MoveBackFirstFrame(nfrmStart);
             }
 
-            if (nfrmLast > _nfrmLast)
+            if (nfrmLast > _data.lastFrame)
             {
-                _nfrmLast = nfrmLast;
+                _data.lastFrame = nfrmLast;
             }
         }
     }
@@ -1542,7 +1501,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
         //
         // Plop them into this frame
         //
-        if (!pactr->FGotoFrame(_nfrmCur))
+        if (!pactr->FGotoFrame(_data.currentFrame))
         {
             _pglpactr->FPop(&pactr);
             return (fFalse);
@@ -1552,7 +1511,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 
     case sevtPause:
 
-        wit = (WaitReason)(*(long *)qvVar);
+        wit = static_cast<const SceneEventPause *>(qvVar)->wit;
         Pmvie()->Pmcc()->PauseType(wit);
 
         if (grfscen & fscenPauses)
@@ -1560,7 +1519,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
             return (fTrue);
         }
 
-        dts = *((long *)qvVar + 1);
+        dts = static_cast<const SceneEventPause *>(qvVar)->dts;
         Pmvie()->DoPause(wit, dts);
         break;
 
@@ -1585,7 +1544,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
         //
         // Plop them into this frame
         //
-        if (!ptbox->FGotoFrame(_nfrmCur))
+        if (!ptbox->FGotoFrame(_data.currentFrame))
         {
             _pglptbox->Delete(_pglptbox->IvMac() - 1);
             return (fFalse);
@@ -1600,7 +1559,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
         {
             return (fTrue);
         }
-        if (!_pbkgd->FSetCamera(_pmvie->Pbwld(), *(long *)qvVar))
+        if (!_pbkgd->FSetCamera(_pmvie->Pbwld(), *static_cast<const int32_t *>(qvVar)))
         {
             return (fFalse);
         }
@@ -1647,7 +1606,7 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         {
             qsevTmp = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-            if ((qsevTmp->sevt == sevtPlaySnd) && (qsevTmp->nfrm < _nfrmCur))
+            if ((qsevTmp->sevt == sevtPlaySnd) && (qsevTmp->nfrm < _data.currentFrame))
             {
                 sev = *qsevTmp;
                 _FPlaySev(&sev, _pggsevFrm->QvGet(isev), _grfscen | fscenSounds); // Ignore failure.
@@ -1677,7 +1636,7 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         {
             qsevTmp = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-            if ((qsevTmp->sevt == sevtChngCamera) && (qsevTmp->nfrm < _nfrmCur))
+            if ((qsevTmp->sevt == sevtChngCamera) && (qsevTmp->nfrm < _data.currentFrame))
             {
                 sev = *qsevTmp;
                 AssertDo(_FPlaySev(&sev, _pggsevFrm->QvGet(isev), _grfscen), "Should not fail.");
@@ -1689,9 +1648,9 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         // Not found -- use starting camera, which is always camera 0.
         //
         sev.sevt = sevtChngCamera;
-        isev = 0;
+        int32_t firstCamera = 0;
 
-        if (!_FPlaySev(&sev, &isev, _grfscen))
+        if (!_FPlaySev(&sev, &firstCamera, _grfscen))
         {
             Assert(0, "Should never happen");
             return (fFalse);
@@ -1718,7 +1677,7 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
 void Scene::_MoveBackFirstFrame(long nfrm)
 {
     AssertThis(0);
-    Assert(nfrm < _nfrmFirst, "Can only be called to extend scene back.");
+    Assert(nfrm < _data.firstFrame, "Can only be called to extend scene back.");
 
     long isev;
     SceneEvent sev;
@@ -1731,7 +1690,7 @@ void Scene::_MoveBackFirstFrame(long nfrm)
     {
         _pggsevFrm->GetFixed(isev, &sev);
 
-        if (sev.nfrm != _nfrmFirst)
+        if (sev.nfrm != _data.firstFrame)
         {
             break;
         }
@@ -1751,7 +1710,7 @@ void Scene::_MoveBackFirstFrame(long nfrm)
     //
     // Set new first frame
     //
-    _nfrmFirst = nfrm;
+    _data.firstFrame = nfrm;
 }
 
 /****************************************************
@@ -1795,7 +1754,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     for (isev = _isevFrmLim - 1; isev >= 0; isev--)
     {
         _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.nfrm != _nfrmCur)
+        if (sev.nfrm != _data.currentFrame)
             break;
         if (sev.sevt == sevtPlaySnd)
         {
@@ -1814,7 +1773,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
         fQueue = fFalse; // nothing to queue to
     }
 
-    sev.nfrm = _nfrmCur;
+    sev.nfrm = _data.currentFrame;
     sev.sevt = sevtPlaySnd;
 
     if (!fQueue)
@@ -1976,7 +1935,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
     for (isev = _isevFrmLim - 1; isev >= 0; isev--)
     {
         _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.nfrm != _nfrmCur)
+        if (sev.nfrm != _data.currentFrame)
             break;
         if (sev.sevt == sevtPlaySnd)
         {
@@ -1995,7 +1954,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
         fQueue = fFalse; // nothing to queue to
     }
 
-    sev.nfrm = _nfrmCur;
+    sev.nfrm = _data.currentFrame;
     sev.sevt = sevtPlaySnd;
 
     if (!fQueue)
@@ -2136,7 +2095,7 @@ void Scene::RemSndCore(long sty)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-        if (qsev->nfrm != _nfrmCur)
+        if (qsev->nfrm != _data.currentFrame)
         {
             Bug("sty not found");
             return;
@@ -2209,7 +2168,7 @@ bool Scene::FRemSnd(long sty)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-        if (qsev->nfrm != _nfrmCur)
+        if (qsev->nfrm != _data.currentFrame)
         {
             Bug("sty not found");
             return fTrue;
@@ -2274,7 +2233,7 @@ bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-        if (qsev->nfrm != _nfrmCur)
+        if (qsev->nfrm != _data.currentFrame)
         {
             break; // sound not found
         }
@@ -2411,7 +2370,7 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-        if (qsev->nfrm != _nfrmCur)
+        if (qsev->nfrm != _data.currentFrame)
         {
             Bug("No such sound");
             break; // sound not found
@@ -2451,7 +2410,7 @@ void Scene::UpdateSndFrame(void)
     {
         PSEV qsev = (PSEV)_pggsevFrm->QvFixedGet(iv);
 
-        if (qsev->nfrm != _nfrmCur)
+        if (qsev->nfrm != _data.currentFrame)
         {
             iv = -1;
             break;
@@ -3140,7 +3099,7 @@ bool Scene::FAddActrCore(Actor *pactr)
                 //
                 // Plop them into this frame
                 //
-                if (!pactr->FGotoFrame(_nfrmCur))
+                if (!pactr->FGotoFrame(_data.currentFrame))
                 {
                     ReleasePpo(&pactr);
                     return (fFalse);
@@ -3430,7 +3389,7 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
     Body *pbody;
     long ipactr;
 
-    pbody = Body::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
+    pbody = BodyWorld::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
     if (pvNil == pbody)
     {
         return pvNil;
@@ -3553,7 +3512,7 @@ bool Scene::FAddTbox(PTBOX ptbox)
     ptbox->FGetLifetime(&nfrmFirst, &nfrmLast);
     psunx->SetTbox(ptbox); // transfers the reference count to the undo object
     psunx->SetNfrmFirst(nfrmFirst);
-    psunx->SetNfrmLast((nfrmLast == _nfrmLast) ? klwMax : nfrmLast);
+    psunx->SetNfrmLast((nfrmLast == _data.lastFrame) ? klwMax : nfrmLast);
 
     for (itbox = 0; itbox < _pglptbox->IvMac(); itbox++)
     {
@@ -3700,7 +3659,7 @@ bool Scene::FRemTbox(PTBOX ptbox)
     psunx->SetTbox(ptbox); // transfers the reference count to the undo object
     psunx->SetAdd(fFalse);
     psunx->SetNfrmFirst(nfrmFirst);
-    psunx->SetNfrmLast((nfrmLast == _nfrmLast) ? klwMax : nfrmLast);
+    psunx->SetNfrmLast((nfrmLast == _data.lastFrame) ? klwMax : nfrmLast);
 
     if (!_pmvie->FAddUndo(psunx))
     {
@@ -3791,7 +3750,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
-        if (qsev->nfrm != _nfrmCur)
+        if (qsev->nfrm != _data.currentFrame)
         {
             break;
         }
@@ -3830,7 +3789,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
     //
     // Add pause to event list.
     //
-    sev.nfrm = _nfrmCur;
+    sev.nfrm = _data.currentFrame;
     sev.sevt = sevtPause;
     sevp.wit = *pwit;
     sevp.dts = *pdts;
@@ -3946,7 +3905,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
                 }
 
                 AssertPo(_pbkgd, 0);
-                _pbkgd->GetName(&_stnName);
+                _pbkgd->GetName(&_data.name);
                 goto LSuccess;
             }
         }
@@ -3974,7 +3933,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
     }
 
     AssertPo(_pbkgd, 0);
-    _pbkgd->GetName(&_stnName);
+    _pbkgd->GetName(&_data.name);
     _MarkMovieDirty();
 
 LSuccess:
@@ -4112,7 +4071,7 @@ bool Scene::FIsEmpty(void)
     long isev;
     SceneEvent sev;
 
-    if ((_pggsevStart->IvMac() != 1) || ((_nfrmLast - _nfrmFirst) > 0))
+    if ((_pggsevStart->IvMac() != 1) || ((_data.lastFrame - _data.firstFrame) > 0))
     {
         return (fFalse);
     }
@@ -4165,7 +4124,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
         if (qsev->sevt == sevtChngCamera)
         {
 
-            if (qsev->nfrm == _nfrmCur)
+            if (qsev->nfrm == _data.currentFrame)
             {
 
                 //
@@ -4195,7 +4154,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                     qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isev);
                     _pggsevFrm->Get(isev, &icamScratch);
                     *picamOld = icamScratch;
-                    if (_FPlaySev(qsevOld, &icam, _grfscen))
+                    if (_FPlaySev(qsevOld, &icam32, _grfscen))
                     {
                         _pggsevFrm->Delete(isev);
                         _isevFrmLim--;
@@ -4215,7 +4174,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                     _pggsevFrm->Put(isev, &icam32);
                 }
                 _MarkMovieDirty();
-                if (_FPlaySev(qsev, &icam, _grfscen))
+                if (_FPlaySev(qsev, &icam32, _grfscen))
                 {
                     goto LSuccess;
                 }
@@ -4239,12 +4198,12 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
     //
     // Add camera change to event list.
     //
-    sev.nfrm = _nfrmCur;
+    sev.nfrm = _data.currentFrame;
     sev.sevt = sevtChngCamera;
 
     if (_FAddSev(&sev, size(int32_t), &icam32))
     {
-        if (_FPlaySev(&sev, &icam, _grfscen))
+        if (_FPlaySev(&sev, &icam32, _grfscen))
         {
             goto LSuccess;
         }
@@ -4373,7 +4332,6 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     PActor pactr;
     PTBOX ptbox;
     ChildChunkID chid;
-    SceneOnFile scenh;
     PChunkyFile pcfl;
 
     pcfl = pcrf->Pcfl();
@@ -4381,23 +4339,9 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Find the chunk and read in the header.
     //
-    if (!pcfl->FFind(kctgScen, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(SceneOnFile)) ||
-        !blck.FReadRgb(&scenh, size(SceneOnFile), 0))
-    {
+    SceneData metadata;
+    if (!metadata.FRead(pcfl, cno))
         goto LFail0;
-    }
-
-    //
-    // Check header for byte swapping
-    //
-    if (scenh.bo == kboOther)
-    {
-        SwapBytesBom(&scenh, kbomScenh);
-    }
-    else
-    {
-        Assert(scenh.bo == kboCur, "Bad Chunky file");
-    }
 
     //
     // Create our scene object.
@@ -4432,10 +4376,8 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Read Frame information
     //
-    pscen->_nfrmLast = scenh.nfrmLast;
-    pscen->_nfrmFirst = scenh.nfrmFirst;
-    pscen->_trans = scenh.trans;
-    pscen->_nfrmCur = pscen->_nfrmFirst - 1;
+    pscen->_data = metadata;
+    pscen->_data.currentFrame = pscen->_data.firstFrame - 1;
 
     //
     // Read in thumbnail
@@ -4459,7 +4401,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         // marshal entry-by-entry into the runtime _pggsevFrm (sevtPlaySnd
         // entries get re-emitted with TagChildPair = sizeof(TAG)+chid stride,
         // wider on x64).
-        PGeneralGroup pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+        PGeneralGroup pggOnFile = SceneData::PggReadEvents(&blck, &bo, false);
         if (pvNil == pggOnFile)
             goto LFail0;
         Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
@@ -4549,7 +4491,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         // replace their on-disk chid with a runtime pointer (PActor/PTBOX),
         // which on Win64 is 8 bytes vs. the 4-byte chid slot the existing
         // in-place Put would have overrun.
-        PGeneralGroup pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+        PGeneralGroup pggOnFile = SceneData::PggReadEvents(&blck, &bo, true);
         if (pvNil == pggOnFile)
             goto LFail1;
         Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
@@ -4570,7 +4512,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
             case sevtAddActr: {
                 pggOnFile->Get(isevStart, &chid);
                 if (bo == kboOther)
-                    SwapBytesBom((void *)&chid, kbomLong);
+                    SwapBytesBom((void *)&chid, kbomSceneLong);
                 if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
                 {
                     ReleasePpo(&pggOnFile);
@@ -4595,7 +4537,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
             case sevtAddTbox: {
                 pggOnFile->Get(isevStart, &chid);
                 if (bo == kboOther)
-                    SwapBytesBom((void *)&chid, kbomLong);
+                    SwapBytesBom((void *)&chid, kbomSceneLong);
                 if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgTbox, &kid))
                 {
                     ReleasePpo(&pggOnFile);
@@ -4656,7 +4598,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Read Name
     //
-    pcfl->FGetName(kctgScen, cno, &pscen->_stnName);
+    pcfl->FGetName(kctgScen, cno, &pscen->_data.name);
 
     AssertPo(pscen, 0);
 
@@ -4820,8 +4762,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     PGeneralGroup pggStartTemp = pvNil;
     SceneEvent sev;
     ChildChunkID chidActr, chidTbox;
-    ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
-    SceneOnFile scenh;
+    ChunkNumber cnoChild;
     long isevFrm = -1;
     long isevStart = -1;
     long cb;
@@ -5029,43 +4970,8 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     //
     // Save info into scene chunk
     //
-    cb = pggFrmTemp->CbOnFile();
-    if (!pcfl->FAdd(cb, kctgFrmGg, &cnoFrmEvent, &blck))
-    {
+    if (!SceneData::FWriteEvents(pcfl, *pcno, pggFrmTemp, pggStartTemp))
         goto LFail;
-    }
-
-    if (!pggFrmTemp->FWrite(&blck))
-    {
-        pcfl->Delete(kctgFrmGg, cnoFrmEvent);
-        goto LFail;
-    }
-
-    if (!pcfl->FAdoptChild(kctgScen, *pcno, kctgFrmGg, cnoFrmEvent, 0))
-    {
-        pcfl->Delete(kctgFrmGg, cnoFrmEvent);
-        goto LFail;
-    }
-    pcfl->SetLoner(kctgFrmGg, cnoFrmEvent, fFalse);
-
-    cb = pggStartTemp->CbOnFile();
-    if (!pcfl->FAdd(cb, kctgStartGg, &cnoStartEvent, &blck))
-    {
-        goto LFail;
-    }
-
-    if (!pggStartTemp->FWrite(&blck))
-    {
-        pcfl->Delete(kctgStartGg, cnoStartEvent);
-        goto LFail;
-    }
-
-    if (!pcfl->FAdoptChild(kctgScen, *pcno, kctgStartGg, cnoStartEvent, 1))
-    {
-        pcfl->Delete(kctgStartGg, cnoStartEvent);
-        goto LFail;
-    }
-    pcfl->SetLoner(kctgStartGg, cnoStartEvent, fFalse);
 
     //
     // Save thumbnail, if there is one.
@@ -5097,24 +5003,8 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     //
     // Create header buffer for scene chunk
     //
-    scenh.bo = kboCur;
-    scenh.osk = koskCur;
-    scenh.nfrmLast = _nfrmLast;
-    scenh.nfrmFirst = _nfrmFirst;
-    scenh.trans = _trans;
-
-    //
-    // Write scene chunk
-    //
-    if (!pcfl->FSetName(kctgScen, *pcno, &_stnName))
-    {
+    if (!_data.FWrite(pcfl, *pcno))
         goto LFail;
-    }
-
-    if (!pcfl->FPutPv((void *)&scenh, size(SceneOnFile), kctgScen, *pcno))
-    {
-        goto LFail;
-    }
 
     ReleasePpo(&pggFrmTemp);
     ReleasePpo(&pggStartTemp);
@@ -5350,8 +5240,8 @@ void Scene::_UpdateThumbnail(void)
     grfscenSave = _grfscen;
     Disable(fscenPauses | fscenSounds);
 
-    nfrmCur = _nfrmCur;
-    if ((_nfrmCur != _nfrmFirst) && !FGotoFrm(_nfrmFirst))
+    nfrmCur = _data.currentFrame;
+    if ((_data.currentFrame != _data.firstFrame) && !FGotoFrm(_data.firstFrame))
     {
         ReleasePpo(&pgpt);
         ReleasePpo(&pgptThumb);
@@ -5391,7 +5281,7 @@ void Scene::_UpdateThumbnail(void)
 
         ReleasePpo(&pgpt);
         ReleasePpo(&pgptThumb);
-        if ((nfrmCur > _nfrmFirst) && (nfrmCur <= _nfrmLast))
+        if ((nfrmCur > _data.firstFrame) && (nfrmCur <= _data.lastFrame))
         {
             FGotoFrm(nfrmCur);
         }
@@ -5444,7 +5334,7 @@ bool Scene::FPasteActrCore(PActor pactr)
     //
     // Paste the actor.
     //
-    if (!pactr->FPaste(_nfrmCur, this))
+    if (!pactr->FPaste(_data.currentFrame, this))
     {
         return (fFalse);
     }
@@ -5458,7 +5348,7 @@ bool Scene::FPasteActrCore(PActor pactr)
     }
 
     InvalFrmRange();
-    if (!pactr->FGotoFrame(_nfrmCur))
+    if (!pactr->FGotoFrame(_data.currentFrame))
     {
         RemActrCore(pactr->Arid());
         return (fFalse);
@@ -5767,7 +5657,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
             pggsev->Get(isev, &chid);
             if (bo == kboOther)
             {
-                SwapBytesBom((void *)&chid, kbomLong);
+                SwapBytesBom((void *)&chid, kbomSceneLong);
             }
 
             if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
@@ -5883,7 +5773,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
             pggsev->Get(isev, &chid);
             if (bo == kboOther)
             {
-                SwapBytesBom((void *)&chid, kbomLong);
+                SwapBytesBom((void *)&chid, kbomSceneLong);
             }
             if (tagBkgd.sid == ksidInvalid)
             {
@@ -5997,7 +5887,7 @@ bool Scene::FChopCore()
     long ipo;
     long nfrmStart, nfrmLast;
 
-    if (_nfrmCur == _nfrmLast)
+    if (_data.currentFrame == _data.lastFrame)
     {
         return (fTrue);
     }
@@ -6029,7 +5919,7 @@ bool Scene::FChopCore()
         _pglptbox->Get(ipo, &ptbox);
         AssertPo(ptbox, 0);
 
-        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast) && (nfrmStart > _nfrmCur))
+        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast) && (nfrmStart > _data.currentFrame))
         {
             //
             // Ok if this fails.
@@ -6038,7 +5928,7 @@ bool Scene::FChopCore()
         }
         else
         {
-            if (nfrmLast >= _nfrmCur)
+            if (nfrmLast >= _data.currentFrame)
             {
 
                 //
@@ -6049,7 +5939,7 @@ bool Scene::FChopCore()
                 if (ptbox->FGotoFrame(klwMax - 1))
                 {
                     ptbox->FShowCore();
-                    ptbox->FGotoFrame(_nfrmCur);
+                    ptbox->FGotoFrame(_data.currentFrame);
                 }
             }
 
@@ -6068,9 +5958,9 @@ bool Scene::FChopCore()
     //
     // Set new limit
     //
-    if (_nfrmLast != _nfrmCur)
+    if (_data.lastFrame != _data.currentFrame)
     {
-        _nfrmLast = _nfrmCur;
+        _data.lastFrame = _data.currentFrame;
         Pmvie()->SetDirty();
     }
 
@@ -6094,7 +5984,7 @@ bool Scene::FChop()
     PSceneUndoChop psunc;
     bool fValid;
 
-    if (_nfrmCur == _nfrmLast)
+    if (_data.currentFrame == _data.lastFrame)
     {
         return (fTrue);
     }
@@ -6149,7 +6039,7 @@ bool Scene::FChopBackCore()
     long ipo;
     long nfrmStart, nfrmLast;
 
-    if (_nfrmCur == _nfrmFirst)
+    if (_data.currentFrame == _data.firstFrame)
     {
         return (fTrue);
     }
@@ -6181,7 +6071,7 @@ bool Scene::FChopBackCore()
         _pglptbox->Get(ipo, &ptbox);
         AssertPo(ptbox, 0);
 
-        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast) && (nfrmLast < _nfrmCur))
+        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast) && (nfrmLast < _data.currentFrame))
         {
             //
             // Ok if this fails.
@@ -6190,10 +6080,10 @@ bool Scene::FChopBackCore()
         }
         else
         {
-            if (nfrmStart < _nfrmCur)
+            if (nfrmStart < _data.currentFrame)
             {
                 Assert(ptbox->FIsVisible(), "Bad tbox");
-                ptbox->SetStartFrame(_nfrmCur);
+                ptbox->SetStartFrame(_data.currentFrame);
             }
 
             ipo++;
@@ -6215,13 +6105,13 @@ bool Scene::FChopBackCore()
         {
 
             fCopyCam = fFalse;
-            sev.nfrm = _nfrmCur;
+            sev.nfrm = _data.currentFrame;
             _pggsevFrm->PutFixed(_isevFrmLim, &sev);
         }
         else
         {
 
-            if (sev.nfrm == _nfrmCur)
+            if (sev.nfrm == _data.currentFrame)
             {
                 continue;
             }
@@ -6235,7 +6125,7 @@ bool Scene::FChopBackCore()
     {
 
         _pggsevFrm->GetFixed(_isevFrmLim, &sev);
-        if (sev.nfrm != _nfrmCur)
+        if (sev.nfrm != _data.currentFrame)
         {
             break;
         }
@@ -6244,16 +6134,16 @@ bool Scene::FChopBackCore()
     //
     // Set new limit
     //
-    if (_nfrmFirst != _nfrmCur)
+    if (_data.firstFrame != _data.currentFrame)
     {
-        _nfrmFirst = _nfrmCur;
+        _data.firstFrame = _data.currentFrame;
         Pmvie()->SetDirty();
     }
 
     //
     // If _psseBkgd got chopped, get rid of it
     //
-    if (_psseBkgd != pvNil && _nfrmSseBkgd < _nfrmFirst)
+    if (_psseBkgd != pvNil && _nfrmSseBkgd < _data.firstFrame)
     {
         ReleasePpsse(&_psseBkgd);
         TrashVar(&_nfrmSseBkgd);
@@ -6279,7 +6169,7 @@ bool Scene::FChopBack()
     PSceneUndoChop psunc;
     bool fValid;
 
-    if (_nfrmCur == _nfrmFirst)
+    if (_data.currentFrame == _data.firstFrame)
     {
         return (fTrue);
     }
@@ -6348,7 +6238,7 @@ bool Scene::FStartPlaying()
     {
         _pglptbox->Get(iptbox, &ptbox);
         if ((ptbox->FStory() && ptbox->FIsVisible()) ||
-            (!ptbox->FStory() && ptbox->FGetLifetime(&nfrmFirst, &nfrmLast) && (nfrmFirst == _nfrmCur)))
+            (!ptbox->FStory() && ptbox->FGetLifetime(&nfrmFirst, &nfrmLast) && (nfrmFirst == _data.currentFrame)))
         {
             ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
             ptbxg->Scroll(scaNil);
@@ -6406,23 +6296,11 @@ void Scene::StopPlaying()
 ************************************************************ PETED ***********/
 bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
-    DataBlock blck;
-    SceneOnFile scenh;
-    PChunkyFile pcfl = pcrf->Pcfl();
-
-    TrashVar(ptrans);
-
-    if (!pcfl->FFind(kctgScen, cno, &blck))
-        goto LFail;
-    if (!blck.FUnpackData() || blck.Cb() != size(SceneOnFile))
-        goto LFail;
-    if (!blck.FReadRgb(&scenh, size(SceneOnFile), 0))
-        goto LFail;
-
-    *ptrans = scenh.trans;
+    SceneData metadata;
+    if (!metadata.FRead(pcrf->Pcfl(), cno))
+        return fFalse;
+    *ptrans = metadata.transition;
     return fTrue;
-LFail:
-    return fFalse;
 }
 
 /******************************************************************************
@@ -6441,26 +6319,11 @@ LFail:
 ************************************************************ PETED ***********/
 bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
-    DataBlock blck;
-    SceneOnFile scenh;
-    PChunkyFile pcfl = pcrf->Pcfl();
-
-    if (!pcfl->FFind(kctgScen, cno, &blck))
-        goto LFail;
-    if (!blck.FUnpackData() || blck.Cb() != size(SceneOnFile))
-        goto LFail;
-    if (!blck.FReadRgb(&scenh, size(SceneOnFile), 0))
-        goto LFail;
-    if (scenh.trans != trans)
-    {
-        scenh.trans = trans;
-        if (!pcfl->FPutPv(&scenh, size(SceneOnFile), kctgScen, cno))
-            goto LFail;
-    }
-
-    return fTrue;
-LFail:
-    return fFalse;
+    SceneData metadata;
+    if (!metadata.FRead(pcrf->Pcfl(), cno))
+        return fFalse;
+    metadata.transition = trans;
+    return metadata.FWrite(pcrf->Pcfl(), cno);
 }
 
 //
@@ -6571,7 +6434,7 @@ void SceneUndoTitle::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoTitle.
 ***************************************************************************/
-void SceneUndoTitle::AssertValid(ulong grf)
+void SceneUndoTitle::AssertValid(LegacyUlong grf)
 {
 }
 #endif
@@ -6740,7 +6603,7 @@ void SceneUndoSound::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoSound.
 ***************************************************************************/
-void SceneUndoSound::AssertValid(ulong grf)
+void SceneUndoSound::AssertValid(LegacyUlong grf)
 {
     SceneUndoSound_PAR::AssertValid(grf);
     if (_psse != pvNil)
@@ -6972,7 +6835,7 @@ void SceneActorUndo::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneActorUndo.
 ***************************************************************************/
-void SceneActorUndo::AssertValid(ulong grf)
+void SceneActorUndo::AssertValid(LegacyUlong grf)
 {
     AssertPo(_pactr, 0);
 }
@@ -7211,7 +7074,7 @@ void SceneUndoText::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoText.
 ***************************************************************************/
-void SceneUndoText::AssertValid(ulong grf)
+void SceneUndoText::AssertValid(LegacyUlong grf)
 {
     AssertPo(_ptbox, 0);
 }
@@ -7324,7 +7187,7 @@ void SceneUndoTransition::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoTransition.
 ***************************************************************************/
-void SceneUndoTransition::AssertValid(ulong grf)
+void SceneUndoTransition::AssertValid(LegacyUlong grf)
 {
 }
 #endif
@@ -7437,7 +7300,7 @@ void SceneUndoPause::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoPause.
 ***************************************************************************/
-void SceneUndoPause::AssertValid(ulong grf)
+void SceneUndoPause::AssertValid(LegacyUlong grf)
 {
 }
 #endif
@@ -7578,7 +7441,7 @@ void SceneUndoBackground::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoBackground.
 ***************************************************************************/
-void SceneUndoBackground::AssertValid(ulong grf)
+void SceneUndoBackground::AssertValid(LegacyUlong grf)
 {
 }
 #endif
@@ -7775,7 +7638,7 @@ void SceneUndoChop::MarkMem(void)
 /***************************************************************************
     Assert the validity of the SceneUndoChop.
 ***************************************************************************/
-void SceneUndoChop::AssertValid(ulong grf)
+void SceneUndoChop::AssertValid(LegacyUlong grf)
 {
     AssertNilOrPo(_pcrf, grf);
 }

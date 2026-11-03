@@ -11,28 +11,29 @@
     a base linked list class for implementing singly linked lists.
 
 ***************************************************************************/
+#include "win_headers.h"
 #include "util.h"
 ASSERTNAME
 
 #ifdef DEBUG
-long vcactSuspendAssertValid = 0;
-long vcactAVSave = 0;
-long vcactAV = kswMax;
+LegacyLong vcactSuspendAssertValid = 0;
+LegacyLong vcactAVSave = 0;
+LegacyLong vcactAV = kswMax;
 
 /*****************************************************************************
     Debugging stuff to track leaked allocated objects.
 ******************************************************************************/
 // Debugging object info.
-const long kclwStackDoi = 10;
-struct DebugObjectInfo
+const LegacyLong kclwStackDoi = 10;
+struct alignas(std::max_align_t) DebugObjectInfo
 {
     short swMagic;      // magic number == kswMagicMem
     short cactRef;      // for marking memory and asserting on unused objects
     PSZS pszsFile;      // file NewObj appears in
-    long lwLine;        // line NewObj appears on
-    long cbTot;         // total size of the block, including the DebugObjectInfo
-    long lwThread;      // thread that allocated this
-    long rglwStack[10]; // what we get from following the EBP/A6 chain
+    LegacyLong lwLine;        // line NewObj appears on
+    LegacyLong cbTot;         // total size of the block, including the DebugObjectInfo
+    LegacyLong lwThread;      // thread that allocated this
+    LegacyLong rglwStack[10]; // what we get from following the EBP/A6 chain
     DebugObjectInfo *pdoiNext;      // singly linked list
     DebugObjectInfo **ppdoiPrev;
 };
@@ -75,7 +76,7 @@ RTCLASS(BaseLinkedList)
 /***************************************************************************
     Returns the run-time class id (cls) of the class.
 ***************************************************************************/
-long BASE::Cls(void)
+LegacyLong BASE::Cls(void)
 {
     return kclsBASE;
 }
@@ -83,7 +84,7 @@ long BASE::Cls(void)
 /***************************************************************************
     Returns true iff cls is kclsBASE.
 ***************************************************************************/
-bool BASE::FIs(long cls)
+bool BASE::FIs(LegacyLong cls)
 {
     return kclsBASE == cls;
 }
@@ -91,7 +92,7 @@ bool BASE::FIs(long cls)
 /***************************************************************************
     Static method. Returns true iff cls is kclsBASE.
 ***************************************************************************/
-bool BASE::FWouldBe(long cls)
+bool BASE::FWouldBe(LegacyLong cls)
 {
     return kclsBASE == cls;
 }
@@ -177,9 +178,9 @@ void BASE::Release(void)
     of allocated objects for object leakage tracking.
 ***************************************************************************/
 #ifdef DEBUG
-void *BASE::operator new(size_t cb, PSZS pszsFile, long lwLine)
+void *BASE::operator new(size_t cb, PSZS pszsFile, LegacyLong lwLine) noexcept
 #else  //! DEBUG
-void *BASE::operator new(size_t cb)
+void *BASE::operator new(size_t cb) noexcept
 #endif //! DEBUG
 {
     AssertVarMem(pszsFile);
@@ -199,11 +200,7 @@ void *BASE::operator new(size_t cb)
     _Leave();
 #endif // DEBUG
 
-#ifdef WIN
-    if ((pv = (void *)GlobalAlloc(GMEM_FIXED | GMEM_ZEROINIT, cb + kcbBaseDebug)) == pvNil)
-#else  //! WIN
-    if ((pv = ::operator new(cb + kcbBaseDebug)) == pvNil)
-#endif //! WIN
+    if ((pv = KauaiPlatform::Allocate(cb + kcbBaseDebug, true)) == pvNil)
         PushErc(ercOomNew);
     else
     {
@@ -225,13 +222,13 @@ void *BASE::operator new(size_t cb)
 #ifdef WIN
 #ifdef IN_80386
         // follow the EBP chain to capture a debug-mode allocation stack trace.
-        long *plw;
-        long ilw;
+        LegacyLong *plw;
+        LegacyLong ilw;
 
         __asm { mov plw,ebp }
         for (ilw = 0; ilw < kclwStackDoi; ilw++)
         {
-            if (pvNil == plw || IsBadReadPtr(plw, 2 * size(long)) || *plw <= (long)plw)
+            if (pvNil == plw || IsBadReadPtr(plw, 2 * size(LegacyLong)) || *plw <= (LegacyLong)plw)
             {
                 pdoi->rglwStack[ilw] = 0;
                 plw = pvNil;
@@ -239,14 +236,14 @@ void *BASE::operator new(size_t cb)
             else
             {
                 pdoi->rglwStack[ilw] = plw[1];
-                plw = (long *)*plw;
+                plw = (LegacyLong *)*plw;
             }
         }
 #else
         // x64 doesn't allow inline asm. The diagnostic stack trace is
         // optional debug instrumentation; leave it empty on x64 for now.
         // CaptureStackBackTrace would be the proper Win32 replacement.
-        for (long ilw = 0; ilw < kclwStackDoi; ilw++)
+        for (LegacyLong ilw = 0; ilw < kclwStackDoi; ilw++)
             pdoi->rglwStack[ilw] = 0;
 #endif // IN_80386
 #endif // WIN
@@ -256,14 +253,9 @@ void *BASE::operator new(size_t cb)
 
         _Leave();
 #endif // DEBUG
-#ifndef WIN
-        ClearPb(pv, cb);
-#endif //! WIN
     }
     return pv;
 }
-
-#if defined(DEBUG) || defined(WIN)
 
 /***************************************************************************
     DEBUG : Unlink from linked list of allocated objects and free the memory.
@@ -281,27 +273,22 @@ void BASE::operator delete(void *pv)
     TrashPvCb(pdoi, pdoi->cbTot);
     pv = pdoi;
 #endif // DEBUG
-#ifdef WIN
-    GlobalFree((HGLOBAL)pv);
-#else  //! WIN
-    ::delete (pv);
-#endif //! WIN
+    KauaiPlatform::Free(pv);
 }
 
 #ifdef DEBUG
-void BASE::operator delete(void *pv, schar *pszsFile, long lwLine)
+void BASE::operator delete(void *pv, schar *pszsFile, LegacyLong lwLine)
 {
     BASE::operator delete(pv);
 }
 #endif // DEBUG
 
-#endif // DEBUG || WIN
 
 #ifdef DEBUG
 /***************************************************************************
     Assert the this pointer is valid.
 ***************************************************************************/
-void BASE::AssertValid(ulong grfobj)
+void BASE::AssertValid(LegacyUlong grfobj)
 {
     AssertVarMem(this);
     AssertIn(_cactRef, 0, kcbMax);
@@ -449,8 +436,8 @@ void AssertUnmarkedObjs(void)
     DebugObjectInfo *pdoi;
     DebugObjectInfo *pdoiLast;
     bool fAssert;
-    long cdoiLost = 0;
-    long lwThread = LwThreadCur();
+    LegacyLong cdoiLost = 0;
+    LegacyLong lwThread = LwThreadCur();
 
     Assert(_pdoiFirstRaw == pvNil, "Raw list is not empty!");
 
@@ -487,7 +474,7 @@ void AssertUnmarkedObjs(void)
                               pbase->Cls(), pdoi->cbTot - size(DebugObjectInfo));
                 stn.GetSzs(szs);
 
-                if (FAssertProc(pdoi->pszsFile, pdoi->lwLine, szs, pdoi->rglwStack, kclwStackDoi * size(long)))
+                if (FAssertProc(pdoi->pszsFile, pdoi->lwLine, szs, pdoi->rglwStack, kclwStackDoi * size(LegacyLong)))
                 {
                     Debugger();
                 }
@@ -517,7 +504,7 @@ void UnmarkAllObjs(void)
 
     BASE *pbase;
     DebugObjectInfo *pdoi;
-    long lwThread = LwThreadCur();
+    LegacyLong lwThread = LwThreadCur();
 
     Assert(_pdoiFirstRaw == pvNil, "Raw list is not empty!");
     for (pdoi = _pdoiFirst; pvNil != pdoi; pdoi = pdoi->pdoiNext)
@@ -592,7 +579,7 @@ void BaseLinkedList::_Attach(void *ppbllPrev)
 /***************************************************************************
     Check the links.
 ***************************************************************************/
-void BaseLinkedList::AssertValid(ulong grf)
+void BaseLinkedList::AssertValid(LegacyUlong grf)
 {
     BaseLinkedList_PAR::AssertValid(grf);
 

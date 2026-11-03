@@ -26,7 +26,7 @@ struct ZBMPF
     short dyp;
     // void *rgb; 		// pixels follow immediately after ZBMPF
 };
-const ulong kbomZbmpf = 0x55500000;
+const br_uint_32 kbomZbmpf = 0x55500000;
 
 /****************************************
     ZBMP class
@@ -42,32 +42,32 @@ class ZBMP : public ZBMP_PAR
 
   protected:
     RC _rc;      // bounding rectangle of ZBMP
-    long _cbRow; // bytes per row
-    long _cb;    // count of bytes in Z buffer
+    br_int_32 _cbRow; // bytes per row
+    br_int_32 _cb;    // count of bytes in Z buffer
     byte *_prgb; // Z buffer
     ZBMP(void)
     {
     }
 
   public:
-    static PZBMP PzbmpNew(long dxp, long dyp);
+    static PZBMP PzbmpNew(br_int_32 dxp, br_int_32 dyp);
     static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
     static PZBMP PzbmpRead(PDataBlock pblck);
-    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, br_int_32 *pcb);
     ~ZBMP(void);
 
     byte *Prgb(void)
     {
         return _prgb;
     }
-    long CbRow(void)
+    br_int_32 CbRow(void)
     {
         return _cbRow;
     }
 
-    void Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
+    void Draw(byte *prgbPixels, br_int_32 cbRow, br_int_32 dyp, br_int_32 xpRef, br_int_32 ypRef, RC *prcClip = pvNil,
               PRegion pregnClip = pvNil);
-    void DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
+    void DrawHalf(byte *prgbPixels, br_int_32 cbRow, br_int_32 dyp, br_int_32 xpRef, br_int_32 ypRef, RC *prcClip = pvNil,
                   PRegion pregnClip = pvNil);
 
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);

@@ -10,12 +10,22 @@
     Common base application class methods.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include <cstdlib>
+#include <cstring>
+#include "sdl_host.h"
+#include "sdl_sound.h"
+#include "midi_sdl.h"
+#endif
 #include "frame.h"
 #include "cmd_hooks.h"
+#include "legacy_wave_formats.h"
+#ifdef KAUAI_SDL3
+#include "sdl_studio.h"
+#endif
 ASSERTNAME
 
 PApplicationBase vpappb;
-PCommandExecutionManager vpcex;
 PSoundManager vpsndm;
 
 // basic commands common to most apps
@@ -149,10 +159,12 @@ void ApplicationBase::RefreshCurs(void)
         (*ppcurs)->Set();
     else
     {
-#ifdef WIN
+#ifdef KAUAI_SDL3
+        KauaiSDL::Main().SetSystemCursor(_cactLongOp > 0);
+#elif defined(WIN)
         SetCursor(LoadCursor(hNil, _cactLongOp > 0 ? IDC_WAIT : IDC_ARROW));
 #endif // WIN
-#ifdef MAC
+#if defined(MAC) && !defined(KAUAI_SDL3)
         HCURS hcurs;
 
         if (_cactLongOp > 0 && hNil != (hcurs = GetCursor(watchCursor)))
@@ -204,6 +216,20 @@ ulong ApplicationBase::GrfcustCur(bool fAsync)
 {
     AssertThis(0);
 
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        const auto mods = KauaiSDL::Main().Modifiers();
+        float x, y; bool down;
+        KauaiSDL::Main().Mouse(x, y, down);
+        _grfcust &= ~kgrfcustUser;
+        if (mods & KauaiSDL::shift) _grfcust |= fcustShift;
+        if (mods & KauaiSDL::control) _grfcust |= fcustCmd;
+        if (mods & KauaiSDL::alt) _grfcust |= fcustOption;
+        if (down) _grfcust |= fcustMouse;
+        return _grfcust;
+    }
+#endif
 #ifdef WIN
 
     auto pfnT = fAsync ? GetAsyncKeyState : GetKeyState;
@@ -246,7 +272,12 @@ void ApplicationBase::HideCurs(void)
 {
     AssertThis(0);
 
+#ifdef KAUAI_SDL3
+    if (++_cactSDLHide == 1)
+        KauaiSDL::Main().SetCursorVisible(false);
+#else
     MacWin(HideCursor(), ShowCursor(fFalse));
+#endif
 }
 
 /***************************************************************************
@@ -256,7 +287,12 @@ void ApplicationBase::ShowCurs(void)
 {
     AssertThis(0);
 
+#ifdef KAUAI_SDL3
+    if (_cactSDLHide > 0 && --_cactSDLHide == 0)
+        KauaiSDL::Main().SetCursorVisible(true);
+#else
     MacWin(ShowCursor(), ShowCursor(fTrue));
+#endif
 }
 
 /***************************************************************************
@@ -267,8 +303,55 @@ void ApplicationBase::PositionCurs(long xpScreen, long ypScreen)
     AssertThis(0);
 
     // REVIEW shonk: implement on Mac
+#ifdef KAUAI_SDL3
+    KauaiSDL::Main().WarpPointerGlobal(static_cast<float>(xpScreen), static_cast<float>(ypScreen));
+#else
     MacWin(RawRtn(), SetCursorPos(xpScreen, ypScreen));
+#endif
 }
+
+void ApplicationBase::PositionCurs(PGraphicsObject gob, long x, long y)
+{
+    AssertPo(gob, 0);
+    PT point(x, y);
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        gob->MapPt(&point, cooLocal, cooHwnd);
+        KauaiSDL::Main().WarpPointer(point.xp, point.yp);
+        return;
+    }
+#endif
+    gob->MapPt(&point, cooLocal, cooGlobal);
+    PositionCurs(point.xp, point.yp);
+}
+
+void ApplicationBase::ConfineCurs(PGraphicsObject gob)
+{
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        KauaiSDL::Main().ConfinePointer(gob != nullptr);
+        return;
+    }
+#endif
+#ifdef WIN
+    RECT rectangle;
+    if (gob)
+    {
+        if (GetWindowRect(gob->HwndContainer(), &rectangle))
+            ClipCursor(&rectangle);
+    }
+    else
+        ClipCursor(nullptr);
+#endif
+}
+#ifdef KAUAI_SDL3
+void ApplicationBase::SetSlowKeyRepeat(bool slow)
+{
+    KauaiSDL::Main().SetSlowKeyRepeat(slow);
+}
+#endif
 
 /***************************************************************************
     Return the default variable pitch font.
@@ -394,14 +477,19 @@ bool ApplicationBase::FCmdIdle(PCommand pcmd)
         if (fDown)
             return fTrue;
 
+#ifdef KAUAI_SDL3
+        pgob = KauaiSDL::Main().PointerInside() ? pgob->PgobFromPt(pt.xp, pt.yp, &pt) : nullptr;
+#else
         pgob->MapPt(&pt, cooLocal, cooGlobal);
         pgob = GraphicsObject::PgobFromPtGlobal(pt.xp, pt.yp, &pt);
+#endif
         grfcust = GrfcustCur();
         if (pgob != _pgobMouse || pt.xp != _xpMouse || pt.yp != _ypMouse || _grfcustMouse != grfcust)
         {
             if (_pgobMouse != pgob)
             {
                 _tsMouse = 0;
+                _cactMouse = 0;
                 if (pvNil != _pgobMouse)
                 {
                     AssertPo(_pgobMouse, 0);
@@ -513,7 +601,7 @@ bool ApplicationBase::FEnableAppCmd(PCommand pcmd, ulong *pgrfeds)
         break;
 
     case cidChooseWnd:
-        if ((HWND)pcmd->rglw[0] == GraphicsObject::HwndMdiActive())
+        if ((CoreNative::WindowHandle)pcmd->rglw[0] == GraphicsObject::HwndMdiActive())
             *pgrfeds |= fedsCheck;
         else
             *pgrfeds |= fedsUncheck;
@@ -537,7 +625,7 @@ bool ApplicationBase::FCmdChooseWnd(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    GraphicsObject::MakeHwndActive((HWND)pcmd->rglw[0]);
+    GraphicsObject::MakeHwndActive((CoreNative::WindowHandle)pcmd->rglw[0]);
     return fTrue;
 }
 
@@ -547,7 +635,7 @@ bool ApplicationBase::FCmdChooseWnd(PCommand pcmd)
 /* Free-function adapters for the cmd_hooks seam (see cmd_hooks.h). C++03
    means we can't pass a non-capturing lambda directly as a function-pointer
    in all toolchain configs we still support, so go via free functions. */
-static PCommandHandler _AppPcmhFromHidHook(long hid)
+static PCommandHandler _AppPcmhFromHidHook(LegacyLong hid)
 {
     return (vpappb != pvNil) ? vpappb->PcmhFromHid(hid) : pvNil;
 }
@@ -625,14 +713,28 @@ bool ApplicationBase::_FInitSound(long wav)
     if (pvNil == (vpsndm = SoundManager::PsndmNew()))
         return fTrue;
 
+#ifdef KAUAI_SDL3
+    if (pvNil != (psndv = KauaiAudio::NewWaveDevice()))
+#else
     if (pvNil != (psndv = AudioManSoundDevice::PsdamNew(wav)))
+#endif
     {
         vpsndm->FAddDevice(kctgWave, psndv);
         ReleasePpo(&psndv);
     }
 
     // create the midi playback device - use the stream one
+#ifdef KAUAI_SDL3
+    KauaiMidi::HostFactory midiFactory = KauaiMidi::CreateSDLStreamHost;
+#ifdef WIN
+    const auto midiProvider = std::getenv("KAUAI_MIDI_PROVIDER");
+    if (midiProvider && !std::strcmp(midiProvider, "winmm"))
+        midiFactory = KauaiMidi::CreateStreamHost;
+#endif
+    if (pvNil != (psndv = MidiStreamPlayer::PmdpsNew(midiFactory)))
+#else
     if (pvNil != (psndv = MidiStreamPlayer::PmdpsNew()))
+#endif
     {
         vpsndm->FAddDevice(kctgMidi, psndv);
         ReleasePpo(&psndv);
@@ -648,7 +750,13 @@ bool ApplicationBase::_FInitMenu(void)
 {
     AssertThis(0);
 
+#if defined(KAUAI_SDL3) && !defined(WIN)
+    // Native menu resources are not available on this host. Studio overrides
+    // this method and builds its menus from the shared Kidspace resources.
+    return fFalse;
+#else
     return MenuBar::PmubNew(128) != pvNil;
+#endif
 }
 
 /***************************************************************************
@@ -682,7 +790,7 @@ void ApplicationBase::_Loop(void)
     }
 }
 
-#ifdef WIN
+#if defined(WIN) && !defined(KAUAI_SDL3)
 STDAPI_(int) DetectLeaks(BOOL fDebugOut, BOOL fMessageBox);
 #endif // WIN
 
@@ -706,7 +814,7 @@ void ApplicationBase::_CleanUp(void)
         ReleasePpo(&psndm);
     }
 
-#ifdef WIN
+#if defined(WIN) && !defined(KAUAI_SDL3)
 #ifdef DEBUG
     // check for Audioman memory leaks
     DetectLeaks(fTrue, fFalse);
@@ -714,6 +822,9 @@ void ApplicationBase::_CleanUp(void)
 #endif // WIN
 
     GraphicsObject::ShutDown();
+#ifdef KAUAI_SDL3
+    _CloseSDLWindow();
+#endif
     FileObject::ShutDown();
 #ifdef WIN
     _ShutDownViewer();
@@ -760,6 +871,9 @@ void ApplicationBase::TopOfLoop(void)
 
     // update any marked stuff
     UpdateMarked();
+#ifdef KAUAI_SDL3
+    KauaiSDLBridge::Present();
+#endif
 
     // take down the wait cursor
     EndLongOp(fTrue);
@@ -769,7 +883,7 @@ void ApplicationBase::TopOfLoop(void)
     Update the given window.  *prc is the bounding rectangle of the update
     region.
 ***************************************************************************/
-void ApplicationBase::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void ApplicationBase::UpdateHwnd(CoreNative::WindowHandle hwnd, RC *prc, ulong grfapp)
 {
     AssertThis(0);
     Assert(hNil != hwnd, "nil hwnd in UpdateHwnd");
@@ -908,7 +1022,7 @@ void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCo
     long imkrgn;
     RC rc;
     PT pt;
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
 
     // get the offset
     pgobCoo->GetRc(&rc, cooHwnd);
@@ -1020,7 +1134,7 @@ void ApplicationBase::_UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgob
     long imkrgn;
     RC rc;
     PT pt;
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
 
     if (pvNil == _pglmkrgn || _pglmkrgn->IvMac() == 0)
         return;
@@ -1080,7 +1194,7 @@ void ApplicationBase::_UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgob
 /***************************************************************************
     Get the bounding rectangle of any marked portion of the given hwnd.
 ***************************************************************************/
-bool ApplicationBase::FGetMarkedRc(HWND hwnd, RC *prc)
+bool ApplicationBase::FGetMarkedRc(CoreNative::WindowHandle hwnd, RC *prc)
 {
     AssertThis(0);
     Assert(hNil != hwnd, "bad hwnd");
@@ -1105,11 +1219,11 @@ bool ApplicationBase::FGetMarkedRc(HWND hwnd, RC *prc)
 }
 
 /***************************************************************************
-    If there is a marked region for this HWND, remove it from the list
+    If there is a marked region for this CoreNative::WindowHandle, remove it from the list
     and invalidate it.  This is called when we get a system paint/update
     event.
 ***************************************************************************/
-void ApplicationBase::InvalMarked(HWND hwnd)
+void ApplicationBase::InvalMarked(CoreNative::WindowHandle hwnd)
 {
     AssertThis(0);
     Assert(hNil != hwnd, "bad hwnd");
@@ -1283,18 +1397,36 @@ void ApplicationBase::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGra
     Should minimize reallocations.  Doesn't increment a ref count.
     ApplicationBase maintains ownership of the GraphicsPort.
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+void ApplicationBase::RequestTrueColorOffscreen(bool acquire)
+{
+    if (acquire)
+        ++_cactTrueColorOffscreen;
+    else
+    {
+        Assert(_cactTrueColorOffscreen > 0, "Unbalanced true-color drawing request");
+        if (_cactTrueColorOffscreen > 0)
+            --_cactTrueColorOffscreen;
+    }
+}
+#endif
 PGraphicsPort ApplicationBase::_PgptEnsure(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
 
     RC rc;
+    long depth = 8;
+#ifdef KAUAI_SDL3
+    if (_cactTrueColorOffscreen > 0)
+        depth = 32;
+#endif
 
-    if (prc->Dxp() > _dxpOff || prc->Dyp() > _dypOff)
+    if (prc->Dxp() > _dxpOff || prc->Dyp() > _dypOff || (_pgptOff && _pgptOff->CbitPixel() != depth))
     {
         ReleasePpo(&_pgptOff);
         rc.Set(0, 0, LwMax(prc->Dxp(), _dxpOff), LwMax(prc->Dyp(), _dypOff));
-        _pgptOff = GraphicsPort::PgptNewOffscreen(&rc, 8);
+        _pgptOff = GraphicsPort::PgptNewOffscreen(&rc, depth);
         if (pvNil != _pgptOff)
         {
             _dxpOff = rc.Dxp();
@@ -1393,6 +1525,12 @@ bool ApplicationBase::FSetProp(long prid, long lw)
     switch (prid)
     {
     case kpridFullScreen:
+#ifdef KAUAI_SDL3
+        if (!KauaiSDL::Main().SetFullscreen(FPure(lw)))
+            return fFalse;
+        _fFullScreen = FPure(lw);
+        break;
+#else
         if (FPure(_fFullScreen) == FPure(lw))
             break;
 #ifdef WIN
@@ -1419,9 +1557,12 @@ bool ApplicationBase::FSetProp(long prid, long lw)
 #endif //! WIN
         _fFullScreen = FPure(lw);
         break;
+#endif
 
     case kpridMaximized:
-#ifdef WIN
+#ifdef KAUAI_SDL3
+        return KauaiSDL::Main().SetMaximized(FPure(lw));
+#elif defined(WIN)
         if (FPure(IsZoomed(vwig.hwndApp)) == FPure(lw))
             break;
         return FPure(ShowWindow(vwig.hwndApp, lw ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL));
@@ -1455,18 +1596,31 @@ bool ApplicationBase::FGetProp(long prid, long *plw)
     TrashVar(plw);
     switch (prid)
     {
-    case kpridFullScreen:
+    case kpridFullScreen: {
+#ifdef KAUAI_SDL3
+        KauaiSDL::WindowStatus state;
+        if (!KauaiSDL::Main().WindowState(state))
+            return fFalse;
+        *plw = state.fullscreen;
+#else
         *plw = _fFullScreen;
+#endif
         break;
-
-    case kpridMaximized:
-#ifdef WIN
+    }
+    case kpridMaximized: {
+#ifdef KAUAI_SDL3
+        KauaiSDL::WindowStatus state;
+        if (!KauaiSDL::Main().WindowState(state))
+            return fFalse;
+        *plw = state.maximized;
+#elif defined(WIN)
         *plw = FPure(IsZoomed(vwig.hwndApp));
 #else  //! WIN
        // REVIEW shonk: Mac: implement
         *plw = fTrue;
 #endif //! WIN
         break;
+    }
 
     case kpridToolTipDelay:
         *plw = LwMulDivAway(_dtsToolTip, kdtimSecond, kdtsSecond);
@@ -1572,8 +1726,8 @@ bool ApplicationBase::FPushModal(PCommandExecutionManager pcex)
     if (pcex != pvNil)
         pcex->AddRef();
 
-    if (pvNil == pcex && pvNil == (pcex = CommandExecutionManager::PcexNew(20, 20)) || !pcex->FAddCmh(vpappb, kcmhlAppb) ||
-        pvNil == (pusacNew = NewObj UniversalScalableApplicationClock))
+    if (pvNil == pcex && pvNil == (pcex = GuiCommandExecutionManager::PgcexNew(20, 20)) ||
+        !pcex->FAddCmh(vpappb, kcmhlAppb) || pvNil == (pusacNew = NewObj UniversalScalableApplicationClock))
     {
         ReleasePpo(&pcex);
         AssertDo(_pglmodcx->FPop(), 0);
@@ -1718,7 +1872,7 @@ bool ApplicationBase::FAllowScreenSaver(void)
 /***************************************************************************
     Assert the validity of a ApplicationBase.
 ***************************************************************************/
-void ApplicationBase::AssertValid(ulong grf)
+void ApplicationBase::AssertValid(LegacyUlong grf)
 {
     ApplicationBase_PAR::AssertValid(0);
 
@@ -1789,7 +1943,7 @@ void ApplicationBase::MarkMem(void)
 /***************************************************************************
     Assert proc - just calls the app's AssertProc.
 ***************************************************************************/
-bool FAssertProc(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, long cb)
+bool FAssertProc(PSZS pszsFile, LegacyLong lwLine, PSZS pszsMsg, void *pv, LegacyLong cb)
 {
     if (vpappb == pvNil)
         return fTrue;
@@ -1799,7 +1953,7 @@ bool FAssertProc(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, long cb)
 /***************************************************************************
     Warning reporting proc.
 ***************************************************************************/
-void WarnProc(PSZS pszsFile, long lwLine, PSZS pszsMsg)
+void WarnProc(PSZS pszsFile, LegacyLong lwLine, PSZS pszsMsg)
 {
     if (vpappb == pvNil)
         Debugger();
@@ -1854,7 +2008,7 @@ void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
             // debug warn log isn't actionable by the user; surfacing it as an
             // "Internal error: 103" dialog is noise. We keep silently falling
             // through to LDone so subsequent Warn() calls also no-op.
-            long ercT;
+            LegacyLong ercT;
             vpers->FPop(&ercT);
             goto LDone;
         }

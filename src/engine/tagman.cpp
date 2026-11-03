@@ -38,7 +38,9 @@
     short names.
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
+PTagManager vptagm;
+
 ASSERTNAME
 
 RTCLASS(TagManager)
@@ -49,7 +51,7 @@ const ByteOrderMask kbomSid = 0xc0000000;
 struct SourceFileStructure
 {
   public:
-    long sid;             // ID for this source
+    LegacyLong sid;             // ID for this source
     Filename fniHD;            // Filename of the HD directory
     Filename fniCD;            // Filename of the CD directory
     PChunkyResourceManager pcrmSource;      // ChunkyResourceManager of files on the CD (or possibly HD)
@@ -69,7 +71,7 @@ struct SourceFileStructure
 /***************************************************************************
     Initialize the tag manager
 ***************************************************************************/
-PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache)
+PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, LegacyLong cbCache)
 {
     AssertPo(pfniHDRoot, ffniDir);
     Assert(pvNil != pfninscd, "bad pfninscd");
@@ -89,7 +91,7 @@ PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long c
     if (pvNil == ptagm->_pglsfs)
         goto LFail;
 
-    ptagm->_pgstSource = StringTable_GST::PgstNew(size(long)); // extra data is sid
+    ptagm->_pgstSource = StringTable_GST::PgstNew(size(LegacyLong)); // extra data is sid
     if (pvNil == ptagm->_pgstSource)
         goto LFail;
 
@@ -107,7 +109,7 @@ TagManager::~TagManager(void)
 {
     AssertBaseThis(0);
 
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
 
     if (pvNil != _pglsfs)
@@ -161,14 +163,14 @@ PStringTable_GST TagManager::PgstSource(void)
     If there is an stn for the given sid in _pgstSource, return the
     location of the stn.
 ***************************************************************************/
-bool TagManager::_FFindSid(long sid, long *pistn)
+bool TagManager::_FFindSid(LegacyLong sid, LegacyLong *pistn)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
     AssertNilOrVarMem(pistn);
 
-    long istn;
-    long sidT;
+    LegacyLong istn;
+    LegacyLong sidT;
 
     for (istn = 0; istn < _pgstSource->IvMac(); istn++)
     {
@@ -192,11 +194,11 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
-    Assert(size(long) == pgst->CbExtra(), "bad pgstSource");
+    Assert(size(LegacyLong) == pgst->CbExtra(), "bad pgstSource");
 
-    long istn;
+    LegacyLong istn;
     String stn;
-    long sid;
+    LegacyLong sid;
 
     for (istn = 0; istn < pgst->IvMac(); istn++)
     {
@@ -214,7 +216,7 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
 /***************************************************************************
     Add source title string to tag manager, if it's not already there
 ***************************************************************************/
-bool TagManager::FAddStnSource(PString pstn, long sid)
+bool TagManager::FAddStnSource(PString pstn, LegacyLong sid)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -230,13 +232,13 @@ bool TagManager::FAddStnSource(PString pstn, long sid)
     Find the sid with the given string as its source name.  pstn can be
     the merged name, the short name, or the long name.
 ***************************************************************************/
-bool TagManager::FGetSid(PString pstn, long *psid)
+bool TagManager::FGetSid(PString pstn, LegacyLong *psid)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
     AssertVarMem(psid);
 
-    long istn;
+    LegacyLong istn;
     String stnMerged;
     String stnLong;
     String stnShort;
@@ -262,13 +264,13 @@ bool TagManager::FGetSid(PString pstn, long *psid)
 /***************************************************************************
     Find the string of the source with the given sid
 ***************************************************************************/
-bool TagManager::_FGetStnMergedOfSid(long sid, PString pstn)
+bool TagManager::_FGetStnMergedOfSid(LegacyLong sid, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pstn);
 
-    long istn;
-    long sidT;
+    LegacyLong istn;
+    LegacyLong sidT;
 
     for (istn = 0; istn < _pgstSource->IvMac(); istn++)
     {
@@ -283,7 +285,7 @@ bool TagManager::_FGetStnMergedOfSid(long sid, PString pstn)
 /***************************************************************************
     Find the string of the source with the given sid
 ***************************************************************************/
-bool TagManager::_FGetStnSplitOfSid(long sid, PString pstnLong, PString pstnShort)
+bool TagManager::_FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort)
 {
     AssertThis(0);
     AssertVarMem(pstnLong);
@@ -304,7 +306,7 @@ bool TagManager::_FGetStnSplitOfSid(long sid, PString pstnLong, PString pstnShor
     - If we find the fniHD, put it in *pfniHD, set *pfExists to fTrue,
       and return fTrue
 ***************************************************************************/
-bool TagManager::_FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists)
+bool TagManager::_FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -358,7 +360,7 @@ bool TagManager::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
     think it does.  Or, if pstn is non-nil, try to go down from pfniCD
     to pstn.
 ***************************************************************************/
-bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PString pstn)
+bool TagManager::_FEnsureFniCD(LegacyLong sid, Filename *pfniCD, PString pstn)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -372,20 +374,15 @@ bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PString pstn)
     pers = vpers;
     vpers = &ersT;
 
-#ifdef WIN
     // Block the Windows "There is no disk in the drive" message
-    UINT em;
-    em = SetErrorMode(SEM_FAILCRITICALERRORS);
-#endif // WIN
+    auto em = KauaiFiles::SuppressMediaErrors();
 
     if (pvNil != pstn)
         fRet = pfniCD->FDownDir(pstn, ffniMoveToDir);
     else
         fRet = (pfniCD->TExists() == tYes);
 
-#ifdef WIN
-    SetErrorMode(em); // restore the error mode
-#endif                // WIN
+    KauaiFiles::RestoreMediaErrors(em);
 
     vpers = pers;
     return fRet;
@@ -398,7 +395,7 @@ bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PString pstn)
     looking for this source, pass in any Filename with a FileType of ftgNil.	If it
     can't find the CD directory, it returns fFalse with pfniInfo untouched.
 ***************************************************************************/
-bool TagManager::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
+bool TagManager::_FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChanged)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -459,7 +456,7 @@ bool TagManager::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
     the source named stn cannot be found.  Returns fTrue if the user wants
     to retry, else fFalse.
 ***************************************************************************/
-bool TagManager::_FRetry(long sid)
+bool TagManager::_FRetry(LegacyLong sid)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -479,7 +476,7 @@ bool TagManager::_FRetry(long sid)
     Builds the ChunkyResourceManager for the given sid's source.  pfniDir tells where the
     content files are.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceNew(long sid, PFilename pfniDir)
+PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename pfniDir)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -520,12 +517,12 @@ LFail:
     new one if there isn't one already.  It verifies that the CD is still
     in the drive, unless fDontHitCD is fTrue.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceGet(long sid, bool fDontHitCD)
+PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool fDontHitCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
 
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
     bool fContentOnFni;
     bool fFniChanged;
@@ -612,13 +609,13 @@ LSetupSfs:
     HD!)  Note that the function return value is whether the function
     completed without error, not whether the source is on HD.
 ***************************************************************************/
-bool TagManager::_FDetermineIfSourceHD(long sid, bool *pfIsOnHD)
+bool TagManager::_FDetermineIfSourceHD(LegacyLong sid, bool *pfIsOnHD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
     AssertVarMem(pfIsOnHD);
 
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
     bool fContentOnFni;
     bool fExists;
@@ -660,12 +657,12 @@ LSetupSfs:
 /***************************************************************************
     Get the Filename for the HD directory
 ***************************************************************************/
-bool TagManager::_FGetFniHD(long sid, PFilename pfniHD)
+bool TagManager::_FGetFniHD(LegacyLong sid, PFilename pfniHD)
 {
     AssertThis(0);
     AssertVarMem(pfniHD);
 
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
     bool fExists;
 
@@ -694,12 +691,12 @@ LSetupSFS:
 /***************************************************************************
     Get the Filename for the CD directory
 ***************************************************************************/
-bool TagManager::_FGetFniCD(long sid, PFilename pfniCD, bool fAskForCD)
+bool TagManager::_FGetFniCD(LegacyLong sid, PFilename pfniCD, bool fAskForCD)
 {
     AssertThis(0);
     AssertVarMem(pfniCD);
 
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
     bool fFniChanged;
 
@@ -731,7 +728,7 @@ LSetupSFS:
 /***************************************************************************
     Finds the file with name pstn on the HD or CD.
 ***************************************************************************/
-bool TagManager::FFindFile(long sid, PString pstn, PFilename pfni, bool fAskForCD)
+bool TagManager::FFindFile(LegacyLong sid, PString pstn, PFilename pfni, bool fAskForCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -847,8 +844,8 @@ bool TagManager::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
         // chunks.
         ChunkGraphEnumerator cge;
         ChildChunkIdentification kid;
-        ulong grfcgeIn = 0;
-        ulong grfcgeOut;
+        LegacyUlong grfcgeIn = 0;
+        LegacyUlong grfcgeOut;
 
         cge.Init(pcfl, ptag->ctg, ptag->cno);
         while (cge.FNextKid(&kid, pvNil, &grfcgeOut, grfcgeIn))
@@ -906,20 +903,18 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseC
 /***************************************************************************
     Clear the cache for source sid.  If sid is sidNil, clear all caches.
 ***************************************************************************/
-void TagManager::ClearCache(long sid, ulong grftagm)
+void TagManager::ClearCache(LegacyLong sid, LegacyUlong grftagm)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
 
-    long isfs, isfsMac;
-    long cbMax;
-
-    vpappb->BeginLongOp();
+    LegacyLong isfs, isfsMac;
+    LegacyLong cbMax;
 
     isfsMac = _pglsfs->IvMac();
     for (isfs = 0; isfs < isfsMac; isfs++)
     {
-        long icrf, icrfMac;
+        LegacyLong icrf, icrfMac;
         SourceFileStructure sfs;
         PChunkyResourceManager pcrmSource;
 
@@ -965,8 +960,6 @@ void TagManager::ClearCache(long sid, ulong grftagm)
             }
         }
     }
-
-    vpappb->EndLongOp();
 }
 
 /***************************************************************************
@@ -1069,7 +1062,7 @@ void TagManager::CloseTag(PTAG ptag)
 /***************************************************************************
     Compare two tags.  Tags are sorted first by sid, then ChunkTagOrType, then ChunkNumber.
 ***************************************************************************/
-ulong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
+LegacyUlong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 {
     AssertVarMem(ptag1);
     Assert(ptag1->sid >= 0, "Invalid sid");
@@ -1103,9 +1096,9 @@ ulong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 /***************************************************************************
     Assert the validity of the TagManager.
 ***************************************************************************/
-void TagManager::AssertValid(ulong grf)
+void TagManager::AssertValid(LegacyUlong grf)
 {
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
 
     TagManager_PAR::AssertValid(fobjAllocated);
@@ -1129,7 +1122,7 @@ void TagManager::MarkMem(void)
 {
     AssertThis(0);
 
-    long isfs;
+    LegacyLong isfs;
     SourceFileStructure sfs;
 
     TagManager_PAR::MarkMem();

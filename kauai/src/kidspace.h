@@ -163,7 +163,7 @@ class GraphicalObjectRepresentationTiled : public GraphicalObjectRepresentationT
     void _DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp);
     void _ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp);
     void _MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
-    void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
+    void _MapZpFlex(LegacyLong *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
     static PGraphicalObjectRepresentationTiled PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
@@ -418,9 +418,9 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
     virtual long LwState(void);
 
-    virtual bool FRunScript(ChildChunkID chid, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScript(ChildChunkID chid, LegacyLong *prglw = pvNil, long clw = 0, LegacyLong *plwReturn = pvNil,
                             tribool *ptSuccess = pvNil);
-    virtual bool FRunScriptCno(ChunkNumber cno, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScriptCno(ChunkNumber cno, LegacyLong *prglw = pvNil, long clw = 0, LegacyLong *plwReturn = pvNil,
                                tribool *ptSuccess = pvNil);
     virtual bool FChangeState(long sno);
     virtual bool FSetRep(ChildChunkID chid, ulong grfgok = fgokKillAnim, ChunkTagOrType ctg = ctgNil, long dxp = 0, long dyp = 0,

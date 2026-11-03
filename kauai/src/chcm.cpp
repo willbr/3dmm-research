@@ -105,7 +105,7 @@ Compiler::~Compiler(void)
 /***************************************************************************
     Assert that the Compiler is a valid object.
 ***************************************************************************/
-void Compiler::AssertValid(ulong grf)
+void Compiler::AssertValid(LegacyUlong grf)
 {
     Compiler_PAR::AssertValid(grf);
     AssertNilOrPo(_pcfl, 0);
@@ -135,7 +135,7 @@ void Compiler::MarkMem(void)
     Registers an error, prints error message with filename and line number.
     pszMessage may be nil.
 ***************************************************************************/
-void Compiler::_Error(long ert, PZString pszMessage)
+void Compiler::_Error(LegacyLong ert, PZString pszMessage)
 {
     AssertThis(0);
     AssertIn(ert, ertNil, ertLim);
@@ -162,10 +162,10 @@ void Compiler::_Error(long ert, PZString pszMessage)
 /***************************************************************************
     Checks that lw could be accepted under the current numerical mode.
 ***************************************************************************/
-void Compiler::_GetRgbFromLw(long lw, byte *prgb)
+void Compiler::_GetRgbFromLw(LegacyLong lw, byte *prgb)
 {
     AssertThis(0);
-    AssertPvCb(prgb, size(long));
+    AssertPvCb(prgb, size(LegacyLong));
 
     switch (_cbNum)
     {
@@ -182,9 +182,9 @@ void Compiler::_GetRgbFromLw(long lw, byte *prgb)
         break;
 
     default:
-        Assert(_cbNum == size(long), "invalid numerical mode");
-        _cbNum = size(long);
-        *(long *)prgb = lw;
+        Assert(_cbNum == size(LegacyLong), "invalid numerical mode");
+        _cbNum = size(LegacyLong);
+        *(LegacyLong *)prgb = lw;
         break;
     }
 
@@ -220,7 +220,7 @@ bool Compiler::_FGetCleanTok(Token *ptok, bool fEofOk)
     AssertThis(0);
     AssertVarMem(ptok);
 
-    long cactNegate = 0;
+    LegacyLong cactNegate = 0;
 
     for (;;)
     {
@@ -265,7 +265,7 @@ bool Compiler::_FGetCleanTok(Token *ptok, bool fEofOk)
             _cbNum = size(short);
             break;
         case ttModeLong:
-            _cbNum = size(long);
+            _cbNum = size(LegacyLong);
             break;
         case ttMacBo:
             _bo = MacWin(kboCur, kboOther);
@@ -286,7 +286,7 @@ bool Compiler::_FGetCleanTok(Token *ptok, bool fEofOk)
 /***************************************************************************
     Skip tokens until we encounter the given token type.
 ***************************************************************************/
-void Compiler::_SkipPastTok(long tt)
+void Compiler::_SkipPastTok(LegacyLong tt)
 {
     AssertThis(0);
     Token tok;
@@ -298,7 +298,7 @@ void Compiler::_SkipPastTok(long tt)
 /***************************************************************************
     Parse a parenthesized header from the source file.
 ***************************************************************************/
-bool Compiler::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
+bool Compiler::_FParseParenHeader(PHP *prgphp, LegacyLong cphpMax, LegacyLong *pcphp)
 {
     AssertThis(0);
     AssertIn(cphpMax, 1, kcbMax);
@@ -306,7 +306,7 @@ bool Compiler::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
     AssertVarMem(pcphp);
 
     Token tok;
-    long iphp;
+    LegacyLong iphp;
 
     if (!_pchlx->FGetTok(&tok))
     {
@@ -404,7 +404,7 @@ void Compiler::_ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno)
 
     String stnChunkName;
     PHP rgphp[3];
-    long cphp;
+    LegacyLong cphp;
 
     ClearPb(rgphp, size(rgphp));
     rgphp[2].pstn = &stnChunkName;
@@ -446,7 +446,7 @@ void Compiler::_AppendString(PString pstnValue)
     AssertPo(pstnValue, 0);
 
     void *pv;
-    long cb;
+    LegacyLong cb;
     byte rgb[kcbMaxDataStn];
 
     switch (_sm)
@@ -480,10 +480,10 @@ void Compiler::_AppendString(PString pstnValue)
 /***************************************************************************
     Stores a numerical value in the chunk data stream.
 ***************************************************************************/
-void Compiler::_AppendNumber(long lwValue)
+void Compiler::_AppendNumber(LegacyLong lwValue)
 {
     AssertThis(0);
-    byte rgb[size(long)];
+    byte rgb[size(LegacyLong)];
 
     _GetRgbFromLw(lwValue, rgb);
     if (!FError() && !_bsf.FReplace(rgb, _cbNum, _bsf.IbMac(), 0))
@@ -500,7 +500,7 @@ void Compiler::_ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno)
     ChunkNumber cnoChild;
     ChildChunkID chid;
     PHP rgphp[3];
-    long cphp;
+    LegacyLong cphp;
 
     ClearPb(rgphp, size(rgphp));
     if (!_FParseParenHeader(rgphp, 3, &cphp) || cphp < 2)
@@ -544,7 +544,7 @@ void Compiler::_ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno)
     ChunkNumber cnoParent;
     ChildChunkID chid;
     PHP rgphp[3];
-    long cphp;
+    LegacyLong cphp;
 
     ClearPb(rgphp, size(rgphp));
     if (!_FParseParenHeader(rgphp, 3, &cphp) || cphp < 2)
@@ -608,9 +608,9 @@ void Compiler::_ParseBodyAlign(void)
     {
         // actually do the padding
         byte rgb[100];
-        long cb;
-        long ibMac = _bsf.IbMac();
-        long ibMacNew = LwRoundAway(ibMac, tok.lw);
+        LegacyLong cb;
+        LegacyLong ibMac = _bsf.IbMac();
+        LegacyLong ibMacNew = LwRoundAway(ibMac, tok.lw);
 
         AssertIn(ibMacNew, ibMac, ibMac + tok.lw);
         while ((ibMac = _bsf.IbMac()) < ibMacNew)
@@ -661,7 +661,7 @@ void Compiler::_ParseBodyFile(void)
     Otherwise, get the block on the ChunkyFile. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
-bool Compiler::_FPrepWrite(bool fPack, long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
+bool Compiler::_FPrepWrite(bool fPack, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -746,7 +746,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, Chun
     DataBlock blck;
     Token tok;
     PHP rgphp[3];
-    long cphp;
+    LegacyLong cphp;
     PMaskedBitmapMBMP pmbmp = pvNil;
 
     ClearPb(rgphp, size(rgphp));
@@ -885,25 +885,25 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
         byte bZero2;
         short xp;
         short yp;
-        long cb;
-        long bv;
+        LegacyLong cb;
+        LegacyLong bv;
     };
 
     struct CURH
     {
-        long cbCurh;
-        long dxp;
-        long dyp;
+        LegacyLong cbCurh;
+        LegacyLong dxp;
+        LegacyLong dyp;
         short swOne1;
         short swOne2;
-        long lwZero1;
-        long lwZero2;
-        long lwZero3;
-        long lwZero4;
-        long lwZero5;
-        long lwZero6;
-        long lw1;
-        long lw2;
+        LegacyLong lwZero1;
+        LegacyLong lwZero2;
+        LegacyLong lwZero3;
+        LegacyLong lwZero4;
+        LegacyLong lwZero5;
+        LegacyLong lwZero6;
+        LegacyLong lw1;
+        LegacyLong lw2;
     };
 
     AssertThis(0);
@@ -911,7 +911,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
     DataBlock blck;
     FileLocation floSrc;
     Token tok;
-    long ccurdir, cbBits;
+    LegacyLong ccurdir, cbBits;
     CursorOnFile curf;
     short rgsw[3];
     byte *prgb;
@@ -977,7 +977,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
         curf.dyp = pcurdir->dyp;
 
         pcurh = (CURH *)PvAddBv(prgb, pcurdir->bv);
-        if (pcurh->cbCurh != size(CURH) - 2 * size(long) || pcurh->dxp != pcurdir->dxp ||
+        if (pcurh->cbCurh != size(CURH) - 2 * size(LegacyLong) || pcurh->dxp != pcurdir->dxp ||
             pcurh->dyp != 2 * pcurdir->dyp || pcurh->swOne1 != 1 || pcurh->swOne2 != 1 || pcurh->lwZero1 != 0 ||
             (pcurh->lwZero2 != 0 && pcurh->lwZero2 != pcurdir->cb - size(CURH)) || pcurh->lwZero3 != 0 ||
             pcurh->lwZero4 != 0 || pcurh->lwZero5 != 0 || pcurh->lwZero6 != 0)
@@ -994,7 +994,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
         {
             // need to consolidate the bits, because they are stored 4 bytes per
             // row (2 bytes wasted) instead of 2 bytes per row.
-            long csw = 32;
+            LegacyLong csw = 32;
             short *pswSrc, *pswDst;
 
             pswSrc = pswDst = (short *)(pcurh + 1);
@@ -1005,7 +1005,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
             }
         }
 
-        if (!pggcurf->FInsert(pggcurf->IvMac(), (long)curf.dxp * curf.dyp / 4, pcurh + 1, &curf))
+        if (!pggcurf->FInsert(pggcurf->IvMac(), (LegacyLong)curf.dxp * curf.dyp / 4, pcurh + 1, &curf))
         {
             _Error(ertOom);
             goto LFail;
@@ -1056,10 +1056,10 @@ bool Compiler::_FParseData(PToken ptok)
     AssertThis(0);
     AssertVarMem(ptok);
 
-    long cbNum;
-    long lw;
-    long cbNumPrev = _cbNum;
-    long ps = psNil;
+    LegacyLong cbNum;
+    LegacyLong lw;
+    LegacyLong cbNumPrev = _cbNum;
+    LegacyLong ps = psNil;
     bool fRet = fFalse;
 
     for (;;)
@@ -1166,10 +1166,10 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNum
     AssertThis(0);
     Token tok;
     PHP rgphp[1];
-    long cphp;
-    long cbEntry, cb;
+    LegacyLong cphp;
+    LegacyLong cbEntry, cb;
     byte *prgb;
-    long iv, iiv;
+    LegacyLong iv, iiv;
     DataBlock blck;
     PVirtualArray pglb = pvNil;
     PDynamicArray pglivFree = pvNil;
@@ -1215,7 +1215,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNum
             else if (!FError())
             {
                 iv = pglb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(LegacyLong))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1297,10 +1297,10 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNu
     AssertThis(0);
     Token tok;
     PHP rgphp[1];
-    long cphp;
-    long cbFixed, cb;
+    LegacyLong cphp;
+    LegacyLong cbFixed, cb;
     byte *prgb;
-    long iv, iiv;
+    LegacyLong iv, iiv;
     DataBlock blck;
     bool fFree;
     PVirtualGroup pggb = pvNil;
@@ -1348,7 +1348,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNu
             else if (!FError())
             {
                 iv = pggb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(LegacyLong))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1454,9 +1454,9 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, 
     AssertThis(0);
     Token tok;
     PHP rgphp[1];
-    long cphp;
-    long cbExtra, cb;
-    long iv, iiv;
+    LegacyLong cphp;
+    LegacyLong cbExtra, cb;
+    LegacyLong iv, iiv;
     String stn;
     DataBlock blck;
     bool fFree;
@@ -1473,7 +1473,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, 
         return;
     }
 
-    if (!FIn(cbExtra = rgphp[0].lw, 0, kcbMax) || cbExtra % size(long) != 0)
+    if (!FIn(cbExtra = rgphp[0].lw, 0, kcbMax) || cbExtra % size(LegacyLong) != 0)
     {
         _Error(ertGstEntrySize);
         _SkipPastTok(ttEndChunk);
@@ -1503,7 +1503,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, 
             else if (!FError())
             {
                 iv = pgstb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(LegacyLong))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1619,18 +1619,18 @@ void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, Chu
 void Compiler::_ParseBodyPackedFile(bool *pfPacked)
 {
     AssertThis(0);
-    long lw, lwSwapped;
+    LegacyLong lw, lwSwapped;
     Token tok;
 
     _ParseBodyFile();
-    if (_bsf.IbMac() < size(long))
+    if (_bsf.IbMac() < size(LegacyLong))
     {
         _Error(ertPackedFile, PszLit("bad packed file"));
         _SkipPastTok(ttEndChunk);
         return;
     }
 
-    _bsf.FetchRgb(0, size(long), &lw);
+    _bsf.FetchRgb(0, size(LegacyLong), &lw);
     lwSwapped = lw;
     SwapBytesRglw(&lwSwapped, 1);
     if (lw == klwSigPackedFile || lwSwapped == klwSigPackedFile)
@@ -1644,7 +1644,7 @@ void Compiler::_ParseBodyPackedFile(bool *pfPacked)
         return;
     }
 
-    _bsf.FReplace(pvNil, 0, 0, size(long));
+    _bsf.FReplace(pvNil, 0, 0, size(LegacyLong));
 
     if (!_FGetCleanTok(&tok) || ttEndChunk != tok.tt)
     {
@@ -1699,9 +1699,9 @@ void Compiler::_EndSubFile(void)
 
     if (!FError())
     {
-        long icki;
+        LegacyLong icki;
         ChunkIdentification cki;
-        long cbTot, cbT;
+        LegacyLong cbTot, cbT;
         FilePosition fpDst;
         PFileObject pfilDst = pvNil;
         bool fRet = fFalse;
@@ -1781,8 +1781,8 @@ void Compiler::_ParsePackFmt(void)
 {
     AssertThis(0);
     PHP rgphp[1];
-    long cphp;
-    long cfmt;
+    LegacyLong cphp;
+    LegacyLong cfmt;
 
     // get the format
     ClearPb(rgphp, size(rgphp));
@@ -1944,7 +1944,7 @@ void Compiler::_ParseAdopt(void)
     ChunkNumber cnoParent, cnoChild;
     ChildChunkID chid;
     PHP rgphp[5];
-    long cphp;
+    LegacyLong cphp;
 
     ClearPb(rgphp, size(rgphp));
     if (!_FParseParenHeader(rgphp, 5, &cphp) || cphp < 4)
@@ -2044,7 +2044,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
 
     _pmsnkError = pmsnk;
     _sm = smStz;
-    _cbNum = size(long);
+    _cbNum = size(LegacyLong);
     _bo = kboCur;
     _osk = koskCur;
 
@@ -2110,7 +2110,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
     if (!FError() && pvNil != _pglckiLoner)
     {
         ChunkIdentification cki;
-        long icki;
+        LegacyLong icki;
 
         for (icki = _pglckiLoner->IvMac(); icki-- > 0;)
         {
@@ -2183,8 +2183,8 @@ bool CompilerLexer::FGetTok(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
-    long ikeytt;
-    long istn;
+    LegacyLong ikeytt;
+    LegacyLong istn;
 
     for (;;)
     {
@@ -2303,9 +2303,9 @@ bool CompilerLexer::_FDoSet(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
-    long tt;
-    long lw;
-    long istn;
+    LegacyLong tt;
+    LegacyLong lw;
+    LegacyLong istn;
     bool fNegate;
 
     if (!CompilerLexer_PAR::FGetTok(ptok) || ttName != ptok->tt)
@@ -2313,7 +2313,7 @@ bool CompilerLexer::_FDoSet(PToken ptok)
 
     lw = 0;
     istn = ivNil;
-    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = StringTable_GST::PgstNew(size(long))))
+    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = StringTable_GST::PgstNew(size(LegacyLong))))
     {
         if (_pgstVariables->FFindStn(&ptok->stn, &istn, fgstSorted))
             _pgstVariables->GetExtra(istn, &lw);
@@ -2354,7 +2354,7 @@ bool CompilerLexer::_FDoSet(PToken ptok)
                 break;
             if (ttName == ptok->tt)
             {
-                long istnT;
+                LegacyLong istnT;
                 if (!_pgstVariables->FFindStn(&ptok->stn, &istnT, fgstSorted))
                     return fFalse;
                 _pgstVariables->GetExtra(istnT, &ptok->lw);
@@ -2403,7 +2403,7 @@ bool CompilerLexer::_FDoSet(PToken ptok)
             break;
         case ttAShr:
             // do logical shift
-            lw = (ulong)lw >> ptok->lw;
+            lw = (LegacyUlong)lw >> ptok->lw;
             break;
         case ttAShl:
             lw <<= ptok->lw;
@@ -2424,7 +2424,7 @@ bool CompilerLexer::_FDoSet(PToken ptok)
 /***************************************************************************
     Assert that the CompilerLexer is a valid object.
 ***************************************************************************/
-void CompilerLexer::AssertValid(ulong grf)
+void CompilerLexer::AssertValid(LegacyUlong grf)
 {
     CompilerLexer_PAR::AssertValid(grf);
     AssertNilOrPo(_pgstVariables, 0);
@@ -2463,7 +2463,7 @@ Decompiler::~Decompiler(void)
 /***************************************************************************
     Assert the validity of a Decompiler.
 ***************************************************************************/
-void Decompiler::AssertValid(ulong grf)
+void Decompiler::AssertValid(LegacyUlong grf)
 {
     Decompiler_PAR::AssertValid(0);
     AssertNilOrPo(_pcfl, 0);
@@ -2490,7 +2490,7 @@ bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pcflSrc, 0);
-    long icki, ikid, ckid;
+    LegacyLong icki, ikid, ckid;
     ChunkTagOrType ctg;
     ChunkIdentification cki;
     ChildChunkIdentification kid;
@@ -2593,7 +2593,7 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
     PScript pscpt;
     bool fRet;
     GraphicsObjectCompiler sccg;
-    long cfmt;
+    LegacyLong cfmt;
     bool fPacked;
     DataBlock blck;
 
@@ -2624,7 +2624,7 @@ bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
 
     PVirtualArray pglb;
     short bo, osk;
-    long cfmt;
+    LegacyLong cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
     pglb = fAl ? (PVirtualArray)AllocatedArray::PalRead(pblck, &bo, &osk) : (PVirtualArray)DynamicArray::PglRead(pblck, &bo, &osk);
@@ -2636,12 +2636,12 @@ bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
 
     if (bo != _bo)
     {
-        _chse.DumpSz(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO"));
+        _chse.DumpSz(const_cast<PZString>(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO")));
         _bo = bo;
     }
     if (osk != _osk)
     {
-        _chse.DumpSz(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK"));
+        _chse.DumpSz(const_cast<PZString>(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK")));
         _osk = osk;
     }
 
@@ -2662,7 +2662,7 @@ bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
 
     PVirtualGroup pggb;
     short bo, osk;
-    long cfmt;
+    LegacyLong cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
     pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagRead(pblck, &bo, &osk) : (PVirtualGroup)GeneralGroup::PggRead(pblck, &bo, &osk);
@@ -2674,12 +2674,12 @@ bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
 
     if (bo != _bo)
     {
-        _chse.DumpSz(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO"));
+        _chse.DumpSz(const_cast<PZString>(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO")));
         _bo = bo;
     }
     if (osk != _osk)
     {
-        _chse.DumpSz(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK"));
+        _chse.DumpSz(const_cast<PZString>(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK")));
         _osk = osk;
     }
 
@@ -2700,7 +2700,7 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 
     PVirtualStringTable pgstb;
     short bo, osk;
-    long cfmt;
+    LegacyLong cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
     bool fRet;
 
@@ -2713,12 +2713,12 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 
     if (bo != _bo)
     {
-        _chse.DumpSz(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO"));
+        _chse.DumpSz(const_cast<PZString>(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO")));
         _bo = bo;
     }
     if (osk != _osk)
     {
-        _chse.DumpSz(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK"));
+        _chse.DumpSz(const_cast<PZString>(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK")));
         _osk = osk;
     }
 
@@ -2731,7 +2731,7 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 /***************************************************************************
     Write out the PACKFMT and PACK commands
 ***************************************************************************/
-void Decompiler::_WritePack(long cfmt)
+void Decompiler::_WritePack(LegacyLong cfmt)
 {
     AssertThis(0);
     String stn;

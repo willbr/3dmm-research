@@ -23,6 +23,7 @@
 
 #ifndef MOVIE_H
 #define MOVIE_H
+#include "movie_playback.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -479,7 +480,7 @@ class MovieClientCallbacks : public MovieClientCallbacks_PAR
     virtual void StartListenerEasel(void)
     {
     } // Tells the client to start up the listener easel.
-    virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
+    virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, achar *lpstrDefExt,
                             PString pstnDefFileName)
     {
         return fFalse;
@@ -542,7 +543,7 @@ typedef struct _mvied
 {
     PChunkyResourceFile pcrf;    // the file this scene's movie is in
     ChunkNumber cno;      // ChunkNumber of the Movie chunk
-    long aridLim; // _aridLim from the Movie
+    long aridLim;         // _data.actorIdLimit from the Movie
 } MovieDescriptor, *PMovieDescriptor;
 
 /* A Composite MoVIe */
@@ -577,55 +578,35 @@ class Movie : public Movie_PAR
     CMD_MAP_DEC(Movie)
 
   protected:
-    long _aridLim; // Highest actor id in use.
+    MoviePlaybackState _playback; // Playback values, independent of views and clocks.
+    MovieData _data;              // Archive state and roll-call ownership, independent of views.
 
-    PChunkyResourceFile _pcrfAutoSave; // ChunkyResourceFile/ChunkyFile of auto save file.
     PFileObject _pfilSave;     // User's document
 
-    ChunkNumber _cno; // ChunkNumber of movie in current file.
-
-    String _stnTitle; // Title of the movie
-
-    PStringTable_GST _pgstmactr;             // StringTable_GST of actors in the movie (for roll call)
-    PScene _pscenOpen;            // Index of current open scene.
-    long _cscen;                 // Number of scenes in the movie.
+    PScene _pscenOpen;           // Index of current open scene.
     long _iscen;                 // Number of scene open in the movie.
     bool _fAutosaveDirty : 1;    // Is the movie in memory different than disk
     bool _fFniSaveValid : 1;     // Does _fniSave contain a file name.
-    bool _fPlaying : 1;          // Is the movie playing?
-    bool _fScrolling : 1;        // During playback only, are we scrolling textboxes
-    bool _fPausing : 1;          // Are we executing a pause.
-    bool _fIdleSeen : 1;         // fTrue if we have seen an idle since this was cleared.
-    bool _fStopPlaying : 1;      // Should we stop the movie playing
-    bool _fSoundsEnabled : 1;    // Should we play sounds or not.
-    bool _fOldSoundsEnabled : 1; // Old value of above.
     bool _fDocClosing : 1;       // Flags doc is to be closed
     bool _fGCSndsOnClose : 1;    // Garbage collection of sounds on close
     bool _fReadOnly : 1;         // Is the original file read-only?
 
     PWorld _pbwld;   // The brender world for this movie
     PMovieSoundQueue _pmsq;     // Message Sound Queue
-    Clock _clok;     // Clock for playing the film
-    ulong _tsStart; // Time last play started.
-    long _cnfrm;    // Number of frames since last play started.
+    Clock _clok;                // Clock for playing the film
 
     PMovieClientCallbacks _pmcc; // Parameters and callbacks.
 
-    WaitReason _wit;     // Pausing type
-    long _dts;    // Number of clock ticks to pause.
-    TRANS _trans; // Transition type to execute.
-
-    long _vlmOrg; // original SoundManager volume, before fadeout, if we are done with fadeout, then 0
-
 #ifdef DEBUG
     bool _fWriteBmps;
-    long _lwBmp;
+    LegacyLong _lwBmp;
 #endif // DEBUG
 
     PDynamicArray _pglclrThumbPalette; // Palette to use for thumbnail rendering.
 
   private:
     Movie(void);
+    void _StopRenderPlayback(PMovieView view);
     PTagList _PtaglFetch(void);                      // Returns a list of all tags used in movie
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
@@ -670,7 +651,7 @@ class Movie : public Movie_PAR
     static PMovie PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
-    static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, long *paridLim = pvNil);
+    static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, LegacyLong *paridLim = pvNil);
     // reads roll call for a given movie
     void ForceSaveAs(void)
     {
@@ -705,7 +686,7 @@ class Movie : public Movie_PAR
     void GetName(PString pstnTitle); // Gets the title of the movie.
     PString PstnTitle(void)
     {
-        return &_stnTitle;
+        return &_data.title;
     }
     void ResetTitle(void);
 
@@ -714,7 +695,7 @@ class Movie : public Movie_PAR
     //
     long Cscen(void) // Returns number of scenes in movie
     {
-        return _cscen;
+        return _data.sceneCount;
     }
     long Iscen(void) // Returns the current scene number
     {
@@ -766,7 +747,7 @@ class Movie : public Movie_PAR
     bool FAutoSave(PFilename pfni = pvNil, bool fCleanRollCall = fFalse); // Save movie in temp file
     bool FSaveTagSnd(TAG *ptag)
     {
-        return TagManager::FSaveTag(ptag, _pcrfAutoSave, fTrue);
+        return TagManager::FSaveTag(ptag, _data.resources, fTrue);
     }
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
@@ -801,7 +782,7 @@ class Movie : public Movie_PAR
     long CmactrMac(void)
     {
         AssertThis(0);
-        return _pgstmactr->IvMac();
+        return _data.actors->IvMac();
     }
     bool FIsPropBrwsIarid(long iarid); // Identify the roll call browser iarids
     bool FIsIaridTdt(long iarid);      // 3d spletter
@@ -823,11 +804,11 @@ class Movie : public Movie_PAR
     void MarkViews(void);        // Marks all views on the movie.
     TRANS Trans(void)
     {
-        return _trans;
+        return _playback.transition;
     } // Current transition in effect.
     void SetTrans(TRANS trans)
     {
-        _trans = trans;
+        _playback.transition = trans;
     }                                                                 // Set transition
     void DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, RC *prcDst, RC *prcSrc); // Draw current transition into GNVs
 
@@ -836,11 +817,11 @@ class Movie : public Movie_PAR
     //
     bool FSoundsEnabled(void)
     {
-        return (_fSoundsEnabled);
+        return (_playback.soundsEnabled);
     }
     void SetFSoundsEnabled(bool f)
     {
-        _fSoundsEnabled = f;
+        _playback.soundsEnabled = f;
     }
 
     //
@@ -886,8 +867,8 @@ class Movie : public Movie_PAR
     //
     void DoPause(WaitReason wit, long dts) // Make the movie pause during run.
     {
-        _wit = wit;
-        _dts = dts;
+        _playback.wait = wit;
+        _playback.pauseTicks = dts;
     }
 
     //
@@ -933,27 +914,27 @@ class Movie : public Movie_PAR
 #ifdef DEBUG
     void SetFPlaying(bool f)
     {
-        _fPlaying = f;
+        _playback.playing = f;
         if (!f)
             SetFWriteBmps(fFalse);
     }  // Set the playing flag.
 #else  // DEBUG
     void SetFPlaying(bool f)
     {
-        _fPlaying = f;
+        _playback.playing = f;
     } // Set the playing flag.
 #endif // !DEBUG
     void SetFStopPlaying(bool f)
     {
-        _fStopPlaying = f;
+        _playback.stopRequested = f;
     } // INTERNAL USE ONLY
     bool FStopPlaying(void)
     {
-        return (_fStopPlaying);
+        return (_playback.stopRequested);
     } // INTERNAL USE ONLY
     bool FPlaying(void)
     {
-        return _fPlaying;
+        return _playback.playing;
     } // Query the playing flag.
     PClock Pclok()
     {
@@ -961,11 +942,11 @@ class Movie : public Movie_PAR
     } // For getting the clock for playing
     void SetFIdleSeen(bool fIdle)
     {
-        _fIdleSeen = fIdle;
+        _playback.idleSeen = fIdle;
     }
     bool FIdleSeen(void)
     {
-        return _fIdleSeen;
+        return _playback.idleSeen;
     }
 
     //
@@ -981,11 +962,11 @@ class Movie : public Movie_PAR
     //
     long Cnfrm(void)
     {
-        return _cnfrm;
+        return _playback.renderedFrames;
     }
     ulong TsStart(void)
     {
-        return _tsStart;
+        return _playback.startTimestamp;
     }
 
     //

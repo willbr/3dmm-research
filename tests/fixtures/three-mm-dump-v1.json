@@ -1,0 +1,12 @@
+{
+  "schema": "3mm-dump-1",
+  "name_code_unit_bits": 8,
+  "chunks": [
+    {"type": "41435452", "number": "00000006", "loner": false, "packed": false, "forest": false, "name_units_hex": "", "children": [], "unpacked_size": 44, "fields": {"kind": "actor", "actor_id": 23, "first_frame": 1, "last_frame": 12}, "payload_hex": "0100030300000000000000000000000017000000010000000c00000001000000000000004c504d5408000000"},
+    {"type": "4d564945", "number": "00000007", "loner": true, "packed": false, "forest": false, "name_units_hex": "", "children": [{"id": "00000000", "type": "5343454e", "number": "00000005"}], "unpacked_size": 8, "fields": {"kind": "movie", "version": 2, "back_version": 2}, "payload_hex": "0100030302000200"},
+    {"type": "52545854", "number": "00000000", "loner": false, "packed": false, "forest": false, "name_units_hex": "", "children": [], "unpacked_size": 25, "fields": null, "payload_hex": "01000303c80000000c00000000000000030305417269616c00"},
+    {"type": "5343454e", "number": "00000005", "loner": false, "packed": false, "forest": false, "name_units_hex": "5363656e6520226f6e65225c0a", "children": [{"id": "00000001", "type": "5a5a5a5a", "number": "0000002a"}, {"id": "00000002", "type": "41435452", "number": "00000006"}, {"id": "00000003", "type": "54424f58", "number": "00000008"}], "unpacked_size": 16, "fields": {"kind": "scene", "first_frame": 1, "last_frame": 12, "transition": 0}, "payload_hex": "010003030c0000000100000000000000"},
+    {"type": "54424f58", "number": "00000008", "loner": false, "packed": false, "forest": false, "name_units_hex": "", "children": [{"id": "00000009", "type": "52545854", "number": "00000000"}], "unpacked_size": 36, "fields": {"kind": "caption", "first_frame": 2, "max_frame": 10, "story": false, "bounds": [1, 2, 101, 52], "text": {"type": "52545854", "number": "00000000"}}, "payload_hex": "01000303020000000a000000010000006500000002000000340000000900000000000000"},
+    {"type": "5a5a5a5a", "number": "0000002a", "loner": false, "packed": false, "forest": false, "name_units_hex": "", "children": [], "unpacked_size": 4, "fields": null, "payload_hex": "00225cff"}
+  ]
+}

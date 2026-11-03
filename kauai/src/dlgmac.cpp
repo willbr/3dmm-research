@@ -12,6 +12,7 @@
 ***************************************************************************/
 #include "frame.h"
 ASSERTNAME
+using HDLG = DialogPtr;
 
 // REVIEW shonk: implement combo items.
 

@@ -1,0 +1,93 @@
+name: build
+on: [push, pull_request]
+jobs:
+  inspector:
+    name: SDL3 inspector ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux window dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev libxrandr-dev libxss-dev libxtst-dev
+      - name: Build inspector
+        run: |
+          cmake -S . -B out/inspector -DCMAKE_BUILD_TYPE=Debug -DBUILD_INSPECTOR=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
+          cmake --build out/inspector --config Debug --target three-mm-inspector --parallel 4
+          ctest --test-dir out/inspector -C Debug -R inspector-data --output-on-failure
+      - name: Upload smoke screenshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: inspector-smoke-${{ matrix.os }}
+          path: out/inspector/src/inspector/test-data/*.bmp
+  platform:
+    name: Core libraries ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build core libraries and archive tools
+        run: |
+          cmake -S . -B out/core -DCMAKE_BUILD_TYPE=Debug -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
+          cmake --build out/core --target core-checks --parallel 4
+          ctest --test-dir out/core --output-on-failure
+          ./out/core/3mm dump --json out/core/three-mm-test/fixture-0.3mm > out/core/baseline.json
+          cmp tests/fixtures/three-mm-dump-v1.json out/core/baseline.json
+      - name: Check external core consumer
+        run: |
+          cmake -S tests/consumer -B out/consumer -DCMAKE_BUILD_TYPE=Debug
+          cmake --build out/consumer --parallel 4
+          ./out/consumer/core-consumer
+          ./out/consumer/archive-consumer
+  compile:
+    name: Windows ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            target_arch: x86
+          - arch: x64
+            target_arch: AMD64
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Install VCVars
+        shell: pwsh
+        run: Install-Module -Name VCVars -Force
+      - name: Build and check libraries
+        shell: pwsh
+        run: |
+          pushvc (invoke-vcvars -TargetArch ${{ matrix.target_arch }} -HostArch AMD64)
+          cmake -S . -B out/ci -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Debug -DBUILD_PACKAGES=OFF -DCMAKE_INSTALL_PREFIX=out/dist
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build out/ci --target studio library-checks
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ctest --test-dir out/ci --output-on-failure
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake -S tests/consumer -B out/consumer -G Ninja -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Debug
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build out/consumer
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & ./out/consumer/core-consumer.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & ./out/consumer/archive-consumer.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake -S tests/platform -B out/platform-unicode -G Ninja -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_CXX_FLAGS=/DUNICODE /D_UNICODE"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build out/platform-unicode
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ctest --test-dir out/platform-unicode --output-on-failure
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Upload application
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3D-Movie-Maker-${{ matrix.arch }}
+          path: out/ci/3dmovie.exe

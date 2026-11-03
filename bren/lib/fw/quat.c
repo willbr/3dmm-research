@@ -190,7 +190,7 @@ br_quat * BR_PUBLIC_ENTRY BrMatrix34ToQuat(br_quat *q, br_matrix34 *mat)
 		qZ = BR_MUL(M(0,1)-M(1,0),s);
 
 	} else {
-		static n[] = {1,2,0};
+		static int n[] = {1,2,0};
 
 		i = 0;
 		if(M(1,1) > M(0,0))

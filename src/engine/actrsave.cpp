@@ -14,7 +14,7 @@
      |
      +---PATH (chid 0) // _pglxyz (actor path)
      |
-     +---GGAE (chid 0) // _pggaev (actor events)
+     +---GGAE (chid 0) // _track.events (actor events)
 
 
 ***************************************************************************/
@@ -25,19 +25,6 @@ using namespace ActorEvent;
 
 const ChildChunkID kchidPath = 0;
 const ChildChunkID kchidGgae = 0;
-
-struct ActorChunkOnFile // Actor chunk on file
-{
-    int16_t bo;             // Byte order
-    int16_t osk;            // OS kind
-    RoutePoint dxyzFullRte; // Translation of the route
-    int32_t arid;           // Unique id assigned to this actor.
-    int32_t nfrmFirst;      // First frame in this actor's stage life
-    int32_t nfrmLast;       // Last frame in this actor's stage life
-    TAGOnFile tagTmpl;      // Tag to actor's template (16-byte wire format; convert with From / TagFromOnFile)
-};
-static_assert(sizeof(ActorChunkOnFile) == 44, "ActorChunkOnFile on-disk layout drift");
-const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 
 /***************************************************************************
     Write the actor out to disk.  Store the root chunk in the given ChunkNumber.
@@ -102,67 +89,27 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     actf.nfrmFirst = _nfrmFirst;
     actf.nfrmLast = _nfrmLast;
     actf.tagTmpl.From(_tagTmpl);
-    if (!pcfl->FPutPv(&actf, size(ActorChunkOnFile), kctgActr, cnoActr))
+    if (!ActorData::FWriteHeader(pcfl, cnoActr, &actf))
         return fFalse;
 
     // Now write the PATH chunk:
-    if (!pcfl->FAddChild(kctgActr, cnoActr, kchidPath, _pglrpt->CbOnFile(), kctgPath, &cnoPath, &blck))
+    if (!pcfl->FAddChild(kctgActr, cnoActr, kchidPath, _track.route->CbOnFile(), kctgPath, &cnoPath, &blck))
     {
         return fFalse;
     }
-    if (!_pglrpt->FWrite(&blck))
+    if (!_track.route->FWrite(&blck))
         return fFalse;
 
-    // Now write the GGAE chunk. The runtime _pggaev holds Costume/Sound (with
+    // Now write the GGAE chunk. The runtime _track.events holds Costume/Sound (with
     // full TAG including runtime pcrf) for aetCost/aetSnd entries; on x64 those
     // are wider than the wire format. Marshal into a transient on-file GG that
     // embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for the wire layout,
     // then FWrite that.
     {
-        PGeneralGroup pggaevOnFile = GeneralGroup::PggNew(size(Base));
-        if (pvNil == pggaevOnFile)
+        PGeneralGroup pggaevOnFile = ActorData::PggWriteEvents(_track.events);
+        if (pggaevOnFile == pvNil)
             return fFalse;
-        long iaevSave, iaevMacSave = _pggaev->IvMac();
-        Base aevSave;
-        Costume costSave;
-        CostumeOnFile costSaveOnFile;
-        Sound sndSave;
-        SoundOnFile sndSaveOnFile;
-        bool fOk = fTrue;
-        for (iaevSave = 0; iaevSave < iaevMacSave && fOk; iaevSave++)
-        {
-            _pggaev->GetFixed(iaevSave, &aevSave);
-            switch (aevSave.aet)
-            {
-            case aetCost:
-                _pggaev->GetRgb(iaevSave, 0, size(Costume), &costSave);
-                costSaveOnFile.ibset = costSave.ibset;
-                costSaveOnFile.cmid = costSave.cmid;
-                costSaveOnFile.fCmtl = costSave.fCmtl;
-                costSaveOnFile.tag.From(costSave.tag);
-                if (!pggaevOnFile->FInsert(iaevSave, size(CostumeOnFile), &costSaveOnFile, &aevSave))
-                    fOk = fFalse;
-                break;
-            case aetSnd:
-                _pggaev->GetRgb(iaevSave, 0, size(Sound), &sndSave);
-                sndSaveOnFile.fLoop = sndSave.fLoop;
-                sndSaveOnFile.fQueue = sndSave.fQueue;
-                sndSaveOnFile.vlm = sndSave.vlm;
-                sndSaveOnFile.celn = sndSave.celn;
-                sndSaveOnFile.sty = sndSave.sty;
-                sndSaveOnFile.fNoSound = sndSave.fNoSound;
-                sndSaveOnFile.chid = sndSave.chid;
-                sndSaveOnFile.tag.From(sndSave.tag);
-                if (!pggaevOnFile->FInsert(iaevSave, size(SoundOnFile), &sndSaveOnFile, &aevSave))
-                    fOk = fFalse;
-                break;
-            default:
-                if (!pggaevOnFile->FInsert(iaevSave, _pggaev->Cb(iaevSave), _pggaev->QvGet(iaevSave), &aevSave))
-                    fOk = fFalse;
-                break;
-            }
-        }
-        if (!fOk || !pcfl->FAddChild(kctgActr, cnoActr, kchidGgae, pggaevOnFile->CbOnFile(), kctgGgae, &cnoGgae, &blck))
+        if (!pcfl->FAddChild(kctgActr, cnoActr, kchidGgae, pggaevOnFile->CbOnFile(), kctgGgae, &cnoGgae, &blck))
         {
             ReleasePpo(&pggaevOnFile);
             return fFalse;
@@ -176,12 +123,12 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     }
 
     // Adopt actor sounds into the scene
-    for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
     {
-        paev = (Base *)(_pggaev->QvFixedGet(iaev));
+        paev = (Base *)(_track.events->QvFixedGet(iaev));
         if (aetSnd != paev->aet)
             continue;
-        _pggaev->Get(iaev, &aevsnd);
+        _track.events->Get(iaev, &aevsnd);
         if (aevsnd.tag.sid != ksidUseCrf)
             continue;
 
@@ -263,43 +210,6 @@ LFail:
     Read the ActorChunkOnFile. This handles converting an ActorChunkOnFile that doesn't have an
     nfrmLast.
 ***************************************************************************/
-bool _FReadActf(PDataBlock pblck, ActorChunkOnFile *pactf)
-{
-    AssertPo(pblck, 0);
-    AssertVarMem(pactf);
-    bool fOldActf = fFalse;
-
-    if (!pblck->FUnpackData())
-        return fFalse;
-
-    if (pblck->Cb() != size(ActorChunkOnFile))
-    {
-        if (pblck->Cb() != size(ActorChunkOnFile) - size(long))
-            return fFalse;
-        fOldActf = fTrue;
-    }
-
-    if (!pblck->FReadRgb(pactf, pblck->Cb(), 0))
-        return fFalse;
-
-    if (fOldActf)
-    {
-        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ActorChunkOnFile) - offset(ActorChunkOnFile, nfrmLast) - size(long));
-    }
-
-    if (kboOther == pactf->bo)
-        SwapBytesBom(pactf, kbomActf);
-    if (kboCur != pactf->bo)
-    {
-        Bug("Corrupt ActorChunkOnFile");
-        return fFalse;
-    }
-
-    if (fOldActf)
-        pactf->nfrmLast = knfrmInvalid;
-    return fTrue;
-}
-
 /***************************************************************************
     Read the Actor chunk
 ***************************************************************************/
@@ -311,7 +221,7 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     ActorChunkOnFile actf;
     DataBlock blck;
 
-    if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
+    if (!pcfl->FFind(kctgActr, cno, &blck) || !ActorData::FReadHeader(&blck, &actf))
         return fFalse;
 
     Assert(kboCur == actf.bo, "bad ActorChunkOnFile");
@@ -354,46 +264,26 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
 ************************************************************ PETED ***********/
 bool Actor::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
 {
-    AssertPo(pcfl, 0);
-    Assert(darid != 0, "Why call this with darid == 0?");
-
-    ActorChunkOnFile actf;
-    DataBlock blck;
-
-    if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
-        return fFalse;
-
-    Assert(kboCur == actf.bo, "bad ActorChunkOnFile");
-    actf.arid += darid;
-    return pcfl->FPutPv(&actf, size(ActorChunkOnFile), kctgActr, cno);
+    return ActorData::FAdjustId(pcfl, cno, darid);
 }
 
 /***************************************************************************
-    Read the PATH (_pglrpt) chunk
+    Read the PATH (_track.route) chunk
 ***************************************************************************/
 bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    DataBlock blck;
-    short bo;
-
-    if (!pcfl->FFind(kctgPath, cno, &blck))
+    DataBlock block;
+    if (!pcfl->FFind(kctgPath, cno, &block))
         return fFalse;
-    _pglrpt = DynamicArray::PglRead(&blck, &bo);
-    if (pvNil == _pglrpt)
-        return fFalse;
-    AssertBomRglw(kbomRpt, size(RouteDistancePoint));
-    if (kboOther == bo)
-    {
-        SwapBytesRglw(_pglrpt->QvGet(0), LwMul(_pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
-    }
-    return fTrue;
+    _track.route = ActorData::PglReadRoute(&block);
+    return _track.route != pvNil;
 }
 
 /***************************************************************************
-    Read the GGAE (_pggaev) chunk.
+    Read the GGAE (_track.events) chunk.
 
     The wire-format GG embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for
     aetCost/aetSnd entries; the runtime GG holds Costume/Sound (with full TAG
@@ -406,149 +296,20 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    DataBlock blck;
-    short bo;
-    PGeneralGroup pggOnFile = pvNil;
-
-    if (!pcfl->FFind(kctgGgae, cno, &blck))
+    DataBlock block;
+    if (!pcfl->FFind(kctgGgae, cno, &block))
         return fFalse;
-    pggOnFile = GeneralGroup::PggRead(&blck, &bo);
-    if (pvNil == pggOnFile)
-        return fFalse;
-    if (kboOther == bo)
-        _SwapBytesPggaev(pggOnFile);
-
-    _pggaev = _PggaevMarshalFromOnFile(pggOnFile);
-    return _pggaev != pvNil;
+    _track.events = ActorData::PggReadEvents(&block);
+    return _track.events != pvNil;
 }
 
 /***************************************************************************
     Marshal a wire-format pggaev into a fresh runtime pggaev. See header
     comment in actor.h for ownership rules.
 ***************************************************************************/
-PGeneralGroup Actor::_PggaevMarshalFromOnFile(PGeneralGroup pggOnFile)
-{
-    AssertPo(pggOnFile, 0);
-
-    long iaev, iaevMac;
-    Base aev;
-    CostumeOnFile costOnFile;
-    Costume cost;
-    SoundOnFile sndOnFile;
-    Sound snd;
-    PGeneralGroup pggRuntime;
-
-    pggRuntime = GeneralGroup::PggNew(size(Base));
-    if (pvNil == pggRuntime)
-        goto LFail;
-
-    iaevMac = pggOnFile->IvMac();
-    for (iaev = 0; iaev < iaevMac; iaev++)
-    {
-        pggOnFile->GetFixed(iaev, &aev);
-        switch (aev.aet)
-        {
-        case aetCost:
-            // Variable part is CostumeOnFile -> Costume marshal.
-            Assert(pggOnFile->Cb(iaev) == size(CostumeOnFile), "bad CostumeOnFile size");
-            CopyPb(pggOnFile->QvGet(iaev), &costOnFile, size(CostumeOnFile));
-            cost.ibset = costOnFile.ibset;
-            cost.cmid = costOnFile.cmid;
-            cost.fCmtl = costOnFile.fCmtl;
-            TagFromOnFile(&cost.tag, costOnFile.tag);
-            if (!pggRuntime->FInsert(iaev, size(Costume), &cost, &aev))
-                goto LFail;
-            break;
-        case aetSnd:
-            // Variable part is SoundOnFile -> Sound marshal.
-            Assert(pggOnFile->Cb(iaev) == size(SoundOnFile), "bad SoundOnFile size");
-            CopyPb(pggOnFile->QvGet(iaev), &sndOnFile, size(SoundOnFile));
-            snd.fLoop = sndOnFile.fLoop;
-            snd.fQueue = sndOnFile.fQueue;
-            snd.vlm = sndOnFile.vlm;
-            snd.celn = sndOnFile.celn;
-            snd.sty = sndOnFile.sty;
-            snd.fNoSound = sndOnFile.fNoSound;
-            snd.chid = sndOnFile.chid;
-            TagFromOnFile(&snd.tag, sndOnFile.tag);
-            if (!pggRuntime->FInsert(iaev, size(Sound), &snd, &aev))
-                goto LFail;
-            break;
-        default:
-            // No TAG embed: variable part is identical on disk and in runtime.
-            if (!pggRuntime->FInsert(iaev, pggOnFile->Cb(iaev), pggOnFile->QvGet(iaev), &aev))
-                goto LFail;
-            break;
-        }
-    }
-
-    ReleasePpo(&pggOnFile);
-    return pggRuntime;
-
-LFail:
-    ReleasePpo(&pggOnFile);
-    ReleasePpo(&pggRuntime);
-    return pvNil;
-}
-
 /***************************************************************************
     SwapBytes all events in pggaev
 ***************************************************************************/
-void Actor::_SwapBytesPggaev(PGeneralGroup pggaev)
-{
-    AssertPo(pggaev, 0);
-
-    long iaev;
-
-    for (iaev = 0; iaev < pggaev->IvMac(); iaev++)
-    {
-        SwapBytesBom(pggaev->QvFixedGet(iaev), kbomAev);
-        switch (((Base *)pggaev->QvFixedGet(iaev))->aet)
-        {
-        case aetCost:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevcost);
-            break;
-        case aetSnd:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevsnd);
-            break;
-        case aetSize:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevsize);
-            break;
-        case aetPull:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevpull);
-            break;
-        case aetRotF:
-        case aetRotH:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevrot);
-            break;
-        case aetActn:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevactn);
-            break;
-        case aetAdd:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevadd);
-            break;
-        case aetFreeze:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevfreeze);
-            break;
-        case aetMove:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevmove);
-            break;
-        case aetTweak:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevtweak);
-            break;
-        case aetStep:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevstep);
-            break;
-        case aetRem:
-            // no var data
-            break;
-        default:
-            Bug("Unknown ActorEventType");
-            break;
-        }
-    }
-}
-
 /***************************************************************************
     Open all tags for this actor
 ***************************************************************************/
@@ -561,27 +322,27 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     PTAG ptag;
 
     if (!TagManager::FOpenTag(&_tagTmpl, pcrf))
-        goto LFail;
+        return fFalse;
 
-    _pggaev->Lock();
-    for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
+    _track.events->Lock();
+    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
     {
-        if (_FIsIaevTag(_pggaev, iaev, &ptag))
+        if (_FIsIaevTag(_track.events, iaev, &ptag))
         {
             if (!TagManager::FOpenTag(ptag, pcrf))
                 goto LFail;
         }
     }
-    _pggaev->Unlock();
+    _track.events->Unlock();
     return fTrue;
 LFail:
     // Close the tags that were opened before failure
     while (--iaev >= 0)
     {
-        if (_FIsIaevTag(_pggaev, iaev, &ptag))
+        if (_FIsIaevTag(_track.events, iaev, &ptag))
             TagManager::CloseTag(ptag);
     }
-    _pggaev->Unlock();
+    _track.events->Unlock();
     return fFalse;
 }
 
@@ -592,22 +353,8 @@ void Actor::_CloseTags(void)
 {
     AssertBaseThis(0); // because destructor calls this function
 
-    long iaev;
-    PTAG ptag;
-
     TagManager::CloseTag(&_tagTmpl);
-
-    if (pvNil == _pggaev)
-        return;
-
-    _pggaev->Lock();
-    for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
-    {
-        if (_FIsIaevTag(_pggaev, iaev, &ptag))
-            TagManager::CloseTag(ptag);
-    }
-    _pggaev->Unlock();
-    return;
+    _track.CloseTags();
 }
 
 /***************************************************************************
@@ -632,7 +379,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
         goto LFail;
 
     // Read the ActorChunkOnFile so we can insert tagTmpl:
-    if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
+    if (!pcfl->FFind(kctgActr, cno, &blck) || !ActorData::FReadHeader(&blck, &actf))
         goto LFail;
 
     if (actf.tagTmpl.sid == ksidUseCrf)
@@ -686,15 +433,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
         goto LFail;
     if (!pcfl->FFind(kctgGgae, kid.cki.cno, &blck))
         goto LFail;
-    pggaev = GeneralGroup::PggRead(&blck, &bo);
-    if (pvNil == pggaev)
-        goto LFail;
-    if (kboOther == bo)
-        _SwapBytesPggaev(pggaev);
-    // Marshal on-file -> runtime so _FIsIaevTag can reinterpret the variable
-    // part as Costume*/Sound* (their layouts only coincide with the OnFile
-    // forms on x86; on x64 the runtime TAG is wider).
-    pggaev = _PggaevMarshalFromOnFile(pggaev);
+    pggaev = ActorData::PggReadEvents(&blck);
     if (pvNil == pggaev)
         goto LFail;
     pggaev->Lock();
@@ -726,44 +465,5 @@ LFail:
 ***************************************************************************/
 bool Actor::_FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, PBase *pqaev)
 {
-    AssertPo(pggaev, 0);
-    AssertIn(iaev, 0, pggaev->IvMac());
-    AssertVarMem(pptag);
-    AssertNilOrVarMem(pqaev);
-
-    Base *qaev;
-    qaev = (Base *)pggaev->QvFixedGet(iaev);
-    if (pqaev != pvNil)
-        *pqaev = qaev;
-
-    switch (qaev->aet)
-    {
-    case aetCost:
-        if (!((Costume *)pggaev->QvGet(iaev))->fCmtl)
-        {
-            *pptag = &((Costume *)pggaev->QvGet(iaev))->tag;
-            return fTrue;
-        }
-        break;
-    case aetSnd:
-        *pptag = &((Sound *)pggaev->QvGet(iaev))->tag;
-        return fTrue;
-    case aetSize:
-    case aetPull:
-    case aetRotF:
-    case aetRotH:
-    case aetActn:
-    case aetAdd:
-    case aetFreeze:
-    case aetTweak:
-    case aetStep:
-    case aetRem:
-    case aetMove:
-        break;
-    default:
-        Bug("Unknown ActorEventType");
-        break;
-    }
-    *pptag = pvNil;
-    return fFalse;
+    return ActorTrack::FEventTag(pggaev, iaev, pptag, pqaev);
 }

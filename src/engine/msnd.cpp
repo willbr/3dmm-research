@@ -22,8 +22,13 @@
     An MovieSoundMSND chunk with _fInvalid set requires no child.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_audio.h"
+#endif
 #include "soc.h"
+#ifndef KAUAI_SDL3
 #include "audioman.h"
+#endif
 
 ASSERTNAME
 
@@ -35,18 +40,18 @@ ON_CID_ME(cidAlarm, &MovieSoundQueue::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
 // default sound import format
-const WORD knSamplesPerSec = 11025;
-const WORD knAvgBytesPerSec = 11025;
-const WORD kwBitsPerSample = 8;
-const WORD knChannels = 1;
-const WORD knBlockAlign = 1;
+const uint16_t knSamplesPerSec = 11025;
+const uint16_t knAvgBytesPerSec = 11025;
+const uint16_t kwBitsPerSample = 8;
+const uint16_t knChannels = 1;
+const uint16_t knBlockAlign = 1;
 
 /***************************************************************************
 
     A PFNRPO to read a MovieSoundMSND from a file
 
 ***************************************************************************/
-bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -303,6 +308,46 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
     Assert(sty != styMidi, "Illegal sty argument");
     AssertNilOrPo(pstn, 0);
 
+#ifdef KAUAI_SDL3
+    // Decode and compress without AudioMan/ACM. The existing writer retains
+    // the MSND envelope, name, default volume and WAVE child relationship.
+    try
+    {
+        const auto count = pfilSrc->FpMac();
+        if (count < 12 || count > INT32_MAX)
+        {
+            PushErc(ercSocBadSoundFile);
+            return false;
+        }
+        std::vector<std::uint8_t> source(static_cast<std::size_t>(count)), prepared;
+        if (!pfilSrc->FReadRgb(source.data(), static_cast<long>(count), 0) ||
+            !KauaiAudio::PrepareWaveImport(source.data(), (source.size)(), prepared))
+        {
+            PushErc(ercSocBadSoundFile);
+            return false;
+        }
+        String name;
+        if (pstn)
+            name = *pstn;
+        else
+        {
+            Filename filename;
+            pfilSrc->GetFni(&filename);
+            filename.GetLeaf(&name);
+        }
+        auto file = FileObject::PfilCreateTemp();
+        if (!file)
+            return false;
+        const bool written = file->FWriteRgb(prepared.data(), static_cast<long>((prepared.size)()), 0) &&
+                             FWriteWave(file, pcflDest, sty, &name, pcno);
+        ReleasePpo(&file);
+        return written;
+    }
+    catch (const std::bad_alloc &)
+    {
+        return false;
+    }
+#else
     Filename fniSrc;
     String stnName; // sound name
     String stn;     // src file path name
@@ -552,6 +597,7 @@ LFail:
     if (tYes == fniNew.TExists())
         fniNew.FDelete();
     return fFalse;
+#endif
 }
 
 /***************************************************************************
@@ -602,10 +648,7 @@ MovieSoundMSND::~MovieSoundMSND(void)
 ***************************************************************************/
 long MovieSoundMSND::SqnActr(long sty, long objid)
 {
-    AssertIn(sty, 0, styLim);
-
-    long sqnsty = sty << ksqnStyShift;
-    return (sqnActr | sqnsty | SwLow(objid));
+    return SoundPlaybackQueue::QueueNumber(sty, objid, true);
 }
 
 /***************************************************************************
@@ -617,8 +660,7 @@ long MovieSoundMSND::SqnActr(long sty, long objid)
 ***************************************************************************/
 long MovieSoundMSND::SqnBkgd(long sty, long objid)
 {
-    long sqnsty = sty << ksqnStyShift;
-    return (sqnBkgd | sqnsty | SwLow(objid));
+    return SoundPlaybackQueue::QueueNumber(sty, objid, false);
 }
 
 /***************************************************************************
@@ -714,7 +756,7 @@ PMovieSoundQueue MovieSoundQueue::PmsqNew(void)
     if (pvNil == (pmsq = NewObj MovieSoundQueue(khidMsq)))
         return pvNil;
 
-    if (pvNil == (pmsq->_pglsqe = DynamicArray::PglNew(size(SoundQueryEntry), kcsqeGrow)))
+    if (!pmsq->_queue.FInit())
     {
         ReleasePpo(&pmsq);
         return pvNil;
@@ -726,7 +768,6 @@ PMovieSoundQueue MovieSoundQueue::PmsqNew(void)
         return pvNil;
     }
 
-    pmsq->_dtim = kdtim2Msq;
     return pmsq;
 }
 
@@ -740,60 +781,17 @@ bool MovieSoundQueue::FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bo
 {
     AssertThis(0);
     AssertPo(pmsnd, 0);
-
-    SoundQueryEntry sqe;
-    SoundQueryEntry *psqe;
-    long sqn;
-    long sqnT;
-    long isqe;
-
-    if (_dtim == kdtimOffMsq)
-        return fTrue;
-
-    sqn = fActr ? MovieSoundMSND::SqnActr(pmsnd->Sty(), objID) : MovieSoundMSND::SqnBkgd(pmsnd->Sty(), objID);
-
-    if (!fQueue)
-        for (isqe = 0; isqe < _pglsqe->IvMac(); isqe++)
-        {
-            psqe = (SoundQueryEntry *)_pglsqe->QvGet(isqe);
-            sqnT = psqe->fActr ? MovieSoundMSND::SqnActr(psqe->pmsnd->Sty(), psqe->objID)
-                               : MovieSoundMSND::SqnBkgd(psqe->pmsnd->Sty(), psqe->objID);
-            if (sqnT == sqn)
-            {
-                if (fLowPri)
-                    return fTrue; // Nothing to enqueue;  same type already taken
-                // Hi priority.  Get rid of lower priority sound.
-                ReleasePpo(&psqe->pmsnd);
-                _pglsqe->Delete(isqe);
-                break;
-            }
-        }
-
-    sqe.pmsnd = pmsnd;
-    pmsnd->AddRef();
-    sqe.objID = objID;
-    sqe.fLoop = fLoop;
-    sqe.fQueue = fQueue;
-    sqe.vlmMod = vlm;
-    sqe.spr = spr;
-    sqe.fActr = fActr;
-    sqe.dtsStart = dtsStart;
-
-    if (fLowPri)
-    {
-        if (!_pglsqe->FPush(&sqe))
-        {
-            ReleasePpo(&sqe.pmsnd);
-            return fFalse;
-        }
-    }
-    else if (!_pglsqe->FEnqueue(&sqe))
-    {
-        ReleasePpo(&sqe.pmsnd);
-        return fFalse;
-    }
-
-    return fTrue;
+    SoundPlaybackRequest request;
+    request.sound = pmsnd;
+    request.style = pmsnd->Sty();
+    request.objectId = objID;
+    request.loop = fLoop;
+    request.queue = fQueue;
+    request.volume = vlm;
+    request.priority = spr;
+    request.actor = fActr;
+    request.startOffset = dtsStart;
+    return _queue.FEnqueue(request, fLowPri);
 }
 
 /***************************************************************************
@@ -805,42 +803,33 @@ bool MovieSoundQueue::FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bo
 void MovieSoundQueue::PlayMsq(void)
 {
     AssertThis(0);
-
-    SoundQueryEntry sqe;
-
-    if (_pglsqe->IvMac() == 0)
-        return;
-
-    if (_dtim == kdtimOffMsq)
+    switch (_queue.Dispatch())
     {
-        FlushMsq();
+    case SoundQueueDispatch::Empty:
         return;
+    case SoundQueueDispatch::Flush:
+        _queue.Clear();
+        return;
+    case SoundQueueDispatch::Play:
+        break;
     }
-
-    if (0 < _pglsqe->IvMac())
+    vpsndm->BeginSynch();
+    SoundPlaybackRequest request;
+    while (_queue.FDequeue(&request))
     {
-        vpsndm->BeginSynch();
-
-        while (_pglsqe->FDequeue(&sqe))
-        {
-            sqe.pmsnd->Play(sqe.objID, sqe.fLoop, sqe.fQueue, sqe.vlmMod, sqe.spr, sqe.fActr, sqe.dtsStart);
-            ReleasePpo(&sqe.pmsnd);
-        }
-
-        vpsndm->EndSynch();
+        ((PMovieSoundMSND)request.sound)
+            ->Play(request.objectId, request.loop, request.queue, request.volume, request.priority, request.actor,
+                   request.startOffset);
+        ReleasePpo(&request.sound);
     }
-
-    if (_dtim < kdtimLongMsq)
+    vpsndm->EndSynch();
+    LegacyLong interval;
+    if (_queue.FTimeout(&interval))
     {
         _pclok->Start(0);
-        if (!_pclok->FSetAlarm(_dtim, this))
-        {
+        if (!_pclok->FSetAlarm(interval, this))
             StopAll();
-            return;
-        }
     }
-
-    return;
 }
 
 /***************************************************************************
@@ -851,12 +840,7 @@ void MovieSoundQueue::PlayMsq(void)
 void MovieSoundQueue::FlushMsq(void)
 {
     AssertThis(0);
-    SoundQueryEntry sqe;
-
-    while (_pglsqe->FDequeue(&sqe))
-    {
-        ReleasePpo(&sqe.pmsnd);
-    }
+    _queue.Clear();
 }
 
 /***************************************************************************
@@ -884,7 +868,6 @@ MovieSoundQueue::~MovieSoundQueue(void)
     AssertBaseThis(0);
     StopAll();
     FlushMsq();
-    ReleasePpo(&_pglsqe);
     ReleasePpo(&_pclok);
 }
 
@@ -892,7 +875,7 @@ MovieSoundQueue::~MovieSoundQueue(void)
 /***************************************************************************
     Assert the validity of the MovieSoundMSND.
 ***************************************************************************/
-void MovieSoundMSND::AssertValid(ulong grf)
+void MovieSoundMSND::AssertValid(LegacyUlong grf)
 {
     MovieSoundMSND_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_prca, 0);
@@ -913,10 +896,10 @@ void MovieSoundMSND::MarkMem(void)
 /***************************************************************************
     Assert the validity of the MovieSoundQueue.
 ***************************************************************************/
-void MovieSoundQueue::AssertValid(ulong grf)
+void MovieSoundQueue::AssertValid(LegacyUlong grf)
 {
     MovieSoundQueue_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pglsqe, 0);
+    _queue.AssertValid();
     AssertPo(_pclok, 0);
 }
 
@@ -927,7 +910,7 @@ void MovieSoundQueue::MarkMem(void)
 {
     AssertThis(0);
     MovieSoundQueue_PAR::MarkMem();
-    MarkMemObj(_pglsqe);
+    _queue.MarkMem();
     MarkMemObj(_pclok);
 }
 

@@ -1,0 +1,560 @@
+/* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include "sdl_dialog.h"
+#include "sdl_modal_internal.h"
+#include <SDL3/SDL.h>
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
+#include "imgui.h"
+#include "imgui_stdlib.h"
+#include "imgui_impl_sdl3.h"
+#include "imgui_impl_sdlrenderer3.h"
+#include <algorithm>
+#include <deque>
+#include <list>
+#include <mutex>
+
+namespace KauaiSDL
+{
+namespace
+{
+std::mutex stateMutex;
+DialogState published;
+std::deque<DialogAction> actions;
+std::uint64_t nextGeneration = 0;
+
+struct Window
+{
+    SDL_Window *window = nullptr, *parent = nullptr;
+    SDL_Renderer *renderer = nullptr;
+    ImGuiContext *previous = ImGui::GetCurrentContext(), *imgui = nullptr;
+    SDL_Cursor *cursor = SDL_GetCursor();
+    bool cursorVisible = SDL_CursorVisible(), initialized = false, platform = false, drawing = false, modal = false;
+    bool clipboardChanged = false, quitRequested = false;
+    std::list<std::string> textEvents;
+    ~Window()
+    {
+        // Pushed text events borrow our strings. Drain them before releasing storage.
+        if (!textEvents.empty())
+            SDL_FlushEvent(SDL_EVENT_TEXT_INPUT);
+        const bool focused = window && (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+        if (imgui)
+            ImGui::SetCurrentContext(imgui);
+        if (drawing)
+            ImGui_ImplSDLRenderer3_Shutdown();
+        if (platform)
+            ImGui_ImplSDL3_Shutdown();
+        if (imgui)
+            ImGui::DestroyContext(imgui);
+        ImGui::SetCurrentContext(previous);
+        SDL_DestroyRenderer(renderer);
+        if (modal)
+            SDL_SetWindowModal(window, false);
+        SDL_DestroyWindow(window);
+        if (cursor)
+            SDL_SetCursor(cursor);
+        cursorVisible ? SDL_ShowCursor() : SDL_HideCursor();
+        if (parent && focused)
+            SDL_RaiseWindow(parent);
+        if (previous)
+        {
+            auto &io = ImGui::GetIO();
+            io.ClearInputKeys();
+            io.ClearInputMouse();
+            io.AddFocusEvent(parent && (SDL_GetWindowFlags(parent) & SDL_WINDOW_INPUT_FOCUS));
+        }
+        if (clipboardChanged)
+        {
+            // ImGui's plain-text clipboard is external to Kauai's rich data.
+            SDL_Event changed{};
+            changed.type = SDL_EVENT_CLIPBOARD_UPDATE;
+            changed.clipboard.owner = false;
+            SDL_PushEvent(&changed);
+        }
+        if (quitRequested)
+        {
+            SDL_Event quit{};
+            quit.type = SDL_EVENT_QUIT;
+            SDL_PushEvent(&quit);
+        }
+        if (initialized)
+            SDL_QuitSubSystem(SDL_INIT_VIDEO);
+    }
+    void Key(SDL_Scancode scan, bool down, SDL_Keymod modifiers = SDL_KMOD_NONE)
+    {
+        SDL_Event event{};
+        event.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
+        event.key.windowID = SDL_GetWindowID(window);
+        event.key.scancode = scan;
+        event.key.key = SDL_GetKeyFromScancode(scan, modifiers, false);
+        event.key.mod = modifiers;
+        event.key.down = down;
+        SDL_PushEvent(&event);
+    }
+    void Click(const DialogControl &control)
+    {
+        SDL_Event event{};
+        event.type = SDL_EVENT_MOUSE_MOTION;
+        event.motion.windowID = SDL_GetWindowID(window);
+        event.motion.x = control.x + control.width / 2;
+        event.motion.y = control.y + control.height / 2;
+        SDL_PushEvent(&event);
+        event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+        event.button.windowID = SDL_GetWindowID(window);
+        event.button.x = control.x + control.width / 2;
+        event.button.y = control.y + control.height / 2;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.down = true;
+        SDL_PushEvent(&event);
+        event.type = SDL_EVENT_MOUSE_BUTTON_UP;
+        event.button.down = false;
+        SDL_PushEvent(&event);
+    }
+};
+struct Publication
+{
+    DialogState previous;
+    std::deque<DialogAction> previousActions;
+    std::uint64_t generation;
+    Publication()
+    {
+        std::lock_guard<std::mutex> lock(stateMutex);
+        previous = std::move(published);
+        published = {};
+        previousActions.swap(actions);
+        generation = ++nextGeneration;
+    }
+    ~Publication()
+    {
+        std::lock_guard<std::mutex> lock(stateMutex);
+        published = std::move(previous);
+        published.ready = false;
+        actions.swap(previousActions);
+    }
+};
+DialogControl Describe(const KauaiDialogs::Control &control, const KauaiDialogs::Session &session)
+{
+    DialogControl result;
+    result.id = control.id;
+    result.item = session.Item(control.id);
+    result.label = KauaiDialogs::Caption(control.title.text, true);
+    result.enabled = !(control.style & 0x08000000); // WS_DISABLED.
+    result.readOnly = (control.windowClass.number == 0x81 && (control.style & 0x800)) ||
+                      (control.windowClass.number == 0x85 && (control.style & 3) == 3);
+    if (result.item >= 0)
+    {
+        result.kind = session.bindings[result.item].kind;
+        result.number = session.values[result.item].number;
+        result.text = session.values[result.item].text;
+    }
+    return result;
+}
+DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t window, std::uint64_t generation)
+{
+    using namespace KauaiDialogs;
+    DialogState state;
+    state.active = true;
+    state.ready = true;
+    state.generation = generation;
+    state.window = window;
+    state.title = Caption(session.resource.title);
+    const auto viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->Pos);
+    ImGui::SetNextWindowSize(viewport->Size);
+    ImGui::Begin("##original-dialog", nullptr,
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_HorizontalScrollbar);
+    const auto windowPosition = ImGui::GetWindowPos();
+    const ImVec2 origin(windowPosition.x - ImGui::GetScrollX(), windowPosition.y - ImGui::GetScrollY());
+    const auto savedFocus = session.focus;
+    std::int32_t defaultButton = -1;
+    bool multilineActive = false;
+    for (std::size_t index = 0; index < session.resource.controls.size() && !session.closed; ++index)
+    {
+        const auto &control = session.resource.controls[index];
+        if (!(control.style & 0x10000000))
+            continue;
+        const auto descriptor = Describe(control, session);
+        auto geometry = descriptor;
+        const auto &bounds = control.bounds;
+        const ImVec2 position(origin.x + bounds.x * 2 * scale, origin.y + bounds.y * 2 * scale);
+        const ImVec2 dimensions(std::max(1.f, bounds.width * 2 * scale), std::max(1.f, bounds.height * 2 * scale));
+        ImGui::SetCursorScreenPos(position);
+        ImGui::PushID(static_cast<int>(index));
+        ImGui::BeginDisabled(!descriptor.enabled);
+        bool changed = false, interactive = false;
+        const auto item = descriptor.item;
+        const auto buttonStyle = control.style & 15;
+        if (control.windowClass.number == 0x80 && buttonStyle == 7)
+        {
+            auto draw = ImGui::GetWindowDrawList();
+            const float textHeight = ImGui::GetFontSize();
+            draw->AddRect(ImVec2(position.x, position.y + textHeight / 2),
+                          ImVec2(position.x + dimensions.x, position.y + dimensions.y),
+                          ImGui::GetColorU32(ImGuiCol_Border));
+            const auto size = ImGui::CalcTextSize(descriptor.label.c_str());
+            draw->AddRectFilled(ImVec2(position.x + 5 * scale, position.y),
+                                ImVec2(position.x + 12 * scale + size.x, position.y + size.y),
+                                ImGui::GetColorU32(ImGuiCol_WindowBg));
+            draw->AddText(ImVec2(position.x + 8 * scale, position.y), ImGui::GetColorU32(ImGuiCol_Text),
+                          descriptor.label.c_str());
+        }
+        else if (control.windowClass.number == 0x82)
+        {
+            float offset = 0;
+            const auto alignment = control.style & 31;
+            const auto textWidth = ImGui::CalcTextSize(descriptor.label.c_str(), nullptr, false, dimensions.x).x;
+            if (alignment == 1)
+                offset = std::max(0.f, (dimensions.x - textWidth) / 2);
+            if (alignment == 2)
+                offset = std::max(0.f, dimensions.x - textWidth);
+            ImGui::SetCursorScreenPos(ImVec2(position.x + offset, position.y));
+            ImGui::PushTextWrapPos((bounds.x + bounds.width) * 2 * scale);
+            ImGui::TextUnformatted(descriptor.label.c_str());
+            ImGui::PopTextWrapPos();
+        }
+        else if (item >= 0)
+        {
+            auto &value = session.values[item];
+            const auto kind = session.bindings[item].kind;
+            if (savedFocus == item)
+                ImGui::SetKeyboardFocusHere();
+            if (kind == ItemKind::button)
+            {
+                if (buttonStyle == 1 && descriptor.enabled)
+                    defaultButton = item;
+                changed = ImGui::Button(descriptor.label.c_str(), dimensions);
+            }
+            else if (kind == ItemKind::checkBox)
+            {
+                bool checked = value.number != 0;
+                changed = ImGui::Checkbox(descriptor.label.c_str(), &checked);
+                if (changed && buttonStyle == 3)
+                    value.number = checked;
+            }
+            else if (kind == ItemKind::radioGroup)
+            {
+                const auto choice = static_cast<std::int32_t>(control.id - session.bindings[item].first);
+                changed = ImGui::RadioButton(descriptor.label.c_str(), value.number == choice);
+                if (changed && buttonStyle == 9)
+                    value.number = choice;
+            }
+            else if (kind == ItemKind::editText)
+            {
+                ImGuiInputTextFlags flags =
+                    descriptor.readOnly ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
+                if (control.style & 0x20)
+                    flags |= ImGuiInputTextFlags_Password;
+                if (savedFocus == item)
+                    flags |= ImGuiInputTextFlags_AutoSelectAll;
+                ImGui::SetNextItemWidth(dimensions.x);
+                if (control.style & 4)
+                {
+                    if (!(control.style & 0x1000))
+                        flags |= ImGuiInputTextFlags_CtrlEnterForNewLine;
+                    changed = ImGui::InputTextMultiline("##value", &value.text, dimensions, flags);
+                    multilineActive |= ImGui::IsItemActive();
+                }
+                else
+                    changed = ImGui::InputText("##value", &value.text, flags);
+            }
+            else if (kind == ItemKind::combo)
+            {
+                const bool editable = (control.style & 3) != 3;
+                if (editable)
+                {
+                    ImGui::SetNextItemWidth(std::max(1.f, dimensions.x - ImGui::GetFrameHeight()));
+                    ImGui::InputText("##editable-choice", &value.text);
+                    ImGui::SameLine(0, 0);
+                }
+                else
+                    ImGui::SetNextItemWidth(dimensions.x);
+                if (ImGui::BeginCombo("##choices", editable ? nullptr : value.text.c_str(),
+                                      editable ? ImGuiComboFlags_NoPreview : ImGuiComboFlags_None))
+                {
+                    for (const auto &choice : value.choices)
+                        if (ImGui::Selectable(choice.c_str(), choice == value.text))
+                            value.text = choice;
+                    ImGui::EndCombo();
+                }
+            }
+            interactive = true;
+            const auto low = ImGui::GetItemRectMin(), high = ImGui::GetItemRectMax();
+            geometry.x = low.x - windowPosition.x;
+            geometry.y = low.y - windowPosition.y;
+            geometry.width = high.x - low.x;
+            geometry.height = high.y - low.y;
+            if (kind == ItemKind::combo)
+            {
+                geometry.x = position.x - windowPosition.x;
+                geometry.y = position.y - windowPosition.y;
+                geometry.width = dimensions.x;
+                geometry.height = ImGui::GetFrameHeight();
+            }
+            if (changed)
+                session.Notify(item);
+        }
+        if (!interactive)
+        {
+            geometry.x = position.x - windowPosition.x;
+            geometry.y = position.y - windowPosition.y;
+            geometry.width = dimensions.x;
+            geometry.height = dimensions.y;
+        }
+        state.controls.push_back(std::move(geometry));
+        ImGui::EndDisabled();
+        ImGui::PopID();
+    }
+    // Keep the complete resource canvas scrollable, including draw-list-only
+    // group boxes and empty trailing space. Scrolling never rescales controls.
+    ImGui::SetCursorScreenPos(origin);
+    ImGui::Dummy(ImVec2(session.resource.bounds.width * 2 * scale, session.resource.bounds.height * 2 * scale));
+    if (session.focus == savedFocus)
+        session.focus = -1;
+    if (!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+            session.Cancel();
+        if (!multilineActive && defaultButton >= 0 && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
+            session.Notify(defaultButton);
+    }
+    ImGui::End();
+    return state;
+}
+} // namespace
+DialogState CurrentDialog()
+{
+    std::lock_guard<std::mutex> lock(stateMutex);
+    return published;
+}
+bool QueueDialogAction(std::uint64_t generation, const DialogAction &action)
+{
+    std::lock_guard<std::mutex> lock(stateMutex);
+    if (!published.active || !published.ready || published.generation != generation)
+        return false;
+    if (action.kind == DialogActionKind::click || action.kind == DialogActionKind::text)
+    {
+        const auto found = std::find_if(published.controls.begin(), published.controls.end(),
+                                        [&](const DialogControl &control) { return control.id == action.control; });
+        if (found == published.controls.end() || found->item < 0 || !found->enabled ||
+            (action.kind == DialogActionKind::text &&
+             (found->readOnly ||
+              (found->kind != KauaiDialogs::ItemKind::editText && found->kind != KauaiDialogs::ItemKind::combo))))
+            return false;
+    }
+    actions.push_back(action);
+    return true;
+}
+bool RunDialog(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idle)(void *), void *context)
+{
+    return RunModal(session, parentID, idle, context, nullptr);
+}
+bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idle)(void *), void *context,
+              ModalView *view)
+{
+    bool shown = false;
+    try
+    {
+        const auto outer = CurrentDialog();
+        if (outer.active)
+            parentID = outer.window;
+        Window scope;
+        struct ReleaseView
+        {
+            ModalView *view;
+            ~ReleaseView()
+            {
+                if (view && view->release)
+                    view->release(view->context);
+            }
+        } release{view};
+        SDL_SetMainReady();
+        if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
+            return false;
+        scope.initialized = true;
+        scope.parent = parentID ? SDL_GetWindowFromID(parentID) : nullptr;
+        if (parentID && !scope.parent)
+            return false;
+        const float scale =
+            std::max(1.f, SDL_GetDisplayContentScale(scope.parent ? SDL_GetDisplayForWindow(scope.parent)
+                                                                  : SDL_GetPrimaryDisplay()));
+        const auto title = KauaiDialogs::Caption(session.resource.title);
+        scope.window = SDL_CreateWindow(title.c_str(), static_cast<int>(session.resource.bounds.width * 2 * scale),
+                                        static_cast<int>(session.resource.bounds.height * 2 * scale),
+                                        SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN);
+        if (!scope.window)
+            return false;
+        if (scope.parent)
+        {
+            if (!SDL_SetWindowParent(scope.window, scope.parent) || !SDL_SetWindowModal(scope.window, true))
+                return false;
+            scope.modal = true;
+            int x, y, w, h, dw, dh;
+            SDL_GetWindowPosition(scope.parent, &x, &y);
+            SDL_GetWindowSize(scope.parent, &w, &h);
+            SDL_GetWindowSize(scope.window, &dw, &dh);
+            SDL_SetWindowPosition(scope.window, x + (w - dw) / 2, y + (h - dh) / 2);
+        }
+        SDL_Rect usable;
+        if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(scope.window), &usable))
+        {
+            int top = 0, left = 0, bottom = 0, right = 0;
+            SDL_GetWindowBordersSize(scope.window, &top, &left, &bottom, &right);
+            int x, y, width, height;
+            SDL_GetWindowPosition(scope.window, &x, &y);
+            SDL_GetWindowSize(scope.window, &width, &height);
+            width = std::min(width, std::max(1, usable.w - left - right));
+            height = std::min(height, std::max(1, usable.h - top - bottom));
+            SDL_SetWindowSize(scope.window, width, height);
+            x = std::max(usable.x + left, std::min(x, usable.x + usable.w - right - width));
+            y = std::max(usable.y + top, std::min(y, usable.y + usable.h - bottom - height));
+            SDL_SetWindowPosition(scope.window, x, y);
+        }
+        scope.renderer = SDL_CreateRenderer(scope.window, nullptr);
+        if (!scope.renderer)
+            return false;
+        scope.imgui = ImGui::CreateContext();
+        auto &io = ImGui::GetIO();
+        io.IniFilename = nullptr;
+        io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        ImGui::StyleColorsDark();
+        auto &style = ImGui::GetStyle();
+        style.WindowPadding = ImVec2(0, 0);
+        style.FramePadding = ImVec2(3, 1);
+        style.WindowRounding = 0;
+        style.FrameRounding = 0;
+        style.ScaleAllSizes(scale);
+        style.FontScaleDpi = scale;
+        scope.platform = ImGui_ImplSDL3_InitForSDLRenderer(scope.window, scope.renderer);
+        if (!scope.platform)
+            return false;
+        scope.drawing = ImGui_ImplSDLRenderer3_Init(scope.renderer);
+        if (!scope.drawing || !SDL_ShowWindow(scope.window))
+            return false;
+        SDL_StartTextInput(scope.window);
+        shown = true;
+        Publication publication;
+        const auto id = SDL_GetWindowID(scope.window);
+        std::uint64_t tick = 0;
+        unsigned focusSettling = 2;
+        while (!session.closed)
+        {
+            SDL_Event event;
+            while (SDL_PollEvent(&event))
+            {
+                if (event.type == SDL_EVENT_QUIT ||
+                    (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == parentID))
+                {
+                    scope.quitRequested = session.quitRequested = true;
+                    session.closed = true;
+                    session.result = -1;
+                }
+                if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == id)
+                    session.Cancel();
+                if (event.type == SDL_EVENT_CLIPBOARD_UPDATE)
+                    scope.clipboardChanged = true;
+                ImGui_ImplSDL3_ProcessEvent(&event);
+            }
+            if (session.closed)
+                break;
+            if (idle)
+                idle(context);
+            if (SDL_GetTicks() - tick >= 10)
+            {
+                session.Notify(-1);
+                tick = SDL_GetTicks();
+            }
+            if (session.closed)
+                break;
+            ImGui_ImplSDLRenderer3_NewFrame();
+            ImGui_ImplSDL3_NewFrame();
+            ImGui::NewFrame();
+            const bool focusing = session.focus >= 0;
+            DialogState snapshot;
+            if (view)
+            {
+                snapshot.active = snapshot.ready = true;
+                snapshot.window = id;
+                snapshot.generation = publication.generation;
+                snapshot.title = title;
+                view->draw(view->context, session, scale, snapshot, scope.renderer);
+            }
+            else
+                snapshot = Draw(session, scale, id, publication.generation);
+            // ImGui applies requested keyboard focus across frames. Publish a
+            // ready layout after it settles so queued clicks cannot race a
+            // callback's SelectDit request and lose their active widget.
+            if (focusing || session.focus >= 0)
+                focusSettling = 2;
+            else if (focusSettling)
+                --focusSettling;
+            snapshot.ready = focusSettling == 0;
+            ImGui::Render();
+            SDL_SetRenderScale(scope.renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
+            SDL_SetRenderDrawColor(scope.renderer, 28, 28, 28, 255);
+            if (!SDL_RenderClear(scope.renderer))
+            {
+                session.closed = true;
+                session.result = -1;
+                break;
+            }
+            ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), scope.renderer);
+            std::deque<DialogAction> pending;
+            {
+                std::lock_guard<std::mutex> lock(stateMutex);
+                published = std::move(snapshot);
+                pending.swap(actions);
+            }
+            for (const auto &action : pending)
+            {
+                if (action.kind == DialogActionKind::screenshot)
+                {
+                    auto pixels = SDL_RenderReadPixels(scope.renderer, nullptr);
+                    if (pixels)
+                        SDL_SaveBMP(pixels, action.text.c_str());
+                    SDL_DestroySurface(pixels);
+                    continue;
+                }
+                if (action.kind == DialogActionKind::enter || action.kind == DialogActionKind::escape ||
+                    action.kind == DialogActionKind::tab)
+                {
+                    const auto key = action.kind == DialogActionKind::enter    ? SDL_SCANCODE_RETURN
+                                     : action.kind == DialogActionKind::escape ? SDL_SCANCODE_ESCAPE
+                                                                               : SDL_SCANCODE_TAB;
+                    scope.Key(key, true);
+                    scope.Key(key, false);
+                    continue;
+                }
+                const auto state = CurrentDialog();
+                const auto found =
+                    std::find_if(state.controls.begin(), state.controls.end(),
+                                 [&](const DialogControl &control) { return control.id == action.control; });
+                if (found == state.controls.end())
+                    continue;
+                scope.Click(*found);
+                if (action.kind == DialogActionKind::text)
+                {
+                    scope.Key(SDL_SCANCODE_LCTRL, true, SDL_KMOD_CTRL);
+                    scope.Key(SDL_SCANCODE_A, true, SDL_KMOD_CTRL);
+                    scope.Key(SDL_SCANCODE_A, false, SDL_KMOD_CTRL);
+                    scope.Key(SDL_SCANCODE_LCTRL, false);
+                    scope.textEvents.push_back(action.text);
+                    SDL_Event text{};
+                    text.type = SDL_EVENT_TEXT_INPUT;
+                    text.text.windowID = id;
+                    text.text.text = scope.textEvents.back().c_str();
+                    SDL_PushEvent(&text);
+                }
+            }
+            SDL_RenderPresent(scope.renderer);
+            SDL_Delay(8);
+        }
+        return true;
+    }
+    catch (const std::exception &)
+    {
+        session.closed = true;
+        session.result = -1;
+        return shown;
+    }
+}
+} // namespace KauaiSDL

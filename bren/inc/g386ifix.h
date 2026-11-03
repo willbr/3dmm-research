@@ -11,9 +11,9 @@
  * Old version using inline functions
  */
 #if 0
-__inline static const long IFixedMul(long a, long b)
+__inline static const br_int_32 IFixedMul(br_int_32 a, br_int_32 b)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %2\n"
@@ -25,9 +25,9 @@ __inline static const long IFixedMul(long a, long b)
 	return __r;
 }
 
-__inline static const long IFixedDiv(long a, long b)
+__inline static const br_int_32 IFixedDiv(br_int_32 a, br_int_32 b)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		"movl	%%eax,%%edx\n" 
@@ -42,9 +42,9 @@ __inline static const long IFixedDiv(long a, long b)
 	return __r;
 }
 
-__inline static const long IFixedDivR(long a, long b)
+__inline static const br_int_32 IFixedDivR(br_int_32 a, br_int_32 b)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		"cdq\n"
@@ -59,9 +59,9 @@ __inline static const long IFixedDivR(long a, long b)
 	return __r;
 }
 
-__inline static const long IFixedDivF(long a, long b)
+__inline static const br_int_32 IFixedDivF(br_int_32 a, br_int_32 b)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		"xorl	%%eax,%%eax\n"
@@ -75,9 +75,9 @@ __inline static const long IFixedDivF(long a, long b)
 	return __r;
 }
 
-__inline static const long IFixedRcp(long a)
+__inline static const br_int_32 IFixedRcp(br_int_32 a)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		"movl	$1,%%edx\n"
@@ -90,9 +90,9 @@ __inline static const long IFixedRcp(long a)
 	return __r;
 }
 
-__inline static const long IFixedMulDiv(long a, long b, long c)
+__inline static const br_int_32 IFixedMulDiv(br_int_32 a, br_int_32 b, br_int_32 c)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		"imull %2\n"
@@ -104,11 +104,11 @@ __inline static const long IFixedMulDiv(long a, long b, long c)
 	return __r;
 }
 
-__inline static const long IFixedMac2(
-	long a, long b,
-	long c, long d)
+__inline static const br_int_32 IFixedMac2(
+	br_int_32 a, br_int_32 b,
+	br_int_32 c, br_int_32 d)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %2\n"
@@ -127,12 +127,12 @@ __inline static const long IFixedMac2(
 	return __r;
 }
 
-__inline static const long IFixedMac3(
-	long a, long b,
-	long c, long d,
-	long e, long f)
+__inline static const br_int_32 IFixedMac3(
+	br_int_32 a, br_int_32 b,
+	br_int_32 c, br_int_32 d,
+	br_int_32 e, br_int_32 f)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %2\n"
@@ -157,13 +157,13 @@ __inline static const long IFixedMac3(
 	return __r;
 }
 
-__inline static const long IFixedMac4(
-	long a, long b,
-	long c, long d,
-	long e, long f,
-	long g, long h)
+__inline static const br_int_32 IFixedMac4(
+	br_int_32 a, br_int_32 b,
+	br_int_32 c, br_int_32 d,
+	br_int_32 e, br_int_32 f,
+	br_int_32 g, br_int_32 h)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %2\n"
@@ -193,7 +193,7 @@ __inline static const long IFixedMac4(
 	return __r;
 }
 
-__inline static const long IFixedSqr(long a)
+__inline static const br_int_32 IFixedSqr(br_int_32 a)
 {
 	__asm (
 		 "imull %%eax\n"
@@ -205,9 +205,9 @@ __inline static const long IFixedSqr(long a)
 	return a;
 }
 
-__inline static const long IFixedSqr2(long a, long b)
+__inline static const br_int_32 IFixedSqr2(br_int_32 a, br_int_32 b)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %%eax\n"
@@ -226,10 +226,10 @@ __inline static const long IFixedSqr2(long a, long b)
 	return __r;
 }
 
-__inline static const long IFixedSqr3(
-	long a, long b,long c)
+__inline static const br_int_32 IFixedSqr3(
+	br_int_32 a, br_int_32 b,br_int_32 c)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %%eax\n"
@@ -254,11 +254,11 @@ __inline static const long IFixedSqr3(
 	return __r;
 }
 
-__inline static const long IFixedSqr4(
-	long a, long b,
-	long c, long d)
+__inline static const br_int_32 IFixedSqr4(
+	br_int_32 a, br_int_32 b,
+	br_int_32 c, br_int_32 d)
 {
-	register long __r;
+	register br_int_32 __r;
 
 	__asm (
 		 "imull %%eax\n"
@@ -311,12 +311,12 @@ __inline static const long IFixedSqr4(
 #if 0
 #define BrFixedMul(__a, __b)                                                                                           \
     ({                                                                                                                 \
-        long __r;                                                                                                      \
+        br_int_32 __r;                                                                                                      \
                                                                                                                        \
         __asm("		imull %2\n"                                                                                           \
               "		shrdl $16,%%edx,%%eax\n"                                                                              \
               : "=a"(__r)                                                                                              \
-              : "0"((long)(__a)), "rm"((long)(__b))                                                                    \
+              : "0"((br_int_32)(__a)), "rm"((br_int_32)(__b))                                                                    \
               : "edx", "cc");                                                                                          \
                                                                                                                        \
         __r;                                                                                                           \
@@ -324,14 +324,14 @@ __inline static const long IFixedSqr4(
 
 #define BrFixedDiv(__a, __b)                                                                                           \
     ({                                                                                                                 \
-        register long __r;                                                                                             \
+        register br_int_32 __r;                                                                                             \
                                                                                                                        \
         __asm("		movl	%%eax,%%edx\n"                                                                                   \
               "		shll	$16,%%eax\n"                                                                                     \
               "		sarl	$16,%%edx\n"                                                                                     \
               "		idivl	%2\n"                                                                                           \
               : "=a"(__r)                                                                                              \
-              : "a"((long)(__a)), "rm"((long)(__b))                                                                    \
+              : "a"((br_int_32)(__a)), "rm"((br_int_32)(__b))                                                                    \
               : "edx", "cc");                                                                                          \
                                                                                                                        \
         __r;                                                                                                           \
@@ -339,12 +339,12 @@ __inline static const long IFixedSqr4(
 
 #define BrFixedMulDiv(__a, __b, __c)                                                                                   \
     ({                                                                                                                 \
-        register long __r;                                                                                             \
+        register br_int_32 __r;                                                                                             \
                                                                                                                        \
         __asm("imull %2\n"                                                                                             \
               "idivl %3\n"                                                                                             \
               : "=a"(__r)                                                                                              \
-              : "0"((long)(__a)), "rm"((long)(__b)), "rm"((long)(__c))                                                 \
+              : "0"((br_int_32)(__a)), "rm"((br_int_32)(__b)), "rm"((br_int_32)(__c))                                                 \
               : "edx", "cc");                                                                                          \
                                                                                                                        \
         __r;                                                                                                           \
@@ -352,7 +352,7 @@ __inline static const long IFixedSqr4(
 
 #define BrFixedMac2(__a, __b, __c, __d)                                                                                \
     ({                                                                                                                 \
-        register long __r;                                                                                             \
+        register br_int_32 __r;                                                                                             \
                                                                                                                        \
         __asm("imull %2\n"                                                                                             \
               "movl  %%eax,%%ebx\n"                                                                                    \
@@ -364,7 +364,7 @@ __inline static const long IFixedSqr4(
               "adcl	%%ecx,%%edx\n"                                                                                     \
               "shrdl $16,%%edx,%%eax\n"                                                                                \
               : "=a"(__r)                                                                                              \
-              : "0"((long)(__a)), "rm"((long)(__b)), "rm"((long)(__c)), "rm"((long)(__d))                              \
+              : "0"((br_int_32)(__a)), "rm"((br_int_32)(__b)), "rm"((br_int_32)(__c)), "rm"((br_int_32)(__d))                              \
               : "ebx", "ecx", "edx", "cc");                                                                            \
                                                                                                                        \
         __r;                                                                                                           \
@@ -372,7 +372,7 @@ __inline static const long IFixedSqr4(
 
 #define BrFixedMac3(__a, __b, __c, __d, __e, __f)                                                                      \
     ({                                                                                                                 \
-        register long __r;                                                                                             \
+        register br_int_32 __r;                                                                                             \
                                                                                                                        \
         __asm("imull %2\n"                                                                                             \
               "movl  %%eax,%%ebx\n"                                                                                    \
@@ -390,8 +390,8 @@ __inline static const long IFixedSqr4(
                                                                                                                        \
               "shrdl $16,%%edx,%%eax\n"                                                                                \
               : "=a"(__r)                                                                                              \
-              : "0"((long)(__a)), "rm"((long)(__b)), "rm"((long)(__c)), "rm"((long)(__d)), "rm"((long)(__e)),          \
-                "rm"((long)(__f))                                                                                      \
+              : "0"((br_int_32)(__a)), "rm"((br_int_32)(__b)), "rm"((br_int_32)(__c)), "rm"((br_int_32)(__d)), "rm"((br_int_32)(__e)),          \
+                "rm"((br_int_32)(__f))                                                                                      \
               : "ebx", "ecx", "edx", "cc");                                                                            \
                                                                                                                        \
         __r;                                                                                                           \
@@ -399,7 +399,7 @@ __inline static const long IFixedSqr4(
 
 #define BrFixedMac4(__a, __b, __c, __d, __e, __f, __g, __h)                                                            \
     ({                                                                                                                 \
-        register long __r;                                                                                             \
+        register br_int_32 __r;                                                                                             \
                                                                                                                        \
         __asm("imull %2\n"                                                                                             \
               "movl  %%eax,%%ebx\n"                                                                                    \
@@ -422,8 +422,8 @@ __inline static const long IFixedSqr4(
                                                                                                                        \
               "shrdl $16,%%edx,%%eax\n"                                                                                \
               : "=a"(__r)                                                                                              \
-              : "0"((long)(__a)), "rm"((long)(__b)), "rm"((long)(__c)), "rm"((long)(__d)), "rm"((long)(__e)),          \
-                "rm"((long)(__f)), "rm"((long)(__g)), "rm"((long)(__h))                                                \
+              : "0"((br_int_32)(__a)), "rm"((br_int_32)(__b)), "rm"((br_int_32)(__c)), "rm"((br_int_32)(__d)), "rm"((br_int_32)(__e)),          \
+                "rm"((br_int_32)(__f)), "rm"((br_int_32)(__g)), "rm"((br_int_32)(__h))                                                \
               : "ebx", "ecx", "edx", "cc");                                                                            \
                                                                                                                        \
         __r;                                                                                                           \

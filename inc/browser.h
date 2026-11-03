@@ -75,23 +75,17 @@ struct BrowserThumbEntry
     short bo;
     short osk;
     union {
-        struct
-        {
+        struct {
             ChunkTagOrType ctg;
-            ChunkNumber cno;
+            union { ChunkNumber cno; ChildChunkID chid; };
         };
-        struct
-        {
-            ulong grfontMask;
-            ulong grfont;
-        };
-        struct
-        {
-            ChunkTagOrType ctg;
-            ChildChunkID chid;
+        struct {
+            LegacyUlong grfontMask;
+            LegacyUlong grfont;
         };
     };
 };
+static_assert(sizeof(BrowserThumbEntry) == 12, "browser thumbnail records remain twelve bytes");
 const ByteOrderMask kbomTfc = 0x5f000000;
 
 /************************************
@@ -162,7 +156,7 @@ class BrowserDisplay : public BrowserDisplay_PAR
     {
         return thum;
     }
-    virtual void _GetThumFromIthum(long ithum, void *pThumSelect, long *psid);
+    virtual void _GetThumFromIthum(long ithum, LegacyLong *pThumSelect, long *psid);
     virtual void _ApplySelection(long thumSelect, long sid)
     {
     }
@@ -270,45 +264,22 @@ const long kglthdGrow = 10;
 // load-bearing: BrowserContentList::_FAddGokdToThd writes via tag.{ctg,cno}
 // and reads via grfontMask/grfont, asserting they match.
 //
-// On x86, TAG is 16 bytes ([sid:4][pcrf:4][ctg:4][cno:4]) so two long
-// fillers before grfontMask line up exactly with TAG's tail. On x64, TAG
-// grew to 24 bytes (pcrf is an 8-byte pointer, plus 4 bytes of alignment
-// padding before it), so the original two-long preamble would put
-// grfontMask at offset 8 -- which on x64 is *inside* tag.pcrf. That
-// shifted the alias off TAG's (ctg, cno) and corrupted pcrf as a side
-// effect. The static_asserts below guard the alignment we depend on.
+// The prefix includes TAG's source ID, pointer and any pointer-alignment
+// padding. Derive it from the actual fixed-width TAG layout on each host;
+// sizeof(long) and Windows architecture macros cannot describe LP64 hosts.
 struct ThumbnailDescriptor
 {
     union {
         TAG tag; // TAG pointing to content
         struct
         {
-            long lwFill1; // overlaps tag.sid
-#if defined(_WIN64) || defined(_M_X64)
-            // On x64 the gap before grfontMask must equal sizeof(TAG) - 8
-            // (the (ctg, cno) tail). TAG is 24 bytes so we need 16 bytes of
-            // filler here, not 4. Three more longs cover the padding +
-            // 8-byte pcrf to land grfontMask on tag.ctg's offset (16) and
-            // grfont on tag.cno's offset (20).
-            long lwFill2; // overlaps the 4 bytes of padding before pcrf
-            long lwFill3; // overlaps low half of tag.pcrf
-            long lwFill4; // overlaps high half of tag.pcrf
-#else
-            long lwFill2; // overlaps 4-byte tag.pcrf on x86
-#endif
-            ulong grfontMask; // aliases tag.ctg
-            ulong grfont;     // aliases tag.cno
+            byte tagPrefix[offsetof(TAG, ctg)];
+            LegacyUlong grfontMask; // aliases tag.ctg
+            LegacyUlong grfont;     // aliases tag.cno
         };
         struct
         {
-            long lwFill1c;
-#if defined(_WIN64) || defined(_M_X64)
-            long lwFill2c;
-            long lwFill3c;
-            long lwFill4c;
-#else
-            long lwFill2c;
-#endif
+            byte tagPrefixChild[offsetof(TAG, ctg)];
             ChunkTagOrType ctg;  // aliases tag.ctg
             ChildChunkID chid;   // aliases tag.cno (= ChildChunkID of CD content)
         };
@@ -478,7 +449,7 @@ class BrowserList : public BrowserList_PAR
 
     // BrowserList util
     void _SortThd(void);
-    virtual void _GetThumFromIthum(long ithum, void *pThumSelect, long *psid);
+    virtual void _GetThumFromIthum(long ithum, LegacyLong *pThumSelect, long *psid);
     virtual void _ReleaseThumFrame(long ifrm);
     virtual long _IthumFromThum(long thum, long sid);
     virtual void _CacheContext(void);

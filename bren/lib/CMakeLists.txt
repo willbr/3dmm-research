@@ -214,14 +214,7 @@ if (BREN_X86)
     PROPERTIES COMPILE_OPTIONS "/Cp;/DDOS386;/D__VISUALC__=1;/DBASED_FIXED=1"
   )
 else()
-  # ZB asm fast paths cover the inner triangle scan-converters
-  # (TI8_PIZ, TT15_PIZ, T_PIZA et al). Per-arch fallbacks belong in
-  # the x64 enablement plan; on x64 this build is configure-only for
-  # probing kauai/engine LP64 compilation. Linking will fail with
-  # unresolved symbols at the BRender ZB layer.
-  message(WARNING
-    "brender_zb x64 path not yet implemented -- see follow-on x64 plan; "
-    "configure proceeds but link/run will fail")
+  message(STATUS "BRender uses the portable non-x86 C fallbacks")
 endif()
 
 if (MSVC)

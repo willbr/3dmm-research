@@ -42,7 +42,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Assert the validity of the rich text doc.
 ***************************************************************************/
-void TextDocumentBase::AssertValid(ulong grfobj)
+void TextDocumentBase::AssertValid(LegacyUlong grfobj)
 {
     achar ch;
     long ibMac;
@@ -1010,7 +1010,7 @@ RichTextDocument::~RichTextDocument(void)
 /***************************************************************************
     Assert the validity of a RichTextDocument.
 ***************************************************************************/
-void RichTextDocument::AssertValid(ulong grfobj)
+void RichTextDocument::AssertValid(LegacyUlong grfobj)
 {
     RichTextDocument_PAR::AssertValid(grfobj);
     AssertPo(_pglmpe, 0);
@@ -1127,56 +1127,31 @@ PRichTextDocument RichTextDocument::PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrT
 bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    DataBlock blck;
     FileLocation floText;
     PFileObject pfilT;
-    ChildChunkIdentification kid;
     long icact;
-    long cact;
+    LegacyLong cact;
     RDOP rdop;
     short bo, osk;
 
     if (!RichTextDocument_PAR::_FInit())
         return fFalse;
 
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() < size(RDOP) ||
-        !blck.FReadRgb(&rdop, size(RDOP), 0))
-    {
+    RichTextData stored;
+    if (!stored.FRead(pcfl, ctg, cno))
         return fFalse;
-    }
-
-    if (rdop.bo == kboOther)
-        SwapBytesBom(&rdop, kbomRdop);
-    else if (rdop.bo != kboCur)
-        return fFalse;
-
-    // do a sanity check on the default font size and width
-    if (!FIn(rdop.dypFont, 4, 256) || !FIn(rdop.dxpDef, 1, kcbMax))
-    {
-        Bug("bad default font size");
-        return fFalse;
-    }
+    rdop = stored.defaults;
     _dxpDef = rdop.dxpDef;
     _dypFontDef = rdop.dypFont;
     _acrBack.SetFromLw(rdop.lwAcrBack);
 
-    if (_stnFontDef.FRead(&blck, size(rdop)) && _stnFontDef.Cch() > 0)
-        _oskFont = rdop.oskFont;
-    else
-    {
-        _oskFont = koskCur;
-        _stnFontDef.SetNil();
-    }
+    _stnFontDef = stored.fontName;
+    _oskFont = stored.defaults.oskFont;
     _onnDef = vntl.OnnMapStn(&_stnFontDef, _oskFont);
 
     // get the text
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgText, &kid) || !pcfl->FFindFlo(kid.cki.ctg, kid.cki.cno, &floText) ||
-        floText.cb < size(short) || !floText.FReadRgb(&osk, size(short), 0))
-    {
-        return fFalse;
-    }
-    floText.fp += size(short);
-    floText.cb -= size(short);
+    floText = stored.text;
+    osk = stored.textOsk;
     floText.pfil->AddRef();
     pfilT = floText.pfil;
     if (!floText.FTranslate(osk) || !_pbsf->FReplaceFlo(&floText, fCopyText && pfilT == floText.pfil, 0, CpMac() - 1))
@@ -1187,24 +1162,21 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNu
     ReleasePpo(&floText.pfil);
 
     // get the text properties
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTxtProps, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) ||
-        pvNil == (_pglmpe = DynamicArray::PglRead(&blck, &bo)) || size(MPE) != _pglmpe->CbEntry())
-    {
-        return fFalse;
-    }
+    _pglmpe = stored.properties;
+    stored.properties = pvNil;
+    bo = stored.propertyBo;
     if (bo == kboOther)
     {
         SwapBytesRglw(_pglmpe->QvGet(0), LwMul(_pglmpe->IvMac(), size(MPE)) / size(int32_t));
     }
 
     // get the text property arguments
-    if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTxtPropArgs, &kid))
+    if (stored.arguments != pvNil)
     {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (_pagcact = AllocatedGroup::PagRead(&blck, &bo, &osk)) ||
-            size(long) != _pagcact->CbFixed())
-        {
-            return fFalse;
-        }
+        _pagcact = stored.arguments;
+        stored.arguments = pvNil;
+        bo = stored.argumentBo;
+        osk = stored.argumentOsk;
         for (icact = _pagcact->IvMac(); icact-- > 0;)
         {
             if (_pagcact->FFree(icact))
@@ -1231,7 +1203,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNu
 bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
     AssertBaseThis(0);
-    long onn, cb;
+    LegacyLong onn, cb;
     byte *prgb;
     String stn;
 
@@ -1239,14 +1211,14 @@ bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
     switch (sprm)
     {
     case sprmFont:
-        cb -= size(long) + size(short); // onn, osk
+        cb -= size(LegacyLong) + size(short); // onn, osk
         if (cb < 0)
         {
             Bug("bad font entry");
             return fFalse;
         }
-        _pagcact->GetRgb(icact, size(long), size(short), &osk);
-        prgb = (byte *)PvAddBv(_pagcact->PvLock(icact), size(long) + size(short));
+        _pagcact->GetRgb(icact, size(LegacyLong), size(short), &osk);
+        prgb = (byte *)PvAddBv(_pagcact->PvLock(icact), size(LegacyLong) + size(short));
         if (!stn.FSetData(prgb, cb))
         {
             Bug("bad font entry");
@@ -1256,7 +1228,7 @@ bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
         _pagcact->Unlock();
 
         onn = vntl.OnnMapStn(&stn, osk);
-        _pagcact->PutRgb(icact, 0, size(long), &onn);
+        _pagcact->PutRgb(icact, 0, size(LegacyLong), &onn);
         break;
 
     default:
@@ -1292,7 +1264,7 @@ bool RichTextDocument::FGetFniSave(Filename *pfni)
     return FGetFniSaveMacro(pfni, 'CHN2',
                             "\x9"
                             "Save As: ",
-                            "", PszLit("All files\0*.*\0"), vwig.hwndApp);
+                            "", PszLit("All files\0*.*\0"), (GraphicsObject::PgobScreen() ? GraphicsObject::PgobScreen()->Hwnd() : hNil));
 }
 
 /***************************************************************************
@@ -1361,7 +1333,7 @@ bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki,
     RDOP rdop;
     DataBlock blck, blckText;
     ChunkNumber cno, cnoText;
-    long cb;
+    LegacyLong cb;
     short osk = koskCur;
 
     pcki->ctg = kctgRichText;
@@ -1370,15 +1342,10 @@ bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki,
     rdop.dxpDef = _dxpDef;
     rdop.dypFont = _dypFontDef;
     rdop.lwAcrBack = _acrBack.LwGet();
-    cb = _stnFontDef.CbData();
-    if (!pcfl->FAdd(size(RDOP) + cb, pcki->ctg, &pcki->cno, &blck))
+    if (!RichTextData::FCreateRoot(pcfl, pcki, &rdop, &_stnFontDef))
     {
         PushErc(ercRtxdSaveFailed);
         return fFalse;
-    }
-    if (!blck.FWriteRgb(&rdop, size(RDOP), 0) || !_stnFontDef.FWrite(&blck, size(RDOP)))
-    {
-        goto LFail;
     }
 
     // add the text chunk and write it
@@ -1649,15 +1616,15 @@ void RichTextDocument::_AdjustMpe(long cp, long ccpIns, long ccpDel)
     already there, increment its reference count. Otherwise, set its
     reference count to 1.
 ***************************************************************************/
-bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
+bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, LegacyLong *pjv)
 {
     AssertIn(cb, 1, kcbMax);
     AssertPvCb(pv, cb);
     AssertVarMem(pjv);
-    long cact, iv, cbT;
+    LegacyLong cact, iv, cbT;
     void *qv;
 
-    if (pvNil == _pagcact && pvNil == (_pagcact = AllocatedGroup::PagNew(size(long), 1, cb)))
+    if (pvNil == _pagcact && pvNil == (_pagcact = AllocatedGroup::PagNew(size(LegacyLong), 1, cb)))
     {
         TrashVar(pjv);
         return fFalse;
@@ -1703,7 +1670,7 @@ bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
 ***************************************************************************/
 void RichTextDocument::_ReleaseInAg(long jv)
 {
-    long cact, cactT;
+    LegacyLong cact, cactT;
 
     if (pvNil == _pagcact || !FIn(jv, 1, _pagcact->IvMac() + 1) || _pagcact->FFree(jv - 1))
     {
@@ -1727,7 +1694,7 @@ void RichTextDocument::_ReleaseInAg(long jv)
 ***************************************************************************/
 void RichTextDocument::_AddRefInAg(long jv)
 {
-    long cact;
+    LegacyLong cact;
 
     if (pvNil == _pagcact || !FIn(jv, 1, _pagcact->IvMac() + 1) || _pagcact->FFree(jv - 1))
     {
@@ -1994,7 +1961,7 @@ void RichTextDocument::_ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm
     values of pchpOld and pchpNew differ for the given sprm. Returns
     tMaybe on error.
 ***************************************************************************/
-tribool RichTextDocument::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, long *plw, long *plwMask)
+tribool RichTextDocument::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, LegacyLong *plw, LegacyLong *plwMask)
 {
     AssertIn(sprm, sprmMinChp, sprmLimChp);
     AssertVarMem(pchpNew);
@@ -2029,14 +1996,14 @@ tribool RichTextDocument::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, 
         {
             // data for sprmFont is: long onn, short osk, stn data
             String stn;
-            long cb;
+            LegacyLong cb;
             short osk = koskCur;
-            byte rgb[kcbMaxDataStn + size(long) + size(short)];
+            byte rgb[kcbMaxDataStn + size(LegacyLong) + size(short)];
 
-            CopyPb(&pchpNew->onn, rgb, size(long));
-            CopyPb(&osk, rgb + size(long), size(short));
+            CopyPb(&pchpNew->onn, rgb, size(LegacyLong));
+            CopyPb(&osk, rgb + size(LegacyLong), size(short));
             vntl.GetStn(pchpNew->onn, &stn);
-            cb = size(long) + size(short);
+            cb = size(LegacyLong) + size(short);
             stn.GetData(rgb + cb);
             cb += stn.CbData();
             if (!_FEnsureInAg(sprm, rgb, cb, plw))
@@ -2086,7 +2053,7 @@ void RichTextDocument::FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
     byte sprm;
     ulong spcp;
     long cpLimT;
-    long cb;
+    LegacyLong cb;
     bool fRet;
 
     if (FIn(cp, _cpMinChp, _cpLimChp))
@@ -2123,13 +2090,13 @@ void RichTextDocument::FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
                 byte *qrgb;
 
                 qrgb = (byte *)_pagcact->QvGet(mpe.lw - 1, &cb);
-                cb -= size(long) + size(short); // onn, osk
+                cb -= size(LegacyLong) + size(short); // onn, osk
                 if (!FIn(cb, 0, kcbMaxDataStn + 1))
                 {
                     Warn("bad group element");
                     break;
                 }
-                CopyPb(qrgb, &_chp.onn, size(long));
+                CopyPb(qrgb, &_chp.onn, size(LegacyLong));
                 Assert(vntl.FValidOnn(_chp.onn), "invalid onn");
             }
             break;
@@ -2237,7 +2204,7 @@ void RichTextDocument::_GetParaBounds(long *pcpMin, long *pcpLim, bool fExpand)
     values of pchpOld and pchpNew differ for the given sprm. Returns
     tMaybe on error.
 ***************************************************************************/
-tribool RichTextDocument::_TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, long *plw, long *plwMask)
+tribool RichTextDocument::_TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, LegacyLong *plw, LegacyLong *plwMask)
 {
     AssertIn(sprm, sprmMinPap, sprmLimPap);
     AssertVarMem(ppapNew);
@@ -2907,7 +2874,7 @@ void RichTextDocument::_CopyProps(PRichTextDocument ptxrd, long cpSrc, long cpDs
     long cpMin, cpLim;
     bool fRet;
     long lw;
-    long cb;
+    LegacyLong cb;
     void *pv;
 
     // zero the character properties over the inserted text
@@ -2992,7 +2959,7 @@ bool RichTextDocument::FFetchObject(long cpMin, long *pcp, void **ppv, long *pcb
 
     MPE mpe;
     long impe;
-    long cb;
+    LegacyLong cb;
     bool fRet;
 
     fRet = _FFindMpe(_SpcpFromSprmCp(sprmObject, cpMin), &mpe, pcp, &impe);
@@ -3357,7 +3324,7 @@ bool RichTextUndo::FCombine(PRichTextUndo prtun)
 /***************************************************************************
     Assert the validity of a RichTextUndo.
 ***************************************************************************/
-void RichTextUndo::AssertValid(ulong grf)
+void RichTextUndo::AssertValid(LegacyUlong grf)
 {
     RichTextUndo_PAR::AssertValid(grf);
     AssertNilOrPo(_ptxrd, 0);

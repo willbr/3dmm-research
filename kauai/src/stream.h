@@ -39,28 +39,28 @@ class MemoryByteStream : public MemoryByteStream_PAR
 
   protected:
     HQ _hqrgb;
-    long _ibMac;
-    long _cbMinGrow;
+    LegacyLong _ibMac;
+    LegacyLong _cbMinGrow;
 
-    bool _FEnsureSize(long cbMin, bool fShrink);
+    bool _FEnsureSize(LegacyLong cbMin, bool fShrink);
 
   public:
     MemoryByteStream(void);
     ~MemoryByteStream(void);
 
-    void SetMinGrow(long cb);
-    bool FEnsureSpace(long cb, bool fShrink);
-    void *PvLock(long ib);
+    void SetMinGrow(LegacyLong cb);
+    bool FEnsureSpace(LegacyLong cb, bool fShrink);
+    void *PvLock(LegacyLong ib);
     void Unlock(void);
 
-    long IbMac(void)
+    LegacyLong IbMac(void)
     {
         return _ibMac;
     }
-    void FetchRgb(long ib, long cb, void *prgb);
-    bool FReplace(void *prgb, long cbIns, long ib, long cbDel);
-    bool FWriteRgb(PFileLocation pflo, long ib = 0);
-    bool FWriteRgb(PDataBlock pblck, long ib = 0);
+    void FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb);
+    bool FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel);
+    bool FWriteRgb(PFileLocation pflo, LegacyLong ib = 0);
+    bool FWriteRgb(PDataBlock pblck, LegacyLong ib = 0);
 };
 
 /***************************************************************************
@@ -78,27 +78,27 @@ class FileByteStream : public FileByteStream_PAR
 
   protected:
     PGeneralGroup _pggflo;
-    long _ibMac;
+    LegacyLong _ibMac;
 
-    long _IfloFind(long ib, long *pib, long *pcb = pvNil);
-    bool _FEnsureSplit(long ib, long *piflo = pvNil);
-    void _AttemptMerge(long ibMin, long ibLim);
-    bool _FReplaceCore(void *prgb, long cbIns, PFileLocation pflo, long ib, long cbDel);
+    LegacyLong _IfloFind(LegacyLong ib, LegacyLong *pib, LegacyLong *pcb = pvNil);
+    bool _FEnsureSplit(LegacyLong ib, LegacyLong *piflo = pvNil);
+    void _AttemptMerge(LegacyLong ibMin, LegacyLong ibLim);
+    bool _FReplaceCore(void *prgb, LegacyLong cbIns, PFileLocation pflo, LegacyLong ib, LegacyLong cbDel);
 
   public:
     FileByteStream(void);
     ~FileByteStream(void);
 
-    long IbMac(void)
+    LegacyLong IbMac(void)
     {
         return _ibMac;
     }
-    void FetchRgb(long ib, long cb, void *prgb);
-    bool FReplace(void *prgb, long cbIns, long ib, long cbDel);
-    bool FReplaceFlo(PFileLocation pflo, bool fCopy, long ib, long cbDel);
-    bool FReplaceBsf(PFileByteStream pbsfSrc, long ibSrc, long cbSrc, long ibDst, long cbDel);
-    bool FWriteRgb(PFileLocation pflo, long ib = 0);
-    bool FWriteRgb(PDataBlock pblck, long ib = 0);
+    void FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb);
+    bool FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel);
+    bool FReplaceFlo(PFileLocation pflo, bool fCopy, LegacyLong ib, LegacyLong cbDel);
+    bool FReplaceBsf(PFileByteStream pbsfSrc, LegacyLong ibSrc, LegacyLong cbSrc, LegacyLong ibDst, LegacyLong cbDel);
+    bool FWriteRgb(PFileLocation pflo, LegacyLong ib = 0);
+    bool FWriteRgb(PDataBlock pblck, LegacyLong ib = 0);
     bool FCompact(void);
 };
 

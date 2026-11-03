@@ -229,15 +229,6 @@ class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
 //
 // Definition of transition types
 //
-enum TRANS
-{
-    transNil = -1,
-    transCut,
-    transFadeToBlack,
-    transFadeToWhite,
-    transDissolve,
-    transBlack,
-    transLim
-};
+#include "scene_data.h"
 
 #endif // SOCUTIL_H

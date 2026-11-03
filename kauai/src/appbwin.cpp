@@ -11,7 +11,17 @@
 
 ***************************************************************************/
 #include <iostream>
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "text_utf8.h"
+#include "font_host.h"
+#include <cstring>
+#endif
 #include "frame.h"
+#ifdef KAUAI_SDL3
+#include "sdl_studio.h"
+#include "platform_text.h"
+#endif
 #include "fcntl.h"
 #include "stdio.h"
 #include "io.h"
@@ -19,6 +29,32 @@
 ASSERTNAME
 
 WindowsAppGlobals vwig;
+
+#ifdef KAUAI_SDL3
+bool ApplicationBase::_FBindSDLNativeWindow()
+{
+    KauaiSDL::Main().SetDoubleClickTime(GetDoubleClickTime());
+    vwig.hwndApp = static_cast<HWND>(KauaiSDL::Main().NativeWindow());
+    if (!std::strcmp(KauaiFonts::StudioFontProvider(), "freetype"))
+        return fTrue;
+    if (vwig.hwndApp)
+    {
+        // Portable palette/font services need no borrowed screen context.
+        // Retain one only for the explicitly selected GDI font provider.
+        if ((vwig.hdcApp = GetDC(vwig.hwndApp)))
+            return fTrue;
+    }
+    return fFalse;
+}
+void ApplicationBase::_ReleaseSDLNativeWindow()
+{
+    if (vwig.hdcApp && vwig.hwndApp)
+        ReleaseDC(vwig.hwndApp, vwig.hdcApp);
+    vwig.hdcApp = hNil;
+    vwig.hwndApp = hNil;
+}
+
+#endif
 
 /******************************************************************************
     AppendCrashLog -- see header in appb.h. Mirrors error/assert dialog text
@@ -51,39 +87,6 @@ void AppendCrashLog(const char *pszCategory, const char *pszBody)
     if (pszBody && *pszBody)
         WriteFile(hFile, (LPCVOID)pszBody, (DWORD)lstrlenA((LPSTR)pszBody), &cbWritten, NULL);
     CloseHandle(hFile);
-}
-
-// C-linkage shim so C-only translation units (e.g. bren/stderr.c) can mirror
-// diagnostic text into the same crash log without seeing the C++-mangled
-// AppendCrashLog symbol. Used by BRender's BrStdioError handler.
-extern "C" void AppendCrashLog_C(const char *pszCategory, const char *pszBody)
-{
-    AppendCrashLog(pszCategory, pszBody);
-}
-
-/***************************************************************************
-    WinMain for any frame work app. Sets up vwig and calls FrameMain.
-***************************************************************************/
-// Defined in src/studio/mcpserv.cpp (no-op in release builds). C linkage so
-// kauai doesn't need to know about the mcp:: namespace. Returns 1 if
-// `--mcp-server` was passed on the command line; in that case we must NOT
-// AllocConsole, since the parent (Claude Code or another MCP host) is talking
-// to us over inherited stdin/stdout pipes that AllocConsole would replace.
-extern "C" int Mcp_FEnabledFromCmdLine(const char *psz);
-
-int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR pszs, int wShow)
-{
-    vwig.hinst = hinst;
-    vwig.hinstPrev = hinstPrev;
-    vwig.pszCmdLine = GetCommandLine();
-    vwig.wShow = wShow;
-    vwig.lwThreadMain = LwThreadCur();
-#ifdef DEBUG
-    if (!Mcp_FEnabledFromCmdLine(vwig.pszCmdLine))
-        ApplicationBase::CreateConsole();
-#endif
-    FrameMain();
-    return 0;
 }
 
 /*
@@ -173,10 +176,12 @@ bool ApplicationBase::_FInitOS(void)
     Get the next event from the OS event queue. Return true iff it's a
     real event (not just an idle type event).
 ***************************************************************************/
+#ifndef KAUAI_SDL3
 bool ApplicationBase::_FGetNextEvt(PEVT pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
+
 
     GetMessage(pevt, hNil, 0, 0);
     switch (pevt->message)
@@ -209,6 +214,7 @@ void ApplicationBase::TrackMouse(PGraphicsObject pgob, PT *ppt)
 
     EVT evt;
     SystemPoint pts;
+
 
     for (;;)
     {
@@ -246,6 +252,7 @@ void ApplicationBase::_DispatchEvt(PEVT pevt)
     AssertVarMem(pevt);
 
     Command cmd;
+
 
     if (hNil != vwig.hwndClient && TranslateMDISysAccel(vwig.hwndClient, pevt) ||
         hNil != vwig.haccel && TranslateAccelerator(vwig.hwndApp, vwig.haccel, pevt))
@@ -294,6 +301,7 @@ bool ApplicationBase::_FTranslateKeyEvt(PEVT pevt, PCMD_KEY pcmd)
 
     if (pevt->message == WM_KEYDOWN)
     {
+        {
         TranslateMessage(pevt);
         if (PeekMessage(&evt, pevt->hwnd, 0, 0, PM_NOREMOVE) && WM_CHAR == evt.message &&
             PeekMessage(&evt, pevt->hwnd, WM_CHAR, WM_CHAR, PM_REMOVE))
@@ -304,6 +312,7 @@ bool ApplicationBase::_FTranslateKeyEvt(PEVT pevt, PCMD_KEY pcmd)
         else
             pcmd->ch = chNil;
         pcmd->vk = pevt->wParam;
+        }
     }
     else
     {
@@ -375,11 +384,20 @@ void ApplicationBase::FlushUserEvents(ulong grfevt)
     }
 }
 
+#endif // !KAUAI_SDL3: SDL dispatch is implemented in appbsdl.cpp.
+
 /***************************************************************************
     Get our app window out of the clipboard viewer chain.
 ***************************************************************************/
 void ApplicationBase::_ShutDownViewer(void)
 {
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(vwig.hwndApp))
+    {
+        vwig.hwndNextViewer = hNil;
+        return;
+    }
+#endif
     if (vwig.hwndApp != hNil)
         ChangeClipboardChain(vwig.hwndApp, vwig.hwndNextViewer);
     vwig.hwndNextViewer = hNil;
@@ -418,6 +436,13 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
     long lwStyle;
 
     *plwRet = 0;
+#ifdef KAUAI_SDL3
+    // SDL's subclass receives native messages first. Dispatch pointer/close
+    // commands once, from SDL events, instead of also running this native path.
+    if (KauaiSDL::Main().IsWindow(hwnd) &&
+        (FIn(wm, WM_MOUSEFIRST, WM_MOUSELAST + 1) || wm == WM_CLOSE))
+        return fTrue;
+#endif
     switch (wm)
     {
     default:
@@ -450,6 +475,10 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
         return fTrue;
 
     case WM_SIZE:
+#ifdef KAUAI_SDL3
+        if (KauaiSDL::Main().IsWindow(hwnd))
+            return _FCommonWndProc(hwnd, wm, wParam, lw, plwRet);
+#endif
         // make sure the style bits are set correctly
         lwT = lwStyle = GetWindowLong(vwig.hwndApp, GWL_STYLE);
         if (_fFullScreen && wParam == SIZE_MAXIMIZED)
@@ -478,6 +507,10 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
         return fTrue;
 
     case WM_GETMINMAXINFO:
+#ifdef KAUAI_SDL3
+        if (KauaiSDL::Main().IsWindow(hwnd))
+            return fFalse; // SDL owns window sizing; Kauai keeps its logical canvas.
+#endif
         BLOCK
         {
             long dypFrame, dypScreen, dypExtra;
@@ -559,10 +592,11 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
             {
                 for (xp = rc.xpLeft + (lwT >> 4); xp < rc.xpRight; xp += 16)
                 {
-                    if (pgob->FPtIn(xp, yp) && pgob == GraphicsObject::PgobFromPtGlobal(xp + pt.xp, yp + pt.yp))
+                    PT candidate(xp, yp);
+                    pgob->MapPt(&candidate, cooLocal, cooGlobal);
+                    if (pgob->FPtIn(xp, yp) && pgob == GraphicsObject::PgobFromPtGlobal(candidate.xp, candidate.yp))
                     {
-                        pt.xp += xp;
-                        pt.yp += yp;
+                        pt = candidate;
                         GraphicsObject::PgobScreen()->MapPt(&pt, cooGlobal, cooLocal);
                         *plwRet = LwHighLow((short)pt.xp, (short)pt.yp);
                         return fTrue;
@@ -715,6 +749,20 @@ bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM 
     switch (wm)
     {
     case WM_PAINT:
+#ifdef KAUAI_SDL3
+        if (KauaiSDL::Main().IsWindow(hwnd))
+        {
+            if (BeginPaint(hwnd, &ps))
+            {
+                EndPaint(hwnd, &ps);
+                // The OS exposure is only a wake-up; damage is logical and
+                // remains owned by the SDL host, including during dialogs.
+                KauaiSDL::Main().Invalidate();
+                KauaiSDLBridge::Paint();
+            }
+            return fTrue;
+        }
+#endif
         if (IsIconic(hwnd))
             break;
 
@@ -840,6 +888,10 @@ bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM 
         break;
 
     case WM_ACTIVATEAPP:
+#ifdef KAUAI_SDL3
+        if (KauaiSDL::Main().IsWindow(hwnd) && IsWindowEnabled(hwnd))
+            break; // The SDL queue owns activation outside native modal loops.
+#endif
         _Activate(FPure(wParam));
         break;
     }
@@ -1059,34 +1111,42 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
         AppendCrashLog("ASSERT", szsLog);
     }
 
-    if (LwThreadCur() != vwig.lwThreadMain)
+    tmc = -1;
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active() && LwThreadCur() == vwig.lwThreadMain)
+        tmc = _TmcSDLAssert(&stn0, &stn1, &stn2);
+#endif
+    if (tmc < 0)
     {
-        // can't use a dialog - it may cause grid - lock
-        long sid;
-        ulong grfmb;
-
-        stn0.FAppendSz(PszLit("\n"));
-        stn0.FAppendStn(&stn1);
-        stn0.FAppendSz(PszLit("\n"));
-        stn0.FAppendStn(&stn2);
-
-        grfmb = MB_SYSTEMMODAL | MB_YESNO | MB_ICONHAND;
-        sid = MessageBox(hNil, stn0.Psz(), PszLit("Thread Assert! (Y = Ignore, N = Debugger)"), grfmb);
-
-        switch (sid)
+        if (LwThreadCur() != vwig.lwThreadMain)
         {
-        default:
-            tmc = 0;
-            break;
-        case IDNO:
-            tmc = 1;
-            break;
+            // can't use a dialog - it may cause grid - lock
+            long sid;
+            ulong grfmb;
+
+            stn0.FAppendSz(PszLit("\n"));
+            stn0.FAppendStn(&stn1);
+            stn0.FAppendSz(PszLit("\n"));
+            stn0.FAppendStn(&stn2);
+
+            grfmb = MB_SYSTEMMODAL | MB_YESNO | MB_ICONHAND;
+            sid = MessageBox(hNil, stn0.Psz(), PszLit("Thread Assert! (Y = Ignore, N = Debugger)"), grfmb);
+
+            switch (sid)
+            {
+            default:
+                tmc = 0;
+                break;
+            case IDNO:
+                tmc = 1;
+                break;
+            }
         }
-    }
-    else
-    {
-        // run the dialog
-        tmc = DialogBox(vwig.hinst, PszLit("AssertDlg"), vwig.hwndApp, &_FDlgAssert);
+        else
+        {
+            // run the dialog
+            tmc = DialogBox(vwig.hinst, PszLit("AssertDlg"), vwig.hwndApp, &_FDlgAssert);
+        }
     }
 
     _fInAssert = fFalse;
@@ -1117,6 +1177,7 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     Put an alert up. Return which button was hit. Returns tYes for yes
     or ok; tNo for no; tMaybe for cancel.
 ***************************************************************************/
+#ifndef KAUAI_SDL3
 tribool ApplicationBase::TGiveAlertSz(PZString psz, long bk, long cok)
 {
     AssertThis(0);
@@ -1183,4 +1244,11 @@ tribool ApplicationBase::TGiveAlertSz(PZString psz, long bk, long cok)
     case IDNO:
         return tNo;
     }
+}
+
+#endif
+// Native UI timing is intentionally absent from kauai-core.
+ulong DtsCaret(void)
+{
+    return GetCaretBlinkTime();
 }

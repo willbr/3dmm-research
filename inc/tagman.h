@@ -42,9 +42,9 @@
 
 #include <cstdint>
 
-const long ksidInvalid = -1; // negative SIDs imply an invalid TAG
-const long sidNil = 0;
-const long ksidUseCrf = 0; // chunk is in ptag->pcrf
+const LegacyLong ksidInvalid = -1; // negative SIDs imply an invalid TAG
+const LegacyLong sidNil = 0;
+const LegacyLong ksidUseCrf = 0; // chunk is in ptag->pcrf
 
 typedef struct TAG *PTAG;
 struct TAG
@@ -55,7 +55,7 @@ struct TAG
     void MarkMem(void);
 #endif // DEBUG
 
-    long sid;  // Source ID (or ksidUseCrf)
+    LegacyLong sid;  // Source ID (or ksidUseCrf)
     PChunkyResourceFile pcrf; // File to look in for this chunk if sid is ksidUseCrf
     ChunkTagOrType ctg;   // ChunkTagOrType of chunk
     ChunkNumber cno;   // ChunkNumber of chunk
@@ -122,6 +122,8 @@ enum
     Tag Manager class
 ****************************************/
 typedef class TagManager *PTagManager;
+// Default content resolver, owned/configured by the host; initially null.
+extern PTagManager vptagm;
 #define TagManager_PAR BASE
 #define kclsTagManager 'TAGM'
 class TagManager : public TagManager_PAR
@@ -132,7 +134,7 @@ class TagManager : public TagManager_PAR
 
   protected:
     Filename _fniHDRoot;     // Root HD directory to search for content
-    long _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
+    LegacyLong _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
     PDynamicArray _pglsfs;        // DynamicArray of source file structs
     PStringTable_GST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
@@ -141,41 +143,41 @@ class TagManager : public TagManager_PAR
     TagManager(void)
     {
     }
-    bool _FFindSid(long sid, long *pistn = pvNil);
-    bool _FGetStnMergedOfSid(long sid, PString pstn);
-    bool _FGetStnSplitOfSid(long sid, PString pstnLong, PString pstnShort);
-    bool _FRetry(long sid);
-    bool _FEnsureFniCD(long sid, PFilename pfniCD, PString pstn = pvNil);
-    bool _FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged);
-    bool _FDetermineIfSourceHD(long sid, bool *pfSourceIsOnHD);
+    bool _FFindSid(LegacyLong sid, LegacyLong *pistn = pvNil);
+    bool _FGetStnMergedOfSid(LegacyLong sid, PString pstn);
+    bool _FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort);
+    bool _FRetry(LegacyLong sid);
+    bool _FEnsureFniCD(LegacyLong sid, PFilename pfniCD, PString pstn = pvNil);
+    bool _FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChanged);
+    bool _FDetermineIfSourceHD(LegacyLong sid, bool *pfSourceIsOnHD);
     bool _FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni);
 
-    bool _FGetFniHD(long sid, PFilename pfniHD);
-    bool _FGetFniCD(long sid, PFilename pfniHD, bool fAskForCD);
+    bool _FGetFniHD(LegacyLong sid, PFilename pfniHD);
+    bool _FGetFniCD(LegacyLong sid, PFilename pfniHD, bool fAskForCD);
 
-    bool _FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists);
-    PChunkyResourceManager _PcrmSourceNew(long sid, PFilename pfniInfo);
-    PChunkyResourceManager _PcrmSourceGet(long sid, bool fDontHitCD = fFalse);
+    bool _FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists);
+    PChunkyResourceManager _PcrmSourceNew(LegacyLong sid, PFilename pfniInfo);
+    PChunkyResourceManager _PcrmSourceGet(LegacyLong sid, bool fDontHitCD = fFalse);
     PChunkyFile _PcflFindTag(PTAG ptag);
 
   public:
-    static PTagManager PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache);
+    static PTagManager PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, LegacyLong cbCache);
     ~TagManager(void);
 
     // GstSource stuff:
     PStringTable_GST PgstSource(void);
     bool FMergeGstSource(PStringTable_GST pgst, short bo, short osk);
-    bool FAddStnSource(PString pstnMerged, long sid);
-    bool FGetSid(PString pstn, long *psid); // pstn can be short or long
+    bool FAddStnSource(PString pstnMerged, LegacyLong sid);
+    bool FGetSid(PString pstn, LegacyLong *psid); // pstn can be short or long
 
-    bool FFindFile(long sid, PString pstn, PFilename pfni, bool fAskForCD);
+    bool FFindFile(LegacyLong sid, PString pstn, PFilename pfni, bool fAskForCD);
     void SplitString(PString pstnMerged, PString pstnLong, PString pstnShort);
 
     bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
     PBaseCacheableObject PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
-    void ClearCache(long sid = sidNil,
-                    ulong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
+    void ClearCache(LegacyLong sid = sidNil,
+                    LegacyUlong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 
     // For ksidUseCrf tags:
     static bool FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc = pvNil);
@@ -183,7 +185,7 @@ class TagManager : public TagManager_PAR
     static void DupTag(PTAG ptag); // call this when you're copying a tag
     static void CloseTag(PTAG ptag);
 
-    static ulong FcmpCompareTags(PTAG ptag1, PTAG ptag2);
+    static LegacyUlong FcmpCompareTags(PTAG ptag1, PTAG ptag2);
 };
 
 #endif // TAGM_H

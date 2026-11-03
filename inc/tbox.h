@@ -211,12 +211,8 @@ class TextBox : public TextBox_PAR
 
   private:
     PScene _pscen;    // The owning scene
-    long _nfrmFirst; // Frame the tbox appears in.
-    long _nfrmMax;   // Frame the tbox disappears in.
-    long _nfrmCur;   // Current frame number.
-    bool _fSel;      // Is this tbox selected?
-    bool _fStory;    // Is this a story text box.
-    RC _rc;          // Size of text box.
+    TextBoxData _data; // Stored bounds/lifetime/type, independent of views.
+    bool _fSel;        // Is this tbox selected?
 
     TextBox(void) : RichTextDocument()
     {
@@ -253,7 +249,7 @@ class TextBox : public TextBox_PAR
     bool FHide(void);
     bool FStory(void)
     {
-        return _fStory;
+        return _data.story;
     }
     void SetTypeCore(bool fStory);
     bool FSetType(bool fStory);
@@ -297,7 +293,7 @@ class TextBox : public TextBox_PAR
     //
     void GetRc(RC *prc)
     {
-        *prc = _rc;
+        *prc = _data.bounds;
     }
     void SetRc(RC *prc);
     void CleanDdg(void);
@@ -308,11 +304,11 @@ class TextBox : public TextBox_PAR
     //
     long NfrmFirst(void)
     {
-        return _nfrmFirst;
+        return _data.firstFrame;
     }
     long nfrmMax(void)
     {
-        return _nfrmMax;
+        return _data.maxFrame;
     }
 };
 

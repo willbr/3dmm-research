@@ -14,6 +14,12 @@
 #ifndef SREC_H
 #define SREC_H
 
+#ifdef KAUAI_SDL3
+namespace KauaiAudio
+{
+class Recorder;
+}
+#else
 #include "audioman.h"
 
 /****************************************
@@ -78,6 +84,7 @@ class RiffHeader
     };
 };
 #pragma pack(pop, _SOCPACK_)
+#endif // !KAUAI_SDL3
 
 /****************************************
     The sound recording class
@@ -99,6 +106,10 @@ class SoundRecorder : public SoundRecorder_PAR
     bool _fRecording;
     bool _fPlaying;
     bool _fHaveSound;   // have you recorded a sound yet?
+#ifdef KAUAI_SDL3
+    KauaiAudio::Recorder *_recorder = nullptr;
+    bool _fSoundManagerSuspended = false;
+#else
     bool _fBufferAdded; // have added record buffer
 
     HWAVEIN _hwavein; // handle to wavein device
@@ -114,6 +125,7 @@ class SoundRecorder : public SoundRecorder_PAR
     // Win32 waveInProc: dwInstance/dwParam1/dwParam2 are DWORD_PTR
     // (pointer-sized) — must round-trip our `this` intact on Win64.
     static void _WaveInProc(HWAVEIN hwi, UINT uMsg, DWORD_PTR dwInstance, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+#endif
 
   protected:
     bool _FInit(long csampSec, long cchan, long cbSample, ulong dtsMax);

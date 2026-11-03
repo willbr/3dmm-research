@@ -111,7 +111,7 @@
     instead of working backwards from the BACT's material field.
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(Body)
@@ -125,14 +125,35 @@ const br_ufraction kbrufKaHilite = BR_UFRACTION(0.10);
 const br_ufraction kbrufKdHilite = BR_UFRACTION(0.60);
 const br_ufraction kbrufKsHilite = BR_UFRACTION(0.60);
 const BRS krPowerHilite = BR_SCALAR(50);
-const long kiclrHilite = 0; // default to no highlighting
+const LegacyLong kiclrHilite = 0; // default to no highlighting
 
 // Hilighting material
 PBMTL Body::_pbmtlHilite = pvNil;
 
+void Body::ReleaseSharedMaterial(void)
+{
+    if (_pbmtlHilite != pvNil)
+    {
+        BrMaterialRemove(_pbmtlHilite);
+        BrMaterialFree(_pbmtlHilite);
+        _pbmtlHilite = pvNil;
+    }
+}
+
 PBody Body::_pbodyClosestClicked;
-long Body::_dzpClosestClicked;
+LegacyLong Body::_dzpClosestClicked;
 PBACT Body::_pbactClosestClicked;
+
+/***************************************************************************
+    Set the optional renderer binding while this body is hidden.
+***************************************************************************/
+void Body::SetRenderCallbacks(void *context, void (*attach)(void *, Body *), void (*changed)(void *))
+{
+    Assert(_cactHidden > 0, "Cannot rebind a visible body");
+    _pvRenderContext = context;
+    _pfnAttach = attach;
+    _pfnChanged = changed;
+}
 
 /***************************************************************************
     Builds a tree of BACTs for the Body.
@@ -289,14 +310,14 @@ bool Body::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
     AssertPo(pglibset, 0);
 
     PBody pbodyDup;
-    long ibset;
+    LegacyLong ibset;
     bool fMtrl;
     PMaterial_MTRL pmtrl;
     PCustomMaterial_CMTL pcmtl;
-    long ibact;
+    LegacyLong ibact;
     PBACT pbactDup;
     PBACT pbact;
-    long cactHidden = _cactHidden;
+    LegacyLong cactHidden = _cactHidden;
 
     pbodyDup = PbodyDup();
     if (pvNil == pbodyDup)
@@ -349,13 +370,13 @@ LFail:
     nil, returns what body part set this BACT is in.  If the pbact is
     the hilite BACT, pibset is set to ivNil.
 ***************************************************************************/
-Body *Body::PbodyFromBact(BACT *pbact, long *pibset)
+Body *Body::PbodyFromBact(BACT *pbact, LegacyLong *pibset)
 {
     AssertVarMem(pbact);
     AssertNilOrVarMem(pibset);
 
     PBody pbody;
-    long ibact;
+    LegacyLong ibact;
 
     pbody = (Body *)pbact->identifier;
     if (pvNil == pbody)
@@ -377,44 +398,6 @@ Body *Body::PbodyFromBact(BACT *pbact, long *pibset)
         }
     }
     return pbody;
-}
-
-/***************************************************************************
-    Returns the Body that is under the given point.  Also, if pibset is not
-    nil, returns what body part set this point is in.
-***************************************************************************/
-Body *Body::PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset)
-{
-    AssertNilOrVarMem(pibset);
-    AssertPo(pbwld, 0);
-
-    PBody pbody;
-    long ibact;
-
-    _pbodyClosestClicked = pvNil;
-    _dzpClosestClicked = BR_SCALAR_MAX;
-
-    pbwld->IterateActorsInPt(Body::_FFilter, pvNil, xp, yp);
-
-    pbody = _pbodyClosestClicked;
-    if (pvNil == _pbodyClosestClicked)
-    {
-        return pvNil;
-    }
-    AssertPo(_pbodyClosestClicked, 0);
-    if (pvNil != pibset)
-    {
-        *pibset = ivNil;
-        for (ibact = 0; ibact < _pbodyClosestClicked->_cbactPart; ibact++)
-        {
-            if (_pbactClosestClicked == _pbodyClosestClicked->_PbactPart(ibact))
-            {
-                *pibset = _pbodyClosestClicked->_Ibset(ibact);
-                break;
-            }
-        }
-    }
-    return _pbodyClosestClicked;
 }
 
 /***************************************************************************
@@ -449,8 +432,8 @@ int Body::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, B
 void Body::_DestroyShape(void)
 {
     AssertBaseThis(0);
-    long ibset;
-    long ibact;
+    LegacyLong ibset;
+    LegacyLong ibact;
     BACT *pbact;
     Model *pmodl;
 
@@ -500,10 +483,10 @@ PBody Body::PbodyDup(void)
     AssertThis(0);
 
     PBody pbodyDup;
-    long ibact;
-    long ibset;
+    LegacyLong ibact;
+    LegacyLong ibset;
     PBACT pbact;
-    long bv; // delta in bytes from _prgbact to _pbody->_prgbact
+    LegacyLong bv; // delta in bytes from _prgbact to _pbody->_prgbact
     bool fMtrl;
     PMaterial_MTRL pmtrl;
     PCustomMaterial_CMTL pcmtl;
@@ -520,7 +503,9 @@ PBody Body::PbodyDup(void)
     pbodyDup->_cactHidden = 1;
     pbodyDup->_cbset = _cbset;
     pbodyDup->_cbactPart = _cbactPart;
-    pbodyDup->_pbwld = _pbwld;
+    pbodyDup->_pvRenderContext = _pvRenderContext;
+    pbodyDup->_pfnAttach = _pfnAttach;
+    pbodyDup->_pfnChanged = _pfnChanged;
     pbodyDup->_fFound = _fFound;
     pbodyDup->_ibset = _ibset;
 
@@ -613,8 +598,8 @@ void Body::Restore(PBody pbodyDup)
     AssertPo(pbodyDup, 0);
     Assert(pbodyDup->_cactHidden == 1, "dup hidden count must be 1");
 
-    long cactHidden = _cactHidden;
-    long ibact;
+    LegacyLong cactHidden = _cactHidden;
+    LegacyLong ibact;
 
     SwapVars(this, pbodyDup);
     for (ibact = 0; ibact < _Cbact(); ibact++)
@@ -635,12 +620,9 @@ void Body::Show(void)
     Assert(_cactHidden > 0, "object is already visible!");
     if (--_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->AddActor(_PbactRoot());
-        _pbwld->SetBeginRenderCallback(_PrepareToRender);
-        _pbwld->SetActorRenderedCallback(_BactRendered);
-        _pbwld->SetGetRcCallback(_GetRc);
-        _pbwld->MarkDirty(); // need to render
+        if (_pfnAttach != pvNil)
+            _pfnAttach(_pvRenderContext, this);
+        _RenderChanged();
     }
 }
 
@@ -656,20 +638,20 @@ void Body::Hide(void)
     if (_cactHidden++ == 0)
     {
         _rcBounds.Zero();
-        BrActorRemove(_PbactRoot());
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        if (_PbactRoot()->parent != pvNil)
+            BrActorRemove(_PbactRoot());
+        _RenderChanged();
     }
 }
 
 /***************************************************************************
     Sets the hilite color to use.
 ***************************************************************************/
-void Body::SetHiliteColor(long iclr)
+void Body::SetHiliteColor(LegacyLong iclr)
 {
     if (_pbmtlHilite != pvNil)
     {
-        _pbmtlHilite->index_base = (UCHAR)iclr;
+        _pbmtlHilite->index_base = (uint8_t)iclr;
     }
 }
 
@@ -683,8 +665,7 @@ void Body::Hilite(void)
     _PbactHilite()->type = BR_ACTOR_MODEL;
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
@@ -698,8 +679,7 @@ void Body::Unhilite(void)
     _PbactHilite()->type = BR_ACTOR_NONE;
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
@@ -716,15 +696,14 @@ void Body::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
 /***************************************************************************
     Set the ibact'th body part to use model pmodl
 ***************************************************************************/
-void Body::SetPartModel(long ibact, Model *pmodl)
+void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
 {
     AssertThis(0);
     AssertIn(ibact, 0, _cbactPart);
@@ -747,15 +726,14 @@ void Body::SetPartModel(long ibact, Model *pmodl)
     pmodl->AddRef();
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
 /***************************************************************************
     Set the ibact'th body part to use matrix pbmat34
 ***************************************************************************/
-void Body::SetPartMatrix(long ibact, BMAT34 *pbmat34)
+void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertIn(ibact, 0, _cbactPart);
@@ -764,8 +742,7 @@ void Body::SetPartMatrix(long ibact, BMAT34 *pbmat34)
     _PbactPart(ibact)->t.t.mat = *pbmat34;
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
@@ -776,14 +753,14 @@ void Body::SetPartMatrix(long ibact, BMAT34 *pbmat34)
     Actually, in the latter case, it would be a bunch of copies of the same
     Material_MTRL, but we keep one reference per body part in the set.
 ***************************************************************************/
-void Body::_RemoveMaterial(long ibset)
+void Body::_RemoveMaterial(LegacyLong ibset)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
 
     PCustomMaterial_CMTL pcmtlOld;
     BACT *pbact;
-    long ibact;
+    LegacyLong ibact;
     bool fCmtl = fFalse;
 
     pcmtlOld = _prgpcmtl[ibset];
@@ -813,14 +790,14 @@ void Body::_RemoveMaterial(long ibset)
 /***************************************************************************
     Set the ibset'th body part set to use material pmtrl
 ***************************************************************************/
-void Body::SetPartSetMtrl(long ibset, Material_MTRL *pmtrl)
+void Body::SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
     AssertPo(pmtrl, 0);
 
     BACT *pbact;
-    long ibact;
+    LegacyLong ibact;
 
     _RemoveMaterial(ibset); // remove existing Material_MTRL/CustomMaterial_CMTL, if any
 
@@ -836,8 +813,7 @@ void Body::SetPartSetMtrl(long ibset, Material_MTRL *pmtrl)
     }
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
@@ -851,9 +827,9 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
     AssertPo(pcmtl, 0);
 
     BACT *pbact;
-    long ibact;
-    long ibmtl = 0;
-    long ibset = pcmtl->Ibset();
+    LegacyLong ibact;
+    LegacyLong ibmtl = 0;
+    LegacyLong ibset = pcmtl->Ibset();
     PModel pmodl;
 
     pcmtl->AddRef();
@@ -877,8 +853,7 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
     Assert(ibmtl == pcmtl->Cbprt(), "didn't use all custom materials!");
     if (_cactHidden == 0)
     {
-        AssertPo(_pbwld, 0);
-        _pbwld->MarkDirty(); // need to render
+        _RenderChanged();
     }
 }
 
@@ -888,7 +863,7 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
     PCustomMaterial_CMTL.  If a Material_MTRL is attached, *pfMtrl is fTrue and *ppmtrl holds
     the PMaterial_MTRL.
 ***************************************************************************/
-void Body::GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl)
+void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -897,7 +872,7 @@ void Body::GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, 
     AssertVarMem(ppcmtl);
 
     BACT *pbact;
-    long ibact;
+    LegacyLong ibact;
 
     *ppcmtl = _prgpcmtl[ibset];
     if (pvNil != *ppcmtl) // there is a CustomMaterial_CMTL on this bset
@@ -939,7 +914,7 @@ int Body::_FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *ray_pos, 
 
     PBody pbody = (PBody)pvArg;
     PBody pbodyFound;
-    long ibset;
+    LegacyLong ibset;
 
     AssertPo(pbody, 0);
 
@@ -960,20 +935,6 @@ int Body::_FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *ray_pos, 
         return fFalse; // keep searching
     pbody->_ibset = ibset;
     return fTrue; // stop searching
-}
-
-/***************************************************************************
-   Returns fTrue if this body is under (xp, yp)
-***************************************************************************/
-bool Body::FPtInBody(long xp, long yp, long *pibset)
-{
-    AssertThis(0);
-
-    _fFound = fFalse;
-    _ibset = ivNil;
-    _pbwld->IterateActorsInPt(&Body::_FFilterSearch, (void *)this, xp, yp);
-    *pibset = _ibset;
-    return _fFound;
 }
 
 /***************************************************************************
@@ -1038,7 +999,7 @@ void Body::GetBcbBounds(BCB *pbcb, bool fWorld)
 
     BRB brb;
     byte type = _PbactHilite()->type;
-    long ibv3;
+    LegacyLong ibv3;
     br_vector3 bv3;
 
     _PbactHilite()->type = BR_ACTOR_NONE;
@@ -1147,7 +1108,7 @@ void Body::GetRcBounds(RC *prc)
     it was rendered.  If the Body was not in view at the last render, this
     function fills in the center of the Body the last time it was onstage.
 ***************************************************************************/
-void Body::GetCenter(long *pxp, long *pyp)
+void Body::GetCenter(LegacyLong *pxp, LegacyLong *pyp)
 {
     AssertThis(0);
     AssertVarMem(pxp);
@@ -1184,10 +1145,10 @@ void Body::GetPosition(BRS *pxr, BRS *pyr, BRS *pzr)
 /***************************************************************************
     Assert the validity of the Body.
 ***************************************************************************/
-void Body::AssertValid(ulong grf)
+void Body::AssertValid(LegacyUlong grf)
 {
-    long ibact;
-    long ibset;
+    LegacyLong ibact;
+    LegacyLong ibset;
     BACT *pbact;
 
     Body_PAR::AssertValid(fobjAllocated);
@@ -1224,10 +1185,10 @@ void Body::MarkMem(void)
 {
     AssertThis(0);
 
-    long ibact;
+    LegacyLong ibact;
     PBACT pbact;
     PModel pmodl;
-    long ibset;
+    LegacyLong ibset;
     bool fMtrl;
     PMaterial_MTRL pmtrl;
     PCustomMaterial_CMTL pcmtl;
@@ -1283,7 +1244,7 @@ void BodyCostume::_Clear(void)
 {
     AssertBaseThis(0);
 
-    long ibset;
+    LegacyLong ibset;
 
     if (pvNil != _prgpo)
     {
@@ -1302,7 +1263,7 @@ bool BodyCostume::FGet(Body *pbody)
     AssertThis(0);
     AssertPo(pbody, 0);
 
-    long ibset;
+    LegacyLong ibset;
     PCustomMaterial_CMTL pcmtl;
     PMaterial_MTRL pmtrl;
     bool fMtrl;
@@ -1343,9 +1304,9 @@ void BodyCostume::Set(PBody pbody, bool fAllowDifferentShape)
     AssertThis(0);
     AssertPo(pbody, 0);
 
-    long ibset;
+    LegacyLong ibset;
     BASE *po;
-    long cbset;
+    LegacyLong cbset;
 
     if (fAllowDifferentShape) // see comment in function header
     {
@@ -1372,9 +1333,9 @@ void BodyCostume::Set(PBody pbody, bool fAllowDifferentShape)
 /***************************************************************************
     Assert the validity of the BodyCostume.
 ***************************************************************************/
-void BodyCostume::AssertValid(ulong grf)
+void BodyCostume::AssertValid(LegacyUlong grf)
 {
-    long ibset;
+    LegacyLong ibset;
     BASE *po;
 
     if (pvNil != _prgpo)
@@ -1398,7 +1359,7 @@ void BodyCostume::MarkMem(void)
 {
     AssertThis(0);
 
-    long ibset;
+    LegacyLong ibset;
 
     if (pvNil != _prgpo)
     {

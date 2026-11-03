@@ -10,6 +10,11 @@
     Graphics object code.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "sdl_studio.h"
+#include <cmath>
+#endif
 #include "frame.h"
 ASSERTNAME
 
@@ -182,7 +187,7 @@ GraphicsObject::~GraphicsObject(void)
     We inform the entire gob subtree for the hwnd so individual elements
     can do whatever is necessary.  This is a static member function.
 ***************************************************************************/
-void GraphicsObject::ActivateHwnd(HWND hwnd, bool fActive)
+void GraphicsObject::ActivateHwnd(CoreNative::WindowHandle hwnd, bool fActive)
 {
     PGraphicsObject pgob;
 
@@ -422,6 +427,9 @@ bool GraphicsObject::FGetRcInval(RC *prc, long gin)
         RC rcT;
 
 #ifdef WIN
+#ifdef KAUAI_SDL3
+        if (!KauaiSDLBridge::DamageBounds(pgob->_hwnd, &rcs))
+#endif
         GetUpdateRect(pgob->_hwnd, &rcs, fFalse);
 #endif // WIN
 #ifdef MAC
@@ -530,6 +538,43 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
         }
     }
 
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(pgob->_hwnd))
+    {
+        // SDL presents the port's pixels and owns logical repaint damage.
+        GraphicsEnvironment gnv(pgob);
+        gnv.ScrollRc(&rc, dxp, dyp, &rcBad1, &rcBad2);
+        SystemRectangle scrolling = rc;
+        KauaiSDLBridge::ScrollDamage(pgob->_hwnd, &scrolling, dxp, dyp);
+        if (prcBad1)
+            prcBad1->OffsetCopy(&rcBad1, -dpt.xp, -dpt.yp);
+        if (prcBad2)
+            prcBad2->OffsetCopy(&rcBad2, -dpt.xp, -dpt.yp);
+        switch (gin)
+        {
+        case kginDraw:
+            vpappb->MarkRc(&rcBad1, pgob);
+            vpappb->MarkRc(&rcBad2, pgob);
+            vpappb->UpdateMarked();
+            KauaiSDLBridge::Update(pgob->_hwnd);
+            break;
+        case kginMark:
+            vpappb->MarkRc(&rcBad1, pgob);
+            vpappb->MarkRc(&rcBad2, pgob);
+            break;
+        case kginSysInval:
+            pgob->InvalRc(&rcBad1, kginSysInval);
+            pgob->InvalRc(&rcBad2, kginSysInval);
+            break;
+        case ginNil:
+            break;
+        default:
+            Bug("bad gin");
+            break;
+        }
+        return;
+    }
+#endif
 #ifdef WIN
     // SW_INVALIDATE invalidates any uncovered stuff and translates any
     // previously invalid stuff
@@ -981,10 +1026,10 @@ void GraphicsObject::GetRcVis(RC *prc, long coo)
     Get the rectangle for the gob in cooHwnd coordinates and return the
     enclosing hwnd (if there is one).  This is a protected API.
 ***************************************************************************/
-HWND GraphicsObject::_HwndGetRc(RC *prc)
+CoreNative::WindowHandle GraphicsObject::_HwndGetRc(RC *prc)
 {
     PT dpt;
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
 
     *prc = _rcCur;
     hwnd = _HwndGetDptFromCoo(&dpt, cooHwnd);
@@ -995,7 +1040,7 @@ HWND GraphicsObject::_HwndGetRc(RC *prc)
 /***************************************************************************
     Return the hwnd that contains this GraphicsObject.
 ***************************************************************************/
-HWND GraphicsObject::HwndContainer(void)
+CoreNative::WindowHandle GraphicsObject::HwndContainer(void)
 {
     AssertThis(0);
     PGraphicsObject pgob = this;
@@ -1018,6 +1063,15 @@ void GraphicsObject::MapPt(PT *ppt, long cooSrc, long cooDst)
     AssertThis(0);
     AssertVarMem(ppt);
     PT dpt;
+#ifdef KAUAI_SDL3
+    if (cooSrc == cooDst)
+        return;
+    if ((cooSrc == cooGlobal || cooDst == cooGlobal) && KauaiSDL::Main().IsWindow(_HwndGetDptFromCoo(&dpt, cooHwnd)))
+    {
+        _FMapSDLPoint(ppt, cooSrc, cooDst);
+        return;
+    }
+#endif
 
     _HwndGetDptFromCoo(&dpt, cooSrc);
     ppt->xp -= dpt.xp;
@@ -1036,6 +1090,15 @@ void GraphicsObject::MapRc(RC *prc, long cooSrc, long cooDst)
     AssertThis(0);
     AssertVarMem(prc);
     PT dpt;
+#ifdef KAUAI_SDL3
+    if ((cooSrc == cooGlobal || cooDst == cooGlobal) && KauaiSDL::Main().IsWindow(_HwndGetDptFromCoo(&dpt, cooHwnd)))
+    {
+        PT first(prc->xpLeft, prc->ypTop), last(prc->xpRight, prc->ypBottom);
+        if (_FMapSDLPoint(&first, cooSrc, cooDst) && _FMapSDLPoint(&last, cooSrc, cooDst))
+            prc->Set(first.xp, first.yp, last.xp, last.yp);
+        return;
+    }
+#endif
 
     _HwndGetDptFromCoo(&dpt, cooSrc);
     prc->Offset(-dpt.xp, -dpt.yp);
@@ -1048,10 +1111,46 @@ void GraphicsObject::MapRc(RC *prc, long cooSrc, long cooDst)
     If coo is cooHwnd or cooGlobal, also return the containing hwnd
     (otherwise return hNil).
 ***************************************************************************/
-HWND GraphicsObject::_HwndGetDptFromCoo(PT *pdpt, long coo)
+#ifdef KAUAI_SDL3
+bool GraphicsObject::_FMapSDLPoint(PT *point, long source, long destination)
+{
+    if (source == destination)
+        return true;
+    PT offset, windowOffset;
+    _HwndGetDptFromCoo(&windowOffset, cooHwnd);
+    float x = static_cast<float>(point->xp), y = static_cast<float>(point->yp);
+    if (source == cooGlobal)
+    {
+        if (!KauaiSDL::Main().DesktopToCanvas(x, y, x, y))
+            return false;
+        _HwndGetDptFromCoo(&offset, destination);
+        x += offset.xp - windowOffset.xp;
+        y += offset.yp - windowOffset.yp;
+    }
+    else
+    {
+        _HwndGetDptFromCoo(&offset, source);
+        x += windowOffset.xp - offset.xp;
+        y += windowOffset.yp - offset.yp;
+        if (!KauaiSDL::Main().CanvasToDesktop(x, y, x, y))
+            return false;
+    }
+    // Odd letterbox sizes can place an edge at half a window pixel. Choose
+    // the first integer desktop point inside that logical pixel; reversing
+    // maps to its containing logical pixel instead of rounding twice.
+    const double rx = source == cooGlobal ? std::floor(static_cast<double>(x)) : std::ceil(static_cast<double>(x));
+    const double ry = source == cooGlobal ? std::floor(static_cast<double>(y)) : std::ceil(static_cast<double>(y));
+    if (rx < INT32_MIN || rx > INT32_MAX || ry < INT32_MIN || ry > INT32_MAX)
+        return false;
+    point->xp = static_cast<long>(rx);
+    point->yp = static_cast<long>(ry);
+    return true;
+}
+#endif
+CoreNative::WindowHandle GraphicsObject::_HwndGetDptFromCoo(PT *pdpt, long coo)
 {
     PGraphicsObject pgob, pgobT;
-    HWND hwnd = hNil;
+    CoreNative::WindowHandle hwnd = hNil;
 
     switch (coo)
     {
@@ -1125,7 +1224,7 @@ void GraphicsObject::GetMinMax(RC *prcMinMax)
 PGraphicsObject GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
 {
     AssertNilOrVarMem(pptLocal);
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
     SystemPoint pts;
     PGraphicsObject pgob;
 
@@ -1161,9 +1260,31 @@ PGraphicsObject GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
         }
         return pvNil;
     }
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        float x, y;
+        if (KauaiSDL::Main().DesktopToCanvas(static_cast<float>(xp), static_cast<float>(yp), x, y) && x >= 0 &&
+            y >= 0 && x < KauaiSDL::Main().Width() && y < KauaiSDL::Main().Height())
+            return pgob->PgobFromPt(static_cast<long>(std::floor(x)), static_cast<long>(std::floor(y)), pptLocal);
+        if (pptLocal)
+            *pptLocal = PT(xp, yp);
+        return pvNil;
+    }
+#endif
     ScreenToClient(hwnd, &pts);
     return pgob->PgobFromPt(pts.x, pts.y, pptLocal);
 #endif // WIN
+#if defined(KAUAI_SDL3) && !defined(WIN)
+    pgob = PgobFromHwnd(static_cast<CoreNative::WindowHandle>(KauaiSDL::Main().WindowToken()));
+    float x, y;
+    if (pgob && KauaiSDL::Main().DesktopToCanvas(static_cast<float>(xp), static_cast<float>(yp), x, y) &&
+        x >= 0 && y >= 0 && x < KauaiSDL::Main().Width() && y < KauaiSDL::Main().Height())
+        return pgob->PgobFromPt(static_cast<long>(std::floor(x)), static_cast<long>(std::floor(y)), pptLocal);
+    if (pptLocal)
+        *pptLocal = PT(xp, yp);
+    return pvNil;
+#endif
 }
 
 /***************************************************************************
@@ -1296,9 +1417,25 @@ void GraphicsObject::_SetRcCur(void)
 
         if (pgob->_hwnd != hNil)
         {
-            SystemRectangle rcs;
-
-            GetClientRect(pgob->_hwnd, &rcs);
+            SystemRectangle rcs = {};
+            bool measured = false;
+#ifdef KAUAI_SDL3
+            if (KauaiSDL::Main().IsWindow(pgob->_hwnd))
+            {
+                rcs.right = KauaiSDL::Main().Width();
+                rcs.bottom = KauaiSDL::Main().Height();
+                measured = true;
+            }
+#endif
+#ifdef WIN
+            if (!measured)
+                measured = GetClientRect(pgob->_hwnd, &rcs) != 0;
+#endif
+            if (!measured)
+            {
+                Bug("Cannot measure graphics object's window");
+                continue;
+            }
             rc = rcs;
             rcVis.Max();
         }
@@ -1387,7 +1524,7 @@ bool GraphicsObject::FCreateAndAttachMdi(PString pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
 
     if ((hwnd = _HwndNewMdi(pstnTitle)) == hNil)
         return fFalse;
@@ -1405,7 +1542,7 @@ bool GraphicsObject::FCreateAndAttachMdi(PString pstnTitle)
 ***************************************************************************/
 PGraphicsObject GraphicsObject::PgobMdiActive(void)
 {
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
 
     if (hNil == (hwnd = HwndMdiActive()))
         return pvNil;
@@ -1805,7 +1942,7 @@ long GraphicsObject::LwState(void)
 /***************************************************************************
     Assert the validity of the GraphicsObject.
 ***************************************************************************/
-void GraphicsObject::AssertValid(ulong grf)
+void GraphicsObject::AssertValid(LegacyUlong grf)
 {
     GraphicsObject_PAR::AssertValid(0);
     if (hNil != _hwnd)

@@ -48,7 +48,7 @@ RTCLASS(AllocatedGroup)
 // All uses inside this file that previously read `size(long)` for the
 // GG-padding intent now use kcbAlignVar to keep the runtime layout coherent
 // with the 32-bit on-disk alignment on every architecture.
-static constexpr long kcbAlignVar = 4;
+static constexpr LegacyLong kcbAlignVar = 4;
 
 /***************************************************************************
     Destructor for GroupBase.  Frees the hq.
@@ -64,7 +64,7 @@ GroupBase::~GroupBase(void)
     Ensure that the two sections are at least the given cb's large.
     if (grfgrp & fgrpShrink), makes them exact.
 ***************************************************************************/
-bool GroupBase::_FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp)
+bool GroupBase::_FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong grfgrp)
 {
     AssertThis(0);
     Assert(cbMin1 >= 0 && cbMin2 >= 0, "negative sizes");
@@ -107,7 +107,7 @@ bool GroupBase::_FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp)
 /***************************************************************************
     Ensure that the given HQ is large enough.
 ***************************************************************************/
-bool GroupBase::_FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb)
+bool GroupBase::_FEnsureHqCb(HQ *phq, LegacyLong cb, LegacyLong cbMinGrow, LegacyLong *pcb)
 {
     AssertVarMem(phq);
     AssertIn(cbMinGrow, 0, kcbMax);
@@ -115,7 +115,7 @@ bool GroupBase::_FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb)
     AssertIn(*pcb, 0, kcbMax);
 
     // limit the size
-    if ((ulong)cb >= kcbMax)
+    if ((LegacyUlong)cb >= kcbMax)
         return fFalse;
 
     AssertIn(cb, *pcb + 1, kcbMax);
@@ -155,7 +155,7 @@ bool GroupBase::_FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb)
 /***************************************************************************
     Make the given GroupBase a duplicate of this one.
 ***************************************************************************/
-bool GroupBase::_FDup(PGroupBase pgrpbDst, long cb1, long cb2)
+bool GroupBase::_FDup(PGroupBase pgrpbDst, LegacyLong cb1, LegacyLong cb2)
 {
     AssertThis(0);
     AssertPo(pgrpbDst, 0);
@@ -191,7 +191,7 @@ bool GroupBase::FWriteFlo(PFileLocation pflo, short bo, short osk)
     Write the GroupBase data to the block.  First write the (pv, cb), then
     cb1 bytes from the first section and cb2 bytes from the second.
 ***************************************************************************/
-bool GroupBase::_FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2)
+bool GroupBase::_FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2)
 {
     AssertPo(pblck, 0);
     AssertIn(cb, 1, kcbMax);
@@ -231,7 +231,7 @@ bool GroupBase::_FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2)
     Read the two sections of data from the given location in the given
     block.
 ***************************************************************************/
-bool GroupBase::_FReadData(PDataBlock pblck, long cb1, long cb2, long ib)
+bool GroupBase::_FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib)
 {
     AssertPo(pblck, fblckUnpacked);
     AssertIn(cb1, 0, kcbMax);
@@ -266,7 +266,7 @@ bool GroupBase::_FReadData(PDataBlock pblck, long cb1, long cb2, long ib)
 /***************************************************************************
     Assert the validity of the grpb stuff.
 ***************************************************************************/
-void GroupBase::AssertValid(ulong grfobj)
+void GroupBase::AssertValid(LegacyUlong grfobj)
 {
     GroupBase_PAR::AssertValid(grfobj | fobjAllocated);
     AssertIn(_cb1, 0, kcbMax);
@@ -299,7 +299,7 @@ void GroupBase::MarkMem(void)
 /***************************************************************************
     Constructor for the list base.
 ***************************************************************************/
-VirtualArray::VirtualArray(long cb)
+VirtualArray::VirtualArray(LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     _cbEntry = cb;
@@ -315,7 +315,7 @@ VirtualArray::VirtualArray(long cb)
     Return a volatile pointer to a list entry.
     NOTE: don't assert !FFree(iv) for allocated lists.
 ***************************************************************************/
-void *VirtualArray::QvGet(long iv)
+void *VirtualArray::QvGet(LegacyLong iv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac + 1);
@@ -325,7 +325,7 @@ void *VirtualArray::QvGet(long iv)
 /***************************************************************************
     Get the data for the iv'th element in the VirtualArray.
 ***************************************************************************/
-void VirtualArray::Get(long iv, void *pv)
+void VirtualArray::Get(LegacyLong iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -336,7 +336,7 @@ void VirtualArray::Get(long iv, void *pv)
 /***************************************************************************
     Put data into the iv'th element in the VirtualArray.
 ***************************************************************************/
-void VirtualArray::Put(long iv, void *pv)
+void VirtualArray::Put(LegacyLong iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -348,7 +348,7 @@ void VirtualArray::Put(long iv, void *pv)
 /***************************************************************************
     Lock the data and return a pointer to the ith item.
 ***************************************************************************/
-void *VirtualArray::PvLock(long iv)
+void *VirtualArray::PvLock(LegacyLong iv)
 {
     Lock();
     return QvGet(iv);
@@ -357,7 +357,7 @@ void *VirtualArray::PvLock(long iv)
 /***************************************************************************
     Set the minimum that a DynamicArray should grow by.
 ***************************************************************************/
-void VirtualArray::SetMinGrow(long cvAdd)
+void VirtualArray::SetMinGrow(LegacyLong cvAdd)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
@@ -370,7 +370,7 @@ void VirtualArray::SetMinGrow(long cvAdd)
 /***************************************************************************
     Assert the validity of a list (DynamicArray or AllocatedArray).
 ***************************************************************************/
-void VirtualArray::AssertValid(ulong grfobj)
+void VirtualArray::AssertValid(LegacyUlong grfobj)
 {
     VirtualArray_PAR::AssertValid(grfobj);
     AssertIn(_cbEntry, 1, kcbMax);
@@ -382,7 +382,7 @@ void VirtualArray::AssertValid(ulong grfobj)
 /***************************************************************************
     Allocate a new list and ensure that it has space for cvInit elements.
 ***************************************************************************/
-PDynamicArray DynamicArray::PglNew(long cb, long cvInit)
+PDynamicArray DynamicArray::PglNew(LegacyLong cb, LegacyLong cvInit)
 {
     AssertIn(cb, 1, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
@@ -427,7 +427,7 @@ PDynamicArray DynamicArray::PglRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a list from file and return it.
 ***************************************************************************/
-PDynamicArray DynamicArray::PglRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk)
+PDynamicArray DynamicArray::PglRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PglRead(&blck, pbo, posk);
@@ -436,7 +436,7 @@ PDynamicArray DynamicArray::PglRead(PFileObject pfil, FilePosition fp, long cb, 
 /***************************************************************************
     Constructor for DynamicArray.
 ***************************************************************************/
-DynamicArray::DynamicArray(long cb) : VirtualArray(cb)
+DynamicArray::DynamicArray(LegacyLong cb) : VirtualArray(cb)
 {
     AssertThis(0);
 }
@@ -445,7 +445,7 @@ DynamicArray::DynamicArray(long cb) : VirtualArray(cb)
     Provided for completeness (all GroupBase's have an FFree routine).
     Returns false iff iv is a valid index for the DynamicArray.
 ***************************************************************************/
-bool DynamicArray::FFree(long iv)
+bool DynamicArray::FFree(LegacyLong iv)
 {
     AssertThis(0);
     return !FIn(iv, 0, _ivMac);
@@ -485,7 +485,7 @@ const ByteOrderMask kbomGlf = 0x5F000000L;
 /***************************************************************************
     Return the amount of space on file needed for the list.
 ***************************************************************************/
-long DynamicArray::CbOnFile(void)
+LegacyLong DynamicArray::CbOnFile(void)
 {
     AssertThis(0);
     return size(DynamicArrayOnFile) + LwMul(_cbEntry, _ivMac);
@@ -527,7 +527,7 @@ bool DynamicArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(posk);
 
     DynamicArrayOnFile glf;
-    long cb;
+    LegacyLong cb;
     bool fRet = fFalse;
 
     if (!pblck->FUnpackData())
@@ -569,7 +569,7 @@ LFail:
 /***************************************************************************
     Insert some items into a list at position iv.  iv should be <= IvMac().
 ***************************************************************************/
-bool DynamicArray::FInsert(long iv, void *pv, long cv)
+bool DynamicArray::FInsert(LegacyLong iv, void *pv, LegacyLong cv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac + 1);
@@ -577,7 +577,7 @@ bool DynamicArray::FInsert(long iv, void *pv, long cv)
     AssertNilOrPvCb(pv, LwMul(cv, _cbEntry));
 
     byte *qb;
-    long cbTot, cbIns, ibIns;
+    LegacyLong cbTot, cbIns, ibIns;
 
     cbTot = LwMul(_ivMac + cv, _cbEntry);
     cbIns = LwMul(cv, _cbEntry);
@@ -600,7 +600,7 @@ bool DynamicArray::FInsert(long iv, void *pv, long cv)
     Delete an element from the list.  This changes the indices of all
     later elements.
 ***************************************************************************/
-void DynamicArray::Delete(long iv)
+void DynamicArray::Delete(LegacyLong iv)
 {
     AssertThis(0);
     Delete(iv, 1);
@@ -610,7 +610,7 @@ void DynamicArray::Delete(long iv)
     Delete a range of elements.  This changes the indices of all later
     elements.
 ***************************************************************************/
-void DynamicArray::Delete(long ivMin, long cv)
+void DynamicArray::Delete(LegacyLong ivMin, LegacyLong cv)
 {
     AssertThis(0);
     AssertIn(ivMin, 0, _ivMac);
@@ -633,7 +633,7 @@ void DynamicArray::Delete(long ivMin, long cv)
     ivTarget moves to (ivTarget + 1).  Everything in between is shifted
     appropriately.  ivTarget is allowed to be equal to IvMac().
 ***************************************************************************/
-void DynamicArray::Move(long ivSrc, long ivTarget)
+void DynamicArray::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
     AssertIn(ivSrc, 0, _ivMac);
@@ -647,7 +647,7 @@ void DynamicArray::Move(long ivSrc, long ivTarget)
     Add an element to the end of the list.  Returns the location in *piv.
     On failure, returns false and *piv is undefined.
 ***************************************************************************/
-bool DynamicArray::FAdd(void *pv, long *piv)
+bool DynamicArray::FAdd(void *pv, LegacyLong *piv)
 {
     AssertThis(0);
     AssertNilOrVarMem(piv);
@@ -686,11 +686,11 @@ bool DynamicArray::FPop(void *pv)
     Set the number of elements.  Used rarely (to add a block of elements
     at a time or to "zero out" a list.
 ***************************************************************************/
-bool DynamicArray::FSetIvMac(long ivMacNew)
+bool DynamicArray::FSetIvMac(LegacyLong ivMacNew)
 {
     AssertThis(0);
     AssertIn(ivMacNew, 0, kcbMax);
-    long cb;
+    LegacyLong cb;
 
     if (ivMacNew > _ivMac)
     {
@@ -723,7 +723,7 @@ bool DynamicArray::FSetIvMac(long ivMacNew)
     fgrpShrink is set, will shrink the list if it has more than cvAdd
     available entries.
 ***************************************************************************/
-bool DynamicArray::FEnsureSpace(long cvAdd, ulong grfgrp)
+bool DynamicArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
@@ -742,7 +742,7 @@ bool DynamicArray::FEnsureSpace(long cvAdd, ulong grfgrp)
     Allocate a new allocated list and ensure that it has space for
     cvInit elements.
 ***************************************************************************/
-PAllocatedArray AllocatedArray::PalNew(long cb, long cvInit)
+PAllocatedArray AllocatedArray::PalNew(LegacyLong cb, LegacyLong cvInit)
 {
     AssertIn(cb, 1, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
@@ -788,7 +788,7 @@ PAllocatedArray AllocatedArray::PalRead(PDataBlock pblck, short *pbo, short *pos
 /***************************************************************************
     Read an allocated list from file and return it.
 ***************************************************************************/
-PAllocatedArray AllocatedArray::PalRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk)
+PAllocatedArray AllocatedArray::PalRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PalRead(&blck, pbo, posk);
@@ -797,7 +797,7 @@ PAllocatedArray AllocatedArray::PalRead(PFileObject pfil, FilePosition fp, long 
 /***************************************************************************
     Constructor for AllocatedArray (allocated list) class.
 ***************************************************************************/
-AllocatedArray::AllocatedArray(long cb) : VirtualArray(cb)
+AllocatedArray::AllocatedArray(LegacyLong cb) : VirtualArray(cb)
 {
     AssertThis(fobjAssertFull);
 }
@@ -837,7 +837,7 @@ const ByteOrderMask kbomAlf = 0x5FC00000L;
 /***************************************************************************
     Return the amount of space on file needed for the list.
 ***************************************************************************/
-long AllocatedArray::CbOnFile(void)
+LegacyLong AllocatedArray::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
 
@@ -881,8 +881,8 @@ bool AllocatedArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(posk);
 
     AllocatedArrayOnFile alf;
-    long cbT;
-    long cb;
+    LegacyLong cbT;
+    LegacyLong cb;
     bool fRet = fFalse;
 
     if (!pblck->FUnpackData())
@@ -936,7 +936,7 @@ void AllocatedArray::DeleteAll(void)
 /***************************************************************************
     Returns whether the given element of the allocated list is free.
 ***************************************************************************/
-bool AllocatedArray::FFree(long iv)
+bool AllocatedArray::FFree(LegacyLong iv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -948,7 +948,7 @@ bool AllocatedArray::FFree(long iv)
     fgrpShrink is set, will try to shrink the list if it has more than
     cvAdd available entries.
 ***************************************************************************/
-bool AllocatedArray::FEnsureSpace(long cvAdd, ulong grfgrp)
+bool AllocatedArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 {
     AssertIn(cvAdd, 0, kcbMax);
     AssertThis(0);
@@ -967,13 +967,13 @@ bool AllocatedArray::FEnsureSpace(long cvAdd, ulong grfgrp)
 /***************************************************************************
     Add an element to the list.
 ***************************************************************************/
-bool AllocatedArray::FAdd(void *pv, long *piv)
+bool AllocatedArray::FAdd(void *pv, LegacyLong *piv)
 {
     AssertThis(fobjAssertFull);
     AssertPvCb(pv, _cbEntry);
     AssertNilOrVarMem(piv);
 
-    long iv;
+    LegacyLong iv;
 
     if (_cvFree > 0)
     {
@@ -1013,7 +1013,7 @@ bool AllocatedArray::FAdd(void *pv, long *piv)
 /***************************************************************************
     Delete element iv from an allocated list.
 ***************************************************************************/
-void AllocatedArray::Delete(long iv)
+void AllocatedArray::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
@@ -1068,9 +1068,9 @@ void AllocatedArray::Delete(long iv)
 /***************************************************************************
     Check the validity of an allocated list.
 ***************************************************************************/
-void AllocatedArray::AssertValid(ulong grfobj)
+void AllocatedArray::AssertValid(LegacyUlong grfobj)
 {
-    long cT, iv;
+    LegacyLong cT, iv;
 
     AllocatedArray_PAR::AssertValid(0);
     Assert(_Cb2() >= CbFromCbit(_ivMac), "flag area too small");
@@ -1089,7 +1089,7 @@ void AllocatedArray::AssertValid(ulong grfobj)
 /***************************************************************************
     Constructor for VirtualGroup class.
 ***************************************************************************/
-VirtualGroup::VirtualGroup(long cbFixed, bool fAllowFree)
+VirtualGroup::VirtualGroup(LegacyLong cbFixed, bool fAllowFree)
 {
     AssertIn(cbFixed, 0, kcbMax);
     _clocFree = fAllowFree ? 0 : cvNil;
@@ -1138,7 +1138,7 @@ const ByteOrderMask kbomGgf = 0x5FF00000L;
 /***************************************************************************
     Return the amount of space on file needed for the group.
 ***************************************************************************/
-long VirtualGroup::CbOnFile(void)
+LegacyLong VirtualGroup::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
     return size(GeneralGroupOnFile) + LwMul(_ivMac, size(LogicalOffsetAndCount)) + _bvMac;
@@ -1195,9 +1195,9 @@ bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(posk);
 
     GeneralGroupOnFile ggf;
-    long cbT;
+    LegacyLong cbT;
     short bo;
-    long cb;
+    LegacyLong cb;
     bool fRet = fFalse;
 
     if (!pblck->FUnpackData())
@@ -1251,7 +1251,7 @@ LFail:
 /***************************************************************************
     Returns true iff the loc.bv is nil or iloc is out of range.
 ***************************************************************************/
-bool VirtualGroup::FFree(long iv)
+bool VirtualGroup::FFree(LegacyLong iv)
 {
     AssertBaseThis(0);
     AssertIn(iv, 0, kcbMax);
@@ -1272,13 +1272,13 @@ bool VirtualGroup::FFree(long iv)
     If there is more than enough room and fgrpShrink is passed, the StringTable_GST
     will shrink.
 ***************************************************************************/
-bool VirtualGroup::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
+bool VirtualGroup::FEnsureSpace(LegacyLong cvAdd, LegacyLong cbAdd, LegacyUlong grfgrp)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
     AssertIn(cbAdd, 0, kcbMax);
 
-    long clocAdd;
+    LegacyLong clocAdd;
 
     if (cvNil == _clocFree)
         clocAdd = cvAdd;
@@ -1301,7 +1301,7 @@ bool VirtualGroup::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
 /***************************************************************************
     Set the minimum that a VirtualGroup should grow by.
 ***************************************************************************/
-void VirtualGroup::SetMinGrow(long cvAdd, long cbAdd)
+void VirtualGroup::SetMinGrow(LegacyLong cvAdd, LegacyLong cbAdd)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
@@ -1314,7 +1314,7 @@ void VirtualGroup::SetMinGrow(long cvAdd, long cbAdd)
 /***************************************************************************
     Private api to remove a block of bytes.
 ***************************************************************************/
-void VirtualGroup::_RemoveRgb(long bv, long cb)
+void VirtualGroup::_RemoveRgb(LegacyLong bv, LegacyLong cb)
 {
     AssertBaseThis(0);
     AssertIn(bv, 0, _bvMac);
@@ -1336,14 +1336,14 @@ void VirtualGroup::_RemoveRgb(long bv, long cb)
 /***************************************************************************
     Private api to remove a block of bytes.
 ***************************************************************************/
-void VirtualGroup::_AdjustLocs(long bvMin, long bvLim, long dcb)
+void VirtualGroup::_AdjustLocs(LegacyLong bvMin, LegacyLong bvLim, LegacyLong dcb)
 {
     AssertBaseThis(0);
     AssertIn(bvMin, 0, _bvMac + 2);
     AssertIn(bvLim, bvMin, _bvMac + 2);
     AssertIn(dcb, -_bvMac, kcbMax);
     Assert((dcb % kcbAlignVar) == 0, "dcb not aligned to kcbAlignVar");
-    long cloc;
+    LegacyLong cloc;
     LogicalOffsetAndCount *qloc;
 
     if (FIn(_bvMac, bvMin, bvLim))
@@ -1362,7 +1362,7 @@ void VirtualGroup::_AdjustLocs(long bvMin, long bvLim, long dcb)
     Returns a volative pointer the the fixed sized data in the element.
     If pcbVar is not nil, fills *pcbVar with the size of the variable part.
 ***************************************************************************/
-void *VirtualGroup::QvFixedGet(long iv, long *pcbVar)
+void *VirtualGroup::QvFixedGet(LegacyLong iv, LegacyLong *pcbVar)
 {
     AssertThis(0);
     AssertIn(_cbFixed, 1, kcbMax);
@@ -1382,7 +1382,7 @@ void *VirtualGroup::QvFixedGet(long iv, long *pcbVar)
 /***************************************************************************
     Lock the data and return a pointer to the fixed sized data.
 ***************************************************************************/
-void *VirtualGroup::PvFixedLock(long iv, long *pcbVar)
+void *VirtualGroup::PvFixedLock(LegacyLong iv, LegacyLong *pcbVar)
 {
     AssertThis(0);
     Lock();
@@ -1392,7 +1392,7 @@ void *VirtualGroup::PvFixedLock(long iv, long *pcbVar)
 /***************************************************************************
     Get the fixed sized data for the element.
 ***************************************************************************/
-void VirtualGroup::GetFixed(long iv, void *pv)
+void VirtualGroup::GetFixed(LegacyLong iv, void *pv)
 {
     AssertThis(0);
     AssertIn(_cbFixed, 1, kcbMax);
@@ -1410,7 +1410,7 @@ void VirtualGroup::GetFixed(long iv, void *pv)
 /***************************************************************************
     Put the fixed sized data for the element.
 ***************************************************************************/
-void VirtualGroup::PutFixed(long iv, void *pv)
+void VirtualGroup::PutFixed(LegacyLong iv, void *pv)
 {
     AssertThis(0);
     AssertIn(_cbFixed, 1, kcbMax);
@@ -1429,7 +1429,7 @@ void VirtualGroup::PutFixed(long iv, void *pv)
 /***************************************************************************
     Return the length of the variable part of the iv'th element.
 ***************************************************************************/
-long VirtualGroup::Cb(long iv)
+LegacyLong VirtualGroup::Cb(LegacyLong iv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1443,7 +1443,7 @@ long VirtualGroup::Cb(long iv)
     If pcb is not nil, sets *pcb to the length of the (variable part of the)
     item.
 ***************************************************************************/
-void *VirtualGroup::QvGet(long iv, long *pcb)
+void *VirtualGroup::QvGet(LegacyLong iv, LegacyLong *pcb)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1464,7 +1464,7 @@ void *VirtualGroup::QvGet(long iv, long *pcb)
     item.  If pcb is not nil, sets *pcb to the length of the (variable part
     of the) item.
 ***************************************************************************/
-void *VirtualGroup::PvLock(long iv, long *pcb)
+void *VirtualGroup::PvLock(LegacyLong iv, LegacyLong *pcb)
 {
     AssertThis(0);
     Lock();
@@ -1474,7 +1474,7 @@ void *VirtualGroup::PvLock(long iv, long *pcb)
 /***************************************************************************
     Copy the (variable part of the) iv'th element to pv.
 ***************************************************************************/
-void VirtualGroup::Get(long iv, void *pv)
+void VirtualGroup::Get(LegacyLong iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1490,7 +1490,7 @@ void VirtualGroup::Get(long iv, void *pv)
 /***************************************************************************
     Copy *pv to the (variable part of the) iv'th element.
 ***************************************************************************/
-void VirtualGroup::Put(long iv, void *pv)
+void VirtualGroup::Put(LegacyLong iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1507,14 +1507,14 @@ void VirtualGroup::Put(long iv, void *pv)
     Replace the (variable part of the) iv'th element with the stuff in pv
     (cb bytes worth).  pv may be nil (effectively resizing the block).
 ***************************************************************************/
-bool VirtualGroup::FPut(long iv, long cb, void *pv)
+bool VirtualGroup::FPut(LegacyLong iv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
     Assert(!FFree(iv), "element free!");
     AssertIn(cb, 0, kcbMax);
 
-    long cbCur = Cb(iv);
+    LegacyLong cbCur = Cb(iv);
 
     if (cb > cbCur)
     {
@@ -1537,7 +1537,7 @@ bool VirtualGroup::FPut(long iv, long cb, void *pv)
 /***************************************************************************
     Get a portion of the element.
 ***************************************************************************/
-void VirtualGroup::GetRgb(long iv, long bv, long cb, void *pv)
+void VirtualGroup::GetRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1557,7 +1557,7 @@ void VirtualGroup::GetRgb(long iv, long bv, long cb, void *pv)
 /***************************************************************************
     Put a portion of the element.
 ***************************************************************************/
-void VirtualGroup::PutRgb(long iv, long bv, long cb, void *pv)
+void VirtualGroup::PutRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1578,7 +1578,7 @@ void VirtualGroup::PutRgb(long iv, long bv, long cb, void *pv)
 /***************************************************************************
     Remove a portion of element iv (can't be all of it).
 ***************************************************************************/
-void VirtualGroup::DeleteRgb(long iv, long bv, long cb)
+void VirtualGroup::DeleteRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1586,7 +1586,7 @@ void VirtualGroup::DeleteRgb(long iv, long bv, long cb)
 
     LogicalOffsetAndCount loc;
     LogicalOffsetAndCount *qloc;
-    long cbDel;
+    LegacyLong cbDel;
     byte *qb;
 
     bv += _cbFixed;
@@ -1619,7 +1619,7 @@ void VirtualGroup::DeleteRgb(long iv, long bv, long cb)
     Insert cb new bytes at location bv into the iv'th element.  pv may
     be nil.
 ***************************************************************************/
-bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
+bool VirtualGroup::FInsertRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1627,7 +1627,7 @@ bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
     AssertIn(cb, 1, kcbMax);
 
     LogicalOffsetAndCount loc;
-    long cbAdd;
+    LegacyLong cbAdd;
     byte *qb;
 
     bv += _cbFixed;
@@ -1640,7 +1640,7 @@ bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
     cbAdd = CbRoundToLong(loc.cb + cb) - CbRoundToLong(loc.cb);
     if (cbAdd > 0)
     {
-        long bvT;
+        LegacyLong bvT;
 
         if (!_FEnsureSizes(_bvMac + cbAdd, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
             return fFalse;
@@ -1684,7 +1684,7 @@ bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
     This can fail only because of the padding used for each entry (at most
     kcbAlignVar additional bytes will need to be allocated).
 ***************************************************************************/
-bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long cb)
+bool VirtualGroup::FMoveRgb(LegacyLong ivSrc, LegacyLong bvSrc, LegacyLong ivDst, LegacyLong bvDst, LegacyLong cb)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ivSrc, 0, _ivMac);
@@ -1697,7 +1697,7 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
 
     LogicalOffsetAndCount *qloc;
     LogicalOffsetAndCount locSrc, locDst;
-    long cbMove, cbT;
+    LegacyLong cbMove, cbT;
 
     locSrc = *_Qloc(ivSrc);
     locDst = *_Qloc(ivDst);
@@ -1717,8 +1717,8 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
     AssertIn(cb, cbMove, cbMove + kcbAlignVar);
     if (cbMove > 0)
     {
-        long bv1 = locSrc.bv + bvSrc + _cbFixed;
-        long bv2 = locDst.bv + bvDst + _cbFixed;
+        LegacyLong bv1 = locSrc.bv + bvSrc + _cbFixed;
+        LegacyLong bv2 = locDst.bv + bvDst + _cbFixed;
 
         qloc = _Qloc(ivSrc);
         if (0 == (qloc->cb -= cbMove))
@@ -1767,7 +1767,7 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
     then delete the source element) is if _cbFixed is not a multiple
     of kcbAlignVar.
 ***************************************************************************/
-void VirtualGroup::Merge(long ivSrc, long ivDst)
+void VirtualGroup::Merge(LegacyLong ivSrc, LegacyLong ivDst)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ivSrc, 0, _ivMac);
@@ -1775,7 +1775,7 @@ void VirtualGroup::Merge(long ivSrc, long ivDst)
     AssertIn(ivDst, 0, _ivMac);
     Assert(!FFree(ivDst), "element free!");
     Assert(ivSrc != ivDst, "can't merge an element with itself!");
-    long cb, cbMove, bv;
+    LegacyLong cb, cbMove, bv;
     byte rgb[kcbAlignVar];
 
     cb = Cb(ivSrc);
@@ -1808,11 +1808,11 @@ void VirtualGroup::Merge(long ivSrc, long ivDst)
 /***************************************************************************
     Validate a group.
 ***************************************************************************/
-void VirtualGroup::AssertValid(ulong grfobj)
+void VirtualGroup::AssertValid(LegacyUlong grfobj)
 {
     LogicalOffsetAndCount loc;
-    long iloc;
-    long cbTot, clocFree;
+    LegacyLong iloc;
+    LegacyLong cbTot, clocFree;
 
     VirtualGroup_PAR::AssertValid(grfobj);
     AssertIn(_ivMac, 0, kcbMax);
@@ -1851,7 +1851,7 @@ void VirtualGroup::AssertValid(ulong grfobj)
     Allocate a new group with room for at least cvInit elements containing
     at least cbInit bytes worth of (total) space.
 ***************************************************************************/
-PGeneralGroup GeneralGroup::PggNew(long cbFixed, long cvInit, long cbInit)
+PGeneralGroup GeneralGroup::PggNew(LegacyLong cbFixed, LegacyLong cvInit, LegacyLong cbInit)
 {
     AssertIn(cbFixed, 0, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
@@ -1898,7 +1898,7 @@ PGeneralGroup GeneralGroup::PggRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a group from file and return it.
 ***************************************************************************/
-PGeneralGroup GeneralGroup::PggRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk)
+PGeneralGroup GeneralGroup::PggRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PggRead(&blck, pbo, posk);
@@ -1925,7 +1925,7 @@ PGeneralGroup GeneralGroup::PggDup(void)
 /***************************************************************************
     Insert an element into the group.
 ***************************************************************************/
-bool GeneralGroup::FInsert(long iv, long cb, void *pv, void *pvFixed)
+bool GeneralGroup::FInsert(LegacyLong iv, LegacyLong cb, void *pv, void *pvFixed)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cb, 0, kcbMax);
@@ -1979,14 +1979,14 @@ bool GeneralGroup::FInsert(long iv, long cb, void *pv, void *pvFixed)
     Takes cv entries from pggSrc at ivSrc and inserts (a copy of) them into
     this GeneralGroup at ivDst.
 ***************************************************************************/
-bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, long cv)
+bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, LegacyLong ivSrc, LegacyLong ivDst, LegacyLong cv)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pggSrc, 0);
     AssertIn(cv, 0, pggSrc->IvMac() + 1);
     AssertIn(ivSrc, 0, pggSrc->IvMac() + 1 - cv);
     AssertIn(ivDst, 0, _ivMac + 1);
-    long cb, cbFixed, iv, ivLim;
+    LegacyLong cb, cbFixed, iv, ivLim;
     LogicalOffsetAndCount loc;
     byte *pb;
 
@@ -2024,7 +2024,7 @@ bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, lo
 /***************************************************************************
     Append an element to the group.
 ***************************************************************************/
-bool GeneralGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
+bool GeneralGroup::FAdd(LegacyLong cb, LegacyLong *piv, void *pv, void *pvFixed)
 {
     AssertThis(0);
     AssertNilOrVarMem(piv);
@@ -2042,7 +2042,7 @@ bool GeneralGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 /***************************************************************************
     Delete an element from the group.
 ***************************************************************************/
-void GeneralGroup::Delete(long iv)
+void GeneralGroup::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
@@ -2067,7 +2067,7 @@ void GeneralGroup::Delete(long iv)
     ivTarget moves to (ivTarget + 1).  Everything in between is shifted
     appropriately.  ivTarget is allowed to be equal to IvMac().
 ***************************************************************************/
-void GeneralGroup::Move(long ivSrc, long ivTarget)
+void GeneralGroup::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
     AssertIn(ivSrc, 0, _ivMac);
@@ -2080,7 +2080,7 @@ void GeneralGroup::Move(long ivSrc, long ivTarget)
 /***************************************************************************
     Swap two elements in a GeneralGroup.
 ***************************************************************************/
-void GeneralGroup::Swap(long iv1, long iv2)
+void GeneralGroup::Swap(LegacyLong iv1, LegacyLong iv2)
 {
     AssertThis(0);
     AssertIn(iv1, 0, _ivMac);
@@ -2094,7 +2094,7 @@ void GeneralGroup::Swap(long iv1, long iv2)
 /***************************************************************************
     Validate a group.
 ***************************************************************************/
-void GeneralGroup::AssertValid(ulong grfobj)
+void GeneralGroup::AssertValid(LegacyUlong grfobj)
 {
     GeneralGroup_PAR::AssertValid(grfobj);
     AssertVar(_clocFree == cvNil, "bad _clocFree in GeneralGroup", &_clocFree);
@@ -2105,7 +2105,7 @@ void GeneralGroup::AssertValid(ulong grfobj)
     Allocate a new allocated group with romm for at least cvInit elements
     containing at least cbInit bytes worth of (total) space.
 ***************************************************************************/
-PAllocatedGroup AllocatedGroup::PagNew(long cbFixed, long cvInit, long cbInit)
+PAllocatedGroup AllocatedGroup::PagNew(LegacyLong cbFixed, LegacyLong cvInit, LegacyLong cbInit)
 {
     AssertIn(cbFixed, 0, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
@@ -2152,7 +2152,7 @@ PAllocatedGroup AllocatedGroup::PagRead(PDataBlock pblck, short *pbo, short *pos
 /***************************************************************************
     Read an allocated group from file and return it.
 ***************************************************************************/
-PAllocatedGroup AllocatedGroup::PagRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk)
+PAllocatedGroup AllocatedGroup::PagRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PagRead(&blck, pbo, posk);
@@ -2179,13 +2179,13 @@ PAllocatedGroup AllocatedGroup::PagDup(void)
 /***************************************************************************
     Add an element to the allocated group.
 ***************************************************************************/
-bool AllocatedGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
+bool AllocatedGroup::FAdd(LegacyLong cb, LegacyLong *piv, void *pv, void *pvFixed)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cb, 0, kcbMax);
     AssertNilOrVarMem(piv);
 
-    long iloc;
+    LegacyLong iloc;
     byte *qb;
     LogicalOffsetAndCount loc;
     LogicalOffsetAndCount *qloc;
@@ -2256,7 +2256,7 @@ bool AllocatedGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 /***************************************************************************
     Delete an element from the group.
 ***************************************************************************/
-void AllocatedGroup::Delete(long iv)
+void AllocatedGroup::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
@@ -2290,7 +2290,7 @@ void AllocatedGroup::Delete(long iv)
 /***************************************************************************
     Validate a group.
 ***************************************************************************/
-void AllocatedGroup::AssertValid(ulong grfobj)
+void AllocatedGroup::AssertValid(LegacyUlong grfobj)
 {
     AllocatedGroup_PAR::AssertValid(grfobj);
     AssertIn(_clocFree, 0, LwMax(1, _ivMac));

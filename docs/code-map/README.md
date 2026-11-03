@@ -41,9 +41,16 @@ in.
 `audioman` is a separate static lib pulled in by `kauai` for the
 sampled-audio device. It's a thin wrapper over the legacy AudioMan API.
 
+The optional [SDL3 / ImGui archive inspector](../tools/inspector.md) links
+`inspector-data` -> `ThreeMM::Archive` -> `engine-core`, alongside SDL3/ImGui for its window and UI.
+Its separate `ThreeMM::Preview` adapter uses the core loaders and BRender to
+return RGBA images of actors, props, models, backgrounds and evaluated scenes.
+It uses none of the Studio GUI runtime libraries. Enable `BUILD_INSPECTOR`
+and build `three-mm-inspector` to produce `3mm-inspector`.
+
 ## Why two halves of each library
 
-Each library is split into a `*-core` (CLI/headless, x64-clean) and a
+Each library is split into a `*-core` (CLI/headless) and a
 gui-side `*` (full Win32 + UI runtime):
 
 - `kauai-core` / `kauai`
@@ -53,7 +60,9 @@ gui-side `*` (full Win32 + UI runtime):
 The split lets headless tests (`geometry-test`, `codec-test`,
 `actor-render-test`, `extract-bmdl`, `inspect-chunks`) link only the
 core libs and avoid the whole UI stack — useful for CI and for porting
-to non-Windows hosts. See [`library-split.md`](library-split.md) for
+to non-Windows hosts. Core consumers use `kauai_core.h`, `bren_core.h`, or `soc_core.h`.
+Complete-archive link checks enforce independence from GUI targets.
+See [`library-split.md`](library-split.md) for
 the full source-by-source breakdown and the rationale per file.
 
 ## Where things live

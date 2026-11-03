@@ -28,25 +28,25 @@ struct LCG
     }
 };
 
-void FillRandom(byte *pb, long cb, uint32_t seed, int kind)
+void FillRandom(byte *pb, LegacyLong cb, uint32_t seed, int kind)
 {
     LCG g{seed};
     switch (kind)
     {
     case 0: // pure noise -- no compressible runs
-        for (long i = 0; i < cb; i++)
+        for (LegacyLong i = 0; i < cb; i++)
             pb[i] = (byte)g.Next();
         break;
     case 1: // mostly zeros -- highly compressible
-        for (long i = 0; i < cb; i++)
+        for (LegacyLong i = 0; i < cb; i++)
             pb[i] = (g.Next() & 0xF) ? 0 : (byte)g.Next();
         break;
     case 2: // small alphabet (0..15) -- moderately compressible
-        for (long i = 0; i < cb; i++)
+        for (LegacyLong i = 0; i < cb; i++)
             pb[i] = (byte)(g.Next() & 0x0F);
         break;
     case 3: // long literal runs interleaved with repeats
-        for (long i = 0; i < cb; i++)
+        for (LegacyLong i = 0; i < cb; i++)
         {
             if ((i / 32) & 1)
                 pb[i] = (byte)g.Next(); // literal-ish
@@ -55,7 +55,7 @@ void FillRandom(byte *pb, long cb, uint32_t seed, int kind)
         }
         break;
     case 4: // long-distance back-references (>= 4096 apart)
-        for (long i = 0; i < cb; i++)
+        for (LegacyLong i = 0; i < cb; i++)
         {
             if (i < 5000)
                 pb[i] = (byte)g.Next();
@@ -66,27 +66,27 @@ void FillRandom(byte *pb, long cb, uint32_t seed, int kind)
     }
 }
 
-bool RoundTrip(const char *pszName, long cbSrc, uint32_t seed, int kind, long cfmt)
+bool RoundTrip(const char *pszName, LegacyLong cbSrc, uint32_t seed, int kind, LegacyLong cfmt)
 {
     byte *pbSrc = (byte *)malloc(cbSrc);
     byte *pbEnc = (byte *)malloc(cbSrc * 2 + 1024);
     byte *pbDec = (byte *)malloc(cbSrc + 1024);
-    long cbEnc = 0;
-    long cbDec = 0;
+    LegacyLong cbEnc = 0;
+    LegacyLong cbDec = 0;
 
     FillRandom(pbSrc, cbSrc, seed, kind);
 
     KauaiCodec codec;
     if (!codec.FConvert(fTrue, cfmt, pbSrc, cbSrc, pbEnc, cbSrc * 2 + 1024, &cbEnc))
     {
-        printf("[FAIL] %s cfmt=0x%lX cbSrc=%ld: encode failed\n", pszName, cfmt, cbSrc);
+        printf("[FAIL] %s cfmt=0x%" LEGACY_PRIX " cbSrc=%" LEGACY_PRId ": encode failed\n", pszName, cfmt, cbSrc);
         free(pbSrc); free(pbEnc); free(pbDec);
         return false;
     }
 
     if (!codec.FConvert(fFalse, cfmt, pbEnc, cbEnc, pbDec, cbSrc + 1024, &cbDec))
     {
-        printf("[FAIL] %s cfmt=0x%lX cbSrc=%ld cbEnc=%ld: decode returned false\n",
+        printf("[FAIL] %s cfmt=0x%" LEGACY_PRIX " cbSrc=%" LEGACY_PRId " cbEnc=%" LEGACY_PRId ": decode returned false\n",
                pszName, cfmt, cbSrc, cbEnc);
         free(pbSrc); free(pbEnc); free(pbDec);
         return false;
@@ -94,26 +94,26 @@ bool RoundTrip(const char *pszName, long cbSrc, uint32_t seed, int kind, long cf
 
     if (cbDec != cbSrc)
     {
-        printf("[FAIL] %s cfmt=0x%lX cbSrc=%ld cbDec=%ld: size mismatch (encoded to %ld bytes)\n",
+        printf("[FAIL] %s cfmt=0x%" LEGACY_PRIX " cbSrc=%" LEGACY_PRId " cbDec=%" LEGACY_PRId ": size mismatch (encoded to %" LEGACY_PRId " bytes)\n",
                pszName, cfmt, cbSrc, cbDec, cbEnc);
         free(pbSrc); free(pbEnc); free(pbDec);
         return false;
     }
 
-    for (long i = 0; i < cbSrc; i++)
+    for (LegacyLong i = 0; i < cbSrc; i++)
     {
         if (pbSrc[i] != pbDec[i])
         {
-            printf("[FAIL] %s cfmt=0x%lX cbSrc=%ld: byte %ld src=0x%02X dec=0x%02X (encoded %ld bytes)\n",
+            printf("[FAIL] %s cfmt=0x%" LEGACY_PRIX " cbSrc=%" LEGACY_PRId ": byte %" LEGACY_PRId " src=0x%02X dec=0x%02X (encoded %" LEGACY_PRId " bytes)\n",
                    pszName, cfmt, cbSrc, i, pbSrc[i], pbDec[i], cbEnc);
             // Show a few bytes around the mismatch.
-            long start = i > 16 ? i - 16 : 0;
-            long stop = i + 16 < cbSrc ? i + 16 : cbSrc;
-            printf("       src[%ld..%ld]:", start, stop - 1);
-            for (long k = start; k < stop; k++)
+            LegacyLong start = i > 16 ? i - 16 : 0;
+            LegacyLong stop = i + 16 < cbSrc ? i + 16 : cbSrc;
+            printf("       src[%" LEGACY_PRId "..%" LEGACY_PRId "]:", start, stop - 1);
+            for (LegacyLong k = start; k < stop; k++)
                 printf(" %02X", pbSrc[k]);
-            printf("\n       dec[%ld..%ld]:", start, stop - 1);
-            for (long k = start; k < stop; k++)
+            printf("\n       dec[%" LEGACY_PRId "..%" LEGACY_PRId "]:", start, stop - 1);
+            for (LegacyLong k = start; k < stop; k++)
                 printf(" %02X", pbDec[k]);
             printf("\n");
             free(pbSrc); free(pbEnc); free(pbDec);
@@ -121,21 +121,21 @@ bool RoundTrip(const char *pszName, long cbSrc, uint32_t seed, int kind, long cf
         }
     }
 
-    printf("[ OK ] %s cfmt=0x%lX cbSrc=%ld -> cbEnc=%ld (ratio %.2f)\n",
+    printf("[ OK ] %s cfmt=0x%" LEGACY_PRIX " cbSrc=%" LEGACY_PRId " -> cbEnc=%" LEGACY_PRId " (ratio %.2f)\n",
            pszName, cfmt, cbSrc, cbEnc, (double)cbEnc / (double)cbSrc);
     free(pbSrc); free(pbEnc); free(pbDec);
     return true;
 }
 }
 
-void main(void)
+int main(void)
 {
     printf("=== KauaiCodec round-trip tests ===\n");
     printf("Pointer width: %d bits\n", (int)(sizeof(void *) * 8));
     printf("\n");
 
     int passed = 0, failed = 0;
-    auto run = [&](const char *name, long cb, uint32_t seed, int kind, long cfmt) {
+    auto run = [&](const char *name, LegacyLong cb, uint32_t seed, int kind, LegacyLong cfmt) {
         if (RoundTrip(name, cb, seed, kind, cfmt))
             passed++;
         else
@@ -177,22 +177,22 @@ void FrameMain(void)
 // no output is visible. We track that an assertion fired so the test fails.
 bool g_fAssertFired = false;
 char g_szLastAssert[512] = "";
-bool FAssertProc(schar *pszsFile, long lwLine, schar *pszsMsg, void *pv, long cb)
+bool FAssertProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg, void *pv, LegacyLong cb)
 {
     g_fAssertFired = true;
     if (pszsMsg != nullptr)
-        snprintf(g_szLastAssert, sizeof(g_szLastAssert), "%s:%ld: %s", pszsFile ? (char *)pszsFile : "?", lwLine, (char *)pszsMsg);
+        snprintf(g_szLastAssert, sizeof(g_szLastAssert), "%s:%" LEGACY_PRId ": %s", pszsFile ? (char *)pszsFile : "?", lwLine, (char *)pszsMsg);
     else
-        snprintf(g_szLastAssert, sizeof(g_szLastAssert), "%s:%ld", pszsFile ? (char *)pszsFile : "?", lwLine);
+        snprintf(g_szLastAssert, sizeof(g_szLastAssert), "%s:%" LEGACY_PRId "", pszsFile ? (char *)pszsFile : "?", lwLine);
     fprintf(stderr, "[ASSERT] %s\n", g_szLastAssert);
     fflush(stderr);
     return false; // don't break to debugger -- let the test continue and report
 }
 
 // Same for WarnProc -- redirect to stderr instead of the (nonexistent) app.
-void WarnProc(schar *pszsFile, long lwLine, schar *pszsMsg)
+void WarnProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg)
 {
-    fprintf(stderr, "[WARN] %s:%ld: %s\n",
+    fprintf(stderr, "[WARN] %s:%" LEGACY_PRId ": %s\n",
             pszsFile ? (char *)pszsFile : "?", lwLine, pszsMsg ? (char *)pszsMsg : "");
     fflush(stderr);
 }

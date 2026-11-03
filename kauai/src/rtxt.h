@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef RTXT_H
 #define RTXT_H
+#include "rich_text_data.h"
 
 using namespace Chunky;
 
@@ -25,7 +26,7 @@ using namespace Chunky;
 struct CHP
 {
     ulong grfont;   // bold, italic, etc
-    long onn;       // which font
+    LegacyLong onn;       // which font
     long dypFont;   // size of the font
     long dypOffset; // sub/superscript (-128 to 127)
     AbstractColor acrFore;    // text color
@@ -253,30 +254,21 @@ class RichTextDocument : public RichTextDocument_PAR
     // map property entry
     struct MPE
     {
-        ulong spcp; // sprm in the high byte and cp in the low 3 bytes
-        long lw;    // the associated value - meaning depends on the sprm,
-                    // but 0 is _always_ the default
+        LegacyUlong spcp;
+        LegacyLong lw;
     };
+    static_assert(sizeof(MPE) == sizeof(RichTextPropertyEntry), "rich text property map layout drift");
 
     // sprm, value, mask triple
     struct SPVM
     {
         byte sprm;
-        long lw;
-        long lwMask;
+        LegacyLong lw;
+        LegacyLong lwMask;
     };
 
     // rich text document properties
-    struct RDOP
-    {
-        short bo;
-        short oskFont;
-        long dxpDef;
-        long dypFont;
-        long lwAcrBack;
-        // byte rgbStnFont[]; font name
-    };
-#define kbomRdop 0x5FC00000
+    using RDOP = RichTextProperties;
 
     PChunkyFile _pcfl;
     PDynamicArray _pglmpe;
@@ -316,13 +308,13 @@ class RichTextDocument : public RichTextDocument_PAR
     }
     bool _FFindMpe(ulong spcp, MPE *pmpe, long *pcpLim = pvNil, long *pimpe = pvNil);
     bool _FFetchProp(long impe, byte *psprm, long *plw = pvNil, long *pcpMin = pvNil, long *pcpLim = pvNil);
-    bool _FEnsureInAg(byte sprm, void *pv, long cb, long *pjv);
+    bool _FEnsureInAg(byte sprm, void *pv, long cb, LegacyLong *pjv);
     void _ReleaseInAg(long jv);
     void _AddRefInAg(long jv);
     void _ReleaseSprmLw(byte sprm, long lw);
     void _AddRefSprmLw(byte sprm, long lw);
-    tribool _TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, long *plw, long *plwMask);
-    tribool _TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, long *plw, long *plwMask);
+    tribool _TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, LegacyLong *plw, LegacyLong *plwMask);
+    tribool _TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, LegacyLong *plw, LegacyLong *plwMask);
     bool _FGetRgspvmFromChp(PCHP pchp, PCHP pchpDiff, SPVM *prgspvm, long *pcspvm);
     bool _FGetRgspvmFromPap(PPAP ppap, PPAP ppapDiff, SPVM *prgspvm, long *pcspvm);
     void _ReleaseRgspvm(SPVM *prgspvm, long cspvm);
@@ -489,7 +481,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
 
     bool _FGetCpFromPt(long xp, long yp, long *pcp, bool fClosest = fTrue);
     bool _FGetCpFromXp(long xp, LIN *plin, long *pcp, bool fClosest = fTrue);
-    void _GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *pdypBaseLine = pvNil, bool fView = fTrue);
+    void _GetXpYpFromCp(long cp, LegacyLong *pypMin, LegacyLong *pypLim, LegacyLong *pxp, LegacyLong *pdypBaseLine = pvNil, bool fView = fTrue);
     long _DxpFromCp(long cpLine, long cp);
     void _SwitchSel(bool fOn, long gin = kginDraw);
     void _InvertSel(PGraphicsEnvironment pgnv, long gin = kginDraw);

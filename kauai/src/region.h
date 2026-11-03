@@ -39,10 +39,10 @@ class Region : public Region_PAR
     // The xp's are relative to _rc.xpLeft + _dxp. _pglxp is nil iff the region
     // is strictly rectangular.
     RC _rc;     // bounding rectangle
-    long _dxp;  // additional offset for xp values
+    LegacyLong _dxp;  // additional offset for xp values
     PDynamicArray _pglxp; // region data - see above
-    HRGN _hrgn; // for HrgnEnsure
-    PT _dptRgn; // offset of _hrgn relative to this region
+    BASE *_nativeCache; // optional runtime-owned resource; no native handle in geometry
+    PT _dptRgn; // pending translation of the optional runtime cache
 
     Region(void)
     {
@@ -57,10 +57,10 @@ class Region : public Region_PAR
     ~Region(void);
 
     void SetRc(RC *prc = pvNil);
-    void Offset(long xp, long yp);
+    void Offset(LegacyLong xp, LegacyLong yp);
     bool FEmpty(RC *prc = pvNil);
     bool FIsRc(RC *prc = pvNil);
-    void Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY);
+    void Scale(LegacyLong lwNumX, LegacyLong lwDenX, LegacyLong lwNumY, LegacyLong lwDenY);
 
     bool FUnion(PRegion pregn1, PRegion pregn2 = pvNil);
     bool FUnionRc(RC *prc, PRegion pregn2 = pvNil);
@@ -70,8 +70,9 @@ class Region : public Region_PAR
     bool FDiffRc(RC *prc, PRegion pregn = pvNil);
     bool FDiffFromRc(RC *prc, PRegion pregn = pvNil);
 
-    HRGN HrgnCreate(void);
-    HRGN HrgnEnsure(void);
+    // Host-only operations, implemented by the native GUI adapter.
+    CoreNative::RegionHandle HrgnCreate(void);
+    CoreNative::RegionHandle HrgnEnsure(void);
 };
 
 /***************************************************************************
@@ -85,26 +86,26 @@ class RegionScanner : public RegionScanner_PAR
 
   protected:
     PDynamicArray _pglxpSrc;    // the list of points
-    long *_pxpLimSrc; // the end of the list
-    long *_pxpLimCur; // the end of the current row
+    LegacyLong *_pxpLimSrc; // the end of the list
+    LegacyLong *_pxpLimCur; // the end of the current row
 
-    long _xpMinRow;   // the first xp value of the active part of the current row
-    long *_pxpMinRow; // the beginning of the active part of the currrent row
-    long *_pxpLimRow; // the end of the active part of the current row
-    long *_pxp;       // the current postion in the current row
+    LegacyLong _xpMinRow;   // the first xp value of the active part of the current row
+    LegacyLong *_pxpMinRow; // the beginning of the active part of the currrent row
+    LegacyLong *_pxpLimRow; // the end of the active part of the current row
+    LegacyLong *_pxp;       // the current postion in the current row
 
-    long _dxp;     // this gets added to all source xp values
-    long _xpRight; // the right edge of the active area - left edge is 0
+    LegacyLong _dxp;     // this gets added to all source xp values
+    LegacyLong _xpRight; // the right edge of the active area - left edge is 0
 
     // current state
     bool _fOn;    // whether the current xp is a transition to on or off
-    long _xp;     // the current xp
-    long _dyp;    // the remaining height that this scan is effective for
-    long _dypTot; // the remaining total height of the active area
+    LegacyLong _xp;     // the current xp
+    LegacyLong _dyp;    // the remaining height that this scan is effective for
+    LegacyLong _dypTot; // the remaining total height of the active area
 
     // When scanning rectangles, _pglxpSrc will be nil and _pxpSrc et al will
     // point into this.
-    long _rgxpRect[4];
+    LegacyLong _rgxpRect[4];
 
     void _InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel);
     void _ScanNextCore(void);
@@ -116,7 +117,7 @@ class RegionScanner : public RegionScanner_PAR
 
     void Init(PRegion pregn, RC *prcRel);
     void InitRc(RC *prc, RC *prcRel);
-    void ScanNext(long dyp)
+    void ScanNext(LegacyLong dyp)
     {
         _dypTot -= dyp;
         if ((_dyp -= dyp) <= 0)
@@ -125,7 +126,7 @@ class RegionScanner : public RegionScanner_PAR
         _xp = _xpMinRow;
         _fOn = fTrue;
     }
-    long XpFetch(void)
+    LegacyLong XpFetch(void)
     {
         if (_pxp < _pxpLimRow - 1)
         {
@@ -150,15 +151,15 @@ class RegionScanner : public RegionScanner_PAR
     {
         return _fOn;
     }
-    long XpCur(void)
+    LegacyLong XpCur(void)
     {
         return _xp;
     }
-    long DypCur(void)
+    LegacyLong DypCur(void)
     {
         return _dyp;
     }
-    long CxpCur(void)
+    LegacyLong CxpCur(void)
     {
         return _pxpLimRow - _pxpMinRow + 1;
     }

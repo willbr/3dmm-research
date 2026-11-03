@@ -109,6 +109,15 @@
 #include "codkpri.h"
 ASSERTNAME
 
+// Compressed words begin at arbitrary byte offsets. Build an unsigned value
+// rather than dereferencing an unaligned typed pointer (also valid on ARM).
+static LegacyUlong ReadCodecWord(const byte *bytes)
+{
+    return static_cast<LegacyUlong>(bytes[0]) | (static_cast<LegacyUlong>(bytes[1]) << 8) |
+           (static_cast<LegacyUlong>(bytes[2]) << 16) | (static_cast<LegacyUlong>(bytes[3]) << 24);
+}
+
+
 // REVIEW shonk: should we turn on _Safety?
 #define SAFETY
 
@@ -117,7 +126,7 @@ RTCLASS(KauaiCodec)
 /***************************************************************************
     Encode or decode a block.
 ***************************************************************************/
-bool KauaiCodec::FConvert(bool fEncode, long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::FConvert(bool fEncode, LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -150,20 +159,20 @@ class BitArray
 {
   protected:
     byte *_prgb;
-    long _cb;
+    LegacyLong _cb;
 
-    long _ibit;
-    long _ib;
+    LegacyLong _ibit;
+    LegacyLong _ib;
 
   public:
-    void Set(void *pvDst, long cbDst);
-    bool FWriteBits(ulong lu, long cbit);
-    bool FWriteLogEncoded(ulong lu);
-    long Ibit(void)
+    void Set(void *pvDst, LegacyLong cbDst);
+    bool FWriteBits(LegacyUlong lu, LegacyLong cbit);
+    bool FWriteLogEncoded(LegacyUlong lu);
+    LegacyLong Ibit(void)
     {
         return _ibit;
     }
-    long Ib(void)
+    LegacyLong Ib(void)
     {
         return _ib;
     }
@@ -172,7 +181,7 @@ class BitArray
 /***************************************************************************
     Set the buffer to write to.
 ***************************************************************************/
-void BitArray::Set(void *pvDst, long cbDst)
+void BitArray::Set(void *pvDst, LegacyLong cbDst)
 {
     AssertPvCb(pvDst, cbDst);
 
@@ -184,9 +193,9 @@ void BitArray::Set(void *pvDst, long cbDst)
 /***************************************************************************
     Write some bits.
 ***************************************************************************/
-bool BitArray::FWriteBits(ulong lu, long cbit)
+bool BitArray::FWriteBits(LegacyUlong lu, LegacyLong cbit)
 {
-    long cb;
+    LegacyLong cb;
 
     // store the partial byte
     if (_ibit > 0)
@@ -230,12 +239,12 @@ bool BitArray::FWriteBits(ulong lu, long cbit)
 /***************************************************************************
     Write the value logarithmically encoded.
 ***************************************************************************/
-bool BitArray::FWriteLogEncoded(ulong lu)
+bool BitArray::FWriteLogEncoded(LegacyUlong lu)
 {
     Assert(lu > 0 && !(lu & 0x80000000), "bad value to encode logarithmically");
-    long cbit;
+    LegacyLong cbit;
 
-    for (cbit = 1; (ulong)(1L << cbit) <= lu; cbit++)
+    for (cbit = 1; (LegacyUlong)(1L << cbit) <= lu; cbit++)
         ;
     cbit--;
 
@@ -249,7 +258,7 @@ bool BitArray::FWriteLogEncoded(ulong lu)
     Compress the data in pvSrc using the KauaiCodec encoding.  Returns false if
     the data can't be compressed. This is not optimized (ie, it's slow).
 ***************************************************************************/
-bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FEncode(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -258,21 +267,21 @@ bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
     AssertPvCb(pvDst, cbDst);
     AssertVarMem(pcbDst);
 
-    long ibSrc;
-    long ibMatch, ibTest, cbMatch, ibMin, cbT;
+    LegacyLong ibSrc;
+    LegacyLong ibMatch, ibTest, cbMatch, ibMin, cbT;
     byte bMatchNew, bMatchLast;
     BitArray bita;
-    long *pmpsuibStart = pvNil;
+    LegacyLong *pmpsuibStart = pvNil;
     byte *prgbSrc = (byte *)pvSrc;
-    long *pmpibibNext = pvNil;
+    LegacyLong *pmpibibNext = pvNil;
 
     TrashVar(pcbDst);
     if (cbDst - kcbTailKcdc <= 1)
         return fFalse;
 
     // allocate the links
-    if (!FAllocPv((void **)&pmpibibNext, LwMul(size(long), cbSrc), fmemNil, mprNormal) ||
-        !FAllocPv((void **)&pmpsuibStart, LwMul(size(long), 0x10000), fmemNil, mprNormal))
+    if (!FAllocPv((void **)&pmpibibNext, LwMul(size(LegacyLong), cbSrc), fmemNil, mprNormal) ||
+        !FAllocPv((void **)&pmpsuibStart, LwMul(size(LegacyLong), 0x10000), fmemNil, mprNormal))
     {
         Warn("failed to allocate memory for links");
         goto LFail;
@@ -281,7 +290,7 @@ bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
     // write the links
     // we need to set each entry of pmpsuibStart to a big negative number,
     // but not too big, or we risk overflow below.
-    FillPb(pmpsuibStart, LwMul(size(long), 0x10000), 0xCC);
+    FillPb(pmpsuibStart, LwMul(size(LegacyLong), 0x10000), 0xCC);
     for (ibSrc = 0; ibSrc < cbSrc - 1; ibSrc++)
     {
         ushort suCur = ((ushort)prgbSrc[ibSrc]) << 8 | (ushort)prgbSrc[ibSrc + 1];
@@ -299,7 +308,7 @@ bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
     for (ibSrc = 0; ibSrc < cbSrc; ibSrc += cbMatch)
     {
         byte *pbMatch;
-        long cbMaxMatch;
+        LegacyLong cbMaxMatch;
 
         // get the new byte and the link
         ibTest = pmpibibNext[ibSrc];
@@ -352,14 +361,14 @@ bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
         if (cbMatch == 1)
         {
             // literal
-            if (!bita.FWriteBits((ulong)prgbSrc[ibSrc] << 1, 9))
+            if (!bita.FWriteBits((LegacyUlong)prgbSrc[ibSrc] << 1, 9))
                 goto LFail;
         }
         else
         {
             // find the offset
-            ulong luCode, luLen;
-            long cbit;
+            LegacyUlong luCode, luLen;
+            LegacyLong cbit;
 
             luCode = ibSrc - ibMatch;
             luLen = cbMatch - 1;
@@ -405,9 +414,9 @@ bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
         AssertDo(bita.FWriteBits(0xFF, 8 - bita.Ibit()), 0);
 
     // write the tail (kcbTailKcdc bytes of FF)
-    for (cbT = 0; cbT < kcbTailKcdc; cbT += size(long))
+    for (cbT = 0; cbT < kcbTailKcdc; cbT += size(LegacyLong))
     {
-        if (!bita.FWriteBits(0xFFFFFFFF, LwMin(size(long), kcbTailKcdc - cbT) << 3))
+        if (!bita.FWriteBits(0xFFFFFFFF, LwMin(size(LegacyLong), kcbTailKcdc - cbT) << 3))
         {
             goto LFail;
         }
@@ -427,7 +436,7 @@ LFail:
 /***************************************************************************
     Decompress a compressed KauaiCodec stream.
 ***************************************************************************/
-bool KauaiCodec::_FDecode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FDecode(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -436,7 +445,7 @@ bool KauaiCodec::_FDecode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
     AssertPvCb(pvDst, cbDst);
     AssertVarMem(pcbDst);
 
-    long ib;
+    LegacyLong ib;
     byte bFlags;
 
     TrashVar(pcbDst);
@@ -473,19 +482,15 @@ bool KauaiCodec::_FDecode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
 
 #else //! IN_80386
 
-    long cb, dib, ibit, cbit;
-    register ulong luCur;
+    LegacyLong cb, dib, ibit, cbit;
+    register LegacyUlong luCur;
     byte *pbT;
     register byte *pbDst = (byte *)pvDst;
     byte *pbLimDst = (byte *)pvDst + cbDst;
     register byte *pbSrc = (byte *)pvSrc + 1;
 
-#define _FTest(ibit) (luCur & (1L << (ibit)))
-#ifdef LITTLE_ENDIAN
-#define _Advance(cb) ((pbSrc += (cb)), (luCur = *(ulong *)(pbSrc - 4)))
-#else //! LITTLE_ENDIAN
-#define _Advance(cb) ((pbSrc += (cb)), (luCur = LwFromBytes(pbSrc[-1], pbSrc[-2], pbSrc[-3], pbSrc[-4])))
-#endif //! LITTLE_ENDIAN
+#define _FTest(ibit) ((ibit) < 32 && (luCur & (static_cast<LegacyUlong>(1) << (ibit))))
+#define _Advance(cb) ((pbSrc += (cb)), (luCur = ReadCodecWord(pbSrc - 4)))
 
     _Advance(4);
 
@@ -576,7 +581,7 @@ LFail:
     Compress the data in pvSrc using the KCD2 encoding.  Returns false if
     the data can't be compressed. This is not optimized (ie, it's slow).
 ***************************************************************************/
-bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FEncode2(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -585,22 +590,22 @@ bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
     AssertPvCb(pvDst, cbDst);
     AssertVarMem(pcbDst);
 
-    long ibSrc;
-    long ibMatch, ibTest, cbMatch, ibMin, cbT;
+    LegacyLong ibSrc;
+    LegacyLong ibMatch, ibTest, cbMatch, ibMin, cbT;
     byte bMatchNew, bMatchLast;
     BitArray bita;
-    long cbRun;
-    long *pmpsuibStart = pvNil;
+    LegacyLong cbRun;
+    LegacyLong *pmpsuibStart = pvNil;
     byte *prgbSrc = (byte *)pvSrc;
-    long *pmpibibNext = pvNil;
+    LegacyLong *pmpibibNext = pvNil;
 
     TrashVar(pcbDst);
     if (cbDst - kcbTailKcdc <= 1)
         return fFalse;
 
     // allocate the links
-    if (!FAllocPv((void **)&pmpibibNext, LwMul(size(long), cbSrc), fmemNil, mprNormal) ||
-        !FAllocPv((void **)&pmpsuibStart, LwMul(size(long), 0x10000), fmemNil, mprNormal))
+    if (!FAllocPv((void **)&pmpibibNext, LwMul(size(LegacyLong), cbSrc), fmemNil, mprNormal) ||
+        !FAllocPv((void **)&pmpsuibStart, LwMul(size(LegacyLong), 0x10000), fmemNil, mprNormal))
     {
         Warn("failed to allocate memory for links");
         goto LFail;
@@ -609,7 +614,7 @@ bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
     // write the links
     // we need to set each entry of pmpsuibStart to a big negative number,
     // but not too big, or we risk overflow below.
-    FillPb(pmpsuibStart, LwMul(size(long), 0x10000), 0xCC);
+    FillPb(pmpsuibStart, LwMul(size(LegacyLong), 0x10000), 0xCC);
     for (ibSrc = 0; ibSrc < cbSrc - 1; ibSrc++)
     {
         ushort suCur = ((ushort)prgbSrc[ibSrc]) << 8 | (ushort)prgbSrc[ibSrc + 1];
@@ -628,7 +633,7 @@ bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
     for (ibSrc = 0;; ibSrc += cbMatch)
     {
         byte *pbMatch;
-        long cbMaxMatch;
+        LegacyLong cbMaxMatch;
 
         if (ibSrc >= cbSrc)
         {
@@ -684,7 +689,7 @@ bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
         if (cbMatch != 1 && cbRun > 0)
         {
             // write the previous literal run
-            long ibit, ib;
+            LegacyLong ibit, ib;
 
             if (!bita.FWriteLogEncoded(cbRun))
                 goto LFail;
@@ -724,8 +729,8 @@ bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
             AssertIn(cbMatch, 2 + (ibSrc - ibMatch >= kdibMinKcdc3), kcbMaxLenKcdc + 1);
 
             // find the offset
-            ulong luCode, luLen;
-            long cbit;
+            LegacyUlong luCode, luLen;
+            LegacyLong cbit;
 
             luCode = ibSrc - ibMatch;
             luLen = cbMatch - 1;
@@ -771,9 +776,9 @@ bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
         AssertDo(bita.FWriteBits(0xFF, 8 - bita.Ibit()), 0);
 
     // write the tail (kcbTailKcdc bytes of FF)
-    for (cbT = 0; cbT < kcbTailKcdc; cbT += size(long))
+    for (cbT = 0; cbT < kcbTailKcdc; cbT += size(LegacyLong))
     {
-        if (!bita.FWriteBits(0xFFFFFFFF, LwMin(size(long), kcbTailKcdc - cbT) << 3))
+        if (!bita.FWriteBits(0xFFFFFFFF, LwMin(size(LegacyLong), kcbTailKcdc - cbT) << 3))
         {
             goto LFail;
         }
@@ -793,7 +798,7 @@ LFail:
 /***************************************************************************
     Decompress a compressed KCD2 stream.
 ***************************************************************************/
-bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FDecode2(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -802,7 +807,7 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
     AssertPvCb(pvDst, cbDst);
     AssertVarMem(pcbDst);
 
-    long ib;
+    LegacyLong ib;
     byte bFlags;
 
     TrashVar(pcbDst);
@@ -839,8 +844,8 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
 
 #else //! IN_80386
 
-    long cb, dib, ibit, cbit;
-    register ulong luCur;
+    LegacyLong cb, dib, ibit, cbit;
+    register LegacyUlong luCur;
     byte bT;
     byte *pbT;
     register byte *pbDst = (byte *)pvDst;
@@ -848,12 +853,8 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
     register byte *pbSrc = (byte *)pvSrc + 1;
     byte *pbLimSrc = (byte *)pvSrc + cbSrc - kcbTailKcd2;
 
-#define _FTest(ibit) (luCur & (1L << (ibit)))
-#ifdef LITTLE_ENDIAN
-#define _Advance(cb) ((pbSrc += (cb)), (luCur = *(ulong *)(pbSrc - 4)))
-#else //! LITTLE_ENDIAN
-#define _Advance(cb) ((pbSrc += (cb)), (luCur = LwFromBytes(pbSrc[-1], pbSrc[-2], pbSrc[-3], pbSrc[-4])))
-#endif //! LITTLE_ENDIAN
+#define _FTest(ibit) ((ibit) < 32 && (luCur & (static_cast<LegacyUlong>(1) << (ibit))))
+#define _Advance(cb) ((pbSrc += (cb)), (luCur = ReadCodecWord(pbSrc - 4)))
 
     _Advance(4);
 
@@ -885,16 +886,16 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
             if (pbDst + cb > pbLimDst)
             {
                 char szDiag[160];
-                wsprintfA(szDiag, "_FDecode2 LIT dst overflow: cb=%ld wrote=%ld lim=%ld ibit=%ld",
-                          cb, (long)(pbDst - (byte *)pvDst), (long)(pbLimDst - (byte *)pvDst), ibit);
+                snprintf(szDiag, sizeof(szDiag), "_FDecode2 LIT dst overflow: cb=%" LEGACY_PRId " wrote=%" LEGACY_PRId " lim=%" LEGACY_PRId " ibit=%" LEGACY_PRId "",
+                          cb, (LegacyLong)(pbDst - (byte *)pvDst), (LegacyLong)(pbLimDst - (byte *)pvDst), ibit);
                 Bug(szDiag);
                 goto LFail;
             }
             if (pbSrc - 3 + cb > pbLimSrc)
             {
                 char szDiag[160];
-                wsprintfA(szDiag, "_FDecode2 LIT src overflow: cb=%ld read=%ld lim=%ld ibit=%ld",
-                          cb, (long)(pbSrc - 3 - (byte *)pvSrc), (long)(pbLimSrc - (byte *)pvSrc), ibit);
+                snprintf(szDiag, sizeof(szDiag), "_FDecode2 LIT src overflow: cb=%" LEGACY_PRId " read=%" LEGACY_PRId " lim=%" LEGACY_PRId " ibit=%" LEGACY_PRId "",
+                          cb, (LegacyLong)(pbSrc - 3 - (byte *)pvSrc), (LegacyLong)(pbLimSrc - (byte *)pvSrc), ibit);
                 Bug(szDiag);
                 goto LFail;
             }
@@ -964,8 +965,8 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
             if (pbLimDst - pbDst < cb || pbDst - (byte *)pvDst < dib)
             {
                 char szDiag[160];
-                wsprintfA(szDiag, "_FDecode2 OFF overflow: cb=%ld dib=%ld wrote=%ld lim=%ld",
-                          cb, dib, (long)(pbDst - (byte *)pvDst), (long)(pbLimDst - (byte *)pvDst));
+                snprintf(szDiag, sizeof(szDiag), "_FDecode2 OFF overflow: cb=%" LEGACY_PRId " dib=%" LEGACY_PRId " wrote=%" LEGACY_PRId " lim=%" LEGACY_PRId "",
+                          cb, dib, (LegacyLong)(pbDst - (byte *)pvDst), (LegacyLong)(pbLimDst - (byte *)pvDst));
                 Bug(szDiag);
                 goto LFail;
             }

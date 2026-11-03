@@ -6,7 +6,6 @@
  *
  * Default memory handler that uses malloc()/free() from C library
  */
-#include <Windows.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,7 +28,7 @@ static void *BR_CALLBACK BrStdlibAllocate(br_size_t size, br_uint_8 type)
     cbAlloc += sizeof(long);
 #endif // DEBUG
 
-    m = (void *)GlobalAlloc(GMEM_FIXED, cbAlloc);
+    m = malloc(cbAlloc > 0 ? cbAlloc : 1);
     if (m == NULL)
         return NULL;
 
@@ -50,7 +49,7 @@ static void BR_CALLBACK BrStdlibFree(void *mem)
     _cb -= size;
     mem = pmemReal;
 #endif // DEBUG
-    GlobalFree((HGLOBAL)mem);
+    free(mem);
 }
 
 static br_size_t BR_CALLBACK BrStdlibInquire(br_uint_8 type)

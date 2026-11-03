@@ -612,7 +612,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
 bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOrType ctg, long dxp, long dyp, bool *pfSet)
 {
     AssertThis(0);
-    long ikid;
+    LegacyLong ikid;
     ChildChunkIdentification kid;
     PGraphicalObjectRepresentation pgorp;
     bool fSet = fFalse;
@@ -1019,8 +1019,8 @@ bool KidspaceGraphicObject::_FFilterCmd(PCommand pcmd, ChildChunkID chidScript, 
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(pfFilter);
-    long rglw[6];
-    long lw;
+    LegacyLong rglw[6];
+    LegacyLong lw;
     bool fGokExists;
     tribool tRet;
 
@@ -1402,7 +1402,7 @@ void KidspaceGraphicObject::SetNoSlip(bool fNoSlip)
     succeeded.
     CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
+bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, LegacyLong *prglw, long clw, LegacyLong *plwReturn, tribool *ptSuccess)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
@@ -1425,7 +1425,7 @@ bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, long *prglw, long clw,
     was a failure, tYes if the script exists and running it succeeded.
     CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
+bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, LegacyLong *prglw, long clw, LegacyLong *plwReturn, tribool *ptSuccess)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
@@ -1504,8 +1504,8 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     AssertThis(0);
     PKidspaceGraphicObject pgok;
     PGraphicsObject pgob;
-    long rglw[3];
-    long lw;
+    LegacyLong rglw[3];
+    LegacyLong lw;
     tribool tRet;
     CursorMapEntry cume;
     long hid = Hid();
@@ -1869,7 +1869,7 @@ void KidspaceGraphicObject::Stream(bool fStream)
 /***************************************************************************
     Assert the validity of a KidspaceGraphicObject.
 ***************************************************************************/
-void KidspaceGraphicObject::AssertValid(ulong grf)
+void KidspaceGraphicObject::AssertValid(LegacyUlong grf)
 {
     KidspaceGraphicObject_PAR::AssertValid(0);
     AssertPo(_pwoks, 0);
@@ -2591,7 +2591,7 @@ void GraphicalObjectRepresentationTiled::GetRc(RC *prc)
     Map the point from MaskedBitmapMBMP coordinates to flexed coordinates for setting the
     registration point. WARNING: this is not the inverse of _MapZpToMbmp.
 ***************************************************************************/
-void GraphicalObjectRepresentationTiled::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
+void GraphicalObjectRepresentationTiled::_MapZpFlex(LegacyLong *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
 {
     AssertThis(0);
     AssertVarMem(pzp);
@@ -2857,7 +2857,7 @@ void GraphicalObjectRepresentationVideo::Resume(void)
 /***************************************************************************
     Assert the validity of a GraphicalObjectRepresentationVideo.
 ***************************************************************************/
-void GraphicalObjectRepresentationVideo::AssertValid(ulong grf)
+void GraphicalObjectRepresentationVideo::AssertValid(LegacyUlong grf)
 {
     GraphicalObjectRepresentationVideo_PAR::AssertValid(0);
     AssertPo(_pgvid, 0);

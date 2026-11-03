@@ -119,7 +119,7 @@ class CHR
 /***************************************************************************
     Assert the validity of a CHR.
 ***************************************************************************/
-void CHR::AssertValid(ulong grf)
+void CHR::AssertValid(LegacyUlong grf)
 {
     AssertThisMem();
     AssertPo(_ptxtb, 0);
@@ -509,7 +509,7 @@ TextDocumentGraphicsObject::~TextDocumentGraphicsObject(void)
 /***************************************************************************
     Assert the validity of a TextDocumentGraphicsObject.
 ***************************************************************************/
-void TextDocumentGraphicsObject::AssertValid(ulong grf)
+void TextDocumentGraphicsObject::AssertValid(LegacyUlong grf)
 {
     TextDocumentGraphicsObject_PAR::AssertValid(0);
     AssertPo(_pgllin, 0);
@@ -1337,7 +1337,7 @@ bool TextDocumentGraphicsObject::_FGetCpFromXp(long xp, LIN *plin, long *pcp, bo
     view coordinates. If fView is false, the values are in logical values
     (independent of the current scrolling of the view).
 ***************************************************************************/
-void TextDocumentGraphicsObject::_GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *pypBaseLine, bool fView)
+void TextDocumentGraphicsObject::_GetXpYpFromCp(long cp, LegacyLong *pypMin, LegacyLong *pypLim, LegacyLong *pxp, LegacyLong *pypBaseLine, bool fView)
 {
     AssertThis(0);
     AssertIn(cp, 0, _ptxtb->CpMac());
@@ -1449,7 +1449,7 @@ void TextDocumentGraphicsObject::InvalCp(long cp, long ccpIns, long ccpDel)
     AssertIn(ccpIns, 0, _ptxtb->CpMac() + 1 - cp);
     AssertIn(ccpDel, 0, kcbMax);
     Assert(!_fSelOn, "selection is on in InvalCp!");
-    long cpAnchor, cpOther;
+    LegacyLong cpAnchor, cpOther;
 
     // adjust the sel
     cpAnchor = _cpAnchor;
@@ -2733,7 +2733,7 @@ PRichTextDocumentGraphicsObject RichTextDocumentGraphicsObject::PtxrgNew(PRichTe
 /***************************************************************************
     Assert the validity of a RichTextDocumentGraphicsObject.
 ***************************************************************************/
-void RichTextDocumentGraphicsObject::AssertValid(ulong grf)
+void RichTextDocumentGraphicsObject::AssertValid(LegacyUlong grf)
 {
     RichTextDocumentGraphicsObject_PAR::AssertValid(0);
     AssertNilOrPo(_ptrul, 0);

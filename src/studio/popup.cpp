@@ -178,7 +178,7 @@ bool MenuPopup::FCmdSelIdle(PCommand pcmd)
 /***************************************************************************
     Assert the validity of the MenuPopup.
 ***************************************************************************/
-void MenuPopup::AssertValid(ulong grf)
+void MenuPopup::AssertValid(LegacyUlong grf)
 {
     MenuPopup_PAR::AssertValid(fobjAllocated);
     AssertBasePo(_pcmh, 0);
@@ -226,7 +226,7 @@ PMenuPopupFont MenuPopupFont::PmpfntNew(PResourceCache prca, long kidParent, lon
         return pvNil;
     }
 
-    if (pgst->CbExtra() != size(long))
+    if (pgst->CbExtra() != size(LegacyLong))
     {
         Bug("StringTable_GST CbExtra isn't the right size for an onn");
         return pvNil;
@@ -277,7 +277,7 @@ bool MenuPopupFont::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
     if (MenuPopupFont_PAR::_FSetThumFrame(istn, pgobPar))
     {
         PTextGraphicsObject ptgob = (PTextGraphicsObject)pgobPar->PgobFirstChild();
-        long onn;
+        LegacyLong onn;
 
         /* By the time we get this far, MenuPopupFont_PAR should have already checked
             these */
@@ -299,7 +299,7 @@ void MenuPopupFont::_ApplySelection(long ithumSelect, long sid)
 {
     AssertThis(0);
 
-    long onn;
+    LegacyLong onn;
 
     _pgst->GetExtra(ithumSelect, &onn);
     vpcex->EnqueueCid(cidTextSetFont, _pstdio, pvNil, onn);
@@ -353,7 +353,7 @@ bool MenuPopupFont::FCmdSelIdle(PCommand pcmd)
 /***************************************************************************
     Assert the validity of the MenuPopupFont.
 ***************************************************************************/
-void MenuPopupFont::AssertValid(ulong grf)
+void MenuPopupFont::AssertValid(LegacyUlong grf)
 {
     MenuPopupFont_PAR::AssertValid(0);
 }

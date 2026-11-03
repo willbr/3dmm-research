@@ -27,45 +27,15 @@ using namespace BRender;
 //
 //	RoutePoint : A point in x,y,z along an actor's RouTE.
 //
-struct RoutePoint
-{
-    BRS dxr;
-    BRS dyr;
-    BRS dzr;
+#include "actor_data.h"
+#include "actor_track.h"
+#include "actor_state.h"
+#include "actor_timeline.h"
 
-    bool operator==(RoutePoint &xyz)
-    {
-        return ((dxr == xyz.dxr) && (dyr == xyz.dyr) && (dzr == xyz.dzr));
-    }
-    bool operator!=(RoutePoint &xyz)
-    {
-        return ((dxr != xyz.dxr) || (dyr != xyz.dyr) || (dzr != xyz.dzr));
-    }
-};
-static_assert(sizeof(RoutePoint) == 12, "RoutePoint on-disk layout drift");
-
-typedef RoutePoint *PRoutePoint;
-
-const ByteOrderMask kbomXyz = 0xfc000000;
-
-//
-// 	A RouTE is a general list (DynamicArray) of Route PoinTs(RouteDistancePoint)
-//  A Subroute is a contiguous section of a route.
-//
-struct RouteDistancePoint
-{
-    RoutePoint xyz;
-    BRS dwr; // Distance from this node to the next node on the route
-};
-static_assert(sizeof(RouteDistancePoint) == 16, "RouteDistancePoint on-disk layout drift");
-const ByteOrderMask kbomRpt = 0xff000000;
-
-const long knfrmInvalid = klwMax;                                  // invalid frame state.  Regenerate correct state
 const long kcrptGrow = 32;                                         // quantum growth for rpt
 const long kcsmmGrow = 2;                                          // quantum growth for smm
 const long kctagSndGrow = 2;                                       // quantum growth for tagSnd
 const long smmNil = -1;                                            // Not motion match sound
-const BRS kdwrNil = BR_SCALAR(-1.0);                               // flags use of template cel stepsize
 const BRS kzrDefault = BR_SCALAR(-25.0);                           // initial default z position
 const BRS kdwrMax = BR_SCALAR(32767.0);                            // large BRS value
 const ulong kdtsThreshRte = (kdtsSecond >> 2) + (kdtsSecond >> 1); // time threshhold before record in place
@@ -111,247 +81,6 @@ enum
     fmafEntireSubrte = 0x10 // position over entire subroute
 };
 
-struct RouteLocation // RouTE Location - a function of space and time
-{
-    int32_t irpt;      // The preceding node for the given point
-    BRS dwrOffset;     // Absolute linear distance beyond node irpt
-    int32_t dnfrm;     // Delta frame number (ie, time) at this point
-
-    bool operator==(RouteLocation &rtel)
-    {
-        return (irpt == rtel.irpt && dwrOffset == rtel.dwrOffset && dnfrm == rtel.dnfrm);
-    }
-
-    bool operator!=(RouteLocation &rtel)
-    {
-        return (irpt != rtel.irpt || dwrOffset != rtel.dwrOffset || dnfrm != rtel.dnfrm);
-    }
-
-    bool operator<=(RouteLocation &rtel)
-    {
-        return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm <= rtel.dnfrm))));
-    }
-
-    bool operator>=(RouteLocation &rtel)
-    {
-        return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm >= rtel.dnfrm))));
-    }
-
-    bool operator<(RouteLocation &rtel)
-    {
-        return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm < rtel.dnfrm))));
-    }
-
-    bool operator>(RouteLocation &rtel)
-    {
-        return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
-                                                           (dwrOffset == rtel.dwrOffset && dnfrm > rtel.dnfrm))));
-    }
-};
-static_assert(sizeof(RouteLocation) == 12, "RouteLocation on-disk layout drift");
-
-namespace ActorEvent {
-
-// Actor EVents are stored in a GeneralGroup (general group)
-// Fixed part of the GeneralGroup:
-struct Base
-{
-    int32_t aet;        // Actor Event Type
-    int32_t nfrm;       // Absolute frame number (* Only valid < current event)
-    RouteLocation rtel; // RouTE Location for this event
-};                      // Additional event parameters (in the GeneralGroup)
-static_assert(sizeof(Base) == 20, "ActorEvent::Base on-disk layout drift");
-typedef Base *PBase;
-
-//
-//	Actor level Event Types which live in a GeneralGroup.
-//	The fixed part of a GeneralGroup entry is an actor event (aev)
-//	The variable part is documented in the following comments
-//
-enum ActorEventType
-{
-    aetAdd,    // Add Actor onstage: aevadd - internal (no api)
-    aetActn,   // Animate Actor : aevactn
-    aetCost,   // Set Costume : aevcost
-    aetRotF,   // Transform Actor rotate: BMAT34
-    aetPull,   // Transform Actor Pull : aevpull
-    aetSize,   // Transform Actor size uniformly : BRS
-    aetSnd,    // Play a sound : aevsnd
-    aetMove,   // Translate the path at this point : RoutePoint
-    aetFreeze, // Freeze (or Un) Actor : long
-    aetTweak,  // Path tweak : RoutePoint
-    aetStep,   // Force step size (eg, float, wait) : BRS
-    aetRem,    // Remove an actor from the stage : nil
-    aetRotH,   // Single frame rotation : BMAT34
-    aetLim
-};
-
-const ByteOrderMask kbomAet = 0xc0000000;
-const ByteOrderMask kbomAev = 0xff000000;
-
-//
-//	Variable part of the Actor EVent GeneralGroup:
-//
-struct Stretch // Squash/stretch
-{
-    BRS rScaleX;
-    BRS rScaleY;
-    BRS rScaleZ;
-};
-static_assert(sizeof(Stretch) == 12, "ActorEvent::Stretch on-disk layout drift");
-const ByteOrderMask kbomAevpull = 0xfc000000;
-
-// Every subroute is normalized.  The normalization translation is
-// stored in the Add Event
-// ** nfrmPrev valid for nfrmSub <= _nfrmCur only (optimization)
-struct Add
-{
-    BRS dxr; // Translation in x for this subroute
-    BRS dyr; // Translation in y for this subroute
-    BRS dzr; // Translation in z for this subroute
-    BRA xa;  // Single point orientation
-    BRA ya;  // Single point orientation
-    BRA za;  // Single point orientation
-};
-static_assert(sizeof(Add) == 20, "ActorEvent::Add on-disk layout drift");
-const ByteOrderMask kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
-
-struct Action
-{
-    int32_t anid;
-    int32_t celn; // starting cel of action
-};
-static_assert(sizeof(Action) == 8, "ActorEvent::Action on-disk layout drift");
-const ByteOrderMask kbomAevactn = 0xf0000000;
-
-// Runtime form: embeds full TAG (with runtime pcrf). Allowed to grow on x64.
-// Marshalled to/from CostumeOnFile at the GG I/O boundary in actrsave.cpp.
-struct Costume
-{
-    int32_t ibset; // body part set
-    int32_t cmid;  // costume ID (for custom costumes)
-    tribool fCmtl; // vs fMtrl
-    TAG tag;
-};
-const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
-
-// Wire format for Costume. Fixed at 28 bytes on every architecture.
-struct CostumeOnFile
-{
-    int32_t ibset;
-    int32_t cmid;
-    tribool fCmtl;
-    TAGOnFile tag;
-};
-static_assert(sizeof(CostumeOnFile) == 28, "ActorEvent::CostumeOnFile wire format drift");
-
-// Runtime form: embeds full TAG. Allowed to grow on x64.
-struct Sound
-{
-    tribool fLoop;     // loop count
-    tribool fQueue;    // queued sound
-    int32_t vlm;       // volume
-    int32_t celn;      // motion match	: ivNil if not
-    int32_t sty;       // sound type
-    tribool fNoSound;  // no sound
-    ChildChunkID chid; // user sound requires chid
-    TAG tag;
-};
-const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
-
-// Wire format for Sound. Fixed at 44 bytes on every architecture.
-struct SoundOnFile
-{
-    tribool fLoop;
-    tribool fQueue;
-    int32_t vlm;
-    int32_t celn;
-    int32_t sty;
-    tribool fNoSound;
-    ChildChunkID chid;
-    TAGOnFile tag;
-};
-static_assert(sizeof(SoundOnFile) == 44, "ActorEvent::SoundOnFile wire format drift");
-
-const ByteOrderMask kbomAevsize = 0xc0000000;
-const ByteOrderMask kbomAevfreeze = 0xc0000000;
-const ByteOrderMask kbomAevstep = 0xc0000000;
-const ByteOrderMask kbomAevmove = kbomXyz;
-const ByteOrderMask kbomAevtweak = kbomXyz;
-const ByteOrderMask kbomAevrot = kbomBmat34;
-
-// Separate ggaev variable portion sizes
-#define kcbVarAdd (size(Add))
-#define kcbVarActn (size(Action))
-#define kcbVarCost (size(Costume))
-#define kcbVarRot (size(BMAT34))
-#define kcbVarSize (size(BRS))
-#define kcbVarPull (size(Stretch))
-#define kcbVarSnd (size(Sound))
-#define kcbVarFreeze (size(int32_t))
-#define kcbVarMove (size(RoutePoint))
-#define kcbVarTweak (size(RoutePoint))
-#define kcbVarStep (size(BRS))
-#define kcbVarZero (0)
-
-// Actor Event Flags
-enum
-{
-    faetNil = 0,
-    faetAdd = 1 << aetAdd,
-    faetActn = 1 << aetActn,
-    faetCost = 1 << aetCost,
-    faetRotF = 1 << aetRotF,
-    faetPull = 1 << aetPull,
-    faetSize = 1 << aetSize,
-    faetFreeze = 1 << aetFreeze,
-    faetTweak = 1 << aetTweak,
-    faetStep = 1 << aetStep,
-    faetRem = 1 << aetRem,
-    faetMove = 1 << aetMove,
-    faetRotH = 1 << aetRotH
-};
-
-//
-// Because rotations are non-abelian, cumulative rotations are stored
-// in a BMAT34.  It would not be correct to multiply (xa,ya,za) values
-// treating x,y,z independently.
-//
-// Bmat34Fwd does NOT include the path portion of the orientation.
-// Bmat34Cur includes all current angular rotation - path rotation is NOT post
-// applied to this.
-//
-// Careful: The task is complicated by the fact that users can apply single
-// frame and frame forward orientations in the same frame and must not see the
-// actor jump in angle when choosing between the two methods of editing.
-//
-struct FramePosition
-{
-    BMAT34 bmat34Fwd; // Rotation	fwd	: path rotation post applied to this
-    Stretch aevpull;  // Stretching (pulling) constants
-    BRS rScaleStep;   // Uniform scaling to be applied to step size
-    BMAT34 bmat34Cur; // <<Path independent>> Single frame & static segment rotation
-    BRA xaPath;       // Path portion of the current frame's rotation
-    BRA yaPath;       // Path portion of the current frame's rotation
-    BRA zaPath;       // Path portion of the current frame's rotation
-};
-
-//
-// Current action Motion Match Sounds
-// Aev & Aevsnd grouped together form a gl
-// Not to be saved with a movie
-//
-struct SoundMotionMatch
-{
-    Base aev; // event for the sound
-    Sound aevsnd;
-};
-
-} // end of namespace ActorEvent
-
 //
 // Default hilite colors
 //
@@ -375,8 +104,7 @@ class Actor : public Actor_PAR
     // Note: In addition to these components, any complete actor must
     // have either fLifeDirty set or _nfrmLast current.
     // Note: _tagTmpl cannot be derived from _ptmpl
-    PGeneralGroup _pggaev;      // GeneralGroup pointer to Actor EVent list
-    PDynamicArray _pglrpt;      // DynamicArray pointer to actor's route
+    ActorTrack _track;    // Authored route/events and their TAG references
     Template *_ptmpl;     // Actor body & action list template
     Body *_pbody;     // Actor's body
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
@@ -385,29 +113,13 @@ class Actor : public Actor_PAR
     RoutePoint _dxyzFullRte; // Origin of the route
     long _nfrmFirst;  // klwMax -or- First frame : Set	when event created
     long _arid;       // Unique id assigned to this actor.
-    ulong _grfactn;   // Cached current grfactn
 
-    // Frame Dependent State Information
-    RoutePoint _dxyzRte;            //_dxyzFullRte + _dxyzSubRte : Set when Add processed
-    RoutePoint _dxyzSubRte;         // Subpath translation : Set when Add processed
-    bool _fOnStage : 1;      // Versus Brender hidden.  Set by Add, Rem only
-    bool _fFrozen : 1;       // Path offset > 0 but not moving
+    ActorFrameState _state; // Core evaluated values
+
+    // Runtime caches and sound state
     bool _fLifeDirty : 1;    // Set if _nfrmLast requires recomputation
     bool _fPrerendered : 1;  // Set if actor is prerendered
-    bool _fUseBmat34Cur : 1; //_xfrm.bmat34Cur last used in orienting actor
-    BRS _dwrStep;            // Current step size in use
-    long _anidCur;           // Current action in template
-    long _ccelCur;           // Cached cel count.  Retrieving this was hi profile.
-    long _celnCur;           // Current cell
-    long _nfrmCur;           // Current frame number : Set by FGotoFrame
-    long _nfrmLast;          // Latest known frame for this actor.
-    long _iaevCur;           // Current event in event list
-    long _iaevFrmMin;        // First event in current frame
-    long _iaevActnCur;       // Event defining current action
-    long _iaevAddCur;        // Most recent add (useful for Compose)
-    RouteLocation _rtelCur;           // Current location on route	(excludes tweak info)
-    RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
-    ActorEvent::FramePosition _xfrm;              // Current transformation
+    LegacyLong _nfrmLast;          // Latest known frame for this actor.
     PDynamicArray _pglsmm;             // Current action motion match sounds
 
     // Path Recording State Information
@@ -432,12 +144,12 @@ class Actor : public Actor_PAR
     void _GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr);
     void _SetStateRewound(void);
 
-    bool _FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid);
-    bool _FGetRtelBack(RouteLocation *prtel, bool fUpdateStateVar);
+    bool _FApplyQuickSeekEffects();
     bool _FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame = pvNil);
     bool _FGetStatic(long anid, bool *pfStatic);
     bool _FIsDoneAevSub(long iaev, RouteLocation rtel);
     bool _FIsAddNow(long iaev);
+    ActorStepSource _StepSource() const;
     bool _FGetDwrPlay(BRS *pdwr);   // Step size if playing
     bool _FGetDwrRecord(BRS *pdwr); // Step size if recording
     bool _FDoAevCur(void);
@@ -474,13 +186,11 @@ class Actor : public Actor_PAR
     void _AdjustAevForRteIns(long irptAdjust, long iaevMin);
     void _AdjustAevForRteDel(long irptAdjust, long iaevMin);
     bool _FInsertStop(void);
-    void _CalcRteOrient(BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil, ulong *pgrfbra = pvNil);
     void _ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
-                          ulong *grfbra = pvNil);
+                          LegacyUlong *grfbra = pvNil);
     void _SaveCurPathOrien(void);
     void _LoadAddOrien(ActorEvent::Add *paevadd, bool fNoReset = fFalse);
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
-    void _UpdateXyzTan(RoutePoint *pxyz, long irptTan, long rw);
 
     void _AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
     void _GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz);
@@ -492,18 +202,12 @@ class Actor : public Actor_PAR
     bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
     void _RestoreFromUndo(PActor pactrRestore);
-    bool _FDupCopy(PActor pactrSrc, PActor pactrDest);
+    void _CopyRuntimeStateFrom(const Actor &source);
 
     bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadRoute(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
-    static void _SwapBytesPggaev(PGeneralGroup pggaev);
-    // Marshal a wire-format pggaev (CostumeOnFile/SoundOnFile variable parts)
-    // into a fresh runtime pggaev (Costume/Sound, with full TAG, pcrf=pvNil).
-    // pggOnFile must already be byteswapped to host order. Releases pggOnFile
-    // on both success and failure. Returns pvNil on failure.
-    static PGeneralGroup _PggaevMarshalFromOnFile(PGeneralGroup pggOnFile);
     bool _FOpenTags(PChunkyResourceFile pcrf);
     static bool _FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
     void _CloseTags(void);
@@ -556,7 +260,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return _pbody->FIsInView();
     }
-    void GetCenter(long *pxp, long *pyp)
+    void GetCenter(LegacyLong *pxp, LegacyLong *pyp)
     {
         AssertBaseThis(0);
         _pbody->GetCenter(pxp, pyp);
@@ -586,7 +290,7 @@ class Actor : public Actor_PAR
     bool FOnStage(void)
     {
         AssertBaseThis(0);
-        return (_fOnStage);
+        return (_state.onStage);
     }
     bool FIsMyBody(Body *pbody)
     {
@@ -617,17 +321,17 @@ class Actor : public Actor_PAR
     long AnidCur(void)
     {
         AssertBaseThis(0);
-        return _anidCur;
+        return _state.action;
     }
     long CelnCur(void)
     {
         AssertBaseThis(0);
-        return _celnCur;
+        return _state.cel;
     }
     bool FFrozen(void)
     {
         AssertBaseThis(0);
-        return _fFrozen;
+        return _state.frozen;
     }
     bool FGetLifetime(long *pnfrmFirst, long *pnfrmLast); // allows nil ptrs
     bool FPtIn(long xp, long yp, long *pibset);

@@ -18,7 +18,7 @@ RTCLASS(SoundManager)
 RTCLASS(SoundManagerQueue)
 RTCLASS(SoundQueue)
 
-long SoundDevice::_siiLast;
+LegacyLong SoundDevice::_siiLast;
 
 /***************************************************************************
     This is the volume to use as the system volume if it is determined
@@ -29,7 +29,7 @@ long SoundDevice::_siiLast;
     reading is valid should set this so other devices can use the same
     value.
 ***************************************************************************/
-ulong vluSysVolFake = (ulong)-1;
+LegacyUlong vluSysVolFake = (LegacyUlong)-1;
 
 /***************************************************************************
     Start a synchronized group.
@@ -59,7 +59,7 @@ SoundManager::~SoundManager(void)
 {
     AssertBaseThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     if (pvNil != _pglsndmpe)
     {
@@ -76,7 +76,7 @@ SoundManager::~SoundManager(void)
 /***************************************************************************
     Assert the validity of a SoundManager.
 ***************************************************************************/
-void SoundManager::AssertValid(ulong grf)
+void SoundManager::AssertValid(LegacyUlong grf)
 {
     SoundManager_PAR::AssertValid(0);
     AssertPo(_pglsndmpe, 0);
@@ -88,7 +88,7 @@ void SoundManager::AssertValid(ulong grf)
 void SoundManager::MarkMem(void)
 {
     AssertValid(0);
-    long isndmpe;
+    LegacyLong isndmpe;
     SNDMPE sndmpe;
 
     SoundManager_PAR::MarkMem();
@@ -138,12 +138,12 @@ bool SoundManager::_FInit(void)
 /***************************************************************************
     Find the device that sounds of the given ctg are to be played on.
 ***************************************************************************/
-bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, long *pisndmpe)
+bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe)
 {
     AssertThis(0);
     AssertNilOrVarMem(psndmpe);
     AssertNilOrVarMem(pisndmpe);
-    long isndmpe;
+    LegacyLong isndmpe;
     SNDMPE sndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
@@ -173,8 +173,8 @@ bool SoundManager::FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv)
     AssertThis(0);
     AssertPo(psndv, 0);
     SNDMPE sndmpe;
-    long isndmpe;
-    long cact;
+    LegacyLong isndmpe;
+    LegacyLong cact;
 
     psndv->AddRef();
     if (_FFindCtg(ctg, &sndmpe, &isndmpe))
@@ -221,7 +221,7 @@ void SoundManager::RemoveSndv(ChunkTagOrType ctg)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     if (!_FFindCtg(ctg, &sndmpe, &isndmpe))
         return;
@@ -247,7 +247,7 @@ void SoundManager::Activate(bool fActive)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     if (FPure(fActive) == FPure(_fActive))
         return;
@@ -267,7 +267,7 @@ void SoundManager::Suspend(bool fSuspend)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     if (fSuspend)
         _cactSuspend++;
@@ -285,11 +285,11 @@ void SoundManager::Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume of all the devices.
 ***************************************************************************/
-void SoundManager::SetVlm(long vlm)
+void SoundManager::SetVlm(LegacyLong vlm)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -301,12 +301,12 @@ void SoundManager::SetVlm(long vlm)
 /***************************************************************************
     Get the max of the volumes of all the devices.
 ***************************************************************************/
-long SoundManager::VlmCur(void)
+LegacyLong SoundManager::VlmCur(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
-    long vlm;
+    LegacyLong isndmpe;
+    LegacyLong vlm;
 
     vlm = 0;
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
@@ -321,7 +321,7 @@ long SoundManager::VlmCur(void)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-long SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+LegacyLong SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -336,11 +336,11 @@ long SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber 
 /***************************************************************************
     Stop the given sound instance.
 ***************************************************************************/
-void SoundManager::Stop(long sii)
+void SoundManager::Stop(LegacyLong sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -352,11 +352,11 @@ void SoundManager::Stop(long sii)
 /***************************************************************************
     Stop all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SoundManager::StopAll(long sqn, long scl)
+void SoundManager::StopAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -368,11 +368,11 @@ void SoundManager::StopAll(long sqn, long scl)
 /***************************************************************************
     Pause the given sound.
 ***************************************************************************/
-void SoundManager::Pause(long sii)
+void SoundManager::Pause(LegacyLong sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -384,11 +384,11 @@ void SoundManager::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SoundManager::PauseAll(long sqn, long scl)
+void SoundManager::PauseAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -400,11 +400,11 @@ void SoundManager::PauseAll(long sqn, long scl)
 /***************************************************************************
     Resume the given sound.
 ***************************************************************************/
-void SoundManager::Resume(long sii)
+void SoundManager::Resume(LegacyLong sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -416,11 +416,11 @@ void SoundManager::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SoundManager::ResumeAll(long sqn, long scl)
+void SoundManager::ResumeAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -432,11 +432,11 @@ void SoundManager::ResumeAll(long sqn, long scl)
 /***************************************************************************
     Return whether the given sound is playing.
 ***************************************************************************/
-bool SoundManager::FPlaying(long sii)
+bool SoundManager::FPlaying(LegacyLong sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -452,11 +452,11 @@ bool SoundManager::FPlaying(long sii)
     Return whether any sounds of the given queue and class are playing
     (one or both of (sqn, scl) may be nil).
 ***************************************************************************/
-bool SoundManager::FPlayingAll(long sqn, long scl)
+bool SoundManager::FPlayingAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -475,7 +475,7 @@ void SoundManager::Flush(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -491,7 +491,7 @@ void SoundManager::BeginSynch(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -507,7 +507,7 @@ void SoundManager::EndSynch(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
-    long isndmpe;
+    LegacyLong isndmpe;
 
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -526,7 +526,7 @@ void SoundManager::EndSynch(void)
 SoundManagerQueue::~SoundManagerQueue(void)
 {
     AssertBaseThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     if (pvNil != _pglsnqd)
@@ -544,7 +544,7 @@ SoundManagerQueue::~SoundManagerQueue(void)
 /***************************************************************************
     Assert the validity of a SoundManagerQueue.
 ***************************************************************************/
-void SoundManagerQueue::AssertValid(ulong grf)
+void SoundManagerQueue::AssertValid(LegacyUlong grf)
 {
     SoundManagerQueue_PAR::AssertValid(0);
     AssertPo(_pglsnqd, 0);
@@ -556,7 +556,7 @@ void SoundManagerQueue::AssertValid(ulong grf)
 void SoundManagerQueue::MarkMem(void)
 {
     AssertValid(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     SoundManagerQueue_PAR::MarkMem();
@@ -588,13 +588,13 @@ bool SoundManagerQueue::_FInit(void)
 /***************************************************************************
     Ensure a queue exists for the given sqn and return it.
 ***************************************************************************/
-bool SoundManagerQueue::_FEnsureQueue(long sqn, SNQD *psnqd, long *pisnqd)
+bool SoundManagerQueue::_FEnsureQueue(LegacyLong sqn, SNQD *psnqd, LegacyLong *pisnqd)
 {
     AssertThis(0);
     AssertNilOrVarMem(psnqd);
     AssertNilOrVarMem(pisnqd);
 
-    long isnqd, isnqdEmpty;
+    LegacyLong isnqd, isnqdEmpty;
     SNQD snqd;
 
     isnqdEmpty = ivNil;
@@ -684,13 +684,13 @@ void SoundManagerQueue::Suspend(bool fSuspend)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-long SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+LegacyLong SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
-    long sii = _SiiAlloc();
+    LegacyLong sii = _SiiAlloc();
 
     if (sqn == sqnNil)
         sqn = ksqnNone;
@@ -708,10 +708,10 @@ long SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNu
 /***************************************************************************
     Stop the given sound instance.
 ***************************************************************************/
-void SoundManagerQueue::Stop(long sii)
+void SoundManagerQueue::Stop(LegacyLong sii)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -724,10 +724,10 @@ void SoundManagerQueue::Stop(long sii)
 /***************************************************************************
     Stop all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SoundManagerQueue::StopAll(long sqn, long scl)
+void SoundManagerQueue::StopAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -741,10 +741,10 @@ void SoundManagerQueue::StopAll(long sqn, long scl)
 /***************************************************************************
     Pause the given sound.
 ***************************************************************************/
-void SoundManagerQueue::Pause(long sii)
+void SoundManagerQueue::Pause(LegacyLong sii)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -757,10 +757,10 @@ void SoundManagerQueue::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SoundManagerQueue::PauseAll(long sqn, long scl)
+void SoundManagerQueue::PauseAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -774,10 +774,10 @@ void SoundManagerQueue::PauseAll(long sqn, long scl)
 /***************************************************************************
     Resume the given sound.
 ***************************************************************************/
-void SoundManagerQueue::Resume(long sii)
+void SoundManagerQueue::Resume(LegacyLong sii)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -790,10 +790,10 @@ void SoundManagerQueue::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SoundManagerQueue::ResumeAll(long sqn, long scl)
+void SoundManagerQueue::ResumeAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -807,10 +807,10 @@ void SoundManagerQueue::ResumeAll(long sqn, long scl)
 /***************************************************************************
     Return whether the given sound is playing.
 ***************************************************************************/
-bool SoundManagerQueue::FPlaying(long sii)
+bool SoundManagerQueue::FPlaying(LegacyLong sii)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -827,10 +827,10 @@ bool SoundManagerQueue::FPlaying(long sii)
     Return whether any sounds of the given queue and class are playing
     (one or both of (sqn, scl) may be nil).
 ***************************************************************************/
-bool SoundManagerQueue::FPlayingAll(long sqn, long scl)
+bool SoundManagerQueue::FPlayingAll(LegacyLong sqn, LegacyLong scl)
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
@@ -851,7 +851,7 @@ bool SoundManagerQueue::FPlayingAll(long sqn, long scl)
 void SoundManagerQueue::Flush()
 {
     AssertThis(0);
-    long isnqd;
+    LegacyLong isnqd;
     SNQD snqd;
 
     // Don't free the last channel
@@ -884,7 +884,7 @@ SoundQueue::~SoundQueue(void)
     _Enter();
     if (pvNil != _pglsndin)
     {
-        long isndin;
+        LegacyLong isndin;
         SNDIN sndin;
 
         for (isndin = _pglsndin->IvMac(); isndin-- > 0;)
@@ -901,7 +901,7 @@ SoundQueue::~SoundQueue(void)
 /***************************************************************************
     Assert the validity of a SoundQueue.
 ***************************************************************************/
-void SoundQueue::AssertValid(ulong grf)
+void SoundQueue::AssertValid(LegacyUlong grf)
 {
     SoundQueue_PAR::AssertValid(0);
 
@@ -917,7 +917,7 @@ void SoundQueue::AssertValid(ulong grf)
 void SoundQueue::MarkMem(void)
 {
     AssertValid(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
 
     SoundQueue_PAR::MarkMem();
@@ -989,12 +989,12 @@ void SoundQueue::_Flush(void)
 /***************************************************************************
     Put the given sound on the queue.
 ***************************************************************************/
-void SoundQueue::Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+void SoundQueue::Enqueue(LegacyLong sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
     SNDIN sndin;
-    long isndin;
+    LegacyLong isndin;
 
     if (pvNil == (sndin.pbaco = _PbacoFetch(prca, ctg, cno)))
         return;
@@ -1024,11 +1024,11 @@ void SoundQueue::Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, Chun
 /***************************************************************************
     Return the priority of the frontmost sound in the queue.
 ***************************************************************************/
-long SoundQueue::SprCur(void)
+LegacyLong SoundQueue::SprCur(void)
 {
     AssertThis(0);
     SNDIN sndin;
-    long spr;
+    LegacyLong spr;
 
     _Enter();
     _Flush();
@@ -1048,10 +1048,10 @@ long SoundQueue::SprCur(void)
 /***************************************************************************
     If the given sound is in our queue, nuke it.
 ***************************************************************************/
-void SoundQueue::Stop(long sii)
+void SoundQueue::Stop(LegacyLong sii)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
 
     _Enter();
@@ -1080,12 +1080,12 @@ void SoundQueue::Stop(long sii)
 /***************************************************************************
     Nuke all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SoundQueue::StopAll(long scl)
+void SoundQueue::StopAll(LegacyLong scl)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
-    long isndinMin = klwMax;
+    LegacyLong isndinMin = klwMax;
 
     _Enter();
     _Flush();
@@ -1110,10 +1110,10 @@ void SoundQueue::StopAll(long scl)
 /***************************************************************************
     If the given sound is in our queue, pause it.
 ***************************************************************************/
-void SoundQueue::Pause(long sii)
+void SoundQueue::Pause(LegacyLong sii)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
 
     _Enter();
@@ -1143,12 +1143,12 @@ void SoundQueue::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SoundQueue::PauseAll(long scl)
+void SoundQueue::PauseAll(LegacyLong scl)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
-    long isndinMin = klwMax;
+    LegacyLong isndinMin = klwMax;
 
     _Enter();
     _Flush();
@@ -1173,10 +1173,10 @@ void SoundQueue::PauseAll(long scl)
 /***************************************************************************
     If the given sound is in our queue, make sure it's not paused.
 ***************************************************************************/
-void SoundQueue::Resume(long sii)
+void SoundQueue::Resume(LegacyLong sii)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
 
     _Enter();
@@ -1206,12 +1206,12 @@ void SoundQueue::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SoundQueue::ResumeAll(long scl)
+void SoundQueue::ResumeAll(LegacyLong scl)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
-    long isndinMin = klwMax;
+    LegacyLong isndinMin = klwMax;
 
     _Enter();
     _Flush();
@@ -1236,10 +1236,10 @@ void SoundQueue::ResumeAll(long scl)
 /***************************************************************************
     Return whether the given sound is in our queue.
 ***************************************************************************/
-bool SoundQueue::FPlaying(long sii)
+bool SoundQueue::FPlaying(LegacyLong sii)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
 
     _Enter();
@@ -1264,10 +1264,10 @@ bool SoundQueue::FPlaying(long sii)
     Return whether any sounds of the given sound class are in our queue.
     sclNil means any sounds at all.
 ***************************************************************************/
-bool SoundQueue::FPlayingAll(long scl)
+bool SoundQueue::FPlayingAll(LegacyLong scl)
 {
     AssertThis(0);
-    long isndin;
+    LegacyLong isndin;
     SNDIN sndin;
 
     _Enter();
@@ -1302,10 +1302,10 @@ void SoundQueue::Flush(void)
 /***************************************************************************
     Scale the given system volume by the given Kauai volume.
 ***************************************************************************/
-ulong LuVolScale(ulong luVol, long vlm)
+LegacyUlong LuVolScale(LegacyUlong luVol, LegacyLong vlm)
 {
     Assert(kvlmFull == 0x10000, "this code assumes kvlmFull is 0x10000");
-    ulong luHigh, luLow;
+    LegacyUlong luHigh, luLow;
     ushort suHigh, suLow;
 
     MulLu(SuLow(luVol), vlm, &luHigh, &luLow);

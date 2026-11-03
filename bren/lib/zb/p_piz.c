@@ -240,5 +240,3 @@ void BR_ASM_CALL PointRenderPIZ2_RGB_555(struct temp_vertex_fixed *tvp) {
 void BR_ASM_CALL PointRenderPIZ2T_RGB_555(struct temp_vertex_fixed *tvp) {
   PointRenderPIZ2_Generic_RGB_555(LINE_TEXTURE,tvp);
 }
-
-

@@ -547,7 +547,7 @@ void BrowserMusic::_ApplySelection(long thumSelect, long sid)
     PKidspaceGraphicObject pgok;
     PMovieView pmvu;
     TAG tag;
-    BOOL fClick = fTrue;
+    bool fClick = fTrue;
 
     pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     AssertPo(pmvu, 0);

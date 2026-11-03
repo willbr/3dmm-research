@@ -15,6 +15,10 @@
 ***************************************************************************/
 #ifndef GOB_H
 #define GOB_H
+#include "gfx.h"
+#include "cmd.h"
+class Cursor;
+typedef Cursor *PCursor;
 
 enum
 {
@@ -39,40 +43,10 @@ enum
 const long krelOne = 0x00010000L; // denominator for relative rectangles
 const long krelZero = 0;
 
-#ifdef MAC
-inline void GetClientRect(HWND hwnd, SystemRectangle *prcs)
-{
-    *prcs = hwnd->port.portRect;
-}
-inline void InvalHwndRcs(HWND hwnd, SystemRectangle *prcs)
-{
-    PPRT pprt;
-
-    GetPort(&pprt);
-    SetPort(&hwnd->port);
-    InvalRect(prcs);
-    SetPort(pprt);
-}
-inline void ValidHwndRcs(HWND hwnd, SystemRectangle *prcs)
-{
-    PPRT pprt;
-
-    GetPort(&pprt);
-    SetPort(&hwnd->port);
-    ValidRect(prcs);
-    SetPort(pprt);
-}
-#endif // MAC
-#ifdef WIN
-inline void InvalHwndRcs(HWND hwnd, SystemRectangle *prcs)
-{
-    InvalidateRect(hwnd, prcs, fFalse);
-}
-inline void ValidHwndRcs(HWND hwnd, SystemRectangle *prcs)
-{
-    ValidateRect(hwnd, prcs);
-}
-#endif // WIN
+// Native invalidation adapters are implemented by the GUI backend. Public
+// object declarations keep window identities and rectangles opaque.
+void InvalHwndRcs(CoreNative::WindowHandle, CoreNative::Rectangle *);
+void ValidHwndRcs(CoreNative::WindowHandle, CoreNative::Rectangle *);
 
 // coordinates
 enum
@@ -126,7 +100,7 @@ class GraphicsObject : public GraphicsObject_PAR
   private:
     static PGraphicsObject _pgobScreen;
 
-    HWND _hwnd;   // the OS window (may be nil)
+    CoreNative::WindowHandle _hwnd;   // the OS window (may be nil)
     PGraphicsPort _pgpt;   // the graphics port (may be shared with _pgobPar)
     PCursor _pcurs; // the cursor to show over this gob
 
@@ -144,7 +118,10 @@ class GraphicsObject : public GraphicsObject_PAR
     PDynamicArray _pglrtvm;
 
     void _SetRcCur(void);
-    HWND _HwndGetDptFromCoo(PT *pdpt, long coo);
+    CoreNative::WindowHandle _HwndGetDptFromCoo(PT *pdpt, long coo);
+#ifdef KAUAI_SDL3
+    bool _FMapSDLPoint(PT *, long cooSrc, long cooDst);
+#endif
 
   protected:
     static long _ginDefGob;
@@ -157,11 +134,12 @@ class GraphicsObject : public GraphicsObject_PAR
 
     ~GraphicsObject(void);
 
-    static HWND _HwndNewMdi(PString pstnTitle);
-    static void _DestroyHwnd(HWND hwnd);
+    static CoreNative::WindowHandle _HwndApp();
+    static CoreNative::WindowHandle _HwndNewMdi(PString pstnTitle);
+    static void _DestroyHwnd(CoreNative::WindowHandle hwnd);
 
     void _Init(PGraphicsObjectBlock pgcb);
-    HWND _HwndGetRc(RC *prc);
+    CoreNative::WindowHandle _HwndGetRc(RC *prc);
     virtual void _NewRc(void)
     {
     }
@@ -176,12 +154,12 @@ class GraphicsObject : public GraphicsObject_PAR
     {
         return _pgobScreen;
     }
-    static PGraphicsObject PgobFromHwnd(HWND hwnd);
+    static PGraphicsObject PgobFromHwnd(CoreNative::WindowHandle hwnd);
     static PGraphicsObject PgobFromClsScr(long cls);
     static PGraphicsObject PgobFromHidScr(long hid);
-    static void MakeHwndActive(HWND hwnd);
-    static void ActivateHwnd(HWND hwnd, bool fActive);
-    static HWND HwndMdiActive(void);
+    static void MakeHwndActive(CoreNative::WindowHandle hwnd);
+    static void ActivateHwnd(CoreNative::WindowHandle hwnd, bool fActive);
+    static CoreNative::WindowHandle HwndMdiActive(void);
     static PGraphicsObject PgobMdiActive(void);
     static PGraphicsObject PgobFromPtGlobal(long xp, long yp, PT *pptLocal = pvNil);
     static long GinDefault(void)
@@ -194,13 +172,13 @@ class GraphicsObject : public GraphicsObject_PAR
     virtual void Release(void);
 
     // hwnd stuff
-    bool FAttachHwnd(HWND hwnd);
+    bool FAttachHwnd(CoreNative::WindowHandle hwnd);
     bool FCreateAndAttachMdi(PString pstnTitle);
-    HWND Hwnd(void)
+    CoreNative::WindowHandle Hwnd(void)
     {
         return _hwnd;
     }
-    HWND HwndContainer(void);
+    CoreNative::WindowHandle HwndContainer(void);
     virtual void GetMinMax(RC *prcMinMax);
     void SetHwndName(PString pstn);
 

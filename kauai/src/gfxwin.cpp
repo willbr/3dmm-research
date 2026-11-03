@@ -10,8 +10,19 @@
     Windows specific graphics routines.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "pixel_canvas.h"
+#include "pixel_buffer.h"
+#include "palette_state.h"
+#include <cstring>
+#include "dib_frame.h"
+#include "font_gdi.h"
+#endif
 #include "frame.h"
 ASSERTNAME
+// The enumeration callback is native implementation detail, not font API.
+int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam);
 
 const SCR kscrBlack = PALETTERGB(0, 0, 0);
 const SCR kscrWhite = PALETTERGB(0xFF, 0xFF, 0xFF);
@@ -24,7 +35,14 @@ long GraphicsPort::_cactPalCur = 0;
 long GraphicsPort::_cactFlush = 1;
 bool GraphicsPort::_fPalettized = fFalse;
 
+#ifdef KAUAI_SDL3
 #ifdef DEBUG
+bool GraphicsPort::_fFlushGdi;
+#endif
+bool GraphicsPort::_fIdentityPaletteRequested;
+long GraphicsPort::_cIndexedPortsCreated, GraphicsPort::_cIndexedContextsCreated, GraphicsPort::_cIndexedMirrorsCreated;
+#define _Flush() _FlushNativePixels()
+#elif defined(DEBUG)
 bool GraphicsPort::_fFlushGdi;
 #define _Flush()                                                                                                       \
     if (_fFlushGdi)                                                                                                    \
@@ -83,6 +101,119 @@ void GraphicsPort::Flush(void)
     GdiFlush();
     _cactFlush++;
 }
+#ifdef KAUAI_SDL3
+bool GraphicsPort::_FEnsureNativeContext()
+{
+    if (_hdc)
+        return true;
+    Assert(_pixelBuffer, "No native context for this port");
+    if (_fUseIdentityPalette && !_FEnsureIdentityPalette())
+        return false;
+    auto context = CreateCompatibleDC(vwig.hdcApp);
+    if (!context)
+    {
+        PushErc(ercOomGdi);
+        return false;
+    }
+    if (!_FInit(context))
+    {
+        DeleteDC(context);
+        _hdc = nullptr;
+        return false;
+    }
+    SelectPalette(_hdc, _fUseIdentityPalette ? _hpalIdentity : hNil, fFalse);
+    RealizePalette(_hdc);
+    _fNewClip = true;
+    if (_cbitPixel == 1) SetBkColor(_hdc, _monoBackground);
+    if (_cbitPixel == 8)
+        ++_cIndexedContextsCreated;
+    return true;
+}
+bool GraphicsPort::_FEnsureNativePixels()
+{
+    if (!_pixelBuffer || _prgbNative)
+        return true;
+    if (!_FEnsureNativeContext())
+        return false;
+
+    Assert(_pixelBuffer->Depth() == _cbitPixel, "Unexpected lazy bitmap format");
+    struct
+    {
+        BITMAPINFOHEADER header;
+        RGBQUAD colors[256];
+    } info = {};
+    info.header.biSize = sizeof(BITMAPINFOHEADER);
+    info.header.biWidth = _rcOff.Dxp();
+    info.header.biHeight = -_rcOff.Dyp();
+    info.header.biPlanes = 1;
+    info.header.biBitCount = static_cast<WORD>(_cbitPixel);
+    info.header.biCompression = (_cbitPixel == 16 || _cbitPixel == 32) ? BI_BITFIELDS : BI_RGB;
+    info.header.biSizeImage = static_cast<DWORD>(_pixelBuffer->Bytes());
+    if (_cbitPixel == 16 || _cbitPixel == 32)
+    {
+        auto masks = reinterpret_cast<DWORD *>(info.colors);
+        masks[0] = _cbitPixel == 16 ? 0x7C00 : 0x00FF0000;
+        masks[1] = _cbitPixel == 16 ? 0x03E0 : 0x0000FF00;
+        masks[2] = _cbitPixel == 16 ? 0x001F : 0x000000FF;
+    }
+    else if (_cbitPixel <= 8)
+    {
+        info.header.biClrUsed = 1u << _cbitPixel;
+        CopyPb(_rgclrPixels, info.colors, info.header.biClrUsed * sizeof(Color));
+    }
+    void *pixels = nullptr;
+    auto bitmap = CreateDIBSection(_hdc, reinterpret_cast<BITMAPINFO *>(&info), DIB_RGB_COLORS, &pixels, nullptr, 0);
+    if (!bitmap)
+    {
+        PushErc(ercGfxCantDraw);
+        return false;
+    }
+    auto previous = SelectObject(_hdc, bitmap);
+    if (!previous || previous == HGDI_ERROR)
+    {
+        DeleteObject(bitmap);
+        PushErc(ercGfxCantDraw);
+        return false;
+    }
+    DeleteObject(previous);
+    _hbmp = bitmap;
+    _prgbNative = static_cast<byte *>(pixels);
+    _fNewClip = true;
+    if (_cbitPixel == 8)
+        ++_cIndexedMirrorsCreated;
+    return true;
+}
+bool GraphicsPort::_UploadNativePixels()
+{
+    if (!_FEnsureNativePixels())
+        return false;
+    if (_pixelBuffer)
+    {
+        Flush();
+        CopyPb(_prgbPixels, _prgbNative, static_cast<long>(_pixelBuffer->Bytes()));
+    }
+    return true;
+}
+void GraphicsPort::_FlushNativePixels()
+{
+    if (_pixelBuffer)
+    {
+        if (!_prgbNative)
+            return;
+        Flush();
+        CopyPb(_prgbNative, _prgbPixels, static_cast<long>(_pixelBuffer->Bytes()));
+        return;
+    }
+#ifdef DEBUG
+    if (_fFlushGdi)
+    {
+        Flush();
+        return;
+    }
+#endif
+    _cactDraw = _cactFlush;
+}
+#endif
 
 /***************************************************************************
     These are the standard windows static colors. We use these on
@@ -118,6 +249,27 @@ void GraphicsPort::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
 {
     AssertNilOrPo(pglclr, 0);
     Assert(pvNil == pglclr || pglclr->CbEntry() == size(Color), "wrong CbEntry");
+#ifdef KAUAI_SDL3
+    static KauaiPixels::PaletteState palette;
+    static_assert(fpalIdentity == KauaiPixels::paletteIdentity && fpalInitAnim == KauaiPixels::paletteInitAnimation &&
+                      fpalAnimate == KauaiPixels::paletteAnimate,
+                  "Palette flags changed");
+    if (!_prgclr && !FAllocPv(reinterpret_cast<void **>(&_prgclr), 256 * size(Color), fmemClear, mprNormal))
+    {
+        PushErc(ercGfxCantSetPalette);
+        return;
+    }
+    const auto count = pglclr ? pglclr->IvMac() : 0;
+    const auto change = palette.Set(count ? static_cast<const Color *>(pglclr->QvGet(0)) : nullptr,
+                                    static_cast<std::size_t>(count), grfpal);
+    if (change != KauaiPixels::PaletteChange::changed)
+        return;
+    std::memcpy(_prgclr, palette.Colors(), 256 * sizeof(Color));
+    _cclrPal = static_cast<long>(palette.Count());
+    _fPalettized = fFalse; // SDL presents RGB pixels independently of the desktop palette.
+    ++_cactPalCur;
+    ++vcactRealize;
+#else
     byte rgb[size(LOGPALETTE) + 256 * size(PALETTEENTRY)];
     LOGPALETTE *ppal = (LOGPALETTE *)rgb;
     PALETTEENTRY pe;
@@ -276,6 +428,7 @@ void GraphicsPort::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
 LDone:
     _cactPalCur++;
     vcactRealize++;
+#endif
 }
 
 /***************************************************************************
@@ -289,7 +442,8 @@ PDynamicArray GraphicsPort::PglclrGetPalette(void)
         return pvNil;
 
     AssertDo(pglclr->FSetIvMac(_cclrPal), 0);
-    CopyPb(_prgclr, pglclr->QvGet(0), LwMul(size(Color), _cclrPal));
+    if (_cclrPal)
+        CopyPb(_prgclr, pglclr->QvGet(0), LwMul(size(Color), _cclrPal));
     return pglclr;
 }
 
@@ -362,6 +516,15 @@ PGraphicsPort GraphicsPort::PgptNew(HDC hdc)
 PGraphicsPort GraphicsPort::PgptNewHwnd(HWND hwnd)
 {
     Assert(hNil != hwnd, "Null hwnd");
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        auto port = PgptNewSDLWindow(hwnd);
+        if (port)
+            port->_hwnd = hwnd;
+        return port;
+    }
+#endif
     HDC hdc;
     PGraphicsPort pgpt;
 
@@ -423,6 +586,12 @@ bool GraphicsPort::_FInit(HDC hdc)
 ***************************************************************************/
 GraphicsPort::~GraphicsPort(void)
 {
+#ifdef KAUAI_SDL3
+    const bool ownedPixels = _pixelBuffer != nullptr;
+    delete _fontFace;
+    KauaiSDL::Main().UnbindPixels(_prgbPixels);
+    delete _pixelBuffer;
+#endif
     Assert(_cactLock == 0, "pixels are still locked!");
     if (_fMetaFile)
     {
@@ -436,10 +605,16 @@ GraphicsPort::~GraphicsPort(void)
         }
         goto LDeleteObjects;
     }
-    if (hNil != _hbmp)
+    if (hNil != _hbmp
+#ifdef KAUAI_SDL3
+        || ownedPixels
+#endif
+    )
     {
-        DeleteDC(_hdc);
-        DeleteObject(_hbmp);
+        if (hNil != _hdc)
+            DeleteDC(_hdc);
+        if (hNil != _hbmp)
+            DeleteObject(_hbmp);
 
     LDeleteObjects:
         if (hNil != _hbr)
@@ -476,6 +651,27 @@ SCR GraphicsPort::_Scr(AbstractColor acr)
     return RGB(clr.bRed, clr.bGreen, clr.bBlue);
 }
 
+bool GraphicsPort::_FEnsureIdentityPalette()
+{
+    if (_hpalIdentity != hNil)
+        return true;
+    LOGPALETTE *palette;
+    if (!FAllocPv(reinterpret_cast<void **>(&palette), size(LOGPALETTE) + 256 * size(PALETTEENTRY), fmemNil, mprNormal))
+        return false;
+    palette->palVersion = 0x0300;
+    palette->palNumEntries = 256;
+    for (int index = 0; index < 256; ++index)
+    {
+        auto &entry = palette->palPalEntry[index];
+        entry.peRed = static_cast<byte>(index);
+        entry.peGreen = entry.peBlue = 0;
+        entry.peFlags = PC_EXPLICIT;
+    }
+    _hpalIdentity = CreatePalette(palette);
+    FreePpv(reinterpret_cast<void **>(&palette));
+    return _hpalIdentity != hNil;
+}
+
 /***************************************************************************
     Static method to create an offscreen port.
 ***************************************************************************/
@@ -489,10 +685,54 @@ PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
     BITMAPINFO *pbmi;
     long cclr, cbRow, lwUsage;
     void *pvBits;
+#ifdef KAUAI_SDL3
+    const auto width = std::int64_t(prc->xpRight) - prc->xpLeft;
+    const auto height = std::int64_t(prc->ypBottom) - prc->ypTop;
+    if (width <= 0 || height <= 0 || width > INT32_MAX || height > INT32_MAX)
+        return pvNil;
+    std::unique_ptr<KauaiPixels::PixelBuffer> storage(new (std::nothrow) KauaiPixels::PixelBuffer);
+    if (!storage || !storage->Init(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height), cbitPixel))
+        return pvNil;
+#endif
 
     // assert that cbitPixel is in {1,4,8,16,24,32}
     AssertIn(cbitPixel, 1, 33);
     AssertVar(cbitPixel == 32 || (1L << cbitPixel) & 0x01010112, "bad cbitPixel value", &cbitPixel);
+
+#ifdef KAUAI_SDL3
+    // Four/eight-bit ports without an application palette retain the original
+    // Windows device-palette bootstrap. Other layouts need no native allocation.
+    if (cbitPixel == 1 || cbitPixel > 8 || _prgclr)
+    {
+        pgpt = NewObj GraphicsPort;
+        if (!pgpt)
+            return pvNil;
+        pgpt->_pixelBuffer = storage.release();
+        pgpt->_prgbPixels = static_cast<byte *>(pgpt->_pixelBuffer->Pixels());
+        pgpt->_cbitPixel = cbitPixel;
+        pgpt->_cbRow = pgpt->_pixelBuffer->Pitch();
+        pgpt->_ptBase = prc->PtTopLeft();
+        pgpt->_rcOff = *prc;
+        pgpt->_rcOff.OffsetToOrigin();
+        pgpt->_dsf.tah = tahLim;
+        pgpt->_dsf.tav = tavLim;
+        pgpt->_rcClip.Max();
+        if (cbitPixel == 1)
+            pgpt->_rgclrPixels[1] = {255, 255, 255, 0};
+        else if (cbitPixel <= 8)
+        {
+            if (cbitPixel == 8)
+                ++_cIndexedPortsCreated;
+            _fIdentityPaletteRequested = true;
+            CopyPb(_prgclr, pgpt->_rgclrPixels, LwMul(LwMin(1L << cbitPixel, _cclrPal), size(Color)));
+            for (auto &color : pgpt->_rgclrPixels)
+                color.bZero = 0;
+        }
+        pgpt->_fUseIdentityPalette = _fIdentityPaletteRequested || _hpalIdentity != hNil;
+        pgpt->_cactPal = _cactPalCur;
+        return pgpt;
+    }
+#endif
 
     hdc = CreateCompatibleDC(vwig.hdcApp);
     if (hNil == hdc)
@@ -517,8 +757,13 @@ PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
     pbmi->bmiHeader.biPlanes = 1;
     pbmi->bmiHeader.biBitCount = (short)cbitPixel;
     pbmi->bmiHeader.biCompression = (cbitPixel == 16 || cbitPixel == 32) ? BI_BITFIELDS : BI_RGB;
+#ifdef KAUAI_SDL3
+    cbRow = storage->Pitch();
+    pbmi->bmiHeader.biSizeImage = static_cast<DWORD>(storage->Bytes());
+#else
     cbRow = LwRoundAway(LwMulDivAway(prc->Dxp(), cbitPixel, 8), size(long));
     pbmi->bmiHeader.biSizeImage = LwMul(prc->Dyp(), cbRow);
+#endif
     pbmi->bmiHeader.biXPelsPerMeter = 0;
     pbmi->bmiHeader.biYPelsPerMeter = 0;
     pbmi->bmiHeader.biClrUsed = cclr;
@@ -551,34 +796,10 @@ PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
     }
     else
     {
-        if (_hpalIdentity == hNil)
+        if (!_FEnsureIdentityPalette())
         {
-            LOGPALETTE *ppal;
-            PALETTEENTRY pe;
-            long ipe;
-
-            if (!FAllocPv((void **)&ppal, size(LOGPALETTE) + 256 * size(PALETTEENTRY), fmemNil, mprNormal))
-            {
-                FreePpv((void **)&pbmi);
-                goto LFail;
-            }
-
-            ppal->palVersion = 0x0300;
-            pe.peRed = pe.peGreen = pe.peBlue = 0;
-            pe.peFlags = PC_EXPLICIT;
-            for (ipe = 0; ipe < 256; ipe++)
-            {
-                *(short *)&pe = (short)ipe;
-                ppal->palPalEntry[ipe] = pe;
-            }
-            ppal->palNumEntries = 256;
-            _hpalIdentity = CreatePalette(ppal);
-            FreePpv((void **)&ppal);
-            if (_hpalIdentity == hNil)
-            {
-                FreePpv((void **)&pbmi);
-                goto LFail;
-            }
+            FreePpv((void **)&pbmi);
+            goto LFail;
         }
         if (_prgclr != pvNil)
         {
@@ -626,6 +847,21 @@ PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
     RealizePalette(hdc);
     pgpt->_cactPal = _cactPalCur;
 
+#ifdef KAUAI_SDL3
+    pgpt->_pixelBuffer = storage.release();
+    pgpt->_prgbNative = pgpt->_prgbPixels;
+    pgpt->_prgbPixels = static_cast<byte *>(pgpt->_pixelBuffer->Pixels());
+    CopyPb(pgpt->_prgbNative, pgpt->_prgbPixels, static_cast<long>(pgpt->_pixelBuffer->Bytes()));
+    if (cbitPixel <= 8)
+        GetDIBColorTable(hdc, 0, 1u << cbitPixel, reinterpret_cast<RGBQUAD *>(pgpt->_rgclrPixels));
+    if (cbitPixel == 8)
+    {
+        ++_cIndexedPortsCreated;
+        ++_cIndexedContextsCreated;
+        ++_cIndexedMirrorsCreated;
+    }
+#endif
+
     return pgpt;
 }
 
@@ -637,7 +873,7 @@ void GraphicsPort::SetOffscreenColors(PDynamicArray pglclr)
     AssertThis(0);
     AssertNilOrPo(pglclr, 0);
 
-    if (hNil == _hbmp)
+    if (pvNil == _prgbPixels)
     {
         Bug("Can't set the palette of this port!");
         return;
@@ -655,7 +891,14 @@ void GraphicsPort::SetOffscreenColors(PDynamicArray pglclr)
 
     if (FIn(_cbitPixel, 2, 9))
     {
-        SetDIBColorTable(_hdc, 0, LwMin(pglclr->IvMac(), 1L << _cbitPixel), (RGBQUAD *)pglclr->PvLock(0));
+        auto colors = static_cast<RGBQUAD *>(pglclr->PvLock(0));
+#ifdef KAUAI_SDL3
+        if (_hbmp)
+#endif
+            SetDIBColorTable(_hdc, 0, LwMin(pglclr->IvMac(), 1L << _cbitPixel), colors);
+#ifdef KAUAI_SDL3
+        CopyPb(pglclr->QvGet(0), _rgclrPixels, LwMul(LwMin(pglclr->IvMac(), 1L << _cbitPixel), size(Color)));
+#endif
         pglclr->Unlock();
         _fOwnPalette = fTrue;
     }
@@ -670,14 +913,18 @@ byte *GraphicsPort::PrgbLockPixels(RC *prc)
     AssertThis(0);
     AssertNilOrVarMem(prc);
 
-    if (hNil == _hbmp)
+    if (pvNil == _prgbPixels)
         return pvNil;
 
+#ifdef KAUAI_SDL3
+    Flush();
+#else
     if (_cactDraw >= _cactFlush)
     {
         Assert(_cactDraw == _cactFlush, "why is _cactDraw > _cactFlush?");
         Flush();
     }
+#endif
     if (pvNil != prc)
         *prc = _rcOff;
     Lock();
@@ -691,7 +938,7 @@ long GraphicsPort::CbRow(void)
 {
     AssertThis(0);
 
-    if (hNil == _hbmp)
+    if (pvNil == _prgbPixels)
         return 0;
     return _cbRow;
 }
@@ -815,7 +1062,12 @@ PPicture GraphicsPort::PpicRelease(void)
 void GraphicsPort::HiliteRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
-    _SetClip(pgdd->prcsClip);
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelRect(prcs, pgdd, true))
+        return;
+#endif
+    if (!_SetClip(pgdd->prcsClip))
+        return;
     InvertRect(_hdc, prcs);
     _Flush();
 }
@@ -828,6 +1080,10 @@ void GraphicsPort::DrawRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
     AssertThis(0);
     AssertVarMem(prcs);
     AssertVarMem(pgdd);
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelRect(prcs, pgdd))
+        return;
+#endif
     if (!(pgdd->grfgdd & fgddFrame) || pgdd->dxpPen * 2 >= prcs->right - prcs->left ||
         pgdd->dypPen * 2 >= prcs->bottom - prcs->top)
     {
@@ -838,14 +1094,29 @@ void GraphicsPort::DrawRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
         _FrameRcsOval(prcs, pgdd, fFalse);
 }
 
+#ifdef KAUAI_SDL3
+std::uint32_t GraphicsPort::_PixelBackgroundColor() const
+{
+    return _hdc ? GetBkColor(_hdc) : _monoBackground;
+}
+byte GraphicsPort::_PixelColorReference(AbstractColor color)
+{
+    return color == kacrClear || color == kacrInvert ? byte(0) : B3Lw(_Scr(color));
+}
+#endif
+
 /***************************************************************************
-    Fill/frame a rectangle with a 2-color pattern or solid color.
+    Fill/frame an oval with a 2-color pattern or solid color.
 ***************************************************************************/
 void GraphicsPort::DrawOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
     AssertVarMem(pgdd);
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelOval(prcs, pgdd))
+        return;
+#endif
     if (!(pgdd->grfgdd & fgddFrame) || pgdd->dxpPen * 2 >= prcs->right - prcs->left ||
         pgdd->dypPen * 2 >= prcs->bottom - prcs->top)
     {
@@ -910,7 +1181,15 @@ void GraphicsPort::DrawPoly(HQ hqoly, GraphicsDrawingData *pgdd)
     AssertHq(hqoly);
     AssertVarMem(pgdd);
 
-    _Fill(PvLockHq(hqoly), pgdd, (PFNDRW)&GraphicsPort::_FillPoly);
+    auto polygon = static_cast<OLY *>(PvLockHq(hqoly));
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelPolygon(polygon, pgdd))
+    {
+        UnlockHq(hqoly);
+        return;
+    }
+#endif
+    _Fill(polygon, pgdd, (PFNDRW)&GraphicsPort::_FillPoly);
     UnlockHq(hqoly);
 }
 
@@ -924,57 +1203,13 @@ void GraphicsPort::DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GraphicsDraw
     AssertVarMem(ppts2);
     AssertVarMem(pgdd);
 
-    // create an OLY to fill
-    long dxp, dyp, dypPen;
-    SystemPoint *pptsDst;
-    byte rgbOly[kcbOlyBase + 6 * size(SystemPoint)];
-    OLY *poly = (OLY *)rgbOly;
+    alignas(OLY) byte rgbOly[kcbOlyBase + 6 * size(SystemPoint)];
+    OLY *poly = reinterpret_cast<OLY *>(rgbOly);
+    BuildLinePolygon(poly, *ppts1, *ppts2, pgdd->dxpPen, pgdd->dypPen);
 
-    poly->cpts = 6;
-
-    if (ppts2->x < ppts1->x)
-    {
-        // swap them
-        SystemPoint *pptsT;
-
-        pptsT = ppts2;
-        ppts2 = ppts1;
-        ppts1 = pptsT;
-    }
-    Assert(ppts2->x >= ppts1->x, "points still not in order");
-
-    dxp = ppts2->x - ppts1->x;
-    dyp = ppts2->y - ppts1->y;
-    dypPen = pgdd->dypPen;
-
-    pptsDst = poly->rgpts;
-    *pptsDst = *ppts1;
-    if (dyp < 0)
-    {
-        dypPen = -dypPen;
-        pptsDst[1].x = pptsDst[0].x;
-        pptsDst[1].y = pptsDst[0].y - dypPen;
-        pptsDst++;
-    }
-    pptsDst[1].x = pptsDst[0].x + pgdd->dxpPen;
-    pptsDst[1].y = pptsDst[0].y;
-    pptsDst++;
-    pptsDst[1].x = pptsDst[0].x + dxp;
-    pptsDst[1].y = pptsDst[0].y + dyp;
-    pptsDst++;
-    pptsDst[1].x = pptsDst[0].x;
-    pptsDst[1].y = pptsDst[0].y + dypPen;
-    pptsDst++;
-    pptsDst[1].x = pptsDst[0].x - pgdd->dxpPen;
-    pptsDst[1].y = pptsDst[0].y;
-    if (dyp >= 0)
-    {
-        pptsDst++;
-        pptsDst[1].x = pptsDst[0].x - dxp;
-        pptsDst[1].y = pptsDst[0].y - dyp;
-    }
-    Assert(pptsDst == &poly->rgpts[4], "wrote off end of OLY");
-
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelPolygon(poly, pgdd)) return;
+#endif
     _Fill(poly, pgdd, (PFNDRW)&GraphicsPort::_FillPoly);
 }
 
@@ -1030,10 +1265,14 @@ void GraphicsPort::_FillPoly(OLY *poly)
     Make sure the clipping is set to this rectangle and make sure the
     palette is selected.
 ***************************************************************************/
-void GraphicsPort::_SetClip(SystemRectangle *prcsClip)
+bool GraphicsPort::_SetClip(RC *prcsClip)
 {
     AssertNilOrVarMem(prcsClip);
     RC rc, rcT;
+#ifdef KAUAI_SDL3
+    if (!_FEnsureNativePixels())
+        return false;
+#endif
 
     if (pvNil == prcsClip)
         rc.Max();
@@ -1079,6 +1318,11 @@ void GraphicsPort::_SetClip(SystemRectangle *prcsClip)
     }
 
     _EnsurePalette();
+#ifdef KAUAI_SDL3
+    return _UploadNativePixels();
+#else
+    return true;
+#endif
 }
 
 /***************************************************************************
@@ -1093,7 +1337,13 @@ void GraphicsPort::_EnsurePalette(void)
     {
         if (!_fOwnPalette && FIn(_cbitPixel, 2, 9))
         {
-            SetDIBColorTable(_hdc, 0, LwMin(_cclrPal, 1L << _cbitPixel), (RGBQUAD *)_prgclr);
+#ifdef KAUAI_SDL3
+            if (_hbmp)
+#endif
+                SetDIBColorTable(_hdc, 0, LwMin(_cclrPal, 1L << _cbitPixel), (RGBQUAD *)_prgclr);
+#ifdef KAUAI_SDL3
+            CopyPb(_prgclr, _rgclrPixels, LwMul(LwMin(_cclrPal, 1L << _cbitPixel), size(Color)));
+#endif
         }
     }
     else if (!_fMapIndices && hNil != _hpal)
@@ -1114,7 +1364,8 @@ void GraphicsPort::_Fill(void *pv, GraphicsDrawingData *pgdd, PFNDRW pfn)
     AbstractColor acrFore;
 
     acrFore = pgdd->acrFore;
-    _SetClip(pgdd->prcsClip);
+    if (!_SetClip(pgdd->prcsClip))
+        return;
 
     if (pgdd->grfgdd & fgddPattern)
     {
@@ -1216,7 +1467,12 @@ void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, Graphics
     AssertVarMem(prcs);
     AssertVarMem(pgdd);
 
-    _SetClip(pgdd->prcsClip);
+#ifdef KAUAI_SDL3
+    if (_FScrollPixels(prcs, dxp, dyp, pgdd))
+        return;
+#endif
+    if (!_SetClip(pgdd->prcsClip))
+        return;
     ScrollDC(_hdc, dxp, dyp, prcs, prcs, hNil, pvNil);
     _Flush();
 }
@@ -1232,10 +1488,16 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GraphicsDra
     AssertVarMem(pgdd);
     AssertPo(pdsf, 0);
 
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelText(prgch, cch, pts, pgdd, pdsf)) return;
+    if(_prgbPixels && (_cbitPixel==8 || _cbitPixel==32))KauaiFonts::RecordFontFallback(false);
+#endif
+
     AbstractColor acrFore, acrBack;
     SystemRectangle rcs;
 
-    _SetClip(pgdd->prcsClip);
+    if (!_SetClip(pgdd->prcsClip))
+        return;
     acrBack = pgdd->acrBack;
     if (acrBack == kacrInvert || (pdsf->grfont & fontBoxed) || pdsf->tav == tavCenter)
     {
@@ -1249,6 +1511,11 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GraphicsDra
             gdd.grfgdd = fgddFill;
             gdd.acrFore = kacrInvert;
             DrawRcs(&rcs, &gdd);
+#ifdef KAUAI_SDL3
+            // The background may have been inverted in CPU storage after
+            // _SetClip uploaded the old pixels for native text drawing.
+            if (!_UploadNativePixels()) return;
+#endif
         }
     }
     else
@@ -1303,11 +1570,29 @@ void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch,
     AssertPvCb(prgch, cch);
     AssertPo(pdsf, 0);
 
+#ifdef KAUAI_SDL3
+    KauaiFonts::Placement placement;
+    if (_prgbPixels && _FHostText(prgch, cch, pts, pdsf, placement))
+    {
+        prcs->left = placement.logical.left; prcs->right = placement.logical.right;
+        prcs->top = placement.logical.top; prcs->bottom = placement.logical.bottom;
+        return;
+    }
+    if(_prgbPixels)KauaiFonts::RecordFontFallback(true);
+#endif
+
     SIZE dpt;
     TEXTMETRIC txm;
     long dxp, dyp;
 
     _SetTextProps(pdsf);
+#ifdef KAUAI_SDL3
+    if (!_hdc)
+    {
+        *prcs = {};
+        return;
+    }
+#endif
     GetTextMetrics(_hdc, &txm);
     txm.tmHeight += txm.tmExternalLeading;
     GetTextExtentPoint32(_hdc, prgch, cch, &dpt);
@@ -1359,11 +1644,34 @@ void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch,
     prcs->bottom = pts.y + txm.tmHeight + dyp;
 }
 
+#ifdef KAUAI_SDL3
+bool GraphicsPort::_FEnsureTextFace(FontDescription *font)
+{
+    if (std::strcmp(KauaiFonts::StudioFontProvider(), "freetype") == 0)
+        return _FPortableTextFace(font);
+    _SetTextProps(font);
+    if (!_hfnt) return false;
+    if ((!_fontFace || _fontPortable || _fontSource != _hfnt))
+    {
+        std::unique_ptr<KauaiFonts::Face> face;
+        try { face = KauaiFonts::CreateStudioFace(_hfnt); }
+        catch (const std::bad_alloc &) { return false; }
+        if (!face) return false;
+        delete _fontFace; _fontFace = face.release(); _fontSource = _hfnt; _fontPortable = false;
+    }
+    return true;
+}
+
+#endif
+
 /***************************************************************************
     Select a monochrome patterned brush corresponding to the AbstractPattern.
 ***************************************************************************/
 void GraphicsPort::_SetAptBrush(AbstractPattern *papt)
 {
+#ifdef KAUAI_SDL3
+    _monoBrushValid = false;
+#endif
     AssertVarMem(papt);
     short rgw[8];
     long iw;
@@ -1427,6 +1735,9 @@ void GraphicsPort::_SetAcrBrush(AbstractColor acr)
 ***************************************************************************/
 void GraphicsPort::_SetStockBrush(int wType)
 {
+#ifdef KAUAI_SDL3
+    _monoBrushValid = false;
+#endif
     HBRUSH hbr;
 
     if (_bk == bkStock && _wType == wType)
@@ -1455,6 +1766,10 @@ void GraphicsPort::_SetStockBrush(int wType)
 void GraphicsPort::_SetTextProps(FontDescription *pdsf)
 {
     AssertPo(pdsf, 0);
+#ifdef KAUAI_SDL3
+    if (!_FEnsureNativeContext())
+        return;
+#endif
     static int _mptahw[] = {
         TA_LEFT,   // tahLeft
         TA_CENTER, // tahCenter
@@ -1500,17 +1815,25 @@ LSetAlignment:
     }
 }
 
+
+
 /***************************************************************************
     Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GraphicsDrawingData *pgdd)
+void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst,
+                              GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertPo(pgptSrc, 0);
     AssertVarMem(prcsSrc);
     AssertVarMem(prcsDst);
     AssertVarMem(pgdd);
+#ifdef KAUAI_SDL3
+    if (_FCopyPixels(pgptSrc, prcsSrc, prcsDst, pgdd))
+        return;
+#else
     long dxpSrc, dxpDst;
+
 
     // see if we're doing an offscreen (2x, 2x) stretch or (1x, 2x) stretch -
     // optimize for these
@@ -1600,12 +1923,17 @@ void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, S
         return;
     }
 
+#endif
+    if (!_SetClip(pgdd->prcsClip))
+        return;
     SetTextColor(_hdc, kscrWhite);
     SetBkColor(_hdc, kscrBlack);
-
-    _SetClip(pgdd->prcsClip);
     pgptSrc->_EnsurePalette();
     SetStretchBltMode(_hdc, COLORONCOLOR);
+#ifdef KAUAI_SDL3
+    if (!pgptSrc->_UploadNativePixels())
+        return;
+#endif
     StretchBlt(_hdc, prcsDst->left, prcsDst->top, prcsDst->right - prcsDst->left, prcsDst->bottom - prcsDst->top,
                pgptSrc->_hdc, prcsSrc->left, prcsSrc->top, prcsSrc->right - prcsSrc->left,
                prcsSrc->bottom - prcsSrc->top, SRCCOPY);
@@ -1628,7 +1956,8 @@ void GraphicsPort::DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawing
     AssertVarMem(pgdd);
     int wLevel;
 
-    _SetClip(pgdd->prcsClip);
+    if (!_SetClip(pgdd->prcsClip))
+        return;
     if ((wLevel = SaveDC(_hdc)) == 0)
     {
         PushErc(ercGfxCantDraw);
@@ -1665,18 +1994,26 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
     if (rcSrc.FEmpty())
         return;
 
+#ifdef KAUAI_SDL3
+    if (_FDrawPixelMbmp(pmbmp, prcs, pgdd))
+        return;
+#endif
     if (_cbitPixel == 8 && rcSrc.Dxp() == rcDst.Dxp() && rcSrc.Dyp() == rcDst.Dyp())
     {
-        Assert(_hbmp != hNil, 0);
+        Assert(_prgbPixels != pvNil, 0);
         Assert(_rcOff.xpLeft == 0 && _rcOff.ypTop == 0, "bad _rcOff");
         if (!rcClip.FIntersect(&_rcOff))
             return;
 
+#ifdef KAUAI_SDL3
+        Flush();
+#else
         if (_cactDraw >= _cactFlush)
         {
             Assert(_cactDraw == _cactFlush, "why is _cactDraw > _cactFlush?");
             Flush();
         }
+#endif
         pmbmp->Draw(_prgbPixels, _cbRow, _rcOff.Dyp(), rcDst.xpLeft - rcSrc.xpLeft, rcDst.ypTop - rcSrc.ypTop, &rcClip,
                     _pregnClip);
     }
@@ -1688,9 +2025,6 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
         PT ptSrc;
         PGraphicsPort pgpt;
 
-        SetTextColor(_hdc, kscrWhite);
-        SetBkColor(_hdc, kscrBlack);
-
         ptSrc = rcSrc.PtTopLeft();
         rcSrc.OffsetToOrigin();
         if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rcSrc, 1)))
@@ -1700,9 +2034,18 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
         }
         Assert(pgpt->_rcOff == rcSrc, 0);
         pmbmp->DrawMask(pgpt->_prgbPixels, pgpt->_cbRow, rcSrc.Dyp(), -ptSrc.xp, -ptSrc.yp, &rcSrc);
+#ifdef KAUAI_SDL3
+        pgpt->_UploadNativePixels();
+#endif
 
         // set the mask bits to white
-        _SetClip(pgdd->prcsClip);
+        if (!_SetClip(pgdd->prcsClip))
+        {
+            ReleasePpo(&pgpt);
+            return;
+        }
+        SetTextColor(_hdc, kscrWhite);
+        SetBkColor(_hdc, kscrBlack);
         StretchBlt(_hdc, rcDst.xpLeft, rcDst.ypTop, rcDst.Dxp(), rcDst.Dyp(), pgpt->_hdc, 0, 0, rcSrc.Dxp(),
                    rcSrc.Dyp(), SRCPAINT);
         ReleasePpo(&pgpt);
@@ -1713,13 +2056,27 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
             return;
         }
         SystemRectangle rcs = rcSrc;
+#ifdef KAUAI_SDL3
+        if (!pgpt->_FEnsureNativePixels())
+        {
+            ReleasePpo(&pgpt);
+            return;
+        }
+#endif
         FillRect(pgpt->_hdc, &rcs, (HBRUSH)GetStockObject(WHITE_BRUSH));
+#ifdef KAUAI_SDL3
+        pgpt->_FlushNativePixels();
+#endif
 
         Flush();
         pmbmp->Draw(pgpt->_prgbPixels, pgpt->_cbRow, rcSrc.Dyp(), -ptSrc.xp, -ptSrc.yp, &rcSrc);
+#ifdef KAUAI_SDL3
+        pgpt->_UploadNativePixels();
+#endif
 
         StretchBlt(_hdc, rcDst.xpLeft, rcDst.ypTop, rcDst.Dxp(), rcDst.Dyp(), pgpt->_hdc, 0, 0, rcSrc.Dxp(),
                    rcSrc.Dyp(), SRCAND);
+        _Flush();
         ReleasePpo(&pgpt);
     }
 }
@@ -1734,10 +2091,30 @@ void GraphicsPort::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle 
     AssertVarMem(prcs);
     AssertVarMem(pgdd);
 
+#ifdef KAUAI_SDL3
+    if (_prgbPixels && _cbitPixel == 32 && pbi->biHeight > 0)
+    {
+        std::size_t bytes = 0;
+        KauaiPixels::DibFrame frame;
+        // AVIStreamGetFrame guarantees a complete contiguous DIB. The portable
+        // decoder itself also accepts explicit lengths for bounded callers.
+        if (KauaiPixels::DibFrameBytes(pbi, sizeof(*pbi), bytes) && frame.Read(pbi, bytes))
+        {
+            RC destination(*prcs), clip;
+            if (pgdd->prcsClip)
+                clip = *pgdd->prcsClip;
+            Flush();
+            if (KauaiPixels::DrawDibFrame({_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow}, frame, destination,
+                                          pgdd->prcsClip ? &clip : nullptr, _pregnClip))
+                return;
+        }
+    }
+#endif
+
+    if (!_SetClip(pgdd->prcsClip))
+        return;
     SetTextColor(_hdc, kscrWhite);
     SetBkColor(_hdc, kscrBlack);
-
-    _SetClip(pgdd->prcsClip);
     DrawDibDraw(hdd, _hdc, prcs->left, prcs->top, prcs->right - prcs->left, prcs->bottom - prcs->top, pbi, pvNil, 0, 0,
                 -1, -1, DDF_BACKGROUNDPAL);
     _Flush();
@@ -1759,6 +2136,14 @@ void GraphicsPort::AssertValid(ulong grf)
         AssertVar(IsWindow(_hwnd), "Invalid window handle", &_hwnd);
     if (hNil == _hdc)
     {
+#ifdef KAUAI_SDL3
+        if (_pixelBuffer)
+        {
+            Assert(_pixelBuffer->Depth() == _cbitPixel && !_hbmp && !_prgbNative && !_hbr && !_hfnt,
+                   "Invalid portable-only port");
+            return;
+        }
+#endif
         Assert(_fMetaFile, "No DC");
         return;
     }
@@ -1791,6 +2176,11 @@ void GraphicsPort::MarkStaticMem(void)
 ***************************************************************************/
 bool FontList::FInit(void)
 {
+#ifdef KAUAI_SDL3
+    if (std::strcmp(KauaiFonts::StudioFontProvider(), "freetype") == 0) return _FInitPortable();
+    _fPortableFonts = false;
+    KauaiFonts::RecordFontEnumeration(false);
+#endif
     Assert(hNil != vwig.hdcApp, "No DC");
 
     LOGFONT lgf;
@@ -1846,8 +2236,17 @@ HFONT FontList::HfntCreate(FontDescription *pdsf)
     LOGFONT lgf;
     long cch;
 
-    _pgst->GetExtra(pdsf->onn, &lgf);
-    _pgst->GetRgch(pdsf->onn, lgf.lfFaceName, size(lgf.lfFaceName) - 1, &cch);
+#ifdef KAUAI_SDL3
+    if (_fPortableFonts)
+    {
+        ClearPb(&lgf, size(lgf));
+        lgf.lfCharSet = DEFAULT_CHARSET;
+        lgf.lfPitchAndFamily = FFixedPitch(pdsf->onn) ? FIXED_PITCH : VARIABLE_PITCH;
+    }
+    else
+#endif
+        _pgst->GetExtra(pdsf->onn, &lgf);
+    _pgst->GetRgch(pdsf->onn, lgf.lfFaceName, size(lgf.lfFaceName) / size(achar) - 1, &cch);
     lgf.lfFaceName[cch] = 0;
     lgf.lfItalic = FPure(pdsf->grfont & fontItalic);
     lgf.lfWeight = (pdsf->grfont & fontBold) ? FW_BOLD : FW_NORMAL;
@@ -1864,6 +2263,14 @@ bool FontList::FFixedPitch(long onn)
 {
     AssertThis(0);
     Assert(FValidOnn(onn), "bad onn");
+#ifdef KAUAI_SDL3
+    if (_fPortableFonts)
+    {
+        LegacyLong flags;
+        _pgst->GetExtra(onn, &flags);
+        return (flags & 1) != 0;
+    }
+#endif
     LOGFONT lgf;
 
     _pgst->GetExtra(onn, &lgf);
@@ -1873,3 +2280,16 @@ bool FontList::FFixedPitch(long onn)
 /* HRGN helpers (FCreateRgn / FreePhrgn / FUnionRgn / etc.) live in
  * regionwin.cpp now -- they're consumed by region.cpp which is in
  * kauai-core, so the helpers needed to move with it. */
+
+#ifdef KAUAI_SDL3
+bool GraphicsPort::_PixelOwnPalette() const
+{
+    return _fOwnPalette;
+}
+void GraphicsPort::_SetPixelBackgroundColor(std::uint32_t color)
+{
+    _monoBackground = color;
+    if (_hdc)
+        SetBkColor(_hdc, color);
+}
+#endif

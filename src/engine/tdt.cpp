@@ -37,7 +37,7 @@
     a problem.
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(ThreeDText)
@@ -49,6 +49,13 @@ const BRS kdwrStepWalk = BR_SCALAR(1.0); // step size for walk action
 const BRS kdwrStep = BR_SCALAR(5.0);     // step size for all other actions
 
 PStringTable_GST ThreeDText::_pgstAction = pvNil;
+
+PThreeDFont ThreeDText::_FetchFont(void)
+{
+    if (_fontResolver != pvNil)
+        return _fontResolver(_fontContext, _tagTdf);
+    return vptagm == pvNil ? pvNil : (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
+}
 
 /***************************************************************************
     Set the StringTable_GST of action names for ThreeDTexts
@@ -129,7 +136,7 @@ LFail:
 /***************************************************************************
     Create a new ThreeDText
 ***************************************************************************/
-PThreeDText ThreeDText::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
+PThreeDText ThreeDText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
     AssertPo(pstn, 0);
     AssertIn(tdts, 0, tdtsLim);
@@ -212,7 +219,7 @@ bool ThreeDText::_FInitLists(void)
     AssertPo(&_stn, 0);
     AssertIn(_tdts, 0, tdtsLim);
 
-    long cch;
+    LegacyLong cch;
     PDynamicArray pglibactParNew = pvNil;
     PDynamicArray pglibsetNew = pvNil;
     PGeneralGroup pggcmidNew = pvNil;
@@ -269,7 +276,7 @@ LFail:
     Get the given action.  If we've built it before, use the cached copy.
     Else build the action, cache it, and return it.
 ***************************************************************************/
-PActionDefinition ThreeDText::_PactnFetch(long tda)
+PActionDefinition ThreeDText::_PactnFetch(LegacyLong tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
@@ -291,7 +298,7 @@ PActionDefinition ThreeDText::_PactnFetch(long tda)
 /***************************************************************************
     Build the given action
 ***************************************************************************/
-PActionDefinition ThreeDText::_PactnBuild(long tda)
+PActionDefinition ThreeDText::_PactnBuild(LegacyLong tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
@@ -299,7 +306,7 @@ PActionDefinition ThreeDText::_PactnBuild(long tda)
     PActionDefinition pactn;
     PGeneralGroup pggcel;
     PDynamicArray pglbmat34 = pvNil;
-    ulong grfactn;
+    LegacyUlong grfactn;
 
     pggcel = _PggcelBuild(tda);
     if (pvNil == pggcel)
@@ -323,14 +330,20 @@ LFail:
 /***************************************************************************
     Get the name of the given action
 ***************************************************************************/
-bool ThreeDText::FGetActnName(long anid, PString pstn)
+bool ThreeDText::FGetActnName(LegacyLong anid, PString pstn)
 {
     AssertThis(0);
     AssertIn(anid, 0, tdaLim);
     AssertPo(pstn, 0);
 
-    long istn;
-    long anidT;
+    LegacyLong istn;
+    LegacyLong anidT;
+
+    if (pvNil == _pgstAction)
+    {
+        pstn->SetNil();
+        return fFalse;
+    }
 
     for (istn = 0; istn < _pgstAction->IvMac(); istn++)
     {
@@ -357,7 +370,7 @@ PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
     PThreeDFont ptdf;
     PModel pmodl;
 
-    ptdf = (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
+    ptdf = _FetchFont();
     if (pvNil == ptdf)
         return pvNil;
     pmodl = ptdf->PmodlFetch((uchar)_stn.Psz()[chidModl]);
@@ -373,8 +386,8 @@ PDynamicArray ThreeDText::_PglibactParBuild(void)
 {
     AssertBaseThis(0);
 
-    long cch = _stn.Cch();
-    long ich;
+    LegacyLong cch = _stn.Cch();
+    LegacyLong ich;
     short ibactPar = ivNil;
     PDynamicArray pglibactPar;
 
@@ -395,8 +408,8 @@ PDynamicArray ThreeDText::_PglibsetBuild(void)
 {
     AssertBaseThis(0);
 
-    long cch = _stn.Cch();
-    long ich;
+    LegacyLong cch = _stn.Cch();
+    LegacyLong ich;
     short ibset = 0;
     PDynamicArray pglibset;
 
@@ -417,15 +430,15 @@ PGeneralGroup ThreeDText::_PggcmidBuild(void)
 {
     AssertBaseThis(0);
 
-    long cch = _stn.Cch();
-    long lwOne = 1;
+    LegacyLong cch = _stn.Cch();
+    LegacyLong lwOne = 1;
     PGeneralGroup pggcmid;
-    long cmid = 0;
+    LegacyLong cmid = 0;
 
-    pggcmid = GeneralGroup::PggNew(size(long), 1, size(long));
+    pggcmid = GeneralGroup::PggNew(size(LegacyLong), 1, size(LegacyLong));
     if (pvNil == pggcmid)
         return pvNil;
-    if (!pggcmid->FAdd(size(long), pvNil, &cmid, &lwOne))
+    if (!pggcmid->FAdd(size(LegacyLong), pvNil, &cmid, &lwOne))
     {
         ReleasePpo(&pggcmid);
         return pvNil;
@@ -436,14 +449,14 @@ PGeneralGroup ThreeDText::_PggcmidBuild(void)
 /***************************************************************************
     Build a DynamicArray of matrices for the action
 ***************************************************************************/
-PDynamicArray ThreeDText::_Pglbmat34Build(long tda)
+PDynamicArray ThreeDText::_Pglbmat34Build(LegacyLong tda)
 {
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
 
     PThreeDFont ptdf;
-    long cch = _stn.Cch();
-    long ich;
+    LegacyLong cch = _stn.Cch();
+    LegacyLong ich;
     BMAT34 bmat34;
     PDynamicArray pglbmat34 = pvNil;
     BRS dxrTotal;     // width of string (before scaling)
@@ -452,14 +465,14 @@ PDynamicArray ThreeDText::_Pglbmat34Build(long tda)
     BRS xrChar;       // "insertion point" of character in string
     BRS xrCharCenter; // origin of character in string (after scaling)
     BRS dxrChar;      // width of each character
-    long ccel;
-    long icel;
+    LegacyLong ccel;
+    LegacyLong icel;
     BRS dyrChar;  // height of each character
     BRS dyrTotal; // total height of string, if vertical shape
     BRS dyrHalf;  // half of height of string, if vertical shape
     BRS yrChar;   // position of char in string
 
-    ptdf = (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
+    ptdf = _FetchFont();
     if (pvNil == ptdf)
         goto LFail;
 
@@ -542,19 +555,19 @@ LFail:
 /***************************************************************************
     Build a GeneralGroup of cels for the action
 ***************************************************************************/
-PGeneralGroup ThreeDText::_PggcelBuild(long tda)
+PGeneralGroup ThreeDText::_PggcelBuild(LegacyLong tda)
 {
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
 
-    long cch = _stn.Cch();
-    long ich;
+    LegacyLong cch = _stn.Cch();
+    LegacyLong ich;
     PGeneralGroup pggcel;
     AnimationCel cel;
     CelPartSpec *prgcps = pvNil;
-    long iv;
-    long ccel;
-    long icel;
+    LegacyLong iv;
+    LegacyLong ccel;
+    LegacyLong icel;
 
     ccel = _CcelOfTda(tda);
 
@@ -606,6 +619,8 @@ PThreeDText ThreeDText::PtdtDup(void)
     PThreeDText ptdtDup;
 
     ptdtDup = ThreeDText::PtdtNew(&_stn, _tdts, &_tagTdf);
+    if (pvNil != ptdtDup)
+        ptdtDup->SetFontResolver(_fontContext, _fontResolver);
     AssertNilOrPo(ptdtDup, 0);
 
     return ptdtDup;
@@ -614,7 +629,7 @@ PThreeDText ThreeDText::PtdtDup(void)
 /***************************************************************************
     Change the text, shape, and/or font of the ThreeDText
 ***************************************************************************/
-bool ThreeDText::FChange(PString pstn, long tdts, PTAG ptagTdf)
+bool ThreeDText::FChange(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -623,7 +638,7 @@ bool ThreeDText::FChange(PString pstn, long tdts, PTAG ptagTdf)
     AssertNilOrVarMem(ptagTdf);
 
     String stnSave;
-    long tdtsSave;
+    LegacyLong tdtsSave;
     TAG tagTdfSave;
 
     stnSave = _stn;
@@ -661,7 +676,7 @@ bool ThreeDText::FChange(PString pstn, long tdts, PTAG ptagTdf)
 /***************************************************************************
     Get stats of this ThreeDText
 ***************************************************************************/
-void ThreeDText::GetInfo(PString pstn, long *ptdts, PTAG ptagTdf)
+void ThreeDText::GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -705,7 +720,7 @@ bool ThreeDText::FSetDefaultCost(PBody pbody)
 /***************************************************************************
     Get a custom material
 ***************************************************************************/
-PCustomMaterial_CMTL ThreeDText::PcmtlFetch(long cmid)
+PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
 {
     AssertThis(0);
     AssertIn(cmid, 0, _ccmid);
@@ -751,12 +766,12 @@ bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 /***************************************************************************
     Return the number of cels in the given action
 ***************************************************************************/
-long ThreeDText::_CcelOfTda(long tda)
+LegacyLong ThreeDText::_CcelOfTda(LegacyLong tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
 
-    long ccel;
+    LegacyLong ccel;
 
     switch (tda)
     {
@@ -794,7 +809,7 @@ long ThreeDText::_CcelOfTda(long tda)
     transformation matrix is returned in pbmat34.  Some transformations are
     pre-applied and some are post-applied, depending on the desired effect.
 ***************************************************************************/
-void ThreeDText::_ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS dxrText)
+void ThreeDText::_ApplyAction(BMAT34 *pbmat34, LegacyLong tda, LegacyLong ich, LegacyLong ccel, LegacyLong icel, BRS xrChar, BRS dxrText)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -971,7 +986,7 @@ void ThreeDText::_ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, lo
     character from the origin of the ThreeDText).	dxrText is the width of the
     entire string.  dyr is the height of the font.
 ***************************************************************************/
-void ThreeDText::_ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
+void ThreeDText::_ApplyShape(BMAT34 *pbmat34, LegacyLong tdts, LegacyLong cch, LegacyLong ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
                       BRS dyrTotal)
 {
     AssertThis(0);
@@ -1040,10 +1055,10 @@ void ThreeDText::_ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS
 /***************************************************************************
     Assert the validity of the ThreeDText.
 ***************************************************************************/
-void ThreeDText::AssertValid(ulong grf)
+void ThreeDText::AssertValid(LegacyUlong grf)
 {
     ThreeDText_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pgstAction, 0); // must set _pgstAction before creating ThreeDTexts
+    AssertNilOrPo(_pgstAction, 0); // Localized action names are optional in headless hosts.
     Assert(_tagTdf.ctg != ctgNil, "ThreeDText has bad _tagTdf");
     AssertPo(_pmtrlDefault, 0);
     if (tdaNil != _tdaCache)

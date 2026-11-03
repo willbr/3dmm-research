@@ -21,12 +21,12 @@ RTCLASS(Shuffler)
     Constructs a pseudo-random number generator.  If luSeed is zero,
     generates a seed from the current system time (TsCurrentSystem).
 ***************************************************************************/
-Random::Random(ulong luSeed)
+Random::Random(LegacyUlong luSeed)
 {
     if (0 == luSeed)
     {
         luSeed = TsCurrentSystem();
-        SwapBytesRglw((long *)&luSeed, 1);
+        SwapBytesRglw((LegacyLong *)&luSeed, 1);
     }
     _luSeed = luSeed;
     AssertThis(0);
@@ -36,7 +36,7 @@ Random::Random(ulong luSeed)
     Return the next pseudo-random number within the range 0 to lwLim - 1,
     inclusive.
 ***************************************************************************/
-long Random::LwNext(long lwLim)
+LegacyLong Random::LwNext(LegacyLong lwLim)
 {
     AssertThis(0);
     AssertIn(lwLim, 1, kcbMax);
@@ -44,15 +44,15 @@ long Random::LwNext(long lwLim)
     // high bits are more random than the low ones
     // See Knuth vol 2, page 102, line 24 of table 1.
     // value of kdluRand doesn't matter much
-    const ulong kluRandMul = 1566083941L;
-    const long kdluRand = 2531011L;
-    long lw;
+    const LegacyUlong kluRandMul = 1566083941L;
+    const LegacyLong kdluRand = 2531011L;
+    LegacyLong lw;
 
     _luSeed = _luSeed * kluRandMul + kdluRand;
 
     // multiply lw by lwLim and divide by 2^32
 #ifdef IN_80386
-    ulong luSeedT = _luSeed;
+    LegacyUlong luSeedT = _luSeed;
     __asm
     {
 		mov		eax,luSeedT
@@ -63,7 +63,7 @@ long Random::LwNext(long lwLim)
     double dou;
 
     dou = (double)_luSeed * lwLim / (double)0x40000000 / 4;
-    lw = (long)dou;
+    lw = (LegacyLong)dou;
 #endif //! IN_80386
 
     Assert(lw < lwLim, "random number out of range");
@@ -73,7 +73,7 @@ long Random::LwNext(long lwLim)
 /***************************************************************************
     Constructs a shuffled array.
 ***************************************************************************/
-Shuffler::Shuffler(ulong luSeed) : Random(luSeed)
+Shuffler::Shuffler(LegacyUlong luSeed) : Random(luSeed)
 {
     _clw = 0;
     _ilw = 0;
@@ -95,13 +95,13 @@ Shuffler::~Shuffler(void)
 /***************************************************************************
     Assert the validity of a Shuffler.
 ***************************************************************************/
-void Shuffler::AssertValid(ulong grf)
+void Shuffler::AssertValid(LegacyUlong grf)
 {
     Shuffler_PAR::AssertValid(0);
     if (_hqrglw != hqNil)
     {
         AssertHq(_hqrglw);
-        Assert(CbOfHq(_hqrglw) == LwMul(_clw, size(long)), "HQ wrong size");
+        Assert(CbOfHq(_hqrglw) == LwMul(_clw, size(LegacyLong)), "HQ wrong size");
     }
     else
         Assert(0 == _clw, "_clw wrong");
@@ -121,19 +121,19 @@ void Shuffler::MarkMem(void)
 /***************************************************************************
     Shuffle the numbers [0, lwLim).
 ***************************************************************************/
-void Shuffler::Shuffle(long lwLim)
+void Shuffler::Shuffle(LegacyLong lwLim)
 {
     AssertThis(0);
     AssertIn(lwLim, 0, kcbMax);
-    long ilw;
-    long *qrglw;
+    LegacyLong ilw;
+    LegacyLong *qrglw;
 
     if (!_FEnsureHq(lwLim))
         return;
     _ilw = 0;
     Assert(_clw == lwLim, "wrong _clw");
 
-    qrglw = (long *)QvFromHq(_hqrglw);
+    qrglw = (LegacyLong *)QvFromHq(_hqrglw);
     // fill the array with [0, _clw)
     for (ilw = 0; ilw < _clw; ilw++)
         qrglw[ilw] = ilw;
@@ -145,11 +145,11 @@ void Shuffler::Shuffle(long lwLim)
 /***************************************************************************
     Fill the Shuffler with the values in prglw and shuffle them.
 ***************************************************************************/
-void Shuffler::ShuffleRglw(long clw, long *prglw)
+void Shuffler::ShuffleRglw(LegacyLong clw, LegacyLong *prglw)
 {
     AssertThis(0);
     AssertIn(clw, 0, kcbMax);
-    AssertPvCb(prglw, LwMul(clw, size(long)));
+    AssertPvCb(prglw, LwMul(clw, size(LegacyLong)));
 
     if (!_FEnsureHq(clw))
         return;
@@ -157,7 +157,7 @@ void Shuffler::ShuffleRglw(long clw, long *prglw)
     Assert(_clw == clw, "wrong _clw");
 
     // fill the HQ with the stuff in prglw
-    CopyPb(prglw, QvFromHq(_hqrglw), LwMul(clw, size(long)));
+    CopyPb(prglw, QvFromHq(_hqrglw), LwMul(clw, size(LegacyLong)));
 
     _fCustom = fTrue;
     _ShuffleCore();
@@ -170,12 +170,12 @@ void Shuffler::_ShuffleCore(void)
 {
     AssertThis(0);
     Assert(_clw > 0, 0);
-    long lw;
-    long ilw, ilwSwap;
-    long *qrglw;
+    LegacyLong lw;
+    LegacyLong ilw, ilwSwap;
+    LegacyLong *qrglw;
 
     // swap stuff
-    qrglw = (long *)QvFromHq(_hqrglw);
+    qrglw = (LegacyLong *)QvFromHq(_hqrglw);
     for (ilw = _clw; --ilw > 0;)
     {
         ilwSwap = Random::LwNext(ilw + 1);
@@ -191,7 +191,7 @@ void Shuffler::_ShuffleCore(void)
 /***************************************************************************
     Make sure the HQ is the correct size and set clw appropriately.
 ***************************************************************************/
-bool Shuffler::_FEnsureHq(long clw)
+bool Shuffler::_FEnsureHq(LegacyLong clw)
 {
     AssertThis(0);
     AssertIn(clw, 0, kcbMax);
@@ -199,11 +199,11 @@ bool Shuffler::_FEnsureHq(long clw)
     if (clw <= 0)
         goto LFail;
 
-    if (_hqrglw == hqNil && !FAllocHq(&_hqrglw, LwMul(_clw = clw, size(long)), fmemNil, mprNormal))
+    if (_hqrglw == hqNil && !FAllocHq(&_hqrglw, LwMul(_clw = clw, size(LegacyLong)), fmemNil, mprNormal))
     {
         goto LFail;
     }
-    if (clw != _clw && !FResizePhq(&_hqrglw, LwMul(_clw = clw, size(long)), fmemNil, mprNormal))
+    if (clw != _clw && !FResizePhq(&_hqrglw, LwMul(_clw = clw, size(LegacyLong)), fmemNil, mprNormal))
     {
     LFail:
         // we are low on memory, so be nice and give some up
@@ -222,7 +222,7 @@ bool Shuffler::_FEnsureHq(long clw)
     zero, uses the numbers already in the Shuffler.  Otherwise, numbers
     range from 0 to (lwLim - 1), inclusive.
 ***************************************************************************/
-long Shuffler::LwNext(long lwLim)
+LegacyLong Shuffler::LwNext(LegacyLong lwLim)
 {
     AssertThis(0);
     AssertIn(lwLim, 0, kcbMax);
@@ -252,5 +252,5 @@ long Shuffler::LwNext(long lwLim)
     }
 
     AssertIn(_ilw, 0, _clw);
-    return ((long *)QvFromHq(_hqrglw))[_ilw++];
+    return ((LegacyLong *)QvFromHq(_hqrglw))[_ilw++];
 }

@@ -41,7 +41,7 @@ enum
     fedsCheck = 8,
     fedsBullet = 16
 };
-const ulong kgrfedsMark = fedsUncheck | fedsCheck | fedsBullet;
+const LegacyUlong kgrfedsMark = fedsUncheck | fedsCheck | fedsBullet;
 
 // command
 #define kclwCmd 4 // if this ever changes, change the CMD_TYPE macro also
@@ -50,20 +50,20 @@ struct Command
     ASSERT
 
     PCommandHandler pcmh;          // the target of the command - may be nil
-    long cid;           // the command id
+    LegacyLong cid;           // the command id
     PGeneralGroup pgg;            // additional parameters for the command
-    long rglw[kclwCmd]; // standard parameters
+    LegacyLong rglw[kclwCmd]; // standard parameters
 };
 typedef Command *PCommand;
 
 // command on file - for saving recorded macros
 struct CommandFile
 {
-    long cid;
-    long hid;
-    long cact;
+    LegacyLong cid;
+    LegacyLong hid;
+    LegacyLong cact;
     ChildChunkID chidGg; // child id of the pgg, 0 if none
-    long rglw[kclwCmd];
+    LegacyLong rglw[kclwCmd];
 };
 
 /***************************************************************************
@@ -74,9 +74,9 @@ struct CommandFile
     struct CMD_##foo                                                                                                   \
     {                                                                                                                  \
         PCommandHandler pcmh;                                                                                                     \
-        long cid;                                                                                                      \
+        LegacyLong cid;                                                                                                      \
         PGeneralGroup pgg;                                                                                                       \
-        long a, b, c, d;                                                                                               \
+        LegacyLong a, b, c, d;                                                                                               \
     };                                                                                                                 \
     typedef CMD_##foo *PCMD_##foo
 
@@ -97,7 +97,7 @@ enum
     fcmmNobody = 2,
     fcmmOthers = 4,
 };
-const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
+const LegacyUlong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 
 // for including a command map in this class
 #define CMD_MAP_DEC(cls)                                                                                               \
@@ -148,23 +148,23 @@ class CommandHandler : public CommandHandler_PAR
     ASSERT
 
   private:
-    static long _hidLast; // for HidUnique
-    long _hid;            // handler id
+    static LegacyLong _hidLast; // for HidUnique
+    LegacyLong _hid;            // handler id
 
   protected:
     // command function
     typedef bool (CommandHandler::*PFNCMD)(PCommand pcmd);
 
     // command enabler function
-    typedef bool (CommandHandler::*PFNEDS)(PCommand pcmd, ulong *pgrfeds);
+    typedef bool (CommandHandler::*PFNEDS)(PCommand pcmd, LegacyUlong *pgrfeds);
 
     // command map entry
     struct CommandMapEntry
     {
-        long cid;
+        LegacyLong cid;
         PFNCMD pfncmd;
         PFNEDS pfneds;
-        ulong grfcmm;
+        LegacyUlong grfcmm;
     };
 
     // command map
@@ -177,22 +177,22 @@ class CommandHandler : public CommandHandler_PAR
     CMD_MAP_DEC(CommandHandler)
 
   protected:
-    virtual bool _FGetCmme(long cid, ulong grfcmmWanted, CommandMapEntry *pcmme);
+    virtual bool _FGetCmme(LegacyLong cid, LegacyUlong grfcmmWanted, CommandMapEntry *pcmme);
 
   public:
-    CommandHandler(long hid);
+    CommandHandler(LegacyLong hid);
     ~CommandHandler(void);
 
     // return indicates whether the command was handled, not success
     virtual bool FDoCmd(PCommand pcmd);
-    virtual bool FEnableCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FEnableCmd(PCommand pcmd, LegacyUlong *pgrfeds);
 
-    long Hid(void)
+    LegacyLong Hid(void)
     {
         return _hid;
     }
 
-    static long HidUnique(long ccmh = 1);
+    static LegacyLong HidUnique(LegacyLong ccmh = 1);
 };
 
 /***************************************************************************
@@ -224,8 +224,8 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     struct CommandHandlerEntry
     {
         PCommandHandler pcmh;
-        long cmhl;
-        ulong grfcmm;
+        LegacyLong cmhl;
+        LegacyUlong grfcmm;
     };
 
     // command recording/playback state
@@ -238,22 +238,22 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     };
 
     // recording and playback
-    long _rs;       // recording/playback state
-    long _rec;      // recording/playback errors
+    LegacyLong _rs;       // recording/playback state
+    LegacyLong _rec;      // recording/playback errors
     PChunkyFile _pcfl;     // the file we are recording to or playing from
     PDynamicArray _pglcmdf;   // the command stream
     ChunkNumber _cno;       // which macro is being played
-    long _icmdf;    // current command for recording or playback
+    LegacyLong _icmdf;    // current command for recording or playback
     ChildChunkID _chidLast; // last chid used for recording
-    long _cact;     // number of times on this command
+    LegacyLong _cact;     // number of times on this command
     Command _cmd;       // previous command recorded or played
 
     // dispatching
     Command _cmdCur;     // command being dispatched
-    long _icmheNext; // next command handler to dispatch to
+    LegacyLong _icmheNext; // next command handler to dispatch to
     PGraphicsObject _pgobTrack; // the gob that is tracking the mouse
 #ifdef WIN
-    HWND _hwndCapture; // the hwnd that we captured the mouse with
+    CoreNative::WindowHandle _hwndCapture; // native capture token; used only by the GUI adapter
 #endif                 // WIN
 
     // filter list and command queue
@@ -265,19 +265,19 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     PGraphicsObject _pgobModal;
 
 #ifdef DEBUG
-    long _ccmdMax; // running max
+    LegacyLong _ccmdMax; // running max
 #endif             // DEBUG
 
     CommandExecutionManager(void);
 
-    virtual bool _FInit(long ccmdInit, long ccmhInit);
-    virtual bool _FFindCmhl(long cmhl, long *picmhe);
+    virtual bool _FInit(LegacyLong ccmdInit, LegacyLong ccmhInit);
+    virtual bool _FFindCmhl(LegacyLong cmhl, LegacyLong *picmhe);
 
     virtual bool _FCmhOk(PCommandHandler pcmh);
     virtual tribool _TGetNextCmd(void);
     virtual bool _FSendCmd(PCommandHandler pcmh);
     virtual void _CleanUpCmd(void);
-    virtual bool _FEnableCmd(PCommandHandler pcmh, PCommand pcmd, ulong *pgrfeds);
+    virtual bool _FEnableCmd(PCommandHandler pcmh, PCommand pcmd, LegacyUlong *pgrfeds);
 
     /* Seam virtuals for the cmd_core split (Task 2 of plan
        2026-05-02-cmd-core-split.md). Defaults are headless-safe; the
@@ -305,7 +305,7 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     bool _FReadCmd(PCommand pcmd);
 
   public:
-    static PCommandExecutionManager PcexNew(long ccmdInit, long ccmhInit);
+    static PCommandExecutionManager PcexNew(LegacyLong ccmdInit, LegacyLong ccmhInit);
     ~CommandExecutionManager(void);
 
     // recording and play back
@@ -325,26 +325,26 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     void RecordCmd(PCommand pcmd);
 
     // managing the filter list
-    virtual bool FAddCmh(PCommandHandler pcmh, long cmhl, ulong grfcmm = fcmmNobody);
-    virtual void RemoveCmh(PCommandHandler pcmh, long cmhl);
+    virtual bool FAddCmh(PCommandHandler pcmh, LegacyLong cmhl, LegacyUlong grfcmm = fcmmNobody);
+    virtual void RemoveCmh(PCommandHandler pcmh, LegacyLong cmhl);
     virtual void BuryCmh(PCommandHandler pcmh);
 
     // queueing and dispatching
     virtual void EnqueueCmd(PCommand pcmd);
     virtual void PushCmd(PCommand pcmd);
-    virtual void EnqueueCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
-                            long lw3 = 0);
-    virtual void PushCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
-                         long lw3 = 0);
+    virtual void EnqueueCid(LegacyLong cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, LegacyLong lw0 = 0, LegacyLong lw1 = 0, LegacyLong lw2 = 0,
+                            LegacyLong lw3 = 0);
+    virtual void PushCid(LegacyLong cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, LegacyLong lw0 = 0, LegacyLong lw1 = 0, LegacyLong lw2 = 0,
+                         LegacyLong lw3 = 0);
     virtual bool FDispatchNextCmd(void);
     virtual bool FGetNextKey(PCommand pcmd);
-    virtual bool FCidIn(long cid);
-    virtual void FlushCid(long cid);
+    virtual bool FCidIn(LegacyLong cid);
+    virtual void FlushCid(LegacyLong cid);
 
     // menu marking
-    virtual ulong GrfedsForCmd(PCommand pcmd);
-    virtual ulong GrfedsForCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
-                               long lw3 = 0);
+    virtual LegacyUlong GrfedsForCmd(PCommand pcmd);
+    virtual LegacyUlong GrfedsForCid(LegacyLong cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, LegacyLong lw0 = 0, LegacyLong lw1 = 0, LegacyLong lw2 = 0,
+                               LegacyLong lw3 = 0);
 
     // mouse tracking
     virtual void TrackMouse(PGraphicsObject pgob);
@@ -386,10 +386,11 @@ class GuiCommandExecutionManager : public GuiCommandExecutionManager_PAR
     virtual bool _FCmhModalOk(PCommandHandler pcmh) override;
 
   public:
-    static PGuiCommandExecutionManager PgcexNew(long ccmdInit, long ccmhInit);
+    static PGuiCommandExecutionManager PgcexNew(LegacyLong ccmdInit, LegacyLong ccmhInit);
 
     /* Gui-side overrides for the mouse/modal API. The base CEM has
        no-op defaults so kauai-core consumers can link without UI. */
+    virtual void BuryCmh(PCommandHandler pcmh) override;
     virtual void TrackMouse(PGraphicsObject pgob) override;
     virtual void EndMouseTracking(void) override;
     virtual PGraphicsObject PgobTracking(void) override;

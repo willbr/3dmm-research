@@ -19,10 +19,10 @@ extern "C"
     /*
      * Fixed point types
      */
-    typedef long br_fixed_ls;   /* Long Signed fixed			15.16 */
+    typedef br_int_32 br_fixed_ls;   /* Long Signed fixed			15.16 */
     typedef short br_fixed_lsf; /* Long Signed fraction			 0.15 */
 
-    typedef unsigned long br_fixed_lu;   /* Long unsigned fixed			16.16 */
+    typedef br_uint_32 br_fixed_lu;   /* Long unsigned fixed			16.16 */
     typedef unsigned short br_fixed_luf; /* Long unsigned fixed fraction  0.16 */
 
     typedef short br_fixed_ss; /* Short Signed fixed			 7.8  */

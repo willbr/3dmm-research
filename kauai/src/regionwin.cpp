@@ -15,6 +15,7 @@
     No UI / GraphicsObject / GraphicsPort / Application dependencies --
     just HRGN handles plus the kauai Assert/RC types.
 ***************************************************************************/
+#include "win_headers.h"
 #include "kauai_core.h"
 #include "region.h"
 

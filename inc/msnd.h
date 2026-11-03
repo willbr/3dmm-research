@@ -33,38 +33,8 @@
 
 #include <cstdint>
 
-// Sound types
-enum
-{
-    styNil = 0,
-    styUnused, // Retain.  Existing content depends on subsequent values
-    stySfx,
-    stySpeech,
-    styMidi,
-    styLim
-};
+#include "sound_queue.h"
 
-// Sound-class-number constants
-const long sclNonLoop = 0;
-const long sclLoopWav = 1;
-const long sclLoopMidi = 2;
-
-#define vlmNil (-1)
-
-// Sound-queue-number constants
-enum
-{
-    sqnActr = 0x10000000,
-    sqnBkgd = 0x20000000,
-    sqnLim
-};
-#define ksqnStyShift 16; // Shift for the sqnsty
-
-// Sound Queue Delta times
-// Any sound times less than ksqdtimLong will be clocked & stopped
-const long kdtimOffMsq = 0;
-const long kdtimLongMsq = klwMax;
-const long kdtim2Msq = ((kdtimSecond * 2) * 10) / 12; // adjustment -> 2 seconds
 const long kSndSamplesPerSec = 22050;
 const long kSndBitsPerSample = 8;
 const long kSndBlockAlign = 1;
@@ -125,7 +95,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
     static bool FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn = pvNil);
@@ -194,21 +164,6 @@ typedef class MovieSoundQueue *PMovieSoundQueue;
 #define MovieSoundQueue_PAR CommandHandler
 #define kclsMovieSoundQueue 'MSQ'
 
-const long kcsqeGrow = 10; // quantum growth for sqe
-
-// Movie sound queue entry
-struct SoundQueryEntry
-{
-    long objID;     // Unique identifier (actor id, eg)
-    bool fLoop;     // Looping sound flag
-    bool fQueue;    // Queued sound
-    long vlmMod;    // Volume modification
-    long spr;       // Priority
-    bool fActr;     // Actor vs Scene (to generate unique class)
-    PMovieSoundMSND pmsnd;    // PMovieSoundMSND
-    ulong dtsStart; // How far into the sound to start playing
-};
-
 class MovieSoundQueue : public MovieSoundQueue_PAR
 {
     RTCLASS_DEC
@@ -217,8 +172,7 @@ class MovieSoundQueue : public MovieSoundQueue_PAR
     CMD_MAP_DEC(MovieSoundQueue)
 
   protected:
-    PDynamicArray _pglsqe; // Sound queue entries
-    long _dtim;  // Time sound allowed to play
+    SoundPlaybackQueue _queue; // Core owns pending references and duration policy
     PClock _pclok;
 
   public:
@@ -239,17 +193,17 @@ class MovieSoundQueue : public MovieSoundQueue_PAR
     void SndOff(void)
     {
         AssertThis(0);
-        _dtim = kdtimOffMsq;
+        _queue.duration = kdtimOffMsq;
     }
     void SndOnShort(void)
     {
         AssertThis(0);
-        _dtim = kdtim2Msq;
+        _queue.duration = kdtim2Msq;
     }
     void SndOnLong(void)
     {
         AssertThis(0);
-        _dtim = kdtimLongMsq;
+        _queue.duration = kdtimLongMsq;
     }
     void StopAll(void)
     {
@@ -269,12 +223,12 @@ class MovieSoundQueue : public MovieSoundQueue_PAR
     long DtimSnd(void)
     {
         AssertThis(0);
-        return _dtim;
+        return _queue.duration;
     }
     void SndOnDtim(long dtim)
     {
         AssertThis(0);
-        _dtim = dtim;
+        _queue.duration = dtim;
     }
 };
 

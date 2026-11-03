@@ -15,6 +15,35 @@
 ***************************************************************************/
 #ifndef GFX_H
 #define GFX_H
+#include "kauai_core.h"
+#include "region.h"
+#include "color.h"
+class GraphicsPort;
+class GraphicsObject;
+class GraphicsEnvironment;
+class Picture;
+class MaskedBitmapMBMP;
+typedef GraphicsPort *PGraphicsPort;
+typedef GraphicsObject *PGraphicsObject;
+typedef GraphicsEnvironment *PGraphicsEnvironment;
+typedef Picture *PPicture;
+typedef MaskedBitmapMBMP *PMaskedBitmapMBMP;
+#ifdef KAUAI_SDL3
+namespace KauaiPixels
+{
+struct Brush;
+struct Brush8;
+struct DibFrame;
+class PixelBuffer;
+struct MonochromeBrushState;
+} // namespace KauaiPixels
+namespace KauaiFonts
+{
+class Face;
+struct Placement;
+struct Mask;
+} // namespace KauaiFonts
+#endif
 
 using Group::DynamicArray;
 using Group::PDynamicArray;
@@ -25,11 +54,11 @@ using Group::PDynamicArray;
 // DeScription of a Font.
 struct FontDescription
 {
-    long onn;     // Font number.
-    ulong grfont; // Font style.
-    long dyp;     // Font height in points.
-    long tah;     // Horizontal Text Alignment
-    long tav;     // Vertical Text Alignment
+    LegacyLong onn;     // Font number.
+    LegacyUlong grfont; // Font style.
+    LegacyLong dyp;     // Font height in points.
+    LegacyLong tah;     // Horizontal Text Alignment
+    LegacyLong tav;     // Vertical Text Alignment
 
     ASSERT
 };
@@ -68,9 +97,6 @@ enum
 ****************************************/
 const long onnNil = -1;
 
-#ifdef WIN
-int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam);
-#endif // WIN
 
 #define FontList_PAR BASE
 #define kclsFontList 'NTL'
@@ -82,18 +108,19 @@ class FontList : public FontList_PAR
     NOCOPY(FontList)
 
   private:
-#ifdef WIN
-    friend int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam);
-#endif // WIN
     PStringTable_GST _pgst;
     long _onnSystem;
+#ifdef KAUAI_SDL3
+    bool _fPortableFonts;
+    bool _FInitPortable(void);
+#endif
 
   public:
     FontList(void);
     ~FontList(void);
 
 #ifdef WIN
-    HFONT HfntCreate(FontDescription *pdsf);
+    CoreNative::FontHandle HfntCreate(FontDescription *pdsf);
 #endif // WIN
 #ifdef MAC
     short FtcFromOnn(long onn);
@@ -120,19 +147,12 @@ extern FontList vntl;
     Color and pattern
 ****************************************/
 #ifdef WIN
-typedef COLORREF SCR;
+typedef LegacyUlong SCR;
 #elif defined(MAC)
 typedef RGBColor SCR;
 #endif //! MAC
 
-// NOTE: this matches the Windows RGBQUAD structure
-struct Color
-{
-    byte bBlue;
-    byte bGreen;
-    byte bRed;
-    byte bZero;
-};
+#include "color.h"
 
 #ifdef DEBUG
 enum
@@ -161,7 +181,7 @@ class AbstractColor
     ASSERT
 
   private:
-    ulong _lu;
+    LegacyUlong _lu;
 
 #ifdef WIN
     SCR _Scr(void);
@@ -264,35 +284,44 @@ struct AbstractPattern
 
     bool operator==(AbstractPattern &apt)
     {
-        return ((long *)rgb)[0] == ((long *)apt.rgb)[0] && ((long *)rgb)[1] == ((long *)apt.rgb)[1];
+        for (int i = 0; i < 8; ++i)
+            if (rgb[i] != apt.rgb[i])
+                return false;
+        return true;
     }
     bool operator!=(AbstractPattern &apt)
     {
-        return ((long *)rgb)[0] != ((long *)apt.rgb)[0] || ((long *)rgb)[1] != ((long *)apt.rgb)[1];
+        return !(*this == apt);
     }
 
     void SetSolidFore(void)
     {
-        ((long *)rgb)[0] = -1L;
-        ((long *)rgb)[1] = -1L;
+        for (auto &value : rgb)
+            value = 0xFF;
     }
     bool FSolidFore(void)
     {
-        return (((long *)rgb)[0] & ((long *)rgb)[1]) == -1L;
+        for (auto value : rgb)
+            if (value != 0xFF)
+                return false;
+        return true;
     }
     void SetSolidBack(void)
     {
-        ((long *)rgb)[0] = 0L;
-        ((long *)rgb)[1] = 0L;
+        for (auto &value : rgb)
+            value = 0;
     }
     bool FSolidBack(void)
     {
-        return (((long *)rgb)[0] | ((long *)rgb)[1]) == 0L;
+        for (auto value : rgb)
+            if (value)
+                return false;
+        return true;
     }
     void Invert(void)
     {
-        ((long *)rgb)[0] = ~((long *)rgb)[0];
-        ((long *)rgb)[1] = ~((long *)rgb)[1];
+        for (auto &value : rgb)
+            value ^= 0xFF;
     }
     void MoveOrigin(long dxp, long dyp);
 };
@@ -300,36 +329,7 @@ extern AbstractPattern vaptGray;
 extern AbstractPattern vaptLtGray;
 extern AbstractPattern vaptDkGray;
 
-/****************************************
-    Polygon structure - designed to be
-    compatible with the Mac's
-    Polygon.
-****************************************/
-struct OLY // pOLYgon
-{
-#ifdef MAC
-    short cb; // size of the whole thing
-    SystemRectangle rcs;  // bounding rectangle
-    SystemPoint rgpts[1];
-
-    long Cpts(void)
-    {
-        return (cb - offset(OLY, rgpts[0])) / size(SystemPoint);
-    }
-#else  //! MAC
-    long cpts;
-    SystemPoint rgpts[1];
-
-    long Cpts(void)
-    {
-        return cpts;
-    }
-#endif //! MAC
-
-    ASSERT
-};
-const long kcbOlyBase = size(OLY) - size(SystemPoint);
-
+// The native OLY record is private to gfx_port.h.
 /****************************************
     High level polygon - a DynamicArray of PT's.
 ****************************************/
@@ -398,13 +398,17 @@ enum
 // graphics drawing data
 struct GraphicsDrawingData
 {
-    ulong grfgdd;  // what to do
-    AbstractPattern apt;       // pattern to use
-    AbstractColor acrFore;   // foreground color (used for solid fills also)
-    AbstractColor acrBack;   // background color
-    long dxpPen;   // pen width (used if framing)
-    long dypPen;   // pen height
-    SystemRectangle *prcsClip; // clipping (may be pvNil)
+    LegacyUlong grfgdd;    // what to do
+    AbstractPattern apt;   // pattern to use
+    AbstractColor acrFore; // foreground color (used for solid fills also)
+    AbstractColor acrBack; // background color
+    LegacyLong dxpPen;     // pen width (used if framing)
+    LegacyLong dypPen;     // pen height
+#ifndef MAC
+    RC *prcsClip; // Portable clipping rectangle (may be pvNil).
+#else
+    SystemRectangle *prcsClip;
+#endif
 };
 
 /****************************************
@@ -428,7 +432,11 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     // current pen location and clipping
     long _xp;
     long _yp;
+#ifndef MAC
+    RC _rcsClip;
+#else
     SystemRectangle _rcsClip;
+#endif
     RC _rcVis; // always clipped to - this is in Dst coordinates
 
     // Current font
@@ -460,13 +468,16 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     {
         return _pgpt;
     }
+#ifdef KAUAI_SDL3
+    bool DrawVideoFrame(const KauaiPixels::DibFrame &, RC *);
+#endif
 #ifdef MAC
     void Set(void);
     void Restore(void);
 #endif // MAC
 #ifdef WIN
     // this gross API is for AVI playback
-    void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RC *prc);
+    void DrawDib(CoreNative::DibDrawHandle hdd, CoreNative::BitmapInfo *pbi, RC *prc);
 #endif // WIN
 
     void SetPenSize(long dxp, long dyp);
@@ -571,210 +582,13 @@ enum
     fpalAnimate = 4,  // animate the current palette with these colors
 };
 
-/****************************************
-    Graphics port
-****************************************/
-#define GraphicsPort_PAR BASE
-#define kclsGraphicsPort 'GPT'
-class GraphicsPort : public GraphicsPort_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  private:
-    PRegion _pregnClip;
-    RC _rcClip;
-    PT _ptBase; // coordinates assigned to top-left of the GraphicsPort
-
-#ifdef WIN
-#ifdef DEBUG
-    static bool _fFlushGdi;
-#endif
-    static HPAL _hpal;
-    static HPAL _hpalIdentity;
-    static Color *_prgclr;
-    static long _cclrPal;
-    static long _cactPalCur;
-    static long _cactFlush;
-    static bool _fPalettized; // whether the screen is palettized
-
-    HDC _hdc;
-    HWND _hwnd;
-    HBMP _hbmp;        // nil if not an offscreen port
-    byte *_prgbPixels; // nil if not a dib section port
-    long _cbitPixel;
-    long _cbRow;
-    RC _rcOff;      // bounding rectangle for a metafile or dib port
-    long _cactPal;  // which palette this port has selected
-    long _cactDraw; // last draw - for knowing when to call GdiFlush
-    long _cactLock; // lock count
-
-    // selected brush and its related info
-    enum // brush kind
-    {
-        bkNil,
-        bkApt,
-        bkAcr,
-        bkStock
-    };
-    HBRUSH _hbr;
-    long _bk;
-    AbstractPattern _apt;   // for bkApt
-    AbstractColor _acr;   // for bkAcr
-    int _wType; // for bkStock (stock brush)
-
-    HFONT _hfnt;
-    FontDescription _dsf;
-
-    bool _fNewClip : 1; // _pregnClip has changed
-    bool _fMetaFile : 1;
-    bool _fMapIndices : 1; // SelectPalette failed, map indices to RGBs
-    bool _fOwnPalette : 1; // this offscreen has its own palette
-
-    void _SetClip(SystemRectangle *prcsClip);
-    void _EnsurePalette(void);
-    void _SetTextProps(FontDescription *pdsf);
-    void _SetAptBrush(AbstractPattern *papt);
-    void _SetAcrBrush(AbstractColor acr);
-    void _SetStockBrush(int wType);
-
-    void _FillRcs(SystemRectangle *prcs);
-    void _FillOval(SystemRectangle *prcs);
-    void _FillPoly(OLY *poly);
-    void _FillRgn(HRGN *phrgn);
-    void _FrameRcsOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd, bool fOval);
-    SCR _Scr(AbstractColor acr);
-
-    bool _FInit(HDC hdc);
-#endif // WIN
-
-#ifdef MAC
-    static HCLT _hcltDef;
-    static bool _fForcePalOnSys;
-    static HCLT _HcltUse(long cbitPixel);
-
-    // WARNING: the PPRT's below may be GWorldPtr's instead of GrafPtr's
-    // Only use SetGWorld or GetGWorld on these.  Don't assume they
-    // point to GrafPort's.
-    PPRT _pprt; // may be a GWorldPtr
-    HGD _hgd;
-    PPRT _pprtSav; // may be a GWorldPtr
-    HGD _hgdSav;
-    short _cactLock;  // lock count for pixels (if offscreen)
-    short _cbitPixel; // depth of bitmap (if offscreen)
-    bool _fSet : 1;
-    bool _fOffscreen : 1;
-    bool _fNoClip : 1;
-    bool _fNewClip : 1; //_pregnClip is new
-
-    // for picture based GraphicsPort's
-    RC _rcOff; // also valid for offscreen GPTs
-    HPIC _hpic;
-
-    HPIX _Hpix(void);
-    void _FillRcs(SystemRectangle *prcs);
-    void _FrameRcs(SystemRectangle *prcs);
-    void _FillOval(SystemRectangle *prcs);
-    void _FrameOval(SystemRectangle *prcs);
-    void _FillPoly(HQ *phqoly);
-    void _FramePoly(HQ *phqoly);
-    void _DrawLine(SystemPoint *prgpts);
-    void _GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, SystemPoint *ppts, FontDescription *pdsf);
-#endif // MAC
-
-    // low level draw routine
-    typedef void (GraphicsPort::*PFNDRW)(void *);
-    void _Fill(void *pv, GraphicsDrawingData *pgdd, PFNDRW pfn);
-
-    GraphicsPort(void)
-    {
-    }
-    ~GraphicsPort(void);
-
-  public:
-#ifdef WIN
-    static PGraphicsPort PgptNew(HDC hdc);
-    static PGraphicsPort PgptNewHwnd(HWND hwnd);
-
-    static long CclrSetPalette(HWND hwnd, bool fInval);
-
-    // this gross API is for AVI playback
-    void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
-#endif // WIN
-#ifdef MAC
-    static PGraphicsPort PgptNew(PPRT pprt, HGD hgd = hNil);
-
-    static bool FCanScreen(long cbitPixel, bool fColor);
-    static bool FSetScreenState(long cbitPixel, bool tColor);
-    static void GetScreenState(long *pcbitPixel, bool *pfColor);
-
-    void Set(SystemRectangle *prcsClip);
-    void Restore(void);
-#endif // MAC
-#ifdef DEBUG
-    static void MarkStaticMem(void);
-#endif // DEBUG
-
-    static void SetActiveColors(PDynamicArray pglclr, ulong grfpal);
-    static PDynamicArray PglclrGetPalette(void);
-    static void Flush(void);
-
-    static PGraphicsPort PgptNewOffscreen(RC *prc, long cbitPixel);
-    static PGraphicsPort PgptNewPic(RC *prc);
-    PPicture PpicRelease(void);
-    void SetOffscreenColors(PDynamicArray pglclr = pvNil);
-
-    void ClipToRegn(PRegion *ppregn);
-    void SetPtBase(PT *ppt);
-    void GetPtBase(PT *ppt);
-
-    void DrawRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd);
-    void HiliteRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd);
-    void DrawOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd);
-    void DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GraphicsDrawingData *pgdd);
-    void DrawPoly(HQ hqoly, GraphicsDrawingData *pgdd);
-    void ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GraphicsDrawingData *pgdd);
-
-    void DrawRgch(achar *prgch, long cch, SystemPoint pts, GraphicsDrawingData *pgdd, FontDescription *pdsf);
-    void GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, SystemPoint pts, FontDescription *pdsf);
-
-    void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GraphicsDrawingData *pgdd);
-    void DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
-    void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
-
-    void Lock(void);
-    void Unlock(void);
-    byte *PrgbLockPixels(RC *prc = pvNil);
-    long CbRow(void);
-    long CbitPixel(void);
-};
-
-/****************************************
-    Regions
-****************************************/
-bool FCreateRgn(HRGN *phrgn, RC *prc);
-void FreePhrgn(HRGN *phrgn);
-bool FSetRectRgn(HRGN *phrgn, RC *prc);
-bool FUnionRgn(HRGN hrgnDst, HRGN hrgnSrc1, HRGN hrgnSrc2);
-bool FIntersectRgn(HRGN hrgnDst, HRGN hrgnSrc1, HRGN hrgnSrc2, bool *pfEmpty = pvNil);
-bool FDiffRgn(HRGN hrgnDst, HRGN hrgnSrc, HRGN hrgnSrcSub, bool *pfEmpty = pvNil);
-bool FRectRgn(HRGN hrgn, RC *prc = pvNil);
-bool FEmptyRgn(HRGN hrgn, RC *prc = pvNil);
-bool FEqualRgn(HRGN hrgn1, HRGN hrgn2);
-
+// Native adapters include gfx_port.h for the full GraphicsPort definition.
 /****************************************
     Misc.
 ****************************************/
 bool FInitGfx(void);
 
-// stretch by a factor of 2 in each dimension.
-void DoubleStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *prgbDst, long cbRowDst, long dypDst,
-                   long xpDst, long ypDst, RC *prcClip, PRegion pregnClip);
-
-// stretch by a factor of 2 in vertical direction only.
-void DoubleVertStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *prgbDst, long cbRowDst, long dypDst,
-                       long xpDst, long ypDst, RC *prcClip, PRegion pregnClip);
+#include "pixel_stretch.h"
 
 // Number of times that the palette has changed (via a call to CclrSetPalette
 // or SetActiveColors). This can be used by other modules to detect a palette

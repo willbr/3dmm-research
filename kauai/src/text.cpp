@@ -846,7 +846,7 @@ long EditControlBase::_IchNext(long ich, bool fWord)
 /***************************************************************************
     Assert the validity of the EditControlBase
 ***************************************************************************/
-void EditControlBase::AssertValid(ulong grf)
+void EditControlBase::AssertValid(LegacyUlong grf)
 {
     EditControlBase_PAR::AssertValid(0);
     AssertIn(_ichAnchor, 0, kcbMax);
@@ -1074,7 +1074,7 @@ long EditControlPlain::_XpOrigin(void)
 /***************************************************************************
     Assert the validity of a single-line edit control.
 ***************************************************************************/
-void EditControlPlain::AssertValid(ulong grf)
+void EditControlPlain::AssertValid(LegacyUlong grf)
 {
     EditControlPlain_PAR::AssertValid(0);
     Assert(vntl.FValidOnn(_onn), 0);
@@ -1274,7 +1274,7 @@ long EditControlSingleLine::CchFetch(achar *prgch, long ich, long cchWant)
 /***************************************************************************
     Assert the validity of a single-line edit control.
 ***************************************************************************/
-void EditControlSingleLine::AssertValid(ulong grf)
+void EditControlSingleLine::AssertValid(LegacyUlong grf)
 {
     long ich;
 
@@ -1593,7 +1593,7 @@ long EditControlMultiLine::CchFetch(achar *prgch, long ich, long cchWant)
 /***************************************************************************
     Assert the validity of a multi-line edit control.
 ***************************************************************************/
-void EditControlMultiLine::AssertValid(ulong grf)
+void EditControlMultiLine::AssertValid(LegacyUlong grf)
 {
     EditControlMultiLine_PAR::AssertValid(0);
     AssertPo(_pglich, 0);

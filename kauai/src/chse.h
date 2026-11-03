@@ -49,7 +49,7 @@ class SourceEmitter : public SourceEmitter_PAR
     bool _fError;
 
   protected:
-    void _DumpBsf(long cactTab);
+    void _DumpBsf(LegacyLong cactTab);
 
   public:
     SourceEmitter(void);
@@ -58,9 +58,9 @@ class SourceEmitter : public SourceEmitter_PAR
     void Uninit(void);
 
     void DumpHeader(ChunkTagOrType ctg, ChunkNumber cno, PString pstnName = pvNil, bool fPack = fFalse);
-    void DumpRgb(void *prgb, long cb, long cactTab = 1);
+    void DumpRgb(void *prgb, LegacyLong cb, LegacyLong cactTab = 1);
     void DumpParentCmd(ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid);
-    void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PString pstnFile);
+    void DumpBitmapCmd(byte bTransparent, LegacyLong dxp, LegacyLong dyp, PString pstnFile);
     void DumpFileCmd(PString pstnFile, bool fPacked = fFalse);
     void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
     void DumpList(PVirtualArray pglb);

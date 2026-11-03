@@ -69,7 +69,7 @@ void Interpreter::Free(void)
     if (pvNil != _pscpt && pvNil != _pstrg && pvNil != _pscpt->_pgstLiterals && pvNil != _pglrtvm)
     {
         RuntimeVariableName rtvn;
-        long stid;
+        LegacyLong stid;
 
         rtvn.lu1 = 0;
         for (rtvn.lu2 = _pscpt->_pgstLiterals->IvMac(); rtvn.lu2-- > 0;)
@@ -89,7 +89,7 @@ void Interpreter::Free(void)
 /***************************************************************************
     Assert the validity of a Interpreter.
 ***************************************************************************/
-void Interpreter::AssertValid(ulong grfsceb)
+void Interpreter::AssertValid(LegacyUlong grfsceb)
 {
     Interpreter_PAR::AssertValid(0);
     if (grfsceb & fscebRunnable)
@@ -125,7 +125,7 @@ void Interpreter::MarkMem(void)
     Run the given script.  (prglw, clw) is the list of parameters for the
     script.
 ***************************************************************************/
-bool Interpreter::FRunScript(PScript pscpt, long *prglw, long clw, long *plwReturn, bool *pfPaused)
+bool Interpreter::FRunScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw, LegacyLong *plwReturn, bool *pfPaused)
 {
     AssertThis(0);
     return FAttachScript(pscpt, prglw, clw) && FResume(plwReturn, pfPaused);
@@ -134,13 +134,13 @@ bool Interpreter::FRunScript(PScript pscpt, long *prglw, long clw, long *plwRetu
 /***************************************************************************
     Attach a script to this Interpreter and pause the script.
 ***************************************************************************/
-bool Interpreter::FAttachScript(PScript pscpt, long *prglw, long clw)
+bool Interpreter::FAttachScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw)
 {
     AssertThis(0);
     AssertPo(pscpt, 0);
     AssertIn(clw, 0, kcbMax);
-    AssertPvCb(prglw, LwMul(clw, size(long)));
-    long lw;
+    AssertPvCb(prglw, LwMul(clw, size(LegacyLong)));
+    LegacyLong lw;
     DataVersion dver;
 
     Free();
@@ -148,7 +148,7 @@ bool Interpreter::FAttachScript(PScript pscpt, long *prglw, long clw)
     _fError = fFalse;
 
     // create the stack DynamicArray
-    if (pvNil == (_pgllwStack = DynamicArray::PglNew(size(long), 10)))
+    if (pvNil == (_pgllwStack = DynamicArray::PglNew(size(LegacyLong), 10)))
         goto LFail;
     _pgllwStack->SetMinGrow(10);
 
@@ -194,15 +194,15 @@ bool Interpreter::FAttachScript(PScript pscpt, long *prglw, long clw)
 /***************************************************************************
     Resume a paused script.
 ***************************************************************************/
-bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
+bool Interpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
 {
     AssertThis(fscebRunnable);
     AssertNilOrVarMem(plwReturn);
     AssertNilOrVarMem(pfPaused);
     RuntimeVariableName rtvn;
-    long ilw, clwPush;
-    long lw;
-    long op;
+    LegacyLong ilw, clwPush;
+    LegacyLong lw;
+    LegacyLong op;
 
     TrashVar(plwReturn);
     TrashVar(pfPaused);
@@ -215,7 +215,7 @@ bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
     AssertIn(_ilwCur, 1, _ilwMac + 1);
     for (_fPaused = fFalse; _ilwCur < _ilwMac && !_fError && !_fPaused;)
     {
-        lw = *(long *)_pscpt->_pgllw->QvGet(_ilwCur++);
+        lw = *(LegacyLong *)_pscpt->_pgllw->QvGet(_ilwCur++);
         clwPush = B2Lw(lw);
         if (!FIn(clwPush, 0, _ilwMac - _ilwCur + 1))
         {
@@ -233,8 +233,8 @@ bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
                 goto LFail;
             }
             clwPush--;
-            rtvn.lu1 = (ulong)lw & 0x0000FFFF;
-            rtvn.lu2 = *(ulong *)_pscpt->_pgllw->QvGet(_ilwCur++);
+            rtvn.lu1 = (LegacyUlong)lw & 0x0000FFFF;
+            rtvn.lu2 = *(LegacyUlong *)_pscpt->_pgllw->QvGet(_ilwCur++);
             ilw = _ilwCur;
             if (!_FExecVarOp(op, &rtvn))
                 goto LFail;
@@ -256,7 +256,7 @@ bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
                 _Error(fFalse);
                 break;
             }
-            CopyPb(_pscpt->_pgllw->QvGet(_ilwCur), _pgllwStack->QvGet(ilw), LwMul(clwPush, size(long)));
+            CopyPb(_pscpt->_pgllw->QvGet(_ilwCur), _pgllwStack->QvGet(ilw), LwMul(clwPush, size(LegacyLong)));
             _ilwCur += clwPush;
         }
     }
@@ -277,13 +277,13 @@ bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
 /***************************************************************************
     Put the parameters in the local variable list.
 ***************************************************************************/
-void Interpreter::_AddParameters(long *prglw, long clw)
+void Interpreter::_AddParameters(LegacyLong *prglw, LegacyLong clw)
 {
     AssertThis(0);
     AssertIn(clw, 1, kcbMax);
-    AssertPvCb(prglw, LwMul(clw, size(long)));
+    AssertPvCb(prglw, LwMul(clw, size(LegacyLong)));
     String stn;
-    long ilw;
+    LegacyLong ilw;
     RuntimeVariableName rtvn;
 
     // put the parameters in the local variable gl
@@ -308,7 +308,7 @@ void Interpreter::_AddStrings(PStringTable_GST pgst)
     AssertThis(0);
     AssertPo(pgst, 0);
     RuntimeVariableName rtvn;
-    long stid;
+    LegacyLong stid;
     String stn;
 
     if (pvNil == _pstrg)
@@ -318,7 +318,7 @@ void Interpreter::_AddStrings(PStringTable_GST pgst)
     }
 
     rtvn.lu1 = 0;
-    for (rtvn.lu2 = 0; (long)rtvn.lu2 < pgst->IvMac(); rtvn.lu2++)
+    for (rtvn.lu2 = 0; (LegacyLong)rtvn.lu2 < pgst->IvMac(); rtvn.lu2++)
     {
         pgst->GetStn(rtvn.lu2, &stn);
         if (!_pstrg->FAdd(&stid, &stn))
@@ -357,11 +357,11 @@ short Interpreter::_SwMin(void)
 /***************************************************************************
     Execute an instruction that has a variable as an argument.
 ***************************************************************************/
-bool Interpreter::_FExecVarOp(long op, RuntimeVariableName *prtvn)
+bool Interpreter::_FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
-    long lw;
+    LegacyLong lw;
 
     if (FIn(op, kopMinArray, kopLimArray))
     {
@@ -413,11 +413,11 @@ bool Interpreter::_FExecVarOp(long op, RuntimeVariableName *prtvn)
 /***************************************************************************
     Execute an instruction.
 ***************************************************************************/
-bool Interpreter::_FExecOp(long op)
+bool Interpreter::_FExecOp(LegacyLong op)
 {
     AssertThis(0);
     double dou;
-    long lw1, lw2, lw3;
+    LegacyLong lw1, lw2, lw3;
 
     // OP's that don't have any arguments
     switch (op)
@@ -469,10 +469,10 @@ bool Interpreter::_FExecOp(long op)
         _Push(lw1 - 1);
         break;
     case kopShr:
-        _Push((ulong)_LwPop() >> lw1);
+        _Push((LegacyUlong)_LwPop() >> lw1);
         break;
     case kopShl:
-        _Push((ulong)_LwPop() << lw1);
+        _Push((LegacyUlong)_LwPop() << lw1);
         break;
     case kopBOr:
         _Push(_LwPop() | lw1);
@@ -530,7 +530,7 @@ bool Interpreter::_FExecOp(long op)
             if (dou < (double)klwMin || dou > (double)klwMax)
                 _Error(fTrue);
             else
-                _Push((long)dou);
+                _Push((LegacyLong)dou);
         }
         break;
     case kopDup:
@@ -624,7 +624,7 @@ bool Interpreter::_FExecOp(long op)
             _Error(fTrue);
         else
         {
-            long *prglw;
+            LegacyLong *prglw;
 
             _pgllwStack->Lock();
             prglw = _QlwGet(lw1);
@@ -690,9 +690,9 @@ bool Interpreter::_FExecOp(long op)
 /***************************************************************************
     Pop a long off the stack.
 ***************************************************************************/
-long Interpreter::_LwPop(void)
+LegacyLong Interpreter::_LwPop(void)
 {
-    long lw, ilw;
+    LegacyLong lw, ilw;
 
     if (_fError)
         return 0;
@@ -703,7 +703,7 @@ long Interpreter::_LwPop(void)
         _Error(fTrue);
         return 0;
     }
-    lw = *(long *)_pgllwStack->QvGet(--ilw);
+    lw = *(LegacyLong *)_pgllwStack->QvGet(--ilw);
     AssertDo(_pgllwStack->FSetIvMac(ilw), 0);
     return lw;
 }
@@ -711,9 +711,9 @@ long Interpreter::_LwPop(void)
 /***************************************************************************
     Get a pointer to the element that is clw elements down from the top.
 ***************************************************************************/
-long *Interpreter::_QlwGet(long clw)
+LegacyLong *Interpreter::_QlwGet(LegacyLong clw)
 {
-    long ilwMac;
+    LegacyLong ilwMac;
 
     if (_fError)
         return pvNil;
@@ -723,7 +723,7 @@ long *Interpreter::_QlwGet(long clw)
         _Error(fTrue);
         return pvNil;
     }
-    return (long *)_pgllwStack->QvGet(ilwMac - clw);
+    return (LegacyLong *)_pgllwStack->QvGet(ilwMac - clw);
 }
 
 /***************************************************************************
@@ -770,10 +770,10 @@ void Interpreter::_WarnSz(PZString psz, ...)
 /***************************************************************************
     Rotate clwTot entries on the stack left by clwShift positions.
 ***************************************************************************/
-void Interpreter::_Rotate(long clwTot, long clwShift)
+void Interpreter::_Rotate(LegacyLong clwTot, LegacyLong clwShift)
 {
     AssertThis(0);
-    long *qlw;
+    LegacyLong *qlw;
 
     if (clwTot == 0 || clwTot == 1)
         return;
@@ -787,7 +787,7 @@ void Interpreter::_Rotate(long clwTot, long clwShift)
         AssertIn(clwShift, 0, clwTot);
         if (clwShift != 0)
         {
-            SwapBlocks(qlw, LwMul(clwShift, size(long)), LwMul(clwTot - clwShift, size(long)));
+            SwapBlocks(qlw, LwMul(clwShift, size(LegacyLong)), LwMul(clwTot - clwShift, size(LegacyLong)));
         }
     }
 }
@@ -795,11 +795,11 @@ void Interpreter::_Rotate(long clwTot, long clwShift)
 /***************************************************************************
     Reverse clw entries on the stack.
 ***************************************************************************/
-void Interpreter::_Reverse(long clw)
+void Interpreter::_Reverse(LegacyLong clw)
 {
     AssertThis(0);
-    long *qlw, *qlw2;
-    long lw;
+    LegacyLong *qlw, *qlw2;
+    LegacyLong lw;
 
     if (clw == 0 || clw == 1)
         return;
@@ -819,10 +819,10 @@ void Interpreter::_Reverse(long clw)
 /***************************************************************************
     Duplicate clw entries on the stack.
 ***************************************************************************/
-void Interpreter::_DupList(long clw)
+void Interpreter::_DupList(LegacyLong clw)
 {
     AssertThis(0);
-    long *qlw;
+    LegacyLong *qlw;
 
     if (clw == 0)
         return;
@@ -837,17 +837,17 @@ void Interpreter::_DupList(long clw)
     {
         qlw = _QlwGet(clw * 2);
         Assert(qlw != pvNil, "why did _QlwGet fail?");
-        CopyPb(qlw, qlw + clw, LwMul(clw, size(long)));
+        CopyPb(qlw, qlw + clw, LwMul(clw, size(LegacyLong)));
     }
 }
 
 /***************************************************************************
     Removes clw entries from the stack.
 ***************************************************************************/
-void Interpreter::_PopList(long clw)
+void Interpreter::_PopList(LegacyLong clw)
 {
     AssertThis(0);
-    long ilwMac;
+    LegacyLong ilwMac;
 
     if (clw == 0 || _fError)
         return;
@@ -863,10 +863,10 @@ void Interpreter::_PopList(long clw)
     Select the ilw'th entry from the top clw entries.  ilw is indexed from
     the top entry in and is zero based.
 ***************************************************************************/
-void Interpreter::_Select(long clw, long ilw)
+void Interpreter::_Select(LegacyLong clw, LegacyLong ilw)
 {
     AssertThis(0);
-    long *qlw;
+    LegacyLong *qlw;
 
     if (pvNil == (qlw = _QlwGet(clw)))
         return;
@@ -886,11 +886,11 @@ void Interpreter::_Select(long clw, long ilw)
     test value, push the correspongind return value.  Otherwise, push
     the default return value.
 ***************************************************************************/
-void Interpreter::_Match(long clw)
+void Interpreter::_Match(LegacyLong clw)
 {
     AssertThis(0);
-    long *qrglw;
-    long lwKey, lwPush, ilwTest;
+    LegacyLong *qrglw;
+    LegacyLong lwKey, lwPush, ilwTest;
 
     lwKey = _LwPop();
     lwPush = _LwPop();
@@ -913,7 +913,7 @@ void Interpreter::_Match(long clw)
 /***************************************************************************
     Generates a random entry from a list of numbers on the stack.
 ***************************************************************************/
-void Interpreter::_RndList(long clw)
+void Interpreter::_RndList(LegacyLong clw)
 {
     AssertThis(0);
 
@@ -926,7 +926,7 @@ void Interpreter::_RndList(long clw)
 /***************************************************************************
     Copy the string from stidSrc to stidDst.
 ***************************************************************************/
-void Interpreter::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
+void Interpreter::_CopySubStr(LegacyLong stidSrc, LegacyLong ichMin, LegacyLong cch, LegacyLong stidDst)
 {
     AssertThis(0);
     String stn;
@@ -957,7 +957,7 @@ void Interpreter::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
     Concatenate two strings and put the result in a third. Push the id
     of the destination.
 ***************************************************************************/
-void Interpreter::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
+void Interpreter::_ConcatStrs(LegacyLong stidSrc1, LegacyLong stidSrc2, LegacyLong stidDst)
 {
     AssertThis(0);
     String stn1, stn2;
@@ -991,7 +991,7 @@ void Interpreter::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
 /***************************************************************************
     Push the length of the given string.
 ***************************************************************************/
-void Interpreter::_LenStr(long stid)
+void Interpreter::_LenStr(LegacyLong stid)
 {
     AssertThis(0);
     String stn;
@@ -1010,7 +1010,7 @@ void Interpreter::_LenStr(long stid)
 /***************************************************************************
     ChunkyResourceFile reader function to read a string registry string table.
 ***************************************************************************/
-bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1028,14 +1028,14 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
         return fFalse;
     *pcb = pblck->Cb();
 
-    if (pvNil == (pgst = StringTable_GST::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(long))
+    if (pvNil == (pgst = StringTable_GST::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(LegacyLong))
     {
         goto LFail;
     }
 
     if (kboOther == bo)
     {
-        long istn, stid;
+        LegacyLong istn, stid;
 
         for (istn = pgst->IvMac(); istn-- > 0;)
         {
@@ -1066,7 +1066,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
     AssertThis(0);
     PGenericCacheableObject pcabo;
     PStringTable_GST pgst;
-    long istn, stid;
+    LegacyLong istn, stid;
     String stn;
     bool fFail;
 
@@ -1095,7 +1095,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 
     Assert(pcabo->po->FIs(kclsStringTable_GST), 0);
     pgst = (PStringTable_GST)pcabo->po;
-    Assert(pgst->CbExtra() == size(long), 0);
+    Assert(pgst->CbExtra() == size(LegacyLong), 0);
 
     fFail = fFalse;
     for (istn = pgst->IvMac(); istn-- > 0;)
@@ -1117,7 +1117,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 /***************************************************************************
     Convert a number to a string and add the string to the registry.
 ***************************************************************************/
-void Interpreter::_NumToStr(long lw, long stid)
+void Interpreter::_NumToStr(LegacyLong lw, LegacyLong stid)
 {
     AssertThis(0);
     String stn;
@@ -1141,11 +1141,11 @@ void Interpreter::_NumToStr(long lw, long stid)
     Convert a string to a number and push the result. If the string is
     empty, push lwEmpty; if there is an error, push lwError.
 ***************************************************************************/
-void Interpreter::_StrToNum(long stid, long lwEmpty, long lwError)
+void Interpreter::_StrToNum(LegacyLong stid, LegacyLong lwEmpty, LegacyLong lwError)
 {
     AssertThis(0);
     String stn;
-    long lw;
+    LegacyLong lw;
 
     if (pvNil == _pstrg)
         _Error(fTrue);
@@ -1169,7 +1169,7 @@ void Interpreter::_PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn)
     AssertThis(0);
     AssertVarMem(prtvn);
     AssertNilOrPo(pglrtvm, 0);
-    long lw;
+    LegacyLong lw;
 
     if (_fError)
         return;
@@ -1189,7 +1189,7 @@ void Interpreter::_PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn)
 /***************************************************************************
     Pop the top value off the runtime stack into a variable.
 ***************************************************************************/
-void Interpreter::_AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw)
+void Interpreter::_AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1251,7 +1251,7 @@ PDynamicArray *Interpreter::_PpglrtvmGlobal(void)
 /***************************************************************************
     Get the variable map for a remote object.
 ***************************************************************************/
-PDynamicArray Interpreter::_PglrtvmRemote(long lw)
+PDynamicArray Interpreter::_PglrtvmRemote(LegacyLong lw)
 {
     PDynamicArray *ppgl = _PpglrtvmRemote(lw);
     if (pvNil == ppgl)
@@ -1263,7 +1263,7 @@ PDynamicArray Interpreter::_PglrtvmRemote(long lw)
     Get the adress of the variable map master pointer for a remote object
     (so we can create the variable map if need be).
 ***************************************************************************/
-PDynamicArray *Interpreter::_PpglrtvmRemote(long lw)
+PDynamicArray *Interpreter::_PpglrtvmRemote(LegacyLong lw)
 {
     return pvNil;
 }
@@ -1273,14 +1273,14 @@ PDynamicArray *Interpreter::_PpglrtvmRemote(long lw)
     If the RuntimeVariableName is not in the DynamicArray, sets *pirtvm to where it would be if
     it were.
 ***************************************************************************/
-bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, long *plw, long *pirtvm)
+bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, LegacyLong *plw, LegacyLong *pirtvm)
 {
     AssertPo(pglrtvm, 0);
     AssertVarMem(prtvn);
     AssertNilOrVarMem(plw);
     AssertNilOrVarMem(pirtvm);
     RunTimeVariableMap *qrgrtvm, *qrtvm;
-    long irtvm, irtvmMin, irtvmLim;
+    LegacyLong irtvm, irtvmMin, irtvmLim;
 
     qrgrtvm = (RunTimeVariableMap *)pglrtvm->QvGet(0);
     for (irtvmMin = 0, irtvmLim = pglrtvm->IvMac(); irtvmMin < irtvmLim;)
@@ -1314,13 +1314,13 @@ bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, long *plw, lon
 /***************************************************************************
     Put the given value into a runtime variable.
 ***************************************************************************/
-bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw)
+bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw)
 {
     AssertVarMem(ppglrtvm);
     AssertNilOrPo(*ppglrtvm, 0);
     AssertVarMem(prtvn);
     RunTimeVariableMap rtvm;
-    long irtvm;
+    LegacyLong irtvm;
 
     rtvm.lwValue = lw;
     rtvm.rtvn = *prtvn;
@@ -1343,7 +1343,7 @@ bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 /***************************************************************************
     A chunky resource reader to read a script.
 ***************************************************************************/
-bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1373,7 +1373,7 @@ PScript Script::PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     if (!pcfl->FFind(ctg, cno, &blck))
         goto LFail;
 
-    if (pvNil == (pgllw = DynamicArray::PglRead(&blck, &bo)) || pgllw->CbEntry() != size(long))
+    if (pvNil == (pgllw = DynamicArray::PglRead(&blck, &bo)) || pgllw->CbEntry() != size(LegacyLong))
     {
         goto LFail;
     }
@@ -1418,7 +1418,7 @@ bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno,
     AssertPo(pcfl, 0);
     DataBlock blck;
     ChunkNumber cnoT, cnoStrs;
-    long cb;
+    LegacyLong cb;
 
     // write the script chunk
     cb = _pgllw->CbOnFile();
@@ -1476,7 +1476,7 @@ bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno,
 /***************************************************************************
     Assert the validity of a Script.
 ***************************************************************************/
-void Script::AssertValid(ulong grf)
+void Script::AssertValid(LegacyUlong grf)
 {
     Script_PAR::AssertValid(0);
     AssertPo(_pgllw, 0);
@@ -1517,7 +1517,7 @@ StringRegistry::~StringRegistry(void)
 /***************************************************************************
     Assert the validity of a StringRegistry.
 ***************************************************************************/
-void StringRegistry::AssertValid(ulong grf)
+void StringRegistry::AssertValid(LegacyUlong grf)
 {
     StringRegistry_PAR::AssertValid(0);
     AssertNilOrPo(_pgst, 0);
@@ -1537,11 +1537,11 @@ void StringRegistry::MarkMem(void)
 /***************************************************************************
     Put the string in the registry with the given string id.
 ***************************************************************************/
-bool StringRegistry::FPut(long stid, PString pstn)
+bool StringRegistry::FPut(LegacyLong stid, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    long istn;
+    LegacyLong istn;
 
     if (!_FEnsureGst())
         return fFalse;
@@ -1556,11 +1556,11 @@ bool StringRegistry::FPut(long stid, PString pstn)
     Get the string with the given string id.  If the string isn't in the
     registry, sets pstn to an empty string and returns false.
 ***************************************************************************/
-bool StringRegistry::FGet(long stid, PString pstn)
+bool StringRegistry::FGet(LegacyLong stid, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    long istn;
+    LegacyLong istn;
 
     if (!_FFind(stid, &istn))
     {
@@ -1577,12 +1577,12 @@ bool StringRegistry::FGet(long stid, PString pstn)
     id's are not repeated in the near future.  All assigned id's have their
     high bit set.
 ***************************************************************************/
-bool StringRegistry::FAdd(long *pstid, PString pstn)
+bool StringRegistry::FAdd(LegacyLong *pstid, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pstid);
     AssertPo(pstn, 0);
-    long istn;
+    LegacyLong istn;
 
     for (;;)
     {
@@ -1598,10 +1598,10 @@ bool StringRegistry::FAdd(long *pstid, PString pstn)
 /***************************************************************************
     Delete a string from the registry.
 ***************************************************************************/
-void StringRegistry::Delete(long stid)
+void StringRegistry::Delete(LegacyLong stid)
 {
     AssertThis(0);
-    long istn;
+    LegacyLong istn;
 
     if (_FFind(stid, &istn))
         _pgst->Delete(istn);
@@ -1612,10 +1612,10 @@ void StringRegistry::Delete(long stid)
     exists, it is replaced.  Returns false if the source string doesn't
     exist.  Can't fail if the source does exist.
 ***************************************************************************/
-bool StringRegistry::FMove(long stidSrc, long stidDst)
+bool StringRegistry::FMove(LegacyLong stidSrc, LegacyLong stidDst)
 {
     AssertThis(0);
-    long istnSrc, istnDst;
+    LegacyLong istnSrc, istnDst;
 
     if (stidSrc == stidDst)
         return _FFind(stidSrc, &istnSrc);
@@ -1640,12 +1640,12 @@ bool StringRegistry::FMove(long stidSrc, long stidDst)
     in the registry.  In either case, sets *pistn with where the string
     should go.
 ***************************************************************************/
-bool StringRegistry::_FFind(long stid, long *pistn)
+bool StringRegistry::_FFind(LegacyLong stid, LegacyLong *pistn)
 {
     AssertThis(0);
     AssertVarMem(pistn);
-    long ivMin, ivLim, iv;
-    long stidT;
+    LegacyLong ivMin, ivLim, iv;
+    LegacyLong stidT;
 
     if (pvNil == _pgst)
     {
@@ -1681,7 +1681,7 @@ bool StringRegistry::_FEnsureGst(void)
 
     if (pvNil != _pgst)
         return fTrue;
-    _pgst = StringTable_GST::PgstNew(size(long));
+    _pgst = StringTable_GST::PgstNew(size(LegacyLong));
     AssertThis(0);
 
     return pvNil != _pgst;

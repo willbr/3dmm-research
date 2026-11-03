@@ -16,7 +16,7 @@
 #ifndef SNDM_H
 #define SNDM_H
 
-const long siiNil = 0;
+const LegacyLong siiNil = 0;
 const FileType kftgMidi = MacWin('MIDI', 'MID'); // REVIEW shonk: Mac: file type
 const FileType kftgWave = MacWin('WAVE', 'WAV'); // REVIEW shonk: Mac: file type
 
@@ -31,9 +31,9 @@ class SoundDevice : public SoundDevice_PAR
     RTCLASS_DEC
 
   protected:
-    static long _siiLast;
+    static LegacyLong _siiLast;
 
-    static long _SiiAlloc(void)
+    static LegacyLong _SiiAlloc(void)
     {
         return ++_siiLast;
     }
@@ -42,23 +42,23 @@ class SoundDevice : public SoundDevice_PAR
     virtual bool FActive(void) = 0;
     virtual void Activate(bool fActive) = 0; // boolean state
     virtual void Suspend(bool fSuspend) = 0; // reference count
-    virtual void SetVlm(long vlm) = 0;
-    virtual long VlmCur(void) = 0;
+    virtual void SetVlm(LegacyLong vlm) = 0;
+    virtual LegacyLong VlmCur(void) = 0;
 
-    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
-                         ulong dtsStart = 0, long spr = 0, long scl = sclNil) = 0;
+    virtual LegacyLong SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone, LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1,
+                         LegacyUlong dtsStart = 0, LegacyLong spr = 0, LegacyLong scl = sclNil) = 0;
 
-    virtual void Stop(long sii) = 0;
-    virtual void StopAll(long sqn = sqnNil, long scl = sclNil) = 0;
+    virtual void Stop(LegacyLong sii) = 0;
+    virtual void StopAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil) = 0;
 
-    virtual void Pause(long sii) = 0;
-    virtual void PauseAll(long sqn = sqnNil, long scl = sclNil) = 0;
+    virtual void Pause(LegacyLong sii) = 0;
+    virtual void PauseAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil) = 0;
 
-    virtual void Resume(long sii) = 0;
-    virtual void ResumeAll(long sqn = sqnNil, long scl = sclNil) = 0;
+    virtual void Resume(LegacyLong sii) = 0;
+    virtual void ResumeAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil) = 0;
 
-    virtual bool FPlaying(long sii) = 0;
-    virtual bool FPlayingAll(long sqn = sqnNil, long scl = sclNil) = 0;
+    virtual bool FPlaying(LegacyLong sii) = 0;
+    virtual bool FPlayingAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil) = 0;
 
     virtual void Flush(void) = 0;
     virtual void BeginSynch(void);
@@ -86,13 +86,13 @@ class SoundManager : public SoundManager_PAR
 
     PDynamicArray _pglsndmpe; // sound type to device mapper
 
-    long _cactSuspend;  // nesting level for suspending
+    LegacyLong _cactSuspend;  // nesting level for suspending
     bool _fActive : 1;  // whether the app is active
     bool _fFreeing : 1; // we're in the destructor
 
     SoundManager(void);
     bool _FInit(void);
-    bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, long *pisndmpe = pvNil);
+    bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe = pvNil);
 
   public:
     static PSoundManager PsndmNew(void);
@@ -105,25 +105,26 @@ class SoundManager : public SoundManager_PAR
 
     // inherited methods
     virtual bool FActive(void);
+    bool FSuspended() const { return _cactSuspend > 0; }
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
-    virtual void SetVlm(long vlm);
-    virtual long VlmCur(void);
+    virtual void SetVlm(LegacyLong vlm);
+    virtual LegacyLong VlmCur(void);
 
-    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
-                         ulong dtsStart = 0, long spr = 0, long scl = sclNil);
+    virtual LegacyLong SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone, LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1,
+                         LegacyUlong dtsStart = 0, LegacyLong spr = 0, LegacyLong scl = sclNil);
 
-    virtual void Stop(long sii);
-    virtual void StopAll(long sqn = sqnNil, long scl = sclNil);
+    virtual void Stop(LegacyLong sii);
+    virtual void StopAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
-    virtual void Pause(long sii);
-    virtual void PauseAll(long sqn = sqnNil, long scl = sclNil);
+    virtual void Pause(LegacyLong sii);
+    virtual void PauseAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
-    virtual void Resume(long sii);
-    virtual void ResumeAll(long sqn = sqnNil, long scl = sclNil);
+    virtual void Resume(LegacyLong sii);
+    virtual void ResumeAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
-    virtual bool FPlaying(long sii);
-    virtual bool FPlayingAll(long sqn = sqnNil, long scl = sclNil);
+    virtual bool FPlaying(LegacyLong sii);
+    virtual bool FPlayingAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
     virtual void Flush(void);
     virtual void BeginSynch(void);
@@ -149,16 +150,16 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
     struct SNQD
     {
         PSoundQueue psnque;
-        long sqn;
+        LegacyLong sqn;
     };
 
     PDynamicArray _pglsnqd; // the queues
 
-    long _cactSuspend;
+    LegacyLong _cactSuspend;
     bool _fActive : 1;
 
     virtual bool _FInit(void);
-    virtual bool _FEnsureQueue(long sqn, SNQD *psnqd, long *pisnqd);
+    virtual bool _FEnsureQueue(LegacyLong sqn, SNQD *psnqd, LegacyLong *pisnqd);
 
     virtual PSoundQueue _PsnqueNew(void) = 0;
     virtual void _Suspend(bool fSuspend) = 0;
@@ -171,20 +172,20 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
 
-    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
-                         ulong dtsStart = 0, long spr = 0, long scl = sclNil);
+    virtual LegacyLong SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone, LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1,
+                         LegacyUlong dtsStart = 0, LegacyLong spr = 0, LegacyLong scl = sclNil);
 
-    virtual void Stop(long sii);
-    virtual void StopAll(long sqn = sqnNil, long scl = sclNil);
+    virtual void Stop(LegacyLong sii);
+    virtual void StopAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
-    virtual void Pause(long sii);
-    virtual void PauseAll(long sqn = sqnNil, long scl = sclNil);
+    virtual void Pause(LegacyLong sii);
+    virtual void PauseAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
-    virtual void Resume(long sii);
-    virtual void ResumeAll(long sqn = sqnNil, long scl = sclNil);
+    virtual void Resume(LegacyLong sii);
+    virtual void ResumeAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
-    virtual bool FPlaying(long sii);
-    virtual bool FPlayingAll(long sqn = sqnNil, long scl = sclNil);
+    virtual bool FPlaying(LegacyLong sii);
+    virtual bool FPlayingAll(LegacyLong sqn = sqnNil, LegacyLong scl = sclNil);
 
     virtual void Flush(void);
 };
@@ -195,15 +196,15 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
 struct SNDIN
 {
     PBaseCacheableObject pbaco;    // the sound to play
-    long sii;       // the sound instance id
-    long vlm;       // volume to play at
-    long cactPlay;  // how many times to play
-    ulong dtsStart; // offset to start at
-    long spr;       // sound priority
-    long scl;       // sound class
+    LegacyLong sii;       // the sound instance id
+    LegacyLong vlm;       // volume to play at
+    LegacyLong cactPlay;  // how many times to play
+    LegacyUlong dtsStart; // offset to start at
+    LegacyLong spr;       // sound priority
+    LegacyLong scl;       // sound class
 
     // 0 means play, < 0 means skip, > 0 means pause
-    long cactPause;
+    LegacyLong cactPause;
 };
 
 /***************************************************************************
@@ -219,14 +220,14 @@ class SoundQueue : public SoundQueue_PAR
 
   protected:
     PDynamicArray _pglsndin;   // the queue
-    long _isndinCur; // SNDIN that we should be playing
+    LegacyLong _isndinCur; // SNDIN that we should be playing
 
     SoundQueue(void);
 
     virtual bool _FInit(void);
-    virtual void _Queue(long isndinMin) = 0;
-    virtual void _PauseQueue(long isndinMin) = 0;
-    virtual void _ResumeQueue(long isndinMin) = 0;
+    virtual void _Queue(LegacyLong isndinMin) = 0;
+    virtual void _PauseQueue(LegacyLong isndinMin) = 0;
+    virtual void _ResumeQueue(LegacyLong isndinMin) = 0;
     virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno) = 0;
 
     virtual void _Enter(void);
@@ -236,21 +237,21 @@ class SoundQueue : public SoundQueue_PAR
   public:
     ~SoundQueue(void);
 
-    void Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
+    void Enqueue(LegacyLong sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl);
 
-    long SprCur(void);
-    void Stop(long sii);
-    void StopAll(long scl = sclNil);
-    void Pause(long sii);
-    void PauseAll(long scl = sclNil);
-    void Resume(long sii);
-    void ResumeAll(long scl = sclNil);
-    bool FPlaying(long sii);
-    bool FPlayingAll(long scl = sclNil);
+    LegacyLong SprCur(void);
+    void Stop(LegacyLong sii);
+    void StopAll(LegacyLong scl = sclNil);
+    void Pause(LegacyLong sii);
+    void PauseAll(LegacyLong scl = sclNil);
+    void Resume(LegacyLong sii);
+    void ResumeAll(LegacyLong scl = sclNil);
+    bool FPlaying(LegacyLong sii);
+    bool FPlayingAll(LegacyLong scl = sclNil);
     void Flush(void);
 };
 
-extern ulong LuVolScale(ulong luVolSys, long vlm);
-extern ulong vluSysVolFake;
+extern LegacyUlong LuVolScale(LegacyUlong luVolSys, LegacyLong vlm);
+extern LegacyUlong vluSysVolFake;
 
 #endif //! SNDM_H

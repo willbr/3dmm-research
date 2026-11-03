@@ -110,7 +110,7 @@ const auto kcvnMinGrfcrp = 4;
 const auto kcvnMinSmallIndex = 4;
 const auto kcvnMinForest = 5;
 
-const long klwMagicChunky = BigLittle('CHN2', '2NHC'); // chunky file signature
+const LegacyLong klwMagicChunky = BigLittle('CHN2', '2NHC'); // chunky file signature
 
 // chunky file prefix. Fixed 128-byte wire format on every architecture.
 // FilePosition fields and trailing reserved array are pinned to int32_t so
@@ -182,11 +182,11 @@ struct ChunkRepresentationBig
         uint32_t grfcrp;
     };
 
-    long BvRgch(void)
+    LegacyLong BvRgch(void)
     {
         return LwMul(ckid, size(ChildChunkIdentification));
     }
-    long CbRgch(long cbVar)
+    LegacyLong CbRgch(LegacyLong cbVar)
     {
         return cbVar - BvRgch();
     }
@@ -207,11 +207,11 @@ struct ChunkRepresentationBig
     {
         grfcrp = grfcrp & ~grfcrpMask | grfcrpT & grfcrpMask;
     }
-    long Cb(void)
+    LegacyLong Cb(void)
     {
         return cb;
     }
-    void SetCb(long cbT)
+    void SetCb(LegacyLong cbT)
     {
         cb = cbT;
     }
@@ -234,11 +234,11 @@ struct ChunkRepresentationSmall
     uint16_t ckid;           // number of owned chunks
     uint16_t ccrpRef;        // number of owners of this chunk
 
-    long BvRgch(void)
+    LegacyLong BvRgch(void)
     {
         return LwMul(ckid, size(ChildChunkIdentification));
     }
-    long CbRgch(long cbVar)
+    LegacyLong CbRgch(LegacyLong cbVar)
     {
         return cbVar - BvRgch();
     }
@@ -259,11 +259,11 @@ struct ChunkRepresentationSmall
     {
         luGrfcrpCb = luGrfcrpCb & ~(grfcrpMask & kgrfcrpAll) | grfcrpT & grfcrpMask & kgrfcrpAll;
     }
-    long Cb(void)
+    LegacyLong Cb(void)
     {
         return luGrfcrpCb >> kcbitGrfcrp;
     }
-    void SetCb(long cbT)
+    void SetCb(LegacyLong cbT)
     {
         luGrfcrpCb = (cbT << kcbitGrfcrp) | luGrfcrpCb & kgrfcrpAll;
     }
@@ -275,26 +275,26 @@ const ByteOrderMask kbomCrpsm = 0xFF500000L;
 
 typedef ChunkRepresentationBig ChunkRepresentation;
 typedef ChunkRepresentationSmall ChunkRepresentationOther;
-const long kcbMaxCrp = kcbMaxCrpbg;
-typedef long CKID;
-const long kckidMax = kcbMax;
+const LegacyLong kcbMaxCrp = kcbMaxCrpbg;
+typedef LegacyLong CKID;
+const LegacyLong kckidMax = kcbMax;
 const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
 
 #else //! CHUNK_BIG_INDEX
 
 typedef ChunkRepresentationSmall ChunkRepresentation;
 typedef ChunkRepresentationBig ChunkRepresentationOther;
-const long kcbMaxCrp = kcbMaxCrpsm;
+const LegacyLong kcbMaxCrp = kcbMaxCrpsm;
 typedef ushort CKID;
-const long kckidMax = ksuMax;
+const LegacyLong kckidMax = ksuMax;
 const ByteOrderMask kbomCrp = kbomCrpsm;
 
 #endif //! CHUNK_BIG_INDEX
 
 #define _BvKid(ikid) LwMul(ikid, size(ChildChunkIdentification))
 
-const long rtiNil = 0; // no rti assigned
-long ChunkyFile::_rtiLast = rtiNil;
+const LegacyLong rtiNil = 0; // no rti assigned
+LegacyLong ChunkyFile::_rtiLast = rtiNil;
 PChunkyFile ChunkyFile::_pcflFirst;
 
 #ifdef CHUNK_STATS
@@ -365,11 +365,11 @@ ChunkyFile::~ChunkyFile(void)
     Static method: open an existing file as a chunky file.  Increments the
     open count.
 ***************************************************************************/
-PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl)
+PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
 {
     AssertPo(pfni, ffniFile);
     PChunkyFile pcfl;
-    ulong grffil;
+    LegacyUlong grffil;
 
     Assert(!(grfcfl & fcflTemp), "can't open a file as temp");
     if (pvNil != (pcfl = PcflFromFni(pfni)))
@@ -468,9 +468,9 @@ bool ChunkyFile::FReopen(void)
     Static method to get file options corresponding to the given chunky
     file options.
 ***************************************************************************/
-ulong ChunkyFile::_GrffilFromGrfcfl(ulong grfcfl)
+LegacyUlong ChunkyFile::_GrffilFromGrfcfl(LegacyUlong grfcfl)
 {
-    ulong grffil = ffilDenyWrite;
+    LegacyUlong grffil = ffilDenyWrite;
 
     if (grfcfl & fcflWriteEnable)
         grffil |= ffilWriteEnable | ffilDenyRead;
@@ -484,11 +484,11 @@ ulong ChunkyFile::_GrffilFromGrfcfl(ulong grfcfl)
 /***************************************************************************
     Static method: create a new file.  Increments the open count.
 ***************************************************************************/
-PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
+PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, LegacyUlong grfcfl)
 {
     AssertPo(pfni, ffniFile);
     PChunkyFile pcfl;
-    ulong grffil;
+    LegacyUlong grffil;
 
     grfcfl |= fcflWriteEnable;
     grffil = _GrffilFromGrfcfl(grfcfl);
@@ -600,7 +600,7 @@ const ByteOrderMask kbomEcdf = 0x5FFC0000L;
     Combine the indicated chunk and its children into an embedded chunk.
     If pfil is pvNil, just computes the size.
 ***************************************************************************/
-bool ChunkyFile::FWriteChunkTree(ChunkTagOrType ctg, ChunkNumber cno, PFileObject pfilDst, FilePosition fpDst, long *pcb)
+bool ChunkyFile::FWriteChunkTree(ChunkTagOrType ctg, ChunkNumber cno, PFileObject pfilDst, FilePosition fpDst, LegacyLong *pcb)
 {
     AssertThis(0);
     AssertNilOrPo(pfilDst, 0);
@@ -610,7 +610,7 @@ bool ChunkyFile::FWriteChunkTree(ChunkTagOrType ctg, ChunkNumber cno, PFileObjec
     FileLocation floSrc, floDst;
     ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
-    ulong grfcge;
+    LegacyUlong grfcge;
 
     if (pvNil != pcb)
         *pcb = 0;
@@ -678,7 +678,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     {
         ChunkTagOrType ctg;
         ChunkNumber cno;
-        long ckid;
+        LegacyLong ckid;
     };
 
     PChunkyFile pcfl;
@@ -747,7 +747,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
         else
         {
             ChunkRepresentation *qcrp;
-            long icrp;
+            LegacyLong icrp;
 
             pcfl->_GetUniqueCno(ecdf.ctg, &icrp, &ecsdT.cno);
             if (!pcfl->_FAdd(0, ecdf.ctg, ecsdT.cno, icrp, pvNil))
@@ -812,7 +812,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
 bool ChunkyFile::FForest(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -831,7 +831,7 @@ bool ChunkyFile::FForest(ChunkTagOrType ctg, ChunkNumber cno)
 void ChunkyFile::SetForest(ChunkTagOrType ctg, ChunkNumber cno, bool fForest)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -912,10 +912,10 @@ void ChunkyFile::CloseUnmarked(void)
     can only fail if fcflWriteEnable is specified and we can't make
     the base file write enabled.
 ***************************************************************************/
-bool ChunkyFile::FSetGrfcfl(ulong grfcfl, ulong grfcflMask)
+bool ChunkyFile::FSetGrfcfl(LegacyUlong grfcfl, LegacyUlong grfcflMask)
 {
     AssertThis(0);
-    ulong grffil, grffilMask;
+    LegacyUlong grffil, grffilMask;
 
     grfcfl &= grfcflMask;
     grffil = _GrffilFromGrfcfl(grfcfl);
@@ -950,10 +950,10 @@ bool ChunkyFile::FSetGrfcfl(ulong grfcfl, ulong grfcflMask)
 /***************************************************************************
     Return the level of error that we've encountered for this chunky file.
 ***************************************************************************/
-long ChunkyFile::ElError(void)
+LegacyLong ChunkyFile::ElError(void)
 {
     AssertThis(0);
-    long elT;
+    LegacyLong elT;
 
     elT = _csto.pfil->ElError();
     if (pvNil != _cstoExtra.pfil)
@@ -964,7 +964,7 @@ long ChunkyFile::ElError(void)
 /***************************************************************************
     Make sure the el level on both files is at or below el.
 ***************************************************************************/
-void ChunkyFile::ResetEl(long el)
+void ChunkyFile::ResetEl(LegacyLong el)
 {
     AssertThis(0);
     AssertIn(el, elNil, kcbMax);
@@ -998,22 +998,22 @@ void ChunkyFile::Release(void)
     of the index.  If fcflGraph, does fcflFull and checks the graph structure
     for cycles.
 ***************************************************************************/
-void ChunkyFile::AssertValid(ulong grfcfl)
+void ChunkyFile::AssertValid(LegacyUlong grfcfl)
 {
     ChunkyFile_PAR::AssertValid(fobjAllocated);
     bool fFirstCrp;
-    long cbTot = 0;
-    long cbTotExtra = 0;
+    LegacyLong cbTot = 0;
+    LegacyLong cbTotExtra = 0;
     ChunkIdentification ckiOld;
     ChunkIdentification ckiNew;
     ChildChunkIdentification kid, kidOld;
     bool fFirstKid;
-    long icrp, icrpT;
-    long ccrpRefTot = 0;
-    long ckidTot = 0;
-    long cbVar, cbRgch;
+    LegacyLong icrp, icrpT;
+    LegacyLong ccrpRefTot = 0;
+    LegacyLong ckidTot = 0;
+    LegacyLong cbVar, cbRgch;
     ChunkRepresentation crp;
-    long ikid;
+    LegacyLong ikid;
     FilePosition fpBase = _fInvalidMainFile ? 0 : size(ChunkyFilePrefix);
 
     Assert(!_fInvalidMainFile || _fAddToExtra, 0);
@@ -1113,7 +1113,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
 
     if (_csto.pglfsm != pvNil)
     {
-        long ifsm;
+        LegacyLong ifsm;
         FreeSpaceMap fsm;
         FilePosition fpOld;
 
@@ -1130,7 +1130,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     }
     if (_cstoExtra.pglfsm != pvNil)
     {
-        long ifsm;
+        LegacyLong ifsm;
         FreeSpaceMap fsm;
         FilePosition fpOld;
 
@@ -1153,9 +1153,9 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     // verify that the _pglrtie is in sorted order and all the chunks exist
     if (pvNil != _pglrtie && _pglrtie->IvMac() > 0)
     {
-        long irtie;
+        LegacyLong irtie;
         RuntimeIDEntry rtie, rtiePrev;
-        long icrp;
+        LegacyLong icrp;
 
         irtie = _pglrtie->IvMac() - 1;
         _pglrtie->Get(irtie, &rtie);
@@ -1198,14 +1198,14 @@ void ChunkyFile::MarkMem(void)
 tribool ChunkyFile::_TValidIndex(void)
 {
     // WARNING: this is called by a full ChunkyFile::AssertValid().
-    long icrp, icrpT;
+    LegacyLong icrp, icrpT;
     ChunkRepresentation *qcrp;
     ChunkGraphEnumerator cge;
-    ulong grfcge, grfcgeIn;
+    LegacyUlong grfcge, grfcgeIn;
     ChildChunkIdentification kid;
-    long cbVar;
-    long ccrpRefTot;
-    long ckidTot;
+    LegacyLong cbVar;
+    LegacyLong ccrpRefTot;
+    LegacyLong ckidTot;
 
     // first clear all fcrpMarkT fields
     ccrpRefTot = ckidTot = 0;
@@ -1343,10 +1343,10 @@ bool ChunkyFile::_FReadIndex(void)
     FilePosition fpMac;
     short bo;
     short osk;
-    long cbVar;
-    long cbRgch;
-    long icrp, ccrp;
-    long cbFixed;
+    LegacyLong cbVar;
+    LegacyLong cbRgch;
+    LegacyLong icrp, ccrp;
+    LegacyLong cbFixed;
     ByteOrderMask bom;
 
     // used for old name stuff
@@ -1442,7 +1442,7 @@ bool ChunkyFile::_FReadIndex(void)
 
             if (fOldIndex)
             {
-                ulong grfcrp = fcrpNil;
+                LegacyUlong grfcrp = fcrpNil;
 
                 if (pcrpbg->fLoner)
                     grfcrp |= fcrpLoner;
@@ -1461,11 +1461,11 @@ bool ChunkyFile::_FReadIndex(void)
             if (fOldNames && cbRgch > 0)
             {
                 // translate the name
-                long bvRgch = pcrpbg->BvRgch();
+                LegacyLong bvRgch = pcrpbg->BvRgch();
 
                 if (cbRgch < size(szsName))
                 {
-                    long cbNew;
+                    LegacyLong cbNew;
 
                     CopyPb(PvAddBv(_pggcrp->QvGet(icrp), bvRgch), szsName, cbRgch);
                     szsName[cbRgch] = 0;
@@ -1594,7 +1594,7 @@ void ChunkyFile::_ReadFreeMap(void)
 
     short bo;
     short osk;
-    long cfsm;
+    LegacyLong cfsm;
 
     // clear this even if reading the free map fails - so we don't try to
     // read again
@@ -1636,7 +1636,7 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 
     Filename fni;
     FileLocation floSrc, floDst;
-    long ccrp, icrp;
+    LegacyLong ccrp, icrp;
     ChunkRepresentation *qcrp;
     PFileObject pfilOld;
 
@@ -1819,7 +1819,7 @@ bool ChunkyFile::FSaveACopy(ChunkTagOrType ctgCreator, Filename *pfni)
     AssertThis(fcflFull | fcflGraph);
     AssertPo(pfni, ffniFile);
     PChunkyFile pcflDst;
-    long icrp, ccrp;
+    LegacyLong icrp, ccrp;
     ChunkRepresentation *pcrp;
     ChunkRepresentation crp;
     FileLocation floSrc, floDst;
@@ -1888,7 +1888,7 @@ bool ChunkyFile::FSaveACopy(ChunkTagOrType ctgCreator, Filename *pfni)
 bool ChunkyFile::FOnExtra(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -1905,7 +1905,7 @@ bool ChunkyFile::FOnExtra(ChunkTagOrType ctg, ChunkNumber cno)
 bool ChunkyFile::FEnsureOnExtra(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
         return fFalse;
@@ -1917,7 +1917,7 @@ bool ChunkyFile::FEnsureOnExtra(ChunkTagOrType ctg, ChunkNumber cno)
     Make sure the given chunk's data is on the extra file. Optionally get
     the flo for the data.
 ***************************************************************************/
-bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
+bool ChunkyFile::_FEnsureOnExtra(LegacyLong icrp, FileLocation *pflo)
 {
     AssertThis(0);
     AssertNilOrVarMem(pflo);
@@ -1987,7 +1987,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
 /***************************************************************************
     Get the FileLocation from the chunk.
 ***************************************************************************/
-void ChunkyFile::_GetFlo(long icrp, PFileLocation pflo)
+void ChunkyFile::_GetFlo(LegacyLong icrp, PFileLocation pflo)
 {
     AssertThis(0);
     AssertVarMem(pflo);
@@ -2020,7 +2020,7 @@ void ChunkyFile::_GetFlo(long icrp, PFileLocation pflo)
 /***************************************************************************
     Get the DataBlock from the chunk.
 ***************************************************************************/
-void ChunkyFile::_GetBlck(long icrp, PDataBlock pblck)
+void ChunkyFile::_GetBlck(LegacyLong icrp, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -2041,7 +2041,7 @@ bool ChunkyFile::FFind(ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck)
     AssertThis(0);
     AssertNilOrPo(pblck, 0);
 
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
@@ -2064,7 +2064,7 @@ bool ChunkyFile::FFindFlo(ChunkTagOrType ctg, ChunkNumber cno, PFileLocation pfl
     AssertThis(0);
     AssertVarMem(pflo);
 
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
@@ -2098,7 +2098,7 @@ bool ChunkyFile::FReadHq(ChunkTagOrType ctg, ChunkNumber cno, HQ *phq)
 void ChunkyFile::SetPacked(ChunkTagOrType ctg, ChunkNumber cno, bool fPacked)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2124,7 +2124,7 @@ void ChunkyFile::SetPacked(ChunkTagOrType ctg, ChunkNumber cno, bool fPacked)
 bool ChunkyFile::FPacked(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2191,14 +2191,14 @@ bool ChunkyFile::_FCreateExtra(void)
 /***************************************************************************
     Find a place to put a block the given size.
 ***************************************************************************/
-bool ChunkyFile::_FAllocFlo(long cb, PFileLocation pflo, bool fForceOnExtra)
+bool ChunkyFile::_FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtra)
 {
     AssertBaseThis(0);
     AssertIn(cb, 0, kcbMax);
     AssertVarMem(pflo);
 
     ChunkStorage *pcsto;
-    long cfsm, ifsm;
+    LegacyLong cfsm, ifsm;
     FreeSpaceMap *qfsm;
 
     if (cb > kcbMaxCrp)
@@ -2273,7 +2273,7 @@ bool ChunkyFile::_FAllocFlo(long cb, PFileLocation pflo, bool fForceOnExtra)
     Returns whether or not it was found.  Assumes the _pggcrp is sorted
     by (ctg, cno).  Does a binary search.
 ***************************************************************************/
-bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, long *picrp)
+bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picrp)
 {
     // WARNING:  this is called by ChunkyFile::AssertValid, so be careful about
     // asserting stuff in here
@@ -2281,7 +2281,7 @@ bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, long *picrp)
     AssertVarMem(picrp);
     AssertPo(_pggcrp, 0);
 
-    long ccrp, icrpMin, icrpLim, icrp;
+    LegacyLong ccrp, icrpMin, icrpLim, icrp;
     ChunkIdentification cki;
 
     if ((ccrp = _pggcrp->IvMac()) == 0)
@@ -2317,13 +2317,13 @@ bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, long *picrp)
 /***************************************************************************
     Find an unused cno for the given ctg.  Fill in *picrp and *pcno.
 ***************************************************************************/
-void ChunkyFile::_GetUniqueCno(ChunkTagOrType ctg, long *picrp, ChunkNumber *pcno)
+void ChunkyFile::_GetUniqueCno(ChunkTagOrType ctg, LegacyLong *picrp, ChunkNumber *pcno)
 {
     AssertBaseThis(0);
     AssertVarMem(picrp);
     AssertVarMem(pcno);
 
-    long icrp, ccrp;
+    LegacyLong icrp, ccrp;
     ChunkNumber cno;
     ChunkRepresentation *qcrp;
 
@@ -2348,13 +2348,13 @@ void ChunkyFile::_GetUniqueCno(ChunkTagOrType ctg, long *picrp, ChunkNumber *pcn
 /***************************************************************************
     Add a new chunk.
 ***************************************************************************/
-bool ChunkyFile::FAdd(long cb, ChunkTagOrType ctg, ChunkNumber *pcno, PDataBlock pblck)
+bool ChunkyFile::FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber *pcno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
     AssertVarMem(pcno);
     AssertNilOrPo(pblck, 0);
-    long icrp;
+    LegacyLong icrp;
 
     _GetUniqueCno(ctg, &icrp, pcno);
     if (!_FAdd(cb, ctg, *pcno, icrp, pblck))
@@ -2370,7 +2370,7 @@ bool ChunkyFile::FAdd(long cb, ChunkTagOrType ctg, ChunkNumber *pcno, PDataBlock
 /***************************************************************************
     Add a new chunk and write the pv to it.
 ***************************************************************************/
-bool ChunkyFile::FAddPv(void *pv, long cb, ChunkTagOrType ctg, ChunkNumber *pcno)
+bool ChunkyFile::FAddPv(void *pv, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertVarMem(pcno);
@@ -2399,7 +2399,7 @@ bool ChunkyFile::FAddHq(HQ hq, ChunkTagOrType ctg, ChunkNumber *pcno)
     AssertHq(hq);
 
     DataBlock blck;
-    long cb = CbOfHq(hq);
+    LegacyLong cb = CbOfHq(hq);
 
     if (!FAdd(cb, ctg, pcno, &blck))
         return fFalse;
@@ -2422,7 +2422,7 @@ bool ChunkyFile::FAddBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber *
     AssertVarMem(pcno);
 
     DataBlock blck;
-    long cb = pblckSrc->Cb(fTrue);
+    LegacyLong cb = pblckSrc->Cb(fTrue);
 
     if (!FAdd(cb, ctg, pcno, &blck))
         return fFalse;
@@ -2442,7 +2442,7 @@ bool ChunkyFile::FAddBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber *
     Adds the chunk and makes it a child of (ctgPar, cnoPar). The loner flag
     of the new chunk will be clear.
 ***************************************************************************/
-bool ChunkyFile::FAddChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, long cb, ChunkTagOrType ctg, ChunkNumber *pcno, PDataBlock pblck)
+bool ChunkyFile::FAddChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber *pcno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertVarMem(pcno);
@@ -2465,7 +2465,7 @@ bool ChunkyFile::FAddChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunk
     Adds the chunk and makes it a child of (ctgPar, cnoPar).  The child's
     loner flag will be clear.
 ***************************************************************************/
-bool ChunkyFile::FAddChildPv(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, void *pv, long cb, ChunkTagOrType ctg, ChunkNumber *pcno)
+bool ChunkyFile::FAddChildPv(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, void *pv, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     if (!FAddPv(pv, cb, ctg, pcno))
         return fFalse;
@@ -2498,7 +2498,7 @@ bool ChunkyFile::FAddChildHq(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChu
 /***************************************************************************
     Low level add.  Sets the loner flag.
 ***************************************************************************/
-bool ChunkyFile::_FAdd(long cb, ChunkTagOrType ctg, ChunkNumber cno, long icrp, PDataBlock pblck)
+bool ChunkyFile::_FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck)
 {
     AssertBaseThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -2543,7 +2543,7 @@ bool ChunkyFile::_FAdd(long cb, ChunkTagOrType ctg, ChunkNumber cno, long icrp, 
 /***************************************************************************
     Replace or create a chunk of a particular cno.
 ***************************************************************************/
-bool ChunkyFile::FPut(long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
+bool ChunkyFile::FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertNilOrPo(pblck, 0);
@@ -2554,7 +2554,7 @@ bool ChunkyFile::FPut(long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock p
 /***************************************************************************
     Replace or create a chunk with the given cno and put the data in it.
 ***************************************************************************/
-bool ChunkyFile::FPutPv(void *pv, long cb, ChunkTagOrType ctg, ChunkNumber cno)
+bool ChunkyFile::FPutPv(void *pv, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -2603,14 +2603,14 @@ bool ChunkyFile::FPutBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber c
     else except the data.  If pblck isn't nil, this sets it to the location
     of the new data.  Doesn't change the packed flag.
 ***************************************************************************/
-bool ChunkyFile::_FPut(long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv)
+bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv)
 {
     AssertBaseThis(0);
     AssertIn(cb, 0, kcbMax);
     AssertNilOrPo(pblck, 0);
     AssertNilOrPo(pblckSrc, 0);
 
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
     FileLocation flo;
 
@@ -2695,12 +2695,12 @@ bool ChunkyFile::_FPut(long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock 
 void ChunkyFile::SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2)
 {
     AssertThis(0);
-    long icrp1, icrp2;
+    LegacyLong icrp1, icrp2;
     ChunkRepresentation *qcrp1, *qcrp2;
     FilePosition fp;
-    long cb;
-    ulong grfcrpT;
-    const ulong kgrfcrpMask = fcrpOnExtra | fcrpPacked | fcrpForest;
+    LegacyLong cb;
+    LegacyUlong grfcrpT;
+    const LegacyUlong kgrfcrpMask = fcrpOnExtra | fcrpPacked | fcrpForest;
 
     if (!_FFindCtgCno(ctg1, cno1, &icrp1) || !_FFindCtgCno(ctg2, cno2, &icrp2))
     {
@@ -2737,9 +2737,9 @@ void ChunkyFile::SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType 
 void ChunkyFile::SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2)
 {
     AssertThis(0);
-    long icrp1, icrp2;
+    LegacyLong icrp1, icrp2;
     ChunkRepresentation *qcrp1, *qcrp2;
-    long cb1, cb2;
+    LegacyLong cb1, cb2;
 
     if (!_FFindCtgCno(ctg1, cno1, &icrp1) || !_FFindCtgCno(ctg2, cno2, &icrp2))
     {
@@ -2774,10 +2774,10 @@ void ChunkyFile::SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrT
 void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew, ChunkNumber cnoNew)
 {
     AssertThis(0);
-    long icrpCur, icrpTarget;
+    LegacyLong icrpCur, icrpTarget;
     ChunkRepresentation *qcrp;
-    long ccrpRef;
-    long rti;
+    LegacyLong ccrpRef;
+    LegacyLong rti;
 
     if (ctg == ctgNew && cno == cnoNew)
         return;
@@ -2802,7 +2802,7 @@ void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew
     {
         // chunk has some parents
         ChunkRepresentation crp;
-        long icrp, ikid, ikidNew;
+        LegacyLong icrp, ikid, ikidNew;
         ChildChunkIdentification *qkid, *qrgkid;
 
         // In debug, increment ccrpRef so we'll traverse the entire
@@ -2851,9 +2851,9 @@ void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew
 void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkGraphEnumerator cge;
-    ulong grfcgeIn, grfcge;
+    LegacyUlong grfcgeIn, grfcge;
     ChildChunkIdentification kid;
     ChunkRepresentation *qcrp;
 
@@ -2891,7 +2891,7 @@ void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno)
                 Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
                 // memory failure - adjust the ref counts of this chunk's
                 // children, but don't try to delete them
-                long ikid, icrpChild;
+                LegacyLong ikid, icrpChild;
                 ChildChunkIdentification kid;
 
                 qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
@@ -2920,7 +2920,7 @@ void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno)
 void ChunkyFile::SetLoner(ChunkTagOrType ctg, ChunkNumber cno, bool fLoner)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2942,7 +2942,7 @@ void ChunkyFile::SetLoner(ChunkTagOrType ctg, ChunkNumber cno, bool fLoner)
 bool ChunkyFile::FLoner(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2957,10 +2957,10 @@ bool ChunkyFile::FLoner(ChunkTagOrType ctg, ChunkNumber cno)
 /***************************************************************************
     Returns the number of parents of this chunk
 ***************************************************************************/
-long ChunkyFile::CckiRef(ChunkTagOrType ctg, ChunkNumber cno)
+LegacyLong ChunkyFile::CckiRef(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2981,7 +2981,7 @@ tribool ChunkyFile::TIsDescendent(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagO
     AssertThis(0);
     ChunkGraphEnumerator cge;
     ChildChunkIdentification kid;
-    ulong grfcge;
+    LegacyUlong grfcge;
 
     if (CckiRef(ctgSub, cnoSub) == 0)
         return tNo;
@@ -3004,7 +3004,7 @@ tribool ChunkyFile::TIsDescendent(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagO
 void ChunkyFile::DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid)
 {
     AssertThis(0);
-    long icrpPar, icrpChild, ikid;
+    LegacyLong icrpPar, icrpChild, ikid;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctgPar, cnoPar, &icrpPar) || !_FFindCtgCno(ctgChild, cnoChild, &icrpChild))
@@ -3036,7 +3036,7 @@ void ChunkyFile::DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTag
     Decrements the reference count on the chunk.  Return true if the ref
     count becomes zero (after decrementing) and fcrpLoner is not set.
 ***************************************************************************/
-bool ChunkyFile::_FDecRefCount(long icrp)
+bool ChunkyFile::_FDecRefCount(LegacyLong icrp)
 {
     AssertBaseThis(0);
     ChunkRepresentation *qcrp;
@@ -3053,7 +3053,7 @@ bool ChunkyFile::_FDecRefCount(long icrp)
 /***************************************************************************
     Remove entry icrp from _pggcrp and add the file space to the free map.
 ***************************************************************************/
-void ChunkyFile::_DeleteCore(long icrp)
+void ChunkyFile::_DeleteCore(LegacyLong icrp)
 {
     AssertBaseThis(0);
     ChunkRepresentation *qcrp;
@@ -3069,14 +3069,14 @@ void ChunkyFile::_DeleteCore(long icrp)
 /***************************************************************************
     Add the (fp, cb) to the free map.
 ***************************************************************************/
-void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, long cb)
+void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb)
 {
     AssertBaseThis(0);
     Assert(cb > 0 || cb == 0 && fp == 0, "bad cb");
     Assert(fp >= 0 && (fOnExtra || fp >= size(ChunkyFilePrefix) || cb == 0 || _fInvalidMainFile), "bad fp");
 
     PDynamicArray pglfsm;
-    long ifsm, ifsmMin, ifsmLim;
+    LegacyLong ifsm, ifsmMin, ifsmLim;
     FreeSpaceMap fsm, fsmT;
     ChunkStorage *pcsto;
 
@@ -3188,7 +3188,7 @@ bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
@@ -3208,14 +3208,14 @@ bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 /***************************************************************************
     Set the name of the chunk at the given index.
 ***************************************************************************/
-bool ChunkyFile::_FSetName(long icrp, PString pstn)
+bool ChunkyFile::_FSetName(LegacyLong icrp, PString pstn)
 {
     AssertBaseThis(0);
     AssertIn(icrp, 0, _pggcrp->IvMac());
     AssertNilOrPo(pstn, 0);
-    long cbVar, cbOld, cbNew;
+    LegacyLong cbVar, cbOld, cbNew;
     ChunkRepresentation *qcrp;
-    long bvRgch;
+    LegacyLong bvRgch;
 
     if (pstn != pvNil && pstn->Cch() > 0)
         cbNew = pstn->CbData();
@@ -3252,7 +3252,7 @@ bool ChunkyFile::FGetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
@@ -3268,14 +3268,14 @@ bool ChunkyFile::FGetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
     Retrieve the name of the chunk at the given index.  Returns whether
     the string is non-empty.
 ***************************************************************************/
-bool ChunkyFile::_FGetName(long icrp, PString pstn)
+bool ChunkyFile::_FGetName(LegacyLong icrp, PString pstn)
 {
     AssertBaseThis(0);
     AssertIn(icrp, 0, _pggcrp->IvMac());
     AssertPo(pstn, 0);
 
-    long cbRgch, bvRgch;
-    long cbVar;
+    LegacyLong cbRgch, bvRgch;
+    LegacyLong cbVar;
     ChunkRepresentation *qcrp;
 
     qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
@@ -3302,8 +3302,8 @@ bool ChunkyFile::_FGetName(long icrp, PString pstn)
 bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
 {
     AssertThis(0);
-    long icrpPar;
-    long ikid;
+    LegacyLong icrpPar;
+    LegacyLong ikid;
 
     if (!_FFindCtgCno(ctgPar, cnoPar, &icrpPar))
     {
@@ -3326,11 +3326,11 @@ bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTag
 /***************************************************************************
     Make (ctgChild, cnoChild) a child of icrpPar.
 ***************************************************************************/
-bool ChunkyFile::_FAdoptChild(long icrpPar, long ikid, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
+bool ChunkyFile::_FAdoptChild(LegacyLong icrpPar, LegacyLong ikid, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
 {
     AssertBaseThis(0);
     AssertIn(icrpPar, 0, _pggcrp->IvMac());
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
     ChildChunkIdentification kid;
 
@@ -3340,7 +3340,7 @@ bool ChunkyFile::_FAdoptChild(long icrpPar, long ikid, ChunkTagOrType ctgChild, 
         return fFalse;
     }
     qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
-    AssertIn(ikid, 0, (long)qcrp->ckid + 1);
+    AssertIn(ikid, 0, (LegacyLong)qcrp->ckid + 1);
     if (tNo != TIsDescendent(ctgChild, cnoChild, qcrp->cki.ctg, qcrp->cki.cno))
     {
         Warn("Performing this adoption may cause a cycle");
@@ -3386,7 +3386,7 @@ bool ChunkyFile::_FAdoptChild(long icrpPar, long ikid, ChunkTagOrType ctgChild, 
 void ChunkyFile::ChangeChid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chidOld, ChildChunkID chidNew)
 {
     AssertThis(0);
-    long icrp, ikidOld, ikidNew;
+    LegacyLong icrp, ikidOld, ikidNew;
     ChildChunkIdentification *qkid, *qrgkid;
 
     if (chidOld == chidNew)
@@ -3415,7 +3415,7 @@ void ChunkyFile::ChangeChid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagO
 /***************************************************************************
     Return the total number of chunks.
 ***************************************************************************/
-long ChunkyFile::Ccki(void)
+LegacyLong ChunkyFile::Ccki(void)
 {
     AssertThis(0);
     return _pggcrp->IvMac();
@@ -3425,7 +3425,7 @@ long ChunkyFile::Ccki(void)
     Finds the icki'th chunk.  If there is such a chunk (icki isn't too big),
     fills in *pcki and *pckid and returns true.  Otherwise, returns fFalse.
 ***************************************************************************/
-bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki, long *pckid, PDataBlock pblck)
+bool ChunkyFile::FGetCki(LegacyLong icki, ChunkIdentification *pcki, LegacyLong *pckid, PDataBlock pblck)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -3457,7 +3457,7 @@ bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki, long *pckid, PDat
     Finds the icki corresponding to the given (ctg, cno).  If the (ctg, cno)
     is not in the ChunkyFile, fills *picki with where it would be.
 ***************************************************************************/
-bool ChunkyFile::FGetIcki(ChunkTagOrType ctg, ChunkNumber cno, long *picki)
+bool ChunkyFile::FGetIcki(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picki)
 {
     AssertThis(0);
     AssertVarMem(picki);
@@ -3467,12 +3467,12 @@ bool ChunkyFile::FGetIcki(ChunkTagOrType ctg, ChunkNumber cno, long *picki)
 /***************************************************************************
     Return the total number of chunks of the given type in the file.
 ***************************************************************************/
-long ChunkyFile::CckiCtg(ChunkTagOrType ctg)
+LegacyLong ChunkyFile::CckiCtg(ChunkTagOrType ctg)
 {
     AssertThis(0);
-    long icrpMac;
-    long icrpMin;
-    long icrpLim;
+    LegacyLong icrpMac;
+    LegacyLong icrpMin;
+    LegacyLong icrpLim;
 
     if ((icrpMac = _pggcrp->IvMac()) == 0)
         return 0;
@@ -3492,7 +3492,7 @@ long ChunkyFile::CckiCtg(ChunkTagOrType ctg)
     Finds the icki'th chunk of type ctg.  If there is such a chunk,
     fills in *pcki and returns true.  Otherwise, returns fFalse.
 ***************************************************************************/
-bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, long icki, ChunkIdentification *pcki, long *pckid, PDataBlock pblck)
+bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, LegacyLong icki, ChunkIdentification *pcki, LegacyLong *pckid, PDataBlock pblck)
 {
     AssertThis(0);
     AssertIn(icki, 0, kcbMax);
@@ -3500,8 +3500,8 @@ bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, long icki, ChunkIdentification *
     AssertNilOrVarMem(pckid);
     AssertNilOrPo(pblck, 0);
     ChunkRepresentation *qcrp;
-    long icrpMac;
-    long icrp;
+    LegacyLong icrpMac;
+    LegacyLong icrp;
 
     if (!FIn(icki, 0, (icrpMac = _pggcrp->IvMac())))
         goto LFail;
@@ -3534,11 +3534,11 @@ bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, long icki, ChunkIdentification *
 /***************************************************************************
     Return the number of children of the given chunk.
 ***************************************************************************/
-long ChunkyFile::Ckid(ChunkTagOrType ctg, ChunkNumber cno)
+LegacyLong ChunkyFile::Ckid(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     ChunkRepresentation *qcrp;
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
@@ -3554,13 +3554,13 @@ long ChunkyFile::Ckid(ChunkTagOrType ctg, ChunkNumber cno)
     If ikid is less than number of children of the given chunk,
     fill *pkid and return true.  Otherwise, return false.
 ***************************************************************************/
-bool ChunkyFile::FGetKid(ChunkTagOrType ctg, ChunkNumber cno, long ikid, ChildChunkIdentification *pkid)
+bool ChunkyFile::FGetKid(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong ikid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
     AssertIn(ikid, 0, kcbMax);
     ChunkRepresentation *qcrp;
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
@@ -3621,10 +3621,10 @@ bool ChunkyFile::_FFindChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildC
 {
     AssertThis(0);
     AssertVarMem(pkid);
-    long ikidMin, ikidLim, ikid;
+    LegacyLong ikidMin, ikidLim, ikid;
     ChunkRepresentation *qcrp;
     ChildChunkIdentification *qrgkid, *qkid;
-    long ckid, icrp;
+    LegacyLong ckid, icrp;
 
     if (!_FFindCtgCno(ctgPar, cnoPar, &icrp))
     {
@@ -3674,11 +3674,11 @@ LFail:
     the given chunk.  If the (ctg, cno, chid) is not a child of
     (ctgPar, cnoPar), fills *pikid with where it would be if it were.
 ***************************************************************************/
-bool ChunkyFile::FGetIkid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid, long *pikid)
+bool ChunkyFile::FGetIkid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid, LegacyLong *pikid)
 {
     AssertThis(0);
     AssertVarMem(pikid);
-    long icrp;
+    LegacyLong icrp;
 
     if (!_FFindCtgCno(ctgPar, cnoPar, &icrp))
     {
@@ -3695,13 +3695,13 @@ bool ChunkyFile::FGetIkid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrT
     the index in *pikid.  If not set *pikid to where to insert it.  Kids are
     sorted by (chid, ctg, cno).
 ***************************************************************************/
-bool ChunkyFile::_FFindChild(long icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, long *pikid)
+bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, LegacyLong *pikid)
 {
     AssertBaseThis(0);
     AssertVarMem(pikid);
     AssertIn(icrpPar, 0, _pggcrp->IvMac());
 
-    long ikidMin, ikidLim, ikid, ckid;
+    LegacyLong ikidMin, ikidLim, ikid, ckid;
     ChunkRepresentation *qcrp;
     ChildChunkIdentification *qrgkid, *qkid;
 
@@ -3750,19 +3750,19 @@ struct ChunkNumberMapEntry
     ChunkNumber cnoDst;
 };
 
-bool _FFindCnom(PDynamicArray pglcnom, ChunkTagOrType ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom = pvNil, long *picnom = pvNil);
+bool _FFindCnom(PDynamicArray pglcnom, ChunkTagOrType ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom = pvNil, LegacyLong *picnom = pvNil);
 bool _FAddCnom(PDynamicArray *ppglcnom, ChunkNumberMapEntry *pcnom);
 
 /***************************************************************************
     Look for a cnom for the given (ctg, cno). Whether or not it exists,
     fill *picnom with where it would go in the pglcnom.
 ***************************************************************************/
-bool _FFindCnom(PDynamicArray pglcnom, ChunkTagOrType ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom, long *picnom)
+bool _FFindCnom(PDynamicArray pglcnom, ChunkTagOrType ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom, LegacyLong *picnom)
 {
     AssertNilOrPo(pglcnom, 0);
     AssertNilOrVarMem(pcnom);
     AssertNilOrVarMem(picnom);
-    long ivMin, ivLim, iv;
+    LegacyLong ivMin, ivLim, iv;
     ChunkNumberMapEntry cnom;
 
     if (pvNil == pglcnom)
@@ -3809,7 +3809,7 @@ bool _FAddCnom(PDynamicArray *ppglcnom, ChunkNumberMapEntry *pcnom)
     AssertVarMem(ppglcnom);
     AssertNilOrPo(*ppglcnom, 0);
     AssertVarMem(pcnom);
-    long icnom;
+    LegacyLong icnom;
 
     if (pvNil == *ppglcnom && pvNil == (*ppglcnom = DynamicArray::PglNew(size(ChunkNumberMapEntry))))
         return fFalse;
@@ -3831,13 +3831,13 @@ bool ChunkyFile::_FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile p
     AssertPo(pcflDst, fcflFull);
     AssertVarMem(pcnoDst);
 
-    long icrpSrc, icrpDst;
-    long rtiSrc;
+    LegacyLong icrpSrc, icrpDst;
+    LegacyLong rtiSrc;
     ChunkGraphEnumerator cge;
     ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
     DataBlock blckSrc;
-    ulong grfcge, grfcgeIn;
+    LegacyUlong grfcge, grfcgeIn;
     ChunkNumberMapEntry cnom, cnomPar;
     String stn;
     ChunkRepresentation *qcrp;
@@ -3994,13 +3994,13 @@ bool ChunkyFile::_FFindMatch(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyF
     AssertPo(pcflDst, 0);
     AssertVarMem(pcnoDst);
 
-    long rtiSrc, rtiKid;
-    long ckidSrc;
+    LegacyLong rtiSrc, rtiKid;
+    LegacyLong ckidSrc;
     ChunkNumber cnoMin, cnoDst;
     ChunkGraphEnumerator cgeSrc, cgeDst;
     ChildChunkIdentification kidSrc, kidDst;
     ChunkIdentification ckiParSrc, ckiParDst;
-    ulong grfcgeSrc, grfcgeDst;
+    LegacyUlong grfcgeSrc, grfcgeDst;
     bool fKidSrc, fKidDst;
 
     if (this == pcflDst || rtiNil == (rtiSrc = _Rti(ctgSrc, cnoSrc)))
@@ -4066,14 +4066,14 @@ bool ChunkyFile::_FFindMatch(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyF
     Looks for a chunk of the given type with assigned rti and cno at least
     cnoMin.
 ***************************************************************************/
-bool ChunkyFile::_FFindCtgRti(ChunkTagOrType ctg, long rti, ChunkNumber cnoMin, ChunkNumber *pcno)
+bool ChunkyFile::_FFindCtgRti(ChunkTagOrType ctg, LegacyLong rti, ChunkNumber cnoMin, ChunkNumber *pcno)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pcno);
 
 #ifdef CHUNK_BIG_INDEX
 
-    long icrp, ccrp;
+    LegacyLong icrp, ccrp;
     ChunkRepresentation *qcrp;
 
     _FFindCtgCno(ctg, cnoMin, &icrp);
@@ -4094,7 +4094,7 @@ bool ChunkyFile::_FFindCtgRti(ChunkTagOrType ctg, long rti, ChunkNumber cnoMin, 
 
 #else //! CHUNK_BIG_INDEX
 
-    long irtie, crtie;
+    LegacyLong irtie, crtie;
     RuntimeIDEntry rtie;
 
     if (pvNil != _pglrtie && 0 < (crtie = _pglrtie->IvMac()))
@@ -4148,13 +4148,13 @@ bool ChunkyFile::FClone(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile p
 /***************************************************************************
     Return the run time id of the given chunk.
 ***************************************************************************/
-long ChunkyFile::_Rti(ChunkTagOrType ctg, ChunkNumber cno)
+LegacyLong ChunkyFile::_Rti(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
 
 #ifdef CHUNK_BIG_INDEX
 
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -4178,13 +4178,13 @@ long ChunkyFile::_Rti(ChunkTagOrType ctg, ChunkNumber cno)
 /***************************************************************************
     Set the run time id of the given chunk.
 ***************************************************************************/
-bool ChunkyFile::_FSetRti(ChunkTagOrType ctg, ChunkNumber cno, long rti)
+bool ChunkyFile::_FSetRti(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong rti)
 {
     AssertBaseThis(0);
 
 #ifdef CHUNK_BIG_INDEX
 
-    long icrp;
+    LegacyLong icrp;
     ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -4197,7 +4197,7 @@ bool ChunkyFile::_FSetRti(ChunkTagOrType ctg, ChunkNumber cno, long rti)
 #else //! CHUNK_BIG_INDEX
 
     RuntimeIDEntry rtie;
-    long irtie;
+    LegacyLong irtie;
 
     if (_FFindRtie(ctg, cno, &rtie, &irtie))
     {
@@ -4229,13 +4229,13 @@ bool ChunkyFile::_FSetRti(ChunkTagOrType ctg, ChunkNumber cno, long rti)
 /***************************************************************************
     Look for an RuntimeIDEntry entry for the given (ctg, cno).
 ***************************************************************************/
-bool ChunkyFile::_FFindRtie(ChunkTagOrType ctg, ChunkNumber cno, RuntimeIDEntry *prtie, long *pirtie)
+bool ChunkyFile::_FFindRtie(ChunkTagOrType ctg, ChunkNumber cno, RuntimeIDEntry *prtie, LegacyLong *pirtie)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(prtie);
     AssertNilOrVarMem(pirtie);
 
-    long ivMin, ivLim, iv;
+    LegacyLong ivMin, ivLim, iv;
     RuntimeIDEntry rtie;
 
     if (pvNil == _pglrtie)
@@ -4301,7 +4301,7 @@ ChunkGraphEnumerator::~ChunkGraphEnumerator(void)
 /***************************************************************************
     Assert the validity of the cge
 ***************************************************************************/
-void ChunkGraphEnumerator::AssertValid(ulong grf)
+void ChunkGraphEnumerator::AssertValid(LegacyUlong grf)
 {
     ChunkGraphEnumerator_PAR::AssertValid(0);
     AssertIn(_es, esStart, esDone + 1);
@@ -4364,7 +4364,7 @@ void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumbe
         fcgeRoot:  *pkid is valid (except the chid value); *pckiPar is
             invalid; the node is the root of the enumeration
 ***************************************************************************/
-bool ChunkGraphEnumerator::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
+bool ChunkGraphEnumerator::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, LegacyUlong *pgrfcgeOut, LegacyUlong grfcgeIn)
 {
     AssertThis(0);
     AssertVarMem(pkid);

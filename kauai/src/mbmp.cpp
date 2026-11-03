@@ -10,7 +10,10 @@
     Masked bitmap routines that a tool might use.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
+#include "region.h"
+#include "mbmp.h"
+#include "bitmap_format.h"
 ASSERTNAME
 
 RTCLASS(MaskedBitmapMBMP)
@@ -33,8 +36,8 @@ MaskedBitmapMBMP::~MaskedBitmapMBMP(void)
     the upper-left corner).  bTransparent should be the pixel value for the
     transparent color for the MaskedBitmapMBMP.
 ***************************************************************************/
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
-                     ulong grfmbmp, byte bDefault)
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, RC *prc, LegacyLong xpRef, LegacyLong ypRef, byte bTransparent,
+                     LegacyUlong grfmbmp, byte bDefault)
 {
     AssertIn(cbRow, 1, kcbMax);
     AssertIn(dyp, 1, kcbMax);
@@ -53,8 +56,8 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *prgbPixels, long cbRow, long 
 /***************************************************************************
     Initialize the MaskedBitmapMBMP based on the given pixels.
 ***************************************************************************/
-bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
-                  ulong grfmbmp, byte bDefault)
+bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, RC *prc, LegacyLong xpRef, LegacyLong ypRef, byte bTransparent,
+                  LegacyUlong grfmbmp, byte bDefault)
 {
     AssertIn(cbRow, 1, kcbMax);
     AssertIn(dyp, 1, kcbMax);
@@ -65,10 +68,10 @@ bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, l
     short *qrgcb;
     byte *pb, *pbRow, *pbLimRow;
     byte *qbDst, *qbDstPrev;
-    long cbPixelData, cbPrev, cbOpaque, cbRun;
-    long dibRow;
+    LegacyLong cbPixelData, cbPrev, cbOpaque, cbRun;
+    LegacyLong dibRow;
     bool fTrans, fMask;
-    long xpMin, xpLim, ypLim, xp, yp;
+    LegacyLong xpMin, xpLim, ypLim, xp, yp;
     RC rc = *prc;
 
     // allocate enough space for the rgcb
@@ -237,12 +240,12 @@ bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, l
     transparent. The bitmap file must be uncompressed and have a bit depth
     of 8.  The palette information is be ignored.
 ****************************************************************************/
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, long xp, long yp, ulong grfmbmp, byte bDefault)
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, LegacyLong xp, LegacyLong yp, LegacyUlong grfmbmp, byte bDefault)
 {
     AssertPo(pfni, ffniFile);
     byte *prgb;
     RC rc;
-    long dxp, dyp;
+    LegacyLong dxp, dyp;
     bool fUpsideDown;
     PMaskedBitmapMBMP pmbmp = pvNil;
 
@@ -265,8 +268,8 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
     AssertPo(pblck, 0);
     PMaskedBitmapMBMP pmbmp;
     MaskedBitmapOnFile *qmbmph;
-    long cbRgcb;
-    long cbTot;
+    LegacyLong cbRgcb;
+    LegacyLong cbTot;
     bool fSwap;
     RC rc;
     HQ hqrgb = hqNil;
@@ -319,7 +322,7 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
 
 #ifdef DEBUG
     // verify the rgcb and rgb
-    long ccb, cb, dxp;
+    LegacyLong ccb, cb, dxp;
     byte *qb;
     bool fMask = pmbmp->_Qmbmph()->fMask;
     short *qcb = pmbmp->_Qrgcb();
@@ -364,7 +367,7 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
 /***************************************************************************
     Return the total size on file.
 ***************************************************************************/
-long MaskedBitmapMBMP::CbOnFile(void)
+LegacyLong MaskedBitmapMBMP::CbOnFile(void)
 {
     AssertThis(0);
     return CbOfHq(_hqrgb);
@@ -410,7 +413,7 @@ void MaskedBitmapMBMP::GetRc(RC *prc)
     Return whether the given (xp, yp) is in a non-transparent pixel of
     the MaskedBitmapMBMP.  (xp, yp) should be given in MaskedBitmapMBMP coordinates.
 ***************************************************************************/
-bool MaskedBitmapMBMP::FPtIn(long xp, long yp)
+bool MaskedBitmapMBMP::FPtIn(LegacyLong xp, LegacyLong yp)
 {
     AssertThis(0);
     byte *qb, *qbLim;
@@ -446,10 +449,10 @@ bool MaskedBitmapMBMP::FPtIn(long xp, long yp)
 /***************************************************************************
     Assert the validity of a MaskedBitmapMBMP.
 ***************************************************************************/
-void MaskedBitmapMBMP::AssertValid(ulong grf)
+void MaskedBitmapMBMP::AssertValid(LegacyUlong grf)
 {
-    long ccb;
-    long cbTot;
+    LegacyLong ccb;
+    LegacyLong cbTot;
     short *qcb;
     RC rc;
 
@@ -483,7 +486,7 @@ void MaskedBitmapMBMP::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read an MaskedBitmapMBMP.
 ***************************************************************************/
-bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -528,7 +531,7 @@ bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
             pfUpsideDown	--	fTrue if the bitmap is upside down
         returns fTrue if it succeeds
 ***************************************************************************/
-bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdxp, long *pdyp, bool *pfUpsideDown, byte bTransparent)
+bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, LegacyLong *pdxp, LegacyLong *pdyp, bool *pfUpsideDown, byte bTransparent)
 {
     AssertPo(pfni, ffniFile);
     AssertNilOrVarMem(pprgb);
@@ -537,18 +540,18 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
     AssertNilOrVarMem(pdyp);
     AssertNilOrVarMem(pfUpsideDown);
 
-#ifdef WIN
+#ifndef MAC
 #pragma pack(2) // the stupid bmfh is an odd number of shorts
     struct BMH
     {
-        BITMAPFILEHEADER bmfh;
-        BITMAPINFOHEADER bmih;
+        BitmapFileHeader bmfh;
+        BitmapInfoHeader bmih;
     };
 #pragma pack()
 
     PFileObject pfil;
     RC rc;
-    long fpMac, cbBitmap, cbSrc;
+    LegacyLong fpMac, cbBitmap, cbSrc;
     BMH bmh;
     bool fRet, fRle;
     FilePosition fpCur = 0;
@@ -564,9 +567,9 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
     if (size(BMH) >= fpMac || !pfil->FReadRgbSeq(&bmh, size(BMH), &fpCur))
         goto LFail;
 
-    fRle = (bmh.bmih.biCompression == BI_RLE8);
+    fRle = (bmh.bmih.biCompression == BitmapCompressionRle8);
     cbSrc = bmh.bmih.biSizeImage;
-    if (((long)bmh.bmfh.bfSize != fpMac) || bmh.bmfh.bfType != 'MB' || !FIn(bmh.bmfh.bfOffBits, size(BMH), fpMac) ||
+    if (((LegacyLong)bmh.bmfh.bfSize != fpMac) || bmh.bmfh.bfType != 'MB' || !FIn(bmh.bmfh.bfOffBits, size(BMH), fpMac) ||
         bmh.bmfh.bfReserved1 != 0 || bmh.bmfh.bfReserved2 != 0 || bmh.bmih.biSize != size(bmh.bmih) ||
         bmh.bmih.biPlanes != 1)
     {
@@ -578,7 +581,7 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
         Warn("not an 8-bit bitmap");
         goto LFail;
     }
-    if (bmh.bmih.biCompression != BI_RGB && !fRle || cbSrc != fpMac - (long)bmh.bmfh.bfOffBits && (cbSrc != 0 || fRle))
+    if (bmh.bmih.biCompression != BitmapCompressionRgb && !fRle || cbSrc != fpMac - (LegacyLong)bmh.bmfh.bfOffBits && (cbSrc != 0 || fRle))
     {
         Warn("bad compression type or bitmap file is wrong length");
         goto LFail;
@@ -628,8 +631,8 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
     {
         byte *pbSrc, *pbDst, *prgbSrc, *pbLimSrc, *pbLimDst;
         byte bT;
-        long xp, cbT;
-        long cbRowDst = CbRoundToLong(rc.xpRight);
+        LegacyLong xp, cbT;
+        LegacyLong cbRowDst = CbRoundToLong(rc.xpRight);
 
         // get the source
         if (!FAllocPv((void **)&prgbSrc, cbSrc, fmemNil, mprNormal))
@@ -776,7 +779,7 @@ LDone:
 
     Returns: fTrue if it could write the file
 ***************************************************************************/
-bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, long dyp, bool fUpsideDown)
+bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, LegacyLong dxp, LegacyLong dyp, bool fUpsideDown)
 {
     AssertPo(pfni, ffniFile);
     AssertVarMem(prgb);
@@ -785,19 +788,19 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
     Assert(dxp >= 0, "Invalid width");
     Assert(dyp >= 0, "Invalid height");
 
-#ifdef WIN
-    Assert(pglclr->CbEntry() == size(RGBQUAD), "Palette has different format from Windows");
+#ifndef MAC
+    Assert(pglclr->CbEntry() == size(Color), "Palette has different format from Windows");
 
 #pragma pack(2) // the stupid bmfh is an odd number of shorts
     struct BMH
     {
-        BITMAPFILEHEADER bmfh;
-        BITMAPINFOHEADER bmih;
+        BitmapFileHeader bmfh;
+        BitmapInfoHeader bmih;
     };
 #pragma pack()
 
     bool fRet = fFalse;
-    long cbSrc;
+    LegacyLong cbSrc;
     PFileObject pfil = pvNil;
     FilePosition fpCur = 0;
     BMH bmh;
@@ -806,8 +809,8 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
 
     /* Fill in the header */
     bmh.bmfh.bfType = 'MB';
-    bmh.bmfh.bfSize = size(bmh) + LwMul(size(RGBQUAD), 256) + cbSrc;
-    bmh.bmfh.bfOffBits = size(bmh) + LwMul(size(RGBQUAD), 256);
+    bmh.bmfh.bfSize = size(bmh) + LwMul(size(Color), 256) + cbSrc;
+    bmh.bmfh.bfOffBits = size(bmh) + LwMul(size(Color), 256);
     bmh.bmfh.bfReserved1 = bmh.bmfh.bfReserved2 = 0;
 
     bmh.bmih.biSize = size(bmh.bmih);
@@ -815,7 +818,7 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
     bmh.bmih.biHeight = dyp;
     bmh.bmih.biPlanes = 1;
     bmh.bmih.biBitCount = 8;
-    bmh.bmih.biCompression = BI_RGB;
+    bmh.bmih.biCompression = BitmapCompressionRgb;
     bmh.bmih.biSizeImage = 0;
     bmh.bmih.biXPelsPerMeter = 0;
     bmh.bmih.biYPelsPerMeter = 0;
@@ -837,11 +840,11 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
     pglclr->Unlock();
 
     /* Write the bits */
-    Assert((ulong)fpCur == bmh.bmfh.bfOffBits, "Current file pos is wrong");
+    Assert((LegacyUlong)fpCur == bmh.bmfh.bfOffBits, "Current file pos is wrong");
     if (fUpsideDown)
     {
         byte *pbCur;
-        long cbRow = CbRoundToLong(dxp);
+        LegacyLong cbRow = CbRoundToLong(dxp);
 
         pbCur = prgb + dyp * cbRow;
         fRet = fTrue;

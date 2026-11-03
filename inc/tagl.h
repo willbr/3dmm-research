@@ -31,14 +31,14 @@ class TagList : public TagList_PAR
 
   protected:
     bool _FInit(void);
-    bool _FFindTag(PTAG ptag, long *pitag);
+    bool _FFindTag(PTAG ptag, LegacyLong *pitag);
 
   public:
     static PTagList PtaglNew(void);
     ~TagList(void);
 
-    long Ctag(void);
-    void GetTag(long itag, PTAG ptag);
+    LegacyLong Ctag(void);
+    void GetTag(LegacyLong itag, PTAG ptag);
 
     bool FInsertTag(PTAG ptag, bool fCacheChildren = fTrue);
     bool FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg);

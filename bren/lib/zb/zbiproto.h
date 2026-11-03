@@ -225,7 +225,3 @@ void BR_ASM_CALL TriangleRenderPIZ2TIAD(struct temp_vertex_fixed *a,struct temp_
 #endif
 #endif
 #endif
-
-
-
-

@@ -19,8 +19,8 @@
 /***************************************************************************
     Universal scalable application clock and other time stuff
 ***************************************************************************/
-const ulong kdtsSecond = MacWin(60, 1000);
-const ulong kluTimeScaleNormal = 0x00010000;
+const LegacyUlong kdtsSecond = 1000;
+const LegacyUlong kluTimeScaleNormal = 0x00010000;
 
 typedef class UniversalScalableApplicationClock *PUniversalScalableApplicationClock;
 #define UniversalScalableApplicationClock_PAR BASE
@@ -30,20 +30,20 @@ class UniversalScalableApplicationClock : public UniversalScalableApplicationClo
     RTCLASS_DEC
 
   private:
-    ulong _tsBaseSys; // base system time
-    ulong _tsBaseApp; // base application time
-    ulong _luScale;
+    LegacyUlong _tsBaseSys; // base system time
+    LegacyUlong _tsBaseApp; // base application time
+    LegacyUlong _luScale;
 
   public:
     UniversalScalableApplicationClock(void);
 
-    ulong TsCur(void);
-    void Scale(ulong luScale);
-    ulong LuScale(void)
+    LegacyUlong TsCur(void);
+    void Scale(LegacyUlong luScale);
+    LegacyUlong LuScale(void)
     {
         return _luScale;
     }
-    void Jump(ulong dtsJump)
+    void Jump(LegacyUlong dtsJump)
     {
         _tsBaseApp += dtsJump;
     }
@@ -51,19 +51,16 @@ class UniversalScalableApplicationClock : public UniversalScalableApplicationClo
 
 extern PUniversalScalableApplicationClock vpusac;
 
-inline ulong TsCurrent(void)
+inline LegacyUlong TsCurrent(void)
 {
     return vpusac->TsCur();
 }
-inline ulong TsCurrentSystem(void)
+inline LegacyUlong TsCurrentSystem(void)
 {
-    // n.b. WIN: timeGetTime is more accurate than GetTickCount
-    return MacWin(TickCount(), timeGetTime());
+    return KauaiPlatform::SystemTicks();
 }
-inline ulong DtsCaret(void)
-{
-    return MacWin(GetCaretTime(), GetCaretBlinkTime());
-}
+// Caret blink timing belongs to the GUI runtime.
+LegacyUlong DtsCaret(void);
 
 /***************************************************************************
     Mutexes to protect various global linked lists, etc.

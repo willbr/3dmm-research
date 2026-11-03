@@ -17,7 +17,7 @@ ASSERTNAME
 /***************************************************************************
     Fill a block with a specific byte value.
 ***************************************************************************/
-void FillPb(void *pv, long cb, byte b)
+void FillPb(void *pv, LegacyLong cb, byte b)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv, cb);
@@ -68,7 +68,7 @@ LBytes:
 /***************************************************************************
     Clear a block.
 ***************************************************************************/
-void ClearPb(void *pv, long cb)
+void ClearPb(void *pv, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv, cb);
@@ -111,7 +111,7 @@ void ClearPb(void *pv, long cb)
     Reverse a block. Useful for exchanging two blocks or avoiding
     recursion.
 ***************************************************************************/
-void ReversePb(void *pv, long cb)
+void ReversePb(void *pv, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv, cb);
@@ -163,7 +163,7 @@ LDone:
 /***************************************************************************
     Reverse a list of shorts.
 ***************************************************************************/
-void ReverseRgsw(void *pv, long csw)
+void ReverseRgsw(void *pv, LegacyLong csw)
 {
     AssertIn(csw, 0, kcbMax);
     AssertPvCb(pv, csw * size(short));
@@ -200,10 +200,10 @@ LDone:
 
 #else //! IN_80386
 
-    long *psw1, *psw2;
-    long sw;
+    LegacyLong *psw1, *psw2;
+    LegacyLong sw;
 
-    for (psw2 = (psw1 = reinterpret_cast<long *>(pv)) + csw - 1; psw1 < psw2;)
+    for (psw2 = (psw1 = reinterpret_cast<LegacyLong *>(pv)) + csw - 1; psw1 < psw2;)
     {
         sw = *psw1;
         *psw1++ = *psw2;
@@ -216,10 +216,10 @@ LDone:
 /***************************************************************************
     Reverse a list of longs.
 ***************************************************************************/
-void ReverseRglw(void *pv, long clw)
+void ReverseRglw(void *pv, LegacyLong clw)
 {
     AssertIn(clw, 0, kcbMax);
-    AssertPvCb(pv, clw * size(long));
+    AssertPvCb(pv, clw * size(LegacyLong));
 
 #ifdef IN_80386
 
@@ -253,10 +253,10 @@ LDone:
 
 #else //! IN_80386
 
-    long *plw1, *plw2;
-    long lw;
+    LegacyLong *plw1, *plw2;
+    LegacyLong lw;
 
-    for (plw2 = (plw1 = (long *)pv) + clw - 1; plw1 < plw2;)
+    for (plw2 = (plw1 = (LegacyLong *)pv) + clw - 1; plw1 < plw2;)
     {
         lw = *plw1;
         *plw1++ = *plw2;
@@ -269,7 +269,7 @@ LDone:
 /***************************************************************************
     Swap two adjacent blocks of size cb1 and cb2 respectively.
 ***************************************************************************/
-void SwapBlocks(void *pv, long cb1, long cb2)
+void SwapBlocks(void *pv, LegacyLong cb1, LegacyLong cb2)
 {
     AssertIn(cb1, 0, kcbMax);
     AssertIn(cb2, 0, kcbMax);
@@ -283,7 +283,7 @@ void SwapBlocks(void *pv, long cb1, long cb2)
 /***************************************************************************
     Swap the contents of two blocks of the same size.
 ***************************************************************************/
-void SwapPb(void *pv1, void *pv2, long cb)
+void SwapPb(void *pv1, void *pv2, LegacyLong cb)
 {
     AssertPvCb(pv1, cb);
     AssertPvCb(pv2, cb);
@@ -357,7 +357,7 @@ LDone:
     appropriately. prgv is the array of elements and cbElement is the
     size of each element.
 ***************************************************************************/
-void MoveElement(void *prgv, long cbElement, long ivSrc, long ivTarget)
+void MoveElement(void *prgv, LegacyLong cbElement, LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertIn(cbElement, 0, kcbMax);
     AssertIn(ivSrc, 0, kcbMax);
@@ -382,7 +382,7 @@ void MoveElement(void *prgv, long cbElement, long ivSrc, long ivTarget)
 /***************************************************************************
     Check for equality of two blocks.
 ***************************************************************************/
-bool FEqualRgb(void *pv1, void *pv2, long cb)
+bool FEqualRgb(void *pv1, void *pv2, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv1, cb);
@@ -436,7 +436,7 @@ LDone:
     Compare the two buffers byte for byte and return a the number of bytes
     that match.
 ***************************************************************************/
-long CbEqualRgb(void *pv1, void *pv2, long cb)
+LegacyLong CbEqualRgb(void *pv1, void *pv2, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv1, cb);
@@ -502,13 +502,13 @@ LHit:
     Compare the two buffers byte for byte and return an fcmp indicating
     their relationship to each other.
 ***************************************************************************/
-ulong FcmpCompareRgb(void *pv1, void *pv2, long cb)
+LegacyUlong FcmpCompareRgb(void *pv1, void *pv2, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv1, cb);
     AssertPvCb(pv2, cb);
 
-    long cbMatch = CbEqualRgb(pv1, pv2, cb);
+    LegacyLong cbMatch = CbEqualRgb(pv1, pv2, cb);
 
     AssertIn(cbMatch, 0, cb + 1);
     if (cb == cbMatch)
@@ -520,7 +520,7 @@ ulong FcmpCompareRgb(void *pv1, void *pv2, long cb)
 /***************************************************************************
     Copy data without overlap.
 ****************************************************************************/
-void CopyPb(void *pv1, void *pv2, long cb)
+void CopyPb(void *pv1, void *pv2, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv1, cb);
@@ -563,7 +563,7 @@ void CopyPb(void *pv1, void *pv2, long cb)
 /***************************************************************************
     Copy data with possible overlap.
 ***************************************************************************/
-void BltPb(void *pv1, void *pv2, long cb)
+void BltPb(void *pv1, void *pv2, LegacyLong cb)
 {
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv1, cb);

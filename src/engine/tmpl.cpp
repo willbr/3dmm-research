@@ -63,7 +63,7 @@
     be CMID 0 for the shirt, 2 for the pants, and 5 for the head.
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(ActionDefinition)
@@ -72,7 +72,7 @@ RTCLASS(Template)
 /***************************************************************************
     Create a new action
 ***************************************************************************/
-PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn)
+PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, LegacyUlong grfactn)
 {
     AssertPo(pggcel, 0);
     AssertPo(pglbmat34, 0);
@@ -105,7 +105,7 @@ LFail:
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read an ActionDefinition from a file
 ***************************************************************************/
-bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -148,7 +148,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
     DataBlock blck;
     ActionChunkOnFile actnf;
     short bo;
-    long icel;
+    LegacyLong icel;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
@@ -213,7 +213,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
             ReleasePpo(&pglOnFile);
             return fFalse;
         }
-        long itag, itagMac = pglOnFile->IvMac();
+        LegacyLong itag, itagMac = pglOnFile->IvMac();
         TAGOnFile tagOnFile;
         TAG tagRuntime;
         for (itag = 0; itag < itagMac; itag++)
@@ -247,7 +247,7 @@ ActionDefinition::~ActionDefinition(void)
 /***************************************************************************
     Get an AnimationCel
 ***************************************************************************/
-void ActionDefinition::GetCel(long icel, AnimationCel *pcel)
+void ActionDefinition::GetCel(LegacyLong icel, AnimationCel *pcel)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -259,7 +259,7 @@ void ActionDefinition::GetCel(long icel, AnimationCel *pcel)
 /***************************************************************************
     Get a CelPartSpec
 ***************************************************************************/
-void ActionDefinition::GetCps(long icel, long icps, CelPartSpec *pcps)
+void ActionDefinition::GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -274,7 +274,7 @@ void ActionDefinition::GetCps(long icel, long icps, CelPartSpec *pcps)
     Get a sound for icel.  If there is no sound, ptag's ChunkTagOrType is set to
     ctgNil.
 ***************************************************************************/
-void ActionDefinition::GetSnd(long icel, PTAG ptag)
+void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -294,7 +294,7 @@ void ActionDefinition::GetSnd(long icel, PTAG ptag)
 /***************************************************************************
     Get a transformation matrix
 ***************************************************************************/
-void ActionDefinition::GetMatrix(long imat34, BMAT34 *pbmat34)
+void ActionDefinition::GetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertIn(imat34, 0, _pglbmat34->IvMac());
@@ -307,7 +307,7 @@ void ActionDefinition::GetMatrix(long imat34, BMAT34 *pbmat34)
 /***************************************************************************
     Assert the validity of the ActionDefinition.
 ***************************************************************************/
-void ActionDefinition::AssertValid(ulong grf)
+void ActionDefinition::AssertValid(LegacyUlong grf)
 {
     ActionDefinition_PAR::AssertValid(fobjAllocated);
     AssertPo(_pggcel, 0);
@@ -331,7 +331,7 @@ void ActionDefinition::MarkMem(void)
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read Template objects.
 ***************************************************************************/
-bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -442,7 +442,7 @@ bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     ChildChunkIdentification kid;
     short bo;
     DataBlock blck;
-    long ibact;
+    LegacyLong ibact;
     short ibset;
 
     if (!_FReadTmplf(pcfl, ctg, cno))
@@ -526,11 +526,11 @@ bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     return fTrue;
 // REVIEW *****: temp code until Pete converts our Template content
 LBuildGgcm:
-    long ikid;
+    LegacyLong ikid;
     PCustomMaterial_CMTL pcmtl;
     PChunkyResourceFile pcrf;
-    long rgcmid[50];
-    long ccmid;
+    LegacyLong rgcmid[50];
+    LegacyLong ccmid;
 
     Warn("missing GGCM...building one on the fly");
 
@@ -565,7 +565,7 @@ LBuildGgcm:
             }
             ReleasePpo(&pcmtl);
         }
-        if (!_pggcmid->FAdd(ccmid * size(long), pvNil, rgcmid, &ccmid))
+        if (!_pggcmid->FAdd(ccmid * size(LegacyLong), pvNil, rgcmid, &ccmid))
         {
             ReleasePpo(&pcrf);
             return fFalse;
@@ -628,7 +628,7 @@ PBody Template::PbodyCreate(void)
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
-bool Template::FGetActnName(long anid, PString pstn)
+bool Template::FGetActnName(LegacyLong anid, PString pstn)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -644,7 +644,7 @@ bool Template::FGetActnName(long anid, PString pstn)
 /***************************************************************************
     Reads an ActionDefinition chunk from disk
 ***************************************************************************/
-PActionDefinition Template::_PactnFetch(long anid)
+PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -686,18 +686,18 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
     matrices for the given cel of the given action.  Also returns the
     distance to the next cel in *pdwr.
 ***************************************************************************/
-bool Template::FSetActnCel(Body *pbody, long anid, long celn, BRS *pdwr)
+bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
     AssertIn(anid, 0, _cactn);
     AssertNilOrVarMem(pdwr);
 
-    long icel;
+    LegacyLong icel;
     ActionDefinition *pactn = pvNil;
     AnimationCel cel;
     short ibprt;
-    long cbprt = _pglibactPar->IvMac();
+    LegacyLong cbprt = _pglibactPar->IvMac();
     CelPartSpec cps;
     PModel *prgpmodl = pvNil;
     BMAT34 bmat34;
@@ -757,14 +757,14 @@ LEnd:
 /***************************************************************************
     Retrieves the distance travelled by cel celn of action anid.
 ***************************************************************************/
-bool Template::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
+bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
     AssertVarMem(pdwr);
 
     ActionDefinition *pactn;
-    long icel;
+    LegacyLong icel;
     AnimationCel cel;
 
     pactn = _PactnFetch(anid);
@@ -782,7 +782,7 @@ bool Template::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
 /***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
-bool Template::FGetCcelActn(long anid, long *pccel)
+bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -801,7 +801,7 @@ bool Template::FGetCcelActn(long anid, long *pccel)
 /***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
-bool Template::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag)
+bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -809,7 +809,7 @@ bool Template::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG pt
     AssertVarMem(ptag);
 
     ActionDefinition *pactn;
-    long icel;
+    LegacyLong icel;
 
     *pfSoundExists = fFalse;
     pactn = _PactnFetch(anid);
@@ -828,7 +828,7 @@ bool Template::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG pt
 /***************************************************************************
     Retrieves the distance travelled by cel celn of action anid.
 ***************************************************************************/
-bool Template::FGetGrfactn(long anid, ulong *pgrfactn)
+bool Template::FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -867,8 +867,8 @@ bool Template::FSetDefaultCost(Body *pbody)
     AssertThis(0);
     AssertPo(pbody, 0);
 
-    long ibset;
-    long cmid;
+    LegacyLong ibset;
+    LegacyLong cmid;
     PCustomMaterial_CMTL *prgpcmtl;
     bool fRet = fFalse;
 
@@ -900,26 +900,26 @@ LEnd:
 /***************************************************************************
     Returns the number of custom materials available for ibset
 ***************************************************************************/
-long Template::CcmidOfBset(long ibset)
+LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
 
-    return *(long *)_pggcmid->QvFixedGet(ibset);
+    return *(LegacyLong *)_pggcmid->QvFixedGet(ibset);
 }
 
 /***************************************************************************
     Returns the icmid'th CMID available for ibset
 ***************************************************************************/
-long Template::CmidOfBset(long ibset, long icmid)
+LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
     AssertIn(icmid, 0, CcmidOfBset(ibset));
 
-    long *prgcmid;
+    LegacyLong *prgcmid;
 
-    prgcmid = (long *)_pggcmid->QvGet(ibset);
+    prgcmid = (LegacyLong *)_pggcmid->QvGet(ibset);
     return prgcmid[icmid];
 }
 
@@ -927,12 +927,12 @@ long Template::CmidOfBset(long ibset, long icmid)
     Tells whether ibset holds accessories by checking to see if one of
     its costumes has model children.
 ***************************************************************************/
-bool Template::FBsetIsAccessory(long ibset)
+bool Template::FBsetIsAccessory(LegacyLong ibset)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
 
-    long cmid;
+    LegacyLong cmid;
     ChildChunkIdentification kid;
 
     if (pvNil == Pcrf())
@@ -953,15 +953,15 @@ bool Template::FBsetIsAccessory(long ibset)
     if ibset is the parent of an accessory, that accessory is returned in
     *pibsetAcc.
 ***************************************************************************/
-bool Template::FIbsetAccOfIbset(long ibset, long *pibsetAcc)
+bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
     AssertVarMem(pibsetAcc);
 
-    long ibsetT;
-    long ibact;
-    long ibactPar;
+    LegacyLong ibsetT;
+    LegacyLong ibact;
+    LegacyLong ibactPar;
     short ibsetOfIbact;
     short ibsetOfIbactPar;
 
@@ -1001,7 +1001,7 @@ bool Template::FIbsetAccOfIbset(long ibset, long *pibsetAcc)
     See if cmid1 and cmid2 are for the same accessory by comparing child
     model chunks
 ***************************************************************************/
-bool Template::FSameAccCmids(long cmid1, long cmid2)
+bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 {
     AssertThis(0);
 
@@ -1019,7 +1019,7 @@ bool Template::FSameAccCmids(long cmid1, long cmid2)
 /***************************************************************************
     Get a custom material.  The cmid is really the chid under the Template.
 ***************************************************************************/
-PCustomMaterial_CMTL Template::PcmtlFetch(long cmid)
+PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
 {
     AssertThis(0);
     AssertIn(cmid, 0, _ccmid);
@@ -1051,10 +1051,10 @@ void Template::GetName(PString pstn)
 /***************************************************************************
     Assert the validity of the Template.
 ***************************************************************************/
-void Template::AssertValid(ulong grftmpl)
+void Template::AssertValid(LegacyUlong grftmpl)
 {
-    long ibset;
-    long ccmid;
+    LegacyLong ibset;
+    LegacyLong ccmid;
 
     Template_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglibactPar, 0);

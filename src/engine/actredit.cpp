@@ -53,25 +53,25 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 
     // If the current point is between nodes, a node will
     // be inserted.  Compute its dwr.
-    _pglrpt->Get(_rtelCur.irpt, &rpt);
+    _track.route->Get(_state.location.irpt, &rpt);
     rptOld.dwr = rpt.dwr;
-    rpt.dwr = BrsSub(rptOld.dwr, _rtelCur.dwrOffset);
+    rpt.dwr = BrsSub(rptOld.dwr, _state.location.dwrOffset);
 
     //
     // Gather all earlier events & move to the current one
     // It is sufficient to begin with the current subroute
     // Note: Add events will require later translation of nfrm
     //
-    for (iaev = _iaevAddCur; iaev < _iaevCur; iaev++)
+    for (iaev = _state.addEvent; iaev < _state.nextEvent; iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
         // Is this an event we want to copy?
         switch (aev.aet)
         {
         case aetActn: // Copy, editing current cel only
-            _pggaev->Get(iaev, &aevactn);
-            aevactn.celn = _celnCur;
+            _track.events->Get(iaev, &aevactn);
+            aevactn.celn = _state.cel;
             break;
 
         // copy
@@ -87,17 +87,17 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 
         // The following events are not automatically copied
         case aetSnd:
-            _pggaev->Get(iaev, &aevsnd);
+            _track.events->Get(iaev, &aevsnd);
             // Update the cno for the chid from the original movie
             // The scene this came from may be lost later
             if (!_pscen->Pmvie()->FResolveSndTag(&aevsnd.tag, aevsnd.chid))
             {
                 goto LFail;
             }
-            _pggaev->Put(iaev, &aevsnd);
-            if (aevsnd.celn == smmNil && iaev >= _iaevFrmMin)
+            _track.events->Put(iaev, &aevsnd);
+            if (aevsnd.celn == smmNil && iaev >= _state.firstEventInFrame)
                 break;
-            if (iaev > _iaevActnCur && aevsnd.celn != smmNil)
+            if (iaev > _state.actionEvent && aevsnd.celn != smmNil)
             {
                 // Retain current motion match sounds
                 break;
@@ -107,9 +107,9 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
         case aetRotH:
 #ifdef BUG1950
             // REVIEW (*****):  Postponed till v2.0
-            if (iaev >= _iaevCur) // Code change not yet verified
+            if (iaev >= _state.nextEvent) // Code change not yet verified
 #else                             //! BUG1950
-            if (iaev >= _iaevFrmMin)
+            if (iaev >= _state.firstEventInFrame)
 #endif                            //! BUG1950
             {
                 // Retain these events from this frame
@@ -128,47 +128,47 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
         aev.rtel.dnfrm = 0;
         aev.rtel.irpt = 0;
         aev.rtel.dwrOffset = 0;
-        iaevLast = (*ppactr)->_pggaev->IvMac();
+        iaevLast = (*ppactr)->_track.events->IvMac();
 
         // Insert aev.  Tag ref count will be updated.
-        _pggaev->Lock();
-        if (!(*ppactr)->_FInsertAev(iaevLast, _pggaev->Cb(iaev), (aev.aet == aetActn) ? &aevactn : _pggaev->QvGet(iaev),
-                                    &aev, fFalse))
+        _track.events->Lock();
+        if (!(*ppactr)->_FInsertAev(iaevLast, _track.events->Cb(iaev),
+                                    (aev.aet == aetActn) ? &aevactn : _track.events->QvGet(iaev), &aev, fFalse))
         {
-            _pggaev->Unlock();
+            _track.events->Unlock();
             goto LFail;
         }
-        _pggaev->Unlock();
+        _track.events->Unlock();
         (*ppactr)->_MergeAev(0, iaevLast);
     }
 
     //
     // Copy remaining events, adjusting their locations
     //
-    for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
-        if ((!fEntireScene) && (aetAdd == aev.aet) && (*ppactr)->_pggaev->IvMac() > 0)
+        if ((!fEntireScene) && (aetAdd == aev.aet) && (*ppactr)->_track.events->IvMac() > 0)
         {
             break;
         }
 
         // Adjust the event indicies.
-        aev.rtel.irpt -= _rtelCur.irpt;
+        aev.rtel.irpt -= _state.location.irpt;
 
         if (aev.rtel.irpt == 0)
         {
-            if (aev.rtel.dwrOffset == _rtelCur.dwrOffset)
+            if (aev.rtel.dwrOffset == _state.location.dwrOffset)
             {
                 aev.rtel.dwrOffset = rZero;
-                if (aev.rtel.dnfrm < _rtelCur.dnfrm)
+                if (aev.rtel.dnfrm < _state.location.dnfrm)
                 {
                     aev.rtel.dnfrm = 0;
                 }
                 else
                 {
-                    aev.rtel.dnfrm -= _rtelCur.dnfrm;
+                    aev.rtel.dnfrm -= _state.location.dnfrm;
                 }
             }
             else
@@ -177,26 +177,26 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
                     aev.rtel.dwrOffset = rZero;
                 else
                 {
-                    aev.rtel.dwrOffset = BrsSub(aev.rtel.dwrOffset, _rtelCur.dwrOffset);
+                    aev.rtel.dwrOffset = BrsSub(aev.rtel.dwrOffset, _state.location.dwrOffset);
                 }
             }
         }
 
         // Insert will update the tag ref count
-        iaevLast = (*ppactr)->_pggaev->IvMac();
-        _pggaev->Lock();
-        if (!(*ppactr)->_FInsertAev(iaevLast, _pggaev->Cb(iaev), _pggaev->QvGet(iaev), &aev, fFalse))
+        iaevLast = (*ppactr)->_track.events->IvMac();
+        _track.events->Lock();
+        if (!(*ppactr)->_FInsertAev(iaevLast, _track.events->Cb(iaev), _track.events->QvGet(iaev), &aev, fFalse))
         {
-            _pggaev->Unlock();
+            _track.events->Unlock();
             goto LFail;
         }
-        _pggaev->Unlock();
+        _track.events->Unlock();
     }
 
     //
     // Add the point we are at.
     //
-    if (!(*ppactr)->_pglrpt->FInsert(0, &rpt))
+    if (!(*ppactr)->_track.route->FInsert(0, &rpt))
     {
         goto LFail;
     }
@@ -204,18 +204,18 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     //
     // Copy the rest of the subroute or route
     //
-    if ((_rtelCur.irpt + 1) < _pglrpt->IvMac())
+    if ((_state.location.irpt + 1) < _track.route->IvMac())
     {
         // Locate the amount of route to copy
         //
-        long irptLim = _pglrpt->IvMac();
+        long irptLim = _track.route->IvMac();
         long irpt;
 
         if (!fEntireScene)
         {
-            for (irpt = _rtelCur.irpt; irpt < irptLim; irpt++)
+            for (irpt = _state.location.irpt; irpt < irptLim; irpt++)
             {
-                _pglrpt->Get(irpt, &rpt);
+                _track.route->Get(irpt, &rpt);
                 if (rZero == rpt.dwr)
                 {
                     irptLim = irpt + 1;
@@ -224,20 +224,21 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
             }
         }
 
-        if (!(*ppactr)->_pglrpt->FSetIvMac((*ppactr)->_pglrpt->IvMac() + irptLim - (_rtelCur.irpt + 1)))
+        if (!(*ppactr)->_track.route->FSetIvMac((*ppactr)->_track.route->IvMac() + irptLim -
+                                                (_state.location.irpt + 1)))
         {
             goto LFail;
         }
 
-        prptSrc = (RouteDistancePoint *)_pglrpt->QvGet(_rtelCur.irpt + 1);
-        prptDest = (RouteDistancePoint *)(*ppactr)->_pglrpt->QvGet(1);
-        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_rtelCur.irpt + 1), size(RouteDistancePoint)));
+        prptSrc = (RouteDistancePoint *)_track.route->QvGet(_state.location.irpt + 1);
+        prptDest = (RouteDistancePoint *)(*ppactr)->_track.route->QvGet(1);
+        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_state.location.irpt + 1), size(RouteDistancePoint)));
     }
     else
     {
         // Mark the end of the path
         rpt.dwr = rZero;
-        (*ppactr)->_pglrpt->Put(0, &rpt);
+        (*ppactr)->_track.route->Put(0, &rpt);
     }
 
     (*ppactr)->_SetStateRewound();
@@ -267,39 +268,24 @@ bool Actor::FDup(PActor *ppactr, bool fReset)
     AssertThis(0);
     AssertVarMem(ppactr);
 
-    long cactRef;
-    PActor pactrSrc = this;
-    PActor pactrDest;
-
-    // Due to state var duplication, using NewObj, not PactrNew
-    pactrDest = (*ppactr) = NewObj Actor();
-    if (*ppactr == pvNil)
-    {
+    PActor pactrDest = (*ppactr) = NewObj Actor();
+    if (pactrDest == pvNil)
         return fFalse;
-    }
 
-    // AddRef only if attached to a scene
-    if (pvNil != _pbody)
-        _pbody->AddRef();
-    _ptmpl->AddRef();
-    TagManager::DupTag(&_tagTmpl);
+    // Finish allocations before sharing any runtime resources. The track
+    // clone owns its TAG references independently and rolls back on failure.
+    if (!pactrDest->_track.FCloneFrom(_track))
+        goto LFail;
+    pactrDest->_pglsmm = _pglsmm->PglDup();
+    if (pactrDest->_pglsmm == pvNil)
+        goto LFail;
 
-    // Copy over all members
-    // Note that both copies will point to the same *_pbody & *_ptmpl
-    cactRef = pactrDest->_cactRef;
-    *(pactrDest) = *pactrSrc;
-    pactrDest->_cactRef = cactRef;
+    pactrDest->_CopyRuntimeStateFrom(*this);
+    if (pactrDest->_pbody != pvNil)
+        pactrDest->_pbody->AddRef();
+    pactrDest->_ptmpl->AddRef();
+    TagManager::DupTag(&pactrDest->_tagTmpl);
     pactrDest->_fTimeFrozen = fFalse;
-
-    if (!pactrDest->_FCreateGroups())
-    {
-        goto LFail;
-    }
-
-    if (!_FDupCopy(pactrSrc, pactrDest))
-    {
-        goto LFail;
-    }
 
     if (fReset)
     {
@@ -322,29 +308,12 @@ void Actor::Restore(PActor pactr)
     AssertThis(0);
     AssertVarMem(pactr);
 
-    long cactRef;
-    PActor pactrSrc = pactr;
-    PActor pactrDest = this;
-
     Assert(pactr->_ptmpl == _ptmpl, "Restore ptmpl logic error");
     Assert(pactr->_pbody == _pbody, "Restore pbody logic error");
 
-    // Copy over all members
-    // Note that both copies will point to the same *_pbody & *_ptmpl
-    cactRef = pactrDest->_cactRef;
-    PGeneralGroup pggaev = pactrDest->_pggaev;
-    PDynamicArray pglrpt = pactrDest->_pglrpt;
-    PDynamicArray pglsmm = pactrDest->_pglsmm;
-    *(pactrDest) = *pactrSrc;
-    pactrDest->_cactRef = cactRef;
-    pactrDest->_pggaev = pggaev;
-    pactrDest->_pglrpt = pglrpt;
-    pactrDest->_pglsmm = pglsmm;
-
-    // Swap the gl and gg structures
-    SwapVars(&pactrSrc->_pggaev, &pactrDest->_pggaev);
-    SwapVars(&pactrSrc->_pglrpt, &pactrDest->_pglrpt);
-    SwapVars(&pactrSrc->_pglsmm, &pactrDest->_pglsmm);
+    _CopyRuntimeStateFrom(*pactr);
+    _track.Swap(pactr->_track);
+    SwapVars(&_pglsmm, &pactr->_pglsmm);
 
     pactr->_pscen->Pmvie()->InvalViews();
 
@@ -362,7 +331,7 @@ void Actor::_RestoreFromUndo(PActor pactrRestore)
     AssertVarMem(pactrRestore);
     Assert(pactrRestore->_pbody == pvNil, "Not restoring from undo object");
 
-    long nfrmCur = _nfrmCur;
+    long nfrmCur = _state.frame;
     PScene pscen = pactrRestore->_pscen;
 
     // Modify pactrRestore for Restore()
@@ -379,81 +348,29 @@ void Actor::_RestoreFromUndo(PActor pactrRestore)
     _pscen->Pmvie()->InvalViews();
 }
 
-/***************************************************************************
-
-    Copy the GeneralGroup and DynamicArray structures for actor duplication/restoration
-
-    NOTE:
-    This is not from this frame on.  The entire actor is duplicated.
-
-***************************************************************************/
-bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
+// Copy evaluated/recording state without copying owning tables or BASE identity.
+void Actor::_CopyRuntimeStateFrom(const Actor &source)
 {
-    AssertBaseThis(0);
-    AssertPo(pactrDest->_pggaev, 0);
-    AssertPo(pactrDest->_pglrpt, 0);
-
-    RouteDistancePoint *prptSrc;
-    RouteDistancePoint *prptDest;
-    SoundMotionMatch *psmmSrc;
-    SoundMotionMatch *psmmDest;
-
-    //
-    // Copy all events.
-    //
-    if (!pactrDest->_pggaev->FCopyEntries(pactrSrc->_pggaev, 0, 0, pactrSrc->_pggaev->IvMac()))
-    {
-        goto LFail;
-    }
-
-    {
-        _pggaev->Lock();
-        for (long iaev = 0; iaev < _pggaev->IvMac(); iaev++)
-        {
-            PTAG ptag;
-
-            if (_FIsIaevTag(_pggaev, iaev, &ptag))
-                TagManager::DupTag(ptag);
-        }
-        _pggaev->Unlock();
-    }
-
-    //
-    // Copy Route
-    //
-    if (pactrSrc->_pglrpt->IvMac() > 0)
-    {
-        if (!pactrDest->_pglrpt->FSetIvMac(pactrSrc->_pglrpt->IvMac()))
-        {
-            goto LFail;
-        }
-
-        prptSrc = (RouteDistancePoint *)pactrSrc->_pglrpt->QvGet(0);
-        prptDest = (RouteDistancePoint *)pactrDest->_pglrpt->QvGet(0);
-        CopyPb(prptSrc, prptDest, LwMul(pactrSrc->_pglrpt->IvMac(), size(RouteDistancePoint)));
-    }
-
-    //
-    // Copy Smm
-    //
-    if (pactrSrc->_pglsmm->IvMac() > 0)
-    {
-        if (!pactrDest->_pglsmm->FSetIvMac(pactrSrc->_pglsmm->IvMac()))
-        {
-            goto LFail;
-        }
-
-        psmmSrc = (SoundMotionMatch *)pactrSrc->_pglsmm->QvGet(0);
-        psmmDest = (SoundMotionMatch *)pactrDest->_pglsmm->QvGet(0);
-        CopyPb(psmmSrc, psmmDest, LwMul(pactrSrc->_pglsmm->IvMac(), size(SoundMotionMatch)));
-    }
-
-    return fTrue;
-
-LFail:
-    if (this != pactrDest)
-        ReleasePpo(&pactrDest);
-    return fFalse;
+    _state = source._state;
+    _ptmpl = source._ptmpl;
+    _pbody = source._pbody;
+    _tagTmpl = source._tagTmpl;
+    _tagSnd = source._tagSnd;
+    _pscen = source._pscen;
+    _dxyzFullRte = source._dxyzFullRte;
+    _nfrmFirst = source._nfrmFirst;
+    _arid = source._arid;
+    _fLifeDirty = source._fLifeDirty;
+    _fPrerendered = source._fPrerendered;
+    _nfrmLast = source._nfrmLast;
+    _rtelInsert = source._rtelInsert;
+    _tsInsert = source._tsInsert;
+    _fModeRecord = source._fModeRecord;
+    _fRejoin = source._fRejoin;
+    _fPathInserted = source._fPathInserted;
+    _fTimeFrozen = source._fTimeFrozen;
+    _dnfrmGap = source._dnfrmGap;
+    _dxyzRaw = source._dxyzRaw;
 }
 
 /***************************************************************************
@@ -485,17 +402,17 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     //
     // Insert the current point
     //
-    _GetXyzFromRtel(&_rtelCur, &rpt.xyz);
-    _pglrpt->Get(_rtelCur.irpt, &rptNode);
+    _GetXyzFromRtel(&_state.location, &rpt.xyz);
+    _track.route->Get(_state.location.irpt, &rptNode);
     rpt.dwr = rZero;
 
-    if (_rtelCur.dwrOffset == rZero)
+    if (_state.location.dwrOffset == rZero)
     {
         rpt.dwr = rptNode.dwr;
     }
-    else if (rptNode.dwr > rZero && _rtelCur.irpt < _pglrpt->IvMac() - 1)
+    else if (rptNode.dwr > rZero && _state.location.irpt < _track.route->IvMac() - 1)
     {
-        _pglrpt->Get(_rtelCur.irpt + 1, &rpt1);
+        _track.route->Get(_state.location.irpt + 1, &rpt1);
         rpt.dwr = BR_LENGTH3(BrsSub(rpt1.xyz.dxr, rpt.xyz.dxr), BrsSub(rpt1.xyz.dyr, rpt.xyz.dyr),
                              BrsSub(rpt1.xyz.dzr, rpt.xyz.dzr));
         if (rZero == rpt.dwr)
@@ -504,7 +421,7 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
         }
     }
 
-    if (!(*ppactr)->_pglrpt->FInsert(0, &rpt))
+    if (!(*ppactr)->_track.route->FInsert(0, &rpt))
     {
         goto LFail;
     }
@@ -517,12 +434,12 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     //
     // If copying subroute only, determine amount to copy
     //
-    irptLim = _pglrpt->IvMac();
+    irptLim = _track.route->IvMac();
     if (!fEntireScene)
     {
-        for (irpt = _rtelCur.irpt + 1; irpt < irptLim; irpt++)
+        for (irpt = _state.location.irpt + 1; irpt < irptLim; irpt++)
         {
-            _pglrpt->Get(irpt, &rpt);
+            _track.route->Get(irpt, &rpt);
             if (rZero == rpt.dwr)
             {
                 irptLim = irpt + 1;
@@ -534,15 +451,15 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     //
     // Copy indicated portion of the route
     //
-    dnrpt = irptLim - (_rtelCur.irpt + 1);
-    if (dnrpt > 0 && !(*ppactr)->_pglrpt->FEnsureSpace(dnrpt, fgrpNil))
+    dnrpt = irptLim - (_state.location.irpt + 1);
+    if (dnrpt > 0 && !(*ppactr)->_track.route->FEnsureSpace(dnrpt, fgrpNil))
         goto LFail;
 
-    for (irpt = _rtelCur.irpt + 1; irpt < irptLim; irpt++)
+    for (irpt = _state.location.irpt + 1; irpt < irptLim; irpt++)
     {
-        _pglrpt->Get(irpt, &rpt);
+        _track.route->Get(irpt, &rpt);
 
-        if (!(*ppactr)->_pglrpt->FInsert(irpt - _rtelCur.irpt, &rpt))
+        if (!(*ppactr)->_track.route->FInsert(irpt - _state.location.irpt, &rpt))
         {
             goto LFail;
         }
@@ -587,7 +504,7 @@ bool Actor::FPasteRte(PActor pactr)
     bool fStatic;
 #endif // STATIC
     long crptDel = 0;
-    long crptNew = pactr->_pglrpt->IvMac() - 1;
+    long crptNew = pactr->_track.route->IvMac() - 1;
 
     if (crptNew <= 0)
     {
@@ -595,7 +512,7 @@ bool Actor::FPasteRte(PActor pactr)
         return fFalse;
     }
 
-    if (!_pglrpt->FEnsureSpace(crptNew, fgrpNil) || !_pggaev->FEnsureSpace(1, kcbVarStep, fgrpNil))
+    if (!_track.route->FEnsureSpace(crptNew, fgrpNil) || !_track.events->FEnsureSpace(1, kcbVarStep, fgrpNil))
     {
         return fFalse;
     }
@@ -604,25 +521,25 @@ bool Actor::FPasteRte(PActor pactr)
     // May be positioned between nodes -> potentially
     // insert the current point
     //
-    _GetXyzFromRtel(&_rtelCur, &rptCur.xyz);
-    if (rZero != _rtelCur.dwrOffset)
+    _GetXyzFromRtel(&_state.location, &rptCur.xyz);
+    if (rZero != _state.location.dwrOffset)
     {
-        BRS dwrCur = _rtelCur.dwrOffset;
-        _rtelCur.irpt++;
-        _rtelCur.dwrOffset = rZero;
-        _rtelCur.dnfrm = 0;
-        if (!_FInsertGgRpt(_rtelCur.irpt, &rptCur, dwrCur))
+        BRS dwrCur = _state.location.dwrOffset;
+        _state.location.irpt++;
+        _state.location.dwrOffset = rZero;
+        _state.location.dnfrm = 0;
+        if (!_FInsertGgRpt(_state.location.irpt, &rptCur, dwrCur))
             return fFalse;
-        _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-        _AdjustAevForRteIns(_rtelCur.irpt, 0);
+        _GetXyzFromRtel(&_state.location, &_state.position);
+        _AdjustAevForRteIns(_state.location.irpt, 0);
     }
 
     //
     // Delete to the end of this *sub*route
     //
-    for (irpt = _rtelCur.irpt + 1; irpt < _pglrpt->IvMac(); irpt++)
+    for (irpt = _state.location.irpt + 1; irpt < _track.route->IvMac(); irpt++)
     {
-        _pglrpt->Get(irpt, &rpt);
+        _track.route->Get(irpt, &rpt);
         crptDel++;
         if (rpt.dwr == rZero)
         {
@@ -631,7 +548,7 @@ bool Actor::FPasteRte(PActor pactr)
     }
     if (crptDel > 0)
     {
-        _pglrpt->Delete(_rtelCur.irpt, crptDel);
+        _track.route->Delete(_state.location.irpt, crptDel);
     }
 
     //
@@ -639,13 +556,13 @@ bool Actor::FPasteRte(PActor pactr)
     // Space optimization: should precede paste
     // Update location pointer of events of later subroutes
     //
-    for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt > _rtelCur.irpt + crptDel)
+        _track.events->GetFixed(iaev, &aev);
+        if (aev.rtel.irpt > _state.location.irpt + crptDel)
         {
             aev.rtel.irpt += crptNew - crptDel;
-            _pggaev->PutFixed(iaev, &aev);
+            _track.events->PutFixed(iaev, &aev);
             continue;
         }
         else
@@ -660,36 +577,36 @@ bool Actor::FPasteRte(PActor pactr)
     // Translate the points of this section of route
     // Adjust the aev presently
     //
-    pactr->_pglrpt->Get(0, &rpt);
+    pactr->_track.route->Get(0, &rpt);
     dxyz.dxr = BrsSub(rptCur.xyz.dxr, rpt.xyz.dxr);
     dxyz.dyr = BrsSub(rptCur.xyz.dyr, rpt.xyz.dyr);
     dxyz.dzr = BrsSub(rptCur.xyz.dzr, rpt.xyz.dzr);
     for (irpt = 1; irpt <= crptNew; irpt++)
     {
-        pactr->_pglrpt->Get(irpt, &rpt);
+        pactr->_track.route->Get(irpt, &rpt);
         rpt.xyz.dxr = BrsAdd(rpt.xyz.dxr, dxyz.dxr);
         rpt.xyz.dyr = BrsAdd(rpt.xyz.dyr, dxyz.dyr);
         rpt.xyz.dzr = BrsAdd(rpt.xyz.dzr, dxyz.dzr);
-        AssertDo(_pglrpt->FInsert(_rtelCur.irpt + irpt, &rpt), "Logic error");
+        AssertDo(_track.route->FInsert(_state.location.irpt + irpt, &rpt), "Logic error");
     }
 
     //
     // Set the right dwr distance from the current point to
     // the first point on the new section of route
     //
-    _pglrpt->Get(_rtelCur.irpt + 1, &rpt);
+    _track.route->Get(_state.location.irpt + 1, &rpt);
     rptCur.dwr = BR_LENGTH3(BrsSub(rpt.xyz.dxr, rptCur.xyz.dxr), BrsSub(rpt.xyz.dyr, rptCur.xyz.dyr),
                             BrsSub(rpt.xyz.dzr, rptCur.xyz.dzr));
     if (rZero == rptCur.dwr)
         rptCur.dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-    _pglrpt->Put(_rtelCur.irpt, &rptCur);
+    _track.route->Put(_state.location.irpt, &rptCur);
 
 #ifdef STATIC
     //
     // Force floating behavior on a static action
     //
-    Assert(_iaevActnCur >= 0, "Actor has no action");
-    if (!_FGetStatic(_anidCur, &fStatic))
+    Assert(_state.actionEvent >= 0, "Actor has no action");
+    if (!_FGetStatic(_state.action, &fStatic))
         return fFalse;
     if (fStatic)
     {
@@ -708,21 +625,21 @@ bool Actor::FPasteRte(PActor pactr)
     int32_t faevfrz = (int32_t)fTrue;
     BRS dwrStep = rZero;
     aev.aet = aetFreeze;
-    aev.rtel.irpt = _rtelCur.irpt + crptNew;
+    aev.rtel.irpt = _state.location.irpt + crptNew;
     aev.rtel.dnfrm = 0;
     aev.rtel.dwrOffset = rZero;
-    aev.nfrm = _nfrmCur; // will be updated in ComputeLifetime()
-    if (!_FInsertAev(_iaevCur, kcbVarFreeze, &faevfrz, &aev))
+    aev.nfrm = _state.frame; // will be updated in ComputeLifetime()
+    if (!_FInsertAev(_state.nextEvent, kcbVarFreeze, &faevfrz, &aev))
         return fFalse;
     aev.aet = aetStep;
-    if (!_FInsertAev(_iaevCur, kcbVarStep, &dwrStep, &aev))
+    if (!_FInsertAev(_state.nextEvent, kcbVarStep, &dwrStep, &aev))
         return fFalse;
 
     _fLifeDirty = fTrue;
     _pscen->InvalFrmRange();
     _pscen->MarkDirty();
 
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
     return fTrue;
 }
 
@@ -795,14 +712,14 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     //
     _nfrmFirst = nfrm;
     _fLifeDirty = fTrue;
-    _nfrmCur = nfrm - 1;
+    _state.frame = nfrm - 1;
     SetPscen(pscen);
 
     // Always place actors on the "floor"
     _GetNewOrigin(&xr, &yr, &zr);
 
-    Assert(_pggaev->IvMac() > 0, "Nothing to paste!");
-    _pggaev->GetFixed(0, &aev);
+    Assert(_track.events->IvMac() > 0, "Nothing to paste!");
+    _track.events->GetFixed(0, &aev);
     if (aev.aet != aetAdd)
         return fFalse;
     dnfrm = aev.nfrm - nfrm;
@@ -813,14 +730,14 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     // Note: In order to place a pasted actor at the insertion point,
     // the translation needs to compensate for the distance
     // recorded in each path point -> subtract the first path point.
-    _pglrpt->Get(0, &rpt);
-    _dxyzSubRte.dxr = rZero;
-    _dxyzSubRte.dyr = rZero;
-    _dxyzSubRte.dzr = rZero;
+    _track.route->Get(0, &rpt);
+    _state.subrouteTranslation.dxr = rZero;
+    _state.subrouteTranslation.dyr = rZero;
+    _state.subrouteTranslation.dzr = rZero;
     _dxyzFullRte.dxr = BrsSub(xr, rpt.xyz.dxr);
     _dxyzFullRte.dyr = BrsSub(yr, rpt.xyz.dyr);
     _dxyzFullRte.dzr = BrsSub(zr, rpt.xyz.dzr);
-    _pggaev->Get(0, &aevadd);
+    _track.events->Get(0, &aevadd);
     _dxyzFullRte.dxr = BrsSub(_dxyzFullRte.dxr, aevadd.dxr);
     _dxyzFullRte.dyr = BrsSub(_dxyzFullRte.dyr, aevadd.dyr);
     _dxyzFullRte.dzr = BrsSub(_dxyzFullRte.dzr, aevadd.dzr);
@@ -828,17 +745,17 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     //
     // Translate the new actor in time
     // Update sound events
-    for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (dnfrm != 0)
         {
             aev.nfrm -= dnfrm;
-            _pggaev->PutFixed(iaev, &aev);
+            _track.events->PutFixed(iaev, &aev);
         }
         if (aetSnd != aev.aet)
             continue;
-        _pggaev->Get(iaev, &aevsnd);
+        _track.events->Get(iaev, &aevsnd);
         if (aevsnd.tag.sid != ksidUseCrf)
             continue;
         // Save tag (this may be a new movie)
@@ -861,16 +778,16 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
             if (!_pscen->Pmvie()->FChidFromUserSndCno(aevsnd.tag.cno, &aevsnd.chid))
                 return fFalse;
             // Update event
-            _pggaev->Put(iaev, &aevsnd);
+            _track.events->Put(iaev, &aevsnd);
         }
     }
 
     // Rotate 3D spletters to face the camera
     if (_ptmpl->FIsTdt())
     {
-        _pggaev->Get(0, &aevadd);
+        _track.events->Get(0, &aevadd);
         aevadd.ya = _pscen->Pbkgd()->BraRotYCamera();
-        _pggaev->Put(0, &aevadd);
+        _track.events->Put(0, &aevadd);
     }
 
     _UpdateXyzRte();
@@ -887,7 +804,7 @@ void Actor::Reset(void)
 {
     _pscen = pvNil;
     ReleasePpo(&_pbody); // Sets _pbody = pvNil
-    _nfrmCur = knfrmInvalid;
+    _state.frame = knfrmInvalid;
 
     _InitState();
 }
@@ -1051,7 +968,7 @@ void ActorClipboard::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void ActorClipboard::AssertValid(ulong grf)
+void ActorClipboard::AssertValid(LegacyUlong grf)
 {
     ActorClipboard_PAR::AssertValid(fobjAllocated);
     _pactr->AssertValid(grf);
@@ -1274,22 +1191,22 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     // on the previous subroute.
     // Note: FDelete() does not require that the current
     // frame be	later than _nfrmFirst.
-    if (_iaevAddCur >= 0 && !fDeleteAll)
+    if (_state.addEvent >= 0 && !fDeleteAll)
     {
-        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-        if (_nfrmCur == paev->nfrm)
+        paev = (Base *)_track.events->QvFixedGet(_state.addEvent);
+        if (_state.frame == paev->nfrm)
         {
             if (!_FDeleteEntireSubrte())
                 goto LFail;
             if (pvNil != pfAlive)
-                *pfAlive = FPure(_pggaev->IvMac() > 0);
+                *pfAlive = FPure(_track.events->IvMac() > 0);
             goto LDeleted;
         }
     }
 
     // Go to the previous frame to update state variables
-    iaevCurSav = _iaevCur;
-    if (!FGotoFrame(_nfrmCur - 1))
+    iaevCurSav = _state.nextEvent;
+    if (!FGotoFrame(_state.frame - 1))
     {
         goto LFail;
     }
@@ -1303,8 +1220,8 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     DeleteFwdCore(fDeleteAll, pfAlive, iaevCurSav);
 
     // Return to original frame
-    // _nfrmCur was decremented above
-    if (!FGotoFrame(_nfrmCur + 1))
+    // _state.frame was decremented above
+    if (!FGotoFrame(_state.frame + 1))
     {
         goto LFail;
     }
@@ -1579,7 +1496,7 @@ void ActorUndo::MarkMem(void)
 /***************************************************************************
     Assert the validity of the ActorUndo.
 ***************************************************************************/
-void ActorUndo::AssertValid(ulong grf)
+void ActorUndo::AssertValid(LegacyUlong grf)
 {
     AssertNilOrPo(_pactr, 0);
 }
@@ -1731,7 +1648,7 @@ void ActorMoveGroupUndo::MarkMem(void)
     while we're building the composite via FAddChild) _pmvie is nil and the
     parent chain would trip its AssertPo(_pmvie, 0).
 ***************************************************************************/
-void ActorMoveGroupUndo::AssertValid(ulong grf)
+void ActorMoveGroupUndo::AssertValid(LegacyUlong grf)
 {
     AssertPo(_pglpaund, 0);
 }
@@ -1818,7 +1735,7 @@ void ActorRenameGroupUndo::MarkMem(void)
     MarkMemObj(_pgstNames);
 }
 
-void ActorRenameGroupUndo::AssertValid(ulong grf)
+void ActorRenameGroupUndo::AssertValid(LegacyUlong grf)
 {
     AssertPo(_pgstNames, 0);
 }

@@ -8,6 +8,7 @@
  */
 #ifndef _COMPILER_H_
 #define _COMPILER_H_
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -17,8 +18,13 @@ extern "C"
     /*
      * Fixed bitsize integers
      */
+#ifdef _WIN32
     typedef signed long br_int_32;
     typedef unsigned long br_uint_32;
+#else
+    typedef int32_t br_int_32;
+    typedef uint32_t br_uint_32;
+#endif
 
     typedef signed short br_int_16;
     typedef unsigned short br_uint_16;
@@ -125,6 +131,7 @@ extern "C"
  * GNU C
  */
 #elif defined(__GNUC__)
+#pragma pack(4)
 
 #define BR_PUBLIC_ENTRY
 #define BR_CALLBACK

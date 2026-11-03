@@ -34,26 +34,26 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     // thru _PgobThis.  When something is done that may cause the gob to be
     // freed (such as calling another script), set this to nil.
     PGraphicsObject _pgob;
-    long _hid;    // the handler id of the initialization gob
-    long _grid;   // the unique gob run-time id of the initialization gob
+    LegacyLong _hid;    // the handler id of the initialization gob
+    LegacyLong _grid;   // the unique gob run-time id of the initialization gob
     PWorldOfKidspace _pwoks; // the kidspace world this script belongs to
 
     virtual PGraphicsObject _PgobThis(void);
-    virtual PGraphicsObject _PgobFromHid(long hid);
+    virtual PGraphicsObject _PgobFromHid(LegacyLong hid);
 
-    virtual bool _FExecOp(long op);
-    virtual PDynamicArray *_PpglrtvmThis(void);
-    virtual PDynamicArray *_PpglrtvmGlobal(void);
-    virtual PDynamicArray *_PpglrtvmRemote(long lw);
+    bool _FExecOp(LegacyLong op) override;
+    PDynamicArray *_PpglrtvmThis(void) override;
+    PDynamicArray *_PpglrtvmGlobal(void) override;
+    PDynamicArray *_PpglrtvmRemote(LegacyLong lw) override;
 
-    virtual short _SwCur(void);
-    virtual short _SwMin(void);
+    short _SwCur(void) override;
+    short _SwMin(void) override;
 
-    void _DoAlert(long op);
+    void _DoAlert(LegacyLong op);
     void _SetColorTable(ChildChunkID chid);
-    void _DoEditControl(long hid, long stid, bool fGet);
+    void _DoEditControl(LegacyLong hid, LegacyLong stid, bool fGet);
     PDynamicArray _PglclrGet(ChunkNumber cno);
-    bool _FLaunch(long stid);
+    bool _FLaunch(LegacyLong stid);
 
   public:
     GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PResourceCache prca, PGraphicsObject pgob);
@@ -62,11 +62,11 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     {
         _pgob = pvNil;
     }
-    virtual bool FResume(long *plwReturn = pvNil, bool *pfPaused = pvNil);
+    bool FResume(LegacyLong *plwReturn = pvNil, bool *pfPaused = pvNil) override;
 };
 
 // a Chunky resource reader for a color table
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 
 } // end of namespace ScriptInterpreter
 

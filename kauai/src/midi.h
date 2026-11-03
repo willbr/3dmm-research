@@ -22,12 +22,12 @@ typedef class MidiStream *PMidiStream;
 // midi event
 struct MIDEV
 {
-    ulong ts;     // time stamp of this event
-    long cb;      // number of bytes to send (in rgbSend)
-    long lwTempo; // the current tempo - at a tempo change, cb will be 0
+    LegacyUlong ts;     // time stamp of this event
+    LegacyLong cb;      // number of bytes to send (in rgbSend)
+    LegacyLong lwTempo; // the current tempo - at a tempo change, cb will be 0
     union {
         byte rgbSend[4]; // bytes to send if pvLong is nil
-        long lwSend;     // for convenience
+        LegacyLong lwSend;     // for convenience
     };
 };
 typedef MIDEV *PMIDEV;
@@ -46,22 +46,22 @@ class MidiStreamParser : public MidiStreamParser_PAR
     MARKMEM
 
   protected:
-    ulong _tsCur;
-    long _lwTempo;
+    LegacyUlong _tsCur;
+    LegacyLong _lwTempo;
     byte *_prgb;
     byte *_pbLim;
     byte *_pbCur;
     byte _bStatus;
 
-    Debug(long _cactLongLock;) PMidiStream _pmids;
+    Debug(LegacyLong _cactLongLock;) PMidiStream _pmids;
 
-    bool _FReadVar(byte **ppbCur, long *plw);
+    bool _FReadVar(byte **ppbCur, LegacyLong *plw);
 
   public:
     MidiStreamParser(void);
     ~MidiStreamParser(void);
 
-    void Init(PMidiStream pmids, ulong tsStart = 0, long lwTempo = 500000);
+    void Init(PMidiStream pmids, LegacyUlong tsStart = 0, LegacyLong lwTempo = 500000);
     bool FGetEvent(PMIDEV pmidev, bool fAdvance = fTrue);
 };
 
@@ -84,16 +84,16 @@ class MidiStream : public MidiStream_PAR
 
     MidiStream(void);
 
-    static long _CbEncodeLu(ulong lu, byte *prgb);
+    static LegacyLong _CbEncodeLu(LegacyUlong lu, byte *prgb);
 
   public:
-    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PMidiStream PmidsRead(PDataBlock pblck);
     static PMidiStream PmidsReadNative(Filename *pfni);
     ~MidiStream(void);
 
     virtual bool FWrite(PDataBlock pblck);
-    virtual long CbOnFile(void);
+    virtual LegacyLong CbOnFile(void);
 };
 
 #endif //! MIDI_H

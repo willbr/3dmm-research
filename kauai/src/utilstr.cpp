@@ -10,7 +10,9 @@
     WARNING: Must be in a fixed (pre-loaded) seg on Mac.
 
 ***************************************************************************/
+#include <cstring>
 #include "util.h"
+#include "platform_text.h"
 #include <cstdarg>
 ASSERTNAME
 
@@ -34,7 +36,7 @@ String::String(String &stnSrc)
 ***************************************************************************/
 String::String(PZString pszSrc)
 {
-    long cch = LwBound(CchSz(pszSrc), 0, kcchMaxStn + 1);
+    LegacyLong cch = LwBound(CchSz(pszSrc), 0, kcchMaxStn + 1);
 
     AssertIn(cch, 0, kcchMaxStn + 1);
     CopyPb(pszSrc, _rgch + 1, cch * size(achar));
@@ -59,7 +61,7 @@ String &String::operator=(String &stnSrc)
 /***************************************************************************
     Set the string to the given array of characters.
 ***************************************************************************/
-void String::SetRgch(achar *prgchSrc, long cch)
+void String::SetRgch(achar *prgchSrc, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -87,30 +89,27 @@ void String::SetSzs(PSZS pszsSrc)
     AssertVarMem(pszsSrc);
 
 #ifdef UNICODE
-#ifdef WIN
-    // REVIEW shonk: is this correct?
-    long cch = MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, pszsSrc, -1, _rgch + 1, kcchMaxStn);
-
-    AssertIn(cch, 1, kcchMaxStn + 1);
-    _rgch[0] = (achar)(cch - 1);
-    _rgch[cch] = 0;
-#endif // WIN
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement
-#endif        // MAC
-#else         //! UNICODE
+    LegacyLong count = static_cast<LegacyLong>(
+        KauaiText::ToUtf16(pszsSrc, std::strlen(pszsSrc) + 1, KauaiText::Encoding::WindowsAnsi, _rgch + 1, kcchMaxStn));
+    if (count == 0)
+    {
+        SetNil();
+        return;
+    }
+    _rgch[0] = static_cast<achar>(count - 1);
+#else
     SetSz(pszsSrc);
-#endif        // UNICODE
+#endif
 }
 
 /***************************************************************************
     Delete (at most) cch characters starting at position ich.
 ***************************************************************************/
-void String::Delete(long ich, long cch)
+void String::Delete(LegacyLong ich, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
-    long cchCur = Cch();
+    LegacyLong cchCur = Cch();
 
     if (!FIn(ich, 0, cchCur))
     {
@@ -136,13 +135,13 @@ void String::Delete(long ich, long cch)
 /***************************************************************************
     Append some characters to the end of the string.
 ***************************************************************************/
-bool String::FAppendRgch(achar *prgchSrc, long cch)
+bool String::FAppendRgch(achar *prgchSrc, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgchSrc, cch * size(achar));
     bool fRet = fTrue;
-    long cchCur = Cch();
+    LegacyLong cchCur = Cch();
 
     if (cch > kcchMaxStn - cchCur)
     {
@@ -164,13 +163,13 @@ bool String::FAppendRgch(achar *prgchSrc, long cch)
 /***************************************************************************
     Insert some characters into the middle of a string.
 ***************************************************************************/
-bool String::FInsertRgch(long ich, achar *prgchSrc, long cch)
+bool String::FInsertRgch(LegacyLong ich, achar *prgchSrc, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgchSrc, cch * size(achar));
     bool fRet = fTrue;
-    long cchCur = Cch();
+    LegacyLong cchCur = Cch();
 
     ich = LwBound(ich, 0, cchCur + 1);
     if (cch > kcchMaxStn - ich)
@@ -205,7 +204,7 @@ bool String::FInsertRgch(long ich, achar *prgchSrc, long cch)
     Test whether the given rgch is equal to this string.  This does bytewise
     compare - not user level comparison.
 ***************************************************************************/
-bool String::FEqualRgch(achar *prgch, long cch)
+bool String::FEqualRgch(achar *prgch, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -217,7 +216,7 @@ bool String::FEqualRgch(achar *prgch, long cch)
 /***************************************************************************
     Do user level string equality testing with the options given in grfstn.
 ***************************************************************************/
-bool String::FEqualUserRgch(achar *prgch, long cch, ulong grfstn)
+bool String::FEqualUserRgch(achar *prgch, LegacyLong cch, LegacyUlong grfstn)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -230,7 +229,7 @@ bool String::FEqualUserRgch(achar *prgch, long cch, ulong grfstn)
     Return the buffer size needed by GetData, or the block size needed
     by String::FWrite.
 ***************************************************************************/
-long String::CbData(void)
+LegacyLong String::CbData(void)
 {
     AssertThis(0);
 
@@ -254,12 +253,12 @@ void String::GetData(void *pv)
 /***************************************************************************
     Writes the string data to the given block starting at position ib.
 ***************************************************************************/
-bool String::FWrite(PDataBlock pblck, long ib)
+bool String::FWrite(PDataBlock pblck, LegacyLong ib)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
-    long cbWrite = CbData();
-    long cbTot = pblck->Cb();
+    LegacyLong cbWrite = CbData();
+    LegacyLong cbTot = pblck->Cb();
     short osk = koskCur;
 
     if (!FIn(ib, 0, cbTot - cbWrite + 1))
@@ -279,13 +278,14 @@ bool String::FWrite(PDataBlock pblck, long ib)
 /***************************************************************************
     Set the string from the given data.
 ***************************************************************************/
-bool String::FSetData(void *pv, long cbMax, long *pcbRead)
+bool String::FSetData(void *pv, LegacyLong cbMax, LegacyLong *pcbRead)
 {
     AssertThis(0);
     AssertIn(cbMax, 0, kcbMax);
     AssertPvCb(pv, cbMax);
     AssertNilOrVarMem(pcbRead);
-    long cch, ich, ibT, cbT;
+    LegacyLong cch, ich, ibT, cbT;
+    LegacyLong translated;
     wchar chw;
     short osk;
 
@@ -302,7 +302,7 @@ bool String::FSetData(void *pv, long cbMax, long *pcbRead)
             goto LFail;
         CopyPb(PvAddBv(pv, ibT), &_rgch[0], size(achar));
         ibT += size(achar);
-        cch = (long)(uchar)_rgch[0];
+        cch = (LegacyLong)(uchar)_rgch[0];
         if (!FIn(cch, 0, kcchMaxStn + 1))
             goto LFail;
 
@@ -326,15 +326,18 @@ bool String::FSetData(void *pv, long cbMax, long *pcbRead)
         if (ibT + 2 > cbMax)
             goto LFail;
 
-        cch = (long)(byte) * (schar *)PvAddBv(pv, ibT++);
+        cch = (LegacyLong)(byte) * (schar *)PvAddBv(pv, ibT++);
         if (cch > kcchMaxStn || ibT + cch >= cbMax || *(schar *)PvAddBv(pv, ibT + cch) != 0)
         {
             goto LFail;
         }
-        _rgch[0] = (achar)CchTranslateRgb(PvAddBv(pv, ibT), cch, osk, _rgch + 1, kcchMaxStn);
+        translated = CchTranslateRgb(PvAddBv(pv, ibT), cch, osk, _rgch + 1, kcchMaxStn);
+        if (cch > 0 && translated <= 0)
+            goto LFail;
+        _rgch[0] = static_cast<achar>(translated);
         ibT += cch + 1;
 
-        cch = (long)(uchar)_rgch[0];
+        cch = (LegacyLong)(uchar)_rgch[0];
         _rgch[cch + 1] = 0;
         goto LCheck;
 
@@ -346,17 +349,20 @@ bool String::FSetData(void *pv, long cbMax, long *pcbRead)
 
         if (osk == MacWin(koskUniWin, koskUniMac))
             SwapBytesRgsw(&chw, 1);
-        cch = (long)(ushort)chw;
+        cch = (LegacyLong)(ushort)chw;
 
         if (cch > kcchMaxStn || ibT + (cch + 1) * size(wchar) > cbMax)
             goto LFail;
         CopyPb(PvAddBv(pv, ibT + cch * size(wchar)), &chw, size(wchar));
         if (chw != 0)
             goto LFail;
-        _rgch[0] = (achar)CchTranslateRgb(PvAddBv(pv, ibT), cch * size(wchar), osk, _rgch + 1, kcchMaxStn);
+        translated = CchTranslateRgb(PvAddBv(pv, ibT), cch * size(wchar), osk, _rgch + 1, kcchMaxStn);
+        if (cch > 0 && translated <= 0)
+            goto LFail;
+        _rgch[0] = static_cast<achar>(translated);
         ibT += (cch + 1) * size(wchar);
 
-        cch = (long)(uchar)_rgch[0];
+        cch = (LegacyLong)(uchar)_rgch[0];
         _rgch[cch + 1] = 0;
 
     LCheck:
@@ -377,7 +383,7 @@ bool String::FSetData(void *pv, long cbMax, long *pcbRead)
     LFail:
         PushErc(ercStnRead);
         Warn("bad String data");
-        SetNil();
+        _rgch[0] = _rgch[1] = 0;
         TrashVar(pcbRead);
         return fFalse;
     }
@@ -386,13 +392,14 @@ bool String::FSetData(void *pv, long cbMax, long *pcbRead)
 /***************************************************************************
     Read a string from a block.
 ***************************************************************************/
-bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
+bool String::FRead(PDataBlock pblck, LegacyLong ib, LegacyLong *pcbRead)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pcbRead);
 
-    long cch, ich, ibT, cbT, cbMax;
+    LegacyLong cch, ich, ibT, cbT, cbMax;
+    LegacyLong translated;
     short osk;
     schar chs;
     wchar chw;
@@ -415,7 +422,7 @@ bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
             goto LFail;
         }
         ibT += size(achar);
-        cch = (long)(uchar)_rgch[0];
+        cch = (LegacyLong)(uchar)_rgch[0];
         if (!FIn(cch, 0, kcchMaxStn + 1))
             goto LFail;
 
@@ -437,15 +444,18 @@ bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
     case size(schar):
         if (ibT + 2 > cbMax || !pblck->FReadRgb(&chs, 1, ibT++))
             goto LFail;
-        cch = (long)(byte)chs;
+        cch = (LegacyLong)(byte)chs;
         if (cch > kcchMaxStn || ibT + cch >= cbMax || !pblck->FReadRgb(rgb, cch + 1, ibT) || rgb[cch] != 0)
         {
             goto LFail;
         }
         ibT += cch + 1;
-        _rgch[0] = (achar)CchTranslateRgb(rgb, cch, osk, _rgch + 1, kcchMaxStn);
+        translated = CchTranslateRgb(rgb, cch, osk, _rgch + 1, kcchMaxStn);
+        if (cch > 0 && translated <= 0)
+            goto LFail;
+        _rgch[0] = static_cast<achar>(translated);
 
-        cch = (long)(uchar)_rgch[0];
+        cch = (LegacyLong)(uchar)_rgch[0];
         _rgch[cch + 1] = 0;
         goto LCheck;
 
@@ -458,7 +468,7 @@ bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
 
         if (osk == MacWin(koskUniWin, koskUniMac))
             SwapBytesRgsw(&chw, 1);
-        cch = (long)(ushort)chw;
+        cch = (LegacyLong)(ushort)chw;
 
         if (cch > kcchMaxStn || ibT + (cch + 1) * size(wchar) > cbMax ||
             !pblck->FReadRgb(rgb, (cch + 1) * size(wchar), ibT) || ((wchar *)rgb)[cch] != 0)
@@ -466,9 +476,12 @@ bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
             goto LFail;
         }
         ibT += (cch + 1) * size(wchar);
-        _rgch[0] = (achar)CchTranslateRgb(rgb, cch * size(wchar), osk, _rgch + 1, kcchMaxStn);
+        translated = CchTranslateRgb(rgb, cch * size(wchar), osk, _rgch + 1, kcchMaxStn);
+        if (cch > 0 && translated <= 0)
+            goto LFail;
+        _rgch[0] = static_cast<achar>(translated);
 
-        cch = (long)(uchar)_rgch[0];
+        cch = (LegacyLong)(uchar)_rgch[0];
         _rgch[cch + 1] = 0;
 
     LCheck:
@@ -489,7 +502,7 @@ bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
     LFail:
         PushErc(ercStnRead);
         Warn("bad String data or read failure");
-        SetNil();
+        _rgch[0] = _rgch[1] = 0;
         TrashVar(pcbRead);
         return fFalse;
     }
@@ -504,18 +517,11 @@ void String::GetSzs(PSZS pszs)
     AssertPvCb(pszs, kcchTotSz);
 
 #ifdef UNICODE
-#ifdef WIN
-    long cchs = WideCharToMultiByte(CP_ACP, 0, _rgch + 1, -1, pszs, kcchMaxSz, pvNil, pvNil);
-
-    pszs[cchs] = 0;
-#endif // WIN
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement
-    pszs[0] = 0;
-#endif // MAC
-#else  //! UNICODE
+    if (!KauaiText::ToAnsi(_rgch + 1, (Cch() + 1) * sizeof(wchar), KauaiText::Encoding::Utf16LE, pszs, kcchMaxSz))
+        pszs[0] = 0;
+#else
     CopyPb(_rgch + 1, pszs, Cch() + 1);
-#endif // UNICODE
+#endif
 }
 
 /***************************************************************************
@@ -566,6 +572,18 @@ bool String::FFormat(PString pstnFormat, ...)
 /***************************************************************************
     See comments for String::FFormat
 ***************************************************************************/
+bool String::FFormatSz(const achar *pszFormat, ...)
+{
+    auto *format = const_cast<achar *>(pszFormat); // formatting never mutates it
+    AssertThis(0);
+    AssertSz(format);
+    va_list va;
+    va_start(va, pszFormat);
+    bool result = FFormatRgch(format, CchSz(format), va);
+    va_end(va);
+    return result;
+}
+
 bool String::FFormatSz(PZString pszFormat, ...)
 {
     AssertThis(0);
@@ -581,7 +599,7 @@ bool String::FFormatSz(PZString pszFormat, ...)
 /***************************************************************************
     Core routine for sprintf functionality.
 ***************************************************************************/
-bool String::FFormatRgch(achar *prgchFormat, long cchFormat, va_list va)
+bool String::FFormatRgch(achar *prgchFormat, LegacyLong cchFormat, va_list va)
 {
     AssertThis(0);
     AssertIn(cchFormat, 0, kcchMaxStn + 1);
@@ -596,16 +614,16 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, va_list va)
     };
     achar *pchOut, *pchOutLim;
     achar *pchIn, *pchInLim;
-    long cch;
-    long cchMin;
-    long ivArg;
-    ulong lu, luRad;
+    LegacyLong cch;
+    LegacyLong cchMin;
+    LegacyLong ivArg;
+    LegacyUlong lu, luRad;
     void *pvArg; // pointer-sized arg for %s, %z (8 bytes on Win64)
     achar ch;
     achar rgchT[kcchMaxStn];
     achar *prgchTerm;
     achar chSign, chPad;
-    ulong dwo;
+    LegacyUlong dwo;
     PString pstn;
     bool fRet = fFalse;
 
@@ -723,7 +741,7 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, va_list va)
 
         case ChLit('f'):
             // 4-byte file/chunk tag; printed in big-endian byte order.
-            lu = va_arg(va, ulong);
+            lu = va_arg(va, LegacyUlong);
             for (cch = 4; cch-- > 0; lu >>= 8)
             {
                 ch = (achar)(byte)lu;
@@ -735,7 +753,7 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, va_list va)
             break;
 
         case ChLit('x'):
-            lu = va_arg(va, ulong);
+            lu = va_arg(va, LegacyUlong);
             // if cchMin is not 0, don't make it longer than cchMin
             if (cchMin > 0 && cchMin < 8)
                 lu &= (1L << (cchMin * 4)) - 1;
@@ -743,17 +761,20 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, va_list va)
             goto LUnsigned;
 
         case ChLit('d'):
-            lu = va_arg(va, ulong);
-            if ((long)lu < 0)
             {
-                chSign = ChLit('-');
-                lu = -(long)lu;
+                const LegacyLong value = va_arg(va, LegacyLong);
+                lu = static_cast<LegacyUlong>(value);
+                if (value < 0)
+                {
+                    chSign = ChLit('-');
+                    lu = LegacyUlong(0) - lu;
+                }
             }
             luRad = 10;
             goto LUnsigned;
 
         case ChLit('u'):
-            lu = va_arg(va, ulong);
+            lu = va_arg(va, LegacyUlong);
             luRad = 10;
         LUnsigned:
             prgchTerm = rgchT + CvFromRgv(rgchT);
@@ -826,13 +847,14 @@ LFail:
     spaces, '+' and '-' signs, and trailing spaces.  Doesn't deal with
     overflow.
 ***************************************************************************/
-bool String::FGetLw(long *plw, long lwBase)
+bool String::FGetLw(LegacyLong *plw, LegacyLong lwBase)
 {
     AssertThis(0);
     AssertVarMem(plw);
     AssertIn(lwBase, 0, 36);
     Assert(lwBase != 1, "base can't be 1");
-    long lwDigit;
+    LegacyLong lwDigit;
+    LegacyUlong value = 0;
     achar ch;
     bool fNegative = fFalse;
     PZString psz = Psz();
@@ -905,11 +927,13 @@ bool String::FGetLw(long *plw, long lwBase)
             TrashVar(plw);
             return fFalse;
         }
-        *plw = *plw * lwBase + lwDigit;
+        // Retain the original 32-bit wrap semantics without signed overflow.
+        value = value * static_cast<LegacyUlong>(lwBase) + static_cast<LegacyUlong>(lwDigit);
     }
 
     if (fNegative)
-        *plw = -*plw;
+        value = LegacyUlong(0) - value;
+    *plw = value <= 0x7FFFFFFFu ? static_cast<LegacyLong>(value) : -static_cast<LegacyLong>(~value) - 1;
 
     return fTrue;
 }
@@ -923,7 +947,7 @@ bool String::FExpandControls(void)
     AssertThis(0);
     achar rgch[kcchMaxStn];
     achar *pchSrc, *pchDst, *pchLim, ch;
-    long cch;
+    LegacyLong cch;
     bool fAny;
     bool fRet = fFalse;
 
@@ -968,12 +992,12 @@ LFail:
 /***************************************************************************
     Assert the validity of a String.
 ***************************************************************************/
-void String::AssertValid(ulong grf)
+void String::AssertValid(LegacyUlong grf)
 {
     AssertThisMem();
 
     achar *pch;
-    long cch = (long)(uchar)_rgch[0];
+    LegacyLong cch = (LegacyLong)(uchar)_rgch[0];
 
     AssertIn(cch, 0, kcchMaxStn + 1);
     Assert(_rgch[cch + 1] == 0, "missing termination byte");
@@ -992,7 +1016,7 @@ bool FValidSt(PPascalString pst)
 {
     AssertVarMem(pst);
     achar *pch;
-    long cch = (long)(uchar)pst[0];
+    LegacyLong cch = (LegacyLong)(uchar)pst[0];
 
     if (!FIn(cch, 0, kcchMaxSt + 1))
         return fFalse;
@@ -1015,7 +1039,7 @@ bool FValidStz(PSTZ pstz)
 /***************************************************************************
     Find the length of a zero terminated string.
 ***************************************************************************/
-long CchSz(PZString psz)
+LegacyLong CchSz(PZString psz)
 {
     // WARNING: don't call AssertSz, since AssertSz calls CchSz!
     AssertVarMem(psz);
@@ -1032,7 +1056,7 @@ long CchSz(PZString psz)
     Do string equality testing.  This does byte-wise comparison for
     internal (non-user) use only!
 ***************************************************************************/
-bool FEqualRgch(achar *prgch1, long cch1, achar *prgch2, long cch2)
+bool FEqualRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2)
 {
     AssertIn(cch1, 0, kcbMax);
     AssertPvCb(prgch1, cch1 * size(achar));
@@ -1047,13 +1071,13 @@ bool FEqualRgch(achar *prgch1, long cch1, achar *prgch2, long cch2)
     (non-user) sorting only!  The sorting is byte-order independent.
     fcmpLt means that string 1 is less than string 2.
 ***************************************************************************/
-ulong FcmpCompareRgch(achar *prgch1, long cch1, achar *prgch2, long cch2)
+LegacyUlong FcmpCompareRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2)
 {
     AssertIn(cch1, 0, kcbMax);
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
-    long ich, cbTot, cbMatch;
+    LegacyLong ich, cbTot, cbMatch;
 
     if (cch1 < cch2)
         return fcmpLt;
@@ -1075,13 +1099,13 @@ ulong FcmpCompareRgch(achar *prgch1, long cch1, achar *prgch2, long cch2)
 /***************************************************************************
     User level equality testing of strings.
 ***************************************************************************/
-bool FEqualUserRgch(achar *prgch1, long cch1, achar *prgch2, long cch2, ulong grfstn)
+bool FEqualUserRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2, LegacyUlong grfstn)
 {
     AssertIn(cch1, 0, kcbMax);
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
-    long cchBuf;
+    LegacyLong cchBuf;
     achar rgch1[kcchMaxStn];
     achar rgch2[kcchMaxStn];
 
@@ -1097,12 +1121,13 @@ bool FEqualUserRgch(achar *prgch1, long cch1, achar *prgch2, long cch2, ulong gr
         cchBuf = LwMin(kcchMaxStn, cch1);
         CopyPb(prgch1, rgch1, cchBuf * size(achar));
         CopyPb(prgch2, rgch2, cchBuf * size(achar));
-#ifdef WIN
-        CharUpperBuff(rgch1, cchBuf);
-        CharUpperBuff(rgch2, cchBuf);
-#else  //! WIN
-        RawRtn(); // REVIEW shonk: Mac: implement
-#endif //! WIN
+#ifdef UNICODE
+        KauaiText::UpperUtf16(rgch1, cchBuf);
+        KauaiText::UpperUtf16(rgch2, cchBuf);
+#else
+        KauaiText::UpperBytes(rgch1, cchBuf);
+        KauaiText::UpperBytes(rgch2, cchBuf);
+#endif
         if (!FEqualRgb(rgch1, rgch2, cchBuf * size(achar)))
             return fFalse;
         prgch1 += cchBuf;
@@ -1116,294 +1141,83 @@ bool FEqualUserRgch(achar *prgch1, long cch1, achar *prgch2, long cch2, ulong gr
 /***************************************************************************
     Do user level string comparison with the given options.
 ***************************************************************************/
-ulong FcmpCompareUserRgch(achar *prgch1, long cch1, achar *prgch2, long cch2, ulong grfstn)
+LegacyUlong FcmpCompareUserRgch(achar *prgch1, LegacyLong cch1, achar *prgch2, LegacyLong cch2, LegacyUlong grfstn)
 {
     AssertIn(cch1, 0, kcbMax);
     AssertPvCb(prgch1, cch1 * size(achar));
     AssertIn(cch2, 0, kcbMax);
     AssertPvCb(prgch2, cch2 * size(achar));
 
-#ifdef WIN
-    long lw;
-
-    lw =
-        CompareString(LOCALE_USER_DEFAULT, (grfstn & fstnIgnoreCase) ? NORM_IGNORECASE : 0, prgch1, cch1, prgch2, cch2);
-    switch (lw)
-    {
-    case 1:
+#ifdef UNICODE
+    int result = KauaiText::CompareUtf16(prgch1, cch1, prgch2, cch2, (grfstn & fstnIgnoreCase) != 0);
+#else
+    int result = KauaiText::CompareBytes(prgch1, cch1, prgch2, cch2, (grfstn & fstnIgnoreCase) != 0);
+#endif
+    if (result == -1)
         return fcmpLt;
-    case 2:
+    if (result == 0)
         return fcmpEq;
-    case 3:
+    if (result == 1)
         return fcmpGt;
-    default:
-        Bug("why did CompareString fail?");
-        return FcmpCompareRgch(prgch1, cch1, prgch2, cch2);
-    }
-#else  //! WIN
-    RawRtn();     // REVIEW shonk: Mac: implement for real
     return FcmpCompareRgch(prgch1, cch1, prgch2, cch2);
-#endif //! WIN
 }
 
 /***************************************************************************
     Map an array of short characters to upper case equivalents.
 ***************************************************************************/
-void UpperRgchs(schar *prgchs, long cchs)
+void UpperRgchs(schar *prgchs, LegacyLong cchs)
 {
     AssertIn(cchs, 0, kcbMax);
-    AssertPvCb(prgchs, cchs);
-    long ichs;
-    static bool _fInited;
-
-    if (!_fInited)
-    {
-        for (ichs = 0; ichs < 256; ichs++)
-            _mpchschsUpper[ichs] = (byte)ichs;
-        MacWin(UppercaseText(_mpchschsUpper, 256, smSystemScript), CharUpperBuffA(_mpchschsUpper, 256));
-        _fInited = fTrue;
-    }
-
-    for (; cchs-- != 0; prgchs++)
-        *prgchs = _mpchschsUpper[(byte)*prgchs];
+    AssertPvCb(prgchs, cchs * size(schar));
+    KauaiText::UpperMappedBytes(prgchs, cchs);
 }
 
 /***************************************************************************
     Map an array of characters to lower case equivalents.
 ***************************************************************************/
-void LowerRgchs(schar *prgchs, long cchs)
+void LowerRgchs(schar *prgchs, LegacyLong cchs)
 {
     AssertIn(cchs, 0, kcbMax);
-    AssertPvCb(prgchs, cchs);
-    long ichs;
-    static bool _fInited;
-
-    if (!_fInited)
-    {
-        for (ichs = 0; ichs < 256; ichs++)
-            _mpchschsLower[ichs] = (byte)ichs;
-        MacWin(LowercaseText(_mpchschsLower, 256, smSystemScript), CharLowerBuffA(_mpchschsLower, 256));
-        _fInited = fTrue;
-    }
-
-    for (; cchs-- != 0; prgchs++)
-        *prgchs = _mpchschsLower[(byte)*prgchs];
+    AssertPvCb(prgchs, cchs * size(schar));
+    KauaiText::LowerMappedBytes(prgchs, cchs);
 }
 
 /***************************************************************************
     Map an array of unicode characters to upper case equivalents.
 ***************************************************************************/
-void UpperRgchw(wchar *prgchw, long cchw)
+void UpperRgchw(wchar *prgchw, LegacyLong cchw)
 {
     AssertIn(cchw, 0, kcbMax);
     AssertPvCb(prgchw, cchw * size(wchar));
-
-#if defined(WIN)
-#if defined(UNICODE)
-    CharUpperBuffW(prgchw, cchw);
-#else
-    CharUpperBuffA(reinterpret_cast<char *>(prgchw), cchw);
-#endif //! UNICODE
-#else  //! WIN
-    RawRtn(); // REVIEW shonk: Mac: implement UpperRgchw
-#endif //! WIN
+    KauaiText::UpperUtf16(prgchw, cchw);
 }
 
 /***************************************************************************
     Map an array of unicode characters to lower case equivalents.
 ***************************************************************************/
-void LowerRgchw(wchar *prgchw, long cchw)
+void LowerRgchw(wchar *prgchw, LegacyLong cchw)
 {
     AssertIn(cchw, 0, kcbMax);
     AssertPvCb(prgchw, cchw * size(wchar));
-
-    AssertIn(cchw, 0, kcbMax);
-    AssertPvCb(prgchw, cchw * size(wchar));
-
-#if defined(WIN)
-#if defined(UNICODE)
-    CharLowerBuffW(prgchw, cchw);
-#else
-    CharLowerBuffA(reinterpret_cast<char *>(prgchw), cchw);
-#endif
-#else  //! WIN
-    RawRtn(); // REVIEW shonk: Mac: implement UpperRgchw
-#endif //! WIN
+    KauaiText::LowerUtf16(prgchw, cchw);
 }
 
 /***************************************************************************
     Translate text from the indicated source character set to koskCur.
 ***************************************************************************/
-long CchTranslateRgb(void *pvSrc, long cbSrc, short oskSrc, achar *prgchDst, long cchMaxDst)
+LegacyLong CchTranslateRgb(void *pvSrc, LegacyLong cbSrc, short oskSrc, achar *prgchDst, LegacyLong cchMaxDst)
 {
     AssertPvCb(pvSrc, cbSrc);
     AssertOsk(oskSrc);
     AssertPvCb(prgchDst, cchMaxDst * size(achar));
-    long cchT;
-
-#ifdef WIN
+    if (cbSrc < 0 || cchMaxDst < 0)
+        return 0;
+    auto encoding = static_cast<KauaiText::Encoding>(oskSrc);
 #ifdef UNICODE
-
-    switch (oskSrc)
-    {
-    default:
-        return 0;
-
-    case koskSbWin:
-    case koskSbMac:
-        return MultiByteToWideChar(oskSrc == koskSbWin ? CP_ACP : CP_MACCP, MB_PRECOMPOSED, (LPSTR)pvSrc, cbSrc,
-                                   prgchDst, cchMaxDst);
-
-    case koskUniMac:
-        if (cbSrc % size(wchar) != 0)
-            return 0;
-
-        cchT = cbSrc / size(wchar);
-        if (0 == cchMaxDst)
-            return cchT;
-        if (cchT > cchMaxDst)
-            return 0;
-
-        CopyPb(pvSrc, prgchDst, cchT * size(achar));
-        SwapBytesRgsw(prgchDst, cchT);
-        return cchT;
-    }
-
-#else //! UNICODE
-
-    achar *pchSrc, *pchDst;
-
-    switch (oskSrc)
-    {
-    default:
-        return 0;
-
-    case koskSbMac:
-        if (0 == cchMaxDst)
-            return cbSrc;
-        if (cbSrc > cchMaxDst)
-            return 0;
-
-        pchSrc = (achar *)pvSrc;
-        for (pchDst = prgchDst, cchT = cbSrc; cchT > 0; cchT--)
-        {
-            byte bT = (byte)*pchSrc++;
-            if (bT >= (byte)0x80)
-                *pchDst++ = _mpchschsMacToWin[bT - (byte)0x80];
-            else
-                *pchDst++ = (achar)bT;
-        }
-        return cbSrc;
-
-    case koskUniWin:
-    case koskUniMac:
-        if (cbSrc % size(wchar) != 0)
-            return 0;
-
-        // swap byte order
-        if (oskSrc == koskUniMac)
-            SwapBytesRgsw(pvSrc, cbSrc / size(wchar));
-
-        cchT = WideCharToMultiByte(CP_ACP, 0, (LPWSTR)pvSrc, cbSrc / size(wchar), prgchDst, cchMaxDst, pvNil, pvNil);
-
-        if (oskSrc == koskUniMac)
-            SwapBytesRgsw(pvSrc, cbSrc / size(wchar));
-        return cchT;
-    }
-
-#endif //! UNICODE
-#endif // WIN
-
-#ifdef MAC
-#ifdef UNICODE
-
-    long cchDst;
-    schar *pchsSrc;
-    achar *pchDst;
-
-    switch (oskSrc)
-    {
-    default:
-        return 0;
-
-    case koskSbWin:
-        if (0 == cchMaxDst)
-            return cbSrc;
-        if (cbSrc > cchMaxDst)
-            return 0;
-
-        pchsSrc = (schar *)pvSrc;
-        for (pchDst = prgch, cchT = cbSrc; cchT > 0; cchT--)
-            *pchDst++ = (achar)(byte)*pchsSrc++;
-        return cbSrc;
-
-    case koskSbMac:
-        if (0 == cchMaxDst)
-            return cbSrc;
-        if (cbSrc > cchMaxDst)
-            return 0;
-
-        pchsSrc = (schar *)pvSrc;
-        for (pchDst = prgch, cchT = cbSrc; cchT > 0; cchT--)
-            pchsSrc = (schar *)pvSrc;
-        {
-            byte bT = (byte)*pchsSrc++;
-            if (bT >= (byte)0x80)
-                *pchDst++ = (achar)_mpchschsMacToWin[bT - (byte)0x80];
-            else
-                *pchDst++ = (achar)bT;
-        }
-        return cbSrc;
-
-    case koskUniWin:
-        if (cbSrc % size(wchar) != 0)
-            return 0;
-
-        cchT = cbSrc / size(wchar);
-        if (0 == cchMaxDst)
-            return cchT;
-        if (cchT > cchMaxDst)
-            return 0;
-
-        CopyPb(pvSrc, prgchDst, cchT * size(achar));
-        SwapBytesRgsw(prgchDst, cchT);
-        return cchT;
-    }
-
-#else //! UNICODE
-
-    achar *pchSrc, *pchDst;
-
-    switch (oskSrc)
-    {
-    default:
-        return fFalse;
-
-    case koskSbWin:
-        if (0 == cchMaxDst)
-            return cbSrc;
-        if (cbSrc > cchMaxDst)
-            return 0;
-
-        pchSrc = (achar *)pvSrc;
-        for (pchDst = prgchDst, cchT = cbSrc; cchT > 0; cchT--)
-        {
-            byte bT = (byte)*pchSrc++;
-            if (bT >= (byte)0x80)
-                *pchDst++ = _mpchschsWinToMac[bT - (byte)0x80];
-            else
-                *pchDst++ = (achar)bT;
-        }
-        return cbSrc;
-
-    case koskUniWin:
-    case koskUniMac:
-        RawRtn(); // REVIEW shonk: Mac: implement koskUniWin, koskUniMac -> koskSbMac
-        return 0;
-    }
-
-#endif //! UNICODE
-#endif // MAC
+    return static_cast<LegacyLong>(KauaiText::ToUtf16(pvSrc, cbSrc, encoding, cchMaxDst ? prgchDst : pvNil, cchMaxDst));
+#else
+    return static_cast<LegacyLong>(KauaiText::ToAnsi(pvSrc, cbSrc, encoding, cchMaxDst ? prgchDst : pvNil, cchMaxDst));
+#endif
 }
 
 /***************************************************************************
@@ -1411,7 +1225,7 @@ long CchTranslateRgb(void *pvSrc, long cbSrc, short oskSrc, achar *prgchDst, lon
     is true, the translation is from osk to koskCur, otherwise from koskCur
     to osk.
 ***************************************************************************/
-void TranslateRgch(achar *prgch, long cch, short osk, bool fToCur)
+void TranslateRgch(achar *prgch, LegacyLong cch, short osk, bool fToCur)
 {
     AssertPvCb(prgch, cch);
     AssertOsk(osk);
@@ -1443,7 +1257,7 @@ void TranslateRgch(achar *prgch, long cch, short osk, bool fToCur)
 
     REVIEW shonk: make GrfchFromCh handle all unicode characters.
 ***************************************************************************/
-ulong GrfchFromCh(achar ch)
+LegacyUlong GrfchFromCh(achar ch)
 {
     switch ((uchar)ch)
     {
@@ -1528,7 +1342,7 @@ void AssertStz(PSTZ pstz)
 void AssertSz(PZString psz)
 {
     // CchSz does all the asserting we need
-    long cch = CchSz(psz);
+    LegacyLong cch = CchSz(psz);
 }
 
 /***************************************************************************

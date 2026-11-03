@@ -48,7 +48,7 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
 /***************************************************************************
     Assert the validity of a GraphicsObjectInterpreter.
 ***************************************************************************/
-void GraphicsObjectInterpreter::AssertValid(ulong grf)
+void GraphicsObjectInterpreter::AssertValid(LegacyUlong grf)
 {
     GraphicsObjectInterpreter_PAR::AssertValid(0);
     Assert(hidNil != _hid, 0);
@@ -61,7 +61,7 @@ void GraphicsObjectInterpreter::AssertValid(ulong grf)
     The script is being resumed, so set _pgob to nil (don't know whether
     it exists).
 ***************************************************************************/
-bool GraphicsObjectInterpreter::FResume(long *plwReturn, bool *pfPaused)
+bool GraphicsObjectInterpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
 {
     GobMayDie();
     return GraphicsObjectInterpreter_PAR::FResume(plwReturn, pfPaused);
@@ -89,7 +89,7 @@ PGraphicsObject GraphicsObjectInterpreter::_PgobThis(void)
     Return the gob that is accessible to this script interpreter and has
     the given hid.
 ***************************************************************************/
-PGraphicsObject GraphicsObjectInterpreter::_PgobFromHid(long hid)
+PGraphicsObject GraphicsObjectInterpreter::_PgobFromHid(LegacyLong hid)
 {
     AssertThis(0);
 
@@ -126,7 +126,7 @@ PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmGlobal(void)
 /***************************************************************************
     Return the address of the variable table for the GraphicsObject with given hid.
 ***************************************************************************/
-PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmRemote(long lw)
+PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmRemote(LegacyLong lw)
 {
     PGraphicsObject pgob = _PgobFromHid(lw);
 
@@ -155,16 +155,16 @@ short GraphicsObjectInterpreter::_SwMin(void)
 /***************************************************************************
     Execute a script command.
 ***************************************************************************/
-bool GraphicsObjectInterpreter::_FExecOp(long op)
+bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
 {
     Command cmd;
     PGraphicsObject pgob;
     PClock pclok;
-    long hid;
-    long dtim;
-    long dxp, dyp;
-    long lw1, lw2, lw3, lw4, clw;
-    long *qrglw;
+    LegacyLong hid;
+    LegacyLong dtim;
+    LegacyLong dxp, dyp;
+    LegacyLong lw1, lw2, lw3, lw4, clw;
+    LegacyLong *qrglw;
     void *pv;
 
     hid = _hid; // for "this" operations
@@ -313,7 +313,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         {
             if (pvNil == _QlwGet(clw))
                 break;
-            if (!FAllocPv(&pv, LwMul(size(long), clw), fmemNil, mprNormal))
+            if (!FAllocPv(&pv, LwMul(size(LegacyLong), clw), fmemNil, mprNormal))
             {
                 Debug(_WarnSz(PszLit("OOM attempting to run script")));
                 _PopList(clw);
@@ -322,7 +322,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
             }
             else
             {
-                CopyPb(_QlwGet(clw), pv, LwMul(size(long), clw));
+                CopyPb(_QlwGet(clw), pv, LwMul(size(LegacyLong), clw));
                 ReverseRglw(pv, clw);
                 _PopList(clw);
             }
@@ -341,9 +341,9 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
 
             GobMayDie();
             if (kopRunScriptCnoGob == op || kopRunScriptCnoThis == op)
-                ((PKidspaceGraphicObject)pgob)->FRunScriptCno(lw1, (long *)pv, clw, &lw2, &tRet);
+                ((PKidspaceGraphicObject)pgob)->FRunScriptCno(lw1, (LegacyLong *)pv, clw, &lw2, &tRet);
             else
-                ((PKidspaceGraphicObject)pgob)->FRunScript(lw1, (long *)pv, clw, &lw2, &tRet);
+                ((PKidspaceGraphicObject)pgob)->FRunScript(lw1, (LegacyLong *)pv, clw, &lw2, &tRet);
             if (tYes != tRet)
             {
                 Debug(_WarnSz(PszLit("Running script failed (chid = 0x%x, gid = %d)"), lw1, hid));
@@ -705,11 +705,14 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         if (!_fError)
         {
             GobMayDie();
-            if (!vpappb->FGetProp(lw1, &lw2))
+            long property;
+            if (!vpappb->FGetProp(lw1, &property))
             {
                 Debug(_WarnSz(PszLit("GetProp failed (prid = %d)"), lw1));
                 lw2 = 0;
             }
+            else
+                lw2 = static_cast<LegacyLong>(property);
             _Push(lw2);
         }
         break;
@@ -1039,8 +1042,9 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         if (!_fError)
         {
             GobMayDie();
-            if (_pwoks->FModalTopic(_prca, lw1, &lw3))
-                lw2 = lw3;
+            long result;
+            if (_pwoks->FModalTopic(_prca, lw1, &result))
+                lw2 = static_cast<LegacyLong>(result);
             _Push(lw2);
         }
         break;
@@ -1072,13 +1076,13 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
 /***************************************************************************
     Put up an alert containing a list of numbers.
 ***************************************************************************/
-void GraphicsObjectInterpreter::_DoAlert(long op)
+void GraphicsObjectInterpreter::_DoAlert(LegacyLong op)
 {
     String stn1;
     String stn2;
-    long lw;
+    LegacyLong lw;
     bool fStrings;
-    long clw = _LwPop();
+    LegacyLong clw = _LwPop();
 
     switch (op)
     {
@@ -1144,10 +1148,10 @@ void GraphicsObjectInterpreter::_DoAlert(long op)
 /***************************************************************************
     Get or set the string in an edit control.
 ***************************************************************************/
-void GraphicsObjectInterpreter::_DoEditControl(long hid, long stid, bool fGet)
+void GraphicsObjectInterpreter::_DoEditControl(LegacyLong hid, LegacyLong stid, bool fGet)
 {
     PEditControlBase pedcb;
-    long cch;
+    LegacyLong cch;
     achar rgch[kcchMaxStn];
     String stn;
 
@@ -1219,7 +1223,7 @@ PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
     A chunky resource reader to read a color table. Wraps the color table in
     a GenericCacheableObject.
 ***************************************************************************/
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     PGenericCacheableObject pcabo;
     PDynamicArray pglclr = pvNil;
@@ -1252,7 +1256,7 @@ bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     Launch an app with the given command line. Return true iff the launch
     was successful.
 ***************************************************************************/
-bool GraphicsObjectInterpreter::_FLaunch(long stid)
+bool GraphicsObjectInterpreter::_FLaunch(LegacyLong stid)
 {
     AssertThis(0);
     String stn;

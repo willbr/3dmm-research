@@ -46,7 +46,7 @@ enum
     fvkRemovable = 0x0008,
 };
 
-typedef long FileType; // file type
+typedef LegacyLong FileType; // file type
 
 const FileType ftgNil = '...,';
 const FileType kftgDir = '....';
@@ -71,18 +71,11 @@ class Filename : public Filename_PAR
 
   private:
     FileType _ftg;
-#ifdef MAC
-    long _lwDir; // the directory id
-    FSS _fss;
-#elif defined(WIN)
     String _stnFile;
-#endif // WIN
 
-#ifdef WIN
     void _SetFtgFromName(void);
-    long _CchExt(void);
+    LegacyLong _CchExt(void);
     bool _FChangeLeaf(PString pstn);
-#endif // WIN
 
   public:
     Filename(void);
@@ -91,19 +84,20 @@ class Filename : public Filename_PAR
 #ifdef MAC
     bool FGetOpen(FileType *prgftg, short cftg);
     bool FGetSave(FileType ftg, PPascalString pstPrompt, PPascalString pstDefault);
-    bool FBuild(long lwVol, long lwDir, PString pstn, FileType ftg);
-#elif defined(WIN)
-    bool FGetOpen(achar *prgchFilter, HWND hwndOwner);
-    bool FGetSave(achar *prgchFilter, HWND hwndOwner);
-    bool FSearchInPath(PString pstn, PString pstnEnv = pvNil);
+    bool FBuild(LegacyLong lwVol, LegacyLong lwDir, PString pstn, FileType ftg);
+#elif defined(WIN) || defined(KAUAI_SDL3)
+    // GUI dialogs are implemented by kauai (GUI); core-only callers use paths.
+    bool FGetOpen(achar *prgchFilter, CoreNative::WindowHandle hwndOwner);
+    bool FGetSave(achar *prgchFilter, CoreNative::WindowHandle hwndOwner);
 #endif                                                   // WIN
-    bool FBuildFromPath(PString pstn, FileType ftgDef = ftgNil); // REVIEW shonk: Mac: implement
+    bool FSearchInPath(PString pstn, PString pstnEnv = pvNil);
+    bool FBuildFromPath(PString pstn, FileType ftgDef = ftgNil);
     bool FGetUnique(FileType ftg);
     bool FGetTemp(void);
     void SetNil(void);
 
     FileType Ftg(void);
-    ulong Grfvk(void); // volume kind (floppy/net/CD/etc)
+    LegacyUlong Grfvk(void); // volume kind (floppy/net/CD/etc)
     bool FChangeFtg(FileType ftg);
 
     bool FSetLeaf(PString pstn, FileType ftg = ftgNil);
@@ -117,15 +111,15 @@ class Filename : public Filename_PAR
 
     bool FDir(void);
     bool FSameDir(PFilename pfni);
-    bool FDownDir(PString pstn, ulong grffni);
-    bool FUpDir(PString pstn, ulong grffni);
+    bool FDownDir(PString pstn, LegacyUlong grffni);
+    bool FUpDir(PString pstn, LegacyUlong grffni);
 };
 
 #ifdef MAC
 #define FGetFniOpenMacro(pfni, prgftg, cftg, prgchFilter, hwndOwner) (pfni)->FGetOpen(prgftg, cftg)
 #define FGetFniSaveMacro(pfni, ftg, pstPrompt, pstDef, prgchFilter, hwndOwner) (pfni)->FGetSave(ftg, pstPrompt, pstDef)
 #endif // MAC
-#ifdef WIN
+#if defined(WIN) || defined(KAUAI_SDL3)
 #define FGetFniOpenMacro(pfni, prgftg, cftg, prgchFilter, hwndOwner) (pfni)->FGetOpen(prgchFilter, hwndOwner)
 #define FGetFniSaveMacro(pfni, ftg, pstPrompt, pstDef, prgchFilter, hwndOwner) (pfni)->FGetSave(prgchFilter, hwndOwner)
 #endif // WIN
@@ -133,7 +127,7 @@ class Filename : public Filename_PAR
 /****************************************
     File name enumerator.
 ****************************************/
-const long kcftgFneBase = 20;
+const LegacyLong kcftgFneBase = 20;
 
 enum
 {
@@ -159,39 +153,30 @@ class FileNameEnumerator : public FileNameEnumerator_PAR
     // file enumeration state
     struct FES
     {
-#ifdef MAC
-        long lwVol;
-        long lwDir;
-        long iv;
-#endif // MAC
-#ifdef WIN
-        Filename fni; // directory fni
-        HN hn;   // for enumerating files/directories
-        WIN32_FIND_DATA wfd;
-        ulong grfvol; // which volumes are available (for enumerating volumes)
-        long chVol;   // which volume we're on (for enumerating volumes)
-#endif                // WIN
+        Filename fni;
+        KauaiFiles::DirectoryHandle hn;
+        KauaiFiles::DirectoryEntry entry;
+        uint32_t grfvol;
+        LegacyLong chVol;
     };
 
     FileType _rgftg[kcftgFneBase];
     FileType *_prgftg;
-    long _cftg;
+    LegacyLong _cftg;
     bool _fRecurse : 1;
     bool _fInited : 1;
     PDynamicArray _pglfes;
     FES _fesCur;
 
     void _Free(void);
-#ifdef WIN
     bool _FPop(void);
-#endif // WIN
 
   public:
     FileNameEnumerator(void);
     ~FileNameEnumerator(void);
 
-    bool FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne = ffneNil);
-    bool FNextFni(Filename *pfni, ulong *pgrffneOut = pvNil, ulong grffneIn = ffneNil);
+    bool FInit(Filename *pfniDir, FileType *prgftg, LegacyLong cftg, LegacyUlong grffne = ffneNil);
+    bool FNextFni(Filename *pfni, LegacyUlong *pgrffneOut = pvNil, LegacyUlong grffneIn = ffneNil);
 };
 
 #endif //! FNI_H

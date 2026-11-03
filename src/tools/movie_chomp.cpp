@@ -185,138 +185,9 @@ LUsage:
     return 1;
 }
 
-struct SceneOnFile
-{
-    short bo;
-    short osk;
-    long nfrmLast;
-    long nfrmFirst;
-    TRANS trans;
-};
-
-const auto kbomScenh = 0x5FC00000;
-
-
-
-//
-// Scene event types
-//
-enum SceneEventType
-{                   // StartEv	FrmEv	Param
-    sevtAddActr,    //    X		  		pactr/chid
-    sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
-    sevtAddTbox,    // 	  X				ptbox/chid
-    sevtChngCamera, // 			  X		icam
-    sevtSetBkgd,    // 	  X				Background Tag
-    sevtPause       // 			  X		type, duration
-};
-
-//
-// Struct for saving event pause information
-//
-struct SceneEventPause
-{
-    WaitReason wit;
-    long dts;
-};
-
-
-//
-// Scene event
-//
-struct SceneEvent
-{
-    long nfrm; // frame number of the event.
-    SceneEventType sevt; // event type
-};
-
-typedef struct SceneEvent *PSEV;
-
-const auto kbomSev = 0xF0000000;
+// Movie/scene wire definitions come from the shared core headers.
+typedef SceneEvent *PSEV;
 const auto kbomLong = 0xC0000000;
-
-//
-// Movie file prefix
-//
-struct MovieFilePrefix
-{
-    short bo;  // byte order
-    short osk; // which system wrote this
-    DataVersion dver; // chunky file version
-};
-const ByteOrderMask kbomMfp = 0x55000000;
-
-
-
-struct ActorChunkOnFile // Actor chunk on file
-{
-    short bo;        // Byte order
-    short osk;       // OS kind
-    RoutePoint dxyzFullRte; // Translation of the route
-    long arid;       // Unique id assigned to this actor.
-    long nfrmFirst;  // First frame in this actor's stage life
-    long nfrmLast;   // Last frame in this actor's stage life
-    TAG tagTmpl;     // Tag to actor's template
-};
-const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
-
-//
-// Used to keep track of the roll call list of the movie
-//
-struct RollCallActorEntry
-{
-    long arid;
-    long cactRef;
-    ulong grfbrws; // browser properties
-    TAG tagTmpl;
-};
-
-typedef RollCallActorEntry *PRollCallActorEntry;
-
-const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
-
-/***************************************************************************
-    Read the ActorChunkOnFile. This handles converting an ActorChunkOnFile that doesn't have an
-    nfrmLast.
-***************************************************************************/
-bool _FReadActf(PDataBlock pblck, ActorChunkOnFile *pactf)
-{
-    AssertPo(pblck, 0);
-    AssertVarMem(pactf);
-    bool fOldActf = fFalse;
-
-    if (!pblck->FUnpackData())
-        return fFalse;
-
-    if (pblck->Cb() != size(ActorChunkOnFile))
-    {
-        if (pblck->Cb() != size(ActorChunkOnFile) - size(long))
-            return fFalse;
-        fOldActf = fTrue;
-    }
-
-    if (!pblck->FReadRgb(pactf, pblck->Cb(), 0))
-        return fFalse;
-
-    if (fOldActf)
-    {
-        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ActorChunkOnFile) - offset(ActorChunkOnFile, nfrmLast) - size(long));
-    }
-
-    if (kboOther == pactf->bo)
-        SwapBytesBom(pactf, kbomActf);
-    if (kboCur != pactf->bo)
-    {
-        Bug("Corrupt ActorChunkOnFile");
-        return fFalse;
-    }
-
-    if (fOldActf)
-        pactf->nfrmLast = knfrmInvalid;
-    return fTrue;
-}
-
-
 
 RTCLASS(MovieDecompiler)
 
@@ -455,7 +326,7 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
 
             if (cbExtra > 0)
             {
-                RollCallActorEntry mactr;
+                RollCallActorEntryOnFile mactr;
                 ppgst->GetExtra(iv, &mactr);
                 // printf("%zu\n", cbExtra);
                 // printf("%zu\n", sizeof(long));
@@ -479,7 +350,7 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
                     template_tag.FFormatSz(PszLit("%f"), mactr.tagTmpl.ctg);
                     printf("\t\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
-                    printf("\t\t\t\ttagTmpl.pcrf=%p,\n", mactr.tagTmpl.pcrf);
+                    printf("\t\t\t\ttagTmpl._pcrfPad=%u,\n", mactr.tagTmpl._pcrfPad);
                     printf("\t\t\t\ttagTmpl.sid=%d\n", mactr.tagTmpl.sid);
                     printf("\t\t\t)");
                 }
@@ -1035,7 +906,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
         case kctgActr: {
             ActorChunkOnFile actf;
             // printf("ACTR\n");
-            _FReadActf(&blck, &actf);
+            ActorData::FReadHeader(&blck, &actf);
 
             printf("\tActor(\n");
             printf("\t\tbo=%d,\n", actf.bo);
@@ -1058,7 +929,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
             printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
-            printf("\t\t\ttagTmpl.pcrf=%p,\n", actf.tagTmpl.pcrf);
+            printf("\t\t\ttagTmpl._pcrfPad=%u,\n", actf.tagTmpl._pcrfPad);
             printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
             printf("\t\t)\n");
 

@@ -7,39 +7,39 @@
  * Inline fixed point ops for Watcom C
  *
  */
-long IFixedMul(long a, long b);
+br_int_32 IFixedMul(br_int_32 a, br_int_32 b);
 #pragma aux IFixedMul = "imul	ebx"                                                                                     \
                         "shrd	eax,edx,16" parm nomemory[eax][ebx] modify nomemory[edx];
 
-long IFixedDiv(long a, long b);
+br_int_32 IFixedDiv(br_int_32 a, br_int_32 b);
 #pragma aux IFixedDiv = "mov	eax,edx"                                                                                  \
                         "shl	eax,16"                                                                                   \
                         "sar	edx,16"                                                                                   \
                         "idiv	ebx" parm nomemory[edx][ebx] modify nomemory[eax];
 
-long IFixedDivR(long a, long b);
+br_int_32 IFixedDivR(br_int_32 a, br_int_32 b);
 #pragma aux IFixedDivR = "cdq"                                                                                         \
                          "xchg	edx,eax"                                                                                \
                          "shrd	eax,edx,16"                                                                             \
                          "sar	edx,16"                                                                                  \
                          "idiv	ebx" parm nomemory[eax][ebx] modify nomemory[edx];
 
-long IFixedDivF(long a, long b);
+br_int_32 IFixedDivF(br_int_32 a, br_int_32 b);
 #pragma aux IFixedDivF = "xor	eax,eax"                                                                                 \
                          "sar	edx,1"                                                                                   \
                          "rcr	eax,1"                                                                                   \
                          "div	ebx" parm nomemory[edx][ebx] modify nomemory[eax];
 
-long IFixedRcp(long a);
+br_int_32 IFixedRcp(br_int_32 a);
 #pragma aux IFixedRcp = "mov	edx,1"                                                                                    \
                         "xor	eax,eax"                                                                                  \
                         "idiv	ebx" parm nomemory[ebx] modify nomemory[eax edx];
 
-long IFixedMulDiv(long a, long b, long c);
+br_int_32 IFixedMulDiv(br_int_32 a, br_int_32 b, br_int_32 c);
 #pragma aux IFixedMulDiv = "imul	ebx"                                                                                  \
                            "idiv	ecx" parm nomemory[eax][ebx][ecx] modify nomemory[edx];
 
-long IFixedMac2(long a, long b, long c, long d);
+br_int_32 IFixedMac2(br_int_32 a, br_int_32 b, br_int_32 c, br_int_32 d);
 #pragma aux IFixedMac2 = "imul	edx"                                                                                    \
                          "shrd	eax,edx,16"                                                                             \
                          "xchg	ecx,eax"                                                                                \
@@ -47,7 +47,7 @@ long IFixedMac2(long a, long b, long c, long d);
                          "shrd	eax,edx,16"                                                                             \
                          "add	eax,ecx" parm nomemory[eax][edx][ecx][ebx] modify nomemory;
 
-long IFixedMac3(long a, long b, long c, long d, long e, long f);
+br_int_32 IFixedMac3(br_int_32 a, br_int_32 b, br_int_32 c, br_int_32 d, br_int_32 e, br_int_32 f);
 #pragma aux IFixedMac3 = "imul	edx"                                                                                    \
                          "shrd	eax,edx,16"                                                                             \
                          "xchg	ecx,eax"                                                                                \
@@ -59,7 +59,7 @@ long IFixedMac3(long a, long b, long c, long d, long e, long f);
                          "shrd	eax,edx,16"                                                                             \
                          "add	eax,ecx" parm nomemory[eax][edx][ecx][ebx][esi][edi] modify nomemory;
 
-long IFixedFMac2(short a, long b, short c, long d);
+br_int_32 IFixedFMac2(short a, br_int_32 b, short c, br_int_32 d);
 #pragma aux IFixedFMac2 = "cwde"                                                                                       \
                           "imul	edx"                                                                                   \
                           "shrd	eax,edx,15"                                                                            \
@@ -69,7 +69,7 @@ long IFixedFMac2(short a, long b, short c, long d);
                           "shrd	eax,edx,15"                                                                            \
                           "add	eax,ecx" parm nomemory[ax][edx][cx][ebx] modify nomemory;
 
-long IFixedFMac3(short a, long b, short c, long d, short e, long f);
+br_int_32 IFixedFMac3(short a, br_int_32 b, short c, br_int_32 d, short e, br_int_32 f);
 #pragma aux IFixedFMac3 = "cwde"                                                                                       \
                           "imul	edx"                                                                                   \
                           "shrd	eax,edx,15"                                                                            \
@@ -84,11 +84,11 @@ long IFixedFMac3(short a, long b, short c, long d, short e, long f);
                           "shrd	eax,edx,15"                                                                            \
                           "add	eax,ecx" parm nomemory[ax][edx][cx][ebx][si][edi] modify nomemory;
 
-long IFixedSqr(long a);
+br_int_32 IFixedSqr(br_int_32 a);
 #pragma aux IFixedSqr = "imul	eax"                                                                                     \
                         "shrd	eax,edx,16" parm nomemory[eax] modify nomemory[edx];
 
-long IFixedSqr2(long a, long b);
+br_int_32 IFixedSqr2(br_int_32 a, br_int_32 b);
 #pragma aux IFixedSqr2 = "imul	eax"                                                                                    \
                          "xchg	ebx,eax"                                                                                \
                          "mov	ecx,edx"                                                                                 \
@@ -97,7 +97,7 @@ long IFixedSqr2(long a, long b);
                          "adc	edx,ecx"                                                                                 \
                          "shrd	eax,edx,16" parm nomemory[eax][ebx] modify nomemory[eax ebx ecx edx];
 
-long IFixedSqr3(long a, long b, long c);
+br_int_32 IFixedSqr3(br_int_32 a, br_int_32 b, br_int_32 c);
 #pragma aux IFixedSqr3 = "imul	eax"                                                                                    \
                          "xchg	ebx,eax"                                                                                \
                          "mov	ecx,edx"                                                                                 \
@@ -110,7 +110,7 @@ long IFixedSqr3(long a, long b, long c);
                          "adc	edx,ecx"                                                                                 \
                          "shrd	eax,edx,16" parm nomemory[eax][ebx][esi] modify nomemory[eax ebx ecx edx];
 
-long IFixedSqr4(long a, long b, long c, long d);
+br_int_32 IFixedSqr4(br_int_32 a, br_int_32 b, br_int_32 c, br_int_32 d);
 #pragma aux IFixedSqr4 = "imul	eax"                                                                                    \
                          "xchg	ebx,eax"                                                                                \
                          "mov	ecx,edx"                                                                                 \

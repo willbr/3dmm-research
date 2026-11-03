@@ -152,4 +152,3 @@ extern int decl(int);
 #undef SIZE
 #undef SNAME
 #undef FNAME
-

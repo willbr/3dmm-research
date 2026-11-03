@@ -240,7 +240,7 @@ void TextGraphicsObject::MarkMem(void)
  *		Nothing.
  *
 \*****************************************************************************/
-void TextGraphicsObject::AssertValid(ulong grf)
+void TextGraphicsObject::AssertValid(LegacyUlong grf)
 {
     TextGraphicsObject_PAR::AssertValid(fobjAllocated);
 }

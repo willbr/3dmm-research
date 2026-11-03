@@ -24,6 +24,7 @@ typedef class Body *PBody;
 #define kclsBody 'BODY'
 class Body : public Body_PAR
 {
+    friend class BodyWorld;
     RTCLASS_DEC
     ASSERT
     MARKMEM
@@ -31,19 +32,21 @@ class Body : public Body_PAR
   protected:
     static BMTL *_pbmtlHilite; // hilight material
     static Body *_pbodyClosestClicked;
-    static long _dzpClosestClicked;
+    static LegacyLong _dzpClosestClicked;
     static BACT *_pbactClosestClicked;
     BACT *_prgbact;      // array of BACTs
     PDynamicArray _pglibset;       // body part set IDs
-    long _cbset;         // count of body part sets
+    LegacyLong _cbset;         // count of body part sets
     PCustomMaterial_CMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
-    long _cbactPart;     // count of model body parts in body
-    long _cactHidden;    // for Show() / Hide()
-    PWorld _pbwld;        // world that body lives in
+    LegacyLong _cbactPart;     // count of model body parts in body
+    LegacyLong _cactHidden;    // for Show() / Hide()
+    void *_pvRenderContext; // non-owning renderer binding, copied with the body
+    void (*_pfnAttach)(void *, Body *);
+    void (*_pfnChanged)(void *);
     RC _rcBounds;        // bounds of body after last render
     RC _rcBoundsLastVis; // bounds of body last time it was visible
     bool _fFound;        // is the actor found under the mouse?
-    long _ibset;         // which body part got hit.
+    LegacyLong _ibset;         // which body part got hit.
 
   protected:
     Body(void)
@@ -60,19 +63,24 @@ class Body : public Body_PAR
     {
         return _prgbact + 1;
     }                            // skip root BACT
-    PBACT _PbactPart(long ipart) // ptr to ipart'th body part
+    PBACT _PbactPart(LegacyLong ipart) // ptr to ipart'th body part
     {
         return _prgbact + 1 + 1 + ipart;
     }                 // skip root and hilite BACTs
-    long _Cbact(void) // count in _prgbact
+    LegacyLong _Cbact(void) // count in _prgbact
     {
         return 1 + 1 + _cbactPart;
     }                       // root, hilite, and body part BACTs
-    long _Ibset(long ipart) // body part set that this part belongs to
+    LegacyLong _Ibset(LegacyLong ipart) // body part set that this part belongs to
     {
         return *(short *)_pglibset->QvGet(ipart);
     }
-    void _RemoveMaterial(long ibset);
+    void _RenderChanged(void)
+    {
+        if (_pfnChanged != pvNil)
+            _pfnChanged(_pvRenderContext);
+    }
+    void _RemoveMaterial(LegacyLong ibset);
 
     // Callbacks from BRender:
     static int BR_CALLBACK _FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos,
@@ -83,14 +91,13 @@ class Body : public Body_PAR
 
   public:
     static PBody PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset);
-    static PBody PbodyFromBact(BACT *pbact, long *pibset = pvNil);
-    static PBody PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset = pvNil);
+    static PBody PbodyFromBact(BACT *pbact, LegacyLong *pibset = pvNil);
     /* Public accessors for the BACT tree -- needed by headless test
      * harnesses that walk the body to render via BrZbScene without
      * going through the full World/PWorld playback runtime. */
     PBACT PbactRoot(void) { return _PbactRoot(); }
-    PBACT PbactPart(long ipart) { return _PbactPart(ipart); }
-    long Cbact(void) { return _Cbact(); }
+    PBACT PbactPart(LegacyLong ipart) { return _PbactPart(ipart); }
+    LegacyLong Cbact(void) { return _Cbact(); }
     ~Body(void);
     PBody PbodyDup(void);
     void Restore(PBody pbodyDup);
@@ -98,34 +105,34 @@ class Body : public Body_PAR
                                     BRS dzpNear, BRS dzpFar, void *pv);
 
     bool FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
-    void SetBwld(PWorld pbwld)
-    {
-        _pbwld = pbwld;
-    }
+    // Binding lifetime must cover the body and any duplicates. Configure
+    // while hidden; the core owns its actor tree, the adapter owns its host.
+    void SetRenderCallbacks(void *context, void (*attach)(void *, Body *), void (*changed)(void *));
 
     void Show(void);
     void Hide(void);
     void Hilite(void);
     void Unhilite(void);
 
-    static void SetHiliteColor(long iclr);
+    static void SetHiliteColor(LegacyLong iclr);
+    // Release after all bodies, before shutting down BRender.
+    static void ReleaseSharedMaterial(void);
 
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
-    void SetPartModel(long ibact, Model *pmodl);
-    void SetPartMatrix(long ibact, BMAT34 *pbmat34);
-    void SetPartSetMtrl(long ibset, Material_MTRL *pmtrl);
+    void SetPartModel(LegacyLong ibact, Model *pmodl);
+    void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);
+    void SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl);
     void SetPartSetCmtl(CustomMaterial_CMTL *pcmtl);
-    void GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);
-    long Cbset()
+    void GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);
+    LegacyLong Cbset()
     {
         return _cbset;
     }
 
     void GetBcbBounds(BCB *pbcb, bool fWorld = fFalse);
     void GetRcBounds(RC *prc);
-    void GetCenter(long *pxp, long *pyp);
+    void GetCenter(LegacyLong *pxp, LegacyLong *pyp);
     void GetPosition(BRS *pxr, BRS *pyr, BRS *pzr);
-    bool FPtInBody(long xp, long yp, long *pibset);
     bool FIsInView(void);
 };
 
@@ -144,7 +151,7 @@ class BodyCostume : public BodyCostume_PAR
     MARKMEM
 
   private:
-    long _cbset;   // count of body part sets in _prgpo
+    LegacyLong _cbset;   // count of body part sets in _prgpo
     BASE **_prgpo; // array of MTRLs and CMTLs
 
   private:

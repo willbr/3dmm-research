@@ -3,7 +3,7 @@
     Texture map (br_pixmap wrapper) class
 
 ***************************************************************************/
-#include "bren.h"
+#include "bren_core.h"
 
 ASSERTNAME
 
@@ -14,7 +14,7 @@ RTCLASS(TextureMap)
 /***************************************************************************
     A PFNRPO to read TextureMap objects.
 ***************************************************************************/
-bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -46,6 +46,7 @@ PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNum
     TextureMapFile tmapf;
     DataBlock blck;
     TextureMap *ptmap;
+    void *pixels;
 
     ptmap = NewObj TextureMap;
     if (pvNil == ptmap)
@@ -61,10 +62,13 @@ PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNum
     Assert(kboCur == tmapf.bo, "bad TextureMapFile");
 
     ptmap->_bpmp.identifier = (char *)ptmap; // to get TextureMap from a (BPMP *)
-    if (!FAllocPv((void **)&ptmap->_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), fmemClear, mprNormal))
+    // BPMP has a four-byte packed ABI, so its pointer fields need not be
+    // naturally aligned on 64-bit hosts. Pass an aligned local to the allocator.
+    if (!FAllocPv(&pixels, LwMul(tmapf.cbRow, tmapf.dyp), fmemClear, mprNormal))
     {
         goto LFail;
     }
+    ptmap->_bpmp.pixels = pixels;
     ptmap->_bpmp.map = pvNil;
     ptmap->_bpmp.row_bytes = tmapf.cbRow;
     ptmap->_bpmp.type = tmapf.type;
@@ -114,7 +118,11 @@ TextureMap::~TextureMap(void)
         //		BrMemFree(_bpmp.pixels);
     }
     else
-        FreePpv((void **)&_bpmp.pixels);
+    {
+        void *pixels = _bpmp.pixels;
+        FreePpv(&pixels);
+        _bpmp.pixels = pvNil;
+    }
 }
 
 /***************************************************************************
@@ -160,7 +168,7 @@ bool TextureMap::FWrite(PDataBlock pblck)
     return fTrue;
 }
 
-#ifdef WIN
+#ifndef MAC
 
 #define CALCDIST(bRed1, bGreen1, bBlue1, bRed2, bGreen2, bBlue2)                                                       \
     (((bRed1) - (bRed2)) * ((bRed1) - (bRed2)) + ((bGreen1) - (bGreen2)) * ((bGreen1) - (bGreen2)) +                   \
@@ -180,11 +188,11 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PDynamicArray pglclr)
 {
     byte *prgb = pvNil;
     PTextureMap ptmap = pvNil;
-    long dxp, dyp;
+    LegacyLong dxp, dyp;
     bool fUpsideDown;
-    long iclrBest, igl;
-    long iprgb;
-    long dist, min;
+    LegacyLong iclrBest, igl;
+    LegacyLong iprgb;
+    LegacyLong dist, min;
     Color clr, clrSrc;
     PDynamicArray pglclrSrc;
     PDynamicArray pglCache;
@@ -204,7 +212,7 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PDynamicArray pglclr)
             // Do a closest color match
             //
 
-            pglCache = DynamicArray::PglNew(size(long), pglclrSrc->IvMac());
+            pglCache = DynamicArray::PglNew(size(LegacyLong), pglclrSrc->IvMac());
 
             if (pglCache != pvNil)
             {
@@ -225,7 +233,7 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PDynamicArray pglclr)
 
                     if (iclrBest != ivNil)
                     {
-                        prgb[iprgb] = (BYTE)iclrBest;
+                        prgb[iprgb] = (uint8_t)iclrBest;
                         continue;
                     }
                 }
@@ -257,7 +265,7 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PDynamicArray pglclr)
                         pglCache->Put(prgb[iprgb], &iclrBest);
                     }
 
-                    prgb[iprgb] = (BYTE)iclrBest;
+                    prgb[iprgb] = (uint8_t)iclrBest;
                 }
             }
 
@@ -292,7 +300,7 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni)
  *	output:
  *			returns the pointer to the new TextureMap
  */
-PTextureMap TextureMap::PtmapNew(byte *prgbPixels, long dxp, long dyp)
+PTextureMap TextureMap::PtmapNew(byte *prgbPixels, LegacyLong dxp, LegacyLong dyp)
 {
     PTextureMap ptmap;
 
@@ -337,7 +345,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsn
     AssertNilOrPo(pmsnkErr, 0);
 
     bool fRet = fFalse;
-    long lwSig;
+    LegacyLong lwSig;
     PZString pszErr = pvNil;
     FileLocation flo;
 
@@ -346,7 +354,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsn
         pszErr = PszLit("Couldn't create destination file\n");
         goto LFail;
     }
-    flo.fp = size(long);
+    flo.fp = size(LegacyLong);
     flo.cb = CbOnFile();
 
     if (fCompress)
@@ -365,7 +373,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsn
             lwSig = klwSigPackedFile;
             flo.cb = blck.Cb(fTrue);
         }
-        if (!flo.pfil->FWriteRgb(&lwSig, size(long), 0) || !blck.FWriteToFlo(&flo, fTrue))
+        if (!flo.pfil->FWriteRgb(&lwSig, size(LegacyLong), 0) || !blck.FWriteToFlo(&flo, fTrue))
         {
             pszErr = PszLit("writing to destination file failed\n");
             goto LFail;
@@ -374,7 +382,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsn
     else
     {
         lwSig = klwSigUnpackedFile;
-        if (!flo.pfil->FWriteRgb(&lwSig, size(long), 0) || !FWriteFlo(&flo))
+        if (!flo.pfil->FWriteRgb(&lwSig, size(LegacyLong), 0) || !FWriteFlo(&flo))
         {
             pszErr = PszLit("writing to destination file failed\n");
             goto LFail;
@@ -395,7 +403,7 @@ LFail:
 byte *TextureMap::PrgbBuildInverseTable(void)
 {
     byte *prgb, *prgbT, iclr;
-    long cbRgb;
+    LegacyLong cbRgb;
 
     if (_pbpmp->type != BR_PMT_RGB_888)
         return pvNil;
@@ -410,9 +418,9 @@ byte *TextureMap::PrgbBuildInverseTable(void)
     return prgb;
 }
 
-void TextureMap::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrHi)
+void TextureMap::_SortInverseTable(byte *prgb, LegacyLong cbRgb, BRCLR brclrLo, BRCLR brclrHi)
 {
-    long cbRgb1 = 0, cbRgb2 = 0;
+    LegacyLong cbRgb1 = 0, cbRgb2 = 0;
     byte *prgb2, *prgbRead, bT;
     BRCLR brclrPivot = brclrLo + (brclrHi - brclrLo) / 2;
     BRCLR *pbrclr;
@@ -446,7 +454,7 @@ void TextureMap::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR 
 /***************************************************************************
     Assert the validity of the TextureMap.
 ***************************************************************************/
-void TextureMap::AssertValid(ulong grf)
+void TextureMap::AssertValid(LegacyUlong grf)
 {
     TextureMap_PAR::AssertValid(fobjAllocated);
     if (!_fImported)

@@ -448,7 +448,7 @@ bool TextBoxBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
 
     pt.xp = pcmd->xp;
     pt.yp = pcmd->yp;
-    MapPt(&pt, cooLocal, cooGlobal);
+    MapPt(&pt, cooLocal, cooParent);
 
     if (_fTrackingMouse)
     {
@@ -604,7 +604,7 @@ bool TextBoxBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
             break;
         }
 
-        vpappb->PositionCurs(_xpPrev, _ypPrev);
+        vpappb->PositionCurs(PgobPar(), _xpPrev, _ypPrev);
 
         if ((rc != rcOld) && !_ptbox->Pscen()->Pmvie()->Pmcc()->FMinimized())
         {
@@ -901,12 +901,11 @@ void TextBoxBase::AttachToMouse(void)
     GetRc(&_rcOrig, cooParent);
     pt.xp = _rcOrig.xpLeft;
     pt.yp = _rcOrig.ypTop;
-    MapPt(&pt, cooParent, cooGlobal);
     _xpPrev = pt.xp;
     _ypPrev = pt.yp;
     pmvu->SetTool(toolTboxMove);
     _ptbox->Pscen()->Pmvie()->Pmcc()->ChangeTool(toolTboxMove);
-    vpappb->PositionCurs(_xpPrev, _ypPrev);
+    vpappb->PositionCurs(PgobPar(), _xpPrev, _ypPrev);
     vpappb->HideCurs();
     vpcex->TrackMouse(this);
 }
@@ -940,7 +939,7 @@ void TextBoxBase::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TextBoxBase::AssertValid(ulong grf)
+void TextBoxBase::AssertValid(LegacyUlong grf)
 {
     TextBoxBase_PAR::AssertValid(fobjAllocated);
 }
@@ -1763,7 +1762,7 @@ void TextBoxGobject::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TextBoxGobject::AssertValid(ulong grf)
+void TextBoxGobject::AssertValid(LegacyUlong grf)
 {
     TextBoxGobject_PAR::AssertValid(fobjAllocated);
     AssertPo(_ptbxb, 0);
@@ -1776,26 +1775,6 @@ void TextBoxGobject::AssertValid(ulong grf)
 // BEGIN TextBox
 //
 //
-
-#define kbomTboxh 0x5FFFC000
-
-//
-// header information for saving text boxes to a file
-//
-struct TextBoxOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t nfrmFirst;
-    int32_t nfrmMax;
-    int32_t xpLeft;
-    int32_t xpRight;
-    int32_t ypTop;
-    int32_t ypBottom;
-    ChildChunkID chid;
-    bool fStory;
-};
-static_assert(sizeof(TextBoxOnFile) == 36, "TextBoxOnFile on-disk layout drift");
 
 /****************************************************
  *
@@ -1832,12 +1811,12 @@ PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 
     if (prcRel != pvNil)
     {
-        ptbox->_rc = *prcRel;
+        ptbox->_data.bounds = *prcRel;
         ptbox->_dxpDef = prcRel->xpRight - prcRel->xpLeft - 2 * kdzpBorderTbox;
     }
 
     ptbox->_pscen = pscen;
-    ptbox->_fStory = fStory;
+    ptbox->_data.story = fStory;
     ptbox->SetAcrBack(kacrClear, fdocNil);
     Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TextBoxUndoEdit assumes there is one level of undo!");
     ptbox->SetCundbMax(1);
@@ -1886,35 +1865,17 @@ PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen
 
     PTBOX ptbox;
     DataBlock blck;
-    TextBoxOnFile tboxh;
+    TextBoxData metadata;
     ChildChunkIdentification kid;
     PChunkyFile pcfl = pcrf->Pcfl();
 
     //
     // Find the chunk and read in the header.
     //
-    if (!pcfl->FFind(kctgTbox, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(TextBoxOnFile)) ||
-        !blck.FReadRgb(&tboxh, size(TextBoxOnFile), 0))
+    if (!metadata.FRead(pcfl, cno, &kid.cki))
     {
         PushErc(ercSocBadFile);
-        return (pvNil);
-    }
-
-    //
-    // Check header for byte swapping
-    //
-    if (tboxh.bo == kboOther)
-    {
-        SwapBytesBom(&tboxh, kbomTboxh);
-    }
-    else
-    {
-        Assert(tboxh.bo == kboCur, "Bad Chunky file");
-    }
-
-    if (!pcfl->FGetKidChidCtg(kctgTbox, cno, tboxh.chid, kctgRichText, &kid))
-    {
-        return (pvNil);
+        return pvNil;
     }
 
     ptbox = NewObj TextBox;
@@ -1930,11 +1891,7 @@ PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen
     }
 
     ptbox->_pscen = pscen;
-    ptbox->_fStory = tboxh.fStory;
-    ptbox->_nfrmFirst = tboxh.nfrmFirst;
-    ptbox->_nfrmCur = tboxh.nfrmFirst - 1;
-    ptbox->_nfrmMax = tboxh.nfrmMax;
-    ptbox->_rc.Set(tboxh.xpLeft, tboxh.ypTop, tboxh.xpRight, tboxh.ypBottom);
+    ptbox->_data = metadata;
     AssertPo(ptbox, 0);
 
     return ptbox;
@@ -1957,19 +1914,8 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    TextBoxOnFile tboxh;
     ChunkIdentification cki;
-
-    tboxh.bo = kboCur;
-    tboxh.osk = koskCur;
-    tboxh.nfrmFirst = _nfrmFirst;
-    tboxh.nfrmMax = _nfrmMax;
-    tboxh.xpLeft = _rc.xpLeft;
-    tboxh.xpRight = _rc.xpRight;
-    tboxh.ypTop = _rc.ypTop;
-    tboxh.ypBottom = _rc.ypBottom;
-    tboxh.fStory = _fStory;
-    tboxh.chid = 0;
+    _data.textChild = 0;
 
     if (!FSaveToChunk(pcfl, &cki))
     {
@@ -1984,7 +1930,7 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
         return (fFalse);
     }
 
-    if (!pcfl->FPutPv((void *)&tboxh, size(TextBoxOnFile), kctgTbox, cno))
+    if (!_data.FWrite(pcfl, cno))
     {
         pcfl->DeleteChild(kctgTbox, cno, cki.ctg, cki.cno, 0);
         return (fFalse);
@@ -2009,9 +1955,9 @@ void TextBox::SetScen(PScene pscen)
     AssertThis(0);
     AssertPo(pscen, 0);
 
-    _nfrmCur = pscen->Nfrm();
-    _nfrmFirst = pscen->Nfrm();
-    _nfrmMax = klwMax;
+    _data.currentFrame = pscen->Nfrm();
+    _data.firstFrame = pscen->Nfrm();
+    _data.maxFrame = klwMax;
     _pscen = pscen;
 }
 
@@ -2033,7 +1979,7 @@ void TextBox::SetTypeCore(bool fStory)
 
     PTextBoxGobject ptbxg;
 
-    _fStory = fStory;
+    _data.story = fStory;
     ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
@@ -2091,7 +2037,7 @@ bool TextBox::FSetType(bool fStory)
 
     PTextBoxUndoType ptunt;
 
-    if (_fStory == fStory)
+    if (_data.story == fStory)
     {
         return (fTrue);
     }
@@ -2133,14 +2079,14 @@ void TextBox::SetRc(RC *prc)
     AssertThis(0);
     AssertPvCb(prc, size(RC));
 
-    if (_rc != *prc)
+    if (_data.bounds != *prc)
     {
         if (Pscen() != pvNil)
         {
             Pscen()->MarkDirty();
         }
 
-        _rc = *prc;
+        _data.bounds = *prc;
     }
 }
 
@@ -2158,7 +2104,7 @@ void TextBox::SetRc(RC *prc)
 bool TextBox::FIsVisible(void)
 {
     AssertThis(0);
-    return ((_nfrmCur >= _nfrmFirst) && (_nfrmCur < _nfrmMax));
+    return _data.FVisibleAt(_data.currentFrame);
 }
 
 /***************************************************************************
@@ -2179,20 +2125,20 @@ bool TextBox::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
     AssertVarMem(pnfrmStart);
     AssertVarMem(pnfrmLast);
 
-    if (_nfrmMax < _nfrmFirst)
+    if (_data.maxFrame < _data.firstFrame)
     {
         return (fFalse);
     }
 
-    *pnfrmStart = _nfrmFirst;
+    *pnfrmStart = _data.firstFrame;
 
-    if (_nfrmMax == klwMax)
+    if (_data.maxFrame == klwMax)
     {
         *pnfrmLast = Pscen()->NfrmLast();
     }
     else
     {
-        *pnfrmLast = _nfrmMax - 1;
+        *pnfrmLast = _data.maxFrame - 1;
     }
 
     return (fTrue);
@@ -2262,7 +2208,7 @@ bool TextBox::FGotoFrame(long nfrm)
     }
     AssertNilOrPo(ptbxg, 0);
 
-    _nfrmCur = nfrm;
+    _data.currentFrame = nfrm;
 
     if (FIsVisible())
     {
@@ -2273,7 +2219,7 @@ bool TextBox::FGotoFrame(long nfrm)
             //
             // Create a GraphicsObject for this text box
             //
-            gcb.Set(khidDdg, Pscen()->Pmvie()->PddgActive(), fgobNil, kginMark, &_rc, pvNil);
+            gcb.Set(khidDdg, Pscen()->Pmvie()->PddgActive(), fgobNil, kginMark, &_data.bounds, pvNil);
             ptbxb = TextBoxBase::PtbxbNew(this, &gcb);
             if (ptbxb == pvNil)
             {
@@ -2315,17 +2261,17 @@ bool TextBox::FShowCore(void)
     AssertThis(0);
 
     Pscen()->MarkDirty();
-    if (_nfrmMax < _nfrmCur)
+    if (_data.maxFrame < _data.currentFrame)
     {
-        Assert(_nfrmCur < klwMax, "Current frame too big");
-        _nfrmMax = _nfrmCur + 1;
+        Assert(_data.currentFrame < klwMax, "Current frame too big");
+        _data.maxFrame = _data.currentFrame + 1;
     }
-    else if (_nfrmCur < _nfrmFirst)
+    else if (_data.currentFrame < _data.firstFrame)
     {
-        _nfrmFirst = _nfrmCur;
+        _data.firstFrame = _data.currentFrame;
     }
 
-    return (FGotoFrame(_nfrmCur));
+    return (FGotoFrame(_data.currentFrame));
 }
 
 /****************************************************
@@ -2351,8 +2297,8 @@ bool TextBox::FShow(void)
         return (fFalse);
     }
 
-    ptunh->SetFrmLast(_nfrmMax);
-    ptunh->SetFrmFirst(_nfrmFirst);
+    ptunh->SetFrmLast(_data.maxFrame);
+    ptunh->SetFrmFirst(_data.firstFrame);
     ptunh->SetItbox(Itbox());
 
     if (!Pscen()->Pmvie()->FAddUndo(ptunh))
@@ -2387,9 +2333,9 @@ void TextBox::HideCore(void)
 {
     AssertThis(0);
 
-    _nfrmMax = _nfrmCur;
+    _data.maxFrame = _data.currentFrame;
     Pscen()->MarkDirty();
-    AssertDo(FGotoFrame(_nfrmCur), "Could not goto frame");
+    AssertDo(FGotoFrame(_data.currentFrame), "Could not goto frame");
 
     if (Pscen()->PtboxSelected() == this)
     {
@@ -2414,7 +2360,7 @@ bool TextBox::FHide(void)
 
     PTextBoxUndoHide ptunh;
 
-    if (_nfrmCur <= _nfrmFirst)
+    if (_data.currentFrame <= _data.firstFrame)
     {
         return (Pscen()->FRemTbox(this));
     }
@@ -2425,8 +2371,8 @@ bool TextBox::FHide(void)
         return (fFalse);
     }
 
-    ptunh->SetFrmLast(_nfrmMax);
-    ptunh->SetFrmFirst(_nfrmFirst);
+    ptunh->SetFrmLast(_data.maxFrame);
+    ptunh->SetFrmFirst(_data.firstFrame);
     ptunh->SetItbox(Itbox());
 
     if (!Pscen()->Pmvie()->FAddUndo(ptunh))
@@ -2456,7 +2402,7 @@ bool TextBox::FHide(void)
 bool TextBox::FDup(PTBOX *pptbox)
 {
     AssertThis(0);
-    *pptbox = TextBox::PtboxNew(pvNil, &_rc);
+    *pptbox = TextBox::PtboxNew(pvNil, &_data.bounds);
     AssertNilOrPo(*pptbox, 0);
 
     if (*pptbox == pvNil)
@@ -2716,7 +2662,7 @@ bool TextBox::FNeedToScroll(void)
 
     PTextBoxGobject ptbxg;
 
-    if ((_nfrmCur == _nfrmFirst) && !_fStory)
+    if ((_data.currentFrame == _data.firstFrame) && !_data.story)
     {
         ptbxg = (PTextBoxGobject)PddgGet(0);
         AssertPo(ptbxg, 0);
@@ -2788,7 +2734,7 @@ bool TextBox::FTextSelected(void)
 void TextBox::SetStartFrame(long nfrm)
 {
     AssertThis(0);
-    _nfrmFirst = nfrm;
+    _data.firstFrame = nfrm;
 }
 
 /****************************************************
@@ -2945,7 +2891,7 @@ void TextBox::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TextBox::AssertValid(ulong grf)
+void TextBox::AssertValid(LegacyUlong grf)
 {
     TextBox_PAR::AssertValid(fobjAllocated);
     if (PddgGet(0) != pvNil)
@@ -3080,7 +3026,7 @@ void TextBoxUndoType::MarkMem(void)
 /***************************************************************************
     Assert the validity of the TextBoxUndoType.
 ***************************************************************************/
-void TextBoxUndoType::AssertValid(ulong grf)
+void TextBoxUndoType::AssertValid(LegacyUlong grf)
 {
     TextBoxUndoType_PAR::AssertValid(fobjAllocated);
 }
@@ -3207,7 +3153,7 @@ void TextBoxUndoSize::MarkMem(void)
 /***************************************************************************
     Assert the validity of the TextBoxUndoSize.
 ***************************************************************************/
-void TextBoxUndoSize::AssertValid(ulong grf)
+void TextBoxUndoSize::AssertValid(LegacyUlong grf)
 {
     TextBoxUndoSize_PAR::AssertValid(fobjAllocated);
 }
@@ -3350,7 +3296,7 @@ void TextBoxUndoHide::MarkMem(void)
 /***************************************************************************
     Assert the validity of the TextBoxUndoHide.
 ***************************************************************************/
-void TextBoxUndoHide::AssertValid(ulong grf)
+void TextBoxUndoHide::AssertValid(LegacyUlong grf)
 {
     TextBoxUndoHide_PAR::AssertValid(fobjAllocated);
 }
@@ -3524,7 +3470,7 @@ void TextBoxUndoEdit::MarkMem(void)
 /***************************************************************************
     Assert the validity of the TextBoxUndoEdit.
 ***************************************************************************/
-void TextBoxUndoEdit::AssertValid(ulong grf)
+void TextBoxUndoEdit::AssertValid(LegacyUlong grf)
 {
     AssertBaseThis(0);
 }
@@ -3646,7 +3592,7 @@ void TextBoxUndoColor::MarkMem(void)
 /***************************************************************************
     Assert the validity of the TextBoxUndoColor.
 ***************************************************************************/
-void TextBoxUndoColor::AssertValid(ulong grf)
+void TextBoxUndoColor::AssertValid(LegacyUlong grf)
 {
     AssertBaseThis(0);
 }
@@ -3782,7 +3728,7 @@ void TextBoxClipboard::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TextBoxClipboard::AssertValid(ulong grf)
+void TextBoxClipboard::AssertValid(LegacyUlong grf)
 {
     TextBoxClipboard_PAR::AssertValid(fobjAllocated);
     AssertPo(_ptbox, 0);

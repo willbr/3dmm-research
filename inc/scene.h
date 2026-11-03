@@ -68,14 +68,6 @@ class SceneActorUndo : public SceneActorUndo_PAR
 //
 // Different reasons for pausing in a scene
 //
-enum WaitReason
-{
-    witNil,
-    witUntilClick,
-    witUntilSnd,
-    witForTime,
-    witLim
-};
 
 //
 // Functionality that can be turned off and on.  If the bit
@@ -123,9 +115,7 @@ class Scene : public Scene_PAR
     //
     // These variables keep track of the internal frame numbers.
     //
-    long _nfrmCur;   // Current frame number
-    long _nfrmLast;  // Last frame number in scene.
-    long _nfrmFirst; // First frame number in scene.
+    SceneData _data; // Frame range, title and transition, independent of playback.
 
     //
     // Frames with events in them.  This stuff works as follows.
@@ -137,7 +127,6 @@ class Scene : public Scene_PAR
     //
     // Global information
     //
-    String _stnName;         // Name of this scene
     PDynamicArray _pglpactr;        // List of actors in the scene.
     PDynamicArray _pglptbox;        // List of text boxes in the scene.
     PGeneralGroup _pggsevStart;     // List of frame independent events.
@@ -146,8 +135,7 @@ class Scene : public Scene_PAR
     ulong _grfscen;       // Disabled functionality.
     PActor _pactrSelected; // Primary selected actor (still authoritative single-select pointer)
     PDynamicArray _pglpactrSelExtra; // Additional selected actors (excluding primary). pvNil when no extras.
-    PTBOX _ptboxSelected; // Currently selected tbox, if any
-    TRANS _trans;         // Transition at the end of the scene.
+    PTBOX _ptboxSelected;            // Currently selected tbox, if any
     PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
     PSceneSoundEvent _psseBkgd;       // Background scene sound (starts playing
                           // at start time even if snd event is
@@ -171,7 +159,7 @@ class Scene : public Scene_PAR
     // Dirtying stuff
     //
     void _MarkMovieDirty(void);
-    void _DoPrerenderingWork(bool fStartNow); // Does any prerendering for _nfrmCur
+    void _DoPrerenderingWork(bool fStartNow); // Does any prerendering for _data.currentFrame
     void _EndPrerendering(void);              // Stops prerendering
 
     //
@@ -209,15 +197,15 @@ class Scene : public Scene_PAR
     bool FGotoFrm(long nfrm);                         // Jumps to an arbitrary frame.
     long Nfrm(void)                                   // Returns the current frame number
     {
-        return (_nfrmCur);
+        return (_data.currentFrame);
     }
     long NfrmFirst(void) // Returns the number of the first frame in the scene.
     {
-        return (_nfrmFirst);
+        return (_data.firstFrame);
     }
     long NfrmLast(void) // Returns the number of the last frame in the scene.
     {
-        return (_nfrmLast);
+        return (_data.lastFrame);
     }
     bool FReplayFrm(ulong grfscen); // Replay events in this scene.
 
@@ -226,7 +214,7 @@ class Scene : public Scene_PAR
     //
     void SetNfrmCur(long nfrm)
     {
-        _nfrmCur = nfrm;
+        _data.currentFrame = nfrm;
     }
 
     //
@@ -235,11 +223,11 @@ class Scene : public Scene_PAR
     void SetMvie(PMovie pmvie); // Sets the associated movie.
     void GetName(PString pstn)    // Gets name of current scene.
     {
-        *pstn = _stnName;
+        *pstn = _data.name;
     }
     void SetNameCore(PString pstn) // Sets name of current scene.
     {
-        _stnName = *pstn;
+        _data.name = *pstn;
     }
     bool FSetName(PString pstn); // Sets name of current scene, and undo
     bool FChopCore(void);     // Chops off the rest of the scene.
@@ -252,12 +240,12 @@ class Scene : public Scene_PAR
     //
     void SetTransitionCore(TRANS trans) // Set the final transition to be.
     {
-        _trans = trans;
+        _data.transition = trans;
     }
     bool FSetTransition(TRANS trans); // Set the final transition to be and undo.
     TRANS Trans(void)
     {
-        return _trans;
+        return _data.transition;
     } // Returns the transition setting.
     // These two operate a specific Scene chunk rather than a Scene in memory
     static bool FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans);

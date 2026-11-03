@@ -46,7 +46,7 @@ enum
     ttModeSt,            // change mode to store strings as st's
     ttModeByte,          // change mode to accept a byte
     ttModeShort,         // change mode to accept a short
-    ttModeLong,          // change mode to accept a long
+    ttModeLong,          // change mode to accept a LegacyLong
     ttEndChunk,          // end of chunk
     ttAdopt,             // adopt command
     ttMacBo,             // use Mac byte order and OSK
@@ -73,7 +73,7 @@ enum
 struct LexerKeywordEntry
 {
     PZString pszKeyword;
-    long tt;
+    LegacyLong tt;
 };
 
 /***************************************************************************
@@ -198,29 +198,29 @@ class Compiler : public Compiler_PAR
 
     FileByteStream _bsf;     // temporary buffer for the chunk data
     PCompilerLexer _pchlx; // lexer for compiling
-    long _sm;     // current string mode
-    long _cbNum;  // current numerical size (1, 2, or 4)
+    LegacyLong _sm;     // current string mode
+    LegacyLong _cbNum;  // current numerical size (1, 2, or 4)
     short _bo;    // current byte order and osk
     short _osk;
     PMSNK _pmsnkError; // error message sink
-    long _cactError;   // how many errors we've encountered
+    LegacyLong _cactError;   // how many errors we've encountered
 
   protected:
     struct PHP // parenthesized header parameter
     {
-        long lw;
+        LegacyLong lw;
         PString pstn;
     };
 
-    void _Error(long ert, PZString pszMessage = pvNil);
-    void _GetRgbFromLw(long lw, byte *prgb);
+    void _Error(LegacyLong ert, PZString pszMessage = pvNil);
+    void _GetRgbFromLw(LegacyLong lw, byte *prgb);
     void _ErrorOnData(PZString pszPreceed);
-    bool _FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp);
+    bool _FParseParenHeader(PHP *prgphp, LegacyLong cphpMax, LegacyLong *pcphp);
     bool _FGetCleanTok(Token *ptok, bool fEofOk = fFalse);
-    void _SkipPastTok(long tt);
+    void _SkipPastTok(LegacyLong tt);
     void _ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno);
     void _AppendString(PString pstnValue);
-    void _AppendNumber(long lwValue);
+    void _AppendNumber(LegacyLong lwValue);
     void _ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyAlign(void);
@@ -244,7 +244,7 @@ class Compiler : public Compiler_PAR
     void _ParseAdopt(void);
     void _ParsePackFmt(void);
 
-    bool _FPrepWrite(bool fPack, long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck);
+    bool _FPrepWrite(bool fPack, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck);
     bool _FEndWrite(bool fPack, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck);
 
   public:
@@ -274,7 +274,7 @@ class Decompiler : public Decompiler_PAR
     NOCOPY(Decompiler)
 
   protected:
-    long _ert;  // error type
+    LegacyLong _ert;  // error type
     PChunkyFile _pcfl; // the chunky file to read from
     FileByteStream _bsf;   // temporary buffer for the chunk data
     short _bo;  // current byte order and osk
@@ -286,7 +286,7 @@ class Decompiler : public Decompiler_PAR
     bool _FDumpList(PDataBlock pblck, bool fAl);
     bool _FDumpGroup(PDataBlock pblck, bool fAg);
     bool _FDumpStringTable(PDataBlock pblck, bool fAst);
-    void _WritePack(long cfmt);
+    void _WritePack(LegacyLong cfmt);
 
   public:
     Decompiler(void);

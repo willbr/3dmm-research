@@ -104,7 +104,7 @@ class ActionDefinition : public ActionDefinition_PAR
     PGeneralGroup _pggcel;    // GeneralGroup of CELs; variable part is a rgcps[]
     PDynamicArray _pglbmat34; // DynamicArray of transformation matrices used in this action
     PDynamicArray _pgltagSnd; // DynamicArray of motion-match sounds for this action
-    ulong _grfactn; // various flags for this action
+    LegacyUlong _grfactn; // various flags for this action
 
   protected:
     ActionDefinition(void)
@@ -113,23 +113,23 @@ class ActionDefinition : public ActionDefinition_PAR
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static PActionDefinition PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn);
-    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PActionDefinition PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, LegacyUlong grfactn);
+    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     ~ActionDefinition(void);
 
-    ulong Grfactn(void)
+    LegacyUlong Grfactn(void)
     {
         return _grfactn;
     }
 
-    long Ccel(void)
+    LegacyLong Ccel(void)
     {
         return _pggcel->IvMac();
     }
-    void GetCel(long icel, AnimationCel *pcel);
-    void GetCps(long icel, long icps, CelPartSpec *pcps);
-    void GetMatrix(long imat34, BMAT34 *pbmat34);
-    void GetSnd(long icel, PTAG ptagSnd);
+    void GetCel(LegacyLong icel, AnimationCel *pcel);
+    void GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps);
+    void GetMatrix(LegacyLong imat34, BMAT34 *pbmat34);
+    void GetSnd(LegacyLong icel, PTAG ptagSnd);
 };
 
 // grftmpl flags
@@ -159,13 +159,13 @@ class Template : public Template_PAR
     BRA _xaRest; // Rest orientation
     BRA _yaRest;
     BRA _zaRest;
-    ulong _grftmpl;
+    LegacyUlong _grftmpl;
     PDynamicArray _pglibactPar; // DynamicArray of parent IDs (shorts) to build Body
     PDynamicArray _pglibset;    // DynamicArray of body-part-set IDs to build Body
     PGeneralGroup _pggcmid;     // List of costumes for each body part set
-    long _ccmid;      // Count of custom costumes
-    long _cbset;      // Count of body part sets
-    long _cactn;      // Count of actions
+    LegacyLong _ccmid;      // Count of custom costumes
+    LegacyLong _cbset;      // Count of body part sets
+    LegacyLong _cactn;      // Count of actions
     String _stn;         // Template name
 
   protected:
@@ -174,12 +174,12 @@ class Template : public Template_PAR
     } // can't instantiate directly; must use FReadTmpl
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
-    virtual PActionDefinition _PactnFetch(long anid);
+    virtual PActionDefinition _PactnFetch(LegacyLong anid);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
   public:
-    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     ~Template(void);
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
@@ -197,25 +197,25 @@ class Template : public Template_PAR
     }
 
     // Action stuff
-    long Cactn(void)
+    LegacyLong Cactn(void)
     {
         return _cactn;
     } // count of actions
-    virtual bool FGetActnName(long anid, PString pstn);
-    bool FSetActnCel(PBody pbody, long anid, long celn, BRS *pdwr = pvNil);
-    bool FGetGrfactn(long anid, ulong *pgrfactn);
-    bool FGetDwrActnCel(long anid, long celn, BRS *pdwr);
-    bool FGetCcelActn(long anid, long *pccel);
-    bool FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag);
+    virtual bool FGetActnName(LegacyLong anid, PString pstn);
+    bool FSetActnCel(PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr = pvNil);
+    bool FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn);
+    bool FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr);
+    bool FGetCcelActn(LegacyLong anid, LegacyLong *pccel);
+    bool FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag);
 
     // Costume stuff
     virtual bool FSetDefaultCost(PBody pbody); // applies default costume
-    virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
-    long CcmidOfBset(long ibset);
-    long CmidOfBset(long ibset, long icmid);
-    bool FBsetIsAccessory(long ibset); // whether ibset holds accessories
-    bool FIbsetAccOfIbset(long ibset, long *pibsetAcc);
-    bool FSameAccCmids(long cmid1, long cmid2);
+    virtual PCustomMaterial_CMTL PcmtlFetch(LegacyLong cmid);
+    LegacyLong CcmidOfBset(LegacyLong ibset);
+    LegacyLong CmidOfBset(LegacyLong ibset, LegacyLong icmid);
+    bool FBsetIsAccessory(LegacyLong ibset); // whether ibset holds accessories
+    bool FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc);
+    bool FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2);
 };
 
 #endif Template_H

@@ -14,6 +14,11 @@
 ***************************************************************************/
 #ifndef VIDEO_H
 #define VIDEO_H
+#include "kauai_core.h"
+#include "cmd.h"
+#include "video_stream_host.h"
+class GraphicsEnvironment;
+typedef GraphicsEnvironment *PGraphicsEnvironment;
 
 /***************************************************************************
     Generic video class. This is an interface that supports the VideoStream
@@ -73,21 +78,15 @@ class VideoStream : public VideoStream_PAR
 
     bool _fPlaying;
 
-#ifdef WIN
-    long _dnfr;
-    PAVIFILE _pavif;
-    PAVISTREAM _pavis;
-    PGETFRAME _pavig;
-    HDRAWDIB _hdd;
-#endif // WIN
+    KauaiVideo::StreamHost *_host;
 
-    VideoStream(long hid);
+    VideoStream(long hid, bool withAudio);
     ~VideoStream(void);
 
     virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
 
   public:
-    static PVideoStream PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
+    static PVideoStream PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil, bool withAudio = fFalse);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);
@@ -116,8 +115,7 @@ class VideoWindow : public VideoWindow_PAR
     ASSERT
 
   protected:
-    HWND _hwndMovie;
-    long _lwDevice;
+    KauaiVideo::WindowState *_native;
     long _dxp;
     long _dyp;
     RC _rc;

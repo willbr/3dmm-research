@@ -29,11 +29,11 @@ using namespace Group;
 struct RunTimeVariableMap
 {
     RuntimeVariableName rtvn;
-    long lwValue;
+    LegacyLong lwValue;
 };
 
-bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, long *plwValue, long *pirtvm);
-bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw);
+bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, LegacyLong *plwValue, LegacyLong *pirtvm);
+bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw);
 
 /***************************************************************************
     A script.  This is here rather than in scrcom.* because scrcom is
@@ -57,10 +57,10 @@ class Script : public Script_PAR
     }
 
     friend class Interpreter;
-    friend class CompilerBase;
+    friend class ScriptCompiler::CompilerBase;
 
   public:
-    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PScript PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     ~Script(void);
 
@@ -81,21 +81,21 @@ class StringRegistry : public StringRegistry_PAR
     NOCOPY(StringRegistry)
 
   protected:
-    long _stidLast;
+    LegacyLong _stidLast;
     PStringTable_GST _pgst;
 
-    bool _FFind(long stid, long *pistn);
+    bool _FFind(LegacyLong stid, LegacyLong *pistn);
     bool _FEnsureGst(void);
 
   public:
     StringRegistry(void);
     ~StringRegistry(void);
 
-    bool FPut(long stid, PString pstn);
-    bool FGet(long stid, PString pstn);
-    bool FAdd(long *pstid, PString pstn);
-    bool FMove(long stidSrc, long stidDst);
-    void Delete(long stid);
+    bool FPut(LegacyLong stid, PString pstn);
+    bool FGet(LegacyLong stid, PString pstn);
+    bool FAdd(LegacyLong *pstid, PString pstn);
+    bool FMove(LegacyLong stidSrc, LegacyLong stidDst);
+    void Delete(LegacyLong stid);
 };
 
 /***************************************************************************
@@ -122,47 +122,47 @@ class Interpreter : public Interpreter_PAR
     PDynamicArray _pgllwStack;   // the execution stack
     PDynamicArray _pglrtvm;      // the local variables
     PScript _pscpt;      // the script
-    long _ilwMac;      // the length of the script
-    long _ilwCur;      // the current location in the script
+    LegacyLong _ilwMac;      // the length of the script
+    LegacyLong _ilwCur;      // the current location in the script
     bool _fError : 1;  // an error has occured
     bool _fPaused : 1; // if we're paused
-    long _lwReturn;    // the return value from the script
+    LegacyLong _lwReturn;    // the return value from the script
 
-    void _Push(long lw)
+    void _Push(LegacyLong lw)
     {
         if (!_fError && !_pgllwStack->FPush(&lw))
             _Error(fFalse);
     }
-    long _LwPop(void);
-    long *_QlwGet(long clw);
+    LegacyLong _LwPop(void);
+    LegacyLong *_QlwGet(LegacyLong clw);
     void _Error(bool fAssert);
 
-    void _Rotate(long clwTot, long clwShift);
-    void _Reverse(long clw);
-    void _DupList(long clw);
-    void _PopList(long clw);
-    void _Select(long clw, long ilw);
-    void _RndList(long clw);
-    void _Match(long clw);
-    void _CopySubStr(long stidSrc, long ichMin, long cch, long stidDst);
+    void _Rotate(LegacyLong clwTot, LegacyLong clwShift);
+    void _Reverse(LegacyLong clw);
+    void _DupList(LegacyLong clw);
+    void _PopList(LegacyLong clw);
+    void _Select(LegacyLong clw, LegacyLong ilw);
+    void _RndList(LegacyLong clw);
+    void _Match(LegacyLong clw);
+    void _CopySubStr(LegacyLong stidSrc, LegacyLong ichMin, LegacyLong cch, LegacyLong stidDst);
     void _MergeStrings(ChunkNumber cno, RSC rsc);
-    void _NumToStr(long lw, long stid);
-    void _StrToNum(long stid, long lwEmpty, long lwError);
-    void _ConcatStrs(long stidSrc1, long stidSrc2, long stidDst);
-    void _LenStr(long stid);
+    void _NumToStr(LegacyLong lw, LegacyLong stid);
+    void _StrToNum(LegacyLong stid, LegacyLong lwEmpty, LegacyLong lwError);
+    void _ConcatStrs(LegacyLong stidSrc1, LegacyLong stidSrc2, LegacyLong stidDst);
+    void _LenStr(LegacyLong stid);
 
-    virtual void _AddParameters(long *prglw, long clw);
+    virtual void _AddParameters(LegacyLong *prglw, LegacyLong clw);
     virtual void _AddStrings(PStringTable_GST pgst);
-    virtual bool _FExecVarOp(long op, RuntimeVariableName *prtvn);
-    virtual bool _FExecOp(long op);
+    virtual bool _FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn);
+    virtual bool _FExecOp(LegacyLong op);
     virtual void _PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn);
-    virtual void _AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw);
+    virtual void _AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw);
     virtual PDynamicArray _PglrtvmThis(void);
     virtual PDynamicArray *_PpglrtvmThis(void);
     virtual PDynamicArray _PglrtvmGlobal(void);
     virtual PDynamicArray *_PpglrtvmGlobal(void);
-    virtual PDynamicArray _PglrtvmRemote(long lw);
-    virtual PDynamicArray *_PpglrtvmRemote(long lw);
+    virtual PDynamicArray _PglrtvmRemote(LegacyLong lw);
+    virtual PDynamicArray *_PpglrtvmRemote(LegacyLong lw);
 
     virtual short _SwCur(void);
     virtual short _SwMin(void);
@@ -175,10 +175,10 @@ class Interpreter : public Interpreter_PAR
     Interpreter(PResourceCache prca = pvNil, PStringRegistry pstrg = pvNil);
     ~Interpreter(void);
 
-    virtual bool FRunScript(PScript pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScript(PScript pscpt, LegacyLong *prglw = pvNil, LegacyLong clw = 0, LegacyLong *plwReturn = pvNil,
                             bool *pfPaused = pvNil);
-    virtual bool FResume(long *plwReturn = pvNil, bool *pfPaused = pvNil);
-    virtual bool FAttachScript(PScript pscpt, long *prglw = pvNil, long clw = 0);
+    virtual bool FResume(LegacyLong *plwReturn = pvNil, bool *pfPaused = pvNil);
+    virtual bool FAttachScript(PScript pscpt, LegacyLong *prglw = pvNil, LegacyLong clw = 0);
     virtual void Free(void);
 };
 

@@ -167,7 +167,7 @@ bool Easel::FCmdDismiss(PCommand pcmd)
 /***************************************************************************
     Assert the validity of the Easel.
 ***************************************************************************/
-void Easel::AssertValid(ulong grf)
+void Easel::AssertValid(LegacyUlong grf)
 {
     Easel_PAR::AssertValid(fobjAllocated);
 }
@@ -359,7 +359,7 @@ bool EaselText::FCmdTransmogrify(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    long tdts;
+    LegacyLong tdts;
     ChunkIdentification cki;
     long ithd;
     ThumbnailDescriptor thd{};
@@ -428,7 +428,7 @@ bool EaselText::FCmdStartPopup(PCommand pcmd)
     long sidSelect = vpapp->SidProduct();
     long cidSelect;
     TAG tagTdf;
-    long tdts;
+    LegacyLong tdts;
     ChunkNumber cnoSelect;
 
     ckiGPar.cno = cnoNil;
@@ -508,8 +508,8 @@ bool EaselText::FCmdSetShape(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    long tdtsOld;
-    long tdtsNew = pcmd->rglw[0];
+    LegacyLong tdtsOld;
+    LegacyLong tdtsNew = pcmd->rglw[0];
 
     _pape->GetTdtInfo(pvNil, &tdtsOld, pvNil);
     // If FChangeTdt fails, someone will report the error
@@ -566,10 +566,10 @@ bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
     bool fChangesMade = fFalse;
     PThreeDText ptdtOld;
     String stnOld;
-    long tdtsOld;
+    LegacyLong tdtsOld;
     TAG tagTdfOld;
     String stnNew;
-    long tdtsNew;
+    LegacyLong tdtsNew;
     TAG tagTdfNew;
     long cbset;
     long ibset;
@@ -669,7 +669,7 @@ LFail:
 /***************************************************************************
     Assert the validity of the EaselText.
 ***************************************************************************/
-void EaselText::AssertValid(ulong grf)
+void EaselText::AssertValid(LegacyUlong grf)
 {
     EaselText_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
@@ -767,7 +767,7 @@ bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich
         // all ASCII values from xxx to xxx + kcchMaxTdt (or up to chNil).
         String stnT;
         achar rgch[kcchMaxTdt];
-        long ichStart;
+        LegacyLong ichStart;
         long ich;
         long cch = 0;
 
@@ -801,7 +801,7 @@ bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich
 /***************************************************************************
     Assert the validity of the SpletterNameEditor.
 ***************************************************************************/
-void SpletterNameEditor::AssertValid(ulong grf)
+void SpletterNameEditor::AssertValid(LegacyUlong grf)
 {
     SpletterNameEditor_PAR::AssertValid(fobjAllocated);
     AssertBasePo(_peslt, 0);
@@ -1027,7 +1027,7 @@ LFail:
 /***************************************************************************
     Assert the validity of the EaselActor.
 ***************************************************************************/
-void EaselActor::AssertValid(ulong grf)
+void EaselActor::AssertValid(LegacyUlong grf)
 {
     EaselActor_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
@@ -1424,7 +1424,7 @@ bool EaselListen::_FAcceptChanges(bool *pfDismissEasel)
 /***************************************************************************
     Assert the validity of the EaselListen.
 ***************************************************************************/
-void EaselListen::AssertValid(ulong grf)
+void EaselListen::AssertValid(LegacyUlong grf)
 {
     EaselListen_PAR::AssertValid(fobjAllocated);
 }
@@ -1597,7 +1597,7 @@ ListenerSound::~ListenerSound(void)
 /***************************************************************************
     Assert the validity of the ListenerSound.
 ***************************************************************************/
-void ListenerSound::AssertValid(ulong grf)
+void ListenerSound::AssertValid(LegacyUlong grf)
 {
     ListenerSound_PAR::AssertValid(0);
     AssertNilOrPo(_pgltag, 0);
@@ -1956,7 +1956,7 @@ LFail:
 /***************************************************************************
     Assert the validity of the EaselRecord.
 ***************************************************************************/
-void EaselRecord::AssertValid(ulong grf)
+void EaselRecord::AssertValid(LegacyUlong grf)
 {
     EaselListen_PAR::AssertValid(fobjAllocated);
     AssertPo(_psrec, 0);

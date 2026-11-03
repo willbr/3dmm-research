@@ -103,7 +103,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     bool FSetTdtMtrl(PTAG ptagMtrl);
     bool FGetTdtMtrlCno(ChunkNumber *pcno);
 
-    void GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf);
+    void GetTdtInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf);
     long Anid(void)
     {
         return _anid;

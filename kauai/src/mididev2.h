@@ -14,6 +14,8 @@
 ***************************************************************************/
 #ifndef MIDIDEV2_H
 #define MIDIDEV2_H
+#include "midi_stream_host.h"
+#include "sndm.h"
 
 typedef class MidiStreamMixer *PMidiStreamMixer;
 
@@ -34,17 +36,17 @@ class MidiStreamPlayer : public MidiStreamPlayer_PAR
 
     MidiStreamPlayer(void);
 
-    virtual bool _FInit(void);
+    bool _FInit(KauaiMidi::HostFactory factory);
     virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:
-    static PMidiStreamPlayer PmdpsNew(void);
+    static PMidiStreamPlayer PmdpsNew(KauaiMidi::HostFactory factory = KauaiMidi::CreateStreamHost);
     ~MidiStreamPlayer(void);
 
     // inherited methods
-    virtual void SetVlm(long vlm);
-    virtual long VlmCur(void);
+    virtual void SetVlm(LegacyLong vlm);
+    virtual LegacyLong VlmCur(void);
 };
 
 #endif //! MIDIDEV2_H

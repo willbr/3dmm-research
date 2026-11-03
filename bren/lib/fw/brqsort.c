@@ -10,7 +10,7 @@
 
 #include "brender.h"
 
-#if !defined(__TARGET_MSC__) && (defined(__WATCOMC__) || defined(_MSC_VER))
+#if !defined(__TARGET_MSC__) && (defined(__WATCOMC__) || defined(_MSC_VER) || defined(__GNUC__))
 #include <stdlib.h>
 
 void BR_PUBLIC_ENTRY BrQsort(void *basep, unsigned int nelems, unsigned int size,

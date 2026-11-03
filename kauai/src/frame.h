@@ -15,6 +15,10 @@
 ***************************************************************************/
 #ifndef FRAME_H
 #define FRAME_H
+#include "win_headers.h"
+#ifdef WIN
+#include "appb_native_win.h"
+#endif
 
 #include "frameres.h" //frame resource id's
 #include "util.h"
@@ -48,6 +52,7 @@ typedef class SoundManager *PSoundManager;
 #include "pic.h"
 #include "mbmp.h"
 #include "gfx.h"
+#include "gfx_port.h"
 #include "cmd.h"
 #include "cursor.h"
 #include "appb.h"
@@ -66,9 +71,12 @@ typedef class SoundManager *PSoundManager;
 #include "textdoc.h"
 #include "rtxt.h"
 #include "chcm.h"
+#ifdef WIN
+// Optional Windows DLL/device adapters are not part of the portable GUI API.
 #include "spell.h"
 #include "sndam.h"
 #include "mididev.h"
+#endif
 #include "mididev2.h"
 
 #endif //! FRAME_H

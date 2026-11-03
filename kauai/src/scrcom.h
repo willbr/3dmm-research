@@ -129,18 +129,18 @@ enum
 // structure to map a string to an opcode (post-fix)
 struct StringOpcodeMap
 {
-    long op;
+    LegacyLong op;
     PZString psz;
 };
 
 // structure to map a string to an opcode and argument information (in-fix)
 struct StringOpcodeArgumentMap
 {
-    long op;
+    LegacyLong op;
     PZString psz;
-    long clwFixed;   // number of fixed arguments
-    long clwVar;     // number of arguments per variable group
-    long cactMinVar; // minimum number of variable groups
+    LegacyLong clwFixed;   // number of fixed arguments
+    LegacyLong clwVar;     // number of arguments per variable group
+    LegacyLong cactMinVar; // minimum number of variable groups
     bool fVoid;      // return a value?
 };
 
@@ -161,8 +161,8 @@ const byte kbLabel = 0xCC;
 ***************************************************************************/
 struct RuntimeVariableName
 {
-    ulong lu1;
-    ulong lu2;
+    LegacyUlong lu1;
+    LegacyUlong lu2;
 
     void SetFromStn(PString pstn);
     void GetStn(PString pstn);
@@ -196,29 +196,29 @@ class CompilerBase : public CompilerBase_PAR
     PStringTable_GST _pgstNames;    // encountered names (in-fix only)
     PStringTable_GST _pgstLabel;    // encountered labels, sorted, extra long is label value
     PStringTable_GST _pgstReq;      // label references, extra long is address of reference
-    long _ilwOpLast;    // address of the last opcode
-    long _lwLastLabel;  // for internal temporary labels
+    LegacyLong _ilwOpLast;    // address of the last opcode
+    LegacyLong _lwLastLabel;  // for internal temporary labels
     bool _fError : 1;   // whether an error has occured during compiling
     bool _fForceOp : 1; // when pushing a constant, make sure the last long
                         // is an opcode (because a label references this loc)
     bool _fHitEnd : 1;  // we've exhausted our input stream
-    long _ttEnd;        // stop compiling when we see this
+    LegacyLong _ttEnd;        // stop compiling when we see this
     PMSNK _pmsnk;       // the message sink - for error reporting when compiling
 
     bool _FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk);
     void _Free(void);
 
     // general compilation methods
-    void _PushLw(long lw);
+    void _PushLw(LegacyLong lw);
     void _PushString(PString pstn);
-    void _PushOp(long op);
+    void _PushOp(LegacyLong op);
     void _EndOp(void);
-    void _PushVarOp(long op, RuntimeVariableName *prtvn);
-    bool _FFindLabel(PString pstn, long *plwLoc);
+    void _PushVarOp(LegacyLong op, RuntimeVariableName *prtvn);
+    bool _FFindLabel(PString pstn, LegacyLong *plwLoc);
     void _AddLabel(PString pstn);
     void _PushLabelRequest(PString pstn);
-    void _AddLabelLw(long lw);
-    void _PushLabelRequestLw(long lw);
+    void _AddLabelLw(LegacyLong lw);
+    void _PushLabelRequestLw(LegacyLong lw);
 
     virtual void _ReportError(PZString psz);
     virtual short _SwCur(void);
@@ -229,41 +229,41 @@ class CompilerBase : public CompilerBase_PAR
 
     // post-fix compiler routines
     virtual void _CompilePost(void);
-    long _OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop);
-    virtual long _OpFromStn(PString pstn);
-    bool _FGetStnFromOpRgszop(long op, PString pstn, StringOpcodeMap *prgszop);
-    virtual bool _FGetStnFromOp(long op, PString pstn);
+    LegacyLong _OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop);
+    virtual LegacyLong _OpFromStn(PString pstn);
+    bool _FGetStnFromOpRgszop(LegacyLong op, PString pstn, StringOpcodeMap *prgszop);
+    virtual bool _FGetStnFromOp(LegacyLong op, PString pstn);
 
     // in-fix compiler routines
     virtual void _CompileIn(void);
-    bool _FResolveToOpl(long opl, long oplMin, long *pietn);
-    void _EmitCode(long ietnTop, ulong grfscc, long *pclwArg);
-    void _EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack);
-    virtual bool _FGetOpFromName(PString pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
-    bool _FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+    bool _FResolveToOpl(LegacyLong opl, LegacyLong oplMin, LegacyLong *pietn);
+    void _EmitCode(LegacyLong ietnTop, LegacyUlong grfscc, LegacyLong *pclwArg);
+    void _EmitVarAccess(LegacyLong ietn, RuntimeVariableName *prtvn, LegacyLong *popPush, LegacyLong *popPop, LegacyLong *pclwStack);
+    virtual bool _FGetOpFromName(PString pstn, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar, bool *pfVoid);
+    bool _FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar,
                    bool *pfVoid);
-    void _PushLabelRequestIetn(long ietn);
-    void _AddLabelIetn(long ietn);
-    void _PushOpFromName(long ietn, ulong grfscc, long clwArg);
-    void _GetIstnNameFromIetn(long ietn, long *pistn);
-    void _GetRtvnFromName(long istn, RuntimeVariableName *prtvn);
+    void _PushLabelRequestIetn(LegacyLong ietn);
+    void _AddLabelIetn(LegacyLong ietn);
+    void _PushOpFromName(LegacyLong ietn, LegacyUlong grfscc, LegacyLong clwArg);
+    void _GetIstnNameFromIetn(LegacyLong ietn, LegacyLong *pistn);
+    void _GetRtvnFromName(LegacyLong istn, RuntimeVariableName *prtvn);
     bool _FKeyWord(PString pstn);
-    void _GetStnFromIstn(long istn, PString pstn);
-    void _AddNameRef(PString pstn, long *pistn);
-    long _CstFromName(long ietn);
-    void _BeginCst(long cst, long ietn);
-    bool _FHandleCst(long ietn);
-    bool _FAddToTree(struct ETN *petn, long *pietn);
-    bool _FConstEtn(long ietn, long *plw);
-    bool _FCombineConstValues(long op, long lw1, long lw2, long *plw);
+    void _GetStnFromIstn(LegacyLong istn, PString pstn);
+    void _AddNameRef(PString pstn, LegacyLong *pistn);
+    LegacyLong _CstFromName(LegacyLong ietn);
+    void _BeginCst(LegacyLong cst, LegacyLong ietn);
+    bool _FHandleCst(LegacyLong ietn);
+    bool _FAddToTree(struct ETN *petn, LegacyLong *pietn);
+    bool _FConstEtn(LegacyLong ietn, LegacyLong *plw);
+    bool _FCombineConstValues(LegacyLong op, LegacyLong lw1, LegacyLong lw2, LegacyLong *plw);
     void _SetDepth(struct ETN *petn, bool fCommute = fFalse);
-    void _PushStringIstn(long istn);
+    void _PushStringIstn(LegacyLong istn);
 
   public:
     CompilerBase(void);
     ~CompilerBase(void);
 
-    virtual PScript PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
+    virtual PScript PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, LegacyLong ttEnd = ttNil);
     virtual PScript PscptCompileFil(PFileObject pfil, bool fInFix, PMSNK pmsnk);
     virtual PScript PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
     virtual bool FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);

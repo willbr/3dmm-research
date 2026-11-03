@@ -30,17 +30,17 @@
 ***************************************************************************/
 #define RTCLASS_DEC                                                                                                    \
   public:                                                                                                              \
-    static bool FWouldBe(long cls);                                                                                    \
+    static bool FWouldBe(LegacyLong cls);                                                                                    \
                                                                                                                        \
   public:                                                                                                              \
-    virtual bool FIs(long cls);                                                                                        \
+    virtual bool FIs(LegacyLong cls);                                                                                        \
                                                                                                                        \
   public:                                                                                                              \
-    virtual long Cls(void);
+    virtual LegacyLong Cls(void);
 
 #define RTCLASS_INLINE(foo)                                                                                            \
   public:                                                                                                              \
-    static bool FWouldBe(long cls)                                                                                     \
+    static bool FWouldBe(LegacyLong cls)                                                                                     \
     {                                                                                                                  \
         if (kcls##foo == cls)                                                                                          \
             return fTrue;                                                                                              \
@@ -48,29 +48,29 @@
     }                                                                                                                  \
                                                                                                                        \
   public:                                                                                                              \
-    virtual bool FIs(long cls)                                                                                         \
+    virtual bool FIs(LegacyLong cls)                                                                                         \
     {                                                                                                                  \
         return FWouldBe(cls);                                                                                          \
     }                                                                                                                  \
                                                                                                                        \
   public:                                                                                                              \
-    virtual long Cls(void)                                                                                             \
+    virtual LegacyLong Cls(void)                                                                                             \
     {                                                                                                                  \
         return kcls##foo;                                                                                              \
     }
 
 #define RTCLASS(foo)                                                                                                   \
-    bool foo::FWouldBe(long cls)                                                                                       \
+    bool foo::FWouldBe(LegacyLong cls)                                                                                       \
     {                                                                                                                  \
         if (kcls##foo == cls)                                                                                          \
             return fTrue;                                                                                              \
         return foo##_PAR::FWouldBe(cls);                                                                               \
     }                                                                                                                  \
-    bool foo::FIs(long cls)                                                                                            \
+    bool foo::FIs(LegacyLong cls)                                                                                            \
     {                                                                                                                  \
         return FWouldBe(cls);                                                                                          \
     }                                                                                                                  \
-    long foo::Cls(void)                                                                                                \
+    LegacyLong foo::Cls(void)                                                                                                \
     {                                                                                                                  \
         return kcls##foo;                                                                                              \
     }
@@ -92,14 +92,14 @@ void AssertUnmarkedObjs(void);
 #define NewObj new (__szsFile, __LINE__)
 void UnmarkAllObjs(void);
 
-const ulong fobjNil = 0x00000000L;
-const ulong fobjNotAllocated = 0x40000000L;
-const ulong fobjAllocated = 0x20000000L;
-const ulong fobjAssertFull = 0x10000000L;
+const LegacyUlong fobjNil = 0x00000000L;
+const LegacyUlong fobjNotAllocated = 0x40000000L;
+const LegacyUlong fobjAllocated = 0x20000000L;
+const LegacyUlong fobjAssertFull = 0x10000000L;
 
-extern long vcactSuspendAssertValid;
-extern long vcactAVSave;
-extern long vcactAV;
+extern LegacyLong vcactSuspendAssertValid;
+extern LegacyLong vcactAVSave;
+extern LegacyLong vcactAV;
 inline void SuspendAssertValid(void)
 {
     if (0 == vcactSuspendAssertValid++)
@@ -172,7 +172,7 @@ inline void ResumeAssertValid(void)
     virtual void MarkMem(void);
 #define ASSERT                                                                                                         \
   public:                                                                                                              \
-    void AssertValid(ulong grf);
+    void AssertValid(LegacyUlong grf);
 #define NOCOPY(cls)                                                                                                    \
   private:                                                                                                             \
     cls &operator=(cls &robj)                                                                                          \
@@ -228,21 +228,19 @@ class BASE
     ASSERT
 
   private:
-    Debug(long _lwMagic;)
+    Debug(LegacyLong _lwMagic;)
 
-        protected : long _cactRef;
+        protected : LegacyLong _cactRef;
 
   public:
 #ifdef DEBUG
-    void *operator new(size_t cb, schar *pszsFile, long lwLine);
-    void operator delete(void *pv, schar *pszsFile, long lwLine); // To prevent warning C4291
+    void *operator new(size_t cb, schar *pszsFile, LegacyLong lwLine) noexcept;
+    void operator delete(void *pv, schar *pszsFile, LegacyLong lwLine); // To prevent warning C4291
     void operator delete(void *pv);
     void MarkMemStub(void);
 #else //! DEBUG
-    void *operator new(size_t cb);
-#ifdef WIN
+    void *operator new(size_t cb) noexcept;
     void operator delete(void *pv);
-#endif // WIN
 #endif //! DEBUG
     BASE(void);
     virtual ~BASE(void)
@@ -252,7 +250,7 @@ class BASE
 
     virtual void AddRef(void);
     virtual void Release(void);
-    long CactRef(void)
+    LegacyLong CactRef(void)
     {
         return _cactRef;
     }

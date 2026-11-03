@@ -219,7 +219,7 @@ class StudioClientCallbacks : public StudioClientCallbacks_PAR
   private:
     PStudioScrollbars _psscb;
     PStudio _pstdio;
-    long _dypTextTbox;
+    LegacyLong _dypTextTbox;
 
   public:
     ~StudioClientCallbacks(void)
@@ -343,7 +343,7 @@ class StudioClientCallbacks : public StudioClientCallbacks_PAR
     {
         _pstdio->StartListenerEasel();
     }
-    virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
+    virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, achar *lpstrDefExt,
                             PString pstnDefFileName)
     {
         return (FPortDisplayWithIds(pfni, fFalse, lFilterLabel, lFilterExt, lTitle, lpstrDefExt, pstnDefFileName, pvNil,

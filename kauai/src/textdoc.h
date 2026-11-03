@@ -89,8 +89,8 @@ class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
 
     // the cache
     achar _rgchCache[kcchMaxLine];
-    long _ichMinCache;
-    long _ichLimCache;
+    LegacyLong _ichMinCache;
+    LegacyLong _ichLimCache;
 
     TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
     ~TextDocumentByteStreamDisplay(void);

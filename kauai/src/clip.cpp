@@ -10,8 +10,17 @@
     Clipboard object implementation.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "text_utf8.h"
+#include "platform_text.h"
+#include <algorithm>
+#endif
 #include "frame.h"
 ASSERTNAME
+#ifdef WIN
+static_assert(kclfmUniText == CF_UNICODETEXT && kclfmSbText == CF_TEXT, "clipboard format ABI changed");
+#endif
 
 RTCLASS(ClipboardObject)
 
@@ -23,6 +32,10 @@ ClipboardObject _clip;
 ***************************************************************************/
 ClipboardObject::ClipboardObject(void)
 {
+#ifdef KAUAI_SDL3
+    _hqExport = hqNil;
+    _pvExport = pvNil;
+#endif
     vpclip = this;
     AssertThis(0);
 }
@@ -162,7 +175,48 @@ void ClipboardObject::_EnsureDoc(void)
 
     _fDocCurrent = fTrue;
 
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().OwnsClipboard())
+        return;
+    try
+    {
+        std::string utf8;
+        std::vector<std::uint16_t> units;
+        if (!KauaiSDL::Main().GetClipboardText(utf8) || !KauaiText::DecodeUtf8(utf8, units))
+            return;
+        // Kauai paragraphs end with CR. Accept LF and CRLF from SDL hosts.
+        std::vector<achar> text;
+        std::vector<std::uint16_t> paragraphs;
+        for (std::size_t i = 0; i < (units.size)(); ++i)
+            if (units[i] != '\n' || !i || units[i - 1] != '\r')
+                paragraphs.push_back(units[i] == '\n' ? '\r' : units[i]);
+#ifdef UNICODE
+        text.assign(paragraphs.begin(), paragraphs.end());
+#else
+        std::vector<std::uint8_t> littleEndian;
+        for (auto unit : paragraphs)
+        {
+            littleEndian.push_back(static_cast<std::uint8_t>(unit));
+            littleEndian.push_back(static_cast<std::uint8_t>(unit >> 8));
+        }
+        const auto count =
+            KauaiText::ToAnsi(littleEndian.data(), (littleEndian.size)(), KauaiText::Encoding::Utf16LE, nullptr, 0);
+        text.resize(count);
+        if (count && !KauaiText::ToAnsi(littleEndian.data(), (littleEndian.size)(), KauaiText::Encoding::Utf16LE,
+                                        text.data(), count))
+            return;
+#endif
+        PDocumentBase pdocb = pvNil;
+        if (text.empty() || ((text.size)() <= kcbMax / size(achar) &&
+                             _FImportFormat(kclfmText, text.data(), (text.size)() * size(achar), &pdocb)))
+            Set(pdocb, fFalse);
+        ReleasePpo(&pdocb);
+    }
+    catch (const std::bad_alloc &)
+    {
+        return;
+    }
+#elif defined(WIN)
     HN hn;
     PDocumentBase pdocb;
     bool fDelay;
@@ -212,7 +266,10 @@ void ClipboardObject::_ImportCur(void)
     if (pvNil == _pdocb || !_fDelayImport || clfmNil == _clfmImport)
         return;
 
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    // SDL imports a complete owned text snapshot, never delayed native data.
+    return;
+#elif defined(WIN)
     HN hn;
     bool fRet;
     PDocumentBase pdocb;
@@ -304,9 +361,12 @@ bool ClipboardObject::FInitExport(void)
         return fFalse;
     }
 
+#ifdef KAUAI_SDL3
+    _hqExport = hqNil;
+    _pvExport = pvNil;
+    _fExporting = fTrue;
+#elif defined(WIN)
     _hnExport = hNil;
-
-#ifdef WIN
     if (!OpenClipboard(vwig.hwndApp))
         return fFalse;
     if (!EmptyClipboard())
@@ -340,7 +400,14 @@ void *ClipboardObject::PvExport(long cb, long clfm)
 
     _ExportCur();
 
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    if (clfm != kclfmText || cb > kcbMax - size(achar))
+        return pvNil;
+    if (!FAllocHq(&_hqExport, cb + size(achar), fmemClear, mprNormal))
+        return pvNil;
+    _clfmExport = clfm;
+    return _pvExport = PvLockHq(_hqExport);
+#elif defined(WIN)
     switch (clfm)
     {
     case kclfmText:
@@ -376,7 +443,7 @@ void ClipboardObject::EndExport(void)
 
     _ExportCur();
 
-#ifdef WIN
+#if defined(WIN) && !defined(KAUAI_SDL3)
     CloseClipboard();
 #endif // WIN
 
@@ -394,7 +461,43 @@ void ClipboardObject::_ExportCur(void)
     AssertThis(0);
     Assert(_fExporting, 0);
 
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    if (_hqExport != hqNil)
+    {
+        try
+        {
+            const auto bytes = CbOfHq(_hqExport) - size(achar);
+            const auto count = KauaiText::ToUtf16(_pvExport, bytes,
+#ifdef UNICODE
+                                                  KauaiText::Encoding::Utf16LE,
+#else
+                                                  KauaiText::Encoding::WindowsAnsi,
+#endif
+                                                  nullptr, 0);
+            std::vector<std::uint16_t> units(count);
+            if (!count || KauaiText::ToUtf16(_pvExport, bytes,
+#ifdef UNICODE
+                                             KauaiText::Encoding::Utf16LE,
+#else
+                                             KauaiText::Encoding::WindowsAnsi,
+#endif
+                                             units.data(), count))
+            {
+                // Clipboard text ends at the first NUL, as on the native path.
+                units.erase(std::find(units.begin(), units.end(), 0), units.end());
+                std::string utf8;
+                if (KauaiText::EncodeUtf8(units, utf8))
+                    KauaiSDL::Main().SetClipboardText(utf8);
+            }
+        }
+        catch (const std::bad_alloc &)
+        {
+        }
+        UnlockHq(_hqExport);
+        FreePhq(&_hqExport);
+        _pvExport = pvNil;
+    }
+#elif defined(WIN)
     if (hNil != _hnExport)
     {
         GlobalUnlock(_hnExport);
@@ -412,7 +515,7 @@ void ClipboardObject::_ExportCur(void)
 /***************************************************************************
     Assert the validity of a ClipboardObject.
 ***************************************************************************/
-void ClipboardObject::AssertValid(ulong grf)
+void ClipboardObject::AssertValid(LegacyUlong grf)
 {
     ClipboardObject_PAR::AssertValid(0);
     AssertNilOrPo(_pdocb, 0);
@@ -427,5 +530,8 @@ void ClipboardObject::MarkMem(void)
     AssertValid(0);
     ClipboardObject_PAR::MarkMem();
     MarkMemObj(_pdocb);
+#ifdef KAUAI_SDL3
+    MarkHq(_hqExport);
+#endif
 }
 #endif // DEBUG

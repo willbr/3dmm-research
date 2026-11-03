@@ -49,38 +49,38 @@ class GroupBase : public GroupBase_PAR
     MARKMEM
 
   private:
-    long _cb1;
-    long _cb2;
+    LegacyLong _cb1;
+    LegacyLong _cb2;
     HQ _hqData1;
     HQ _hqData2;
 
-    bool _FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb);
+    bool _FEnsureHqCb(HQ *phq, LegacyLong cb, LegacyLong cbMinGrow, LegacyLong *pcb);
 
   protected:
-    long _cbMinGrow1;
-    long _cbMinGrow2;
-    long _ivMac;
+    LegacyLong _cbMinGrow1;
+    LegacyLong _cbMinGrow2;
+    LegacyLong _ivMac;
 
-    byte *_Qb1(long ib)
+    byte *_Qb1(LegacyLong ib)
     {
         return (byte *)QvFromHq(_hqData1) + ib;
     }
-    byte *_Qb2(long ib)
+    byte *_Qb2(LegacyLong ib)
     {
         return (byte *)QvFromHq(_hqData2) + ib;
     }
-    long _Cb1(void)
+    LegacyLong _Cb1(void)
     {
         return _cb1;
     }
-    long _Cb2(void)
+    LegacyLong _Cb2(void)
     {
         return _cb2;
     }
-    bool _FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp);
-    bool _FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2);
-    bool _FReadData(PDataBlock pblck, long ib, long cb1, long cb2);
-    bool _FDup(PGroupBase pgrpbDst, long cb1, long cb2);
+    bool _FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong grfgrp);
+    bool _FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2);
+    bool _FReadData(PDataBlock pblck, LegacyLong ib, LegacyLong cb1, LegacyLong cb2);
+    bool _FDup(PGroupBase pgrpbDst, LegacyLong cb1, LegacyLong cb2);
 
     GroupBase(void)
     {
@@ -99,17 +99,17 @@ class GroupBase : public GroupBase_PAR
         if (_hqData1 != hqNil)
             UnlockHq(_hqData1);
     }
-    long IvMac(void)
+    LegacyLong IvMac(void)
     {
         return _ivMac;
     }
-    virtual bool FFree(long iv) = 0;
-    virtual void Delete(long iv) = 0;
+    virtual bool FFree(LegacyLong iv) = 0;
+    virtual void Delete(LegacyLong iv) = 0;
 
     // writing
     virtual bool FWriteFlo(PFileLocation pflo, short bo = kboCur, short osk = koskCur);
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur) = 0;
-    virtual long CbOnFile(void) = 0;
+    virtual LegacyLong CbOnFile(void) = 0;
 };
 
 /****************************************
@@ -124,22 +124,22 @@ class VirtualArray : public VirtualArray_PAR
     ASSERT
 
   protected:
-    long _cbEntry;
+    LegacyLong _cbEntry;
 
-    VirtualArray(long cb);
+    VirtualArray(LegacyLong cb);
 
   public:
-    long CbEntry(void)
+    LegacyLong CbEntry(void)
     {
         return _cbEntry;
     }
-    void *QvGet(long iv);
-    void Get(long iv, void *pv);
-    void Put(long iv, void *pv);
-    void *PvLock(long iv);
-    void SetMinGrow(long cvAdd);
+    void *QvGet(LegacyLong iv);
+    void Get(LegacyLong iv, void *pv);
+    void Put(LegacyLong iv, void *pv);
+    void *PvLock(LegacyLong iv);
+    void SetMinGrow(LegacyLong cvAdd);
 
-    virtual bool FAdd(void *pv, long *piv = pvNil) = 0;
+    virtual bool FAdd(void *pv, LegacyLong *piv = pvNil) = 0;
 };
 
 /****************************************
@@ -152,31 +152,31 @@ class DynamicArray : public DynamicArray_PAR
     RTCLASS_DEC
 
   protected:
-    DynamicArray(long cb);
+    DynamicArray(LegacyLong cb);
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
-    static PDynamicArray PglNew(long cb, long cvInit = 0);
+    static PDynamicArray PglNew(LegacyLong cb, LegacyLong cvInit = 0);
     static PDynamicArray PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PDynamicArray PglRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PDynamicArray PglDup(void);
 
     // methods required by parent class
-    virtual bool FAdd(void *pv, long *piv = pvNil);
-    virtual void Delete(long iv);
+    virtual bool FAdd(void *pv, LegacyLong *piv = pvNil);
+    virtual void Delete(LegacyLong iv);
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
-    virtual long CbOnFile(void);
-    virtual bool FFree(long iv);
+    virtual LegacyLong CbOnFile(void);
+    virtual bool FFree(LegacyLong iv);
 
     // new methods
-    void Delete(long iv, long cv);
-    bool FInsert(long iv, void *pv = pvNil, long cv = 1);
-    bool FSetIvMac(long ivMacNew);
-    bool FEnsureSpace(long cvAdd, ulong grfgrp = fgrpNil);
-    void Move(long ivSrc, long ivTarget);
+    void Delete(LegacyLong iv, LegacyLong cv);
+    bool FInsert(LegacyLong iv, void *pv = pvNil, LegacyLong cv = 1);
+    bool FSetIvMac(LegacyLong ivMacNew);
+    bool FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp = fgrpNil);
+    void Move(LegacyLong ivSrc, LegacyLong ivTarget);
     bool FPush(void *pv)
     {
         return FInsert(_ivMac, pv);
@@ -203,37 +203,37 @@ class AllocatedArray : public AllocatedArray_PAR
     ASSERT
 
   private:
-    long _cvFree;
+    LegacyLong _cvFree;
 
   private:
     // section 2 of the data contains a bit array
-    byte *_Qgrfbit(long iv)
+    byte *_Qgrfbit(LegacyLong iv)
     {
         return _Qb2(IbFromIbit(iv));
     }
 
   protected:
-    AllocatedArray(long cb);
+    AllocatedArray(LegacyLong cb);
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
-    static PAllocatedArray PalNew(long cb, long cvInit = 0);
+    static PAllocatedArray PalNew(LegacyLong cb, LegacyLong cvInit = 0);
     static PAllocatedArray PalRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAllocatedArray PalRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedArray PalRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PAllocatedArray PalDup(void);
 
     // methods required by parent class
-    virtual bool FAdd(void *pv, long *piv = pvNil);
-    virtual void Delete(long iv);
+    virtual bool FAdd(void *pv, LegacyLong *piv = pvNil);
+    virtual void Delete(LegacyLong iv);
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
-    virtual long CbOnFile(void);
-    virtual bool FFree(long iv);
+    virtual LegacyLong CbOnFile(void);
+    virtual bool FFree(LegacyLong iv);
 
     // new methods
-    bool FEnsureSpace(long cvAdd, ulong grfgrp = fgrpNil);
+    bool FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp = fgrpNil);
     void DeleteAll(void);
 };
 
@@ -261,16 +261,16 @@ class VirtualGroup : public VirtualGroup_PAR
     };
     static_assert(sizeof(LogicalOffsetAndCount) == 8, "LogicalOffsetAndCount wire format drift");
 
-    long _bvMac;
-    long _clocFree;
-    long _cbFixed;
+    LegacyLong _bvMac;
+    LegacyLong _clocFree;
+    LegacyLong _cbFixed;
 
   protected:
-    VirtualGroup(long cbFixed, bool fAllowFree);
+    VirtualGroup(LegacyLong cbFixed, bool fAllowFree);
 
-    void _RemoveRgb(long bv, long cb);
-    void _AdjustLocs(long bvMin, long bvLim, long dcb);
-    LogicalOffsetAndCount *_Qloc(long iloc)
+    void _RemoveRgb(LegacyLong bv, LegacyLong cb);
+    void _AdjustLocs(LegacyLong bvMin, LegacyLong bvLim, LegacyLong dcb);
+    LogicalOffsetAndCount *_Qloc(LegacyLong iloc)
     {
         return (LogicalOffsetAndCount *)_Qb2(LwMul(iloc, size(LogicalOffsetAndCount)));
     }
@@ -281,37 +281,37 @@ class VirtualGroup : public VirtualGroup_PAR
   public:
     // methods required by parent class
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
-    virtual long CbOnFile(void);
-    virtual bool FFree(long iv);
+    virtual LegacyLong CbOnFile(void);
+    virtual bool FFree(LegacyLong iv);
 
-    bool FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp = fgrpNil);
-    void SetMinGrow(long cvAdd, long cbAdd);
+    bool FEnsureSpace(LegacyLong cvAdd, LegacyLong cbAdd, LegacyUlong grfgrp = fgrpNil);
+    void SetMinGrow(LegacyLong cvAdd, LegacyLong cbAdd);
 
-    virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil) = 0;
+    virtual bool FAdd(LegacyLong cb, LegacyLong *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil) = 0;
 
     // access to the fixed portion
-    long CbFixed(void)
+    LegacyLong CbFixed(void)
     {
         return _cbFixed;
     }
-    void *QvFixedGet(long iv, long *pcbVar = pvNil);
-    void *PvFixedLock(long iv, long *pcbVar = pvNil);
-    void GetFixed(long iv, void *pv);
-    void PutFixed(long iv, void *pv);
+    void *QvFixedGet(LegacyLong iv, LegacyLong *pcbVar = pvNil);
+    void *PvFixedLock(LegacyLong iv, LegacyLong *pcbVar = pvNil);
+    void GetFixed(LegacyLong iv, void *pv);
+    void PutFixed(LegacyLong iv, void *pv);
 
     // access to the variable portion
-    long Cb(long iv);
-    void *QvGet(long iv, long *pcb = pvNil);
-    void *PvLock(long iv, long *pcb = pvNil);
-    void Get(long iv, void *pv);
-    void Put(long iv, void *pv);
-    bool FPut(long iv, long cb, void *pv);
-    void GetRgb(long iv, long bv, long cb, void *pv);
-    void PutRgb(long iv, long bv, long cb, void *pv);
-    void DeleteRgb(long iv, long bv, long cb);
-    bool FInsertRgb(long iv, long bv, long cb, void *pv);
-    bool FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long cb);
-    void Merge(long ivSrc, long ivDst);
+    LegacyLong Cb(LegacyLong iv);
+    void *QvGet(LegacyLong iv, LegacyLong *pcb = pvNil);
+    void *PvLock(LegacyLong iv, LegacyLong *pcb = pvNil);
+    void Get(LegacyLong iv, void *pv);
+    void Put(LegacyLong iv, void *pv);
+    bool FPut(LegacyLong iv, LegacyLong cb, void *pv);
+    void GetRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv);
+    void PutRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv);
+    void DeleteRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb);
+    bool FInsertRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv);
+    bool FMoveRgb(LegacyLong ivSrc, LegacyLong bvSrc, LegacyLong ivDst, LegacyLong bvDst, LegacyLong cb);
+    void Merge(LegacyLong ivSrc, LegacyLong ivDst);
 };
 
 /****************************************
@@ -325,28 +325,28 @@ class GeneralGroup : public GeneralGroup_PAR
     ASSERT
 
   protected:
-    GeneralGroup(long cbFixed) : VirtualGroup(cbFixed, fFalse)
+    GeneralGroup(LegacyLong cbFixed) : VirtualGroup(cbFixed, fFalse)
     {
     }
 
   public:
     // static methods
-    static PGeneralGroup PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
+    static PGeneralGroup PggNew(LegacyLong cbFixed = 0, LegacyLong cvInit = 0, LegacyLong cbInit = 0);
     static PGeneralGroup PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGeneralGroup PggRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PGeneralGroup PggDup(void);
 
     // methods required by parent class
-    virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
-    virtual void Delete(long iv);
+    virtual bool FAdd(LegacyLong cb, LegacyLong *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
+    virtual void Delete(LegacyLong iv);
 
     // new methods
-    bool FInsert(long iv, long cb, void *pv = pvNil, void *pvFixed = pvNil);
-    bool FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, long cv);
-    void Move(long ivSrc, long ivTarget);
-    void Swap(long iv1, long iv2);
+    bool FInsert(LegacyLong iv, LegacyLong cb, void *pv = pvNil, void *pvFixed = pvNil);
+    bool FCopyEntries(PGeneralGroup pggSrc, LegacyLong ivSrc, LegacyLong ivDst, LegacyLong cv);
+    void Move(LegacyLong ivSrc, LegacyLong ivTarget);
+    void Swap(LegacyLong iv1, LegacyLong iv2);
 };
 
 /****************************************
@@ -360,22 +360,22 @@ class AllocatedGroup : public AllocatedGroup_PAR
     ASSERT
 
   protected:
-    AllocatedGroup(long cbFixed) : VirtualGroup(cbFixed, fTrue)
+    AllocatedGroup(LegacyLong cbFixed) : VirtualGroup(cbFixed, fTrue)
     {
     }
 
   public:
     // static methods
-    static PAllocatedGroup PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
+    static PAllocatedGroup PagNew(LegacyLong cbFixed = 0, LegacyLong cvInit = 0, LegacyLong cbInit = 0);
     static PAllocatedGroup PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAllocatedGroup PagRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PAllocatedGroup PagDup(void);
 
     // methods required by parent class
-    virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
-    virtual void Delete(long iv);
+    virtual bool FAdd(LegacyLong cb, LegacyLong *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
+    virtual void Delete(LegacyLong iv);
 };
 
 /****************************************
@@ -389,7 +389,7 @@ enum
     fgstAllowFree = 4,
 };
 
-const long kcchMaxGst = kcchMaxStn;
+const LegacyLong kcchMaxGst = kcchMaxStn;
 
 /****************************************
     VirtualStringTable is a virtual class supporting
@@ -403,24 +403,24 @@ class VirtualStringTable : public VirtualStringTable_PAR
     ASSERT
 
   protected:
-    long _cbEntry;
-    long _bstMac;
-    long _cbstFree; // this is cvNil for non-allocated GSTBs
+    LegacyLong _cbEntry;
+    LegacyLong _bstMac;
+    LegacyLong _cbstFree; // this is cvNil for non-allocated GSTBs
 
   protected:
-    VirtualStringTable(long cbExtra, ulong grfgst);
+    VirtualStringTable(LegacyLong cbExtra, LegacyUlong grfgst);
 
-    long _Bst(long ibst)
+    LegacyLong _Bst(LegacyLong ibst)
     {
-        return *(long *)_Qb2(LwMul(ibst, _cbEntry));
+        return *(LegacyLong *)_Qb2(LwMul(ibst, _cbEntry));
     }
-    long *_Qbst(long ibst)
+    LegacyLong *_Qbst(LegacyLong ibst)
     {
-        return (long *)_Qb2(LwMul(ibst, _cbEntry));
+        return (LegacyLong *)_Qb2(LwMul(ibst, _cbEntry));
     }
-    PPascalString _Qst(long ibst);
-    void _RemoveSt(long bst);
-    void _AppendRgch(achar *prgch, long cch);
+    PPascalString _Qst(LegacyLong ibst);
+    void _RemoveSt(LegacyLong bst);
+    void _AppendRgch(achar *prgch, LegacyLong cch);
     void _SwapBytesRgbst(void);
     void _TranslateGrst(short osk, bool fToCur);
     bool _FTranslateGrst(short osk);
@@ -431,34 +431,34 @@ class VirtualStringTable : public VirtualStringTable_PAR
   public:
     // methods required by parent class
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
-    virtual long CbOnFile(void);
-    virtual bool FFree(long istn);
+    virtual LegacyLong CbOnFile(void);
+    virtual bool FFree(LegacyLong istn);
 
-    bool FEnsureSpace(long cstnAdd, long cchAdd, ulong grfgrp = fgrpNil);
-    void SetMinGrow(long cstnAdd, long cchAdd);
+    bool FEnsureSpace(LegacyLong cstnAdd, LegacyLong cchAdd, LegacyUlong grfgrp = fgrpNil);
+    void SetMinGrow(LegacyLong cstnAdd, LegacyLong cchAdd);
 
-    virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil) = 0;
-    virtual bool FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst = fgstNil);
+    virtual bool FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra = pvNil, LegacyLong *pistn = pvNil) = 0;
+    virtual bool FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pistn, LegacyUlong grfgst = fgstNil);
 
-    long IstnMac(void)
+    LegacyLong IstnMac(void)
     {
         return _ivMac;
     }
-    long CbExtra(void)
+    LegacyLong CbExtra(void)
     {
-        return _cbEntry - size(long);
+        return _cbEntry - size(LegacyLong);
     }
 
-    bool FAddStn(PString pstn, void *pvExtra = pvNil, long *pistn = pvNil);
-    bool FPutRgch(long istn, achar *prgch, long cch);
-    bool FPutStn(long istn, PString pstn);
-    void GetRgch(long istn, achar *prgch, long cchMax, long *pcch);
-    void GetStn(long istn, PString pstn);
-    bool FFindStn(PString pstn, long *pistn, ulong grfgst = fgstNil);
+    bool FAddStn(PString pstn, void *pvExtra = pvNil, LegacyLong *pistn = pvNil);
+    bool FPutRgch(LegacyLong istn, achar *prgch, LegacyLong cch);
+    bool FPutStn(LegacyLong istn, PString pstn);
+    void GetRgch(LegacyLong istn, achar *prgch, LegacyLong cchMax, LegacyLong *pcch);
+    void GetStn(LegacyLong istn, PString pstn);
+    bool FFindStn(PString pstn, LegacyLong *pistn, LegacyUlong grfgst = fgstNil);
 
-    void GetExtra(long istn, void *pv);
-    void PutExtra(long istn, void *pv);
-    bool FFindExtra(void *prgbFind, PString pstn = pvNil, long *pistn = pvNil);
+    void GetExtra(LegacyLong istn, void *pv);
+    void PutExtra(LegacyLong istn, void *pv);
+    bool FFindExtra(void *prgbFind, PString pstn = pvNil, LegacyLong *pistn = pvNil);
 };
 
 /****************************************
@@ -472,28 +472,28 @@ class StringTable_GST : public StringTable_GST_PAR
     ASSERT
 
   protected:
-    StringTable_GST(long cbExtra) : VirtualStringTable(cbExtra, fgstNil)
+    StringTable_GST(LegacyLong cbExtra) : VirtualStringTable(cbExtra, fgstNil)
     {
     }
 
   public:
     // static methods
-    static PStringTable_GST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PStringTable_GST PgstNew(LegacyLong cbExtra = 0, LegacyLong cstnInit = 0, LegacyLong cchInit = 0);
     static PStringTable_GST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PStringTable_GST PgstRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PStringTable_GST PgstDup(void);
 
     // methods required by parent class
-    virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);
-    virtual bool FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst = fgstNil);
-    virtual void Delete(long istn);
+    virtual bool FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra = pvNil, LegacyLong *pistn = pvNil);
+    virtual bool FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pistn, LegacyUlong grfgst = fgstNil);
+    virtual void Delete(LegacyLong istn);
 
     // new methods
-    bool FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra = pvNil);
-    bool FInsertStn(long istn, PString pstn, void *pvExtra = pvNil);
-    void Move(long istnSrc, long istnDst);
+    bool FInsertRgch(LegacyLong istn, achar *prgch, LegacyLong cch, void *pvExtra = pvNil);
+    bool FInsertStn(LegacyLong istn, PString pstn, void *pvExtra = pvNil);
+    void Move(LegacyLong istnSrc, LegacyLong istnDst);
 };
 
 /****************************************
@@ -507,22 +507,22 @@ class AllocatedStringTable : public AllocatedStringTable_PAR
     ASSERT
 
   protected:
-    AllocatedStringTable(long cbExtra) : VirtualStringTable(cbExtra, fgstAllowFree)
+    AllocatedStringTable(LegacyLong cbExtra) : VirtualStringTable(cbExtra, fgstAllowFree)
     {
     }
 
   public:
     // static methods
-    static PAllocatedStringTable PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PAllocatedStringTable PastNew(LegacyLong cbExtra = 0, LegacyLong cstnInit = 0, LegacyLong cchInit = 0);
     static PAllocatedStringTable PastRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAllocatedStringTable PastRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedStringTable PastRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PAllocatedStringTable PastDup(void);
 
     // methods required by parent class
-    virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);
-    virtual void Delete(long istn);
+    virtual bool FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra = pvNil, LegacyLong *pistn = pvNil);
+    virtual void Delete(LegacyLong istn);
 };
 
 } // end of namespace Group

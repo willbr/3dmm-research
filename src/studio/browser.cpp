@@ -327,13 +327,13 @@ void BrowserDisplay::_SetVarForOverride(void)
  *
  ****************************************************/
 
-void BrowserDisplay::_GetThumFromIthum(long ithum, void *pThumSelect, long *psid)
+void BrowserDisplay::_GetThumFromIthum(long ithum, LegacyLong *pThumSelect, long *psid)
 {
     AssertThis(0);
-    AssertVarMem((long *)pThumSelect);
+    AssertVarMem(pThumSelect);
     AssertVarMem(psid);
 
-    *((long *)pThumSelect) = ithum;
+    *pThumSelect = ithum;
     TrashVar(psid);
 }
 
@@ -791,7 +791,7 @@ bool BrowserDisplay::FCmdOk(PCommand pcmd)
     AssertVarMem(pcmd);
 
     long sid;
-    long thumSelect;
+    LegacyLong thumSelect;
 
     _pstdio->SetDisplayCast(fFalse);
 
@@ -1117,7 +1117,7 @@ LFail:
  * Virtual function
  *
  ****************************************************/
-void BrowserList::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
+void BrowserList::_GetThumFromIthum(long ithum, LegacyLong *pvthumSelect, long *psid)
 {
     AssertThis(0);
     AssertIn(ithum, 0, _Cthum());
@@ -1128,7 +1128,7 @@ void BrowserList::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
     if (_bws == kbwsIndex)
     {
         *psid = thd.tag.sid;
-        *((long *)pvthumSelect) = ithum;
+        *pvthumSelect = ithum;
         return;
     }
 
@@ -1139,10 +1139,10 @@ void BrowserList::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
     {
     case kbwsChid:
         Assert(thd.chid != chidNil, "Bogus sort order for ThumbnailDescriptor list");
-        *((ChildChunkID *)pvthumSelect) = thd.chid;
+        *pvthumSelect = static_cast<LegacyLong>(thd.chid);
         break;
     case kbwsCnoRoot:
-        *((ChunkNumber *)pvthumSelect) = thd.tag.cno;
+        *pvthumSelect = static_cast<LegacyLong>(thd.tag.cno);
         break;
     default:
         Bug("Unhandled bws case");
@@ -1219,7 +1219,7 @@ void BrowserList::_SortThd(void)
 
     long ithd;
     long jthd;
-    long *plwJ, *plwI;
+    LegacyLong *plwJ, *plwI;
     ThumbnailDescriptor thdi{};
     ThumbnailDescriptor thdj{};
     long sid;
@@ -1232,15 +1232,15 @@ void BrowserList::_SortThd(void)
     switch (_bws)
     {
     case kbwsChid:
-        Assert(size(thdj.chidThum) == size(long), "Bad pointer cast");
-        plwJ = (long *)&thdj.chidThum;
-        plwI = (long *)&thdi.chidThum;
+        Assert(size(thdj.chidThum) == size(LegacyLong), "Bad pointer cast");
+        plwJ = (LegacyLong *)&thdj.chidThum;
+        plwI = (LegacyLong *)&thdi.chidThum;
         fSortBySid = fFalse;
         break;
     case kbwsCnoRoot:
-        Assert(size(thdj.tag.cno) == size(long), "Bad pointer cast");
-        plwJ = (long *)&thdj.tag.cno;
-        plwI = (long *)&thdi.tag.cno;
+        Assert(size(thdj.tag.cno) == size(LegacyLong), "Bad pointer cast");
+        plwJ = (LegacyLong *)&thdj.tag.cno;
+        plwI = (LegacyLong *)&thdi.tag.cno;
         fSortBySid = fTrue;
         break;
     default:
@@ -1314,7 +1314,7 @@ long BrowserList::_IthumFromThum(long thumSelect, long sidSelect)
 {
     AssertThis(0);
 
-    long *plw;
+    LegacyLong *plw;
     ThumbnailDescriptor thd{};
 
     if (thumSelect == ivNil)
@@ -1326,13 +1326,13 @@ long BrowserList::_IthumFromThum(long thumSelect, long sidSelect)
         return thumSelect;
 
     case kbwsChid:
-        Assert(size(thd.chid) == size(long), "Bad pointer cast");
-        plw = (long *)&thd.chid;
+        Assert(size(thd.chid) == size(LegacyLong), "Bad pointer cast");
+        plw = (LegacyLong *)&thd.chid;
         break;
 
     case kbwsCnoRoot:
-        Assert(size(thd.tag.cno) == size(long), "Bad pointer cast");
-        plw = (long *)&thd.tag.cno;
+        Assert(size(thd.tag.cno) == size(LegacyLong), "Bad pointer cast");
+        plw = (LegacyLong *)&thd.tag.cno;
         break;
 
     default:
@@ -1827,8 +1827,10 @@ bool ThumbnailFileEnumerator::_FNextFni(Filename *pfni, long *psid)
     {
         if (!_fniDir.FUpDir(&stnProduct, ffniNil))
             return fFalse;
-        if (!vptagm->FGetSid(&stnProduct, psid))
+        LegacyLong sid;
+        if (!vptagm->FGetSid(&stnProduct, &sid))
             return fFalse;
+        *psid = sid;
     }
 
     return (_fne.FNextFni(pfni));
@@ -2168,7 +2170,7 @@ void BrowserMusic::_ProcessSelection(void)
     AssertThis(0);
     PMovieSoundMSND pmsnd;
     TAG tag;
-    long thumSelect;
+    LegacyLong thumSelect;
     long sid;
 
     // Get Selection from virtual function
@@ -2369,7 +2371,9 @@ bool BrowserMusic::FCmdDel(PCommand pcmd)
     tag.sid = ksidUseCrf; // Non-CD-loaded content
     tag.pcrf = _pcrf;
     tag.ctg = kctgMsnd;
-    _GetThumFromIthum(_ithumSelect, &tag.cno, &sid);
+    LegacyLong thumSelect;
+    _GetThumFromIthum(_ithumSelect, &thumSelect, &sid);
+    tag.cno = static_cast<ChunkNumber>(thumSelect);
 
     pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
@@ -2669,7 +2673,7 @@ bool BrowserAction::FCmdChangeCel(PCommand pcmd)
     AssertVarMem(pcmd);
 
     long st;
-    long ccel;
+    LegacyLong ccel;
     PActor pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
 
     if (!pactr->Ptmpl()->FGetCcelActn(_pape->Anid(), &ccel))
@@ -3119,7 +3123,7 @@ void BrowserRollCall::_ProcessSelection(void)
 {
     AssertThis(0);
 
-    long thumSelect;
+    LegacyLong thumSelect;
     long sid;
 
     // Get Selection from virtual function
@@ -3562,7 +3566,7 @@ void BrowserContentListWithStrings::MarkMem(void)
     Assert the validity of the BrowserContext
 
  ****************************************************/
-void BrowserContext::AssertValid(ulong grfobj)
+void BrowserContext::AssertValid(LegacyUlong grfobj)
 {
     BrowserContext_PAR::AssertValid(fobjAllocated);
 }
@@ -3572,7 +3576,7 @@ void BrowserContext::AssertValid(ulong grfobj)
     Assert the validity of the BrowserListContext
 
  ****************************************************/
-void BrowserListContext::AssertValid(ulong grfobj)
+void BrowserListContext::AssertValid(LegacyUlong grfobj)
 {
     BrowserListContext_PAR::AssertValid(fobjAllocated);
 }
@@ -3582,12 +3586,12 @@ void BrowserListContext::AssertValid(ulong grfobj)
     BrowserContentList AssertValid
 
  ****************************************************/
-void BrowserContentListWithStrings::AssertValid(ulong grf)
+void BrowserContentListWithStrings::AssertValid(LegacyUlong grf)
 {
     BrowserContentListWithStrings_PAR::AssertValid(grf);
     AssertPo(_pgst, 0);
 }
-void BrowserContentList::AssertValid(ulong grf)
+void BrowserContentList::AssertValid(LegacyUlong grf)
 {
     BrowserContentList_PAR::AssertValid(grf);
     AssertPo(_pglthd, 0);
@@ -3598,7 +3602,7 @@ void BrowserContentList::AssertValid(ulong grf)
     Assert the validity of the BrowserDisplay
 
  ****************************************************/
-void BrowserDisplay::AssertValid(ulong grfobj)
+void BrowserDisplay::AssertValid(LegacyUlong grfobj)
 {
     BrowserDisplay_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pbrcn, 0);
@@ -3609,7 +3613,7 @@ void BrowserDisplay::AssertValid(ulong grfobj)
     Assert the validity of the BrowserList
 
  ****************************************************/
-void BrowserList::AssertValid(ulong grfobj)
+void BrowserList::AssertValid(LegacyUlong grfobj)
 {
 
     BrowserList_PAR::AssertValid(fobjAllocated);
@@ -3623,7 +3627,7 @@ void BrowserList::AssertValid(ulong grfobj)
     Assert the validity of the BrowserRollCall
 
  ****************************************************/
-void BrowserRollCall::AssertValid(ulong grfobj)
+void BrowserRollCall::AssertValid(LegacyUlong grfobj)
 {
 
     BrowserRollCall_PAR::AssertValid(fobjAllocated);
@@ -3635,7 +3639,7 @@ void BrowserRollCall::AssertValid(ulong grfobj)
     Assert the validity of the BrowserImportSound
 
  ****************************************************/
-void BrowserImportSound::AssertValid(ulong grfobj)
+void BrowserImportSound::AssertValid(LegacyUlong grfobj)
 {
 
     BrowserImportSound_PAR::AssertValid(fobjAllocated);
@@ -3647,7 +3651,7 @@ void BrowserImportSound::AssertValid(ulong grfobj)
     Assert the validity of the BrowserText
 
  ****************************************************/
-void BrowserText::AssertValid(ulong grfobj)
+void BrowserText::AssertValid(LegacyUlong grfobj)
 {
     BrowserText_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pgst, 0);
@@ -3658,7 +3662,7 @@ void BrowserText::AssertValid(ulong grfobj)
     Assert the validity of the BrowserAction
 
  ****************************************************/
-void BrowserAction::AssertValid(ulong grfobj)
+void BrowserAction::AssertValid(LegacyUlong grfobj)
 {
     BrowserAction_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pape, 0);

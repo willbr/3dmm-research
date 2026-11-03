@@ -25,7 +25,177 @@ add_subdirectory(bren/lib)
 find_package(BRender REQUIRED)
 
 # Options
+add_library(kauai-wave-codec STATIC kauai/src/wave_codec.cpp)
+target_include_directories(kauai-wave-codec PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+add_executable(wave-codec-test EXCLUDE_FROM_ALL tests/wave_codec_test.cpp)
+target_link_libraries(wave-codec-test PRIVATE kauai-wave-codec)
+add_library(kauai-recording-data STATIC kauai/src/recording_data.cpp)
+target_include_directories(kauai-recording-data PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+target_link_libraries(kauai-recording-data PUBLIC kauai-wave-codec)
+add_executable(recording-data-test EXCLUDE_FROM_ALL tests/recording_data_test.cpp)
+target_link_libraries(recording-data-test PRIVATE kauai-recording-data)
+add_library(kauai-audio-mixer STATIC kauai/src/audio_mixer.cpp)
+target_include_directories(kauai-audio-mixer PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+target_link_libraries(kauai-audio-mixer PUBLIC Threads::Threads)
+add_executable(audio-mixer-test EXCLUDE_FROM_ALL tests/audio_mixer_test.cpp)
+target_link_libraries(audio-mixer-test PRIVATE kauai-audio-mixer)
+add_library(kauai-damage STATIC kauai/src/damage_map.cpp)
+target_include_directories(kauai-damage PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+add_executable(damage-map-test EXCLUDE_FROM_ALL tests/damage_map_test.cpp)
+target_link_libraries(damage-map-test PRIVATE kauai-damage)
+add_library(studio-content STATIC src/studio/content.cpp
+  $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/src/studio/content_win.cpp>
+  $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/src/studio/content_posix.cpp>)
+target_include_directories(studio-content PUBLIC "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/kauai/src")
+if(WIN32)
+  target_link_libraries(studio-content PRIVATE advapi32)
+endif()
+add_executable(studio-content-test EXCLUDE_FROM_ALL tests/studio_content_test.cpp)
+target_link_libraries(studio-content-test PRIVATE studio-content)
+add_executable(studio-startup-test EXCLUDE_FROM_ALL tests/studio_startup_test.cpp kauai/src/launch_context.cpp)
+target_include_directories(studio-startup-test PRIVATE "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/kauai/src")
+add_executable(studio-entry-test EXCLUDE_FROM_ALL tests/studio_entry_test.cpp
+  kauai/src/app_entry_posix.cpp kauai/src/launch_context.cpp)
+target_include_directories(studio-entry-test PRIVATE "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/kauai/src")
+add_executable(studio-shortcuts-test EXCLUDE_FROM_ALL tests/studio_shortcuts_test.cpp)
+target_include_directories(studio-shortcuts-test PRIVATE "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/kauai/src")
+if(WIN32)
+  target_link_libraries(studio-shortcuts-test PRIVATE user32)
+endif()
 option(BUILD_PACKAGES "Build packages for 3DMM" ON)
+option(BUILD_STUDIO "Build the Studio application and content" ON)
+option(BUILD_INSPECTOR "Build the SDL3 / Dear ImGui archive inspector" OFF)
+option(STUDIO_SDL3 "Use the SDL3 presentation/input host for the existing Studio (Windows bridge)" OFF)
+option(BUILD_SDL_HOST "Build the portable SDL window host independently of Studio" OFF)
+if(STUDIO_SDL3 OR BUILD_SDL_HOST)
+  include(SDL3Dependency)
+  add_library(kauai-sdl-host STATIC kauai/src/sdl_host.cpp)
+  target_include_directories(kauai-sdl-host PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-host PRIVATE SDL3::SDL3-static kauai-damage)
+  add_executable(sdl-host-test EXCLUDE_FROM_ALL tests/sdl_host_test.cpp)
+  target_link_libraries(sdl-host-test PRIVATE kauai-sdl-host SDL3::SDL3-static)
+  add_executable(window-services-sdl-test EXCLUDE_FROM_ALL tests/window_services_sdl_test.cpp)
+  target_link_libraries(window-services-sdl-test PRIVATE kauai-sdl-host SDL3::SDL3-static)
+endif()
+option(BUILD_SDL_DIALOGS "Build the portable SDL3/ImGui dialog host independently of Studio" OFF)
+option(KAUAI_FREETYPE "Build the portable FreeType font provider" ${STUDIO_SDL3})
+option(KAUAI_MIDI_SYNTH "Build portable SoundFont MIDI synthesis" ${STUDIO_SDL3})
+if(KAUAI_MIDI_SYNTH)
+  include(TinySoundFontDependency)
+  add_library(kauai-midi-synth STATIC kauai/src/midi_synth.cpp kauai/src/midi_render.cpp)
+  target_include_directories(kauai-midi-synth PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src" PRIVATE "${KAUAI_TSF_INCLUDE_DIR}")
+  target_link_libraries(kauai-midi-synth PUBLIC Threads::Threads)
+  add_executable(midi-synth-test EXCLUDE_FROM_ALL tests/midi_synth_test.cpp)
+  target_link_libraries(midi-synth-test PRIVATE kauai-midi-synth)
+  install(FILES "${KAUAI_MIDI_BANK_FILE}" DESTINATION assets RENAME GeneralUserGS.sf2)
+  install(FILES docs/licenses/tinysoundfont-LICENSE.txt docs/licenses/tinysoundfont-PATCHES.md
+    docs/licenses/generaluser-gs-LICENSE.txt DESTINATION licenses)
+endif()
+option(BUILD_SDL_MIDI "Build portable SDL MIDI output independently of Studio" OFF)
+option(BUILD_SDL_VIDEO "Build portable SDL video playback independently of Studio" OFF)
+if(STUDIO_SDL3 OR BUILD_SDL_VIDEO)
+  include(SDL3Dependency)
+  add_library(kauai-sdl-video STATIC kauai/src/video_sdl.cpp)
+  target_include_directories(kauai-sdl-video PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-video PUBLIC kauai-core PRIVATE SDL3::SDL3-static)
+  add_executable(video-sdl-test EXCLUDE_FROM_ALL tests/video_sdl_test.cpp)
+  target_link_libraries(video-sdl-test PRIVATE kauai-sdl-video)
+endif()
+if(STUDIO_SDL3 OR BUILD_SDL_MIDI)
+  if(NOT KAUAI_MIDI_SYNTH)
+    message(FATAL_ERROR "SDL MIDI requires KAUAI_MIDI_SYNTH=ON")
+  endif()
+  include(SDL3Dependency)
+  add_library(kauai-sdl-midi STATIC kauai/src/midi_sdl.cpp)
+  target_include_directories(kauai-sdl-midi PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-midi PUBLIC kauai-core PRIVATE kauai-midi-synth SDL3::SDL3-static)
+  add_executable(midi-sdl-test EXCLUDE_FROM_ALL tests/midi_sdl_test.cpp)
+  target_link_libraries(midi-sdl-test PRIVATE kauai-sdl-midi)
+  kauai_copy_midi_assets(midi-sdl-test)
+  file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/assets")
+  get_filename_component(bank_source "${KAUAI_MIDI_BANK_FILE}" ABSOLUTE)
+  if(NOT bank_source STREQUAL "${PROJECT_BINARY_DIR}/assets/GeneralUserGS.sf2")
+    configure_file("${KAUAI_MIDI_BANK_FILE}" "${PROJECT_BINARY_DIR}/assets/GeneralUserGS.sf2" COPYONLY)
+  endif()
+endif()
+if(KAUAI_FREETYPE)
+  include(FreeTypeDependency)
+  add_library(kauai-freetype STATIC kauai/src/font_freetype.cpp kauai/src/font_catalog.cpp)
+  target_include_directories(kauai-freetype PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-freetype PUBLIC kauai-core PRIVATE freetype)
+  install(FILES docs/licenses/freetype-FTL.txt docs/licenses/freetype-LICENSE.txt
+          DESTINATION licenses)
+endif()
+add_library(kauai-font-host STATIC kauai/src/font_host.cpp)
+target_include_directories(kauai-font-host PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+target_link_libraries(kauai-font-host PUBLIC kauai-core)
+if(KAUAI_FREETYPE)
+  target_compile_definitions(kauai-font-host PRIVATE KAUAI_FREETYPE)
+  target_link_libraries(kauai-font-host PUBLIC kauai-freetype)
+  if(WIN32)
+    target_sources(kauai-font-host PRIVATE kauai/src/font_locations_win.cpp)
+  else()
+    target_sources(kauai-font-host PRIVATE kauai/src/font_locations_posix.cpp)
+  endif()
+endif()
+if(STUDIO_SDL3 OR BUILD_SDL_DIALOGS)
+  include(ImGuiDependency)
+  add_library(kauai-sdl-dialog STATIC kauai/src/sdl_dialog.cpp kauai/src/sdl_file_dialog.cpp)
+  target_include_directories(kauai-sdl-dialog PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-dialog PUBLIC kauai-core PRIVATE imgui-sdl3)
+  add_executable(dialog-sdl-test EXCLUDE_FROM_ALL tests/dialog_sdl_test.cpp)
+  target_link_libraries(dialog-sdl-test PRIVATE kauai-sdl-dialog SDL3::SDL3-static)
+  add_executable(file-dialog-sdl-test EXCLUDE_FROM_ALL tests/file_dialog_sdl_test.cpp)
+  target_link_libraries(file-dialog-sdl-test PRIVATE kauai-sdl-dialog SDL3::SDL3-static)
+  if(NOT WIN32)
+    add_executable(filename-dialog-sdl-test EXCLUDE_FROM_ALL tests/filename_dialog_sdl_test.cpp kauai/src/fnidialogsdl.cpp)
+    target_compile_definitions(filename-dialog-sdl-test PRIVATE KAUAI_SDL3)
+    target_link_libraries(filename-dialog-sdl-test PRIVATE kauai-core kauai-sdl-host kauai-sdl-dialog)
+    add_test(NAME filename-dialog-sdl COMMAND filename-dialog-sdl-test)
+    set_tests_properties(filename-dialog-sdl PROPERTIES
+      ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software"
+      SKIP_RETURN_CODE 77)
+  endif()
+endif()
+if(STUDIO_SDL3)
+  if(NOT WIN32 AND BUILD_STUDIO)
+    message(FATAL_ERROR "Full non-Windows Studio integration is not verified yet; use BUILD_STUDIO=OFF to build and test the SDL runtime libraries")
+  endif()
+  include(SDL3Dependency)
+  add_library(kauai-sdl-audio STATIC kauai/src/sdl_audio.cpp kauai/src/sdl_recording.cpp)
+  target_include_directories(kauai-sdl-audio PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-audio PUBLIC kauai-audio-mixer kauai-wave-codec kauai-recording-data PRIVATE SDL3::SDL3-static)
+  add_executable(recording-sdl-test EXCLUDE_FROM_ALL tests/recording_sdl_test.cpp)
+  target_link_libraries(recording-sdl-test PRIVATE kauai-sdl-audio)
+  add_executable(movie-recording-test EXCLUDE_FROM_ALL tests/movie_recording_test.cpp)
+  target_link_libraries(movie-recording-test PRIVATE engine)
+  add_executable(audio-sdl-test EXCLUDE_FROM_ALL tests/audio_sdl_test.cpp)
+  target_link_libraries(audio-sdl-test PRIVATE kauai-sdl-audio)
+  add_executable(wave-import-sdl-test EXCLUDE_FROM_ALL tests/wave_import_sdl_test.cpp)
+  target_link_libraries(wave-import-sdl-test PRIVATE kauai-sdl-audio SDL3::SDL3-static msacm32)
+  add_executable(movie-sound-import-test EXCLUDE_FROM_ALL tests/movie_sound_import_test.cpp)
+  target_link_libraries(movie-sound-import-test PRIVATE engine)
+  add_executable(sound-sdl-test EXCLUDE_FROM_ALL tests/sound_sdl_test.cpp)
+  target_link_libraries(sound-sdl-test PRIVATE kauai)
+  add_executable(clipboard-sdl-test EXCLUDE_FROM_ALL tests/clipboard_sdl_test.cpp tests/sdl_clipboard_event.cpp)
+  target_link_libraries(clipboard-sdl-test PRIVATE kauai SDL3::SDL3-static)
+  add_executable(cursor-sdl-test EXCLUDE_FROM_ALL tests/cursor_sdl_test.cpp)
+  target_link_libraries(cursor-sdl-test PRIVATE kauai-sdl-host user32 gdi32)
+  add_executable(scroll-sdl-test EXCLUDE_FROM_ALL tests/scroll_sdl_test.cpp)
+  target_link_libraries(scroll-sdl-test PRIVATE kauai)
+  add_executable(window-geometry-sdl-test EXCLUDE_FROM_ALL tests/window_geometry_sdl_test.cpp)
+  target_link_libraries(window-geometry-sdl-test PRIVATE kauai)
+  add_executable(focus-sdl-test EXCLUDE_FROM_ALL tests/focus_sdl_test.cpp tests/sdl_focus_event.cpp)
+  target_link_libraries(focus-sdl-test PRIVATE kauai SDL3::SDL3-static)
+  add_executable(input-sdl-test EXCLUDE_FROM_ALL tests/input_sdl_test.cpp)
+  target_link_libraries(input-sdl-test PRIVATE kauai-sdl-host SDL3::SDL3-static)
+  add_executable(events-sdl-test EXCLUDE_FROM_ALL tests/events_sdl_test.cpp tests/sdl_focus_event.cpp)
+  target_include_directories(events-sdl-test PRIVATE "${PROJECT_SOURCE_DIR}/inc")
+  target_link_libraries(events-sdl-test PRIVATE kauai SDL3::SDL3-static)
+  add_executable(window-lifecycle-sdl-test EXCLUDE_FROM_ALL tests/window_lifecycle_sdl_test.cpp)
+  target_link_libraries(window-lifecycle-sdl-test PRIVATE kauai SDL3::SDL3-static)
+endif()
+include(CTest)
 
 cmake_dependent_option(3DMM_PACKAGE_WIX "Generate an MSI via WiX" ON "BUILD_PACKAGES AND DEFINED ENV{WIX}" OFF)
 cmake_dependent_option(3DMM_PACKAGE_ZIP "Generate a portable ZIP" ON "BUILD_PACKAGES" OFF)
@@ -55,11 +225,7 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 4)
 endif()
 
 # Local Tooling
-add_compile_definitions(
-  $<$<PLATFORM_ID:Windows>:WIN>
-  $<$<BOOL:${SOC_X86}>:IN_80386>
-  $<$<CONFIG:Debug>:DEBUG>
-)
+
 
 # kcdc-386 / kcd2-386 are codegen tools that emit kcdc_386.h / kcd2_386.h --
 # inline-__asm tables consumed by codkauai.cpp inside #ifdef IN_80386. They
@@ -176,6 +342,12 @@ target_include_directories(bren-rasterizer-test PRIVATE
 )
 target_link_libraries(bren-rasterizer-test PRIVATE BRender::Libraries)
 target_compile_definitions(bren-rasterizer-test PRIVATE BASED_FIXED=1)
+
+# Link the core diagnostic adapter without any GUI or application stubs.
+# Run with no arguments for a warning, or "fatal" to verify exit code 10.
+add_executable(brender-diagnostic-test EXCLUDE_FROM_ALL tests/brender_diagnostic_test.c)
+target_link_libraries(brender-diagnostic-test PRIVATE brender-core)
+
 if (MSVC)
   # Match brender_zb's /Zp4 packing so struct layouts agree on both x86
   # and x64. Without this the test sees padding that the lib doesn't.
@@ -220,6 +392,170 @@ add_executable(inspect-chunks EXCLUDE_FROM_ALL)
 target_sources(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/inspect_chunks.cpp")
 target_include_directories(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/inc")
 target_link_libraries(inspect-chunks PRIVATE kauai-core)
+
+# Read-only normalized archive dump, with bounded core record decoding.
+add_executable(three-mm EXCLUDE_FROM_ALL src/tools/three_mm.cpp)
+set_target_properties(three-mm PROPERTIES OUTPUT_NAME 3mm)
+target_link_libraries(three-mm PRIVATE ThreeMM::Archive)
+if(MINGW)
+  target_link_options(three-mm PRIVATE -municode)
+endif()
+add_executable(three-mm-fixture EXCLUDE_FROM_ALL tests/three_mm_fixture.cpp)
+target_link_libraries(three-mm-fixture PRIVATE engine-core)
+add_executable(platform-services-test EXCLUDE_FROM_ALL tests/platform_services_test.cpp)
+target_link_libraries(platform-services-test PRIVATE kauai-core)
+add_executable(file-services-test EXCLUDE_FROM_ALL tests/file_services_test.cpp)
+target_link_libraries(file-services-test PRIVATE kauai-core)
+add_executable(user-services-test EXCLUDE_FROM_ALL tests/user_services_test.cpp)
+target_link_libraries(user-services-test PRIVATE kauai-core)
+add_executable(settings-store-test EXCLUDE_FROM_ALL tests/settings_store_test.cpp)
+target_link_libraries(settings-store-test PRIVATE kauai-core)
+if(WIN32)
+  add_executable(settings-store-win-test EXCLUDE_FROM_ALL tests/settings_store_win_test.cpp)
+  target_link_libraries(settings-store-win-test PRIVATE kauai-core advapi32)
+else()
+  add_executable(settings-store-posix-test EXCLUDE_FROM_ALL tests/settings_store_posix_test.cpp)
+  target_link_libraries(settings-store-posix-test PRIVATE kauai-core)
+endif()
+add_executable(filename-test EXCLUDE_FROM_ALL tests/filename_test.cpp)
+add_executable(file-browser-test EXCLUDE_FROM_ALL tests/file_browser_test.cpp)
+add_executable(dib-frame-test EXCLUDE_FROM_ALL tests/dib_frame_test.cpp)
+target_link_libraries(dib-frame-test PRIVATE kauai-core)
+add_executable(avi-movie-test EXCLUDE_FROM_ALL tests/avi_movie_test.cpp)
+target_link_libraries(avi-movie-test PRIVATE kauai-core)
+if(WIN32)
+  add_executable(avi-corpus-win-test EXCLUDE_FROM_ALL tests/avi_corpus_win_test.cpp)
+  target_compile_features(avi-corpus-win-test PRIVATE cxx_std_17)
+  target_link_libraries(avi-corpus-win-test PRIVATE kauai-core vfw32)
+endif()
+target_link_libraries(file-browser-test PRIVATE kauai-core)
+target_link_libraries(filename-test PRIVATE kauai-core)
+add_executable(text-services-test EXCLUDE_FROM_ALL tests/text_services_test.cpp)
+target_link_libraries(text-services-test PRIVATE kauai-core)
+add_executable(text-portable-test EXCLUDE_FROM_ALL tests/text_services_test.cpp kauai/src/platform_text.cpp kauai/src/text_utf8.cpp)
+target_include_directories(text-portable-test PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src")
+target_compile_definitions(text-portable-test PRIVATE KAUAI_PORTABLE_TEXT)
+target_link_libraries(text-portable-test PRIVATE Threads::Threads)
+add_executable(string-compat-test EXCLUDE_FROM_ALL tests/string_compat_test.cpp)
+target_link_libraries(string-compat-test PRIVATE kauai-core)
+add_executable(picture-data-test EXCLUDE_FROM_ALL tests/picture_data_test.cpp)
+target_link_libraries(picture-data-test PRIVATE kauai-core)
+add_executable(dialog-resource-test EXCLUDE_FROM_ALL tests/dialog_resource_test.cpp)
+target_link_libraries(dialog-resource-test PRIVATE kauai-core)
+add_library(dialog-api-check OBJECT EXCLUDE_FROM_ALL tests/dialog_api_include_order.cpp kauai/src/dlg.cpp)
+target_link_libraries(dialog-api-check PRIVATE kauai-core)
+add_library(dialog-controller-api-check OBJECT EXCLUDE_FROM_ALL kauai/src/dlgsdl.cpp)
+target_link_libraries(dialog-controller-api-check PRIVATE kauai-core)
+add_executable(dialog-model-test EXCLUDE_FROM_ALL tests/dialog_model_test.cpp $<TARGET_OBJECTS:dialog-api-check>)
+target_link_libraries(dialog-model-test PRIVATE kauai-core)
+add_executable(pixel-canvas-test EXCLUDE_FROM_ALL tests/pixel_canvas_test.cpp)
+target_link_libraries(pixel-canvas-test PRIVATE kauai-core)
+add_executable(font-services-test EXCLUDE_FROM_ALL tests/font_services_test.cpp)
+target_link_libraries(font-services-test PRIVATE kauai-core)
+if(KAUAI_FREETYPE)
+  add_executable(font-freetype-test EXCLUDE_FROM_ALL tests/font_freetype_test.cpp)
+  target_link_libraries(font-freetype-test PRIVATE kauai-freetype)
+  add_executable(font-host-test EXCLUDE_FROM_ALL tests/font_host_test.cpp)
+  target_link_libraries(font-host-test PRIVATE kauai-font-host)
+  set(KAUAI_FONT_TEST_TTF "" CACHE FILEPATH "Local TrueType fixture for portable font tests")
+  set(KAUAI_FONT_TEST_FON "" CACHE FILEPATH "Local WinFNT fixture for portable font tests")
+  set(KAUAI_FONT_TEST_COLLECTION "" CACHE FILEPATH "Optional local font collection fixture for portable font tests")
+  if(WIN32 AND NOT KAUAI_FONT_TEST_TTF AND EXISTS "$ENV{WINDIR}/Fonts/arial.ttf")
+    set(KAUAI_FONT_TEST_TTF "$ENV{WINDIR}/Fonts/arial.ttf" CACHE FILEPATH "Local TrueType fixture" FORCE)
+  endif()
+  if(WIN32 AND NOT KAUAI_FONT_TEST_FON AND EXISTS "$ENV{WINDIR}/Fonts/vgasys.fon")
+    set(KAUAI_FONT_TEST_FON "$ENV{WINDIR}/Fonts/vgasys.fon" CACHE FILEPATH "Local WinFNT fixture" FORCE)
+  endif()
+  if(WIN32 AND NOT KAUAI_FONT_TEST_COLLECTION AND EXISTS "$ENV{WINDIR}/Fonts/cambria.ttc")
+    set(KAUAI_FONT_TEST_COLLECTION "$ENV{WINDIR}/Fonts/cambria.ttc" CACHE FILEPATH "Local font collection fixture" FORCE)
+  endif()
+endif()
+add_executable(legacy-math-test EXCLUDE_FROM_ALL tests/legacy_math_test.cpp)
+add_executable(cursor-data-test EXCLUDE_FROM_ALL tests/cursor_data_test.cpp)
+target_link_libraries(cursor-data-test PRIVATE kauai-core)
+add_executable(midi-mixer-test EXCLUDE_FROM_ALL tests/midi_mixer_test.cpp)
+target_link_libraries(midi-mixer-test PRIVATE kauai-core)
+add_executable(midi-worker-test EXCLUDE_FROM_ALL tests/midi_worker_test.cpp)
+target_link_libraries(midi-worker-test PRIVATE kauai-core)
+add_executable(palette-state-test EXCLUDE_FROM_ALL tests/palette_state_test.cpp)
+target_link_libraries(palette-state-test PRIVATE kauai-core)
+add_executable(pixel-buffer-test EXCLUDE_FROM_ALL tests/pixel_buffer_test.cpp)
+target_link_libraries(pixel-buffer-test PRIVATE kauai-core)
+add_library(portfolio-api-check OBJECT tests/portfolio_api_include_order.cpp)
+add_library(midi-stream-api-check OBJECT tests/midi_stream_api_include_order.cpp)
+target_link_libraries(midi-stream-api-check PRIVATE kauai-core)
+add_library(video-api-check OBJECT tests/video_api_include_order.cpp)
+add_executable(graphics-api-test EXCLUDE_FROM_ALL tests/graphics_api_test.cpp)
+add_library(gob-api-check OBJECT EXCLUDE_FROM_ALL tests/gob_api_include_order.cpp)
+target_link_libraries(gob-api-check PRIVATE kauai-core)
+add_library(app-api-check OBJECT EXCLUDE_FROM_ALL tests/app_api_include_order.cpp)
+target_link_libraries(app-api-check PRIVATE kauai-core)
+add_library(app-sdl-api-check OBJECT EXCLUDE_FROM_ALL tests/app_api_include_order.cpp)
+target_compile_definitions(app-sdl-api-check PRIVATE KAUAI_SDL3)
+target_link_libraries(app-sdl-api-check PRIVATE kauai-core)
+# Compile the real SDL event/paint implementation and shared GUI umbrella on
+# every platform, independently of the remaining native application/rasterizer.
+add_library(sdl-runtime-compile-check OBJECT EXCLUDE_FROM_ALL
+  tests/runtime_api_include_order.cpp kauai/src/appb.cpp kauai/src/appbsdl.cpp
+  kauai/src/clip.cpp kauai/src/cmd_gui.cpp kauai/src/ctl.cpp kauai/src/docb.cpp
+  kauai/src/kidhelp.cpp kauai/src/kidspace.cpp kauai/src/kidworld.cpp
+  kauai/src/rtxt.cpp kauai/src/rtxt2.cpp kauai/src/screxeg.cpp
+  kauai/src/text.cpp kauai/src/textdoc.cpp
+  kauai/src/sdl_studio.cpp kauai/src/pic.cpp kauai/src/cursor.cpp
+  kauai/src/gob.cpp kauai/src/gob_window.cpp kauai/src/gfx.cpp kauai/src/gfx_port.cpp kauai/src/gfx_values.cpp
+  kauai/src/fontlist.cpp kauai/src/gfx_text.cpp kauai/src/gfx_pixels.cpp kauai/src/fontlist_portable.cpp
+  $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/gfx_posix.cpp>
+  $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/gob_sdl.cpp>)
+target_compile_definitions(sdl-runtime-compile-check PRIVATE KAUAI_SDL3)
+target_link_libraries(sdl-runtime-compile-check PRIVATE kauai-core)
+if(TARGET kauai-sdl-host)
+  # Executes the actual CPU/POSIX port, also on Windows without a native DC.
+  add_executable(pixel-port-test EXCLUDE_FROM_ALL tests/pixel_port_test.cpp
+    kauai/src/gfx_port.cpp kauai/src/gfx_values.cpp kauai/src/fontlist.cpp kauai/src/gfx_text.cpp
+    kauai/src/gfx_pixels.cpp kauai/src/gfx_posix.cpp kauai/src/fontlist_portable.cpp)
+  target_compile_definitions(pixel-port-test PRIVATE KAUAI_SDL3)
+  if(KAUAI_FREETYPE)
+    target_compile_definitions(pixel-port-test PRIVATE KAUAI_TEST_FREETYPE)
+  endif()
+  target_link_libraries(pixel-port-test PRIVATE kauai-core kauai-sdl-host kauai-font-host)
+endif()
+
+
+target_link_libraries(graphics-api-test PRIVATE kauai-core)
+target_link_libraries(video-api-check PRIVATE kauai-core)
+target_include_directories(portfolio-api-check PRIVATE "${PROJECT_SOURCE_DIR}/inc")
+target_link_libraries(portfolio-api-check PRIVATE kauai-core)
+target_link_libraries(legacy-math-test PRIVATE kauai-core)
+if(WIN32)
+  add_executable(midi-stream-host-test EXCLUDE_FROM_ALL tests/midi_stream_host_test.cpp)
+  target_link_libraries(midi-stream-host-test PRIVATE kauai)
+  add_executable(palette-gdi-test EXCLUDE_FROM_ALL tests/palette_gdi_test.cpp)
+  target_link_libraries(palette-gdi-test PRIVATE kauai)
+  add_executable(gdi-adapter-test EXCLUDE_FROM_ALL tests/gdi_adapter_test.cpp)
+  add_executable(dib-frame-gdi-test EXCLUDE_FROM_ALL tests/dib_frame_gdi_test.cpp)
+  target_link_libraries(dib-frame-gdi-test PRIVATE kauai)
+  add_executable(video-stream-host-test EXCLUDE_FROM_ALL tests/video_stream_host_test.cpp)
+  target_link_libraries(video-stream-host-test PRIVATE kauai)
+  add_executable(dialog-resource-win-test EXCLUDE_FROM_ALL tests/dialog_resource_win_test.cpp tests/dialog_resources.rc)
+  target_link_libraries(dialog-resource-win-test PRIVATE kauai)
+  target_link_libraries(gdi-adapter-test PRIVATE kauai)
+  add_executable(packed-shape-gdi-test EXCLUDE_FROM_ALL tests/packed_shape_gdi_test.cpp)
+  target_link_libraries(packed-shape-gdi-test PRIVATE kauai)
+  add_executable(pixel-canvas-gdi-test EXCLUDE_FROM_ALL tests/pixel_canvas_gdi_test.cpp)
+  target_link_libraries(pixel-canvas-gdi-test PRIVATE kauai)
+  add_executable(pixel-canvas-indexed-gdi-test EXCLUDE_FROM_ALL tests/pixel_canvas_indexed_gdi_test.cpp)
+  target_link_libraries(pixel-canvas-indexed-gdi-test PRIVATE kauai)
+  add_executable(masked-transfer-gdi-test EXCLUDE_FROM_ALL tests/masked_transfer_gdi_test.cpp)
+  target_link_libraries(masked-transfer-gdi-test PRIVATE kauai)
+  add_executable(indexed-copy-gdi-test EXCLUDE_FROM_ALL tests/indexed_copy_gdi_test.cpp)
+  target_link_libraries(indexed-copy-gdi-test PRIVATE kauai)
+  add_executable(packed-copy-gdi-test EXCLUDE_FROM_ALL tests/packed_copy_gdi_test.cpp)
+  target_link_libraries(packed-copy-gdi-test PRIVATE kauai)
+  add_executable(pixel-storage-gdi-test EXCLUDE_FROM_ALL tests/pixel_storage_gdi_test.cpp)
+  target_link_libraries(pixel-storage-gdi-test PRIVATE kauai)
+  add_executable(font-gdi-test EXCLUDE_FROM_ALL tests/font_gdi_test.cpp)
+  target_link_libraries(font-gdi-test PRIVATE kauai)
+endif()
 
 
 # Chunk Editor
@@ -324,6 +660,19 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/chunk.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/codec.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/codkauai.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/core_platform.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/launch_context.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/settings_store.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/settings_paths.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/user_paths.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/platform_users_win.cpp>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/platform_users_posix.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/settings_store_win.cpp>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/settings_store_posix.cpp>
+    "${PROJECT_SOURCE_DIR}/kauai/src/platform_text.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/text_utf8.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/cursor_data.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/pixel_buffer.cpp"
     # cmd_core: CommandHandler + bare CommandExecutionManager. The
     # gui-coupled bits (mouse tracking, modal-gob walk, OS key pump,
     # vpappb hid registry) live in cmd_gui.cpp on the kauai (gui)
@@ -335,48 +684,48 @@ target_sources(kauai-core
     # Task 5 of the plan.
     "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/crf.cpp"
-    # dlg.cpp: Dialog (a GeneralGroup of DialogItem) -- pure in-memory
-    # dialog-data container with FGetCheck / FPutStn / IditFromSit
-    # accessors. The Win32 modal dialog spinning + control-message
-    # plumbing lives in dlgwin.cpp on the gui target. Verified zero
-    # gui / Win32 user / vwig refs.
-    "${PROJECT_SOURCE_DIR}/kauai/src/dlg.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/kidspace_descriptor.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/file.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/groups.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
     # mbmp.cpp -- MaskedBitmapMBMP data side (alloc, RLE encode/decode,
-    # chunk read/write, .bmp import). The drawing side
-    # (MaskedBitmapMBMP::Draw / DrawMask) lives in mbmpgui.cpp and stays
-    # gui. Verified zero UI class references in mbmp.cpp.
+    # chunk read/write, .bmp import). Pixel drawing and region clipping
+    # in mbmpgui.cpp and mbmp_pixels.cpp use core memory buffers only.
+    # No GraphicsPort or native graphics services are required.
     "${PROJECT_SOURCE_DIR}/kauai/src/mbmp.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/mbmpgui.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/mbmp_pixels.cpp"
     # midi.cpp: MidiStream + MidiStreamParser. Pure parser/serializer
-    # over a byte stream; no Win32 MM API calls (those live in
-    # mididev*.cpp on the gui target). Verified: zero gui / cmd refs.
+    # over a byte stream. The streamed cache, queues, priority mixer and timed
+    # worker are also SDK-free; their device factory is injected by the caller.
+    # WinMM output remains on the gui target in midi_stream_win.cpp.
     "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
-    # pic.cpp (Picture wraps Win MetaFile / Mac Pict). pic itself is
-    # platform-agnostic; the platform-specific HENHMETAFILE/HPIC
-    # surface lives in picwin.cpp.
-    "${PROJECT_SOURCE_DIR}/kauai/src/pic.cpp"
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/picwin.cpp>
-    # region.cpp (geometric Region/RegionScanner) + regionwin.cpp
-    # (the HRGN GDI-wrapper helpers region.cpp calls into -- extracted
-    # from gfxwin.cpp so they don't drag in the rest of the gfx layer).
+    "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/midi_worker.cpp"
+    # Fixed picture envelope and opaque payload; native decoding is on kauai.
+    "${PROJECT_SOURCE_DIR}/kauai/src/picture_data.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/dialog_resource.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/dialog_session.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/pixel_canvas.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/pixel_stretch.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/palette_state.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/ellipse_geometry.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/font_services.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/font_canvas.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/font_names.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/rich_text_data.cpp"
+    # Pure Region/RegionScanner geometry; HRGN adapters live on kauai.
     "${PROJECT_SOURCE_DIR}/kauai/src/region.cpp"
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/regionwin.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcom.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxe.cpp"
     # sndm: SoundManager + SoundQueue. Pure data-structure / business
     # logic; instantiates no SoundDevice subclasses itself (callers
     # register them via FAddDevice). No UI, no CommandHandler, no
     # direct Win32 multimedia APIs -- those live in mididev*.cpp +
-    # sndam.cpp on the gui target. Promoting sndm lets engine-core
-    # consumers (msnd.cpp's vpsndm calls) resolve in a kauai-core-only
-    # link.
+    # sndam.cpp on the gui target. Hosts register their own devices.
     "${PROJECT_SOURCE_DIR}/kauai/src/sndm.cpp"
-    # spell: spell-checker dictionary; no UI deps. Same audit as region.
-    "${PROJECT_SOURCE_DIR}/kauai/src/spell.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/stream.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/util.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/utilcopy.cpp"
@@ -387,33 +736,77 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/utilrnd.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/utilstr.cpp"
 
-    # Windows-specific I/O / memory implementations -- still core, just
-    # split per-OS the same way the file-API splits filewin/filemac.
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/filewin.cpp>
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/fniwin.cpp>
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/memwin.cpp>
+    # Shared file policy and filename navigation; OS calls stay in backends.
+    "${PROJECT_SOURCE_DIR}/kauai/src/file_native.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/filename.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/file_browser.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/dib_frame.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/avi_movie.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_win.cpp>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/platform_files_posix.cpp>
+    "${PROJECT_SOURCE_DIR}/kauai/src/memwin.cpp"
 
     # Stubs for Visual C++ 2.1 CRT functions
-    "${PROJECT_SOURCE_DIR}/kauai/src/stub.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/stub.cpp>
+)
+
+target_compile_definitions(kauai-core PUBLIC
+  $<$<PLATFORM_ID:Windows>:WIN>
+  $<$<BOOL:${SOC_X86}>:IN_80386>
+  $<$<CONFIG:Debug>:DEBUG>
 )
 
 target_compile_definitions(kauai-core PUBLIC
   _LPCVOID_DEFINED
   STRICT)
 
-# kauai-core needs Win32 (for filewin/memwin/fniwin) but NOT the multimedia
-# libs (Msacm32/Vfw32/Winmm) -- those are gui-only and stay on the kauai
-# target below.
+# Native file calls stay in platform_files_win/posix; text and GDI still use Win32.
+# Native dialogs and spelling integration belong to the GUI runtime.
+# Allocation, synchronization and ticks use the portable core_platform layer.
+find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
   PUBLIC
+    Threads::Threads
+    $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>
-    # Winmm: utilint/utilrnd/fniwin use timeGetTime() for system tick
-    # readouts. Always linked when the runtime touches them, even in
-    # CLI builds.
-    $<$<PLATFORM_ID:Windows>:Winmm>)
+    $<$<PLATFORM_ID:Windows>:shell32>)
+add_executable(ellipse-geometry-test EXCLUDE_FROM_ALL tests/ellipse_geometry_test.cpp)
+target_link_libraries(ellipse-geometry-test PRIVATE kauai-core)
+if(WIN32)
+  add_executable(ellipse-geometry-gdi-test EXCLUDE_FROM_ALL tests/ellipse_geometry_gdi_test.cpp)
+  target_link_libraries(ellipse-geometry-gdi-test PRIVATE kauai-core gdi32)
+endif()
+install(FILES docs/licenses/ellipse-Apache-2.0.txt docs/licenses/ellipse-NOTICE.txt DESTINATION licenses)
 
 # --- kauai (gui umbrella): everything else, transitively re-exports core ---
 add_library(kauai)
+target_link_libraries(kauai PRIVATE kauai-font-host)
+if(KAUAI_FREETYPE)
+  target_link_libraries(kauai PRIVATE kauai-freetype)
+  target_compile_definitions(kauai PRIVATE KAUAI_FREETYPE)
+endif()
+if(STUDIO_SDL3)
+  target_sources(kauai PRIVATE kauai/src/sdl_studio.cpp kauai/src/gfx_text.cpp kauai/src/gfx_pixels.cpp kauai/src/fontlist_portable.cpp
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/gfx_posix.cpp>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/gob_sdl.cpp>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/fnidialogsdl.cpp>
+    kauai/src/appbsdl.cpp kauai/src/host_event.cpp kauai/src/sdl_sound.cpp kauai/src/dlgsdl.cpp kauai/src/video_stream_sdl.cpp)
+  target_link_libraries(kauai PUBLIC kauai-sdl-audio)
+  target_compile_definitions(kauai PUBLIC KAUAI_SDL3)
+  target_link_libraries(kauai PUBLIC kauai-sdl-host kauai-sdl-midi)
+  target_link_libraries(kauai PUBLIC kauai-sdl-video)
+  target_link_libraries(kauai PRIVATE kauai-sdl-dialog)
+  add_executable(video-sdl-host-test EXCLUDE_FROM_ALL tests/video_sdl_host_test.cpp)
+  target_link_libraries(video-sdl-host-test PRIVATE kauai)
+  add_executable(app-assert-sdl-test EXCLUDE_FROM_ALL tests/app_assert_sdl_test.cpp)
+  target_link_libraries(app-assert-sdl-test PRIVATE kauai)
+  add_executable(dialog-controller-sdl-test EXCLUDE_FROM_ALL tests/dialog_controller_sdl_test.cpp tests/dialog_resources.rc)
+  target_link_libraries(dialog-controller-sdl-test PRIVATE kauai)
+  if(KAUAI_FREETYPE)
+    add_executable(font-list-test EXCLUDE_FROM_ALL tests/font_list_test.cpp)
+    target_link_libraries(font-list-test PRIVATE kauai)
+  endif()
+endif()
 target_include_directories(
   kauai
     PUBLIC
@@ -428,31 +821,44 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd_gui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/ctl.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor.cpp"
-    # dlg.cpp was promoted to kauai-core in 467a1c1; the kauai (gui) lib
-    # picks it up transitively via the kauai-core PUBLIC link below.
+    "${PROJECT_SOURCE_DIR}/kauai/src/dlg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/docb.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/frame.rc"
     "${PROJECT_SOURCE_DIR}/kauai/src/gfx.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/gfx_port.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/gfx_values.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/fontlist.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/pic.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/gob.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/gob_window.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidhelp.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidspace.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidworld.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/mbmpgui.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/midi_stream_win.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcomg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxeg.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/sndam.cpp"
+    # Registry/DLL-backed legacy spelling integration is a runtime service.
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/spell.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/textdoc.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/video.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/video_window.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/video_stream_win.cpp>
 
     # Windows GUI implementations
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/appbwin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/app_entry_win.cpp>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${PROJECT_SOURCE_DIR}/kauai/src/app_entry_posix.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/dlgwin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/fnidialogwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/gfxwin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/font_gdi.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/picwin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/regionwin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/region_native_win.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/menuwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/gobwin.cpp>
 )
@@ -464,11 +870,13 @@ target_compile_definitions(kauai PUBLIC
 target_link_libraries(kauai
   PUBLIC
     kauai-core
-    3DMMForever::AudioMan
-    $<$<PLATFORM_ID:Windows>:Msacm32>
     $<$<PLATFORM_ID:Windows>:Vfw32>
     $<$<PLATFORM_ID:Windows>:Winmm>
     $<$<PLATFORM_ID:Windows>:mpr>)
+if(NOT STUDIO_SDL3)
+  target_sources(kauai PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/sndam.cpp")
+  target_link_libraries(kauai PUBLIC 3DMMForever::AudioMan $<$<PLATFORM_ID:Windows>:Msacm32>)
+endif()
 
 # brender-core: BRender wrapper minus the World/PWorld gui binding.
 # Provides _BrDefault{Filesystem,Allocator,Diag} + the TextureMap and
@@ -483,7 +891,7 @@ target_sources(brender-core
     "${PROJECT_SOURCE_DIR}/bren/tmap.cpp"
     "${PROJECT_SOURCE_DIR}/bren/zbmp.cpp"
 )
-target_include_directories(brender-core PUBLIC "${PROJECT_SOURCE_DIR}/BREN/INC")
+target_include_directories(brender-core PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
 target_link_libraries(brender-core
   PUBLIC
     kauai-core
@@ -497,47 +905,37 @@ target_sources(brender
     PRIVATE
     "${PROJECT_SOURCE_DIR}/bren/bwld.cpp"
 )
-target_include_directories(brender PUBLIC "${PROJECT_SOURCE_DIR}/BREN/INC")
+target_include_directories(brender PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
 target_link_libraries(brender
   PUBLIC
     brender-core
     kauai
     BRender::Libraries)
 
-# --- engine-core: chunky-loader / data-structure layer, no playback ---
-#
-# Loaders for actor templates, body parts, models, materials, textures,
-# tags, and 3D text. Has zero references to UI / cmd / playback runtime
-# (CommandHandler, GraphicsObject, gob.h, etc.) -- verified per-file by
-# grep. Pulls only kauai-core + brender.
-#
-# This unblocks CLI tools and headless tests that want to call the
-# real Template::FSetActnCel / Body::SetPart{Model,Matrix} loaders
-# instead of re-implementing the binding (CelPartSpec, GLBS, GGCM,
-# CMTL graph) by hand. Sources include "soc_core.h" instead of
-# "soc.h" -- same content minus frame.h and the playback-side
-# headers (movie/scene/actor/tbox/msnd/srec).
+# --- engine-core: stored data, assets, evaluation and playback policy ---
+# Links only kauai-core + brender-core. Actor editing/playback, backgrounds
+# bound to World, sound import/playback and recording belong to engine.
+# World binding lives in body_world.cpp on engine; see library-split.md.
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/engine/actor.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/movie_data.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/scene_data.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_data.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_track.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_route.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_state.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_pose.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_frame.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_timeline.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_seek.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/text_box_data.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/sound_queue.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/movie_playback.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
-    # MovieSoundQueue is a CommandHandler subclass; safe in engine-core
-    # now that cmd.cpp's CommandHandler/CEM core lives in kauai-core
-    # (cmd_core split, Task 6). msnd.cpp's only kauai-gui dep is
-    # vpsndm (SoundManager singleton), which the gui-linked consumers
-    # (studio, movie-save-load-test) supply transitively. The lone
-    # engine-core consumer that doesn't link kauai-gui --
-    # actor-render-test -- never pulls msnd.o because its call graph
-    # (Template/Body/Material) doesn't reference any msnd symbol.
-    "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/srec.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tdf.cpp"
@@ -545,24 +943,107 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/tmpl.cpp"
 )
 target_include_directories(engine-core PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/INC>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/inc>
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/BREN/INC>)
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
 target_link_libraries(engine-core PUBLIC kauai-core brender-core)
+
+# Compile Studio's editor/startup against the portable runtime headers before
+# enabling the complete POSIX executable and its content build pipeline.
+# Windows codec installation and the native debug MCP server are separate
+# platform dependencies; they are not covered by this compilation target.
+add_library(studio-runtime-compile-check OBJECT EXCLUDE_FROM_ALL
+  src/studio/ape.cpp src/studio/browser.cpp src/studio/esl.cpp
+  src/studio/popup.cpp src/studio/portf.cpp src/studio/resource_tables.cpp
+  src/studio/portfolio_sdl.cpp src/studio/scnsort.cpp src/studio/splot.cpp
+  src/studio/stdiobrw.cpp src/studio/stdioscb.cpp src/studio/studio.cpp
+  src/studio/tatr.cpp src/studio/tgob.cpp src/studio/utest.cpp
+  kauai/src/scrcomg.cpp)
+target_compile_definitions(studio-runtime-compile-check PRIVATE KAUAI_SDL3)
+target_include_directories(studio-runtime-compile-check PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/studio")
+target_link_libraries(studio-runtime-compile-check PRIVATE engine-core studio-content)
+add_executable(studio-layout-test EXCLUDE_FROM_ALL tests/studio_layout_test.cpp)
+target_compile_definitions(studio-layout-test PRIVATE KAUAI_SDL3)
+target_include_directories(studio-layout-test PRIVATE "${PROJECT_SOURCE_DIR}/src/studio")
+target_link_libraries(studio-layout-test PRIVATE engine-core)
+add_executable(studio-resources-test EXCLUDE_FROM_ALL tests/studio_resources_test.cpp src/studio/resource_tables.cpp)
+target_include_directories(studio-resources-test PRIVATE "${PROJECT_SOURCE_DIR}/inc")
+target_link_libraries(studio-resources-test PRIVATE kauai-core)
+add_executable(kidspace-descriptor-test EXCLUDE_FROM_ALL tests/kidspace_descriptor_test.cpp)
+target_link_libraries(kidspace-descriptor-test PRIVATE kauai-core)
+
+# Public archive boundary: legacy include paths/definitions stay private.
+add_library(three-mm-archive STATIC EXCLUDE_FROM_ALL
+  libraries/archive/src/archive.cpp libraries/archive/src/diagnostics.cpp
+  libraries/archive/src/legacy_diagnostics.cpp)
+add_library(ThreeMM::Archive ALIAS three-mm-archive)
+target_include_directories(three-mm-archive PUBLIC "${PROJECT_SOURCE_DIR}/libraries/archive/include")
+target_compile_features(three-mm-archive PUBLIC cxx_std_14)
+target_link_libraries(three-mm-archive PRIVATE engine-core)
+add_library(three-mm-preview STATIC EXCLUDE_FROM_ALL
+  libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp
+  libraries/archive/src/preview_background.cpp)
+add_library(ThreeMM::Preview ALIAS three-mm-preview)
+target_link_libraries(three-mm-preview PUBLIC ThreeMM::Archive PRIVATE engine-core)
+add_executable(preview-api-test EXCLUDE_FROM_ALL tests/preview_api_test.cpp tests/preview_api_include_order.cpp)
+target_link_libraries(preview-api-test PRIVATE ThreeMM::Preview)
+add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixture.cpp)
+target_link_libraries(preview-scene-fixture PRIVATE engine-core)
+add_executable(preview-scene-test EXCLUDE_FROM_ALL tests/preview_scene_test.cpp)
+target_link_libraries(preview-scene-test PRIVATE ThreeMM::Preview)
+add_executable(preview-background-test EXCLUDE_FROM_ALL tests/preview_background_test.cpp)
+target_link_libraries(preview-background-test PRIVATE ThreeMM::Preview)
+add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-background-test preview-scene-fixture)
+add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)
+add_executable(portfolio-data-test EXCLUDE_FROM_ALL tests/portfolio_data_test.cpp)
+target_link_libraries(portfolio-data-test PRIVATE engine-core)
+target_link_libraries(mbmp-pixels-test PRIVATE kauai-core)
+add_executable(archive-api-test EXCLUDE_FROM_ALL tests/archive_api_test.cpp tests/archive_api_include_order.cpp)
+target_link_libraries(archive-api-test PRIVATE ThreeMM::Archive)
+add_executable(inspector-gst-fixture EXCLUDE_FROM_ALL tests/inspector_gst_fixture.cpp)
+target_link_libraries(inspector-gst-fixture PRIVATE kauai-core)
+
+# Presentation adapters consume only the public archive API.
+add_library(inspector-data STATIC EXCLUDE_FROM_ALL src/inspector/archive.cpp)
+target_include_directories(inspector-data PUBLIC "${PROJECT_SOURCE_DIR}/src/inspector")
+target_link_libraries(inspector-data PUBLIC ThreeMM::Archive)
+if(BUILD_INSPECTOR)
+  add_subdirectory(src/inspector)
+endif()
 
 # --- engine: full playback runtime, transitively re-exports core ---
 add_library(engine)
 target_sources(engine
     PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/engine/body_world.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tbox.cpp"
 )
 target_include_directories(engine PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/INC>)
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/inc>)
 target_link_libraries(engine PUBLIC engine-core kauai brender)
+# Compile the actual playback sources with SDL interfaces independently of the
+# complete GUI link, so POSIX type/OS dependencies cannot hide behind headers.
+get_target_property(ENGINE_RUNTIME_SOURCES engine SOURCES)
+add_library(engine-runtime-compile-check OBJECT EXCLUDE_FROM_ALL
+  ${ENGINE_RUNTIME_SOURCES} src/engine/srec_sdl.cpp bren/bwld.cpp)
+target_compile_definitions(engine-runtime-compile-check PRIVATE KAUAI_SDL3)
+target_link_libraries(engine-runtime-compile-check PRIVATE engine-core)
+if(STUDIO_SDL3)
+  target_sources(engine PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/srec_sdl.cpp")
+else()
+  target_sources(engine PRIVATE "${PROJECT_SOURCE_DIR}/src/engine/srec.cpp")
+endif()
 
+if(BUILD_STUDIO)
 # On non-windows WIN32 is a no-op
 set(STUDIO_BUILD_STAMP_SRC "${PROJECT_BINARY_DIR}/generated/studio/build_stamp.cpp")
 add_custom_target(studio_build_stamp ALL
@@ -576,6 +1057,9 @@ add_custom_target(studio_build_stamp ALL
 set_source_files_properties("${STUDIO_BUILD_STAMP_SRC}" PROPERTIES GENERATED TRUE)
 
 add_executable(studio WIN32)
+if(STUDIO_SDL3)
+  kauai_copy_midi_assets(studio)
+endif()
 target_sources(studio
     PRIVATE
     "${PROJECT_SOURCE_DIR}/src/studio/ape.cpp"
@@ -585,6 +1069,9 @@ target_sources(studio
     "${PROJECT_SOURCE_DIR}/src/studio/mminstal.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/popup.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/portf.cpp"
+    "${PROJECT_SOURCE_DIR}/src/studio/resource_tables.cpp"
+    $<$<BOOL:${STUDIO_SDL3}>:${PROJECT_SOURCE_DIR}/src/studio/portfolio_sdl.cpp>
+    $<$<AND:$<PLATFORM_ID:Windows>,$<NOT:$<BOOL:${STUDIO_SDL3}>>>:${PROJECT_SOURCE_DIR}/src/studio/portfolio_win.cpp>
     "${PROJECT_SOURCE_DIR}/src/studio/scnsort.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/splot.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/stdiobrw.cpp"
@@ -611,19 +1098,24 @@ target_chomp_sources(studio
   "${PROJECT_SOURCE_DIR}/src/shared/shared.cht"
   "${PROJECT_SOURCE_DIR}/src/shared/sharecd.cht")
 
-target_link_libraries(studio PRIVATE engine)
+target_link_libraries(studio PRIVATE engine studio-content)
 set_property(TARGET studio PROPERTY OUTPUT_NAME 3dmovie)
+if(STUDIO_SDL3)
+  set_property(TARGET studio PROPERTY OUTPUT_NAME 3dmovie-sdl)
+endif()
 target_link_options(studio BEFORE PRIVATE $<$<LINK_LANG_AND_ID:CXX,MSVC>:/MANIFESTUAC:NO>)
 
 # Mirror the freshly linked exe into ${CMAKE_INSTALL_PREFIX} (dist/ for the
 # default presets) so iterative dev runs of dist/3dmovie.exe pick up rebuilds
 # without needing a separate `cmake --install` step. The chunk/data files are
 # only refreshed by a real install -- this only copies the exe.
+if(NOT STUDIO_SDL3)
 add_custom_command(TARGET studio POST_BUILD
   COMMAND "${CMAKE_COMMAND}" -E copy_if_different
     "$<TARGET_FILE:studio>" "${CMAKE_INSTALL_PREFIX}/$<TARGET_FILE_NAME:studio>"
   COMMENT "Mirroring 3dmovie.exe to ${CMAKE_INSTALL_PREFIX}"
   VERBATIM)
+endif()
 target_link_options(studio
   BEFORE PRIVATE
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>
@@ -711,6 +1203,15 @@ install(FILES $<TARGET_PROPERTY:studio,3DMM_SAMPLES>
   DESTINATION "Microsoft Kids/Users/Melanie")
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/cd9/"
   DESTINATION "Microsoft Kids/3D Movie Maker")
+# Original AVI media is supplied separately from the source assets. Keep the
+# existing product-directory lookup and include available clips in local installs.
+set(STUDIO_AVI_SOURCE_DIR "${PROJECT_SOURCE_DIR}/content-files" CACHE PATH "Directory containing original Studio AVI clips; empty to skip")
+if(STUDIO_AVI_SOURCE_DIR)
+  file(GLOB studio_avi_files CONFIGURE_DEPENDS "${STUDIO_AVI_SOURCE_DIR}/*.avi")
+  if(studio_avi_files)
+    install(FILES ${studio_avi_files} DESTINATION "Microsoft Kids/3D Movie Maker")
+  endif()
+endif()
 
 # CPack must be included *last*, which is antithetical to how most CMake
 # Modules work. We can set all variables for all packaging regardless of
@@ -731,4 +1232,309 @@ if (BUILD_PACKAGES)
     endif()
   endforeach()
   include(CPack)
+endif()
+
+endif() # BUILD_STUDIO
+
+# Force every core archive into an independent consumer on each platform.
+if(MSVC)
+  add_library(core-native-interop-check OBJECT EXCLUDE_FROM_ALL tests/native_interop_test.cpp)
+  target_link_libraries(core-native-interop-check PRIVATE engine-core)
+endif()
+foreach(core IN ITEMS kauai-core brender-core engine-core)
+  add_executable(${core}-link-test EXCLUDE_FROM_ALL tests/core_link_test.cpp)
+  if(MSVC OR APPLE)
+    target_link_libraries(${core}-link-test PRIVATE ${core})
+  endif()
+  set(core_archives ${core})
+  if(core STREQUAL "engine-core")
+    target_compile_definitions(${core}-link-test PRIVATE TEST_ENGINE_CORE)
+    list(APPEND core_archives brender-core kauai-core)
+  elseif(core STREQUAL "brender-core")
+    target_compile_definitions(${core}-link-test PRIVATE TEST_BRENDER_CORE)
+    list(APPEND core_archives kauai-core)
+  endif()
+  foreach(archive IN LISTS core_archives)
+    if(MSVC)
+      target_link_options(${core}-link-test PRIVATE /OPT:NOREF /WHOLEARCHIVE:$<TARGET_FILE:${archive}>)
+    elseif(APPLE)
+      target_link_options(${core}-link-test PRIVATE "LINKER:-force_load,$<TARGET_FILE:${archive}>")
+    else()
+      target_link_libraries(${core}-link-test PRIVATE "-Wl,--whole-archive" ${archive} "-Wl,--no-whole-archive")
+    endif()
+  endforeach()
+endforeach()
+
+add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
+  preview-checks
+  mbmp-pixels-test
+  actor-render-test extract-bmdl inspect-chunks three-mm three-mm-fixture
+  platform-services-test file-services-test user-services-test settings-store-test filename-test text-services-test
+  text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)
+add_dependencies(core-checks picture-data-test dialog-resource-test dialog-api-check dialog-controller-api-check dialog-model-test legacy-math-test pixel-canvas-test font-services-test cursor-data-test)
+add_dependencies(core-checks kidspace-descriptor-test)
+add_dependencies(core-checks portfolio-api-check)
+add_dependencies(core-checks video-api-check)
+add_dependencies(core-checks graphics-api-test)
+add_dependencies(core-checks portfolio-data-test)
+add_dependencies(core-checks file-browser-test)
+add_dependencies(core-checks dib-frame-test)
+add_dependencies(core-checks gob-api-check)
+add_dependencies(core-checks app-api-check app-sdl-api-check)
+add_dependencies(core-checks avi-movie-test)
+if(TARGET avi-corpus-win-test AND EXISTS "${PROJECT_SOURCE_DIR}/content-files/proj1.avi")
+  add_dependencies(core-checks avi-corpus-win-test)
+endif()
+if(TARGET dib-frame-gdi-test)
+  add_dependencies(core-checks dib-frame-gdi-test)
+  add_dependencies(core-checks video-stream-host-test)
+endif()
+add_library(sdl-sound-boundary-check OBJECT EXCLUDE_FROM_ALL kauai/src/sdl_sound.cpp)
+target_link_libraries(sdl-sound-boundary-check PRIVATE kauai-core kauai-audio-mixer)
+add_dependencies(core-checks sdl-sound-boundary-check)
+if(KAUAI_MIDI_SYNTH)
+  add_dependencies(core-checks midi-synth-test)
+endif()
+if(TARGET midi-sdl-test)
+  add_dependencies(core-checks midi-sdl-test)
+endif()
+add_dependencies(core-checks sdl-runtime-compile-check studio-runtime-compile-check engine-runtime-compile-check studio-layout-test studio-resources-test studio-content-test studio-startup-test studio-entry-test midi-mixer-test midi-worker-test midi-stream-api-check palette-state-test pixel-buffer-test damage-map-test studio-shortcuts-test audio-mixer-test wave-codec-test recording-data-test ellipse-geometry-test)
+if(KAUAI_FREETYPE)
+  add_dependencies(core-checks font-freetype-test)
+  add_dependencies(core-checks font-host-test)
+endif()
+if(TARGET font-list-test)
+  add_dependencies(core-checks font-list-test)
+endif()
+if(TARGET settings-store-win-test)
+  add_dependencies(core-checks settings-store-win-test)
+endif()
+if(TARGET settings-store-posix-test)
+  add_dependencies(core-checks settings-store-posix-test)
+endif()
+add_dependencies(core-checks archive-api-test inspector-gst-fixture)
+if(WIN32 AND SOC_X86 AND AudioMan_FOUND)
+  add_executable(wave-audioman-compat-test EXCLUDE_FROM_ALL tests/wave_audioman_compat_test.cpp)
+  target_sources(wave-audioman-compat-test PRIVATE kauai/src/stub.cpp)
+  target_link_libraries(wave-audioman-compat-test PRIVATE kauai-wave-codec 3DMMForever::AudioMan winmm msacm32 ole32)
+  target_link_options(wave-audioman-compat-test PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+  add_dependencies(core-checks wave-audioman-compat-test)
+  add_executable(recording-audioman-compat-test EXCLUDE_FROM_ALL tests/recording_audioman_compat_test.cpp kauai/src/stub.cpp)
+  target_link_libraries(recording-audioman-compat-test PRIVATE kauai-recording-data 3DMMForever::AudioMan winmm msacm32 ole32)
+  target_link_options(recording-audioman-compat-test PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+  add_dependencies(core-checks recording-audioman-compat-test)
+endif()
+
+if(BUILD_TESTING)
+  if(TARGET window-services-sdl-test)
+    add_dependencies(core-checks window-services-sdl-test)
+    add_test(NAME window-services-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software $<TARGET_FILE:window-services-sdl-test>)
+    if(NOT STUDIO_SDL3)
+      add_dependencies(core-checks sdl-host-test)
+      add_test(NAME sdl-host COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software $<TARGET_FILE:sdl-host-test> "${PROJECT_BINARY_DIR}/sdl-host-test.bmp")
+    endif()
+  endif()
+  if(TARGET app-assert-sdl-test)
+    add_dependencies(core-checks app-assert-sdl-test)
+    add_test(NAME app-assert-sdl COMMAND app-assert-sdl-test "${PROJECT_BINARY_DIR}/assertion-dialog.bmp")
+    set_tests_properties(app-assert-sdl PROPERTIES ENVIRONMENT "SDL_RENDER_DRIVER=software" TIMEOUT 30 SKIP_RETURN_CODE 77)
+  endif()
+  if(TARGET window-geometry-sdl-test)
+    add_dependencies(core-checks window-geometry-sdl-test)
+    add_test(NAME window-geometry-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=windows SDL_RENDER_DRIVER=software $<TARGET_FILE:window-geometry-sdl-test>)
+  endif()
+  if(TARGET video-sdl-test)
+    add_dependencies(core-checks video-sdl-test)
+    add_test(NAME video-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:video-sdl-test>)
+  endif()
+  if(TARGET video-sdl-host-test)
+    add_dependencies(core-checks video-sdl-host-test)
+    add_test(NAME video-sdl-host COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:video-sdl-host-test> "${PROJECT_BINARY_DIR}/video-sdl-fixture.avi")
+  endif()
+  add_test(NAME archive-api COMMAND ${CMAKE_COMMAND}
+    -DTEST_EXE=$<TARGET_FILE:archive-api-test> -DFIXTURE_EXE=$<TARGET_FILE:three-mm-fixture>
+    -DGST_FIXTURE_EXE=$<TARGET_FILE:inspector-gst-fixture>
+    -DTEST_DIR=${PROJECT_BINARY_DIR}/archive-api-test -P ${PROJECT_SOURCE_DIR}/tests/check_archive_api.cmake)
+  add_test(NAME picture-data COMMAND picture-data-test)
+  add_test(NAME dialog-resource COMMAND dialog-resource-test)
+  add_test(NAME dialog-model COMMAND dialog-model-test)
+  add_test(NAME pixel-canvas COMMAND pixel-canvas-test)
+  add_test(NAME font-services COMMAND font-services-test)
+  if(TARGET font-list-test)
+    add_test(NAME font-list COMMAND font-list-test)
+  endif()
+  if(KAUAI_FREETYPE AND KAUAI_FONT_TEST_TTF AND KAUAI_FONT_TEST_FON)
+    add_test(NAME font-freetype COMMAND font-freetype-test "${KAUAI_FONT_TEST_TTF}" "${KAUAI_FONT_TEST_FON}" ${KAUAI_FONT_TEST_COLLECTION})
+    add_test(NAME font-host COMMAND font-host-test "${KAUAI_FONT_TEST_TTF}" "${KAUAI_FONT_TEST_FON}" "${PROJECT_BINARY_DIR}/font-host-fixture")
+  endif()
+  add_test(NAME legacy-math COMMAND legacy-math-test)
+  add_test(NAME cursor-data COMMAND cursor-data-test)
+  if(KAUAI_MIDI_SYNTH)
+    add_test(NAME midi-synth COMMAND midi-synth-test "${KAUAI_MIDI_BANK_FILE}")
+  endif()
+  if(TARGET midi-sdl-test)
+    add_test(NAME midi-sdl COMMAND midi-sdl-test)
+    set_tests_properties(midi-sdl PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy" TIMEOUT 15)
+  endif()
+  add_test(NAME midi-mixer COMMAND midi-mixer-test)
+  set_tests_properties(midi-mixer PROPERTIES TIMEOUT 10)
+  add_test(NAME midi-worker COMMAND midi-worker-test)
+  set_tests_properties(midi-worker PROPERTIES TIMEOUT 10)
+  add_test(NAME palette-state COMMAND palette-state-test)
+  add_test(NAME pixel-buffer COMMAND pixel-buffer-test)
+  if(TARGET pixel-port-test)
+    add_dependencies(core-checks pixel-port-test)
+    add_test(NAME pixel-port COMMAND pixel-port-test)
+    if(NOT WIN32)
+      add_test(NAME pixel-port-window COMMAND pixel-port-test --sdl-window)
+      set_tests_properties(pixel-port-window PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
+    endif()
+  endif()
+  add_test(NAME damage-map COMMAND damage-map-test)
+  add_test(NAME studio-content COMMAND studio-content-test)
+  add_test(NAME studio-layout COMMAND studio-layout-test)
+  add_test(NAME studio-resources COMMAND studio-resources-test)
+  add_test(NAME kidspace-descriptor COMMAND kidspace-descriptor-test)
+  add_test(NAME studio-startup COMMAND studio-startup-test)
+  add_test(NAME studio-entry COMMAND studio-entry-test -m "-pMovie Maker" -- "/films/my \"cut\".3mm")
+  add_test(NAME studio-shortcuts COMMAND studio-shortcuts-test)
+  add_test(NAME audio-mixer COMMAND audio-mixer-test)
+  add_test(NAME wave-codec COMMAND wave-codec-test)
+  add_test(NAME recording-data COMMAND recording-data-test)
+  add_test(NAME ellipse-geometry COMMAND ellipse-geometry-test)
+  if(TARGET wave-audioman-compat-test)
+    add_test(NAME wave-audioman-compat COMMAND wave-audioman-compat-test)
+    add_test(NAME recording-audioman-compat COMMAND recording-audioman-compat-test)
+  endif()
+  if(WIN32)
+    add_test(NAME ellipse-geometry-gdi COMMAND ellipse-geometry-gdi-test)
+    add_test(NAME dialog-resource-win COMMAND dialog-resource-win-test)
+    add_test(NAME midi-stream-host COMMAND midi-stream-host-test)
+    set_tests_properties(midi-stream-host PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 20)
+    add_test(NAME palette-gdi COMMAND palette-gdi-test)
+    add_test(NAME gdi-adapter COMMAND gdi-adapter-test)
+    add_test(NAME packed-shape-gdi COMMAND packed-shape-gdi-test)
+    add_test(NAME pixel-canvas-gdi COMMAND pixel-canvas-gdi-test)
+    add_test(NAME pixel-canvas-indexed-gdi COMMAND pixel-canvas-indexed-gdi-test)
+    add_test(NAME masked-transfer-gdi COMMAND masked-transfer-gdi-test)
+    add_test(NAME indexed-copy-gdi COMMAND indexed-copy-gdi-test)
+    add_test(NAME packed-copy-gdi COMMAND packed-copy-gdi-test)
+    add_test(NAME pixel-storage-gdi COMMAND pixel-storage-gdi-test)
+    add_test(NAME font-gdi COMMAND font-gdi-test)
+  endif()
+  add_test(NAME text-services COMMAND text-services-test)
+  add_test(NAME text-portable COMMAND text-portable-test)
+  add_test(NAME string-compat COMMAND string-compat-test)
+  add_test(NAME filename COMMAND filename-test)
+  add_test(NAME portfolio-data COMMAND portfolio-data-test ${PROJECT_BINARY_DIR}/portfolio-data-fixture)
+  add_test(NAME file-browser COMMAND file-browser-test ${PROJECT_BINARY_DIR}/file-browser-fixture)
+  add_test(NAME dib-frame COMMAND dib-frame-test)
+  add_test(NAME avi-movie COMMAND avi-movie-test)
+  if(TARGET avi-corpus-win-test AND EXISTS "${PROJECT_SOURCE_DIR}/content-files/proj1.avi")
+    add_test(NAME avi-corpus-win COMMAND avi-corpus-win-test "${PROJECT_SOURCE_DIR}/content-files")
+  endif()
+  add_test(NAME graphics-api COMMAND graphics-api-test)
+  if(TARGET dib-frame-gdi-test)
+    add_test(NAME dib-frame-gdi COMMAND dib-frame-gdi-test)
+    add_test(NAME video-stream-host COMMAND video-stream-host-test ${PROJECT_BINARY_DIR}/video-host-fixture.avi)
+  endif()
+  add_test(NAME file-services COMMAND file-services-test)
+  add_test(NAME user-services COMMAND user-services-test)
+  add_test(NAME settings-store COMMAND settings-store-test)
+  if(TARGET settings-store-win-test)
+    add_test(NAME settings-store-win COMMAND settings-store-win-test)
+  endif()
+  if(TARGET settings-store-posix-test)
+    add_test(NAME settings-store-posix COMMAND settings-store-posix-test)
+  endif()
+  add_test(NAME platform-services COMMAND platform-services-test)
+  add_test(NAME three-mm-dump
+    COMMAND ${CMAKE_COMMAND} -DDUMP_EXE=$<TARGET_FILE:three-mm>
+      -DFIXTURE_EXE=$<TARGET_FILE:three-mm-fixture>
+      -DTEST_DIR=${PROJECT_BINARY_DIR}/three-mm-test
+      -P ${PROJECT_SOURCE_DIR}/tests/check_three_mm.cmake)
+  add_test(NAME geometry COMMAND geometry-test)
+  if(TARGET dialog-sdl-test)
+    add_dependencies(core-checks file-dialog-sdl-test)
+    add_test(NAME file-dialog-sdl COMMAND file-dialog-sdl-test ${PROJECT_BINARY_DIR}/file-dialog-fixture ${PROJECT_BINARY_DIR}/file-dialog.bmp)
+    set_tests_properties(file-dialog-sdl PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_RENDER_DRIVER=software")
+    add_dependencies(core-checks dialog-sdl-test)
+    add_test(NAME dialog-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:dialog-sdl-test> ${PROJECT_BINARY_DIR}/dialog-sdl-test.bmp)
+  endif()
+  if(STUDIO_SDL3)
+    add_dependencies(core-checks dialog-controller-sdl-test)
+    add_test(NAME dialog-controller-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:dialog-controller-sdl-test>)
+    add_dependencies(core-checks recording-sdl-test movie-recording-test)
+    add_test(NAME recording-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:recording-sdl-test>)
+    add_test(NAME movie-recording COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:movie-recording-test>)
+    add_dependencies(core-checks sdl-host-test clipboard-sdl-test cursor-sdl-test scroll-sdl-test focus-sdl-test input-sdl-test events-sdl-test audio-sdl-test sound-sdl-test wave-import-sdl-test movie-sound-import-test)
+    add_dependencies(core-checks window-lifecycle-sdl-test)
+    add_test(NAME window-lifecycle-sdl COMMAND window-lifecycle-sdl-test)
+    set_tests_properties(window-lifecycle-sdl PROPERTIES ENVIRONMENT "SDL_RENDER_DRIVER=software")
+    add_test(NAME movie-sound-import COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:movie-sound-import-test>)
+    add_test(NAME wave-import-sdl COMMAND wave-import-sdl-test)
+    add_test(NAME audio-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:audio-sdl-test>)
+    add_test(NAME sound-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_AUDIODRIVER=dummy $<TARGET_FILE:sound-sdl-test>)
+    add_test(NAME sdl-host COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:sdl-host-test> ${PROJECT_BINARY_DIR}/sdl-host-test.bmp)
+    add_test(NAME clipboard-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:clipboard-sdl-test>)
+    add_test(NAME cursor-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:cursor-sdl-test> ${PROJECT_BINARY_DIR}/cursor-sdl-test.bmp)
+    add_test(NAME scroll-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=windows SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:scroll-sdl-test>)
+    add_test(NAME focus-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=windows SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:focus-sdl-test>)
+    add_test(NAME input-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:input-sdl-test>)
+    add_test(NAME events-sdl COMMAND ${CMAKE_COMMAND} -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
+      $<TARGET_FILE:events-sdl-test>)
+  endif()
+  add_test(NAME mbmp-pixels COMMAND mbmp-pixels-test)
+  add_test(NAME codec COMMAND codec-test)
+  add_test(NAME brender-diagnostics
+    COMMAND ${CMAKE_COMMAND} -DTEST_EXE=$<TARGET_FILE:brender-diagnostic-test>
+      -P ${PROJECT_SOURCE_DIR}/tests/check_diagnostics.cmake)
+  if(WIN32)
+    add_test(NAME movie-save-load COMMAND movie-save-load-test)
+  endif()
+  add_custom_target(library-checks DEPENDS core-checks)
+  if(WIN32)
+    add_dependencies(library-checks packed-shape-gdi-test midi-stream-host-test palette-gdi-test movie-save-load-test movie-chomp gdi-adapter-test dialog-resource-win-test ellipse-geometry-gdi-test pixel-canvas-gdi-test pixel-canvas-indexed-gdi-test masked-transfer-gdi-test indexed-copy-gdi-test packed-copy-gdi-test pixel-storage-gdi-test font-gdi-test)
+  endif()
+  if(MSVC)
+    add_dependencies(library-checks core-native-interop-check)
+  endif()
+  foreach(core IN ITEMS kauai-core brender-core engine-core)
+    add_test(NAME ${core}-link COMMAND ${core}-link-test)
+  endforeach()
+  set(TEST_CONTENT_DIR "${PROJECT_SOURCE_DIR}/content-files" CACHE PATH "Original 3DMM content fixtures")
+  set(TEST_MAIN_CHK "${PROJECT_SOURCE_DIR}/dist/Microsoft Kids/3D Movie Maker/3dmovie.chk"
+    CACHE FILEPATH "Main chunky file with shade table for the actor render test")
+  if(EXISTS "${TEST_CONTENT_DIR}/tmpls.3cn" AND EXISTS "${TEST_MAIN_CHK}")
+    add_test(NAME actor-render COMMAND actor-render-test "${TEST_MAIN_CHK}"
+      "${TEST_CONTENT_DIR}/tmpls.3cn" 0x2010 "${PROJECT_BINARY_DIR}/actor-test.pgm")
+  endif()
+  if(EXISTS "${TEST_CONTENT_DIR}/tmpls.3cn" AND EXISTS "${TEST_CONTENT_DIR}/bkgds.3cn"
+      AND EXISTS "${TEST_CONTENT_DIR}/tdfs.3cn" AND EXISTS "${TEST_CONTENT_DIR}/mtrls.3cn"
+      AND EXISTS "${TEST_MAIN_CHK}")
+    set(preview_gui_args)
+    if(BUILD_INSPECTOR)
+      list(APPEND preview_gui_args -DGUI_EXE=$<TARGET_FILE:three-mm-inspector>)
+    endif()
+    add_test(NAME asset-previews COMMAND ${CMAKE_COMMAND}
+      -DAPI_EXE=$<TARGET_FILE:preview-api-test>
+      -DSCENE_EXE=$<TARGET_FILE:preview-scene-test>
+      -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>
+      -DBACKGROUND_EXE=$<TARGET_FILE:preview-background-test>
+      -DMAIN_CHK=${TEST_MAIN_CHK} -DCONTENT_DIR=${TEST_CONTENT_DIR}
+      ${preview_gui_args}
+      -DTEST_DIR=${PROJECT_BINARY_DIR}/preview-test
+      -P ${PROJECT_SOURCE_DIR}/tests/check_previews.cmake)
+  endif()
 endif()

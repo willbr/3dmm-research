@@ -12,7 +12,7 @@
     then by	ChunkTagOrType, then by ChunkNumber.
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(TagList)
@@ -89,7 +89,7 @@ TagList::~TagList(void)
 /***************************************************************************
     Return the count of tags in the TagList
 ***************************************************************************/
-long TagList::Ctag(void)
+LegacyLong TagList::Ctag(void)
 {
     AssertThis(0);
 
@@ -99,7 +99,7 @@ long TagList::Ctag(void)
 /***************************************************************************
     Get the itag'th tag from the TagList
 ***************************************************************************/
-void TagList::GetTag(long itag, PTAG ptag)
+void TagList::GetTag(LegacyLong itag, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(itag, 0, Ctag());
@@ -118,15 +118,15 @@ void TagList::GetTag(long itag, PTAG ptag)
     at which the tag should be inserted into the GeneralGroup to maintain correct
     sorting order in the GeneralGroup.
 ***************************************************************************/
-bool TagList::_FFindTag(PTAG ptag, long *pitag)
+bool TagList::_FFindTag(PTAG ptag, LegacyLong *pitag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     AssertVarMem(pitag);
 
     CachedTag *qtagf;
-    long itagfMin, itagfLim, itagf;
-    long sid = ptag->sid;
+    LegacyLong itagfMin, itagfLim, itagf;
+    LegacyLong sid = ptag->sid;
     ChunkTagOrType ctg = ptag->ctg;
     ChunkNumber cno = ptag->cno;
 
@@ -173,7 +173,7 @@ bool TagList::FInsertTag(PTAG ptag, bool fCacheChildren)
     AssertThis(0);
     AssertVarMem(ptag);
 
-    long itag;
+    LegacyLong itag;
     CachedTag tagf;
 
     if (!_FFindTag(ptag, &itag))
@@ -205,11 +205,11 @@ bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
     AssertThis(0);
     AssertVarMem(ptag);
 
-    long itagf;
+    LegacyLong itagf;
     ChidCtgPair ccNew;
     ChidCtgPair *prgcc;
-    long ccc; // count of ChidCtgPairs
-    long icc;
+    LegacyLong ccc; // count of ChidCtgPairs
+    LegacyLong icc;
 
     if (!_FFindTag(ptag, &itagf))
     {
@@ -253,10 +253,10 @@ bool TagList::FCacheTags(void)
 {
     AssertThis(0);
 
-    long itagf;
+    LegacyLong itagf;
     CachedTag tagf;
-    long ccc; // count of ChidCtgPairs
-    long icc;
+    LegacyLong ccc; // count of ChidCtgPairs
+    LegacyLong icc;
     ChidCtgPair cc;
     TAG tag;
 
@@ -289,7 +289,7 @@ bool TagList::FCacheTags(void)
 /***************************************************************************
     Assert the validity of the TagList.
 ***************************************************************************/
-void TagList::AssertValid(ulong grf)
+void TagList::AssertValid(LegacyUlong grf)
 {
     TagList_PAR::AssertValid(fobjAllocated);
     AssertPo(_pggtagf, 0);
