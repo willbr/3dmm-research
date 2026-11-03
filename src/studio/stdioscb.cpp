@@ -336,7 +336,7 @@ LExecuteCmd:
             if (fThumbDrag)
             {
                 // update scene counter
-                stn.FFormatSz(PszLit("%4d"), lwDest + 1);
+                stn.FFormatSz(PszLit("%4d"), static_cast<LegacyLong>(lwDest + 1));
                 _ptgobScene->SetText(&stn);
                 return fTrue;
             }
@@ -369,7 +369,7 @@ LExecuteCmd:
             if (fThumbDrag)
             {
                 // update frame counter
-                stn.FFormatSz(PszLit("%4d"), lwDest - pscen->NfrmFirst() + 1);
+                stn.FFormatSz(PszLit("%4d"), static_cast<LegacyLong>(lwDest - pscen->NfrmFirst() + 1));
                 _ptgobFrame->SetText(&stn);
                 return fTrue;
             }
@@ -549,16 +549,16 @@ void StudioScrollbars::Update(void)
     // update frame counter
     if (_fNoAutoadjust)
     {
-        stn.FFormatSz(PszLit("%4d"), pscen->Nfrm() - _nfrmFirstOld + 1);
+        stn.FFormatSz(PszLit("%4d"), static_cast<LegacyLong>(pscen->Nfrm() - _nfrmFirstOld + 1));
     }
     else
     {
-        stn.FFormatSz(PszLit("%4d"), pscen->Nfrm() - pscen->NfrmFirst() + 1);
+        stn.FFormatSz(PszLit("%4d"), static_cast<LegacyLong>(pscen->Nfrm() - pscen->NfrmFirst() + 1));
     }
     _ptgobFrame->SetText(&stn);
 
     // update scene counter
-    stn.FFormatSz(PszLit("%4d"), _pmvie->Iscen() + 1);
+    stn.FFormatSz(PszLit("%4d"), static_cast<LegacyLong>(_pmvie->Iscen() + 1));
     _ptgobScene->SetText(&stn);
 
 #ifdef SHOW_FPS
@@ -591,7 +591,7 @@ void StudioScrollbars::Update(void)
 
         fps = ((float)((cfrmCur - cfrmTail) * kdtsSecond)) / ((float)(tsCur - tsTail));
 
-        stn.FFormatSz(PszLit("%2d.%02d fps"), (int)fps, (int)((fps - (int)fps) * 100));
+        stn.FFormatSz(PszLit("%2d.%02d fps"), static_cast<LegacyLong>(fps), static_cast<LegacyLong>((fps - (int)fps) * 100));
         _ptgobFps->SetText(&stn);
     }
 #endif // SHOW_FPS
@@ -681,7 +681,7 @@ void StudioScrollbars::MarkMem(void)
  *		Nothing.
  *
 \*****************************************************************************/
-void StudioScrollbars::AssertValid(ulong grf)
+void StudioScrollbars::AssertValid(LegacyUlong grf)
 {
     StudioScrollbars_PAR::AssertValid(fobjAllocated);
 }

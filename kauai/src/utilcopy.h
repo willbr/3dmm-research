@@ -16,19 +16,19 @@
 #ifndef UTILCOPY_H
 #define UTILCOPY_H
 
-void BltPb(void *pv1, void *pv2, long cb);
-void CopyPb(void *pv1, void *pv2, long cb);
-void ClearPb(void *pv, long cb);
-void FillPb(void *pv1, long cb, byte b);
-void ReversePb(void *pv, long cb);
-void ReverseRgsw(void *pv, long csw);
-void ReverseRglw(void *pv, long clw);
-void SwapBlocks(void *pv, long cb1, long cb2);
-void SwapPb(void *pv1, void *pv2, long cb);
-void MoveElement(void *prgv, long cbElement, long ivSrc, long ivTarget);
-bool FEqualRgb(void *pv1, void *pv2, long cb);
-long CbEqualRgb(void *pv1, void *pv2, long cbMax);
-ulong FcmpCompareRgb(void *pv1, void *pv2, long cb);
+void BltPb(void *pv1, void *pv2, LegacyLong cb);
+void CopyPb(void *pv1, void *pv2, LegacyLong cb);
+void ClearPb(void *pv, LegacyLong cb);
+void FillPb(void *pv1, LegacyLong cb, byte b);
+void ReversePb(void *pv, LegacyLong cb);
+void ReverseRgsw(void *pv, LegacyLong csw);
+void ReverseRglw(void *pv, LegacyLong clw);
+void SwapBlocks(void *pv, LegacyLong cb1, LegacyLong cb2);
+void SwapPb(void *pv1, void *pv2, LegacyLong cb);
+void MoveElement(void *prgv, LegacyLong cbElement, LegacyLong ivSrc, LegacyLong ivTarget);
+bool FEqualRgb(void *pv1, void *pv2, LegacyLong cb);
+LegacyLong CbEqualRgb(void *pv1, void *pv2, LegacyLong cbMax);
+LegacyUlong FcmpCompareRgb(void *pv1, void *pv2, LegacyLong cb);
 
 #ifdef DEBUG
 #define SwapVars(pv1, pv2)                                                                                             \

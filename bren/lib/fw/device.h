@@ -24,11 +24,11 @@ typedef void BR_ASM_CALL ctx_fill_cbfn(struct br_context *dev,
 	br_pixelmap *dst, br_uint_32 colour);
 
 typedef void BR_ASM_CALL ctx_rectangle_cbfn(struct br_context *dev,
-	br_pixelmap *dst,br_uint_16 x,br_uint_16 y,br_uint_16 w,br_uint_16 h,
+	br_pixelmap *dst,br_int_16 x,br_int_16 y,br_uint_16 w,br_uint_16 h,
 	br_uint_32 colour);
 
 typedef void BR_ASM_CALL ctx_rectangle2_cbfn(struct br_context *dev,
-	br_pixelmap *dst,br_uint_16 x,br_uint_16 y,br_uint_16 w,br_uint_16 h,
+	br_pixelmap *dst,br_int_16 x,br_int_16 y,br_uint_16 w,br_uint_16 h,
 	br_uint_32 colour1, br_uint_32 colour2);
 
 typedef void BR_ASM_CALL ctx_rectangle_copy_cbfn(struct br_context *dev,

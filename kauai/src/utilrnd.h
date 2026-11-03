@@ -29,11 +29,11 @@ class Random : public Random_PAR
     NOCOPY(Random)
 
   protected:
-    ulong _luSeed;
+    LegacyUlong _luSeed;
 
   public:
-    Random(ulong luSeed = 0L);
-    virtual long LwNext(long lwLim);
+    Random(LegacyUlong luSeed = 0L);
+    virtual LegacyLong LwNext(LegacyLong lwLim);
 };
 
 /***************************************************************************
@@ -50,21 +50,21 @@ class Shuffler : public Shuffler_PAR
     NOCOPY(Shuffler)
 
   protected:
-    long _clw;
-    long _ilw;
+    LegacyLong _clw;
+    LegacyLong _ilw;
     HQ _hqrglw;
     bool _fCustom; // false iff the values in the hq are [0, _clw)
 
-    bool _FEnsureHq(long clw);
+    bool _FEnsureHq(LegacyLong clw);
     void _ShuffleCore(void);
 
   public:
-    Shuffler(ulong luSeed = 0L);
+    Shuffler(LegacyUlong luSeed = 0L);
     ~Shuffler(void);
-    void Shuffle(long lwLim);
-    void ShuffleRglw(long clw, long *prglw);
+    void Shuffle(LegacyLong lwLim);
+    void ShuffleRglw(LegacyLong clw, LegacyLong *prglw);
 
-    virtual long LwNext(long lwLim = 0);
+    virtual LegacyLong LwNext(LegacyLong lwLim = 0);
 };
 
 #endif // UTILRND_H

@@ -16,36 +16,10 @@
 #ifndef MDEV2PRI_H
 #define MDEV2PRI_H
 
-// This corresponds to the Win95 MIDIEVENT structure (with no optional data).
-// We're using the older headers, so need to define our own.
-struct MEV
-{
-    DWORD dwDeltaTime; // midi ticks between this and previous event
-    DWORD dwStreamID;  // reserved - must be zero
-    DWORD dwEvent;
-};
+#include "midi_stream_host.h"
+#include "midi_worker.h"
+using MEV = KauaiMidi::StreamEvent;
 typedef MEV *PMEV;
-
-// This corresponds to the Win95 MIDIHDR structure.
-// We're using the older headers, so need to define our own.
-struct MH
-{
-    byte *lpData;
-    DWORD dwBufferLength;
-    DWORD dwBytesRecorded;
-    DWORD dwUser;
-    DWORD dwFlags;
-    MH *lpNext;
-    DWORD reserved;
-    DWORD dwOffset;
-    DWORD dwReserved[8];
-};
-typedef MH *PMH;
-
-typedef MIDIHDR *PMHO;
-
-// A midi stream handle can be used as a midi out handle.
-typedef HMIDIOUT HMS;
 
 /***************************************************************************
     This is the midi stream cached object.
@@ -61,28 +35,28 @@ class MidiStreamCached : public MidiStreamCached_PAR
 
   protected:
     PDynamicArray _pglmev;
-    ulong _dts;
+    LegacyUlong _dts;
 
     MidiStreamCached(void);
     bool _FInit(PMidiStream pmids);
 
   public:
-    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PMidiStreamCached PmdwsRead(PDataBlock pblck);
 
     ~MidiStreamCached(void);
 
-    ulong Dts(void)
+    LegacyUlong Dts(void)
     {
         return _dts;
     }
-    void *PvLockData(long *pcb);
+    void *PvLockData(LegacyLong *pcb);
     void UnlockData(void);
 };
 
 // forward declaration
 typedef class MidiStreamMixer *PMidiStreamMixer;
-typedef class MidiStreamInterface *PMidiStreamInterface;
+typedef KauaiMidi::StreamHost *PMidiStreamInterface;
 
 /***************************************************************************
     Midi stream queue.
@@ -98,7 +72,7 @@ class MidiStreamQueue : public MidiStreamQueue_PAR
 
   protected:
     Mutex _mutx;     // restricts access to member variables
-    ulong _tsStart; // when we started the current sound
+    LegacyUlong _tsStart; // when we started the current sound
     PMidiStreamMixer _pmsmix;
 
     MidiStreamQueue(void);
@@ -108,9 +82,9 @@ class MidiStreamQueue : public MidiStreamQueue_PAR
 
     virtual bool _FInit(PMidiStreamMixer pmsmix);
     virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno);
-    virtual void _Queue(long isndinMin);
-    virtual void _PauseQueue(long isndinMin);
-    virtual void _ResumeQueue(long isndinMin);
+    virtual void _Queue(LegacyLong isndinMin);
+    virtual void _PauseQueue(LegacyLong isndinMin);
+    virtual void _ResumeQueue(LegacyLong isndinMin);
 
   public:
     static PMidiStreamQueue PmsqueNew(PMidiStreamMixer pmsmix);
@@ -137,268 +111,55 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     {
         PMidiStreamQueue pmsque;  // the "channel" or queue that the sound is on
         PMidiStreamCached pmdws;    // the sound
-        long sii;       // its sound id (for a priority tie breaker)
-        long spr;       // its priority
-        long cactPlay;  // how many times to play the sound
-        ulong dts;      // length of this sound
-        ulong dtsStart; // position to start at
-        long vlm;       // volume to play at
-        ulong tsStart;  // when we "started" the sound (minus dtsStart)
+        LegacyLong sii;       // its sound id (for a priority tie breaker)
+        LegacyLong spr;       // its priority
+        LegacyLong cactPlay;  // how many times to play the sound
+        LegacyUlong dts;      // length of this sound
+        LegacyUlong dtsStart; // position to start at
+        LegacyLong vlm;       // volume to play at
+        LegacyUlong tsStart;  // when we "started" the sound (minus dtsStart)
     };
 
     // Mutex to protect our member variables
     Mutex _mutx;
-    HN _hevt; // to notify the thread that the sound list changed
-    HN _hth;  // thread to terminate non-playing sounds
+    KauaiMidi::Worker _worker;
+    KauaiPlatform::AutoResetEvent _buffersReturned;
 
     PMidiStreamInterface _pmisi; // the midi stream interface
     PDynamicArray _pglmsos; // the list of current sounds, in priority order
-    long _cpvOut; // number of buffers submitted (0, 1, or 2)
+    LegacyLong _cpvOut; // number of buffers submitted (0, 1, or 2)
 
     PDynamicArray _pglmevKey;     // to accumulate state events for seeking
     bool _fPlaying : 1; // whether we're currently playing the first stream
     bool _fWaiting : 1; // we're waiting for our buffers to get returned
-    bool _fDone : 1;    // tells the aux thread to terminate
 
-    long _vlmBase;  // the base device volume
-    long _vlmSound; // the volume for the current sound
+    LegacyLong _vlmBase;  // the base device volume
+    LegacyLong _vlmSound; // the volume for the current sound
 
     MidiStreamMixer(void);
-    bool _FInit(void);
+    bool _FInit(KauaiMidi::HostFactory factory);
     void _StopStream(void);
-    bool _FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip);
+    bool _FGetKeyEvents(PMidiStreamCached pmdws, LegacyUlong dtsSeek, LegacyLong *pcbSkip);
     void _Restart(bool fNew = fFalse);
     void _WaitForBuffers(void);
-    void _SubmitBuffers(ulong tsCur);
+    void _SubmitBuffers(LegacyUlong tsCur);
 
-    static void _MidiProc(DWORD_PTR luUser, void *pvData, DWORD_PTR lUserDataa);
+    static void _MidiProc(std::uintptr_t luUser, void *pvData, std::uintptr_t lUserDataa);
     void _Notify(void *pvData, PMidiStreamCached pmdws);
 
-    static ulong __stdcall _ThreadProc(void *pv);
-    ulong _LuThread(void);
+    static std::uint32_t _ThreadProc(void *pv);
+    std::uint32_t _ExpireSounds(void);
 
   public:
-    static PMidiStreamMixer PmsmixNew(void);
+    static PMidiStreamMixer PmsmixNew(KauaiMidi::HostFactory factory);
     ~MidiStreamMixer(void);
 
-    bool FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
-               ulong dtsStart = 0, long vlm = kvlmFull);
+    bool FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws = pvNil, LegacyLong sii = siiNil, LegacyLong spr = 0, LegacyLong cactPlay = 1,
+               LegacyUlong dtsStart = 0, LegacyLong vlm = kvlmFull);
 
     void Suspend(bool fSuspend);
-    void SetVlm(long vlm);
-    long VlmCur(void);
-};
-
-// Define these so we can use old (msvc 2.1) header files
-#ifndef MEVT_SHORTMSG
-#define MEVT_SHORTMSG ((BYTE)0x00) // parm = shortmsg for midiOutShortMsg
-#define MEVT_TEMPO ((BYTE)0x01)    // parm = new tempo in microsec/qn
-#define MEVT_NOP ((BYTE)0x02)      // parm = unused; does nothing
-#define MIDIPROP_SET 0x80000000L
-#define MIDIPROP_GET 0x40000000L
-#define MIDIPROP_TIMEDIV 0x00000001L
-#endif //! MEVT_SHORTMSG
-
-/***************************************************************************
-    The midi stream interface.
-***************************************************************************/
-// luUser/lUserDataa are pointer-sized: PwmsNew callers pass `this` to round-trip
-// through Win32 midiStreamOpen's dwInstance slot, which is DWORD_PTR (8 bytes
-// on Win64). bare `ulong` (4 bytes on Win64 LLP64) silently truncates pointers.
-typedef void (*PFNMIDI)(DWORD_PTR luUser, void *pvData, DWORD_PTR lUserDataa);
-
-typedef class MidiStreamInterface *PMidiStreamInterface;
-#define MidiStreamInterface_PAR BASE
-#define kclsMidiStreamInterface 'MISI'
-class MidiStreamInterface : public MidiStreamInterface_PAR
-{
-    RTCLASS_DEC
-
-  protected:
-    HMS _hms;         // the midi stream handle
-    PFNMIDI _pfnCall; // call back function
-    DWORD_PTR _luUser; // user data to send back (pointer-sized; holds `this`)
-
-    // system volume level - to be saved and restored. The volume we set
-    // is always relative to this
-    tribool _tBogusDriver; // to indicate whether midiOutGetVolume really works
-    ulong _luVolSys;
-    long _vlmBase; // our current volume relative to _luVolSys.
-
-    MidiStreamInterface(PFNMIDI pfn, DWORD_PTR luUser);
-
-    virtual bool _FOpen(void) = 0;
-    virtual bool _FClose(void) = 0;
-
-    void _Reset(void);
-    void _GetSysVol(void);
-    void _SetSysVol(ulong luVol);
-    void _SetSysVlm(void);
-
-  public:
-    virtual void SetVlm(long vlm);
-    virtual long VlmCur(void);
-
-    virtual bool FActive(void);
-    virtual bool FActivate(bool fActivate);
-
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa) = 0;
-    virtual void StopPlaying(void) = 0;
-};
-
-/***************************************************************************
-    The midiStreamStop API has a bug in it where it doesn't reset the
-    current "buffer position" so that after calling midiStreamStop, then
-    midiStreamOut and midiStreamRestart, the new buffer isn't played
-    immediately, but the system waits until the previous buffer position
-    expires before playing the new buffer.
-
-    When this bug is fixed, STREAM_BUG can be undefined.
-***************************************************************************/
-#define STREAM_BUG
-
-/***************************************************************************
-    The real midi stream interface.
-***************************************************************************/
-typedef class WindowsMidiStream *PWindowsMidiStream;
-#define WindowsMidiStream_PAR MidiStreamInterface
-#define kclsWindowsMidiStream 'WMS'
-class WindowsMidiStream : public WindowsMidiStream_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-#define kcmhMsir 2
-    struct MSIR
-    {
-        void *pvData;
-        long cb;
-        long cactPlay;
-        DWORD_PTR lUserDataa;
-        long ibNext;
-
-        MH rgmh[kcmhMsir];
-        long rgibLim[kcmhMsir];
-    };
-    typedef MSIR *PMSIR;
-
-    Mutex _mutx;
-    HINSTANCE _hlib;
-    PDynamicArray _pglpmsir;
-    long _ipmsirCur;
-    long _cmhOut;
-
-    HN _hevt; // event to wake up the thread
-    HN _hth;  // thread to do callbacks and cleanup after a notify
-
-#ifdef STREAM_BUG
-    bool _fActive : 1;
-#endif               // STREAM_BUG
-    bool _fDone : 1; // tells the aux thread to terminate
-
-    // Win32 midiStreamOpen takes DWORD_PTR (pointer-sized) for the callback +
-    // instance slots, not DWORD. Was 4 bytes everywhere on x86; on Win64 the
-    // callback function pointer and our `this` user-instance are both 8 bytes.
-    // Storing them in a 4-byte DWORD silently truncates and crashes WINMM the
-    // moment it tries to invoke the half-pointer.
-    MMRESULT(WINAPI *_pfnOpen)
-    (HMS *phms, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
-    MMRESULT(WINAPI *_pfnClose)(HMS hms);
-    MMRESULT(WINAPI *_pfnProperty)(HMS hms, LPBYTE lpb, DWORD dwProperty);
-    MMRESULT(WINAPI *_pfnPosition)(HMS hms, LPMMTIME lpmmt, UINT cbmmt);
-    MMRESULT(WINAPI *_pfnOut)(HMS hms, LPMIDIHDR pmh, UINT cbmh);
-    MMRESULT(WINAPI *_pfnPause)(HMS hms);
-    MMRESULT(WINAPI *_pfnRestart)(HMS hms);
-    MMRESULT(WINAPI *_pfnStop)(HMS hms);
-
-    WindowsMidiStream(PFNMIDI pfn, DWORD_PTR luUser);
-    bool _FInit(void);
-
-    virtual bool _FOpen(void);
-    virtual bool _FClose(void);
-
-    bool _FSubmit(PMH pmh);
-    void _DoCallBacks(void);
-    long _CmhSubmitBuffers(void);
-    void _ResetStream(void);
-
-    // The callback signature must match Win32 midiOutProc: dwInstance/dwParam1/
-    // dwParam2 are DWORD_PTR (pointer-sized) so the user-data round-trips
-    // intact on Win64.
-    static void __stdcall _MidiProc(HMS hms, UINT msg, DWORD_PTR luUser, DWORD_PTR lu1, DWORD_PTR lu2);
-    void _Notify(HMS hms, PMH pmh);
-
-    static ulong __stdcall _ThreadProc(void *pv);
-    ulong _LuThread(void);
-
-  public:
-    static PWindowsMidiStream PwmsNew(PFNMIDI pfn, DWORD_PTR luUser);
-    ~WindowsMidiStream(void);
-
-#ifdef STREAM_BUG
-    virtual bool FActive(void);
-    virtual bool FActivate(bool fActivate);
-#endif // STREAM_BUG
-
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa);
-    virtual void StopPlaying(void);
-};
-
-/***************************************************************************
-    Our fake midi stream class.
-***************************************************************************/
-typedef class OurMidiStream *POurMidiStream;
-#define OurMidiStream_PAR MidiStreamInterface
-#define kclsOurMidiStream 'OMS'
-class OurMidiStream : public OurMidiStream_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-    struct MSB
-    {
-        void *pvData;
-        long cb;
-        long ibStart;
-        long cactPlay;
-
-        DWORD_PTR lUserDataa;
-    };
-
-    Mutex _mutx;
-    HN _hevt; // event to notify the thread that the stream data has changed
-    HN _hth;  // thread to play the stream data
-
-    bool _fChanged : 1; // the event has been signalled
-    bool _fStop : 1;    // tells the aux thread to stop all buffers
-    bool _fDone : 1;    // tells the aux thread to return
-
-    long _imsbCur;
-    PDynamicArray _pglmsb;
-    PMEV _pmev;
-    PMEV _pmevLim;
-    ulong _tsCur;
-
-    OurMidiStream(PFNMIDI pfn, DWORD_PTR luUser);
-    bool _FInit(void);
-
-    virtual bool _FOpen(void);
-    virtual bool _FClose(void);
-
-    static ulong __stdcall _ThreadProc(void *pv);
-    ulong _LuThread(void);
-    void _ReleaseBuffers(void);
-
-  public:
-    static POurMidiStream PomsNew(PFNMIDI pfn, DWORD_PTR luUser);
-    ~OurMidiStream(void);
-
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa);
-    virtual void StopPlaying(void);
+    void SetVlm(LegacyLong vlm);
+    LegacyLong VlmCur(void);
 };
 
 #endif //! MDEV2PRI_H

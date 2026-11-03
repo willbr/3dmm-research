@@ -22,6 +22,8 @@
 
 ***************************************************************************/
 #include "studio.h"
+#include "body_world.h"
+
 ASSERTNAME
 
 #define kdtimFrame (kdtimSecond / kfps) // clock ticks per frame
@@ -67,7 +69,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     AssertNilOrPo(pcost, 0);
 
     long cbset;
-    long ibset;
+    LegacyLong ibset;
     RC rc;
     GeneralMaterialSpec gms;
 
@@ -129,7 +131,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     BrMatrix34PostRotateY(&_bact.t.t.mat, BR_ANGLE_DEG(-40.0));
     _pbwld->AddActor(&_bact);
     BrLightEnable(&_bact);
-    _pbody->SetBwld(_pbwld);
+    BodyWorld::Bind(_pbody, _pbwld);
     _pbody->Show();
 
     _InitView();
@@ -466,8 +468,8 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
 
     PBACT pbact;
     PBody pbody;
-    long ibset;
-    long ibsetAcc;
+    LegacyLong ibset;
+    LegacyLong ibsetAcc;
 
     if (pvNil != _prca)
     {
@@ -505,8 +507,8 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
 
     PBACT pbact;
     PBody pbody;
-    long ibset;
-    long ibsetAcc;
+    LegacyLong ibset;
+    LegacyLong ibsetAcc;
     GeneralMaterialSpec gms;
 
     if (pcmd->cid != cidMouseDown)
@@ -793,7 +795,7 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 /***************************************************************************
     Return info about the ThreeDText
 ***************************************************************************/
-void ActorPreviewEntity::GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf)
+void ActorPreviewEntity::GetTdtInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
     Assert(_ptmpl->FIsTdt(), "GetTdtInfo is only for ThreeDTexts");
@@ -833,7 +835,7 @@ bool ActorPreviewEntity::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, 
 /***************************************************************************
     Assert the validity of the ActorPreviewEntity.
 ***************************************************************************/
-void ActorPreviewEntity::AssertValid(ulong grf)
+void ActorPreviewEntity::AssertValid(LegacyUlong grf)
 {
     ActorPreviewEntity_PAR::AssertValid(fobjAllocated);
     AssertPo(_pbwld, 0);

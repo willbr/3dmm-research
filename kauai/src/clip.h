@@ -36,7 +36,12 @@ class ClipboardObject : public ClipboardObject_PAR
     bool _fImporting : 1;
     bool _fDelayImport : 1;
 
+#ifdef KAUAI_SDL3
+    HQ _hqExport;
+    void *_pvExport;
+#else
     HN _hnExport;
+#endif
     long _clfmExport;
     long _clfmImport;
 
@@ -64,9 +69,10 @@ class ClipboardObject : public ClipboardObject_PAR
 extern PClipboardObject vpclip;
 
 const long clfmNil = 0;
+// Legacy format identifiers; SDL maps them to MIME types without an SDK.
 // REVIEW shonk: Mac unicode
-const long kclfmUniText = MacWin('WTXT', CF_UNICODETEXT);
-const long kclfmSbText = MacWin('TEXT', CF_TEXT);
+const long kclfmUniText = MacWin('WTXT', 13);
+const long kclfmSbText = MacWin('TEXT', 1);
 
 #ifdef UNICODE
 const long kclfmText = kclfmUniText;

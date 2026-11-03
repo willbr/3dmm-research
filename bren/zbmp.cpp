@@ -6,7 +6,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
 ***************************************************************************/
-#include "bren.h"
+#include "bren_core.h"
 ASSERTNAME
 
 namespace BRender {
@@ -16,7 +16,7 @@ RTCLASS(ZBMP)
 /***************************************************************************
     Create a ZBMP of all 0xff's
 ***************************************************************************/
-PZBMP ZBMP::PzbmpNew(long dxp, long dyp)
+PZBMP ZBMP::PzbmpNew(LegacyLong dxp, LegacyLong dyp)
 {
     AssertIn(dxp, 1, klwMax);
     AssertIn(dyp, 1, klwMax);
@@ -58,7 +58,7 @@ PZBMP ZBMP::PzbmpNewFromBpmp(BPMP *pbpmp)
 /***************************************************************************
     Chunky resource reader for ZBMP
 ***************************************************************************/
-bool ZBMP::FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ZBMP::FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -139,22 +139,22 @@ ZBMP::~ZBMP(void)
 /***************************************************************************
     Draw the ZBMP into prgbPixels
 ***************************************************************************/
-void ZBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip, PRegion pregnClip)
+void ZBMP::Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip, PRegion pregnClip)
 {
     AssertThis(0);
     AssertPvCb(prgbPixels, LwMul(cbRow, dyp));
     AssertNilOrVarMem(prcClip);
     AssertNilOrVarMem(pregnClip);
 
-    long yp;
-    long cbRowCopy;
+    LegacyLong yp;
+    LegacyLong cbRowCopy;
     byte *pbSrc;
     byte *pbDst;
     RegionScanner regsc;
     RC rcZbmp = _rc;
     RC rcRegnBounds;
     RC rcClippedRegnBounds;
-    long xpLeft, xpRight;
+    LegacyLong xpLeft, xpRight;
 
     // Translate the zbmp's rc into coordinate system of prgbPixels' rc
     rcZbmp.Offset(xpRef, ypRef);
@@ -200,22 +200,22 @@ void ZBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, 
     Draw the ZBMP into prgbPixels, squashing the clip region vertically by
     two (for World's "half mode")
 ***************************************************************************/
-void ZBMP::DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip, PRegion pregnClip)
+void ZBMP::DrawHalf(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip, PRegion pregnClip)
 {
     AssertThis(0);
     AssertPvCb(prgbPixels, LwMul(cbRow, dyp / 2));
     AssertNilOrVarMem(prcClip);
     AssertNilOrVarMem(pregnClip);
 
-    long yp;
-    long cbRowCopy;
+    LegacyLong yp;
+    LegacyLong cbRowCopy;
     byte *pbSrc;
     byte *pbDst;
     RegionScanner regsc;
     RC rcZbmp = _rc;
     RC rcRegnBounds;
     RC rcClippedRegnBounds;
-    long xpLeft, xpRight;
+    LegacyLong xpLeft, xpRight;
 
     rcZbmp.ypBottom *= 2;
 
@@ -291,7 +291,7 @@ bool ZBMP::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 /***************************************************************************
     Assert the validity of the ZBMP.
 ***************************************************************************/
-void ZBMP::AssertValid(ulong grf)
+void ZBMP::AssertValid(LegacyUlong grf)
 {
     ZBMP_PAR::AssertValid(fobjAllocated);
     AssertPvCb(_prgb, _cb);

@@ -27,6 +27,12 @@
 #define MacWin(mac, win) win
 #define Mac(foo)
 #define Win(foo) foo
+#else
+// Portable hosts retain the Windows wire/text markers, independently of the
+// operating system. Native Windows-only statements remain disabled.
+#define MacWin(mac, win) win
+#define Mac(foo)
+#define Win(foo)
 #endif // WIN
 
 /***************************************************************************

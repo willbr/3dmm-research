@@ -39,6 +39,18 @@
 #include <cstring>
 #include <cctype>
 #include <cstdarg>
+#include "launch_context.h"
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "sdl_dialog.h"
+#include "sdl_sound.h"
+#include "video_sdl.h"
+#include "midi_sdl.h"
+#include "sdl_recording.h"
+#include "pixel_buffer.h"
+#include "font_host.h"
+#include "font_names.h"
+#endif
 
 #include <windows.h>
 #include <objidl.h> // IStream
@@ -605,6 +617,19 @@ static void PumpForMs(DWORD ms)
         DWORD elapsed = GetTickCount() - start;
         if (elapsed >= ms) return;
         DWORD remaining = ms - elapsed;
+#ifdef KAUAI_SDL3
+          if (KauaiSDL::Main().Active())
+          {
+              if (vpappb && (!vpcex || !vpcex->PgobTracking())) vpappb->PumpHostEvent();
+              if (vpcex)
+                  for (int i = 0; i < 8 && vpcex->FDispatchNextCmd(); ++i) {}
+              if (vpappb) vpappb->UpdateMarked();
+              GraphicsPort::Flush();
+              KauaiSDL::Main().Present();
+              Sleep(1);
+              continue;
+          }
+#endif
         MsgWaitForMultipleObjects(0, NULL, FALSE, remaining > 16 ? 16 : remaining, QS_ALLINPUT);
         MSG m;
         while (PeekMessage(&m, NULL, 0, 0, PM_REMOVE))
@@ -666,9 +691,40 @@ static std::string Base64Encode(const unsigned char *data, size_t n)
 
 // Capture main window client area into an in-memory PNG, return base64.
 // Returns empty string on failure.
+static std::string EncodeBitmapPng(Gdiplus::Bitmap &bmp)
+{
+    std::string result;
+    IStream *stream = nullptr;
+    if (CreateStreamOnHGlobal(nullptr, TRUE, &stream) == S_OK)
+    {
+        CLSID png;
+        if (_GetClipboardEncoderClsid(L"image/png", &png) && bmp.Save(stream, &png, nullptr) == Gdiplus::Ok)
+        {
+            HGLOBAL memory = nullptr;
+            GetHGlobalFromStream(stream, &memory);
+            const auto length = GlobalSize(memory);
+            auto data = static_cast<unsigned char *>(GlobalLock(memory));
+            if (data && length) result = Base64Encode(data, length);
+            if (data) GlobalUnlock(memory);
+        }
+        stream->Release();
+    }
+    return result;
+}
 static std::string CaptureWindowPngBase64(HWND hwnd)
 {
     if (!hwnd) return {};
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        GraphicsPort::Flush();
+        std::vector<std::uint32_t> pixels;
+        int width, height;
+        if (!KauaiSDL::Main().CopyPixels(pixels, width, height)) return {};
+        Gdiplus::Bitmap bitmap(width, height, width * 4, PixelFormat32bppRGB, reinterpret_cast<BYTE *>(pixels.data()));
+        return EncodeBitmapPng(bitmap);
+    }
+#endif
     RECT rcClient;
     if (!GetClientRect(hwnd, &rcClient)) return {};
     int w = rcClient.right - rcClient.left;
@@ -774,6 +830,16 @@ static JVal Tool_Click(const JVal &args)
     if (x < 0 || y < 0) return ContentError("missing or negative x/y");
     std::string button = args.Get("button") ? args.Get("button")->AsStr() : "left";
     bool isRight = (button == "right");
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        const unsigned which = isRight ? 3 : 1;
+        if (!KauaiSDL::Main().PushPointer(static_cast<float>(x), static_cast<float>(y), true, which) ||
+            !KauaiSDL::Main().PushPointer(static_cast<float>(x), static_cast<float>(y), false, which))
+            return ContentError(KauaiSDL::Main().Error());
+        return ContentText("Queued click through SDL input.");
+    }
+#endif
 
     POINT p = {x, y};
     ClientToScreen(hwnd, &p);
@@ -866,6 +932,14 @@ static JVal Tool_Key(const JVal &args)
     if (!hwnd) return ContentError("main window not available");
     int vk = (int)(args.Get("vk") ? args.Get("vk")->AsInt(0) : 0);
     if (vk == 0) return ContentError("missing vk");
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        if (!KauaiSDL::Main().PushKey(vk, true) || !KauaiSDL::Main().PushKey(vk, false))
+            return ContentError(KauaiSDL::Main().Error());
+        return ContentText("Queued key through SDL input.");
+    }
+#endif
 
     SetForegroundWindow(hwnd);
     PumpForMs(20);
@@ -885,6 +959,14 @@ static JVal Tool_Key(const JVal &args)
 }
 
 // --- send_command --------------------------------------------------------
+#ifdef KAUAI_SDL3
+static JVal Tool_TypeText(const JVal &args)
+{
+    const auto text = args.Get("text");
+    if (!text || !KauaiSDL::Main().PushText(text->AsStr())) return ContentError(KauaiSDL::Main().Error());
+    return ContentText("Queued UTF-8 text through SDL input.");
+}
+#endif
 
 static JVal Tool_SendCommand(const JVal &args)
 {
@@ -1060,6 +1142,128 @@ static JVal Tool_GetState(const JVal &args)
     HWND hwnd = _GetMainHwnd();
     JVal o = JVal::MkObj();
     o.Set("alive", JVal::MkBool(true));
+#ifdef KAUAI_SDL3
+    o.Set("font_provider", JVal::MkStr(KauaiFonts::StudioFontProvider()));
+    o.Set("native_screen_context", JVal::MkBool(vwig.hdcApp != nullptr));
+    const auto midi = KauaiMidi::StudioMidiStats();
+    const auto video = KauaiVideo::SDLVideoStats();
+    o.Set("sdl_video_opened", JVal::MkInt(static_cast<long long>(video.opened)));
+    o.Set("sdl_video_started", JVal::MkInt(static_cast<long long>(video.started)));
+    o.Set("sdl_video_completed", JVal::MkInt(static_cast<long long>(video.completed)));
+    o.Set("sdl_video_decoded", JVal::MkInt(static_cast<long long>(video.decoded)));
+    o.Set("sdl_video_presented", JVal::MkInt(static_cast<long long>(video.presented)));
+    o.Set("sdl_video_audio_queued", JVal::MkInt(static_cast<long long>(video.queuedAudioBytes)));
+    o.Set("sdl_video_audio_consumed", JVal::MkInt(static_cast<long long>(video.consumedAudioBytes)));
+    o.Set("sdl_video_audible_frames", JVal::MkInt(static_cast<long long>(video.audibleAudioFrames)));
+    o.Set("midi_provider", JVal::MkStr(midi.loaded ? "sdl-soundfont" : midi.attempted ? "unavailable" : "winmm"));
+    o.Set("sdl_midi_active", JVal::MkBool(midi.active));
+    o.Set("sdl_midi_queued", JVal::MkInt(static_cast<long long>(midi.rendering.queued)));
+    o.Set("sdl_midi_completed", JVal::MkInt(static_cast<long long>(midi.rendering.completed)));
+    o.Set("sdl_midi_notes", JVal::MkInt(static_cast<long long>(midi.rendering.notes)));
+    o.Set("sdl_midi_audible_frames", JVal::MkInt(static_cast<long long>(midi.rendering.audibleFrames)));
+    const auto cursors = KauaiSDL::Main().Cursors();
+    const auto buffers = KauaiPixels::PixelBuffers();
+    o.Set("portable_pixel_buffers", JVal::MkInt(static_cast<long long>(buffers.liveBuffers)));
+    o.Set("portable_pixel_bytes", JVal::MkInt(static_cast<long long>(buffers.liveBytes)));
+    auto root = vwig.hwndApp ? GraphicsObject::PgobFromHwnd(vwig.hwndApp) : nullptr;
+    auto framebuffer = root ? root->Pgpt() : nullptr;
+    o.Set("sdl_native_framebuffer_mirror",
+          framebuffer ? JVal::MkBool(framebuffer->FHasNativeMirror()) : JVal::MkNull());
+    o.Set("sdl_native_framebuffer_context",
+          framebuffer ? JVal::MkBool(framebuffer->FHasNativeContext()) : JVal::MkNull());
+    o.Set("indexed_pixel_ports_created", JVal::MkInt(GraphicsPort::CIndexedPortsCreated()));
+    o.Set("native_indexed_contexts_created", JVal::MkInt(GraphicsPort::CIndexedContextsCreated()));
+    o.Set("native_indexed_mirrors_created", JVal::MkInt(GraphicsPort::CIndexedMirrorsCreated()));
+    o.Set("sdl_cursors_created", JVal::MkInt(static_cast<long long>(cursors.created)));
+    o.Set("sdl_cursors_selected", JVal::MkInt(static_cast<long long>(cursors.selected)));
+    o.Set("sdl_cursors_live", JVal::MkInt(static_cast<long long>(cursors.live)));
+    const auto pointer = KauaiSDL::Main().Pointer();
+    o.Set("sdl_capture_requested", JVal::MkBool(pointer.captureRequested));
+    o.Set("sdl_capture_active", JVal::MkBool(pointer.captureActive));
+    o.Set("sdl_confinement_requested", JVal::MkBool(pointer.confinementRequested));
+    o.Set("sdl_confinement_active", JVal::MkBool(pointer.confinementActive));
+    o.Set("sdl_pointer_suspended", JVal::MkBool(pointer.suspended));
+    o.Set("sdl_slow_key_repeat", JVal::MkBool(KauaiSDL::Main().SlowKeyRepeat()));
+    const auto audio = KauaiAudio::StudioStats();
+    o.Set("sdl_audio_device", JVal::MkBool(audio.active));
+    o.Set("sdl_audio_decoded", JVal::MkInt(static_cast<long long>(audio.decoded)));
+    o.Set("sdl_audio_started", JVal::MkInt(static_cast<long long>(audio.started)));
+    o.Set("sdl_audio_completed", JVal::MkInt(static_cast<long long>(audio.completed)));
+    const auto recording = KauaiAudio::RecorderStats();
+    o.Set("sdl_recording_opened", JVal::MkInt(static_cast<long long>(recording.opened)));
+    o.Set("sdl_recording_started", JVal::MkInt(static_cast<long long>(recording.started)));
+    o.Set("sdl_recording_completed", JVal::MkInt(static_cast<long long>(recording.completed)));
+    o.Set("sdl_recording_previewed", JVal::MkInt(static_cast<long long>(recording.previewed)));
+    o.Set("sdl_recording_frames", JVal::MkInt(static_cast<long long>(recording.capturedFrames)));
+    KauaiSDL::PresentationStatus presentation;
+    if (KauaiSDL::Main().Presentation(presentation))
+    {
+        JVal view = JVal::MkObj();
+        view.Set("width", JVal::MkInt(static_cast<long long>(presentation.width)));
+        view.Set("height", JVal::MkInt(static_cast<long long>(presentation.height)));
+        view.Set("output_width", JVal::MkInt(presentation.outputWidth));
+        view.Set("output_height", JVal::MkInt(presentation.outputHeight));
+        o.Set("sdl_presentation", view);
+    }
+    const auto fonts = KauaiFonts::FontProviderStats();
+    o.Set("portable_font_faces", JVal::MkInt(static_cast<long long>(fonts.portable)));
+    o.Set("native_font_faces", JVal::MkInt(static_cast<long long>(fonts.native)));
+    o.Set("font_fallbacks", JVal::MkInt(static_cast<long long>(fonts.fallback)));
+    o.Set("native_font_draws", JVal::MkInt(static_cast<long long>(fonts.nativeDraws)));
+    o.Set("native_font_measurements", JVal::MkInt(static_cast<long long>(fonts.nativeMeasurements)));
+    o.Set("native_font_bootstraps", JVal::MkInt(static_cast<long long>(fonts.nativeBootstraps)));
+    o.Set("portable_font_enumerations", JVal::MkInt(static_cast<long long>(fonts.portableEnumerations)));
+    o.Set("native_font_enumerations", JVal::MkInt(static_cast<long long>(fonts.nativeEnumerations)));
+    JVal selected = JVal::MkObj();
+    auto studio = vpapp->Pstdio();
+    auto movie = studio ? studio->Pmvie() : nullptr;
+    auto scene = movie ? movie->Pscen() : nullptr;
+    o.Set("scene_actor_count", JVal::MkInt(scene ? scene->Cactr() : 0));
+    auto activeView = movie ? movie->PddgActive() : nullptr;
+    if (activeView && activeView->FIs(kclsMovieView))
+    {
+        String current;
+        vntl.GetStn(static_cast<PMovieView>(activeView)->OnnTextCur(), &current);
+        std::string name;
+        KauaiFonts::NameToUtf8({current.Prgch(), static_cast<std::size_t>(current.Cch()),
+                                sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes},
+                               name);
+        o.Set("current_text_font", JVal::MkStr(name));
+    }
+    auto textbox = scene ? scene->PtboxSelected() : nullptr;
+    selected.Set("present", JVal::MkBool(textbox != nullptr));
+    if (textbox)
+    {
+        const auto count = std::min<long>(textbox->CpMac(), 1024);
+        std::vector<achar> content(count);
+        if (count)
+            textbox->FetchRgch(0, count, content.data());
+        std::string utf8;
+        KauaiFonts::TextToUtf8({content.data(), static_cast<std::size_t>(count),
+                                sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes},
+                               utf8);
+        selected.Set("text", JVal::MkStr(utf8));
+        CHP chp;
+        chp.Clear();
+        textbox->FetchChp(0, &chp);
+        ulong properties;
+        textbox->FetchChpSel(&chp, &properties);
+        selected.Set("selection_properties", JVal::MkInt(properties));
+        String name;
+        vntl.GetStn(chp.onn, &name);
+        KauaiFonts::NameToUtf8({name.Prgch(), static_cast<std::size_t>(name.Cch()),
+                                sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes},
+                               utf8);
+        selected.Set("font", JVal::MkStr(utf8));
+        textbox->FetchChp(std::max<long>(0, textbox->CpMac() - 2), &chp);
+        vntl.GetStn(chp.onn, &name);
+        KauaiFonts::NameToUtf8({name.Prgch(), static_cast<std::size_t>(name.Cch()),
+                                sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes},
+                               utf8);
+        selected.Set("last_character_font", JVal::MkStr(utf8));
+    }
+    o.Set("selected_textbox", selected);
+#endif
     o.Set("hwnd_present", JVal::MkBool(hwnd != NULL));
     if (hwnd)
     {
@@ -1377,7 +1581,83 @@ struct ToolDef
     bool worker_safe; // safe to run on the reader thread (no kauai state)
 };
 
+#ifdef KAUAI_SDL3
+static JVal Tool_GetSDLDialog(const JVal &)
+{
+    const auto state = KauaiSDL::CurrentDialog();
+    JVal result = JVal::MkObj();
+    result.Set("active", JVal::MkBool(state.active));
+    result.Set("ready", JVal::MkBool(state.ready));
+    result.Set("generation", JVal::MkInt(static_cast<long long>(state.generation)));
+    result.Set("window_id", JVal::MkInt(state.window));
+    result.Set("title", JVal::MkStr(state.title));
+    JVal controls = JVal::MkArr();
+    for (const auto &control : state.controls)
+    {
+        JVal item = JVal::MkObj();
+        item.Set("id", JVal::MkInt(control.id));
+        item.Set("item", JVal::MkInt(control.item));
+        item.Set("label", JVal::MkStr(control.label));
+        item.Set("text", JVal::MkStr(control.text));
+        item.Set("number", JVal::MkInt(control.number));
+        item.Set("enabled", JVal::MkBool(control.enabled));
+        item.Set("read_only", JVal::MkBool(control.readOnly));
+        controls.a->push_back(std::move(item));
+    }
+    result.Set("controls", std::move(controls));
+    std::string text;
+    JWrite(text, result);
+    return ContentText(text);
+}
+static JVal Tool_SDLDialogAction(const JVal &args)
+{
+    const auto generation = args.Get("generation");
+    const auto action = args.Get("action");
+    if (!generation || !action)
+        return ContentError("generation and action are required");
+    KauaiSDL::DialogAction request;
+    const auto name = action->AsStr();
+    if (name == "click")
+        request.kind = KauaiSDL::DialogActionKind::click;
+    else if (name == "text")
+        request.kind = KauaiSDL::DialogActionKind::text;
+    else if (name == "enter")
+        request.kind = KauaiSDL::DialogActionKind::enter;
+    else if (name == "escape")
+        request.kind = KauaiSDL::DialogActionKind::escape;
+    else if (name == "tab")
+        request.kind = KauaiSDL::DialogActionKind::tab;
+    else if (name == "screenshot")
+        request.kind = KauaiSDL::DialogActionKind::screenshot;
+    else
+        return ContentError("Unknown SDL dialog action");
+    if (const auto id = args.Get("control"))
+        request.control = static_cast<std::uint32_t>(id->AsInt());
+    if (const auto text = args.Get("text"))
+        request.text = text->AsStr();
+    if (!KauaiSDL::QueueDialogAction(static_cast<std::uint64_t>(generation->AsInt()), request))
+        return ContentError("Dialog/control is unavailable, read-only, disabled or from a different session");
+    return ContentText("Queued through SDL dialog input.");
+}
+#endif
+
 static const ToolDef kTools[] = {
+#ifdef KAUAI_SDL3
+    {"get_sdl_dialog", "Observe the active SDL modal dialog and original control IDs without touching Kauai state.",
+     "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}", &Tool_GetSDLDialog, true},
+    {"sdl_dialog_action",
+     "Queue mouse, text or keyboard input to the observed SDL dialog; screenshot text is a BMP output path.",
+     "{\"type\":\"object\",\"properties\":{\"generation\":{\"type\":\"integer\"},\"action\":{\"type\":\"string\"},"
+     "\"control\":{\"type\":\"integer\"},\"text\":{\"type\":\"string\"}},\"required\":[\"generation\",\"action\"]}",
+     &Tool_SDLDialogAction, true},
+    {
+        "type_text",
+        "Queue UTF-8 text through the SDL Studio text-input event path.",
+        "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"}},\"required\":[\"text\"]}",
+        &Tool_TypeText,
+        false,
+    },
+#endif
     {
         "screenshot",
         "Capture the 3dmovie main window client area as PNG.",
@@ -1591,7 +1871,19 @@ bool FInit()
 {
     if (_initialized.load()) return true;
     // Self-check the command line: callers don't need a separate enable step.
-    if (!FParseEnabledFromCommandLine(vwig.pszCmdLine)) return false;
+    bool requested = FParseEnabledFromCommandLine(KauaiLaunch::CommandLine());
+    if (KauaiLaunch::HasArguments())
+    {
+        for (int i = 1; i < KauaiLaunch::ArgumentCount(); ++i)
+        {
+            const auto argument = KauaiLaunch::Arguments()[i];
+            if (argument[0] != '-' || !std::strcmp(argument, "--"))
+                break;
+            if (!std::strcmp(argument, "--mcp-server"))
+                requested = true;
+        }
+    }
+    if (!requested) return false;
     _enabled.store(true);
 
     _hStdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -1694,9 +1986,8 @@ void Drain()
 
 } // namespace mcp
 
-// Allow the mcp::FParseEnabledFromCommandLine call from WinMain (which is in
-// kauai/src/appbwin.cpp) to find this symbol. Declared inline here as a thin
-// shim so kauai doesn't need to know mcp:: namespace.
+// Legacy C wrapper retained for callers outside the namespace. The framework
+// entry adapter no longer depends on this Studio-specific symbol.
 extern "C" int Mcp_FEnabledFromCmdLine(const char *psz)
 {
     return mcp::FParseEnabledFromCommandLine(psz) ? 1 : 0;
@@ -1704,8 +1995,7 @@ extern "C" int Mcp_FEnabledFromCmdLine(const char *psz)
 
 #else // !DEBUG
 
-// Release builds get a no-op stub so kauai's WinMain link still resolves
-// the symbol without forcing an #ifdef there too.
+// Retain the legacy wrapper as a no-op in release builds.
 extern "C" int Mcp_FEnabledFromCmdLine(const char *)
 {
     return 0;

@@ -15,36 +15,26 @@
 ***************************************************************************/
 #ifndef APPB_H
 #define APPB_H
+#include "gob.h"
+class DocumentBase;
+typedef DocumentBase *PDocumentBase;
+class SoundManager;
+typedef SoundManager *PSoundManager;
 
 /***************************************************************************
     Misc types
 ***************************************************************************/
-#ifdef WIN
-typedef MSG EVT;
-#endif // WIN
-#ifdef MAC
+#ifdef KAUAI_SDL3
+#include "host_event.h"
+typedef KauaiInput::Event EVT;
+#elif defined(MAC)
 typedef EventRecord EVT;
-#endif // WIN
+#else
+// Native events remain opaque to clients of the application interface. The
+// native backend supplies their definition; SDL uses the complete host event.
+typedef CoreNative::MessageEvent EVT;
+#endif
 typedef EVT *PEVT;
-
-#ifdef WIN
-// windows specific globals
-struct WindowsAppGlobals
-{
-    HINSTANCE hinst;
-    HINSTANCE hinstPrev;
-    LPTSTR pszCmdLine;
-    int wShow;
-
-    HWND hwndApp;
-    HDC hdcApp;
-    HWND hwndClient;     // MDI client window
-    HACCEL haccel;       // main accelerator table
-    HWND hwndNextViewer; // next clipboard viewer
-    long lwThreadMain;   // main thread
-};
-extern WindowsAppGlobals vwig;
-#endif // WIN
 
 /***************************************************************************
     The base application class.
@@ -72,7 +62,7 @@ class ApplicationBase : public ApplicationBase_PAR
     // marked region - for fast updating
     struct MKRGN
     {
-        HWND hwnd;
+        CoreNative::WindowHandle hwnd;
         PRegion pregn;
     };
 
@@ -128,6 +118,11 @@ class ApplicationBase : public ApplicationBase_PAR
     PCursor _pcurs;     // current cursor
     PCursor _pcursWait; // cursor to use for long operations
     long _cactLongOp; // long operation count
+#ifdef KAUAI_SDL3
+    long _cactSDLHide;
+    long _cactTrueColorOffscreen;
+    KauaiInput::Queue _hostEvents;
+#endif
     ulong _grfcust;   // current cursor state
 
     long _gft;     // transition to apply during next fast update
@@ -157,6 +152,10 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual bool _FGetNextEvt(PEVT pevt);
     virtual void _DispatchEvt(PEVT pevt);
     virtual bool _FTranslateKeyEvt(EVT *pevt, PCMD_KEY pcmd);
+#ifdef KAUAI_SDL3
+    virtual bool _FDispatchShortcut(const EVT &event) { return false; }
+    void _HostMouseDown(const EVT &event);
+#endif
 
 #ifdef MAC
     // event handlers
@@ -187,17 +186,31 @@ class ApplicationBase : public ApplicationBase_PAR
     void _TakeDownToolTip(void);
     void _EnsureToolTip(void);
 
-// window procs
+#ifdef KAUAI_SDL3
+    bool _FInitSDLWindow(const char *title, int width, int height);
+    void _CloseSDLWindow();
+    bool _FBindSDLNativeWindow();
+    void _ReleaseSDLNativeWindow();
+#ifdef DEBUG
+    LegacyLong _TmcSDLAssert(PString message, PString details, PString stack);
+#endif
+#endif
+// Optional native callback interop. The native backend owns message decoding.
 #ifdef WIN
-    static LRESULT CALLBACK _LuWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lParam);
-    static LRESULT CALLBACK _LuMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lParam);
+    static CoreNative::MessageResult KAUAI_NATIVE_CALLBACK _LuWndProc(CoreNative::WindowHandle hwnd, std::uint32_t wm,
+                                                                    CoreNative::MessageWord wParam, CoreNative::MessageLong lParam);
+    static CoreNative::MessageResult KAUAI_NATIVE_CALLBACK _LuMdiWndProc(CoreNative::WindowHandle hwnd, std::uint32_t wm,
+                                                                       CoreNative::MessageWord wParam, CoreNative::MessageLong lParam);
 
     // plwRet is the message-result slot returned to Win32 as LRESULT.
     // Was `long *` historically — correct on x86 (LRESULT == long) but
     // 4 bytes too narrow on Win64 (LRESULT == LONG_PTR == __int64).
-    virtual bool _FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
-    virtual bool _FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
-    virtual bool _FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
+    virtual bool _FFrameWndProc(CoreNative::WindowHandle hwnd, std::uint32_t wm, CoreNative::MessageWord wParam,
+                                CoreNative::MessageLong lw, CoreNative::MessageResult *plwRet);
+    virtual bool _FMdiWndProc(CoreNative::WindowHandle hwnd, std::uint32_t wm, CoreNative::MessageWord wParam,
+                              CoreNative::MessageLong lw, CoreNative::MessageResult *plwRet);
+    virtual bool _FCommonWndProc(CoreNative::WindowHandle hwnd, std::uint32_t wm, CoreNative::MessageWord wParam,
+                                 CoreNative::MessageLong lw, CoreNative::MessageResult *plwRet);
 
     // remove ourself from the clipboard viewer chain
     void _ShutDownViewer(void);
@@ -207,6 +220,11 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void _Activate(bool fActive);
 
   public:
+#ifdef KAUAI_SDL3
+    // Pump one host event during an embedded automation/modal loop. Existing
+    // controls and command handlers receive the same path as the main loop.
+    bool PumpHostEvent();
+#endif
     ApplicationBase(void);
     ~ApplicationBase(void);
 
@@ -248,14 +266,14 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual PCommandHandler PcmhFromHid(long hid);
 
     // drawing
-    virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
+    virtual void UpdateHwnd(CoreNative::WindowHandle hwnd, RC *prc, ulong grfapp = fappNil);
     virtual void MarkRc(RC *prc, PGraphicsObject pgobCoo);
     virtual void MarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
     virtual void UnmarkRc(RC *prc, PGraphicsObject pgobCoo);
     virtual void UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
-    virtual bool FGetMarkedRc(HWND hwnd, RC *prc);
+    virtual bool FGetMarkedRc(CoreNative::WindowHandle hwnd, RC *prc);
     virtual void UpdateMarked(void);
-    virtual void InvalMarked(HWND hwnd);
+    virtual void InvalMarked(CoreNative::WindowHandle hwnd);
     virtual void SetGft(long gft, long lwGft, ulong dts = kdtsSecond, PDynamicArray pglclr = pvNil, AbstractColor acr = kacrClear);
 
     // default fonts
@@ -290,6 +308,14 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void HideCurs(void);
     virtual void ShowCurs(void);
     virtual void PositionCurs(long xpScreen, long ypScreen);
+    // Editor tracking uses gob-local coordinates, independent of host scaling.
+    void PositionCurs(PGraphicsObject gob, long x, long y);
+    // Restrict placement to the containing window; nullptr releases it.
+    void ConfineCurs(PGraphicsObject gob);
+#ifdef KAUAI_SDL3
+    void SetSlowKeyRepeat(bool slow);
+    void RequestTrueColorOffscreen(bool acquire);
+#endif
     virtual void BeginLongOp(void);
     virtual void EndLongOp(bool fAll = fFalse);
 

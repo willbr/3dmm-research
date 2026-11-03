@@ -627,5 +627,3 @@ void ZbMeshRenderEdges(br_actor *actor,
 	}
 #endif
 }
-
-

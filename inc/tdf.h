@@ -29,7 +29,7 @@ class ThreeDFont : public ThreeDFont_PAR
     MARKMEM
 
   protected:
-    long _cch;    // count of chars
+    LegacyLong _cch;    // count of chars
     BRS _dyrMax;  // max character height
     BRS *_prgdxr; // character widths
     BRS *_prgdyr; // character heights
@@ -41,15 +41,15 @@ class ThreeDFont : public ThreeDFont_PAR
     bool _FInit(PDataBlock pblck);
 
   public:
-    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     ~ThreeDFont(void);
 
     // This authoring-only API creates a new ThreeDFont based on a set of models
     static bool FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf = pvNil);
 
     PModel PmodlFetch(ChildChunkID chid);
-    BRS DxrChar(long ich);
-    BRS DyrChar(long ich);
+    BRS DxrChar(LegacyLong ich);
+    BRS DyrChar(LegacyLong ich);
     BRS DyrMax(void)
     {
         return _dyrMax;

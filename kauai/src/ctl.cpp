@@ -91,6 +91,9 @@ PControl Control::PctlFromHctl(HControl hctl)
 #ifdef WIN
     return (PControl)GetProp(hctl, _szCtlProp);
 #endif // WIN
+#if !defined(WIN) && !defined(MAC)
+    return pvNil; // Native control handles do not exist in the SDL host.
+#endif
 }
 
 /***************************************************************************
@@ -100,7 +103,7 @@ void Control::_NewRc(void)
 {
     RC rc;
     SystemRectangle rcs;
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
 
     if (_hctl == hNil)
         return;
@@ -204,9 +207,9 @@ long ScrollBar::DxpNormal(void)
         return _dxp;
     return (_dxp = GetSystemMetrics(SM_CXVSCROLL));
 #endif // WIN
-#ifdef MAC
+#ifndef WIN
     return 16;
-#endif // MAC
+#endif
 }
 
 /***************************************************************************
@@ -221,9 +224,9 @@ long ScrollBar::DypNormal(void)
         return _dyp;
     return (_dyp = GetSystemMetrics(SM_CYHSCROLL));
 #endif // WIN
-#ifdef MAC
+#ifndef WIN
     return 16;
-#endif // MAC
+#endif
 }
 
 /***************************************************************************
@@ -272,10 +275,15 @@ void ScrollBar::GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel)
 ***************************************************************************/
 bool ScrollBar::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 {
+#if !defined(WIN) && !defined(MAC)
+    // Studio's scripted scrollbars are GOBs. Native document-window controls
+    // need a separate implementation; never report a missing widget as created.
+    return fFalse;
+#else
     Assert(_Hctl() == hNil, "scb already created");
     RC rc;
     SystemRectangle rcs;
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
     HControl hctl;
 
     _fVert = FPure(grfscb & fscbVert);
@@ -306,6 +314,7 @@ bool ScrollBar::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 
     SetValMinMax(val, valMin, valMax, MacWin(fTrue, fFalse));
     return fTrue;
+#endif
 }
 
 /***************************************************************************
@@ -589,7 +598,7 @@ PWindowSizeBox WindowSizeBox::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 #ifdef WIN
     RC rc;
     SystemRectangle rcs;
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
     HControl hctl;
 
     hwnd = pwsb->_HwndGetRc(&rc);
@@ -611,7 +620,7 @@ PWindowSizeBox WindowSizeBox::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 ***************************************************************************/
 void WindowSizeBox::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
-    HWND hwnd;
+    CoreNative::WindowHandle hwnd;
     RC rc;
 
     hwnd = PgobPar()->Hwnd();

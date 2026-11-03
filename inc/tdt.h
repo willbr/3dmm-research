@@ -69,11 +69,14 @@ class ThreeDText : public ThreeDText_PAR
   protected:
     static PStringTable_GST _pgstAction; // Action names
 
-    long _tdts;          // ThreeDText shape
+    LegacyLong _tdts;          // ThreeDText shape
     TAG _tagTdf;         // Tag to Three-D Font
     PMaterial_MTRL _pmtrlDefault; // Material_MTRL for ThreeDText's default costume
     PActionDefinition _pactnCache;   // Last-used action
-    long _tdaCache;      // Action in pactnCache
+    LegacyLong _tdaCache;      // Action in pactnCache
+    void *_fontContext = pvNil;
+    PThreeDFont (*_fontResolver)(void *, const TAG &) = pvNil;
+    PThreeDFont _FetchFont(void);
 
   protected:
     virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
@@ -81,34 +84,41 @@ class ThreeDText : public ThreeDText_PAR
     PDynamicArray _PglibactParBuild(void);
     PDynamicArray _PglibsetBuild(void);
     PGeneralGroup _PggcmidBuild(void);
-    PDynamicArray _Pglbmat34Build(long tda);
-    PGeneralGroup _PggcelBuild(long tda);
-    virtual PActionDefinition _PactnFetch(long tda);
-    PActionDefinition _PactnBuild(long tda);
+    PDynamicArray _Pglbmat34Build(LegacyLong tda);
+    PGeneralGroup _PggcelBuild(LegacyLong tda);
+    virtual PActionDefinition _PactnFetch(LegacyLong tda);
+    PActionDefinition _PactnBuild(LegacyLong tda);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
-    long _CcelOfTda(long tda);
-    void _ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS pdxrText);
-    void _ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
+    LegacyLong _CcelOfTda(LegacyLong tda);
+    void _ApplyAction(BMAT34 *pbmat34, LegacyLong tda, LegacyLong ich, LegacyLong ccel, LegacyLong icel, BRS xrChar, BRS pdxrText);
+    void _ApplyShape(BMAT34 *pbmat34, LegacyLong tdts, LegacyLong cch, LegacyLong ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
                      BRS dyrTotal);
 
   public:
+    // Optional content service for headless hosts. Returns an owned reference;
+    // the callback context must outlive this template and its cached actions.
+    void SetFontResolver(void *context, PThreeDFont (*resolver)(void *, const TAG &))
+    {
+        _fontContext = context;
+        _fontResolver = resolver;
+    }
     static bool FSetActionNames(PStringTable_GST pgstAction);
 #ifdef DEBUG
     static void MarkActionNames(void);
 #endif
 
-    static PThreeDText PtdtNew(PString pstn, long tdts, PTAG ptagTdf);
+    static PThreeDText PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf);
     ~ThreeDText(void);
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
     PThreeDText PtdtDup(void);
 
-    void GetInfo(PString pstn, long *ptdts, PTAG ptagTdf);
-    bool FChange(PString pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
+    void GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf);
+    bool FChange(PString pstn, LegacyLong tdts = tdtsNil, PTAG ptagTdf = pvNil);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
     bool FAdjustBody(PBody pbody);
     virtual bool FSetDefaultCost(PBody pbody);
-    virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
-    virtual bool FGetActnName(long anid, PString pstn);
+    virtual PCustomMaterial_CMTL PcmtlFetch(LegacyLong cmid);
+    virtual bool FGetActnName(LegacyLong anid, PString pstn);
 };
 
 #endif // ThreeDText_H

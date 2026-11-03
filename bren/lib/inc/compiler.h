@@ -16,8 +16,15 @@
 /*
  * Fixed bitsize integers
  */
+#include <stdint.h>
+#ifdef _WIN32
+/* Keep the existing Windows ABI while fixing LP64 storage/math widths. */
 typedef signed long br_int_32;
 typedef unsigned long br_uint_32;
+#else
+typedef int32_t br_int_32;
+typedef uint32_t br_uint_32;
+#endif
 
 typedef signed short br_int_16;
 typedef unsigned short br_uint_16;
@@ -133,6 +140,7 @@ typedef int br_boolean;
  * GNU C
  */
 #elif defined (__GNUC__)
+#pragma pack(4)
 
 #define BR_PUBLIC_ENTRY
 #define BR_CALLBACK

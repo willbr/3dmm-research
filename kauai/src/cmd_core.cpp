@@ -24,7 +24,9 @@
     The CommandExecutionManager class supports command stream recording and playback.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
+#include "cmd.h"
+#include "clok.h"
 #include "cmd_hooks.h"
 ASSERTNAME
 
@@ -35,13 +37,16 @@ END_CMD_MAP_NIL()
 RTCLASS(CommandHandler)
 RTCLASS(CommandExecutionManager)
 
-long CommandHandler::_hidLast;
+PCommandExecutionManager vpcex;
+
+LegacyLong CommandHandler::_hidLast;
 
 /***************************************************************************
     cmd_hooks.h seam: function pointers installed by the gui-side
     appb._FInit so cmd.cpp can be moved to kauai-core without dragging
-    in vpappb. Defaults (nil) are correct for headless: PcmhFromHid_Hook
-    returns nil (caller treats as "hid free"), BuryCmh_Hook is a no-op.
+    in vpappb. Without hooks, lookup returns nil and burial still cleans up
+    core dispatcher/clock references. Targeted recorded-command replay needs
+    a host lookup callback; see cmd_hooks.h for lifetime/global-scope rules.
 
     Part 1 of the cmd_core split (see plan
     docs/superpowers/plans/2026-05-02-cmd-core-split.md).
@@ -55,7 +60,7 @@ void SetCmdHooks(PFN_PcmhFromHid pfn1, PFN_BuryCmh pfn2)
     s_pfnBuryCmh = pfn2;
 }
 
-PCommandHandler PcmhFromHid_Hook(long hid)
+PCommandHandler PcmhFromHid_Hook(LegacyLong hid)
 {
     return (s_pfnPcmhFromHid != pvNil) ? s_pfnPcmhFromHid(hid) : pvNil;
 }
@@ -64,13 +69,21 @@ void BuryCmh_Hook(PCommandHandler pcmh)
 {
     if (s_pfnBuryCmh != pvNil)
         s_pfnBuryCmh(pcmh);
+    else
+    {
+        // A standalone dispatcher must not retain handlers or alarms after
+        // destruction. The GUI hook additionally covers suspended contexts.
+        if (vpcex != pvNil)
+            vpcex->BuryCmh(pcmh);
+        Clock::BuryCmh(pcmh);
+    }
 }
 
 #ifdef DEBUG
 /***************************************************************************
     Assert the validity of a Command.
 ***************************************************************************/
-void Command::AssertValid(ulong grf)
+void Command::AssertValid(LegacyUlong grf)
 {
     AssertThisMem();
     AssertNilOrPo(pgg, 0);
@@ -90,10 +103,10 @@ void Command::AssertValid(ulong grf)
     means that the returned hid is only unique over handlers that the
     application class knows about.
 ***************************************************************************/
-long CommandHandler::HidUnique(long ccmh)
+LegacyLong CommandHandler::HidUnique(LegacyLong ccmh)
 {
     AssertIn(ccmh, 1, 1000);
-    long ccmhT;
+    LegacyLong ccmhT;
 
     _hidLast |= 0x80000000L;
     for (ccmhT = ccmh; ccmhT-- > 0;)
@@ -115,7 +128,7 @@ long CommandHandler::HidUnique(long ccmh)
 /***************************************************************************
     Constructor for a command handler - set the handler id.
 ***************************************************************************/
-CommandHandler::CommandHandler(long hid)
+CommandHandler::CommandHandler(LegacyLong hid)
 {
     AssertBaseThis(0);
     Assert(hid != hidNil, "bad hid");
@@ -136,7 +149,7 @@ CommandHandler::~CommandHandler(void)
 /***************************************************************************
     Assert the validity of a CommandHandler.
 ***************************************************************************/
-void CommandHandler::AssertValid(ulong grf)
+void CommandHandler::AssertValid(LegacyUlong grf)
 {
     CommandHandler_PAR::AssertValid(0);
     Assert(_hid != hidNil, 0);
@@ -147,7 +160,7 @@ void CommandHandler::AssertValid(ulong grf)
     Protected virtual function to find a CommandMapEntry (command map entry) for the
     given command id.
 ***************************************************************************/
-bool CommandHandler::_FGetCmme(long cid, ulong grfcmmWanted, CommandMapEntry *pcmme)
+bool CommandHandler::_FGetCmme(LegacyLong cid, LegacyUlong grfcmmWanted, CommandMapEntry *pcmme)
 {
     AssertThis(0);
     AssertVarMem(pcmme);
@@ -198,7 +211,7 @@ bool CommandHandler::FDoCmd(PCommand pcmd)
     AssertThis(0);
     AssertPo(pcmd, 0);
     CommandMapEntry cmme;
-    ulong grfcmm;
+    LegacyUlong grfcmm;
 
     if (pvNil == pcmd->pcmh)
         grfcmm = fcmmNobody;
@@ -218,13 +231,13 @@ bool CommandHandler::FDoCmd(PCommand pcmd)
     doesn't normally handle the command, this returns false (and does
     nothing else). Otherwise sets the grfeds and returns true.
 ***************************************************************************/
-bool CommandHandler::FEnableCmd(PCommand pcmd, ulong *pgrfeds)
+bool CommandHandler::FEnableCmd(PCommand pcmd, LegacyUlong *pgrfeds)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
     AssertVarMem(pgrfeds);
     CommandMapEntry cmme;
-    ulong grfcmm;
+    LegacyUlong grfcmm;
 
     if (pvNil == pcmd->pcmh)
         grfcmm = fcmmNobody;
@@ -263,7 +276,7 @@ CommandExecutionManager::~CommandExecutionManager(void)
 {
     AssertBaseThis(0);
     Command cmd;
-    long icmd;
+    LegacyLong icmd;
 
     if (pvNil != _pglcmd)
     {
@@ -284,7 +297,7 @@ CommandExecutionManager::~CommandExecutionManager(void)
 /***************************************************************************
     Static method to create a new CommandExecutionManager object.
 ***************************************************************************/
-PCommandExecutionManager CommandExecutionManager::PcexNew(long ccmdInit, long ccmhInit)
+PCommandExecutionManager CommandExecutionManager::PcexNew(LegacyLong ccmdInit, LegacyLong ccmhInit)
 {
     AssertIn(ccmdInit, 0, kcbMax);
     AssertIn(ccmhInit, 0, kcbMax);
@@ -303,7 +316,7 @@ PCommandExecutionManager CommandExecutionManager::PcexNew(long ccmdInit, long cc
 /***************************************************************************
     Initialization of the command dispatcher.
 ***************************************************************************/
-bool CommandExecutionManager::_FInit(long ccmdInit, long ccmhInit)
+bool CommandExecutionManager::_FInit(LegacyLong ccmdInit, LegacyLong ccmhInit)
 {
     AssertBaseThis(0);
     AssertIn(ccmdInit, 0, kcbMax);
@@ -369,7 +382,7 @@ void CommandExecutionManager::StopRecording(void)
 
     if (_rec == recNil)
     {
-        long cb;
+        LegacyLong cb;
 
         if (_cact > 1)
         {
@@ -452,7 +465,7 @@ void CommandExecutionManager::RecordCmd(PCommand pcmd)
     cmdf.hid = pcmd->pcmh == pvNil ? hidNil : pcmd->pcmh->Hid();
     cmdf.cact = 1;
     cmdf.chidGg = pcmd->pgg != pvNil ? ++_chidLast : 0;
-    CopyPb(pcmd->rglw, cmdf.rglw, kclwCmd * size(long));
+    CopyPb(pcmd->rglw, cmdf.rglw, kclwCmd * size(LegacyLong));
 
     if (!_pglcmdf->FInsert(_icmdf, &cmdf))
     {
@@ -465,7 +478,7 @@ void CommandExecutionManager::RecordCmd(PCommand pcmd)
     if (pvNil != pcmd->pgg)
     {
         DataBlock blck;
-        long cb;
+        LegacyLong cb;
         ChunkNumber cno;
 
         cb = pcmd->pgg->CbOnFile();
@@ -573,7 +586,7 @@ bool CommandExecutionManager::_FReadCmd(PCommand pcmd)
     pcmd->cid = cmdf.cid;
     pcmd->pcmh = PcmhFromHid_Hook(cmdf.hid);
     pcmd->pgg = pvNil;
-    CopyPb(cmdf.rglw, pcmd->rglw, kclwCmd * size(long));
+    CopyPb(cmdf.rglw, pcmd->rglw, kclwCmd * size(LegacyLong));
 
     if (cmdf.chidGg != 0)
     {
@@ -674,12 +687,12 @@ void CommandExecutionManager::_BadModalCmd(PCommand pcmd)
     get first crack at commands. It is legal for a handler to be in the
     list more than once (even with the same cmhl value).
 ***************************************************************************/
-bool CommandExecutionManager::FAddCmh(PCommandHandler pcmh, long cmhl, ulong grfcmm)
+bool CommandExecutionManager::FAddCmh(PCommandHandler pcmh, LegacyLong cmhl, LegacyUlong grfcmm)
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
     CommandHandlerEntry cmhe;
-    long icmhe;
+    LegacyLong icmhe;
 
     if (fcmmNil == (grfcmm & kgrfcmmAll))
     {
@@ -705,11 +718,11 @@ bool CommandExecutionManager::FAddCmh(PCommandHandler pcmh, long cmhl, ulong grf
 /***************************************************************************
     Removes the the handler (at the given cmhl level) from the handler list.
 ***************************************************************************/
-void CommandExecutionManager::RemoveCmh(PCommandHandler pcmh, long cmhl)
+void CommandExecutionManager::RemoveCmh(PCommandHandler pcmh, LegacyLong cmhl)
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
-    long icmhe, ccmhe;
+    LegacyLong icmhe, ccmhe;
     CommandHandlerEntry cmhe;
 
     if (!_FFindCmhl(cmhl, &icmhe))
@@ -738,22 +751,10 @@ void CommandExecutionManager::BuryCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     Assert(pcmh != pvNil, 0);
-    long icmhe, icmd;
+    LegacyLong icmhe, icmd;
     CommandHandlerEntry cmhe;
     Command cmd;
 
-    if (_pgobModal == pcmh)
-        _pgobModal = pvNil;
-
-    if (_pgobTrack == pcmh)
-    {
-#ifdef WIN
-        if (hNil != _hwndCapture && GetCapture() == _hwndCapture)
-            ReleaseCapture();
-        _hwndCapture = hNil;
-#endif // WIN
-        _pgobTrack = pvNil;
-    }
     if (_cmdCur.pcmh == pcmh)
         _cmdCur.pcmh = pvNil;
     if (_cmd.pcmh == pcmh)
@@ -788,11 +789,11 @@ void CommandExecutionManager::BuryCmh(PCommandHandler pcmh)
     Finds the first item with the given cmhl in the handler list. If there
     aren't any, still sets *picmhe to where they would be.
 ***************************************************************************/
-bool CommandExecutionManager::_FFindCmhl(long cmhl, long *picmhe)
+bool CommandExecutionManager::_FFindCmhl(LegacyLong cmhl, LegacyLong *picmhe)
 {
     AssertThis(0);
     AssertVarMem(picmhe);
-    long icmhe, icmheMin, icmheLim;
+    LegacyLong icmhe, icmheMin, icmheLim;
     CommandHandlerEntry *qrgcmhe;
 
     qrgcmhe = (CommandHandlerEntry *)_pglcmhe->QvGet(0);
@@ -812,7 +813,7 @@ bool CommandExecutionManager::_FFindCmhl(long cmhl, long *picmhe)
 /***************************************************************************
     Adds a command to the tail of the queue.
 ***************************************************************************/
-void CommandExecutionManager::EnqueueCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
+void CommandExecutionManager::EnqueueCid(LegacyLong cid, PCommandHandler pcmh, PGeneralGroup pgg, LegacyLong lw0, LegacyLong lw1, LegacyLong lw2, LegacyLong lw3)
 {
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
@@ -832,7 +833,7 @@ void CommandExecutionManager::EnqueueCid(long cid, PCommandHandler pcmh, PGenera
 /***************************************************************************
     Pushes a command onto the head of the queue.
 ***************************************************************************/
-void CommandExecutionManager::PushCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
+void CommandExecutionManager::PushCid(LegacyLong cid, PCommandHandler pcmh, PGeneralGroup pgg, LegacyLong lw0, LegacyLong lw1, LegacyLong lw2, LegacyLong lw3)
 {
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
@@ -896,12 +897,12 @@ void CommandExecutionManager::PushCmd(PCommand pcmd)
 /***************************************************************************
     Checks if a cid is in the queue.
 ***************************************************************************/
-bool CommandExecutionManager::FCidIn(long cid)
+bool CommandExecutionManager::FCidIn(LegacyLong cid)
 {
     AssertThis(0);
     Assert(cid != cidNil, "why check for a nil command?");
 
-    long icmd;
+    LegacyLong icmd;
     Command cmd;
 
     for (icmd = _pglcmd->IvMac(); icmd-- > 0;)
@@ -917,12 +918,12 @@ bool CommandExecutionManager::FCidIn(long cid)
 /***************************************************************************
     Flushes all instances of a cid in the queue.
 ***************************************************************************/
-void CommandExecutionManager::FlushCid(long cid)
+void CommandExecutionManager::FlushCid(LegacyLong cid)
 {
     AssertThis(0);
     Assert(cid != cidNil, "why flush a nil command?");
 
-    long icmd;
+    LegacyLong icmd;
     Command cmd;
 
     for (icmd = _pglcmd->IvMac(); icmd-- > 0;)
@@ -1096,7 +1097,7 @@ bool CommandExecutionManager::FDispatchNextCmd(void)
 /***************************************************************************
     Give the handler a crack at enabling/disabling the command.
 ***************************************************************************/
-bool CommandExecutionManager::_FEnableCmd(PCommandHandler pcmh, PCommand pcmd, ulong *pgrfeds)
+bool CommandExecutionManager::_FEnableCmd(PCommandHandler pcmh, PCommand pcmd, LegacyUlong *pgrfeds)
 {
     AssertPo(pcmh, 0);
     AssertPo(pcmd, 0);
@@ -1112,13 +1113,13 @@ bool CommandExecutionManager::_FEnableCmd(PCommandHandler pcmh, PCommand pcmd, u
     Determines whether the given command is currently enabled. This is
     normally used for menu graying/checking etc and toolbar enabling/status.
 ***************************************************************************/
-ulong CommandExecutionManager::GrfedsForCmd(PCommand pcmd)
+LegacyUlong CommandExecutionManager::GrfedsForCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
-    long icmhe, ccmhe;
+    LegacyLong icmhe, ccmhe;
     CommandHandlerEntry cmhe;
-    ulong grfeds;
+    LegacyUlong grfeds;
 
     // pipe it through the command handlers, then to the target
     for (icmhe = 0, ccmhe = _pglcmhe->IvMac(); icmhe < ccmhe; icmhe++)
@@ -1160,7 +1161,7 @@ LDone:
     Determines whether the given command is currently enabled. This is
     normally used for menu graying/checking etc and toolbar enabling/status.
 ***************************************************************************/
-ulong CommandExecutionManager::GrfedsForCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
+LegacyUlong CommandExecutionManager::GrfedsForCid(LegacyLong cid, PCommandHandler pcmh, PGeneralGroup pgg, LegacyLong lw0, LegacyLong lw1, LegacyLong lw2, LegacyLong lw3)
 {
     AssertThis(0);
     Assert(cid != cidNil, 0);
@@ -1186,7 +1187,7 @@ bool CommandExecutionManager::FGetNextKey(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    long iv;
+    LegacyLong iv;
 
     if (_rs != rsNormal)
         goto LFail;
@@ -1234,14 +1235,13 @@ void CommandExecutionManager::Suspend(bool fSuspend)
 void CommandExecutionManager::SetModalGob(PGraphicsObject pgob)
 {
     AssertThis(0);
-    AssertNilOrPo(pgob, 0);
 }
 
 #ifdef DEBUG
 /***************************************************************************
     Assert the validity of the command dispatcher
 ***************************************************************************/
-void CommandExecutionManager::AssertValid(ulong grf)
+void CommandExecutionManager::AssertValid(LegacyUlong grf)
 {
     CommandExecutionManager_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglcmhe, 0);
@@ -1258,7 +1258,7 @@ void CommandExecutionManager::MarkMem(void)
 {
     AssertThis(0);
     Command cmd;
-    long icmd;
+    LegacyLong icmd;
 
     CommandExecutionManager_PAR::MarkMem();
     MarkMemObj(_pglcmhe);

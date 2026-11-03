@@ -331,7 +331,7 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
         PDocumentScrollGraphicsObject pdsg;
     };
     PAllocatedArray _paldsed; // the tree of DSEDs
-    long _idsedRoot;
+    LegacyLong _idsedRoot;
     PDocumentBase _pdocb;
 
     DocumentMainWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb);

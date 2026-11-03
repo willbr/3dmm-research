@@ -574,6 +574,3 @@ struct zb_render_type {
 #endif
 
 #endif
-
-
-

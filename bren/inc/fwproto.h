@@ -728,7 +728,7 @@ extern "C"
     int BR_PUBLIC_ENTRY BrFileWrite(void *buf, int size, int n, void *f);
     int BR_PUBLIC_ENTRY BrFileGetLine(char *buf, br_size_t buf_len, void *f);
     void BR_PUBLIC_ENTRY BrFilePutLine(char *buf, void *f);
-    void BR_PUBLIC_ENTRY BrFileAdvance(long int count, void *f);
+    void BR_PUBLIC_ENTRY BrFileAdvance(br_int_32 count, void *f);
 
     int BR_PUBLIC_ENTRY BrFilePrintf(void *f, char *fmt, ...);
 

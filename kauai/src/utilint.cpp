@@ -11,6 +11,7 @@
     WARNING: Must be in a fixed (pre-loaded) seg on Mac.
 
 ***************************************************************************/
+#include "win_headers.h"
 #include "util.h"
 
 #include <cmath>
@@ -20,7 +21,7 @@ ASSERTNAME
 /***************************************************************************
     Calculates the GCD of two longs.
 ***************************************************************************/
-long LwGcd(long lw1, long lw2)
+LegacyLong LwGcd(LegacyLong lw1, LegacyLong lw2)
 {
     return LuGcd(LwAbs(lw1), LwAbs(lw2));
 }
@@ -28,7 +29,7 @@ long LwGcd(long lw1, long lw2)
 /***************************************************************************
     Calculates the GCD of two unsigned longs.
 ***************************************************************************/
-ulong LuGcd(ulong lu1, ulong lu2)
+LegacyUlong LuGcd(LegacyUlong lu1, LegacyUlong lu2)
 {
     // Euclidean algorithm - keep mod'ing until we hit zero
     if (lu1 == 0)
@@ -51,11 +52,11 @@ ulong LuGcd(ulong lu1, ulong lu2)
 /***************************************************************************
     Sort the two longs so the smaller is in *plw1.
 ***************************************************************************/
-void SortLw(long *plw1, long *plw2)
+void SortLw(LegacyLong *plw1, LegacyLong *plw2)
 {
     if (*plw1 > *plw2)
     {
-        long lwT = *plw1;
+        LegacyLong lwT = *plw1;
         *plw1 = *plw2;
         *plw2 = lwT;
     }
@@ -66,38 +67,34 @@ void SortLw(long *plw1, long *plw2)
 /***************************************************************************
     Multiply lw by lwMul and divide by lwDiv without losing precision.
 ***************************************************************************/
-long LwMulDiv(long lw, long lwMul, long lwDiv)
+LegacyLong LwMulDiv(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv)
 {
     Assert(lwDiv != 0, "divide by zero error");
-    double dou;
-
-    dou = (double)lw * lwMul / lwDiv;
-    Assert(dou <= klwMax && dou >= klwMin, "overflow in LwMulDiv");
-    return (long)dou;
+    const int64_t quotient = static_cast<int64_t>(lw) * lwMul / lwDiv;
+    Assert(quotient <= klwMax && quotient >= klwMin, "overflow in LwMulDiv");
+    return static_cast<LegacyLong>(quotient);
 }
 
 /***************************************************************************
     Return the quotient and set *plwRem to the remainder when (lw * lwMul)
     is divided by lwDiv.
 ***************************************************************************/
-long LwMulDivMod(long lw, long lwMul, long lwDiv, long *plwRem)
+LegacyLong LwMulDivMod(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv, LegacyLong *plwRem)
 {
     Assert(lwDiv != 0, "moding by 0");
     AssertVarMem(plwRem);
-    double dou;
-
-    dou = (double)lw * lwMul;
-    *plwRem = static_cast<long>(std::fmod(dou, lwDiv));
-    dou /= lwDiv;
-    Assert(dou <= klwMax && dou >= klwMin, "overflow in LwMulDiv");
-    return (long)dou;
+    const int64_t product = static_cast<int64_t>(lw) * lwMul;
+    const int64_t quotient = product / lwDiv;
+    *plwRem = static_cast<LegacyLong>(product % lwDiv);
+    Assert(quotient <= klwMax && quotient >= klwMin, "overflow in LwMulDiv");
+    return static_cast<LegacyLong>(quotient);
 }
 #endif // IN_80386
 
 /***************************************************************************
     Multiply two longs to get a 64 bit (signed) result.
 ***************************************************************************/
-void MulLw(long lw1, long lw2, long *plwHigh, ulong *pluLow)
+void MulLw(LegacyLong lw1, LegacyLong lw2, LegacyLong *plwHigh, LegacyUlong *pluLow)
 {
 #ifdef IN_80386
     __asm
@@ -109,32 +106,18 @@ void MulLw(long lw1, long lw2, long *plwHigh, ulong *pluLow)
 		mov		ebx,pluLow
 		mov		[ebx],eax
     }
-#else  //! IN_80386
-    double dou;
-    bool fNeg;
-
-    fNeg = 0 > (dou = (double)lw1 * lw2);
-    if (fNeg)
-        dou = -dou;
-    *plwHigh = (long)(dou / ((double)0x10000 * 0x10000));
-    *pluLow = dou - *plwHigh * ((double)0x10000 * 0x10000);
-    if (fNeg)
-    {
-        if (*pluLow == 0)
-            *plwHigh = -*plwHigh;
-        else
-        {
-            *pluLow = -*pluLow;
-            *plwHigh = ~*plwHigh;
-        }
-    }
+#else
+    const uint64_t bits = static_cast<uint64_t>(static_cast<int64_t>(lw1) * lw2);
+    *pluLow = static_cast<LegacyUlong>(bits);
+    const uint32_t high = static_cast<uint32_t>(bits >> 32);
+    CopyPb(const_cast<uint32_t *>(&high), plwHigh, sizeof(high));
 #endif //! IN_80386
 }
 
 /***************************************************************************
     Multiply lu by luMul and divide by luDiv without losing precision.
 ***************************************************************************/
-ulong LuMulDiv(ulong lu, ulong luMul, ulong luDiv)
+LegacyUlong LuMulDiv(LegacyUlong lu, LegacyUlong luMul, LegacyUlong luDiv)
 {
     Assert(luDiv != 0, "divide by zero error");
 
@@ -148,19 +131,17 @@ ulong LuMulDiv(ulong lu, ulong luMul, ulong luDiv)
 		mov		lu,eax
     }
     return lu;
-#else  //! IN_80386
-    double dou;
-
-    dou = (double)lu * luMul / luDiv;
-    Assert(dou <= kluMax && dou >= 0, "overflow in LuMulDiv");
-    return (ulong)dou;
+#else
+    const uint64_t quotient = static_cast<uint64_t>(lu) * luMul / luDiv;
+    Assert(quotient <= kluMax, "overflow in LuMulDiv");
+    return static_cast<LegacyUlong>(quotient);
 #endif //! IN_80386
 }
 
 /***************************************************************************
     Multiply two unsigned longs to get a 64 bit (unsigned) result.
 ***************************************************************************/
-void MulLu(ulong lu1, ulong lu2, ulong *pluHigh, ulong *pluLow)
+void MulLu(LegacyUlong lu1, LegacyUlong lu2, LegacyUlong *pluHigh, LegacyUlong *pluLow)
 {
 #ifdef IN_80386
     __asm
@@ -172,12 +153,10 @@ void MulLu(ulong lu1, ulong lu2, ulong *pluHigh, ulong *pluLow)
 		mov		ebx,pluLow
 		mov		[ebx],eax
     }
-#else  //! IN_80386
-    double dou;
-
-    dou = (double)lu1 * lu2;
-    *pluHigh = (ulong)(dou / ((double)0x10000 * 0x10000));
-    *pluLow = dou - *pluHigh * ((double)0x10000 * 0x10000);
+#else
+    const uint64_t product = static_cast<uint64_t>(lu1) * lu2;
+    *pluHigh = static_cast<LegacyUlong>(product >> 32);
+    *pluLow = static_cast<LegacyUlong>(product);
 #endif //! IN_80386
 }
 #endif //! MC_68020
@@ -186,10 +165,10 @@ void MulLu(ulong lu1, ulong lu2, ulong *pluHigh, ulong *pluLow)
     Does a multiply and divide without losing precision, rounding away from
     zero during the divide.
 ***************************************************************************/
-long LwMulDivAway(long lw, long lwMul, long lwDiv)
+LegacyLong LwMulDivAway(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv)
 {
     Assert(lwDiv != 0, "divide by zero error");
-    long lwT, lwRem;
+    LegacyLong lwT, lwRem;
 
     lwT = LwMulDivMod(lw, lwMul, lwDiv, &lwRem);
     if (lwRem != 0)
@@ -208,10 +187,10 @@ long LwMulDivAway(long lw, long lwMul, long lwDiv)
     Does a multiply and divide without losing precision, rounding away from
     zero during the divide.
 ***************************************************************************/
-ulong LuMulDivAway(ulong lu, ulong luMul, ulong luDiv)
+LegacyUlong LuMulDivAway(LegacyUlong lu, LegacyUlong luMul, LegacyUlong luDiv)
 {
     Assert(luDiv != 0, "divide by zero error");
-    ulong luT;
+    LegacyUlong luT;
 
     // get rid of common factors
     if (1 < (luT = LuGcd(lu, luDiv)))
@@ -231,7 +210,7 @@ ulong LuMulDivAway(ulong lu, ulong luMul, ulong luDiv)
 /***************************************************************************
     Returns lwNum divided by lwDen rounded away from zero.
 ***************************************************************************/
-long LwDivAway(long lwNum, long lwDen)
+LegacyLong LwDivAway(LegacyLong lwNum, LegacyLong lwDen)
 {
     Assert(lwDen != 0, "divide by zero");
 
@@ -251,7 +230,7 @@ long LwDivAway(long lwNum, long lwDen)
 /***************************************************************************
     Returns lwNum divided by lwDen rounded toward the closest integer.
 ***************************************************************************/
-long LwDivClosest(long lwNum, long lwDen)
+LegacyLong LwDivClosest(LegacyLong lwNum, LegacyLong lwDen)
 {
     Assert(lwDen != 0, "divide by zero");
 
@@ -272,7 +251,7 @@ long LwDivClosest(long lwNum, long lwDen)
     Rounds lwSrc to a multiple of lwBase.  The rounding is done away from
     zero.  Equivalent to LwDivAway(lwSrc, lwBase) * lwBase.
 ***************************************************************************/
-long LwRoundAway(long lwSrc, long lwBase)
+LegacyLong LwRoundAway(LegacyLong lwSrc, LegacyLong lwBase)
 {
     Assert(lwBase != 0, "divide by zero");
 
@@ -290,7 +269,7 @@ long LwRoundAway(long lwSrc, long lwBase)
     Rounds lwSrc to a multiple of lwBase.  The rounding is done toward zero.
     Equivalent to (lwSrc / lwBase) * lwBase.
 ***************************************************************************/
-long LwRoundToward(long lwSrc, long lwBase)
+LegacyLong LwRoundToward(LegacyLong lwSrc, LegacyLong lwBase)
 {
     Assert(lwBase != 0, "divide by zero");
 
@@ -304,7 +283,7 @@ long LwRoundToward(long lwSrc, long lwBase)
     Rounds lwSrc to the closest multiple of lwBase.
     Equivalent to LwDivClosest(lwSrc, lwBase) * lwBase.
 ***************************************************************************/
-long LwRoundClosest(long lwSrc, long lwBase)
+LegacyLong LwRoundClosest(LegacyLong lwSrc, LegacyLong lwBase)
 {
     Assert(lwBase != 0, "divide by zero");
 
@@ -322,10 +301,10 @@ long LwRoundClosest(long lwSrc, long lwBase)
     Returns fcmpGt, fcmpEq or fcmpLt according to whether (lwNum1 / lwDen2)
     is greater than, equal to or less than (lwNum2 / lwDen2).
 ***************************************************************************/
-ulong FcmpCompareFracs(long lwNum1, long lwDen1, long lwNum2, long lwDen2)
+LegacyUlong FcmpCompareFracs(LegacyLong lwNum1, LegacyLong lwDen1, LegacyLong lwNum2, LegacyLong lwDen2)
 {
-    long lwHigh1, lwHigh2; // must be signed
-    ulong luLow1, luLow2;  // must be unsigned
+    LegacyLong lwHigh1, lwHigh2; // must be signed
+    LegacyUlong luLow1, luLow2;  // must be unsigned
 
     MulLw(lwNum1, lwDen2, &lwHigh1, &luLow1);
     MulLw(lwNum2, lwDen1, &lwHigh2, &luLow2);
@@ -352,7 +331,7 @@ ulong FcmpCompareFracs(long lwNum1, long lwDen1, long lwNum2, long lwDen2)
     (iv, iv + cvDel).  If *piv is in this interval, mins *piv with iv + cvIns
     and returns false.
 ***************************************************************************/
-bool FAdjustIv(long *piv, long iv, long cvIns, long cvDel)
+bool FAdjustIv(LegacyLong *piv, LegacyLong iv, LegacyLong cvIns, LegacyLong cvDel)
 {
     AssertVarMem(piv);
     AssertIn(iv, 0, kcbMax);
@@ -374,7 +353,7 @@ bool FAdjustIv(long *piv, long iv, long cvIns, long cvDel)
 /***************************************************************************
     Multiplies two longs.  Asserts on overflow.
 ***************************************************************************/
-long LwMul(long lw1, long lw2)
+LegacyLong LwMul(LegacyLong lw1, LegacyLong lw2)
 {
     if (lw1 == 0)
         return 0;
@@ -385,7 +364,7 @@ long LwMul(long lw1, long lw2)
 /***************************************************************************
     Asserts that the lw is >= lwMin and < lwLim.
 ***************************************************************************/
-void AssertIn(long lw, long lwMin, long lwLim)
+void AssertIn(LegacyLong lw, LegacyLong lwMin, LegacyLong lwLim)
 {
     Assert(lw >= lwMin, "long too small");
     Assert(lw < lwLim, "long too big");
@@ -404,7 +383,7 @@ void SwapBytesBom(void *pv, ByteOrderMask bom)
     byte b;
     byte *pb = (byte *)pv;
 
-    Assert(size(short) == 2 && size(long) == 4, "code broken");
+    Assert(size(short) == 2 && size(LegacyLong) == 4, "code broken");
     while (bom != 0)
     {
         if (bom & 0x80000000L)
@@ -441,7 +420,7 @@ void SwapBytesBom(void *pv, ByteOrderMask bom)
 /***************************************************************************
     Swap bytes within an array of short words.
 ***************************************************************************/
-void SwapBytesRgsw(void *psw, long csw)
+void SwapBytesRgsw(void *psw, LegacyLong csw)
 {
     AssertIn(csw, 0, kcbMax);
     AssertPvCb(psw, LwMul(csw, size(short)));
@@ -468,10 +447,10 @@ void SwapBytesRgsw(void *psw, long csw)
     `cb / size(int32_t)` instead. The wire format this byte-swap targets
     (kauai chunky files) is 32-bit-aligned everywhere.
 ***************************************************************************/
-void SwapBytesRglw(void *plw, long clw)
+void SwapBytesRglw(void *plw, LegacyLong clw)
 {
     AssertIn(clw, 0, kcbMax);
-    AssertPvCb(plw, LwMul(clw, (long)size(int32_t)));
+    AssertPvCb(plw, LwMul(clw, (LegacyLong)size(int32_t)));
 
     byte b;
     byte *pb = (byte *)plw;
@@ -495,15 +474,15 @@ void SwapBytesRglw(void *plw, long clw)
     these). The wire format kbom* masks describe 4-byte fields regardless of
     sizeof(long).
 ***************************************************************************/
-void AssertBomRglw(ByteOrderMask bom, long cb)
+void AssertBomRglw(ByteOrderMask bom, LegacyLong cb)
 {
     ByteOrderMask bomT;
-    long clw;
+    LegacyLong clw;
 
     clw = cb / size(int32_t);
-    Assert(cb == clw * (long)size(int32_t), "cb is not a multiple of 4");
+    Assert(cb == clw * (LegacyLong)size(int32_t), "cb is not a multiple of 4");
     AssertIn(clw, 1, 17);
-    bomT = -1L << 2 * (16 - clw);
+    bomT = UINT32_MAX << (2 * (16 - clw));
     Assert(bomT == bom, "wrong bom");
 }
 
@@ -512,15 +491,15 @@ void AssertBomRglw(ByteOrderMask bom, long cb)
     to be swapped (so SwapBytesRgsw can legally be used on an array of
     these).
 ***************************************************************************/
-void AssertBomRgsw(ByteOrderMask bom, long cb)
+void AssertBomRgsw(ByteOrderMask bom, LegacyLong cb)
 {
     ByteOrderMask bomT;
-    long csw;
+    LegacyLong csw;
 
     csw = cb / size(short);
     Assert(cb == csw * size(short), "cb is not a multiple of size(short)");
     AssertIn(csw, 1, 17);
-    bomT = 0x55555555 << 2 * (16 - csw);
+    bomT = UINT32_C(0x55555555) << (2 * (16 - csw));
     Assert(bomT == bom, "wrong bom");
 }
 #endif // DEBUG
@@ -559,7 +538,7 @@ void PT::Map(RC *prcSrc, RC *prcDst)
     AssertThisMem();
     AssertVarMem(prcSrc);
     AssertVarMem(prcDst);
-    long dzpSrc, dzpDst;
+    LegacyLong dzpSrc, dzpDst;
 
     if ((dzpDst = prcDst->Dxp()) == (dzpSrc = prcSrc->Dxp()))
     {
@@ -598,10 +577,10 @@ PT PT::PtMap(RC *prcSrc, RC *prcDst)
     Transform the xp and yp values according to grfpt.  Negating comes
     before transposition.
 ***************************************************************************/
-void PT::Transform(ulong grfpt)
+void PT::Transform(LegacyUlong grfpt)
 {
     AssertThisMem();
-    long zp;
+    LegacyLong zp;
 
     if (grfpt & fptNegateXp)
         xp = -xp;
@@ -724,7 +703,7 @@ bool RC::FIntersect(RC *prc)
 /***************************************************************************
     Inset a rectangle (into another)
 ***************************************************************************/
-void RC::InsetCopy(RC *prc, long dxp, long dyp)
+void RC::InsetCopy(RC *prc, LegacyLong dxp, LegacyLong dyp)
 {
     AssertThisMem();
     AssertVarMem(prc);
@@ -738,7 +717,7 @@ void RC::InsetCopy(RC *prc, long dxp, long dyp)
 /***************************************************************************
     Inset a rectangle (in place)
 ***************************************************************************/
-void RC::Inset(long dxp, long dyp)
+void RC::Inset(LegacyLong dxp, LegacyLong dyp)
 {
     AssertThisMem();
 
@@ -758,7 +737,7 @@ void RC::Map(RC *prcSrc, RC *prcDst)
     AssertThisMem();
     AssertVarMem(prcSrc);
     AssertVarMem(prcDst);
-    long dzpSrc, dzpDst;
+    LegacyLong dzpSrc, dzpDst;
 
     if ((dzpDst = prcDst->Dxp()) == (dzpSrc = prcSrc->Dxp()))
     {
@@ -790,10 +769,10 @@ void RC::Map(RC *prcSrc, RC *prcDst)
     Transform the xp and yp values according to grfpt.  Negating comes
     before transposition.
 ***************************************************************************/
-void RC::Transform(ulong grfpt)
+void RC::Transform(LegacyUlong grfpt)
 {
     AssertThisMem();
-    long zp;
+    LegacyLong zp;
 
     if (grfpt & fptNegateXp)
     {
@@ -821,7 +800,7 @@ void RC::Transform(ulong grfpt)
 /***************************************************************************
     Move a rectangle (into another)
 ***************************************************************************/
-void RC::OffsetCopy(RC *prc, long dxp, long dyp)
+void RC::OffsetCopy(RC *prc, LegacyLong dxp, LegacyLong dyp)
 {
     AssertThisMem();
     AssertVarMem(prc);
@@ -835,7 +814,7 @@ void RC::OffsetCopy(RC *prc, long dxp, long dyp)
 /***************************************************************************
     Move a rectangle (in place)
 ***************************************************************************/
-void RC::Offset(long dxp, long dyp)
+void RC::Offset(LegacyLong dxp, LegacyLong dyp)
 {
     AssertThisMem();
 
@@ -864,8 +843,8 @@ void RC::CenterOnRc(RC *prcBase)
 {
     AssertThisMem();
     AssertVarMem(prcBase);
-    long dxp = Dxp();
-    long dyp = Dyp();
+    LegacyLong dxp = Dxp();
+    LegacyLong dyp = Dyp();
 
     xpLeft = (prcBase->xpLeft + prcBase->xpRight - dxp) / 2;
     xpRight = xpLeft + dxp;
@@ -876,11 +855,11 @@ void RC::CenterOnRc(RC *prcBase)
 /***************************************************************************
     Centers this rectangle on (xp, yp).
 ***************************************************************************/
-void RC::CenterOnPt(long xp, long yp)
+void RC::CenterOnPt(LegacyLong xp, LegacyLong yp)
 {
     AssertThisMem();
-    long dxp = Dxp();
-    long dyp = Dyp();
+    LegacyLong dxp = Dxp();
+    LegacyLong dyp = Dyp();
 
     xpLeft = xp - dxp / 2;
     xpRight = xpLeft + dxp;
@@ -911,10 +890,10 @@ void RC::StretchToRc(RC *prcBase)
 {
     AssertThisMem();
     AssertVarMem(prcBase);
-    long dxp = Dxp();
-    long dyp = Dyp();
-    long dxpBase = prcBase->Dxp();
-    long dypBase = prcBase->Dyp();
+    LegacyLong dxp = Dxp();
+    LegacyLong dyp = Dyp();
+    LegacyLong dxpBase = prcBase->Dxp();
+    LegacyLong dypBase = prcBase->Dyp();
 
     if (dxp <= 0 || dyp <= 0)
     {
@@ -943,7 +922,7 @@ void RC::StretchToRc(RC *prcBase)
 /***************************************************************************
     Determine if the given point is in the rectangle
 ***************************************************************************/
-bool RC::FPtIn(long xp, long yp)
+bool RC::FPtIn(LegacyLong xp, LegacyLong yp)
 {
     AssertThisMem();
 
@@ -969,7 +948,7 @@ void RC::PinToRc(RC *prc)
 {
     AssertThisMem();
     AssertVarMem(prc);
-    long dxp, dyp;
+    LegacyLong dxp, dyp;
 
     dxp = LwMax(LwMin(0, prc->xpRight - xpRight), prc->xpLeft - xpLeft);
     dyp = LwMax(LwMin(0, prc->ypBottom - ypBottom), prc->ypTop - ypTop);
@@ -984,10 +963,10 @@ RC &RC::operator=(SystemRectangle &rcs)
 {
     AssertThisMem();
 
-    xpLeft = (long)rcs.left;
-    xpRight = (long)rcs.right;
-    ypTop = (long)rcs.top;
-    ypBottom = (long)rcs.bottom;
+    xpLeft = (LegacyLong)rcs.left;
+    xpRight = (LegacyLong)rcs.right;
+    ypTop = (LegacyLong)rcs.top;
+    ypBottom = (LegacyLong)rcs.bottom;
     return *this;
 }
 
@@ -1010,7 +989,7 @@ RC::operator SystemRectangle(void)
 /***************************************************************************
     Return the area of the rectangle.
 ***************************************************************************/
-long RC::LwArea(void)
+LegacyLong RC::LwArea(void)
 {
     AssertThisMem();
 
@@ -1036,7 +1015,7 @@ bool RC::FContains(RC *prc)
     this rc to the (ircWidth, ircHeight) cell of the grid.  prcSrc cannot
     be equal to this.
 ***************************************************************************/
-void RC::SetToCell(RC *prcSrc, long crcWidth, long crcHeight, long ircWidth, long ircHeight)
+void RC::SetToCell(RC *prcSrc, LegacyLong crcWidth, LegacyLong crcHeight, LegacyLong ircWidth, LegacyLong ircHeight)
 {
     AssertThisMem();
     AssertVarMem(prcSrc);
@@ -1056,7 +1035,7 @@ void RC::SetToCell(RC *prcSrc, long crcWidth, long crcHeight, long ircWidth, lon
     Determines which cell the given (xp, yp) is in.  This is essentially
     the inverse of SetToCell.
 ***************************************************************************/
-bool RC::FMapToCell(long xp, long yp, long crcWidth, long crcHeight, long *pircWidth, long *pircHeight)
+bool RC::FMapToCell(LegacyLong xp, LegacyLong yp, LegacyLong crcWidth, LegacyLong crcHeight, LegacyLong *pircWidth, LegacyLong *pircHeight)
 {
     AssertThisMem();
     AssertIn(crcWidth, 1, kcbMax);
@@ -1075,10 +1054,10 @@ bool RC::FMapToCell(long xp, long yp, long crcWidth, long crcHeight, long *pircW
 /***************************************************************************
     Asserts the validity of a fraction.
 ***************************************************************************/
-void RAT::AssertValid(ulong grf)
+void RAT::AssertValid(LegacyUlong grf)
 {
     AssertIn(_lwDen, 1, klwMax);
-    long lwGcd = LwGcd(_lwNum, _lwDen);
+    LegacyLong lwGcd = LwGcd(_lwNum, _lwDen);
     Assert(lwGcd == 1, "fraction not in lowest terms");
 }
 #endif // DEBUG
@@ -1089,7 +1068,7 @@ void RAT::AssertValid(ulong grf)
 UniversalScalableApplicationClock::UniversalScalableApplicationClock(void)
 {
     AssertThisMem();
-    _tsBaseSys = MacWin(TickCount(), timeGetTime());
+    _tsBaseSys = TsCurrentSystem();
     _tsBaseApp = 0;
     _luScale = kluTimeScaleNormal;
 }
@@ -1097,14 +1076,14 @@ UniversalScalableApplicationClock::UniversalScalableApplicationClock(void)
 /***************************************************************************
     Return the current application time.
 ***************************************************************************/
-ulong UniversalScalableApplicationClock::TsCur(void)
+LegacyUlong UniversalScalableApplicationClock::TsCur(void)
 {
     AssertThisMem();
-    ulong dtsSys = TsCurrentSystem() - _tsBaseSys;
+    LegacyUlong dtsSys = TsCurrentSystem() - _tsBaseSys;
 
     if (_luScale != kluTimeScaleNormal)
     {
-        ulong luHigh;
+        LegacyUlong luHigh;
         MulLu(dtsSys, _luScale, &luHigh, &dtsSys);
         dtsSys = LwHighLow(SuLow(luHigh), SuHigh(dtsSys));
     }
@@ -1115,10 +1094,10 @@ ulong UniversalScalableApplicationClock::TsCur(void)
 /***************************************************************************
     Scale the time.
 ***************************************************************************/
-void UniversalScalableApplicationClock::Scale(ulong luScale)
+void UniversalScalableApplicationClock::Scale(LegacyUlong luScale)
 {
     AssertThisMem();
-    ulong tsSys, dts;
+    LegacyUlong tsSys, dts;
 
     if (luScale == _luScale)
         return;
@@ -1128,7 +1107,7 @@ void UniversalScalableApplicationClock::Scale(ulong luScale)
     dts = tsSys - _tsBaseSys;
     if (_luScale != kluTimeScaleNormal)
     {
-        ulong luHigh;
+        LegacyUlong luHigh;
         MulLu(dts, _luScale, &luHigh, &dts);
         dts = LwHighLow(SuLow(luHigh), SuHigh(dts));
     }

@@ -81,12 +81,12 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
     colour_width = zb.row_width/BPP;
 
     zb.main.grad = zb.main.x*_reciprocal[zb.main.y];
-    zb.main.d_f = zb.main.grad << 16;
+    zb.main.d_f = (br_uint_32)zb.main.grad << 16;
     grad = sar16(zb.main.grad);
     zb.main.d_i = grad+colour_width;
 
     zb.top.grad = zb.top.y ? zb.top.x*_reciprocal[zb.top.y] : 0;
-    zb.top.d_f = zb.top.grad << 16;
+    zb.top.d_f = (br_uint_32)zb.top.grad << 16;
     zb.top.d_i = sar16(zb.top.grad)+colour_width;
 
     zb.main.f = zb.top.f = 0x80000000;
@@ -99,7 +99,7 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
     zb.bot.f = 0x80000000;
 
     zb.bot.grad = zb.bot.y ? zb.bot.x*_reciprocal[zb.bot.y] : 0;
-    zb.bot.d_f = zb.bot.grad << 16;
+    zb.bot.d_f = (br_uint_32)zb.bot.grad << 16;
     zb.bot.d_i = sar16(zb.bot.grad)+colour_width;
     zb.bot.count = syc-syb;
 
@@ -110,13 +110,13 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
 	zb.bot.count && zb.bot.grad<zb.main.grad;
 
 #define PARAM_SETUP(param,p) {\
-    dp1 = b->p-a->p;\
-    dp2 = c->p-a->p;\
+    dp1 = (br_fixed_ls)((br_uint_32)b->p-(br_uint_32)a->p);\
+    dp2 = (br_fixed_ls)((br_uint_32)c->p-(br_uint_32)a->p);\
     param.grad_x = SafeFixedMac2Div(dp1,zb.main.y,-dp2,zb.top.y,g_divisor);\
     param.grad_y = SafeFixedMac2Div(dp2,zb.top.x,-dp1,zb.main.x,g_divisor);\
-    param.current = a->p+param.grad_x/2;\
-    param.d_nocarry = BrFixedToInt(zb.main.grad)*param.grad_x+param.grad_y;\
-    param.d_carry = param.d_nocarry+param.grad_x;\
+    param.current = (br_fixed_ls)((br_uint_32)a->p+(br_uint_32)(param.grad_x/2));\
+    param.d_nocarry = (br_fixed_ls)((br_uint_32)BrFixedToInt(zb.main.grad)*(br_uint_32)param.grad_x+(br_uint_32)param.grad_y);\
+    param.d_carry = (br_fixed_ls)((br_uint_32)param.d_nocarry+(br_uint_32)param.grad_x);\
 }
 
 #if LIGHT
@@ -129,12 +129,12 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
     PARAM_SETUP(zb.pu,comp[C_U]);
     PARAM_SETUP(zb.pv,comp[C_V]);
 
-    zb.awsl.du_nocarry = zb.pu.d_nocarry << 16;
-    zb.awsl.dv_nocarry = zb.pv.d_nocarry << 16;
-    zb.awsl.du_carry = zb.pu.d_carry << 16;
-    zb.awsl.dv_carry = zb.pv.d_carry << 16;
-    zb.awsl.u_current = zb.pu.current << 16;
-    zb.awsl.v_current = zb.pv.current << 16;
+    zb.awsl.du_nocarry = (br_uint_32)zb.pu.d_nocarry << 16;
+    zb.awsl.dv_nocarry = (br_uint_32)zb.pv.d_nocarry << 16;
+    zb.awsl.du_carry = (br_uint_32)zb.pu.d_carry << 16;
+    zb.awsl.dv_carry = (br_uint_32)zb.pv.d_carry << 16;
+    zb.awsl.u_current = (br_uint_32)zb.pu.current << 16;
+    zb.awsl.v_current = (br_uint_32)zb.pv.current << 16;
 
 	/*
 	 * Per scan line increments
@@ -175,8 +175,8 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
     zb.awsl.u_int_current += 0x8000;
 
     if (direction) {
-		zb.awsl.du = zb.pu.grad_x << 16;
-		zb.awsl.dv = zb.pv.grad_x << 16;
+		zb.awsl.du = (br_uint_32)zb.pu.grad_x << 16;
+		zb.awsl.dv = (br_uint_32)zb.pv.grad_x << 16;
 		zb.awsl.du_int = sar16(zb.pu.grad_x) % zb.awsl.texture_width;
 		if (powerof2(texture_height))
 		    dv_int = (sar16(zb.pv.grad_x) & texture_height-1)-texture_height;
@@ -185,13 +185,13 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
 	    	if (dv_int>=0) dv_int -= texture_height;
 		 }
     } else {
-		zb.awsl.du = -zb.pu.grad_x << 16;
-		zb.awsl.dv = -zb.pv.grad_x << 16;
-		zb.awsl.du_int = sar16(-zb.pu.grad_x) % zb.awsl.texture_width;
+		zb.awsl.du = (0u - (br_uint_32)zb.pu.grad_x) << 16;
+		zb.awsl.dv = (0u - (br_uint_32)zb.pv.grad_x) << 16;
+		zb.awsl.du_int = sar16((br_fixed_ls)(0u - (br_uint_32)zb.pu.grad_x)) % zb.awsl.texture_width;
 		if (powerof2(texture_height)) {
-		    dv_int = (sar16(-zb.pv.grad_x) & texture_height-1)-texture_height;
+		    dv_int = (sar16((br_fixed_ls)(0u - (br_uint_32)zb.pv.grad_x)) & texture_height-1)-texture_height;
 		 } else
-		    dv_int = sar16(-zb.pv.grad_x) % texture_height;
+		    dv_int = sar16((br_fixed_ls)(0u - (br_uint_32)zb.pv.grad_x)) % texture_height;
 	    if (dv_int>=0) dv_int -= texture_height;
     }
 
@@ -211,4 +211,3 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
 
     TNAME();
 }
-

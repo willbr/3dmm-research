@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef PIC_H
 #define PIC_H
+#include "picture_data.h"
 
 const FileType kftgPict = 'PICT';
 const FileType kftgMeta = 'WMF';
@@ -33,18 +34,14 @@ class Picture : public Picture_PAR
     ASSERT
 
   protected:
-    struct PICH
-    {
-        RC rc;
-        long cb;
-    };
+    PictureData _stored; // preserves original native bytes independently of GDI
 
-    HPIC _hpic;
+    CoreNative::PictureHandle _hpic;
     RC _rc;
 
     Picture(void);
 #ifdef WIN
-    static HPIC _HpicReadWmf(Filename *pfni);
+    static CoreNative::PictureHandle _HpicReadWmf(Filename *pfni);
 #endif // WIN
 
   public:
@@ -53,20 +50,20 @@ class Picture : public Picture_PAR
     static PPicture PpicFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid = 0);
     static PPicture PpicRead(PDataBlock pblck);
     static PPicture PpicReadNative(Filename *pfni);
-    static PPicture PpicNew(HPIC hpic, RC *prc);
+    static PPicture PpicNew(CoreNative::PictureHandle hpic, RC *prc);
 
     void GetRc(RC *prc);
-    HPIC Hpic(void)
+    CoreNative::PictureHandle Hpic(void)
     {
         return _hpic;
     }
     bool FAddToCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno, ChildChunkID chid = 0);
     bool FPutInCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid = 0);
-    virtual long CbOnFile(void);
+    virtual LegacyLong CbOnFile(void);
     virtual bool FWrite(PDataBlock pblck);
 };
 
 // a chunky resource reader to read picture 0 from a GRAF chunk
-bool FReadMainPic(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+bool FReadMainPic(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 
 #endif //! PIC_H

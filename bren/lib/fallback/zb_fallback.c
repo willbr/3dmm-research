@@ -84,10 +84,11 @@ static void render_trapezoid_tia(int transparent)
 
     while (count-- > 0)
     {
-        br_fixed_ls cur_z = zb.pz.current;
-        br_fixed_ls cur_i = zb.pi.current;
-        br_fixed_ls cur_u = zb.pu.current;
-        br_fixed_ls cur_v = zb.pv.current;
+        /* These walkers mirror 32-bit assembly registers and wrap on carry. */
+        uint32_t cur_z = (uint32_t)zb.pz.current;
+        uint32_t cur_i = (uint32_t)zb.pi.current;
+        uint32_t cur_u = (uint32_t)zb.pu.current;
+        uint32_t cur_v = (uint32_t)zb.pv.current;
 
         /* Pixel direction. Asm checks (start >= _end) at scanline entry
          * and chooses a forward or backward inner loop. */
@@ -195,17 +196,17 @@ static void render_trapezoid_tia(int transparent)
          * d_nocarry the alternative. */
         if (main_carry)
         {
-            zb.pz.current += zb.pz.d_carry;
-            zb.pi.current += zb.pi.d_carry;
-            zb.pu.current += zb.pu.d_carry;
-            zb.pv.current += zb.pv.d_carry;
+            zb.pz.current = (br_fixed_ls)((uint32_t)zb.pz.current + (uint32_t)zb.pz.d_carry);
+            zb.pi.current = (br_fixed_ls)((uint32_t)zb.pi.current + (uint32_t)zb.pi.d_carry);
+            zb.pu.current = (br_fixed_ls)((uint32_t)zb.pu.current + (uint32_t)zb.pu.d_carry);
+            zb.pv.current = (br_fixed_ls)((uint32_t)zb.pv.current + (uint32_t)zb.pv.d_carry);
         }
         else
         {
-            zb.pz.current += zb.pz.d_nocarry;
-            zb.pi.current += zb.pi.d_nocarry;
-            zb.pu.current += zb.pu.d_nocarry;
-            zb.pv.current += zb.pv.d_nocarry;
+            zb.pz.current = (br_fixed_ls)((uint32_t)zb.pz.current + (uint32_t)zb.pz.d_nocarry);
+            zb.pi.current = (br_fixed_ls)((uint32_t)zb.pi.current + (uint32_t)zb.pi.d_nocarry);
+            zb.pu.current = (br_fixed_ls)((uint32_t)zb.pu.current + (uint32_t)zb.pu.d_nocarry);
+            zb.pv.current = (br_fixed_ls)((uint32_t)zb.pv.current + (uint32_t)zb.pv.d_nocarry);
         }
     }
 
@@ -419,7 +420,7 @@ void _MemFill_A(char *dest, uint32_t dest_qual, uint32_t pixels, uint32_t bpp, u
 
 /* _MemRectFill_A: fill a rectangular block of pixels.
  * dest points to the top-left, d_stride is the destination row pitch. */
-void _MemRectFill_A(char *dest, uint32_t dest_qual, uint32_t pwidth, uint32_t pheight, uint32_t d_stride, uint32_t bpp,
+void _MemRectFill_A(char *dest, uint32_t dest_qual, uint32_t pwidth, uint32_t pheight, int32_t d_stride, uint32_t bpp,
                     uint32_t colour)
 {
     uint32_t row;

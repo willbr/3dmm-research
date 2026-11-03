@@ -1,0 +1,47 @@
+/* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#ifndef THREE_MM_PREVIEW_ACTOR_H
+#define THREE_MM_PREVIEW_ACTOR_H
+#include <functional>
+#include "soc_core.h"
+
+namespace ThreeMM
+{
+namespace Internal
+{
+// Engine adapter for the pure frame/pose evaluators. No Studio, World or audio.
+class PreviewActor
+{
+    ActorChunkOnFile header = {};
+    ActorTrack track;
+    ActorFrameState state;
+    bool inactive = false;
+    PTemplate tmpl = nullptr;
+    std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
+    bool Apply(LegacyLong index);
+    bool Position(bool selectCel);
+    bool Evaluate(bool display);
+    ActorStepSource Steps() const;
+
+  public:
+    PBody body = nullptr;
+    ~PreviewActor();
+    bool Load(PChunkyResourceFile file, ChunkNumber number,
+              std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+              std::function<void(PTemplate)> bindTemplate);
+    bool Seek(LegacyLong frame);
+    bool Visible() const
+    {
+        return state.onStage;
+    }
+    LegacyLong FirstFrame() const
+    {
+        return header.nfrmFirst;
+    }
+    LegacyLong LastFrame() const
+    {
+        return header.nfrmLast;
+    }
+};
+} // namespace Internal
+} // namespace ThreeMM
+#endif

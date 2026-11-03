@@ -26,11 +26,11 @@ using ScriptCompiler::PStringRegistry;
 struct Topic
 {
     ChunkNumber cnoBalloon;
-    long hidThis;
-    long hidTarget;
+    LegacyLong hidThis;
+    LegacyLong hidTarget;
     ChunkNumber cnoScript;
-    long dxp;
-    long dyp;
+    LegacyLong dxp;
+    LegacyLong dyp;
     ChunkIdentification ckiSnd;
 };
 typedef Topic *PTopic;
@@ -48,8 +48,11 @@ struct TopicFile
 struct EditControl
 {
     ChunkTagOrType ctg;  // kctgEditControl
-    long dxp; // width
+    LegacyLong dxp; // width
 };
+static_assert(sizeof(Topic) == 32, "help topics must retain their stored size");
+static_assert(sizeof(TopicFile) == 36, "help topic headers must retain their stored size");
+static_assert(sizeof(EditControl) == 8, "help edit controls must retain their stored size");
 
 /***************************************************************************
     Help text document
@@ -135,7 +138,7 @@ class TopicGraphicsObject : public TopicGraphicsObject_PAR
     TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);
     virtual bool _FInit(void);
     virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic = cnoNil,
-                             long *plwRet = pvNil);
+                             LegacyLong *plwRet = pvNil);
 
   public:
     static PTopicGraphicsObject PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);

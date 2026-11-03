@@ -1,0 +1,12 @@
+Ellipse curve subdivision
+
+The fixed-point HFD basis in kauai/src/ellipse_geometry.cpp is adapted from
+emf-converter, src/gdi-raster.ts, revision 540f707a0ae3ada37db70a500c82b94ea9486084.
+https://github.com/christophervr/emf-converter/blob/540f707a0ae3ada37db70a500c82b94ea9486084/src/gdi-raster.ts
+Copyright 2025-present pptx-viewer contributors.
+Licensed under Apache License 2.0; see ellipse-Apache-2.0.txt.
+
+3DMMForever modifications: C++ adaptation, separate large-bound path,
+ellipse construction, bounded row generation and integer scan conversion.
+Only the curve subdivision code is adapted; no bundled image decoders,
+fonts, third-party code or native fixture data are included.

@@ -13,6 +13,9 @@
     Part of the cmd_core split planned in
     docs/superpowers/plans/2026-05-02-cmd-core-split.md (Task 3).
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#endif
 #include "frame.h"
 ASSERTNAME
 
@@ -22,7 +25,7 @@ RTCLASS(GuiCommandExecutionManager)
     Construct a gui-side CEM. Same init as the base class -- the subclass
     only overrides behavior, not data layout.
 ***************************************************************************/
-PGuiCommandExecutionManager GuiCommandExecutionManager::PgcexNew(long ccmdInit, long ccmhInit)
+PGuiCommandExecutionManager GuiCommandExecutionManager::PgcexNew(LegacyLong ccmdInit, LegacyLong ccmhInit)
 {
     PGuiCommandExecutionManager pgcex;
 
@@ -130,6 +133,14 @@ void GuiCommandExecutionManager::TrackMouse(PGraphicsObject pgob)
     Assert(_pgobTrack == pvNil, "some other gob is already tracking the mouse");
 
     _pgobTrack = pgob;
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        KauaiSDL::Main().SuspendPointer(false);
+        KauaiSDL::Main().CapturePointer(true);
+        return;
+    }
+#endif
 #ifdef WIN
     _hwndCapture = pgob->HwndContainer();
     SetCapture(_hwndCapture);
@@ -140,6 +151,17 @@ void GuiCommandExecutionManager::EndMouseTracking(void)
 {
     AssertThis(0);
 
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        KauaiSDL::Main().CapturePointer(false);
+        KauaiSDL::Main().ConfinePointer(false);
+        KauaiSDL::Main().SetSlowKeyRepeat(false);
+        KauaiSDL::Main().SuspendPointer(false);
+        _pgobTrack = pvNil;
+        return;
+    }
+#endif
 #ifdef WIN
     if (pvNil != _pgobTrack)
     {
@@ -161,6 +183,14 @@ void GuiCommandExecutionManager::Suspend(bool fSuspend)
 {
     AssertThis(0);
 
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        if (_pgobTrack)
+            KauaiSDL::Main().SuspendPointer(fSuspend);
+        return;
+    }
+#endif
 #ifdef WIN
     if (pvNil == _pgobTrack || hNil == _hwndCapture)
         return;
@@ -178,4 +208,16 @@ void GuiCommandExecutionManager::SetModalGob(PGraphicsObject pgob)
     AssertNilOrPo(pgob, 0);
 
     _pgobModal = pgob;
+}
+
+void GuiCommandExecutionManager::BuryCmh(PCommandHandler pcmh)
+{
+    if (_pgobModal == pcmh)
+        _pgobModal = pvNil;
+
+    if (_pgobTrack == pcmh)
+    {
+        EndMouseTracking();
+    }
+    CommandExecutionManager::BuryCmh(pcmh);
 }

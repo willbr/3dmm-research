@@ -177,7 +177,7 @@ bool TextDocumentByteStream::FSaveToFni(Filename *pfni, bool fSetFni)
 /***************************************************************************
     Assert the validity of a TextDocumentByteStream.
 ***************************************************************************/
-void TextDocumentByteStream::AssertValid(ulong grf)
+void TextDocumentByteStream::AssertValid(LegacyUlong grf)
 {
     TextDocumentByteStream_PAR::AssertValid(0);
     AssertPo(_pbsf, 0);
@@ -1643,7 +1643,7 @@ void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel
     AssertThis(0);
     Assert(!_fSelOn, "why is the sel on during an invalidation?");
     RC rcLoc, rc;
-    long ichAnchor, ichOther;
+    LegacyLong ichAnchor, ichOther;
     long lnNew, clnIns, clnDel;
     long yp, dypIns, dypDel;
 
@@ -1795,7 +1795,7 @@ bool TextDocumentByteStreamDisplay::_FPaste(PClipboardObject pclip, bool fDoIt, 
 /***************************************************************************
     Assert the validity of a TextDocumentByteStreamDisplay.
 ***************************************************************************/
-void TextDocumentByteStreamDisplay::AssertValid(ulong grf)
+void TextDocumentByteStreamDisplay::AssertValid(LegacyUlong grf)
 {
     // REVIEW shonk: fill in more
     TextDocumentByteStreamDisplay_PAR::AssertValid(0);

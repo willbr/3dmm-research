@@ -4,6 +4,7 @@
 //Microsoft Visual C++ generated resource script.
 //
 #include "utestres.h"
+#include "studio_product_names.h"
 
 #define APSTUDIO_READONLY_SYMBOLS
 /////////////////////////////////////////////////////////////////////////////
@@ -312,9 +313,9 @@ END
 
 STRINGTABLE DISCARDABLE
 BEGIN
-    stidAppName             "Microsoft 3D Movie Maker"
-    stid3DMovieNameLong     "3D Movie Maker"
-    stid3DMovieNameShort    "3DMovie"
+    stidAppName             STUDIO_APPLICATION_NAME
+    stid3DMovieNameLong     STUDIO_PRODUCT_LONG_NAME
+    stid3DMovieNameShort    STUDIO_PRODUCT_SHORT_NAME
 
     stidInstallDriverWin95  "You do not have a multimedia driver needed by this application.  We will now try to to install the driver for you.  Once it is installed, you will need to restart the application."
     stidInstallDriverNT     "You do not have a multimedia driver needed by this application.  To install, select the drivers applet in the control panel. Press the ADD button and select the driver named above."

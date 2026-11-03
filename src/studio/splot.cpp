@@ -300,7 +300,9 @@ bool SplotMachine::FCmdUpdate(PCommand pcmd)
         _pmvie->Pmsq()->StopAll(); // Make sure no sounds are streaming from HD cache
         if (--_cactPullTilClearCache == 0)
         {
+            vpappb->BeginLongOp();
             vptagm->ClearCache(sidNil, ftagmFile); // Clear content out of HD cache
+            vpappb->EndLongOp();
             _cactPullTilClearCache = 5;
         }
 #endif // BUG1907
@@ -385,7 +387,9 @@ bool SplotMachine::FCmdDismiss(PCommand pcmd)
     else
     {
         _pmvie->Pmsq()->StopAll();             // Make sure no sounds are streaming from HD cache
+        vpappb->BeginLongOp();
         vptagm->ClearCache(sidNil, ftagmFile); // Clear content out of HD cache
+        vpappb->EndLongOp();
         // Note: could clear out the RAM cache too, but I'm keeping this change
         // as small as possible.
     }
@@ -424,7 +428,7 @@ SplotMachine::~SplotMachine(void)
 }
 
 #ifdef DEBUG
-void SplotMachine::AssertValid(ulong grf)
+void SplotMachine::AssertValid(LegacyUlong grf)
 {
     SplotMachine_PAR::AssertValid(grf);
     AssertPo(_pglclrSav, 0);

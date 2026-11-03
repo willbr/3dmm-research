@@ -1,0 +1,8 @@
+execute_process(COMMAND "${TEST_EXE}" RESULT_VARIABLE status ERROR_VARIABLE output)
+if(NOT status EQUAL 0 OR NOT output STREQUAL "BRender Warning: Warning: core warning diagnostic\n")
+  message(FATAL_ERROR "Warning dispatch failed (${status}): ${output}")
+endif()
+execute_process(COMMAND "${TEST_EXE}" fatal RESULT_VARIABLE status ERROR_VARIABLE output)
+if(NOT status EQUAL 10 OR NOT output STREQUAL "BRender Fatal Error: Failure: core fatal diagnostic\n")
+  message(FATAL_ERROR "Fatal dispatch failed (${status}): ${output}")
+endif()

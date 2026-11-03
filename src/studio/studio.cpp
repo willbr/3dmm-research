@@ -11,6 +11,7 @@
 //
 //
 
+#include <ctime>
 #include "studio.h"
 #ifdef WIN
 #include <shlobj.h>
@@ -200,7 +201,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     bool fRet = fFalse;
     long icrf;
     PChunkyResourceFile pcrf;
-    long lwParm;
+    LegacyLong lwParm;
 
     vapp.BeginLongOp();
 
@@ -454,7 +455,11 @@ LFail:
 
 #ifdef BUG1959
     if (pfni == pvNil && fRet && *pfClosedOld)
+    {
+        vpappb->BeginLongOp();
         vptagm->ClearCache(sidNil, ftagmFile);
+        vpappb->EndLongOp();
+    }
 #endif // BUG1959
 
     return fRet;
@@ -1911,7 +1916,7 @@ void Studio::PauseType(WaitReason wit)
     AssertThis(0);
 
     PKidspaceGraphicObject pgok;
-    long fFlag;
+    LegacyLong fFlag;
 
     fFlag = FPure(wit == witUntilSnd);
 
@@ -2236,7 +2241,11 @@ bool Studio::FShutdown(bool fClearCache)
     }
 
     if (fRet && fClearCache)
+    {
+        vpappb->BeginLongOp();
         vptagm->ClearCache();
+        vpappb->EndLongOp();
+    }
 
     return fRet;
 }
@@ -2644,7 +2653,7 @@ void Studio::UpdateTitle(PString pstnTitle)
     AssertPo(pstnTitle, 0);
 
     String stnFontSize;
-    long dypFontSize;
+    LegacyLong dypFontSize;
 
     // Set the movie title
     if (_ptgobTitle == pvNil)
@@ -2691,13 +2700,14 @@ bool Studio::FCmdWriteBmps(PCommand pcmd)
 ******************************************************************************/
 bool Studio::FCmdWriteBmpHires(PCommand pcmd)
 {
-    static long _lwHiresBmp = 0;
+    static LegacyLong _lwHiresBmp = 0;
     const long kscaleHires = 4;
 
     if (_pmvie == pvNil || pvNil == _pmvie->Pbwld())
         return fTrue;
     AssertPo(_pmvie, 0);
 
+#ifdef WIN
     // Avoid landing in cwd: when launched from "Program Files (x86)\Microsoft
     // Kids", relative writes get UAC-virtualized into AppData\Local\
     // VirtualStore\... which is invisible to the user. Ask the shell for the
@@ -2726,6 +2736,20 @@ bool Studio::FCmdWriteBmpHires(PCommand pcmd)
     {
         return fTrue;
     }
+
+#else
+    // POSIX has no shell Desktop-folder contract. Use the current working
+    // directory, as in the native fallback, and report the resolved path below.
+    const std::time_t now = std::time(nullptr);
+    std::tm st;
+    String stn;
+    if (now == static_cast<std::time_t>(-1) || !localtime_r(&now, &st) ||
+        !stn.FFormatSz(PszLit("hires_%04d%02d%02d_%02d%02d%02d_%04d.bmp"),
+                       static_cast<LegacyLong>(st.tm_year + 1900), static_cast<LegacyLong>(st.tm_mon + 1),
+                       static_cast<LegacyLong>(st.tm_mday), static_cast<LegacyLong>(st.tm_hour),
+                       static_cast<LegacyLong>(st.tm_min), static_cast<LegacyLong>(st.tm_sec), _lwHiresBmp++))
+        return fTrue;
+#endif
 
     Filename fni;
     if (!fni.FBuildFromPath(&stn))
@@ -2797,7 +2821,7 @@ void Studio::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void Studio::AssertValid(ulong grf)
+void Studio::AssertValid(LegacyUlong grf)
 {
     Studio_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pmvie, 0);
@@ -2907,7 +2931,7 @@ bool StudioClientCallbacks::FQueryPurgeSounds(void)
 /***************************************************************************
     Assert the validity of the StudioClientCallbacks
 ***************************************************************************/
-void StudioClientCallbacks::AssertValid(ulong grf)
+void StudioClientCallbacks::AssertValid(LegacyUlong grf)
 {
     StudioClientCallbacks_PAR::AssertValid(0);
     AssertPo(_psscb, 0);

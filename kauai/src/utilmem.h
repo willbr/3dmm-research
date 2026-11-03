@@ -18,15 +18,15 @@
 
 // used for asserts and limiting memory
 const byte kbGarbage = 0xA3;    // new blocks are filled with this
-const long kcbMax = 0x08000000; // 128 Megabytes
+const LegacyLong kcbMax = 0x08000000; // 128 Megabytes
 const short kswMagicMem = (short)0xA253;
-const long klwMagicMem = (long)0xA253A253;
+const LegacyLong klwMagicMem = (LegacyLong)0xA253A253;
 
 /***************************************************************************
     When an allocation fails, vpfnlib is called to free some memory (if it's
     not nil).
 ***************************************************************************/
-typedef long (*PFNLIB)(long cb, long mpr);
+typedef LegacyLong (*PFNLIB)(LegacyLong cb, LegacyLong mpr);
 extern PFNLIB vpfnlib;
 extern bool _fInAlloc;
 
@@ -46,20 +46,20 @@ inline short ErrSetHandleSize(HN hn, Size cb)
 class ADST
 {
   private:
-    long _lwMaskAddress;
+    LegacyLong _lwMaskAddress;
 
   public:
     ADST(void);
 
     void *PvStrip(void *pv)
     {
-        return (void *)((long)pv & _lwMaskAddress);
+        return (void *)((LegacyLong)pv & _lwMaskAddress);
     }
 };
 extern ADST vadst;
 
-#elif defined(WIN)
-typedef HGLOBAL HN;
+#else
+typedef CoreNative::MemoryHandle HN;
 #endif
 
 /****************************************
@@ -88,9 +88,9 @@ enum
 };
 
 void FreePhq(HQ *phq);
-long CbOfHq(HQ hq);
-bool FCopyHq(HQ hqSrc, HQ *phqDst, long mpr);
-bool FResizePhq(HQ *phq, long cb, ulong grfmem, long mpr);
+LegacyLong CbOfHq(HQ hq);
+bool FCopyHq(HQ hqSrc, HQ *phqDst, LegacyLong mpr);
+bool FResizePhq(HQ *phq, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr);
 void *PvLockHq(HQ hq);
 void UnlockHq(HQ hq);
 
@@ -100,19 +100,19 @@ void UnlockHq(HQ hq);
 // enter vmutxMem before modifying these...
 struct DebugMemoryAllocatorGlobals
 {
-    long cv;    // number of allocations
-    long cvTot; // total number of allocations over all time
-    long cvRun; // running max of cv
-    long cb;    // total size of allocations
-    long cbRun; // running max of cb
+    LegacyLong cv;    // number of allocations
+    LegacyLong cvTot; // total number of allocations over all time
+    LegacyLong cvRun; // running max of cv
+    LegacyLong cb;    // total size of allocations
+    LegacyLong cbRun; // running max of cb
 
-    long cactDo;   // number of times to succeed before failing
-    long cactFail; // number of times to fail
+    LegacyLong cactDo;   // number of times to succeed before failing
+    LegacyLong cactFail; // number of times to fail
 
     bool FFail(void);
-    void Allocate(long cbT);
-    void Resize(long dcb);
-    void Free(long cbT);
+    void Allocate(LegacyLong cbT);
+    void Resize(LegacyLong dcb);
+    void Free(LegacyLong cbT);
 };
 
 // debug memory globals
@@ -124,11 +124,11 @@ struct DebugMemoryGlobals
 };
 extern DebugMemoryGlobals vdmglob;
 
-extern long vcactSuspendCheckPointers;
+extern LegacyLong vcactSuspendCheckPointers;
 #define SuspendCheckPointers() vcactSuspendCheckPointers++;
 #define ResumeCheckPointers() vcactSuspendCheckPointers--;
 
-bool FAllocHqDebug(HQ *phq, long cb, ulong grfmem, long mpr, schar *pszsFile, long lwLine);
+bool FAllocHqDebug(HQ *phq, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr, schar *pszsFile, LegacyLong lwLine);
 #define FAllocHq(phq, cb, grfmem, mpr) FAllocHqDebug(phq, cb, grfmem, mpr, __szsFile, __LINE__)
 void *QvFromHq(HQ hq);
 
@@ -142,13 +142,13 @@ void _UnmarkAllHqs(void);
 #else //! DEBUG
 
 #define FAllocHqDebug(phq, cb, grfmem, mpr, pszsFile, luLine) FAllocHq(phq, cb, grfmem, mpr)
-bool FAllocHq(HQ *phq, long cb, ulong grfmem, long mpr);
+bool FAllocHq(HQ *phq, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr);
 #ifdef MAC
 inline void *QvFromHq(HQ hq)
 {
     return vadst.PvStrip(*(void **)hq);
 }
-#elif defined(WIN)
+#else
 inline void *QvFromHq(HQ hq)
 {
     return (void *)hq;
@@ -166,19 +166,17 @@ inline void *QvFromHq(HQ hq)
 #ifdef DEBUG
 
 // allocation routine
-bool FAllocPvDebug(void **ppv, long cb, ulong grfmem, long mpr, schar *pszsFile, long lwLine, DebugMemoryAllocatorGlobals *pdmagl);
+bool FAllocPvDebug(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr, schar *pszsFile, LegacyLong lwLine, DebugMemoryAllocatorGlobals *pdmagl);
 #define FAllocPv(ppv, cb, grfmem, mpr) FAllocPvDebug(ppv, cb, grfmem, mpr, __szsFile, __LINE__, &vdmglob.dmaglPv)
 
-// resizing routine - WIN only
-#ifdef WIN
-bool _FResizePpvDebug(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr, DebugMemoryAllocatorGlobals *pdmagl);
-#endif // WIN
+// Resizing preserves the original block on failure.
+bool _FResizePpvDebug(void **ppv, LegacyLong cbNew, LegacyLong cbOld, LegacyUlong grfmem, LegacyLong mpr, DebugMemoryAllocatorGlobals *pdmagl);
 
 // freeing routine
 void FreePpvDebug(void **ppv, DebugMemoryAllocatorGlobals *pdmagl);
 #define FreePpv(ppv) FreePpvDebug(ppv, &vdmglob.dmaglPv)
 
-void AssertPvAlloced(void *pv, long cb);
+void AssertPvAlloced(void *pv, LegacyLong cb);
 void AssertUnmarkedMem(void);
 void UnmarkAllMem(void);
 void MarkPv(void *pv);
@@ -190,13 +188,11 @@ void MarkPv(void *pv);
 
 // allocation routine
 #define FAllocPvDebug(ppv, cb, grfmem, mpr, pszsFile, luLine, pdmagl) FAllocPv(ppv, cb, grfmem, mpr)
-bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr);
+bool FAllocPv(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr);
 
-// resizing routine - WIN only
-#ifdef WIN
+// Resizing preserves the original block on failure.
 #define _FResizePpvDebug(ppv, cbNew, cbOld, grfmem, mpr, pdmagl) _FResizePpv(ppv, cbNew, cbOld, grfmem, mpr)
-bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr);
-#endif // WIN
+bool _FResizePpv(void **ppv, LegacyLong cbNew, LegacyLong cbOld, LegacyUlong grfmem, LegacyLong mpr);
 
 // freeing routine
 #define FreePpvDebug(ppv, pdmagl) FreePpv(ppv)
@@ -246,15 +242,15 @@ void FreePpv(void **ppv);
 /****************************************
     Pointer arithmetic
 ****************************************/
-inline void *PvAddBv(void *pv, long bv)
+inline void *PvAddBv(void *pv, LegacyLong bv)
 {
     return (byte *)pv + bv;
 }
-inline void *PvSubBv(void *pv, long bv)
+inline void *PvSubBv(void *pv, LegacyLong bv)
 {
     return (byte *)pv - bv;
 }
-inline long BvSubPvs(void *pv1, void *pv2)
+inline LegacyLong BvSubPvs(void *pv1, void *pv2)
 {
     return (byte *)pv1 - (byte *)pv2;
 }
@@ -262,42 +258,16 @@ inline long BvSubPvs(void *pv1, void *pv2)
 /****************************************
     Mutex (critical section) object
 ****************************************/
-typedef class Mutex *PMutex;
-class Mutex
-{
-  protected:
-#ifdef WIN
-    CRITICAL_SECTION _crit;
-#endif // WIN
-
-  public:
-    Mutex(void)
-    {
-        Win(InitializeCriticalSection(&_crit);)
-    }
-    ~Mutex(void)
-    {
-        Win(DeleteCriticalSection(&_crit);)
-    }
-
-    void Enter(void)
-    {
-        Win(EnterCriticalSection(&_crit);)
-    }
-    void Leave(void)
-    {
-        Win(LeaveCriticalSection(&_crit);)
-    }
-};
+// Mutex is supplied by core_platform.h, without OS handle types.
 
 extern Mutex vmutxMem;
 
 /****************************************
     Current thread id
 ****************************************/
-inline long LwThreadCur(void)
+inline LegacyLong LwThreadCur(void)
 {
-    return MacWin(0, GetCurrentThreadId());
+    return KauaiPlatform::ThreadToken();
 }
 
 #endif //! UTILMEM_H

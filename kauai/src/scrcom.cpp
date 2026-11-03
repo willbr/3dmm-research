@@ -234,11 +234,11 @@ struct ETN
     short op;     // operator (or function) to generate
     short opl;    // operator precedence level
     short grfop;  // flags
-    long lwValue; // value if a ttLong; an istn if a ttName
-    long ietn1;   // indices into _pgletnTree for the operands
-    long ietn2;
-    long ietn3;
-    long cetnDeep; // depth of the etn tree to here
+    LegacyLong lwValue; // value if a ttLong; an istn if a ttName
+    LegacyLong ietn1;   // indices into _pgletnTree for the operands
+    LegacyLong ietn2;
+    LegacyLong ietn3;
+    LegacyLong cetnDeep; // depth of the etn tree to here
 };
 
 // control structure types - these are the keywords that are followed
@@ -254,12 +254,12 @@ enum
 // control structure descriptor
 struct CSTD
 {
-    long cst;
-    long lwLabel1;  // use depends on cst
-    long lwLabel2;  // use depends on cst
-    long lwLabel3;  // use depends on cst
+    LegacyLong cst;
+    LegacyLong lwLabel1;  // use depends on cst
+    LegacyLong lwLabel2;  // use depends on cst
+    LegacyLong lwLabel3;  // use depends on cst
     PDynamicArray pgletnTree; // for while loops - the expression tree
-    long ietnTop;   // the top of the expression tree
+    LegacyLong ietnTop;   // the top of the expression tree
 };
 
 /***************************************************************************
@@ -293,7 +293,7 @@ CompilerBase::~CompilerBase(void)
 /***************************************************************************
     Assert the validity of a CompilerBase.
 ***************************************************************************/
-void CompilerBase::AssertValid(ulong grf)
+void CompilerBase::AssertValid(LegacyUlong grf)
 {
     CompilerBase_PAR::AssertValid(0);
     AssertNilOrPo(_plexb, 0);
@@ -321,7 +321,7 @@ void CompilerBase::MarkMem(void)
     MarkMemObj(_pgletnStack);
     if (pvNil != _pglcstd)
     {
-        long icstd;
+        LegacyLong icstd;
         CSTD cstd;
 
         MarkMemObj(_pglcstd);
@@ -347,7 +347,7 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
     AssertThis(0);
     AssertPo(plexb, 0);
     AssertPo(pmsnk, 0);
-    long lw;
+    LegacyLong lw;
 
     _Free();
     _fError = fFalse;
@@ -371,7 +371,7 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
         _pgletnStack->SetMinGrow(100);
     }
 
-    if (pvNil == (_pscpt = NewObj Script) || pvNil == (_pscpt->_pgllw = DynamicArray::PglNew(size(long))))
+    if (pvNil == (_pscpt = NewObj Script) || pvNil == (_pscpt->_pgllw = DynamicArray::PglNew(size(LegacyLong))))
     {
         ReleasePpo(&_pscpt);
     }
@@ -424,7 +424,7 @@ void CompilerBase::_Free(void)
     allows scripts to be embedded in source for other tools (such as
     chomp.exe).
 ***************************************************************************/
-PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
+PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, LegacyLong ttEnd)
 {
     AssertThis(0);
     AssertPo(plexb, 0);
@@ -444,8 +444,8 @@ PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk
     if (pvNil != _pgstReq)
     {
         AssertPo(_pgstReq, 0);
-        long istn;
-        long lw, ilw;
+        LegacyLong istn;
+        LegacyLong lw, ilw;
         String stn;
 
         for (istn = _pgstReq->IstnMac(); istn-- > 0;)
@@ -576,7 +576,7 @@ void CompilerBase::_ReportError(PZString psz)
 /***************************************************************************
     The given long is immediate data to be pushed onto the execution stack.
 ***************************************************************************/
-void CompilerBase::_PushLw(long lw)
+void CompilerBase::_PushLw(LegacyLong lw)
 {
     AssertThis(0);
 
@@ -599,7 +599,7 @@ void CompilerBase::_PushString(PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
     RuntimeVariableName rtvn;
-    long istn;
+    LegacyLong istn;
 
     if (_fError)
         return;
@@ -620,11 +620,11 @@ void CompilerBase::_PushString(PString pstn)
 /***************************************************************************
     Add an opcode to the compiled script.
 ***************************************************************************/
-void CompilerBase::_PushOp(long op)
+void CompilerBase::_PushOp(LegacyLong op)
 {
     AssertThis(0);
-    Assert((long)(short)op == op, "bad opcode");
-    long lw;
+    Assert((LegacyLong)(short)op == op, "bad opcode");
+    LegacyLong lw;
 
     if (_fError)
         return;
@@ -644,8 +644,8 @@ void CompilerBase::_PushOp(long op)
 void CompilerBase::_EndOp(void)
 {
     AssertThis(0);
-    long ilw;
-    long lw;
+    LegacyLong ilw;
+    LegacyLong lw;
 
     if (_fError)
         return;
@@ -665,12 +665,12 @@ void CompilerBase::_EndOp(void)
 /***************************************************************************
     Add an opcode that acts on a variable.
 ***************************************************************************/
-void CompilerBase::_PushVarOp(long op, RuntimeVariableName *prtvn)
+void CompilerBase::_PushVarOp(LegacyLong op, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
-    Assert((long)(byte)op == op, "bad opcode");
+    Assert((LegacyLong)(byte)op == op, "bad opcode");
     AssertVarMem(prtvn);
-    long lw;
+    LegacyLong lw;
 
     _PushOp(opNil); // push a nil op, then fill it in below
     if (_fError)
@@ -689,12 +689,12 @@ void CompilerBase::_PushVarOp(long op, RuntimeVariableName *prtvn)
 /***************************************************************************
     Look up the indicated label and put it's location in *plwLoc.
 ***************************************************************************/
-bool CompilerBase::_FFindLabel(PString pstn, long *plwLoc)
+bool CompilerBase::_FFindLabel(PString pstn, LegacyLong *plwLoc)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
     AssertVarMem(plwLoc);
-    long istn;
+    LegacyLong istn;
 
     if (pvNil == _pgstLabel || !_pgstLabel->FFindStn(pstn, &istn, fgstSorted))
     {
@@ -712,10 +712,10 @@ void CompilerBase::_AddLabel(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    long lw;
-    long istn;
+    LegacyLong lw;
+    LegacyLong istn;
 
-    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = StringTable_GST::PgstNew(size(long), 5, 100)))
+    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = StringTable_GST::PgstNew(size(LegacyLong), 5, 100)))
     {
         _ReportError(_pszOom);
         return;
@@ -749,12 +749,12 @@ void CompilerBase::_PushLabelRequest(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    long lw;
+    LegacyLong lw;
 
     if (_fError)
         return;
 
-    if (pvNil == _pgstReq && pvNil == (_pgstReq = StringTable_GST::PgstNew(size(long), 10, 200)))
+    if (pvNil == _pgstReq && pvNil == (_pgstReq = StringTable_GST::PgstNew(size(LegacyLong), 10, 200)))
     {
         _ReportError(_pszOom);
         return;
@@ -773,7 +773,7 @@ void CompilerBase::_PushLabelRequest(PString pstn)
     Add an internal label.  These are numeric to avoid conflicting with
     a user defined label.
 ***************************************************************************/
-void CompilerBase::_AddLabelLw(long lw)
+void CompilerBase::_AddLabelLw(LegacyLong lw)
 {
     AssertThis(0);
     String stn;
@@ -785,7 +785,7 @@ void CompilerBase::_AddLabelLw(long lw)
 /***************************************************************************
     Push an internal label request.
 ***************************************************************************/
-void CompilerBase::_PushLabelRequestLw(long lw)
+void CompilerBase::_PushLabelRequestLw(LegacyLong lw)
 {
     AssertThis(0);
     String stn;
@@ -797,7 +797,7 @@ void CompilerBase::_PushLabelRequestLw(long lw)
 /***************************************************************************
     Find the opcode that corresponds to the given stn.
 ***************************************************************************/
-long CompilerBase::_OpFromStn(PString pstn)
+LegacyLong CompilerBase::_OpFromStn(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -809,7 +809,7 @@ long CompilerBase::_OpFromStn(PString pstn)
     Check the pstn against the strings in the prgszop and return the
     corresponding op code.
 ***************************************************************************/
-long CompilerBase::_OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop)
+LegacyLong CompilerBase::_OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -828,7 +828,7 @@ long CompilerBase::_OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop)
     Find the string corresponding to the given opcode.  This is used during
     disassembly.
 ***************************************************************************/
-bool CompilerBase::_FGetStnFromOp(long op, PString pstn)
+bool CompilerBase::_FGetStnFromOp(LegacyLong op, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -840,7 +840,7 @@ bool CompilerBase::_FGetStnFromOp(long op, PString pstn)
     Check the op against the ops in the prgszop and return the corresponding
     string.
 ***************************************************************************/
-bool CompilerBase::_FGetStnFromOpRgszop(long op, PString pstn, StringOpcodeMap *prgszop)
+bool CompilerBase::_FGetStnFromOpRgszop(LegacyLong op, PString pstn, StringOpcodeMap *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -867,7 +867,7 @@ void CompilerBase::_CompilePost(void)
     AssertThis(0);
     AssertPo(_plexb, 0);
     Token tok;
-    long op;
+    LegacyLong op;
     RuntimeVariableName rtvn;
 
     while (_FGetTok(&tok))
@@ -1114,7 +1114,7 @@ TOME _rgtomeOp[] = {
 /***************************************************************************
     Find the TOME corresponding to this token and fOp.
 ***************************************************************************/
-TOME *_PtomeFromTt(long tt, bool fOp)
+TOME *_PtomeFromTt(LegacyLong tt, bool fOp)
 {
     TOME *ptome;
 
@@ -1129,7 +1129,7 @@ TOME *_PtomeFromTt(long tt, bool fOp)
 /***************************************************************************
     Resolve the ETN stack to something at the given opl.
 ***************************************************************************/
-bool CompilerBase::_FResolveToOpl(long opl, long oplMin, long *pietn)
+bool CompilerBase::_FResolveToOpl(LegacyLong opl, LegacyLong oplMin, LegacyLong *pietn)
 {
     AssertThis(0);
     AssertIn(opl, oplNil + 1, koplMax);
@@ -1138,7 +1138,7 @@ bool CompilerBase::_FResolveToOpl(long opl, long oplMin, long *pietn)
     AssertPo(_pgletnTree, 0);
     AssertVarMem(pietn);
     ETN etn, etnT;
-    long ietn, cetn;
+    LegacyLong ietn, cetn;
 
     _pgletnStack->Get(_pgletnStack->IvMac() - 1, &etn);
     if (etn.grfop & fopOp)
@@ -1201,15 +1201,15 @@ bool CompilerBase::_FResolveToOpl(long opl, long oplMin, long *pietn)
     be simplified to nuke () groupings and unary plus operators and just
     add the rest to _pgletnTree.
 ***************************************************************************/
-bool CompilerBase::_FAddToTree(ETN *petn, long *pietn)
+bool CompilerBase::_FAddToTree(ETN *petn, LegacyLong *pietn)
 {
     AssertThis(0);
     AssertVarMem(petn);
     AssertVarMem(pietn);
-    long lw1, lw2, lw;
+    LegacyLong lw1, lw2, lw;
     bool fConst1, fConst2;
     ETN etnT1, etnT2, etn;
-    long ietnConst;
+    LegacyLong ietnConst;
     bool fCommute = fFalse;
 
     Assert((petn->ietn3 == ivNil || petn->ietn2 != ivNil) && (petn->ietn2 == ivNil || petn->ietn1 != ivNil), "bad etn");
@@ -1504,7 +1504,7 @@ void CompilerBase::_SetDepth(ETN *petn, bool fCommute)
     Return true iff the given etn is constant.  If so, set *plw to its
     value.
 ***************************************************************************/
-bool CompilerBase::_FConstEtn(long ietn, long *plw)
+bool CompilerBase::_FConstEtn(LegacyLong ietn, LegacyLong *plw)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -1530,7 +1530,7 @@ bool CompilerBase::_FConstEtn(long ietn, long *plw)
     Put the result in *plw.  Return false if we can't combine the values
     using op.
 ***************************************************************************/
-bool CompilerBase::_FCombineConstValues(long op, long lw1, long lw2, long *plw)
+bool CompilerBase::_FCombineConstValues(LegacyLong op, LegacyLong lw1, LegacyLong lw2, LegacyLong *plw)
 {
     AssertBaseThis(0);
     AssertVarMem(plw);
@@ -1560,10 +1560,10 @@ bool CompilerBase::_FCombineConstValues(long op, long lw1, long lw2, long *plw)
             *plw = op == kopDiv ? lw1 / lw2 : lw1 % lw2;
         break;
     case kopShr:
-        *plw = (ulong)lw1 >> lw2;
+        *plw = (LegacyUlong)lw1 >> lw2;
         break;
     case kopShl:
-        *plw = (ulong)lw1 << lw2;
+        *plw = (LegacyUlong)lw1 << lw2;
         break;
     case kopBOr:
         *plw = lw1 | lw2;
@@ -1613,7 +1613,7 @@ bool CompilerBase::_FCombineConstValues(long op, long lw1, long lw2, long *plw)
 
     This is highly recursive, so limit the stack space needed.
 ***************************************************************************/
-void CompilerBase::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
+void CompilerBase::_EmitCode(LegacyLong ietnTop, LegacyUlong grfscc, LegacyLong *pclwArg)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -1622,10 +1622,10 @@ void CompilerBase::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
     AssertNilOrVarMem(pclwArg);
     ETN etn;
     RuntimeVariableName rtvn;
-    long opPush, opPop;
-    long clwStack;
-    long lw1, lw2;
-    long cst;
+    LegacyLong opPush, opPop;
+    LegacyLong clwStack;
+    LegacyLong lw1, lw2;
+    LegacyLong cst;
 
     _pgletnTree->Get(ietnTop, &etn);
 
@@ -1781,7 +1781,7 @@ void CompilerBase::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
         else
         {
             // get the arguments and count them
-            long clwArg;
+            LegacyLong clwArg;
 
             if (etn.ietn2 == ivNil)
                 clwArg = 0;
@@ -1863,10 +1863,10 @@ void CompilerBase::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
 /***************************************************************************
     If the etn is for a control structure, return the cst.
 ***************************************************************************/
-long CompilerBase::_CstFromName(long ietn)
+LegacyLong CompilerBase::_CstFromName(LegacyLong ietn)
 {
     AssertThis(0);
-    long istn;
+    LegacyLong istn;
     String stn;
 
     _GetIstnNameFromIetn(ietn, &istn);
@@ -1884,13 +1884,13 @@ long CompilerBase::_CstFromName(long ietn)
 /***************************************************************************
     Begin a new control structure.
 ***************************************************************************/
-void CompilerBase::_BeginCst(long cst, long ietn)
+void CompilerBase::_BeginCst(LegacyLong cst, LegacyLong ietn)
 {
     AssertThis(0);
     AssertPo(_pglcstd, 0);
     CSTD cstd;
     CSTD cstdPrev;
-    long cetn;
+    LegacyLong cetn;
 
     ClearPb(&cstd, size(cstd));
     cstd.cst = cst;
@@ -1987,15 +1987,15 @@ void CompilerBase::_BeginCst(long cst, long ietn)
     If this name token is "End", "Break", "Continue" or "Else", deal with it
     and return true.
 ***************************************************************************/
-bool CompilerBase::_FHandleCst(long ietn)
+bool CompilerBase::_FHandleCst(LegacyLong ietn)
 {
     AssertThis(0);
     AssertPo(_pglcstd, 0);
-    long istn;
+    LegacyLong istn;
     String stn;
     CSTD cstd;
-    long icstd;
-    long *plwLabel;
+    LegacyLong icstd;
+    LegacyLong *plwLabel;
 
     _GetIstnNameFromIetn(ietn, &istn);
     _GetStnFromIstn(istn, &stn);
@@ -2047,7 +2047,8 @@ bool CompilerBase::_FHandleCst(long ietn)
         {
             if (icstd-- <= 0)
             {
-                _ReportError(plwLabel == &cstd.lwLabel1 ? PszLit("unexpected Continue") : PszLit("unexpected Break"));
+                if (plwLabel == &cstd.lwLabel1) _ReportError(PszLit("unexpected Continue"));
+                else _ReportError(PszLit("unexpected Break"));
                 return fTrue;
             }
             _pglcstd->Get(icstd, &cstd);
@@ -2130,7 +2131,7 @@ bool CompilerBase::_FHandleCst(long ietn)
     variable (iff the variable is a remote variable or an array access).
     Fills in *prtvn.
 ***************************************************************************/
-void CompilerBase::_EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack)
+void CompilerBase::_EmitVarAccess(LegacyLong ietn, RuntimeVariableName *prtvn, LegacyLong *popPush, LegacyLong *popPop, LegacyLong *pclwStack)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -2140,8 +2141,8 @@ void CompilerBase::_EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *p
     AssertNilOrVarMem(popPop);
     AssertNilOrVarMem(pclwStack);
     ETN etn;
-    long opPop, opPush;
-    long clwStack = 0;
+    LegacyLong opPop, opPush;
+    LegacyLong clwStack = 0;
 
     _pgletnTree->Get(ietn, &etn);
     switch (etn.tt)
@@ -2205,12 +2206,12 @@ void CompilerBase::_EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *p
 /***************************************************************************
     Push the opcode for a function and verify parameters and return type.
 ***************************************************************************/
-void CompilerBase::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
+void CompilerBase::_PushOpFromName(LegacyLong ietn, LegacyUlong grfscc, LegacyLong clwArg)
 {
     AssertThis(0);
-    long istn;
+    LegacyLong istn;
     String stn;
-    long op, clwFixed, clwVar, cactMinVar;
+    LegacyLong op, clwFixed, clwVar, cactMinVar;
     bool fVoid;
 
     _GetIstnNameFromIetn(ietn, &istn);
@@ -2238,7 +2239,7 @@ void CompilerBase::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
     Find the string in the given rgarop and get the associated parameter
     and return type information.
 ***************************************************************************/
-bool CompilerBase::_FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+bool CompilerBase::_FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar,
                      bool *pfVoid)
 {
     AssertThis(0);
@@ -2270,7 +2271,7 @@ bool CompilerBase::_FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, lon
     See if the given name is a function and give argument and return type
     information.
 ***************************************************************************/
-bool CompilerBase::_FGetOpFromName(PString pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
+bool CompilerBase::_FGetOpFromName(PString pstn, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar, bool *pfVoid)
 {
     AssertThis(0);
     return _FGetArop(pstn, _rgarop, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid);
@@ -2279,7 +2280,7 @@ bool CompilerBase::_FGetOpFromName(PString pstn, long *pop, long *pclwFixed, lon
 /***************************************************************************
     Add the given string to _pgstNames.
 ***************************************************************************/
-void CompilerBase::_AddNameRef(PString pstn, long *pistn)
+void CompilerBase::_AddNameRef(PString pstn, LegacyLong *pistn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2301,7 +2302,7 @@ void CompilerBase::_AddNameRef(PString pstn, long *pistn)
 /***************************************************************************
     Make sure (assert) the given ietn is a name and get the istn for the name.
 ***************************************************************************/
-void CompilerBase::_GetIstnNameFromIetn(long ietn, long *pistn)
+void CompilerBase::_GetIstnNameFromIetn(LegacyLong ietn, LegacyLong *pistn)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -2319,7 +2320,7 @@ void CompilerBase::_GetIstnNameFromIetn(long ietn, long *pistn)
 /***************************************************************************
     Get the rtvn for the given string (in _pgstNames).
 ***************************************************************************/
-void CompilerBase::_GetStnFromIstn(long istn, PString pstn)
+void CompilerBase::_GetStnFromIstn(LegacyLong istn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2336,7 +2337,7 @@ void CompilerBase::_GetStnFromIstn(long istn, PString pstn)
 /***************************************************************************
     Get the rtvn for the given string (in _pgstNames).
 ***************************************************************************/
-void CompilerBase::_GetRtvnFromName(long istn, RuntimeVariableName *prtvn)
+void CompilerBase::_GetRtvnFromName(LegacyLong istn, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -2355,9 +2356,9 @@ bool CompilerBase::_FKeyWord(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    long op, clwFixed, clwVar, cactMinVar;
+    LegacyLong op, clwFixed, clwVar, cactMinVar;
     bool fVoid;
-    long ipsz;
+    LegacyLong ipsz;
 
     if (_FGetOpFromName(pstn, &op, &clwFixed, &clwVar, &cactMinVar, &fVoid))
         return fTrue;
@@ -2373,10 +2374,10 @@ bool CompilerBase::_FKeyWord(PString pstn)
 /***************************************************************************
     Push a label request using the name in the given ietn.
 ***************************************************************************/
-void CompilerBase::_PushLabelRequestIetn(long ietn)
+void CompilerBase::_PushLabelRequestIetn(LegacyLong ietn)
 {
     AssertThis(0);
-    long istn;
+    LegacyLong istn;
     String stn;
 
     _GetIstnNameFromIetn(ietn, &istn);
@@ -2387,10 +2388,10 @@ void CompilerBase::_PushLabelRequestIetn(long ietn)
 /***************************************************************************
     Add the label here.
 ***************************************************************************/
-void CompilerBase::_AddLabelIetn(long ietn)
+void CompilerBase::_AddLabelIetn(LegacyLong ietn)
 {
     AssertThis(0);
-    long istn;
+    LegacyLong istn;
     String stn;
 
     _GetIstnNameFromIetn(ietn, &istn);
@@ -2401,7 +2402,7 @@ void CompilerBase::_AddLabelIetn(long ietn)
 /***************************************************************************
     "Push" a string constant that is currently in the name string table.
 ***************************************************************************/
-void CompilerBase::_PushStringIstn(long istn)
+void CompilerBase::_PushStringIstn(LegacyLong istn)
 {
     AssertThis(0);
     String stn;
@@ -2422,7 +2423,7 @@ void CompilerBase::_CompileIn(void)
     Token tok;
     TOME *ptome;
     ETN etn, etnT;
-    long ietn;
+    LegacyLong ietn;
     bool fDone;
 
     // push the new record
@@ -2556,15 +2557,15 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     AssertPo(pmsnk, 0);
     AssertPo(pmsnkError, 0);
     RuntimeVariableName rtvn;
-    long ilwMac, ilw, clwPush;
-    long lw;
-    long op;
+    LegacyLong ilwMac, ilw, clwPush;
+    LegacyLong lw;
+    LegacyLong op;
     String stn;
     DataVersion dver;
     PDynamicArray pgllw = pscpt->_pgllw;
     PZString pszError = pvNil;
     AssertPo(pgllw, 0);
-    Assert(pgllw->CbEntry() == size(long), "bad script");
+    Assert(pgllw->CbEntry() == size(LegacyLong), "bad script");
 
     ilwMac = pgllw->IvMac();
     if (ilwMac < 1)
@@ -2608,7 +2609,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
                 goto LFail;
             }
             clwPush--;
-            rtvn.lu1 = (ulong)SuLow(lw);
+            rtvn.lu1 = (LegacyUlong)SuLow(lw);
             pgllw->Get(ilw++, &rtvn.lu2);
             if (rtvn.lu1 == 0)
             {
@@ -2729,8 +2730,8 @@ void RuntimeVariableName::SetFromStn(PString pstn)
     AssertPo(pstn, 0);
     byte rgb[8];
     byte bT;
-    long lw, ib, ibDst, cbit;
-    long cch = pstn->Cch();
+    LegacyLong lw, ib, ibDst, cbit;
+    LegacyLong cch = pstn->Cch();
     PZString psz = pstn->Psz();
 
     // There are 52 letters, plus 10 digits, plus the underscore character,
@@ -2764,7 +2765,7 @@ void RuntimeVariableName::SetFromStn(PString pstn)
 
         // pack the encoded value into its 6 bit slot
         AssertIn(bT, 0, 64);
-        lw = (long)bT << (cbit + 2);
+        lw = (LegacyLong)bT << (cbit + 2);
         rgb[ibDst] = rgb[ibDst] & (-1L << cbit) | B1Lw(lw);
         if ((cbit += 2) <= 8)
             rgb[++ibDst] = B0Lw(lw);
@@ -2786,7 +2787,7 @@ void RuntimeVariableName::GetStn(PString pstn)
     AssertPo(pstn, 0);
     byte rgb[8];
     byte bT;
-    long ib;
+    LegacyLong ib;
 
     // unpack the individual bytes
     rgb[0] = (byte)((lu1 & 0x0000FC00) >> 10);

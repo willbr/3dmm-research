@@ -27,12 +27,12 @@
      .
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(ThreeDFont)
 
-const long kcchTdfDefault = 256;        // for size estimates and authoring
+const LegacyLong kcchTdfDefault = 256;        // for size estimates and authoring
 const BRS kdxrSpacing = BR_SCALAR(0.0); // horizontal space between chars
 const BRS kdyrLeading = BR_SCALAR(0.5); // vertical space between chars
 
@@ -55,7 +55,7 @@ const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr
 /***************************************************************************
     A PFNRPO to read a ThreeDFont from a file.
 ***************************************************************************/
-bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -95,7 +95,7 @@ bool ThreeDFont::_FInit(PDataBlock pblck)
     AssertPo(pblck, 0);
 
     ThreeDFontF tdff;
-    long cbrgdwr; // space taken by rgdxr or rgdyr
+    LegacyLong cbrgdwr; // space taken by rgdxr or rgdyr
 
     if (!pblck->FUnpackData())
         return fFalse;
@@ -171,11 +171,11 @@ bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String 
     BRS *prgdyr = pvNil;
     PModel pmodl;
     DataBlock blck;
-    long cbrgdwr; // space taken by rgdxr or rgdyr
-    long ikid;
-    long ckid;
+    LegacyLong cbrgdwr; // space taken by rgdxr or rgdyr
+    LegacyLong ikid;
+    LegacyLong ckid;
     ChildChunkID chidMax = 0;
-    long ikidLetteri = -1;
+    LegacyLong ikidLetteri = -1;
 
     // Find chidMax
     ckid = pglkid->IvMac();
@@ -274,7 +274,7 @@ PModel ThreeDFont::PmodlFetch(ChildChunkID chid)
 /***************************************************************************
     Return the width of the given character
 ***************************************************************************/
-BRS ThreeDFont::DxrChar(long ich)
+BRS ThreeDFont::DxrChar(LegacyLong ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, _cch);
@@ -285,7 +285,7 @@ BRS ThreeDFont::DxrChar(long ich)
 /***************************************************************************
     Return the height of the given character
 ***************************************************************************/
-BRS ThreeDFont::DyrChar(long ich)
+BRS ThreeDFont::DyrChar(LegacyLong ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, _cch);
@@ -297,7 +297,7 @@ BRS ThreeDFont::DyrChar(long ich)
 /***************************************************************************
     Assert the validity of the ThreeDFont.
 ***************************************************************************/
-void ThreeDFont::AssertValid(ulong grf)
+void ThreeDFont::AssertValid(LegacyUlong grf)
 {
     ThreeDFont_PAR::AssertValid(fobjAllocated);
     AssertIn(_cch, 0, klwMax);

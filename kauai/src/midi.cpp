@@ -40,7 +40,7 @@ MidiStreamParser::~MidiStreamParser(void)
     Initialize this midi stream parser to the given midi stream and use the
     given time as the start time.
 ***************************************************************************/
-void MidiStreamParser::Init(PMidiStream pmids, ulong tsStart, long lwTempo)
+void MidiStreamParser::Init(PMidiStream pmids, LegacyUlong tsStart, LegacyLong lwTempo)
 {
     AssertThis(0);
     AssertNilOrPo(pmids, 0);
@@ -82,9 +82,9 @@ bool MidiStreamParser::FGetEvent(PMIDEV pmidev, bool fAdvance)
     byte bT;
     byte *pbCur;
     MIDEV midev;
-    long cbT;
-    long ibSend;
-    ulong tsCur;
+    LegacyLong cbT;
+    LegacyLong ibSend;
+    LegacyUlong tsCur;
 
     ClearPb(&midev, size(midev));
     midev.lwTempo = _lwTempo;
@@ -95,7 +95,7 @@ bool MidiStreamParser::FGetEvent(PMIDEV pmidev, bool fAdvance)
     for (pbCur = _pbCur; midev.cb == 0;)
     {
         // read the delta time
-        if (!_FReadVar(&pbCur, (long *)&midev.ts) || pbCur >= _pbLim)
+        if (!_FReadVar(&pbCur, (LegacyLong *)&midev.ts) || pbCur >= _pbLim)
             goto LFail;
         tsCur += midev.ts;
         midev.ts = tsCur;
@@ -229,7 +229,7 @@ LFail:
 /***************************************************************************
     Read a variable length quantity.
 ***************************************************************************/
-bool MidiStreamParser::_FReadVar(byte **ppbCur, long *plw)
+bool MidiStreamParser::_FReadVar(byte **ppbCur, LegacyLong *plw)
 {
     AssertThis(0);
     AssertVarMem(ppbCur);
@@ -251,7 +251,7 @@ bool MidiStreamParser::_FReadVar(byte **ppbCur, long *plw)
 /***************************************************************************
     Assert the validity of a MidiStreamParser.
 ***************************************************************************/
-void MidiStreamParser::AssertValid(ulong grf)
+void MidiStreamParser::AssertValid(LegacyUlong grf)
 {
     MidiStreamParser_PAR::AssertValid(0);
     if (pvNil == _pmids)
@@ -293,7 +293,7 @@ MidiStream::~MidiStream(void)
 /***************************************************************************
     Assert the validity of a MidiStream.
 ***************************************************************************/
-void MidiStream::AssertValid(ulong grf)
+void MidiStream::AssertValid(LegacyUlong grf)
 {
     MidiStream_PAR::AssertValid(0);
     AssertHq(_hqrgb);
@@ -313,7 +313,7 @@ void MidiStream::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -370,8 +370,8 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
     // Midi chunk header
     struct MIDCHD
     {
-        long lwSig;
-        long cb;
+        LegacyLong lwSig;
+        LegacyLong cb;
     };
 #define kbomMidchd 0xF0000000
 
@@ -400,12 +400,12 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
     bool fSmpte;
     MemoryByteStream bsm;
     RAT ratTempo;
-    ulong tsTempo, tsRawTempo, tsLast, ts, dts;
+    LegacyUlong tsTempo, tsRawTempo, tsLast, ts, dts;
     byte rgbT[5];
-    long cbT;
+    LegacyLong cbT;
     bool fSeq;
-    long imidtr, imidtrMin;
-    ulong tsMin;
+    LegacyLong imidtr, imidtrMin;
+    LegacyUlong tsMin;
     PMidiStream pmids = pvNil;
     PDynamicArray pglmidtr = pvNil;
 
@@ -506,8 +506,8 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
     if (FPure(fSmpte = (midhed.swDiv < 0)))
     {
         // SMPTE time
-        long fps = (byte)(-BHigh(midhed.swDiv));
-        long ctickFrame = BLow(midhed.swDiv);
+        LegacyLong fps = (byte)(-BHigh(midhed.swDiv));
+        LegacyLong ctickFrame = BLow(midhed.swDiv);
 
         if (fps == 29)
             fps = 30; // 29 is 30 drop frame - 30 is close enough for us
@@ -641,11 +641,11 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
     Static method to convert a long to its midi file variable length
     equivalent.
 ***************************************************************************/
-long MidiStream::_CbEncodeLu(ulong lu, byte *prgb)
+LegacyLong MidiStream::_CbEncodeLu(LegacyUlong lu, byte *prgb)
 {
     AssertNilOrVarMem(prgb);
 
-    long ib;
+    LegacyLong ib;
 
     if (pvNil != prgb)
         prgb[0] = (byte)(lu & 0x7F);
@@ -673,7 +673,7 @@ bool MidiStream::FWrite(PDataBlock pblck)
 /***************************************************************************
     Return the length of this midi stream on file.
 ***************************************************************************/
-long MidiStream::CbOnFile(void)
+LegacyLong MidiStream::CbOnFile(void)
 {
     AssertThis(0);
 

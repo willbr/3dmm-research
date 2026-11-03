@@ -74,8 +74,10 @@ class Material_MTRL : public Material_MTRL_PAR
 
   public:
     static bool FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static PMaterial_MTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
-    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    // Release after all materials, before shutting down BRender.
+    static void ReleaseShadeTable(void);
+    static PMaterial_MTRL PmtrlNew(LegacyLong iclrBase = ivNil, LegacyLong cclr = ivNil);
+    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PMaterial_MTRL PmtrlNewFromPix(PFilename pfni);
     static PMaterial_MTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
     static PMaterial_MTRL PmtrlFromBmtl(PBMTL pbmtl);
@@ -108,8 +110,8 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
   protected:
     PMaterial_MTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CustomMaterial_CMTL's set
     PModel *_prgpmodl; // _cbprt PMODLs, one per body part in this CustomMaterial_CMTL's set
-    long _cbprt;      // count of body parts in this CustomMaterial_CMTL
-    long _ibset;      // body part set that this CustomMaterial_CMTL should be applied to
+    LegacyLong _cbprt;      // count of body parts in this CustomMaterial_CMTL
+    LegacyLong _ibset;      // body part set that this CustomMaterial_CMTL should be applied to
 
   protected:
     bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
@@ -118,18 +120,18 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
     } // can't instantiate directly; must use PcmtlRead
 
   public:
-    static PCustomMaterial_CMTL PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl);
-    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PCustomMaterial_CMTL PcmtlNew(LegacyLong ibset, LegacyLong cbprt, PMaterial_MTRL *prgpmtrl);
+    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static bool FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
     ~CustomMaterial_CMTL(void);
-    PBMTL Pbmtl(long ibmtl);
-    PModel Pmodl(long imodl);
-    long Ibset(void)
+    PBMTL Pbmtl(LegacyLong ibmtl);
+    PModel Pmodl(LegacyLong imodl);
+    LegacyLong Ibset(void)
     {
         return _ibset;
     }
-    long Cbprt(void)
+    LegacyLong Cbprt(void)
     {
         return _cbprt;
     }

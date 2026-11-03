@@ -39,9 +39,9 @@ enum
     fcmpGt = 0x0002,
     fcmpLt = 0x0004,
 };
-const ulong kgrfcmpGe = (fcmpEq | fcmpGt);
-const ulong kgrfcmpLe = (fcmpEq | fcmpLt);
-const ulong kgrfcmpNe = (fcmpGt | fcmpLt);
+const LegacyUlong kgrfcmpGe = (fcmpEq | fcmpGt);
+const LegacyUlong kgrfcmpLe = (fcmpEq | fcmpLt);
+const LegacyUlong kgrfcmpNe = (fcmpGt | fcmpLt);
 
 #define FPure(f) ((f) != fFalse)
 #define ivNil (-1L)
@@ -53,8 +53,8 @@ const ulong kgrfcmpNe = (fcmpGt | fcmpLt);
     Memory access asserts
 ****************************************/
 #ifdef DEBUG
-void AssertPvCb(void *pv, long cb);
-inline void AssertNilOrPvCb(void *pv, long cb)
+void AssertPvCb(void *pv, LegacyLong cb);
+inline void AssertNilOrPvCb(void *pv, LegacyLong cb)
 {
     if (pv != pvNil)
         AssertPvCb(pv, cb);
@@ -71,58 +71,69 @@ inline void AssertNilOrPvCb(void *pv, long cb)
 /****************************************
     Scalar APIs
 ****************************************/
-inline bool FIn(long lw, long lwMin, long lwLim)
+inline bool FIn(LegacyLong lw, LegacyLong lwMin, LegacyLong lwLim)
 {
     return lw >= lwMin && lw < lwLim;
 }
-inline long LwBound(long lw, long lwMin, long lwMax)
+inline LegacyLong LwBound(LegacyLong lw, LegacyLong lwMin, LegacyLong lwMax)
 {
     return lw < lwMin ? lwMin : lw >= lwMax ? lwMax - 1 : lw;
 }
-void SortLw(long *plw1, long *plw2);
+void SortLw(LegacyLong *plw1, LegacyLong *plw2);
+// Ordering in-memory indices/coordinates does not depend on stored word width.
+// Retain the fixed-width overload above for existing core callers and ABI.
+template <class T> inline void SortLw(T *first, T *second)
+{
+    if (*first > *second)
+    {
+        const T value = *first;
+        *first = *second;
+        *second = value;
+    }
+}
 
-inline short SwHigh(long lw)
+inline short SwHigh(LegacyLong lw)
 {
     return (short)(lw >> 16);
 }
-inline short SwLow(long lw)
+inline short SwLow(LegacyLong lw)
 {
     return (short)lw;
 }
-inline long LwHighLow(short swHigh, short swLow)
+inline LegacyLong LwHighLow(short swHigh, short swLow)
 {
-    return ((long)swHigh << 16) | (long)(ushort)swLow;
+    return static_cast<LegacyLong>((static_cast<LegacyUlong>(static_cast<ushort>(swHigh)) << 16) | static_cast<ushort>(swLow));
 }
-inline ulong LuHighLow(ushort suHigh, ushort suLow)
+inline LegacyUlong LuHighLow(ushort suHigh, ushort suLow)
 {
-    return ((ulong)suHigh << 16) | (ulong)suLow;
+    return ((LegacyUlong)suHigh << 16) | (LegacyUlong)suLow;
 }
-inline byte B0Lw(long lw)
+inline byte B0Lw(LegacyLong lw)
 {
     return (byte)lw;
 }
-inline byte B1Lw(long lw)
+inline byte B1Lw(LegacyLong lw)
 {
     return (byte)(lw >> 8);
 }
-inline byte B2Lw(long lw)
+inline byte B2Lw(LegacyLong lw)
 {
     return (byte)(lw >> 16);
 }
-inline byte B3Lw(long lw)
+inline byte B3Lw(LegacyLong lw)
 {
     return (byte)(lw >> 24);
 }
-inline long LwFromBytes(byte b3, byte b2, byte b1, byte b0)
+inline LegacyLong LwFromBytes(byte b3, byte b2, byte b1, byte b0)
 {
-    return ((long)b3 << 24) | ((long)b2 << 16) | ((long)b1 << 8) | (long)b0;
+    return static_cast<LegacyLong>((static_cast<LegacyUlong>(b3) << 24) | (static_cast<LegacyUlong>(b2) << 16) | (static_cast<LegacyUlong>(b1) << 8) | b0);
 }
 
-inline ushort SuHigh(long lw)
+inline ushort SuHigh(LegacyLong lw)
 {
-    return (ushort)((ulong)lw >> 16);
+    return (ushort)((LegacyUlong)lw >> 16);
 }
-inline ushort SuLow(long lw)
+inline ushort SuLow(LegacyLong lw)
 {
     return (ushort)lw;
 }
@@ -144,7 +155,7 @@ inline ushort SuHighLow(byte bHigh, byte bLow)
     return ((ushort)bHigh << 8) | (ushort)bLow;
 }
 
-inline short SwTruncLw(long lw)
+inline short SwTruncLw(LegacyLong lw)
 {
     return lw <= kswMax ? (lw >= kswMin ? (short)lw : kswMin) : kswMax;
 }
@@ -164,19 +175,19 @@ inline ushort SuMax(ushort su1, ushort su2)
 {
     return su1 >= su2 ? su1 : su2;
 }
-inline long LwMin(long lw1, long lw2)
+inline LegacyLong LwMin(LegacyLong lw1, LegacyLong lw2)
 {
     return lw1 < lw2 ? lw1 : lw2;
 }
-inline long LwMax(long lw1, long lw2)
+inline LegacyLong LwMax(LegacyLong lw1, LegacyLong lw2)
 {
     return lw1 >= lw2 ? lw1 : lw2;
 }
-inline ulong LuMin(ulong lu1, ulong lu2)
+inline LegacyUlong LuMin(LegacyUlong lu1, LegacyUlong lu2)
 {
     return lu1 < lu2 ? lu1 : lu2;
 }
-inline ulong LuMax(ulong lu1, ulong lu2)
+inline LegacyUlong LuMax(LegacyUlong lu1, LegacyUlong lu2)
 {
     return lu1 >= lu2 ? lu1 : lu2;
 }
@@ -185,14 +196,14 @@ inline short SwAbs(short sw)
 {
     return sw < 0 ? -sw : sw;
 }
-inline long LwAbs(long lw)
+inline LegacyLong LwAbs(LegacyLong lw)
 {
     return lw < 0 ? -lw : lw;
 }
 
-inline long LwMulSw(short sw1, short sw2)
+inline LegacyLong LwMulSw(short sw1, short sw2)
 {
-    return (long)sw1 * sw2;
+    return (LegacyLong)sw1 * sw2;
 }
 
 #ifdef MC_68020
@@ -202,19 +213,19 @@ inline long LwMulSw(short sw1, short sw2)
 ***************************************************************************/
 extern "C"
 {
-    long __cdecl LwMulDiv(long lw, long lwMul, long lwDiv);
-    void __cdecl MulLw(long lw1, long lw2, long *plwHigh, ulong *pluLow);
-    ulong __cdecl LuMulDiv(ulong lu, ulong luMul, ulong luDiv);
-    void __cdecl MulLu(ulong lu1, ulong lu2, ulong *pluHigh, ulong *pluLow);
+    LegacyLong __cdecl LwMulDiv(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv);
+    void __cdecl MulLw(LegacyLong lw1, LegacyLong lw2, LegacyLong *plwHigh, LegacyUlong *pluLow);
+    LegacyUlong __cdecl LuMulDiv(LegacyUlong lu, LegacyUlong luMul, LegacyUlong luDiv);
+    void __cdecl MulLu(LegacyUlong lu1, LegacyUlong lu2, LegacyUlong *pluHigh, LegacyUlong *pluLow);
 }
-long LwMulDivMod(long lw, long lwMul, long lwDiv, long *plwRem);
+LegacyLong LwMulDivMod(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv, LegacyLong *plwRem);
 
 #elif defined(IN_80386)
 
 /***************************************************************************
     Intel 80386 routines.
 ***************************************************************************/
-inline long LwMulDiv(long lw, long lwMul, long lwDiv)
+inline LegacyLong LwMulDiv(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv)
 {
     AssertH(lwDiv != 0);
     __asm
@@ -227,7 +238,7 @@ inline long LwMulDiv(long lw, long lwMul, long lwDiv)
     return lw;
 }
 
-inline long LwMulDivMod(long lw, long lwMul, long lwDiv, long *plwRem)
+inline LegacyLong LwMulDivMod(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv, LegacyLong *plwRem)
 {
     AssertH(lwDiv != 0);
     AssertVarMem(plwRem);
@@ -243,33 +254,33 @@ inline long LwMulDivMod(long lw, long lwMul, long lwDiv, long *plwRem)
     return lw;
 }
 
-void MulLw(long lw1, long lw2, long *plwHigh, ulong *pluLow);
-ulong LuMulDiv(ulong lu, ulong luMul, ulong luDiv);
-void MulLu(ulong lu1, ulong lu2, ulong *pluHigh, ulong *pluLow);
+void MulLw(LegacyLong lw1, LegacyLong lw2, LegacyLong *plwHigh, LegacyUlong *pluLow);
+LegacyUlong LuMulDiv(LegacyUlong lu, LegacyUlong luMul, LegacyUlong luDiv);
+void MulLu(LegacyUlong lu1, LegacyUlong lu2, LegacyUlong *pluHigh, LegacyUlong *pluLow);
 
 #else //! MC_68020 && !IN_80386
 
 /***************************************************************************
     Other processors.  These generally use floating point.
 ***************************************************************************/
-long LwMulDiv(long lw, long lwMul, long lwDiv);
-long LwMulDivMod(long lw, long lwMul, long lwDiv, long *plwRem);
-void MulLw(long lw1, long lw2, long *plwHigh, ulong *pluLow);
-ulong LuMulDiv(ulong lu, ulong luMul, ulong luDiv);
-void MulLu(ulong lu1, ulong lu2, ulong *pluHigh, ulong *pluLow);
+LegacyLong LwMulDiv(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv);
+LegacyLong LwMulDivMod(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv, LegacyLong *plwRem);
+void MulLw(LegacyLong lw1, LegacyLong lw2, LegacyLong *plwHigh, LegacyUlong *pluLow);
+LegacyUlong LuMulDiv(LegacyUlong lu, LegacyUlong luMul, LegacyUlong luDiv);
+void MulLu(LegacyUlong lu1, LegacyUlong lu2, LegacyUlong *pluHigh, LegacyUlong *pluLow);
 
 #endif //! MC_68020 && !IN_80386
 
-long LwMulDivAway(long lw, long lwMul, long lwDiv);
-ulong LuMulDivAway(ulong lu, ulong luMul, ulong luDiv);
+LegacyLong LwMulDivAway(LegacyLong lw, LegacyLong lwMul, LegacyLong lwDiv);
+LegacyUlong LuMulDivAway(LegacyUlong lu, LegacyUlong luMul, LegacyUlong luDiv);
 
-ulong FcmpCompareFracs(long lwNum1, long lwDen1, long lwNum2, long lwDen2);
+LegacyUlong FcmpCompareFracs(LegacyLong lwNum1, LegacyLong lwDen1, LegacyLong lwNum2, LegacyLong lwDen2);
 
-long LwDivAway(long lwNum, long lwDen);
-long LwDivClosest(long lwNum, long lwDen);
-long LwRoundAway(long lwSrc, long lwBase);
-long LwRoundToward(long lwSrc, long lwBase);
-long LwRoundClosest(long lwSrc, long lwBase);
+LegacyLong LwDivAway(LegacyLong lwNum, LegacyLong lwDen);
+LegacyLong LwDivClosest(LegacyLong lwNum, LegacyLong lwDen);
+LegacyLong LwRoundAway(LegacyLong lwSrc, LegacyLong lwBase);
+LegacyLong LwRoundToward(LegacyLong lwSrc, LegacyLong lwBase);
+LegacyLong LwRoundClosest(LegacyLong lwSrc, LegacyLong lwBase);
 
 // Round to a multiple of the kauai 4-byte alignment quantum. The historical
 // name says "Long" because in 1995 `long` was 4 bytes everywhere this code
@@ -277,39 +288,39 @@ long LwRoundClosest(long lwSrc, long lwBase);
 // double the wire-format alignment, breaking every chunky-file payload that
 // relies on this padding. The contract is 4 — see kauai/src/test.cpp's
 // AssertDo(CbRoundToLong(1) == 4, ...) regression test.
-inline long CbRoundToLong(long cb)
+inline LegacyLong CbRoundToLong(LegacyLong cb)
 {
-    constexpr long kcbAlign = 4;
-    return (cb + kcbAlign - 1) & ~(long)(kcbAlign - 1);
+    constexpr LegacyLong kcbAlign = 4;
+    return (cb + kcbAlign - 1) & ~(LegacyLong)(kcbAlign - 1);
 }
-inline long CbRoundToShort(long cb)
+inline LegacyLong CbRoundToShort(LegacyLong cb)
 {
-    return (cb + size(short) - 1) & ~(long)(size(short) - 1);
+    return (cb + size(short) - 1) & ~(LegacyLong)(size(short) - 1);
 }
-inline long CbFromCbit(long cbit)
+inline LegacyLong CbFromCbit(LegacyLong cbit)
 {
     return (cbit + 7) / 8;
 }
-inline byte Fbit(long ibit)
+inline byte Fbit(LegacyLong ibit)
 {
     return 1 << (ibit & 0x0007);
 }
-inline long IbFromIbit(long ibit)
+inline LegacyLong IbFromIbit(LegacyLong ibit)
 {
     return ibit >> 3;
 }
 
-long LwGcd(long lw1, long lw2);
-ulong LuGcd(ulong lu1, ulong lu2);
+LegacyLong LwGcd(LegacyLong lw1, LegacyLong lw2);
+LegacyUlong LuGcd(LegacyUlong lu1, LegacyUlong lu2);
 
-bool FAdjustIv(long *piv, long iv, long cvIns, long cvDel);
+bool FAdjustIv(LegacyLong *piv, LegacyLong iv, LegacyLong cvIns, LegacyLong cvDel);
 
 #ifdef DEBUG
-void AssertIn(long lw, long lwMin, long lwLim);
-long LwMul(long lw1, long lw2);
+void AssertIn(LegacyLong lw, LegacyLong lwMin, LegacyLong lwLim);
+LegacyLong LwMul(LegacyLong lw1, LegacyLong lw2);
 #else //! DEBUG
 #define AssertIn(lw, lwMin, lwLim)
-inline long LwMul(long lw1, long lw2)
+inline LegacyLong LwMul(LegacyLong lw1, LegacyLong lw2)
 {
     return lw1 * lw2;
 }
@@ -327,8 +338,8 @@ inline long LwMul(long lw1, long lw2)
 typedef uint32_t ByteOrderMask;
 
 void SwapBytesBom(void *pv, ByteOrderMask bom);
-void SwapBytesRgsw(void *psw, long csw);
-void SwapBytesRglw(void *plw, long clw);
+void SwapBytesRgsw(void *psw, LegacyLong csw);
+void SwapBytesRglw(void *plw, LegacyLong clw);
 
 const ByteOrderMask bomNil = 0;
 const ByteOrderMask kbomSwapShort = 0x40000000;
@@ -340,8 +351,8 @@ const ByteOrderMask kbomLeaveLong = 0x80000000;
 #define BomField(bomNew, bomLast) ((bomNew) | ((bomLast) >> 2))
 
 #ifdef DEBUG
-void AssertBomRglw(ByteOrderMask bom, long cb);
-void AssertBomRgsw(ByteOrderMask bom, long cb);
+void AssertBomRglw(ByteOrderMask bom, LegacyLong cb);
+void AssertBomRgsw(ByteOrderMask bom, LegacyLong cb);
 #else //! DEBUG
 #define AssertBomRglw(bom, cb)
 #define AssertBomRgsw(bom, cb)
@@ -354,9 +365,9 @@ void AssertBomRgsw(ByteOrderMask bom, long cb);
 #ifdef MAC
 typedef Rect SystemRectangle;
 typedef Point SystemPoint;
-#elif defined(WIN)
-typedef RECT SystemRectangle;
-typedef POINT SystemPoint;
+#else
+typedef CoreNative::Rectangle SystemRectangle;
+typedef CoreNative::Point SystemPoint;
 #endif // WIN
 
 /****************************************
@@ -377,15 +388,15 @@ typedef class RC *PRC;
 class PT
 {
   public:
-    long xp;
-    long yp;
+    LegacyLong xp;
+    LegacyLong yp;
 
   public:
     // constructors
     PT(void)
     {
     }
-    PT(long xpT, long ypT)
+    PT(LegacyLong xpT, LegacyLong ypT)
     {
         xp = xpT, yp = ypT;
     }
@@ -427,7 +438,7 @@ class PT
         yp -= pt.yp;
         return *this;
     }
-    void Offset(long dxp, long dyp)
+    void Offset(LegacyLong dxp, LegacyLong dyp)
     {
         xp += dxp;
         yp += dyp;
@@ -437,23 +448,23 @@ class PT
     void Map(RC *prcSrc, RC *prcDst);
     PT PtMap(RC *prcSrc, RC *prcDst);
 
-    void Transform(ulong grfpt);
+    void Transform(LegacyUlong grfpt);
 };
 
 class RC
 {
   public:
-    long xpLeft;
-    long ypTop;
-    long xpRight;
-    long ypBottom;
+    LegacyLong xpLeft;
+    LegacyLong ypTop;
+    LegacyLong xpRight;
+    LegacyLong ypBottom;
 
   public:
     // constructors
     RC(void)
     {
     }
-    RC(long xpLeftT, long ypTopT, long xpRightT, long ypBottomT)
+    RC(LegacyLong xpLeftT, LegacyLong ypTopT, LegacyLong xpRightT, LegacyLong ypBottomT)
     {
         AssertThisMem();
         xpLeft = xpLeftT;
@@ -475,7 +486,7 @@ class RC
         AssertThisMem();
         xpLeft = ypTop = xpRight = ypBottom = 0;
     }
-    void Set(long xp1, long yp1, long xp2, long yp2)
+    void Set(LegacyLong xp1, LegacyLong yp1, LegacyLong xp2, LegacyLong yp2)
     {
         AssertThisMem();
         xpLeft = xp1;
@@ -543,24 +554,24 @@ class RC
     // map the rectangle from prcSrc to prcDst coordinates
     void Map(RC *prcSrc, RC *prcDst);
 
-    void Transform(ulong grfpt);
+    void Transform(LegacyUlong grfpt);
 
-    long Dxp(void)
+    LegacyLong Dxp(void)
     {
         AssertThisMem();
         return xpRight - xpLeft;
     }
-    long Dyp(void)
+    LegacyLong Dyp(void)
     {
         AssertThisMem();
         return ypBottom - ypTop;
     }
-    long XpCenter(void)
+    LegacyLong XpCenter(void)
     {
         AssertThisMem();
         return (xpLeft + xpRight) / 2;
     }
-    long YpCenter(void)
+    LegacyLong YpCenter(void)
     {
         AssertThisMem();
         return (ypTop + ypBottom) / 2;
@@ -572,14 +583,14 @@ class RC
     }
 
     void CenterOnRc(RC *prcBase);
-    void CenterOnPt(long xp, long yp);
+    void CenterOnPt(LegacyLong xp, LegacyLong yp);
     bool FIntersect(RC *prc1, RC *prc2);
     bool FIntersect(RC *prc);
-    bool FPtIn(long xp, long yp);
-    void InsetCopy(RC *prc, long dxp, long dyp);
-    void Inset(long dxp, long dyp);
-    void OffsetCopy(RC *prc, long dxp, long dyp);
-    void Offset(long dxp, long dyp);
+    bool FPtIn(LegacyLong xp, LegacyLong yp);
+    void InsetCopy(RC *prc, LegacyLong dxp, LegacyLong dyp);
+    void Inset(LegacyLong dxp, LegacyLong dyp);
+    void OffsetCopy(RC *prc, LegacyLong dxp, LegacyLong dyp);
+    void Offset(LegacyLong dxp, LegacyLong dyp);
     void OffsetToOrigin(void);
     void PinPt(PT *ppt);
     void PinToRc(RC *prc);
@@ -587,10 +598,10 @@ class RC
     void StretchToRc(RC *prcBase);
     void Union(RC *prc1, RC *prc2);
     void Union(RC *prc);
-    long LwArea(void);
+    LegacyLong LwArea(void);
     bool FContains(RC *prc);
-    void SetToCell(RC *prcSrc, long crcWidth, long crcHeight, long ircWidth, long ircHeight);
-    bool FMapToCell(long xp, long yp, long crcWidth, long crcHeight, long *pircWidth, long *pircHeight);
+    void SetToCell(RC *prcSrc, LegacyLong crcWidth, LegacyLong crcHeight, LegacyLong ircWidth, LegacyLong ircHeight);
+    bool FMapToCell(LegacyLong xp, LegacyLong yp, LegacyLong crcWidth, LegacyLong crcHeight, LegacyLong *pircWidth, LegacyLong *pircHeight);
 };
 
 /****************************************
@@ -601,13 +612,13 @@ class RAT
     ASSERT
 
   private:
-    long _lwNum;
-    long _lwDen;
+    LegacyLong _lwNum;
+    LegacyLong _lwDen;
 
     // the third argument of this constructor is bogus.  This constructor is
     // provided so the GCD calculation can be skipped when we already know
     // the numerator and denominator are relatively prime.
-    RAT(long lwNum, long lwDen, long lwJunk)
+    RAT(LegacyLong lwNum, LegacyLong lwDen, LegacyLong lwJunk)
     {
         // lwNum and lwDen are already relatively prime
         if (lwDen > 0)
@@ -629,18 +640,18 @@ class RAT
     {
         _lwDen = 0;
     }
-    RAT(long lw)
+    RAT(LegacyLong lw)
     {
         _lwNum = lw;
         _lwDen = 1;
     }
-    RAT(long lwNum, long lwDen)
+    RAT(LegacyLong lwNum, LegacyLong lwDen)
     {
         Set(lwNum, lwDen);
     }
-    void Set(long lwNum, long lwDen)
+    void Set(LegacyLong lwNum, LegacyLong lwDen)
     {
-        long lwGcd = LwGcd(lwNum, lwDen);
+        LegacyLong lwGcd = LwGcd(lwNum, lwDen);
         if (lwDen < 0)
             lwGcd = -lwGcd;
         _lwNum = lwNum / lwGcd;
@@ -655,49 +666,49 @@ class RAT
     }
 
     // access functions
-    long LwNumerator(void)
+    LegacyLong LwNumerator(void)
     {
         return _lwNum;
     }
-    long LwDenominator(void)
+    LegacyLong LwDenominator(void)
     {
         return _lwDen;
     }
-    long LwAway(void)
+    LegacyLong LwAway(void)
     {
         return LwDivAway(_lwNum, _lwDen);
     }
-    long LwToward(void)
+    LegacyLong LwToward(void)
     {
         return _lwNum / _lwDen;
     }
-    long LwClosest(void)
+    LegacyLong LwClosest(void)
     {
         return LwDivClosest(_lwNum, _lwDen);
     }
 
-    operator long(void)
+    operator LegacyLong(void)
     {
         return _lwNum / _lwDen;
     }
 
     // applying to a long (as a multiplicative operator)
-    long LwScale(long lw)
+    LegacyLong LwScale(LegacyLong lw)
     {
         return (_lwNum != _lwDen) ? LwMulDiv(lw, _lwNum, _lwDen) : lw;
     }
-    long LwUnscale(long lw)
+    LegacyLong LwUnscale(LegacyLong lw)
     {
         return (_lwNum != _lwDen) ? LwMulDiv(lw, _lwDen, _lwNum) : lw;
     }
 
     // operator functions
     friend RAT operator+(const RAT &rat1, const RAT &rat2);
-    friend RAT operator+(const RAT &rat, long lw)
+    friend RAT operator+(const RAT &rat, LegacyLong lw)
     {
         return RAT(rat._lwNum + LwMul(rat._lwDen, lw), rat._lwDen);
     }
-    friend RAT operator+(long lw, const RAT &rat)
+    friend RAT operator+(LegacyLong lw, const RAT &rat)
     {
         return RAT(rat._lwNum + LwMul(rat._lwDen, lw), rat._lwDen);
     }
@@ -706,48 +717,48 @@ class RAT
     {
         return rat1 + (-rat2);
     }
-    friend RAT operator-(const RAT &rat, long lw)
+    friend RAT operator-(const RAT &rat, LegacyLong lw)
     {
         return RAT(rat._lwNum + LwMul(rat._lwDen, -lw), rat._lwDen);
     }
-    friend RAT operator-(long lw, const RAT &rat)
+    friend RAT operator-(LegacyLong lw, const RAT &rat)
     {
         return RAT(rat._lwNum + LwMul(rat._lwDen, -lw), rat._lwDen);
     }
 
     friend RAT operator*(const RAT &rat1, const RAT &rat2)
     {
-        long lwGcd1 = LwGcd(rat1._lwNum, rat2._lwDen);
-        long lwGcd2 = LwGcd(rat1._lwDen, rat2._lwNum);
+        LegacyLong lwGcd1 = LwGcd(rat1._lwNum, rat2._lwDen);
+        LegacyLong lwGcd2 = LwGcd(rat1._lwDen, rat2._lwNum);
         return RAT(LwMul(rat1._lwNum / lwGcd1, rat2._lwNum / lwGcd2), LwMul(rat1._lwDen / lwGcd2, rat2._lwDen / lwGcd1),
                    0);
     }
-    friend RAT operator*(const RAT &rat, long lw)
+    friend RAT operator*(const RAT &rat, LegacyLong lw)
     {
-        long lwGcd = LwGcd(rat._lwDen, lw);
+        LegacyLong lwGcd = LwGcd(rat._lwDen, lw);
         return RAT(LwMul(lw / lwGcd, rat._lwNum), rat._lwDen / lwGcd, 0);
     }
-    friend RAT operator*(long lw, const RAT &rat)
+    friend RAT operator*(LegacyLong lw, const RAT &rat)
     {
-        long lwGcd = LwGcd(rat._lwDen, lw);
+        LegacyLong lwGcd = LwGcd(rat._lwDen, lw);
         return RAT(LwMul(lw / lwGcd, rat._lwNum), rat._lwDen / lwGcd, 0);
     }
 
     friend RAT operator/(const RAT &rat1, const RAT &rat2)
     {
-        long lwGcd1 = LwGcd(rat1._lwNum, rat2._lwNum);
-        long lwGcd2 = LwGcd(rat1._lwDen, rat2._lwDen);
+        LegacyLong lwGcd1 = LwGcd(rat1._lwNum, rat2._lwNum);
+        LegacyLong lwGcd2 = LwGcd(rat1._lwDen, rat2._lwDen);
         return RAT(LwMul(rat1._lwNum / lwGcd1, rat2._lwDen / lwGcd2), LwMul(rat1._lwDen / lwGcd2, rat2._lwNum / lwGcd1),
                    0);
     }
-    friend RAT operator/(const RAT &rat, long lw)
+    friend RAT operator/(const RAT &rat, LegacyLong lw)
     {
-        long lwGcd = LwGcd(rat._lwNum, lw);
+        LegacyLong lwGcd = LwGcd(rat._lwNum, lw);
         return RAT(rat._lwNum / lwGcd, LwMul(lw / lwGcd, rat._lwDen), 0);
     }
-    friend RAT operator/(long lw, const RAT &rat)
+    friend RAT operator/(LegacyLong lw, const RAT &rat)
     {
-        long lwGcd = LwGcd(rat._lwNum, lw);
+        LegacyLong lwGcd = LwGcd(rat._lwNum, lw);
         return RAT(LwMul(lw / lwGcd, rat._lwDen), rat._lwNum / lwGcd, 0);
     }
 
@@ -755,11 +766,11 @@ class RAT
     {
         return rat1._lwNum == rat2._lwNum && rat1._lwDen == rat2._lwDen;
     }
-    friend int operator==(const RAT &rat, long lw)
+    friend int operator==(const RAT &rat, LegacyLong lw)
     {
         return rat._lwDen == 1 && rat._lwNum == lw;
     }
-    friend int operator==(long lw, const RAT &rat)
+    friend int operator==(LegacyLong lw, const RAT &rat)
     {
         return rat._lwDen == 1 && rat._lwNum == lw;
     }
@@ -768,17 +779,17 @@ class RAT
     {
         return rat1._lwNum != rat2._lwNum || rat1._lwDen != rat2._lwDen;
     }
-    friend int operator!=(const RAT &rat, long lw)
+    friend int operator!=(const RAT &rat, LegacyLong lw)
     {
         return rat._lwDen != 1 || rat._lwNum != lw;
     }
-    friend int operator!=(long lw, const RAT &rat)
+    friend int operator!=(LegacyLong lw, const RAT &rat)
     {
         return rat._lwDen != 1 || rat._lwNum != lw;
     }
 
     // operator methods
-    RAT &operator=(long lw)
+    RAT &operator=(LegacyLong lw)
     {
         _lwNum = lw;
         _lwDen = 1;
@@ -790,7 +801,7 @@ class RAT
         *this = *this + rat;
         return *this;
     }
-    RAT &operator+=(long lw)
+    RAT &operator+=(LegacyLong lw)
     {
         *this = *this + lw;
         return *this;
@@ -801,7 +812,7 @@ class RAT
         *this = *this - rat;
         return *this;
     }
-    RAT &operator-=(long lw)
+    RAT &operator-=(LegacyLong lw)
     {
         *this = *this + (-lw);
         return *this;
@@ -812,7 +823,7 @@ class RAT
         *this = *this * rat;
         return *this;
     }
-    RAT &operator*=(long lw)
+    RAT &operator*=(LegacyLong lw)
     {
         *this = *this * lw;
         return *this;
@@ -823,7 +834,7 @@ class RAT
         *this = *this / rat;
         return *this;
     }
-    RAT &operator/=(long lw)
+    RAT &operator/=(LegacyLong lw)
     {
         *this = *this / lw;
         return *this;

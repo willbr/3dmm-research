@@ -12,47 +12,24 @@
  * studio uses. If the rendered pose is wrong, the bug is in the
  * engine, not the test.
  *
- * Links engine-core + kauai-core + brender. Does NOT need the full
+ * Links engine-core + kauai-core + brender-core. Does NOT need the full
  * engine playback runtime (movie/scene/actor/tbox).
  */
 
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 #include <stdio.h>
 #include <stdlib.h>
 
-void WarnProc(schar *f, long l, schar *m)
+void WarnProc(schar *f, LegacyLong l, schar *m)
 {
-    fprintf(stderr, "WARN %s:%ld %s\n", f ? f : "?", l, m ? m : "");
+    fprintf(stderr, "WARN %s:%" LEGACY_PRId " %s\n", f ? f : "?", l, m ? m : "");
 }
-bool FAssertProc(schar *f, long l, schar *m, void *, long)
+bool FAssertProc(schar *f, LegacyLong l, schar *m, void *, LegacyLong)
 {
-    fprintf(stderr, "ASSERT %s:%ld %s\n", f ? f : "?", l, m ? m : "");
-    return false;
-}
-
-/* Stubs for engine-core / brender-core symbols that are normally
- * supplied by kauai-gui or by the studio app. None of these paths
- * fire during the actor-load + rest-pose render we exercise here:
- *   - World::* / Body::PbodyClicked (Body's hit-test path)
- *   - PtmapReadNative (.bmp import; engine-core uses chunky FReadTmap)
- *   - AppendCrashLog_C (studio crash dialog)
- *   - vptagm / vpappb (TagManager + Application globals)
- * The link must satisfy these symbols even though no callsite from
- * actor-render-test reaches them. */
-PTagManager vptagm = pvNil;
-PApplicationBase vpappb = pvNil;
-extern "C" void AppendCrashLog_C(schar *) {}
-/* FReadBitmap is now in kauai-core (mbmp.cpp). */
-namespace BRender {
-void World::AssertValid(unsigned long) {}
-void World::AddActor(struct br_actor *) {}
-void World::IterateActorsInPt(int (*)(struct br_actor *, struct br_model *, struct br_material *, struct br_vector3 *,
-                                      struct br_vector3 *, long, long, void *),
-                              void *, long, long)
-{
-}
+    fprintf(stderr, "ASSERT %s:%" LEGACY_PRId " %s\n", f ? f : "?", l, m ? m : "");
+    exit(1);
 }
 
 #define WIDTH 256
@@ -83,10 +60,14 @@ int __cdecl main(int argc, char **argv)
     String stnName;
     bool fError = fFalse;
     BRS dwr = 0;
+    br_pixelmap *colour = 0;
+    br_pixelmap *depth = 0;
+    br_actor *world_actor = 0;
 
     /* BRender init -- Body::PbodyNew allocates materials via
      * BrMaterialAllocate, which needs the BRender registries set up. */
     BrBegin();
+    BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
 
     /* Load the shade table from the main 3dmovie.chk. The engine's
      * Material_MTRL keeps a static _ptmapShadeTable that every MTRL
@@ -140,7 +121,7 @@ int __cdecl main(int argc, char **argv)
     {
         char buf[256] = {0};
         stnName.GetSzs(buf);
-        printf("TMPL 0x%lx name: %s\n", (unsigned long)cno, buf);
+        printf("TMPL 0x%" LEGACY_PRIx " name: %s\n", (LegacyUlong)cno, buf);
     }
 
     /* Real engine load. Same call path as src/engine/actor.cpp:
@@ -160,7 +141,7 @@ int __cdecl main(int argc, char **argv)
         fprintf(stderr, "actor-render-test: PbodyCreate failed\n");
         goto LDone;
     }
-    fprintf(stderr, "Body created with %ld BACTs.\n", pbody->Cbact());
+    fprintf(stderr, "Body created with %" LEGACY_PRId " BACTs.\n", pbody->Cbact());
 
     /* Action 0, cel 0 = rest pose. This is the call that eluded my
      * hand-rolled actor-pose binding -- it's what the engine actually
@@ -178,8 +159,8 @@ int __cdecl main(int argc, char **argv)
      * by FSetActnCel. We just need to attach it to a world actor that
      * also holds a camera and a light, then call BrZbSceneRender. */
     {
-        br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
-        br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+        colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+        depth = colour ? BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16) : 0;
         if (!colour || !depth)
         {
             fprintf(stderr, "pixmap alloc failed\n");
@@ -187,9 +168,8 @@ int __cdecl main(int argc, char **argv)
         }
         BrPixelmapFill(colour, 0);
         BrPixelmapFill(depth, 0xFFFF);
-        BrZbBegin(colour->type, BR_PMT_DEPTH_16);
 
-        br_actor *world_actor = BrActorAllocate(BR_ACTOR_NONE, 0);
+        world_actor = BrActorAllocate(BR_ACTOR_NONE, 0);
 
         /* Compute world-space bounds of the body so we can frame the
          * camera. Body::GetBcbBounds gives us the bounding box in
@@ -240,9 +220,9 @@ int __cdecl main(int argc, char **argv)
          * is already linked to its proper parent BACT in Body's
          * tree, the path of least surprise is to detach from Body's
          * root and re-parent under our world. */
-        long n_parts = pbody->Cbact() - 2; /* skip root + hilite */
-        long n_attached = 0;
-        long n_max = n_parts;
+        LegacyLong n_parts = pbody->Cbact() - 2; /* skip root + hilite */
+        LegacyLong n_attached = 0;
+        LegacyLong n_max = n_parts;
         if (const char *m = getenv("MAX_PARTS")) n_max = atol(m);
         /* Allocate fresh sibling actors with copies of each part's
          * model + material + (recursively-composed) world transform.
@@ -254,7 +234,7 @@ int __cdecl main(int argc, char **argv)
          * World transform is each BACT's accumulated chain from its
          * Body ancestors back to body root. We compose by walking
          * .parent pointers within Body's tree before attaching. */
-        for (long i = 0; i < n_parts && n_attached < n_max; i++)
+        for (LegacyLong i = 0; i < n_parts && n_attached < n_max; i++)
         {
             PBACT pb = pbody->PbactPart(i);
             if (!pb || pb->type != BR_ACTOR_MODEL || !pb->model) continue;
@@ -276,7 +256,7 @@ int __cdecl main(int argc, char **argv)
             a->t.t.mat = m;
             n_attached++;
         }
-        fprintf(stderr, "calling BrZbSceneRender (%ld parts attached)...\n", n_attached);
+        fprintf(stderr, "calling BrZbSceneRender (%" LEGACY_PRId " parts attached)...\n", n_attached);
 
         BrZbSceneRender(world_actor, cam, colour, depth);
         fprintf(stderr, "BrZbSceneRender returned\n");
@@ -285,28 +265,39 @@ int __cdecl main(int argc, char **argv)
         if (f)
         {
             fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
-            fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
-            fclose(f);
-            long lit = 0;
+            size_t written = fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+            int closed = fclose(f);
+            if (written != (size_t)WIDTH * HEIGHT || closed != 0)
+                goto LDone;
+            LegacyLong lit = 0;
             uint8_t *pix = (uint8_t *)colour->pixels;
             for (int i = 0; i < WIDTH * HEIGHT; i++) if (pix[i] != 0) lit++;
-            fprintf(stderr, "rendered: lit=%ld bg=%ld\n", lit, (long)WIDTH * HEIGHT - lit);
+            fprintf(stderr, "rendered: lit=%" LEGACY_PRId " bg=%" LEGACY_PRId "\n", lit, (LegacyLong)WIDTH * HEIGHT - lit);
+            if (lit == 0)
+                goto LDone;
         }
         else
         {
             perror(argv[4]);
+            goto LDone;
         }
-        BrZbEnd();
     }
     fprintf(stderr, "actor-render-test: ok\n");
     rc = 0;
 
 LDone:
+    if (world_actor)
+        BrActorFree(world_actor);
+    if (depth)
+        BrPixelmapFree(depth);
+    if (colour)
+        BrPixelmapFree(colour);
     ReleasePpo(&pbody);
     ReleasePpo(&ptmpl);
     ReleasePpo(&pcrf);
     ReleasePpo(&pcfl);
     ReleasePpo(&pcflShade);
+    BrZbEnd();
     BrEnd();
     return rc;
 }

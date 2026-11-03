@@ -16,11 +16,11 @@ ASSERTNAME
 RTCLASS(Picture)
 
 /***************************************************************************
-    Static method to create a new Picture based on the given HPIC with
+    Static method to create a new Picture based on the given CoreNative::PictureHandle with
     bounding rectangle *prc. If this fails, it is the callers responsibility
     to free the hpic. If it succeeds, the ppic returned owns the hpic.
 ***************************************************************************/
-PPicture Picture::PpicNew(HPIC hpic, RC *prc)
+PPicture Picture::PpicNew(CoreNative::PictureHandle hpic, RC *prc)
 {
     Assert(hpic != hNil, "nil hpic");
     AssertVarMem(prc);
@@ -55,7 +55,7 @@ bool Picture::FAddToCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno,
     AssertVarMem(pcno);
     DataBlock blck;
     ChunkNumber cnoKid;
-    long cb;
+    LegacyLong cb;
 
     if (!pcfl->FAdd(0, ctg, pcno))
         return fFalse;
@@ -79,11 +79,11 @@ bool Picture::FPutInCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, C
     AssertThis(0);
     AssertPo(pcfl, 0);
     bool fDelOnFail;
-    long ikid;
+    LegacyLong ikid;
     ChildChunkIdentification kid;
     DataBlock blck;
     ChunkNumber cnoKid;
-    long cb;
+    LegacyLong cb;
 
     fDelOnFail = !pcfl->FFind(ctg, cno);
     if (!pcfl->FPut(0, ctg, cno))
@@ -115,7 +115,7 @@ bool Picture::FPutInCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, C
 /***************************************************************************
     Assert the validity of a Picture.
 ***************************************************************************/
-void Picture::AssertValid(ulong grf)
+void Picture::AssertValid(LegacyUlong grf)
 {
     Picture_PAR::AssertValid(0);
     Assert(_hpic != hNil, "bad hpic");
@@ -125,7 +125,7 @@ void Picture::AssertValid(ulong grf)
 /***************************************************************************
     A PFNRPO to read Picture 0 from a GRAF chunk.
 ***************************************************************************/
-bool FReadMainPic(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool FReadMainPic(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     PPicture ppic;
 

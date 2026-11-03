@@ -1,0 +1,28 @@
+/* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include <windows.h>
+101 DIALOG 2, 3, 170, 100
+STYLE WS_POPUP | WS_CAPTION | DS_SETFONT
+CAPTION "Standard Resource"
+FONT 8, "MS Shell Dlg"
+BEGIN
+    DEFPUSHBUTTON "&OK", 201, 5, 5, 45, 14
+    AUTOCHECKBOX "Check", 202, 5, 25, 90, 10
+    AUTORADIOBUTTON "First", 203, 5, 40, 90, 10, WS_GROUP
+    LTEXT "Static", -1, 5, 55, 90, 10
+    AUTORADIOBUTTON "Second", 204, 5, 68, 90, 10
+    EDITTEXT 205, 100, 5, 60, 12
+    COMBOBOX 206, 100, 25, 60, 50, CBS_DROPDOWN | WS_TABSTOP
+END
+102 DIALOGEX -2, 4, 180, 110, 7000
+STYLE WS_POPUP | WS_CAPTION | DS_SETFONT
+CAPTION "Extended Resource"
+FONT 9, "Segoe UI", 400, 0, 1
+BEGIN
+    DEFPUSHBUTTON "Accept", 301, 5, 5, 45, 14
+    AUTOCHECKBOX "Enabled", 302, 5, 25, 90, 10
+    AUTORADIOBUTTON "First", 303, 5, 40, 90, 10, WS_GROUP
+    AUTORADIOBUTTON "Second", 304, 5, 55, 90, 10
+    EDITTEXT 305, 100, 5, 60, 12
+    COMBOBOX 306, 100, 25, 60, 50, CBS_DROPDOWN | WS_TABSTOP
+    CONTROL "Wide ID", 65537, "Button", BS_PUSHBUTTON | WS_TABSTOP, 5, 80, 80, 14
+END

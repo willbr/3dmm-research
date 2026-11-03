@@ -98,8 +98,8 @@ enum
 
 struct Token
 {
-    long tt;
-    long lw;
+    LegacyLong tt;
+    LegacyLong lw;
     String stn;
 };
 typedef Token *PToken;
@@ -124,35 +124,35 @@ class LexerBase : public LexerBase_PAR
     PFileObject _pfil; // exactly one of _pfil, _pbsf should be non-nil
     PFileByteStream _pbsf;
     String _stnFile;
-    long _lwLine;  // which line
-    long _ichLine; // which character on the line
+    LegacyLong _lwLine;  // which line
+    LegacyLong _ichLine; // which character on the line
 
     FilePosition _fpCur;
     FilePosition _fpMac;
-    long _ichLim;
-    long _ichCur;
+    LegacyLong _ichLim;
+    LegacyLong _ichCur;
     achar _rgch[kcchLexbBuf];
     bool _fLineStart : 1;
     bool _fSkipToNextLine : 1;
     bool _fUnionStrings : 1;
 
-    ulong _GrfctCh(achar ch)
+    LegacyUlong _GrfctCh(achar ch)
     {
         return (uchar)ch < 128 ? _mpchgrfct[(byte)ch] : fctNil;
     }
-    bool _FFetchRgch(achar *prgch, long cch = 1);
-    void _Advance(long cch = 1)
+    bool _FFetchRgch(achar *prgch, LegacyLong cch = 1);
+    void _Advance(LegacyLong cch = 1)
     {
         _ichCur += cch;
         _ichLine += cch;
     }
     bool _FSkipWhiteSpace(void);
-    virtual void _ReadNumber(long *plw, achar ch, long lwBase, long cchMax);
-    virtual void _ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
+    virtual void _ReadNumber(LegacyLong *plw, achar ch, LegacyLong lwBase, LegacyLong cchMax);
+    virtual void _ReadNumTok(PToken ptok, achar ch, LegacyLong lwBase, LegacyLong cchMax)
     {
         _ReadNumber(&ptok->lw, ch, lwBase, cchMax);
     }
-    bool _FReadHex(long *plw);
+    bool _FReadHex(LegacyLong *plw);
     bool _FReadControlCh(achar *pch);
 
   public:
@@ -161,15 +161,15 @@ class LexerBase : public LexerBase_PAR
     ~LexerBase(void);
 
     virtual bool FGetTok(PToken ptok);
-    virtual long CbExtra(void);
+    virtual LegacyLong CbExtra(void);
     virtual void GetExtra(void *pv);
 
     void GetStnFile(PString pstn);
-    long LwLine(void)
+    LegacyLong LwLine(void)
     {
         return _lwLine;
     }
-    long IchLine(void)
+    LegacyLong IchLine(void)
     {
         return _ichLine;
     }

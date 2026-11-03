@@ -15,29 +15,23 @@
 ***************************************************************************/
 #ifndef DLG_H
 #define DLG_H
+#include "kauai_core.h"
+
+namespace KauaiDialogs { struct Resource; struct Session; }
 
 using Group::GeneralGroup;
 
-// Forward decl so dlg.h can compile in the kauai-core TU without
-// pulling in gob.h. The Dialog class only stores a PGraphicsObject
-// pointer (no method calls); full type is needed only at the gui-side
-// dlgwin.cpp callsite which already includes frame.h.
+// The native modal adapter owns the container. Shared item/value code only
+// checks whether a session is active and needs no graphics or SDK definition.
 class GraphicsObject;
 typedef GraphicsObject *PGraphicsObject;
-
-#ifdef MAC
-typedef DialogPtr HDLG;
-#endif // MAC
-#ifdef WIN
-typedef HWND HDLG;
-#endif // WIN
 
 // type of dialog item
 enum
 {
     ditkButton,     // no value
-    ditkCheckBox,   // long (bool)
-    ditkRadioGroup, // long (index)
+    ditkCheckBox,   // LegacyLong (bool)
+    ditkRadioGroup, // LegacyLong (index)
     ditkEditText,   // streamed stn
     ditkCombo,      // streamed stn, followed by a list of streamed stn's.
     ditkLim
@@ -46,15 +40,15 @@ enum
 // dialog item
 struct DialogItem
 {
-    long sitMin; // first system item number (for this DialogItem)
-    long sitLim; // lim of system item numbers (for this DialogItem)
-    long ditk;   // kind of item
+    LegacyLong sitMin; // first system item number (for this DialogItem)
+    LegacyLong sitLim; // lim of system item numbers (for this DialogItem)
+    LegacyLong ditk;   // kind of item
 };
 
 typedef class Dialog *PDialog;
 
 // callback to notify of an item change (while the dialog is active)
-typedef bool (*PFNDLG)(PDialog pdlg, long *pidit, void *pv);
+typedef bool (*PFNDLG)(PDialog pdlg, LegacyLong *pidit, void *pv);
 
 // dialog class - a Dialog is a GeneralGroup of DITs
 #define Dialog_PAR GeneralGroup
@@ -65,61 +59,64 @@ class Dialog : public Dialog_PAR
 
   private:
     PGraphicsObject _pgob;
-    long _rid;
+    KauaiDialogs::Session *_session;
+    LegacyLong _rid;
     PFNDLG _pfn;
     void *_pv;
 
-#ifdef WIN
-    friend INT_PTR CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw);
-#endif // WIN
+    friend class NativeDialogAdapter;
 
-    Dialog(long rid);
+    Dialog(LegacyLong rid);
     bool _FInit(void);
+    bool _FReadResource(KauaiDialogs::Resource &resource);
+    bool _FDoSDL(LegacyLong focus, LegacyLong &result);
+    bool _FSessionText(LegacyLong item, PString text, bool read, bool append = false);
+    bool _FInitItems(const KauaiDialogs::Resource &resource);
 
-    long _LwGetRadioGroup(long idit);
-    void _SetRadioGroup(long idit, long lw);
-    bool _FGetCheckBox(long idit);
-    void _InvertCheckBox(long idit);
-    void _SetCheckBox(long idit, bool fOn);
-    void _GetEditText(long idit, PString pstn);
-    void _SetEditText(long idit, PString pstn);
-    bool _FDitChange(long *pidit);
-    bool _FAddToList(long idit, PString pstn);
-    void _ClearList(long idit);
+    LegacyLong _LwGetRadioGroup(LegacyLong idit);
+    void _SetRadioGroup(LegacyLong idit, LegacyLong lw);
+    bool _FGetCheckBox(LegacyLong idit);
+    void _InvertCheckBox(LegacyLong idit);
+    void _SetCheckBox(LegacyLong idit, bool fOn);
+    void _GetEditText(LegacyLong idit, PString pstn);
+    void _SetEditText(LegacyLong idit, PString pstn);
+    bool _FDitChange(LegacyLong *pidit);
+    bool _FAddToList(LegacyLong idit, PString pstn);
+    void _ClearList(LegacyLong idit);
 
   public:
-    static PDialog PdlgNew(long rid, PFNDLG pfn = pvNil, void *pv = pvNil);
+    static PDialog PdlgNew(LegacyLong rid, PFNDLG pfn = pvNil, void *pv = pvNil);
 
-    long IditDo(long iditFocus = ivNil);
+    LegacyLong IditDo(LegacyLong iditFocus = ivNil);
 
     // these are only valid while the dialog is up
-    bool FGetValues(long iditMin, long iditLim);
-    void SetValues(long iditMin, long iditLim);
-    void SelectDit(long idit);
+    bool FGetValues(LegacyLong iditMin, LegacyLong iditLim);
+    void SetValues(LegacyLong iditMin, LegacyLong iditLim);
+    void SelectDit(LegacyLong idit);
 
     // argument access
-    long IditFromSit(long sit);
-    void GetDit(long idit, DialogItem *pdit)
+    LegacyLong IditFromSit(LegacyLong sit);
+    void GetDit(LegacyLong idit, DialogItem *pdit)
     {
         GetFixed(idit, pdit);
     }
-    void PutDit(long idit, DialogItem *pdit)
+    void PutDit(LegacyLong idit, DialogItem *pdit)
     {
         PutFixed(idit, pdit);
     }
 
-    void GetStn(long idit, PString pstn);
-    bool FPutStn(long idit, PString pstn);
-    long LwGetRadio(long idit);
-    void PutRadio(long idit, long lw);
-    bool FGetCheck(long idit);
-    void PutCheck(long idit, bool fOn);
+    void GetStn(LegacyLong idit, PString pstn);
+    bool FPutStn(LegacyLong idit, PString pstn);
+    LegacyLong LwGetRadio(LegacyLong idit);
+    void PutRadio(LegacyLong idit, LegacyLong lw);
+    bool FGetCheck(LegacyLong idit);
+    void PutCheck(LegacyLong idit, bool fOn);
 
-    bool FGetLwFromEdit(long idit, long *plw, bool *pfEmpty = pvNil);
-    bool FPutLwInEdit(long idit, long lw);
+    bool FGetLwFromEdit(LegacyLong idit, LegacyLong *plw, bool *pfEmpty = pvNil);
+    bool FPutLwInEdit(LegacyLong idit, LegacyLong lw);
 
-    bool FAddToList(long idit, PString pstn);
-    void ClearList(long idit);
+    bool FAddToList(LegacyLong idit, PString pstn);
+    void ClearList(LegacyLong idit);
 };
 
 #endif //! DLG_H

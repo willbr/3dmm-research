@@ -641,13 +641,18 @@ br_material **PrepareVertices(br_model *model)
 	 */
 	ntemps = model->nprepared_faces * 3;
 
-	scratch_size = ntemps * (sizeof(*temp_verts) + sizeof(*sorted));
+	/* Packed temporary vertices can have a four-byte stride on 64-bit hosts.
+	 * The following array holds native pointers and needs pointer alignment. */
+	scratch_size = (ntemps * sizeof(*temp_verts) + sizeof(*sorted) - 1) /
+		sizeof(*sorted) * sizeof(*sorted);
+	scratch_size += ntemps * sizeof(*sorted);
 	scratch = BrScratchAllocate(scratch_size);
 
 	memset(scratch, 0, scratch_size);
 
 	temp_verts = scratch;
-	sorted = (struct group_temp_vertex **)(temp_verts + ntemps);
+	sorted = (struct group_temp_vertex **)((char *)scratch +
+		scratch_size - ntemps * sizeof(*sorted));
 
 	gtvp = temp_verts;
 

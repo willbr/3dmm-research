@@ -10,7 +10,9 @@
     Masked bitmap stuff that a GUI app might need.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
+#include "region.h"
+#include "mbmp.h"
 ASSERTNAME
 
 /***************************************************************************
@@ -20,7 +22,7 @@ ASSERTNAME
     the reference point of the MaskedBitmapMBMP.  The drawing will be clipped to both
     prcClip and pregnClip, which may be nil.
 ***************************************************************************/
-void MaskedBitmapMBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip, PRegion pregnClip)
+void MaskedBitmapMBMP::Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip, PRegion pregnClip)
 {
     AssertThis(0);
     AssertIn(cbRow, 1, kcbMax);
@@ -36,11 +38,11 @@ void MaskedBitmapMBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, 
     // on the complexity of the transparency (the more complex, the more
     // improvement over the C version).
 
-    long yp, dxpT, xpOn;
+    LegacyLong yp, dxpT, xpOn;
     byte *qbRowSrc, *qbLastSrc, *pbOff;
     short *qcb;
     byte bFill;
-    long lwFill;
+    LegacyLong lwFill;
     RegionScanner regsc;
     RC rcClip(0, 0, cbRow, dyp);
     MaskedBitmapOnFile *qmbmph = _Qmbmph();
@@ -86,7 +88,7 @@ void MaskedBitmapMBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, 
         if ((xpOn = regsc.XpCur()) == klwMax)
         {
             // empty strip of the region
-            long dypT;
+            LegacyLong dypT;
 
             dypT = regsc.DypCur();
             if ((yp += dypT) >= rcClip.ypBottom)
@@ -287,7 +289,7 @@ LFill:
 
 #else //! IN_80386
 
-    long yp, dxp, dypT, dxpT;
+    LegacyLong yp, dxp, dypT, dxpT;
     byte *qbRowSrc, *qbSrc, *qbLastSrc;
     byte *pbOn, *pbOff, *pbDst;
     short *qcb;
@@ -418,7 +420,7 @@ LFill:
     written where the MaskedBitmapMBMP is transparent and ones are written where
     it is non-transparent.
 ***************************************************************************/
-void MaskedBitmapMBMP::DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip)
+void MaskedBitmapMBMP::DrawMask(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip)
 {
     AssertThis(0);
     AssertIn(cbRow, 1, kcbMax);
@@ -426,11 +428,11 @@ void MaskedBitmapMBMP::DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpR
     AssertPvCb(prgbPixels, LwMul(cbRow, dyp));
     AssertNilOrVarMem(prcClip);
 
-    long yp, xp, dxp;
+    LegacyLong yp, xp, dxp;
     byte *qbRowSrc, *qbSrc, *qbLimSrc;
     short *qcb;
     bool fTrans;
-    long ib, ibNext;
+    LegacyLong ib, ibNext;
     byte bMask, bMaskNext;
     MaskedBitmapOnFile *qmbmph = _Qmbmph();
     RC rcClip(0, 0, LwMul(cbRow, 8), dyp);

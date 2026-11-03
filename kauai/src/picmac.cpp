@@ -91,7 +91,7 @@ PPicture Picture::PpicRead(PDataBlock pblck)
 /***************************************************************************
     Return the total size on file.
 ***************************************************************************/
-long Picture::CbOnFile(void)
+LegacyLong Picture::CbOnFile(void)
 {
     AssertThis(0);
     return GetHandleSize((HN)_hpic) + size(PICH);
@@ -104,7 +104,7 @@ bool Picture::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
-    long cb;
+    LegacyLong cb;
     bool fT;
     PICH pich;
     achar ch;

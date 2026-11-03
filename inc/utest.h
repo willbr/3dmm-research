@@ -58,7 +58,6 @@ class KidWorld : public KidWorld_PAR
 #define kszSwitchResolutionValue PszLit("SwitchResolution")
 #define kszHomeDirValue PszLit("HomeDirectory")
 #define kszInstallDirValue PszLit("InstallDirectory")
-#define kszProductsKey PszLit("Software\\Microsoft\\Microsoft Kids\\3D Movie Maker\\Products")
 #define kszUserDataValue PszLit("UserData")
 #define kszBetterSpeedValue PszLit("BetterSpeed")
 #define kszSkipSplashScreenValue PszLit("SkipSplashScreen")
@@ -118,7 +117,7 @@ class Application : public Application_PAR
     String _stnProductLong;  // Long version of product name
     String _stnProductShort; // Short version of product name
     String _stnUser;         // User's name
-    long _sidProduct;
+    LegacyLong _sidProduct;
     Filename _fniCurrentDir; // fni of current working directory
     Filename _fniExe;        // fni of this executable file
     Filename _fniMsKidsDir;  // e.g., \mskids
@@ -127,7 +126,7 @@ class Application : public Application_PAR
     Filename _fniProductDir; // e.g., \mskids\3dmovie or \mskids\otherproduct
     Filename _fniUserDir;    // User's preferred directory
     Filename _fni3DMovieDir; // e.g., \mskids\3dMovie
-    long _dypTextDef;   // Default text height
+    LegacyLong _dypTextDef;   // Default text height
 
     long _cactDisable; // disable count for keyboard accelerators
 #ifdef BUG1085
@@ -141,7 +140,7 @@ class Application : public Application_PAR
     bool _fDown;
     long _cactToggle;
 
-#ifdef WIN
+#if defined(WIN) && !defined(KAUAI_SDL3)
     HACCEL _haccel;
     HACCEL _haccelGlobal;
 #endif
@@ -156,8 +155,6 @@ class Application : public Application_PAR
     bool _FEnsureDisplayResolution(void);
     bool _FDisplaySwitchSupported(void);
     void _ParseCommandLine(void);
-    void _SkipToSpace(char **ppch);
-    void _SkipSpace(char **ppch);
     bool _FEnsureProductNames(void);
     bool _FFindProductDir(PStringTable_GST pgst);
     bool _FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni);
@@ -177,7 +174,7 @@ class Application : public Application_PAR
     bool _FOpenResourceFile(void);
     bool _FInitKidworld(void);
     bool _FInitProductNames(void);
-    bool _FReadTitlesFromReg(PStringTable_GST *ppgst);
+    bool _FReadProductTitles(PStringTable_GST *ppgst);
     bool _FInitTdt(void);
     PStringTable_GST _PgstRead(ChunkNumber cno);
     bool _FReadStringTables(void);
@@ -186,7 +183,9 @@ class Application : public Application_PAR
     bool _FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles);
     bool _FInitBuilding(void);
     bool _FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
+#ifdef WIN
     void _GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle);
+#endif
     void _RebuildMainWindow(void);
     bool _FSwitch640480(bool fTo640480);
     bool _FDisplayIs640480(void);
@@ -214,6 +213,9 @@ class Application : public Application_PAR
     virtual void _CleanUp(void);
     virtual void _Activate(bool fActive);
     virtual bool _FGetNextEvt(PEVT pevt);
+#ifdef KAUAI_SDL3
+    bool _FDispatchShortcut(const EVT &event) override;
+#endif
 #ifdef WIN
     virtual bool _FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
 #endif // WIN
@@ -230,7 +232,7 @@ class Application : public Application_PAR
     virtual long DypTextDef(void);
     virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);
     virtual void Quit(bool fForce);
-    virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
+    virtual void UpdateHwnd(CoreNative::WindowHandle hwnd, RC *prc, ulong grfapp = fappNil);
     virtual void Run(ulong grfapp, ulong grfgob, long ginDef);
 #ifdef BUG1085
     virtual void HideCurs(void);
@@ -336,22 +338,7 @@ class Application : public Application_PAR
     }
 
     // Kid-friendly modal dialog stuff:
-    void EnsureInteractive(void)
-    {
-#ifdef WIN
-        if (_fMinimized || GetForegroundWindow() != vwig.hwndApp)
-#else
-        if (_fMinimized)
-#endif
-        {
-#ifdef WIN
-            SetForegroundWindow(vwig.hwndApp);
-            ShowWindow(vwig.hwndApp, SW_RESTORE);
-#else  //! WIN
-            RawRtn();
-#endif //! WIN
-        }
-    }
+    void EnsureInteractive(void);
     tribool TModal(PResourceCache prca, long tpc, PString pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
                    PString pstnSubst = pvNil);
 

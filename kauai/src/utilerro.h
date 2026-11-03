@@ -16,7 +16,7 @@
 #ifndef UTILERROR_H
 #define UTILERROR_H
 
-const long kcerdMax = 20;
+const LegacyLong kcerdMax = 20;
 
 /***************************************************************************
     Error stack class
@@ -31,31 +31,31 @@ class ErrorStack : public ErrorStack_PAR
   private:
     struct ERD
     {
-        long erc;
+        LegacyLong erc;
 #ifdef DEBUG
         PSZS pszsFile;
-        long lwLine;
+        LegacyLong lwLine;
 #endif // DEBUG
     };
 
     Mutex _mutx;
-    long _cerd;
+    LegacyLong _cerd;
     ERD _rgerd[kcerdMax];
 
   public:
     ErrorStack(void);
 
 #ifdef DEBUG
-    virtual void Push(long erc, schar *pszsFile, long lwLine);
+    virtual void Push(LegacyLong erc, schar *pszsFile, LegacyLong lwLine);
 #else  //! DEBUG
-    virtual void Push(long erc);
+    virtual void Push(LegacyLong erc);
 #endif //! DEBUG
-    virtual bool FPop(long *perc = pvNil);
-    virtual bool FIn(long erc);
-    virtual long Cerc(void);
-    virtual long ErcGet(long ierc);
+    virtual bool FPop(LegacyLong *perc = pvNil);
+    virtual bool FIn(LegacyLong erc);
+    virtual LegacyLong Cerc(void);
+    virtual LegacyLong ErcGet(LegacyLong ierc);
     virtual void Clear(void);
-    virtual void Flush(long erc);
+    virtual void Flush(LegacyLong erc);
 };
 
 extern ErrorStack *vpers;

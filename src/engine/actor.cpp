@@ -111,6 +111,8 @@
 #include "frame.h"
 #include "soc.h"
 
+#include "body_world.h"
+
 ASSERTNAME
 
 using namespace ActorEvent;
@@ -127,7 +129,7 @@ Actor::Actor(void)
     _arid = aridNil;
     _tagTmpl.sid = ksidInvalid;
     _tagSnd.sid = ksidInvalid;
-    _nfrmCur = _nfrmFirst = knfrmInvalid;
+    _state.frame = _nfrmFirst = knfrmInvalid;
     _nfrmLast = klwMin;
     _fLifeDirty = fFalse;
 }
@@ -143,8 +145,7 @@ Actor::~Actor(void)
 
     _CloseTags();
     ReleasePpo(&_pbody);
-    ReleasePpo(&_pggaev);
-    ReleasePpo(&_pglrpt);
+    _track.Clear();
     ReleasePpo(&_pglsmm);
     ReleasePpo(&_ptmpl);
 }
@@ -172,7 +173,7 @@ bool Actor::_FInit(TAG *ptagTmpl)
         return fFalse;
 
     _SetStateRewound();
-    if (!_ptmpl->FGetGrfactn(0, &_grfactn))
+    if (!_ptmpl->FGetGrfactn(0, &_state.actionFlags))
         return fFalse;
 
     return fTrue;
@@ -187,16 +188,7 @@ bool Actor::_FInit(TAG *ptagTmpl)
 void Actor::_InitXfrm(void)
 {
     AssertThis(0);
-
-    _InitXfrmRot(&_xfrm.bmat34Fwd);
-    _InitXfrmRot(&_xfrm.bmat34Cur);
-    _xfrm.aevpull.rScaleX = rOne;
-    _xfrm.aevpull.rScaleY = rOne;
-    _xfrm.aevpull.rScaleZ = rOne;
-    _xfrm.rScaleStep = rOne;
-    _xfrm.xaPath = aZero;
-    _xfrm.yaPath = aZero;
-    _xfrm.zaPath = aZero;
+    _state.InitTransform();
 }
 
 /***************************************************************************
@@ -242,19 +234,15 @@ PActor Actor::PactrNew(TAG *ptagTmpl)
 
 /***************************************************************************
 
-    Create the groups _pggaev, _pglrpt and _pglsmm
+    Create the groups _track.events, _track.route and _pglsmm
 
 ***************************************************************************/
 bool Actor::_FCreateGroups(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pggaev = GeneralGroup::PggNew(size(Base), kcaevInit, kcbVarAdd)))
+    if (!_track.FCreate())
         return fFalse;
-
-    if (pvNil == (_pglrpt = DynamicArray::PglNew(size(RouteDistancePoint), kcrptGrow)))
-        return fFalse;
-    _pglrpt->SetMinGrow(kcrptGrow);
 
     if (pvNil == (_pglsmm = DynamicArray::PglNew(size(SoundMotionMatch), kcsmmGrow)))
         return fFalse;
@@ -288,7 +276,7 @@ void Actor::SetPscen(Scene *pscen)
     if (pvNil == (_pbody = _ptmpl->PbodyCreate()))
         return;
 
-    _pbody->SetBwld(pscen->Pmvie()->Pbwld());
+    BodyWorld::Bind(_pbody, pscen->Pmvie()->Pbwld());
 }
 
 /***************************************************************************
@@ -315,25 +303,8 @@ void Actor::_InitState(void)
 void Actor::_SetStateRewound(void)
 {
     AssertBaseThis(0);
-
-    _fFrozen = fFalse;
     _fModeRecord = fFalse;
-    _anidCur = _celnCur = 0;
-    _rtelCur.irpt = 0;
-    _rtelCur.dwrOffset = rZero;
-    _rtelCur.dnfrm = -1;
-    if (_pglrpt->IvMac() > 0)
-    {
-        RouteDistancePoint rpt;
-        _pglrpt->Get(0, &rpt);
-        _xyzCur = rpt.xyz;
-    }
-
-    _iaevCur = 0;
-    _iaevActnCur = _iaevAddCur = ivNil;
-    _dwrStep = rZero;
-    _iaevFrmMin = 0;
-    _InitXfrm();
+    _state.RewindRoute(_track);
 }
 
 /***************************************************************************
@@ -353,276 +324,46 @@ void Actor::_SetStateRewound(void)
 bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
-    AssertIn(nfrm, klwMin, klwMax);
-
-    bool fPositionBody;
-    bool fSuccess = fTrue;
-    bool fPositionDirty = fFalse;
-    bool fQuickMethodValid;
-    long iaevT = -1;
-    long iaev;
-    Base *paev;
-
-    if (nfrm == _nfrmCur)
-        return fTrue;
-
-    // Initialization
-    if (nfrm < _nfrmCur || _nfrmCur == knfrmInvalid)
+    bool positionDirty = false;
+    ActorSeekEvaluator evaluator(_state, _track, _nfrmFirst, _nfrmLast, nfrm, _StepSource());
+    for (;;)
     {
-        bool fMidPath = FPure(_pggaev->IvMac() > 0 && _iaevCur > 0 && nfrm > _nfrmFirst);
-
-        // Note: If nfrm < _nfrmFirst, we may be adding
-        // a new earliest add event.
-        if (nfrm < _nfrmFirst && _fOnStage)
+        ActorSeekCommand command = evaluator.Next();
+        switch (command.kind)
+        {
+        case ActorSeekCommandKind::Hide:
             _Hide();
-
-        if (nfrm > _nfrmFirst && _nfrmCur != knfrmInvalid)
-        {
-            Assert(0 < _iaevCur, "Invalid state variables in FGotoFrame()");
-            // Optimize if there are no events in the current frame
-            paev = (Base *)_pggaev->QvFixedGet(_iaevCur - 1);
-            if (paev->nfrm < nfrm)
-            {
-                if (!_FQuickBackupToFrm(nfrm, &fQuickMethodValid))
-                    return fFalse;
-                // Vertical segments can prevent _FQuickBackupToFrm()
-                // from being valid.  If so, use default method.
-                if (fQuickMethodValid)
-                    return fTrue;
-            }
-        }
-
-        // Will be walking forward from the nearest earlier add event
-        // Search backward to find it.
-        if (fMidPath)
-        {
-            for (iaev = _iaevCur - 1; iaev >= 0; iaev--)
-            {
-                paev = (Base *)_pggaev->QvFixedGet(iaev);
-                if (paev->aet == aetAdd && paev->nfrm <= nfrm)
-                {
-                    iaevT = iaev;
-                    break;
-                }
-            }
-        }
-        _SetStateRewound();
-        if (fMidPath)
-        {
-            AssertIn(iaevT, 0, _pggaev->IvMac());
-            _iaevFrmMin = _iaevCur = _iaevAddCur = iaevT;
-            paev = (Base *)_pggaev->QvFixedGet(_iaevCur);
-            _rtelCur = paev->rtel;
-            _nfrmCur = paev->nfrm;
-            Assert(paev->aet == aetAdd, "Illegal _iaevAddCur state var");
-            _rtelCur.dnfrm--;
-            _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-        }
-        else
-        {
-            _nfrmCur = LwMin(nfrm, _nfrmFirst);
-        }
-        _ptmpl->FSetDefaultCost(_pbody);
-    }
-    else
-    {
-        _nfrmCur++;
-        _iaevFrmMin = _iaevCur; // Save 1st event of this frame
-    }
-
-    if (nfrm < _nfrmFirst)
-        return fTrue;
-
-    // Trivial case: no events for this actor
-    // _nfrmCur always reflects the movie's current frame
-    if (_pggaev->IvMac() == 0)
-    {
-        _nfrmCur = nfrm;
-        return fTrue;
-    }
-
-    while (_nfrmCur <= nfrm)
-    {
-        fPositionBody = (_nfrmCur == nfrm);
-        if (!_FDoFrm(fPositionBody, &fPositionDirty, pfSoundInFrame))
-            fSuccess = fFalse;
-
-        if (nfrm == _nfrmCur)
+            evaluator.Complete(true);
             break;
-
-        _nfrmCur++;
-        _iaevFrmMin = _iaevCur;
-        AssertIn(_iaevActnCur, -1, _pggaev->IvMac());
+        case ActorSeekCommandKind::ResetCostume:
+            _fModeRecord = false;
+            _ptmpl->FSetDefaultCost(_pbody); // Preserve best-effort reset.
+            evaluator.Complete(true);
+            break;
+        case ActorSeekCommandKind::ApplyQuickEffects:
+            evaluator.Complete(_FApplyQuickSeekEffects());
+            break;
+        case ActorSeekCommandKind::EvaluateFrame:
+            evaluator.Complete(_FDoFrm(command.displayFrame, &positionDirty, pfSoundInFrame));
+            break;
+        case ActorSeekCommandKind::Finished:
+            return evaluator.Success();
+        }
     }
-
-    return fSuccess;
 }
 
 /***************************************************************************
 
-    Backup To a smaller frame.  	(Optimization)
-    Return *pfQuickMethodValid fTrue on success.
-    Return *pfQuickMethodValid fFalse to if this method invalid here.
+    Apply runtime sound/body/cel effects after core completes a quick seek.
 
 ***************************************************************************/
-bool Actor::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
+bool Actor::_FApplyQuickSeekEffects()
 {
     AssertThis(0);
-    AssertVarMem(pfQuickMethodValid);
-    Assert(nfrm < _nfrmCur, "Illegal call to _FBackupToFrm");
-
-    long ifrm;
-    RouteLocation rtelT;
-    RoutePoint xyzOld = _xyzCur;
-    RoutePoint xyzT;
-    long dnfrm = _nfrmCur - nfrm;
-
-#ifdef DEBUG
-    Base *paev;
-    paev = (Base *)_pggaev->QvFixedGet(_iaevCur - 1);
-    Assert(paev->nfrm < nfrm, "Invalid Call to _FQuickBackupToFrm()");
-#endif // DEBUG
-
-    // Don't try to back up during frames beyond the actor's lifetime
-    if (nfrm >= _nfrmLast)
-    {
-        // GotoFrame() must always exit with _nfrmCur being valid
-        // Otherwise, edits will be located at incorrect frames
-        _nfrmCur = nfrm;
-#ifdef BUG1906
-        _rtelCur.dnfrm -= dnfrm;
-#else  //! BUG1906
-        _rtelCur.dnfrm--;
-#endif //! BUG1906
-        return fTrue;
-    }
-
-    // There are no events between here and the destination frame
-    // _iaevFrmMin need not change
-
-    // Walk to the destination location
-    // Set the cel of the action
-    for (ifrm = _nfrmCur - 1; ifrm >= nfrm; ifrm--)
-    {
-        if (!_FGetRtelBack(&_rtelCur, fTrue))
-            goto LFail;
-    }
-
-    _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-    _nfrmCur = nfrm;
-
-    if (dnfrm > 1 || xyzOld.dxr != _xyzCur.dxr || xyzOld.dzr != _xyzCur.dzr)
-    {
-        // Check for transitions to vertical motion
-        if (!_FGetRtelBack(&rtelT, fFalse))
-            goto LFail;
-
-        _GetXyzFromRtel(&rtelT, &xyzT);
-
-        if (_xyzCur.dxr == xyzT.dxr && _xyzCur.dzr == xyzT.dzr)
-        {
-            // Vertical motion next	(backing up)
-            // -> Require _fUseBmat34Cur == fTrue, but bmat34Cur is not
-            // yet computed.
-            // -> Quick backup insufficient.
-            *pfQuickMethodValid = fFalse;
-            return fTrue;
-        }
-    }
-
-    // Send motion match sounds to Msq to play
-    if (!(_pscen->GrfScen() & fscenSounds) && (nfrm <= _nfrmLast) && _fOnStage)
-        _FEnqueueSmmInMsq(); // Ignore failure
-
-    // Position the actor
-    _PositionBody(&_xyzCur);
-    if (_fOnStage)
-    {
-        if (!_ptmpl->FSetActnCel(_pbody, _anidCur, _celnCur, pvNil))
-            goto LFail;
-    }
-    *pfQuickMethodValid = fTrue;
-    return fTrue;
-
-LFail:
-    *pfQuickMethodValid = fFalse;
-    return fFalse;
-}
-
-/***************************************************************************
-
-    Compute xyz for one step backwards from the current location, as per
-    state variables
-
-***************************************************************************/
-bool Actor::_FGetRtelBack(RouteLocation *prtel, bool fUpdateStateVar)
-{
-    AssertThis(0);
-    AssertVarMem(prtel);
-
-    long celnSav = _celnCur;
-    long nfrmSav = _nfrmCur;
-    RouteLocation rtelSav = _rtelCur;
-    Base *paev;
-    BRS dwrStep;
-    RouteLocation rtelAdd;
-    BRS dwrT;
-
-    paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-    rtelAdd = paev->rtel;
-
-    if (!_fFrozen)
-        _celnCur--;
-    if (rZero == _dwrStep || (rtelAdd.irpt == _rtelCur.irpt && rtelAdd.dwrOffset == _rtelCur.dwrOffset))
-    {
-        _nfrmCur--;
-        _rtelCur.dnfrm--;
-        goto LEnd;
-    }
-
-    // Set the location to display this actor
-    if (!_FGetDwrPlay(&dwrStep))
-        goto LFail;
-
-    dwrT = BrsSub(_rtelCur.dwrOffset, dwrStep);
-
-    if (dwrT >= rZero)
-        _rtelCur.dwrOffset = dwrT;
-    else
-    {
-        RouteDistancePoint rpt;
-        while (dwrT < rZero)
-        {
-            if (_rtelCur.irpt <= 0)
-            {
-                Bug("Corrupted event list");
-                _rtelCur.irpt = 0;
-                dwrT = rZero;
-                break;
-            }
-            _rtelCur.irpt--;
-            _pglrpt->Get(_rtelCur.irpt, &rpt);
-            dwrT = BrsAdd(rpt.dwr, dwrT);
-        }
-        _rtelCur.dwrOffset = dwrT;
-    }
-    _nfrmCur--;
-
-LEnd:
-    *prtel = _rtelCur;
-    if (!fUpdateStateVar)
-    {
-        _celnCur = celnSav;
-        _nfrmCur = nfrmSav;
-        _rtelCur = rtelSav;
-    }
-    return fTrue;
-
-LFail:
-    _celnCur = celnSav;
-    _nfrmCur = nfrmSav;
-    _rtelCur = rtelSav;
-    return fFalse;
+    if (!(_pscen->GrfScen() & fscenSounds) && _state.frame <= _nfrmLast && _state.onStage)
+        _FEnqueueSmmInMsq();
+    _PositionBody(&_state.position);
+    return !_state.onStage || _ptmpl->FSetActnCel(_pbody, _state.action, _state.cel, pvNil);
 }
 
 /***************************************************************************
@@ -645,157 +386,47 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
     AssertThis(0);
     AssertVarMem(pfPositionDirty);
 
-    Base aev;
-    BRS dwr;
-    long iaev;
-    long iaevAdd;
-    bool fEndRoute;
-    RoutePoint xyzOld = _xyzCur;
-    bool fFreezeThisCel = _fFrozen;
-    bool fEndSubEvents = fFalse;
-    bool fSuccess = fTrue;
-    bool fAdvanceCel;
-
-    // Obtain distance to move.	This may be shortened on encountering
-    // a aetActn event later in this same frame.
-    fSuccess = _FGetDwrPlay(&dwr);
-    _AdvanceRtel(dwr, &_rtelCur, _iaevCur, _nfrmCur, &fEndRoute);
-    _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-
-    // Use the pre-path rotation matrix if the actor moves
-    // so that the path orientation can later be post applied.
-    _fUseBmat34Cur = (dwr == rZero || (xyzOld.dxr == _xyzCur.dxr && xyzOld.dzr == _xyzCur.dzr));
-
-    // Locate the next Add event before entering the next loop
-    // Add events are executed when their absolute frame number == _nfrmCur
-    if (!_fModeRecord)
+    ActorFrameInputs inputs;
+    inputs.firstFrame = _nfrmFirst;
+    inputs.recording = _fModeRecord;
+    inputs.rejoining = _fRejoin;
+    inputs.displayFrame = fPositionBody;
+    inputs.suppressSounds = FPure(_pscen->GrfScen() & fscenSounds);
+    inputs.stepSucceeded = _FGetDwrPlay(&inputs.step);
+    ActorFrameEvaluator evaluator(_state, _track, inputs, *pfPositionDirty);
+    for (;;)
     {
-        iaevAdd = _iaevCur - 1;
-        while (_FFindNextAevAet(aetAdd, iaevAdd + 1, &iaevAdd))
-        {
-            if (!_FIsAddNow(iaevAdd))
-                break;
-
-            // Add is now
-            _iaevCur = iaevAdd;
-            if (!_FDoAevCur())
-                return fFalse;
-
-            *pfPositionDirty = fTrue;
-        }
-
-        // Process any events through a dwr step size, unless an aetActn event
-        // shortens that distance.
-        // An aetActn Event will change _rtelCur at the time it is executed
-        for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
-        {
-            _pggaev->GetFixed(iaev, &aev);
-            if (aev.aet == aetAdd)
-            {
-                if (!_FIsAddNow(iaev))
-                    break;
-
-                // Add is now
-                if (!_FDoAevCur())
-                    return fFalse;
-
-                *pfPositionDirty = fTrue;
-                continue;
-            }
-
-            if (aev.rtel > _rtelCur)
-                break;
-
-            if (aetRotF == aev.aet || aetSize == aev.aet || aetPull == aev.aet || aetRotH == aev.aet ||
-                aetMove == aev.aet)
-            {
-                // The xyz position is not necessarily changing.
-                // Specifically enforce Brender updating
-                *pfPositionDirty = fTrue;
-            }
-            else if ((aetActn == aev.aet) || (aetAdd == aev.aet))
-            {
-                // Do not increment _celnCur before displaying actor on new entrance/action
-                fFreezeThisCel = fTrue;
-                *pfPositionDirty = fTrue;
-            }
-
-            if (pfSoundInFrame != pvNil && aev.aet == aetSnd && fPositionBody)
-                *pfSoundInFrame = fTrue;
-
-            // Non-motion match sounds cannot depend on playing here as
-            // there might not be a sound event at the ending frame.
-            // Therefore _FDoAevCur() does not enqueue motion match sounds.
-            // It enters mm-snds in the smm.  _FDoAevCur() enqueues non-mm snds.
-            if (aev.aet != aetSnd || (fPositionBody && !(_pscen->GrfScen() & fscenSounds)))
-            {
-                // Play non sounds
-                // Play sounds if this is the final frame (mm or non mm)
-                if (!_FDoAevCur())
-                    fSuccess = fFalse;
-            }
-            else
-            {
-                // Motion match sounds must be entered in the smm
-                // whether this is the final frame or not
-                Sound aevsnd;
-                _pggaev->Get(iaev, &aevsnd);
-                if (aevsnd.celn != smmNil)
-                {
-                    if (!_FDoAevCur())
-                        fSuccess = fFalse;
-                }
-                else
-                {
-                    // Skip the current sound event
-                    _iaevCur++;
-                }
-            }
-        }
+        ActorFrameCommand command = evaluator.Next();
+        if (command.kind == ActorFrameCommandKind::Finished)
+            break;
+        if (command.kind == ActorFrameCommandKind::CheckEntrance)
+            evaluator.Complete(_FIsAddNow(command.eventIndex));
+        else
+            evaluator.Complete(_FDoAevCore(command.eventIndex));
     }
+    const ActorFrameResult &result = evaluator.Result();
+    *pfPositionDirty = result.positionDirty;
+    if (pfSoundInFrame != pvNil && result.soundInFrame)
+        *pfSoundInFrame = fTrue;
+    if (result.aborted)
+        return fFalse;
 
-    fEndSubEvents = _FIsDoneAevSub(_iaevCur, _rtelCur);
-    fAdvanceCel = (!fFreezeThisCel && !(fEndRoute && fEndSubEvents));
-
-    if (fAdvanceCel)
+    bool success = result.success;
+    if (result.considerMotionSounds && _state.frame <= _nfrmLast)
+        _FEnqueueSmmInMsq(); // Preserve best-effort motion-match dispatch.
+    if (result.positionBody)
     {
-        _celnCur++;
-        if (_ccelCur > 1)
-            *pfPositionDirty = fTrue;
+        _PositionBody(&_state.position);
+        *pfPositionDirty = fFalse;
     }
-
-    // Force Brender to update if the xyz position has changed
-    if (xyzOld != _xyzCur)
-        *pfPositionDirty = fTrue;
-
-    // Position even if hidden for clipping region detection
-    // fPositionBody avoids extraneous positioning on intermed frames
-    if (fPositionBody)
+    if (result.selectCel && !_ptmpl->FSetActnCel(_pbody, _state.action, _state.cel, pvNil))
+        success = false;
+    if (result.updatePose)
     {
-        // Enqueue the motion match sounds from the smm.  Ie, enter in the msq
-        if (!(_pscen->GrfScen() & fscenSounds) && (_nfrmCur <= _nfrmLast) && _fOnStage)
-            _FEnqueueSmmInMsq();
-
-        if (*pfPositionDirty)
-        {
-            _PositionBody(&_xyzCur);
-            *pfPositionDirty = fFalse;
-        }
-
-        // Position the actor in the next cel
-        // Do not do so if at the "end of route" & "end of events"
-        if (_fOnStage)
-        {
-            if (!_ptmpl->FSetActnCel(_pbody, _anidCur, _celnCur, pvNil))
-                fSuccess = fFalse;
-        }
+        BMAT34 matrix;
+        _MatrixRotUpdate(&_state.position, &matrix);
     }
-    else if (*pfPositionDirty)
-    {
-        BMAT34 bmat34;
-        _MatrixRotUpdate(&_xyzCur, &bmat34);
-    }
-    return fSuccess;
+    return success;
 }
 
 /***************************************************************************
@@ -813,12 +444,12 @@ bool Actor::FReplayFrame(long grfscen)
     long iaev;
 
     // Check if there is anything to do
-    if (!(grfscen & fscenSounds) || !_fOnStage)
+    if (!(grfscen & fscenSounds) || !_state.onStage)
         return fTrue;
 
-    for (iaev = _iaevFrmMin; iaev < _iaevCur; iaev++)
+    for (iaev = _state.firstEventInFrame; iaev < _state.nextEvent; iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.aet != aetSnd)
             continue;
 
@@ -842,12 +473,12 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
     AssertIn(anid, 0, klwMax);
     AssertVarMem(pfStatic);
 
-    ulong grfactn;
+    LegacyUlong grfactn;
 
     if (!_ptmpl->FGetGrfactn(anid, &grfactn))
         return fFalse;
 
-    if (ivNil == _iaevActnCur)
+    if (ivNil == _state.actionEvent)
     {
         *pfStatic = fTrue;
         return fTrue;
@@ -865,24 +496,8 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
 bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _pggaev->IvMac() + 1);
-
-    Base aev;
-    if (iaev == _pggaev->IvMac())
-        return fTrue;
-
-    for (; iaev < _pggaev->IvMac(); iaev++)
-    {
-        _pggaev->GetFixed(iaev, &aev);
-        if (aev.aet == aetAdd)
-            return fTrue;
-        if (aev.rtel > rtel)
-            return fFalse;
-        // Event at current frame.  Keep looking.
-    }
-
-    // No further events exist at future frames for this subpath
-    return fTrue;
+    AssertIn(iaev, 0, _track.events->IvMac() + 1);
+    return ActorFrameEvaluator::FSubrouteEventsDone(_track, iaev, rtel);
 }
 
 /***************************************************************************
@@ -893,7 +508,7 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 bool Actor::_FIsAddNow(long iaev)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _pggaev->IvMac());
+    AssertIn(iaev, 0, _track.events->IvMac());
 
     Base *paev;
 
@@ -904,10 +519,10 @@ bool Actor::_FIsAddNow(long iaev)
             return fFalse;
     }
 
-    Assert(_pggaev->Cb(iaev) == size(Add), "Corrupt event list");
-    paev = (Base *)_pggaev->QvFixedGet(iaev);
+    Assert(_track.events->Cb(iaev) == size(Add), "Corrupt event list");
+    paev = (Base *)_track.events->QvFixedGet(iaev);
 
-    if (paev->nfrm <= _nfrmCur)
+    if (paev->nfrm <= _state.frame)
         return fTrue;
 
     return fFalse;
@@ -919,26 +534,20 @@ bool Actor::_FIsAddNow(long iaev)
     Zero is a valid return value
 
 ***************************************************************************/
+ActorStepSource Actor::_StepSource() const
+{
+    ActorStepSource source;
+    source.context = _ptmpl;
+    source.resolve = [](void *context, LegacyLong action, LegacyLong cel, BRS *step) {
+        return ((Template *)context)->FGetDwrActnCel(action, cel, step);
+    };
+    return source;
+}
+
 bool Actor::_FGetDwrPlay(BRS *pdwr)
 {
     AssertBaseThis(0);
-    AssertVarMem(pdwr);
-
-    *pdwr = rZero;
-
-    if (kdwrNil == _dwrStep)
-    {
-        if (!_ptmpl->FGetDwrActnCel(_anidCur, _celnCur, pdwr))
-            return fFalse;
-    }
-    else
-    {
-        *pdwr = _dwrStep;
-    }
-
-    *pdwr = BrsMul(*pdwr, _xfrm.rScaleStep);
-
-    return fTrue;
+    return _StepSource().FPlaybackStep(_state, pdwr);
 }
 
 /***************************************************************************
@@ -954,10 +563,10 @@ bool Actor::_FGetDwrRecord(BRS *pdwr)
 
     *pdwr = rZero;
 
-    if (!_ptmpl->FGetDwrActnCel(_anidCur, _celnCur, pdwr))
+    if (!_ptmpl->FGetDwrActnCel(_state.action, _state.cel, pdwr))
         return fFalse;
 
-    *pdwr = BrsMul(*pdwr, _xfrm.rScaleStep);
+    *pdwr = BrsMul(*pdwr, _state.transform.rScaleStep);
 
     return fTrue;
 }
@@ -972,11 +581,11 @@ bool Actor::_FDoAevCur(void)
 {
     AssertBaseThis(0);
 
-    if (!_FDoAevCore(_iaevCur))
+    if (!_FDoAevCore(_state.nextEvent))
         return fFalse;
 
-    _iaevCur++;
-    Assert(_iaevCur <= _pggaev->IvMac(), "_iaevCur bug");
+    _state.nextEvent++;
+    Assert(_state.nextEvent <= _track.events->IvMac(), "_state.nextEvent bug");
 
     return fTrue;
 }
@@ -989,50 +598,54 @@ bool Actor::_FDoAevCur(void)
 bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _pggaev->IvMac());
+    AssertIn(iaev, 0, _track.events->IvMac());
 
     Base aev;
     BodyCostume cost;
 
-    _pggaev->GetFixed(iaev, &aev);
-    if (aev.nfrm != _nfrmCur)
+    _track.events->GetFixed(iaev, &aev);
+    if (aev.nfrm != _state.frame)
     {
-        aev.nfrm = _nfrmCur;
-        _pggaev->PutFixed(iaev, &aev);
+        aev.nfrm = _state.frame;
+        _track.events->PutFixed(iaev, &aev);
     }
     AssertIn(aev.aet, 0, aetLim);
+
+    ActorValueEventResult result = _state.ApplyValueEvent(_track, iaev, _dxyzFullRte);
+    if (result != ActorValueEventResult::NeedsRuntime)
+        return result == ActorValueEventResult::Applied;
 
     switch (aev.aet)
     {
     case aetActn:
         Action aevactn;
-        ulong grfactn;
+        LegacyUlong grfactn;
 
-        _pggaev->Get(iaev, &aevactn);
+        _track.events->Get(iaev, &aevactn);
 
         // Empty the motion match sound list	if the action <changed>
-        if (aevactn.anid != _anidCur)
+        if (aevactn.anid != _state.action)
             _pglsmm->FSetIvMac(0);
 
         if (!_ptmpl->FSetActnCel(_pbody, aevactn.anid, aevactn.celn))
         {
             return fFalse;
         }
-        _celnCur = aevactn.celn;
-        _anidCur = aevactn.anid;
-        if (!_ptmpl->FGetCcelActn(_anidCur, &_ccelCur)) // Cache the cel count
+        _state.cel = aevactn.celn;
+        _state.action = aevactn.anid;
+        if (!_ptmpl->FGetCcelActn(_state.action, &_state.celCount)) // Cache the cel count
             return fFalse;
-        _iaevActnCur = iaev;
+        _state.actionEvent = iaev;
 
         // Force the location to the step event
         // Avoids incorrect event ordering on static segments
-        _rtelCur = aev.rtel;
-        _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-        if (!_ptmpl->FGetGrfactn(_anidCur, &grfactn))
+        _state.location = aev.rtel;
+        _GetXyzFromRtel(&_state.location, &_state.position);
+        if (!_ptmpl->FGetGrfactn(_state.action, &grfactn))
         {
             return fFalse;
         }
-        _grfactn = grfactn;
+        _state.actionFlags = grfactn;
         break;
 
     case aetAdd:
@@ -1045,7 +658,7 @@ bool Actor::_FDoAevCore(long iaev)
         if (!_ptmpl->FSetDefaultCost(_pbody))
             return fFalse;
         // Put the actor on stage.	Set up models.
-        if (!_ptmpl->FSetActnCel(_pbody, _anidCur, _celnCur))
+        if (!_ptmpl->FSetActnCel(_pbody, _state.action, _state.cel))
         {
             cost.Set(_pbody); // restore old costume
             return fFalse;
@@ -1055,10 +668,10 @@ bool Actor::_FDoAevCore(long iaev)
         _pglsmm->FSetIvMac(0);
 
         // Set the translation for the subroute
-        _pggaev->Get(iaev, &aevadd);
-        _dxyzSubRte.dxr = aevadd.dxr;
-        _dxyzSubRte.dyr = aevadd.dyr;
-        _dxyzSubRte.dzr = aevadd.dzr;
+        _track.events->Get(iaev, &aevadd);
+        _state.subrouteTranslation.dxr = aevadd.dxr;
+        _state.subrouteTranslation.dyr = aevadd.dyr;
+        _state.subrouteTranslation.dzr = aevadd.dzr;
         _UpdateXyzRte();
 
         // Load the initial orientation
@@ -1066,15 +679,15 @@ bool Actor::_FDoAevCore(long iaev)
         _LoadAddOrien(&aevadd);
 
         // Set state variables
-        _iaevFrmMin = _iaevAddCur = iaev;
-        _rtelCur = aev.rtel;
-        _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-        _pglrpt->Get(aev.rtel.irpt, &rpt);
+        _state.firstEventInFrame = _state.addEvent = iaev;
+        _state.location = aev.rtel;
+        _GetXyzFromRtel(&_state.location, &_state.position);
+        _track.route->Get(aev.rtel.irpt, &rpt);
 
         // Show the actor
-        if (!_fOnStage)
+        if (!_state.onStage)
             _pbody->Show();
-        _fOnStage = fTrue;
+        _state.onStage = fTrue;
         break;
 
     case aetRem:
@@ -1084,7 +697,7 @@ bool Actor::_FDoAevCore(long iaev)
 
     case aetCost:
         Costume aevcost;
-        _pggaev->Get(iaev, &aevcost);
+        _track.events->Get(iaev, &aevcost);
         if (aevcost.fCmtl)
         {
             PCustomMaterial_CMTL pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid);
@@ -1104,64 +717,10 @@ bool Actor::_FDoAevCore(long iaev)
         }
         break;
 
-    case aetRotF:
-        // Actors are xformed in _FDoFrm, Rotate or Scale
-        _pggaev->Get(iaev, &_xfrm.bmat34Fwd);
-        _fUseBmat34Cur = fFalse;
-        break;
-
-    case aetRotH:
-        // Actors are xformed in _FDoFrm, Rotate or Scale
-        _pggaev->Get(iaev, &_xfrm.bmat34Cur);
-        _fUseBmat34Cur = fTrue;
-        break;
-
-    case aetPull:
-        // Actors are xformed in _FDoFrm, Rotate or Scale
-        _pggaev->Get(iaev, &_xfrm.aevpull);
-        break;
-
-    case aetSize:
-        // Actors are xformed in _FDoFrm, Rotate or Scale
-        _pggaev->Get(iaev, &_xfrm.rScaleStep);
-        break;
-
-    case aetStep: // Exists for timing control (eg walk in place)
-        _pggaev->Get(iaev, &_dwrStep);
-        // Force the location to the step event
-        // Avoids incorrect event ordering on static segments
-        if (rZero == _dwrStep)
-        {
-            _rtelCur = aev.rtel;
-            _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-        }
-        break;
-
-    case aetFreeze:
-        int32_t fFrozen; //_fFrozen is a bit
-        _pggaev->Get(iaev, &fFrozen);
-        _fFrozen = FPure(fFrozen);
-        break;
-
-    case aetTweak:
-        if (aev.rtel.dnfrm == _rtelCur.dnfrm)
-            _pggaev->Get(iaev, &_xyzCur);
-        // The actual locating of the actor is done in _FDoFrm or FTweakRoute
-        break;
-
     case aetSnd:
         // Enqueue non-mm sounds
         if (!_FEnqueueSnd(iaev)) // Ignore failure
             return fFalse;
-        break;
-
-    case aetMove:
-        RoutePoint dxyz;
-        _pggaev->Get(iaev, &dxyz);
-        _dxyzSubRte.dxr = BrsAdd(dxyz.dxr, _dxyzSubRte.dxr);
-        _dxyzSubRte.dyr = BrsAdd(dxyz.dyr, _dxyzSubRte.dyr);
-        _dxyzSubRte.dzr = BrsAdd(dxyz.dzr, _dxyzSubRte.dzr);
-        _UpdateXyzRte();
         break;
 
     default:
@@ -1188,18 +747,18 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
     AssertIn(aetNew, 0, aetLim);
     AssertIn(cbNew, 0, 100); // approximate upper bound
     AssertPvCb(pvVar, cbNew);
-    Assert(_fOnStage || aetNew == aetAdd, "Error!  Beginning subroute with no Add Onstage event");
+    Assert(_state.onStage || aetNew == aetAdd, "Error!  Beginning subroute with no Add Onstage event");
 
     Base aev;
     long iaevNew;
     // Setup fixed part of the gg
     aev.aet = aetNew;
-    aev.rtel = _rtelCur;
-    aev.nfrm = _nfrmCur;
+    aev.rtel = _state.location;
+    aev.nfrm = _state.frame;
 
-    if (!_FInsertAev(_iaevCur, cbNew, pvVar, &aev))
+    if (!_FInsertAev(_state.nextEvent, cbNew, pvVar, &aev))
         return fFalse;
-    _MergeAev(_iaevFrmMin, _iaevCur, &iaevNew);
+    _MergeAev(_state.firstEventInFrame, _state.nextEvent, &iaevNew);
 
 #ifdef BUG1870
     // REVIEW *****: V2.0
@@ -1215,9 +774,9 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
         // any existing same frame translaton to be added
         // to the state	variables twice.
         // Instead, adjust state var translation here.
-        _dxyzSubRte.dxr = BrsAdd(((RoutePoint *)pvVar)->dxr, _dxyzSubRte.dxr);
-        _dxyzSubRte.dyr = BrsAdd(((RoutePoint *)pvVar)->dyr, _dxyzSubRte.dyr);
-        _dxyzSubRte.dzr = BrsAdd(((RoutePoint *)pvVar)->dzr, _dxyzSubRte.dzr);
+        _state.subrouteTranslation.dxr = BrsAdd(((RoutePoint *)pvVar)->dxr, _state.subrouteTranslation.dxr);
+        _state.subrouteTranslation.dyr = BrsAdd(((RoutePoint *)pvVar)->dyr, _state.subrouteTranslation.dyr);
+        _state.subrouteTranslation.dzr = BrsAdd(((RoutePoint *)pvVar)->dzr, _state.subrouteTranslation.dzr);
     }
     else if (!_FDoAevCore(iaevNew))
         return fFalse;
@@ -1226,25 +785,25 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
         return fFalse;
 #endif //! BUG1870
 
-    if (_iaevCur == iaevNew)
-        _iaevCur++;
+    if (_state.nextEvent == iaevNew)
+        _state.nextEvent++;
 
     _pscen->MarkDirty();
 
-    Assert(aetNew != aetActn || _iaevActnCur == iaevNew, "_iaevActnCur not up to date");
-    AssertIn(_iaevCur, 0, _pggaev->IvMac() + 1);
-    Assert(!(_pggaev->IvMac() == 1 && _nfrmFirst != _nfrmCur), "check case");
+    Assert(aetNew != aetActn || _state.actionEvent == iaevNew, "_state.actionEvent not up to date");
+    AssertIn(_state.nextEvent, 0, _track.events->IvMac() + 1);
+    Assert(!(_track.events->IvMac() == 1 && _nfrmFirst != _state.frame), "check case");
 
-    if (_nfrmCur < _nfrmFirst)
+    if (_state.frame < _nfrmFirst)
     {
         _pscen->InvalFrmRange();
-        _nfrmFirst = _nfrmCur;
+        _nfrmFirst = _state.frame;
     }
 
-    if (_nfrmCur > _nfrmLast)
+    if (_state.frame > _nfrmLast)
     {
         _pscen->InvalFrmRange();
-        _nfrmLast = _nfrmCur;
+        _nfrmLast = _state.frame;
     }
 
     AssertThis(fobjAssertFull);
@@ -1263,32 +822,32 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
 {
     AssertBaseThis(0);
-    AssertIn(iaevFirst, 0, _pggaev->IvMac());
-    AssertIn(iaevNew, iaevFirst, _pggaev->IvMac());
+    AssertIn(iaevFirst, 0, _track.events->IvMac());
+    AssertIn(iaevNew, iaevFirst, _track.events->IvMac());
     AssertNilOrVarMem(piaevRtn);
 
     Base aev;
     Base aevNew;
     void *pvVar;
-    long cbVar;
+    LegacyLong cbVar;
     long iaev;
     BMAT34 bmat34;
 
-    if ((_pggaev->IvMac() < iaevFirst) || (iaevFirst == iaevNew))
+    if ((_track.events->IvMac() < iaevFirst) || (iaevFirst == iaevNew))
     {
         if (pvNil != piaevRtn)
             *piaevRtn = iaevNew;
         return;
     }
 
-    _pggaev->GetFixed(iaevNew, &aevNew);
+    _track.events->GetFixed(iaevNew, &aevNew);
 
     //
     // Check if Aev is in the list already
     //
     for (iaev = iaevFirst; iaev < iaevNew; iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
         if ((aev.aet != aevNew.aet) && (aev.aet != aetRem) && (aev.aet != aetRotH))
             continue;
@@ -1314,19 +873,19 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
         case aetMove: // Move is accumulation of previous moves
             RoutePoint dxyz;
             RoutePoint dxyzNew;
-            _pggaev->Get(iaev, &dxyz);
-            _pggaev->Get(iaevNew, &dxyzNew);
+            _track.events->Get(iaev, &dxyz);
+            _track.events->Get(iaevNew, &dxyzNew);
             // Note: Merging moves should not alter state variables!
 #ifndef BUG1870
             // Remove these lines of code
-            _dxyzSubRte.dxr = BrsSub(_dxyzSubRte.dxr, dxyz.dxr);
-            _dxyzSubRte.dyr = BrsSub(_dxyzSubRte.dyr, dxyz.dyr);
-            _dxyzSubRte.dzr = BrsSub(_dxyzSubRte.dzr, dxyz.dzr);
+            _state.subrouteTranslation.dxr = BrsSub(_state.subrouteTranslation.dxr, dxyz.dxr);
+            _state.subrouteTranslation.dyr = BrsSub(_state.subrouteTranslation.dyr, dxyz.dyr);
+            _state.subrouteTranslation.dzr = BrsSub(_state.subrouteTranslation.dzr, dxyz.dzr);
 #endif //! BUG1870
             dxyz.dxr = BrsAdd(dxyz.dxr, dxyzNew.dxr);
             dxyz.dyr = BrsAdd(dxyz.dyr, dxyzNew.dyr);
             dxyz.dzr = BrsAdd(dxyz.dzr, dxyzNew.dzr);
-            _pggaev->Put(iaev, &dxyz);
+            _track.events->Put(iaev, &dxyz);
             goto LDeleteNew;
             break;
 
@@ -1335,15 +894,15 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             Costume aevcostNew;
 
             // Check that the body parts match
-            _pggaev->Get(iaev, &aevcost);
-            _pggaev->Get(iaevNew, &aevcostNew);
+            _track.events->Get(iaev, &aevcost);
+            _track.events->Get(iaevNew, &aevcostNew);
 
             if (aevcost.ibset != aevcostNew.ibset)
                 continue;
 
             if (aev.rtel != aevNew.rtel)
                 goto LDeleteOld;
-            _pggaev->Put(iaev, &aevcostNew);
+            _track.events->Put(iaev, &aevcostNew);
             goto LDeleteNew;
             break;
 
@@ -1353,8 +912,8 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             long ismm;
             SoundMotionMatch *psmm;
             // Check that the sound types match
-            _pggaev->Get(iaev, &aevsnd);
-            _pggaev->Get(iaevNew, &aevsndNew);
+            _track.events->Get(iaev, &aevsnd);
+            _track.events->Get(iaevNew, &aevsndNew);
             if (MovieSoundMSND::SqnActr(aevsnd.sty, _arid) != MovieSoundMSND::SqnActr(aevsndNew.sty, _arid))
                 continue;
             // Queued sounds need to have multiple events reside in a single frame
@@ -1389,8 +948,8 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
                 continue;
             if (aev.rtel != aevNew.rtel)
                 goto LDeleteOld;
-            _pggaev->Get(iaevNew, &bmat34);
-            _pggaev->Put(iaev, &bmat34);
+            _track.events->Get(iaevNew, &bmat34);
+            _track.events->Put(iaev, &bmat34);
             goto LDeleteNew;
             break;
 
@@ -1408,9 +967,9 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             {
                 goto LDeleteOld;
             }
-            pvVar = _pggaev->QvGet(iaevNew, &cbVar);
-            Assert(cbVar == _pggaev->Cb(iaev), "Wrong Var size");
-            _pggaev->Put(iaev, pvVar);
+            pvVar = _track.events->QvGet(iaevNew, &cbVar);
+            Assert(cbVar == _track.events->Cb(iaev), "Wrong Var size");
+            _track.events->Put(iaev, pvVar);
             goto LDeleteNew;
         }
     }
@@ -1454,11 +1013,11 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
     bool fStatic;
     bool fNewAction = fFalse;
     Action aevactn;
-    long anidPrev = _anidCur;
+    long anidPrev = _state.action;
     long iaevMin;
 
     long cbVar = kcbVarActn + kcbVarFreeze + (kcbVarStep * 2);
-    if (!_pggaev->FEnsureSpace(4, cbVar, fgrpNil))
+    if (!_track.events->FEnsureSpace(4, cbVar, fgrpNil))
         return fFalse;
 
     if (!_FGetStatic(anid, &fStatic))
@@ -1467,7 +1026,7 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
     // If the action is changing:
     // Remove all motion match sounds of the previous action
     // Query the template and insert new sound events
-    if (_anidCur != anid)
+    if (_state.action != anid)
     {
         fNewAction = fTrue;
         if (!_FRemoveAevMm(anid))
@@ -1479,8 +1038,8 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
     aevactn.celn = celn;
 
     // Add this action to the event list
-    iaevMin = (_iaevFrmMin == _iaevAddCur) ? _iaevFrmMin + 1 : _iaevFrmMin;
-    _PrepActnFill(iaevMin, _anidCur, anid, faetTweak | faetFreeze | faetActn);
+    iaevMin = (_state.firstEventInFrame == _state.addEvent) ? _state.firstEventInFrame + 1 : _state.firstEventInFrame;
+    _PrepActnFill(iaevMin, _state.action, anid, faetTweak | faetFreeze | faetActn);
 
     if (!_FAddDoAev(aetActn, kcbVarActn, &aevactn))
         return fFalse;
@@ -1493,13 +1052,13 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
             return fFalse;
     }
 
-    if (_nfrmCur != _nfrmLast)
+    if (_state.frame != _nfrmLast)
     {
         _fLifeDirty = fTrue;
         _pscen->InvalFrmRange();
     }
 
-    if (!fFreeze && !_FIsDoneAevSub(_iaevCur, _rtelCur))
+    if (!fFreeze && !_FIsDoneAevSub(_state.nextEvent, _state.location))
     {
         if (!_FUnfreeze())
             return fFalse;
@@ -1514,7 +1073,7 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
     // non-static action is supposed to make the actor start moving forward along
     // the remaining path.
     // The last frame in the subpath must retain its final step=0 event, however.
-    if (!fStatic && !_ptmpl->FIsTdt() && !_FIsDoneAevSub(_iaevCur, _rtelCur))
+    if (!fStatic && !_ptmpl->FIsTdt() && !_FIsDoneAevSub(_state.nextEvent, _state.location))
     {
         if (!FSetStep(kdwrNil))
             return fFalse;
@@ -1533,9 +1092,9 @@ void Actor::_Hide(void)
 {
     AssertBaseThis(0);
 
-    if (_fOnStage && _pbody != pvNil)
+    if (_state.onStage && _pbody != pvNil)
         _pbody->Hide();
-    _fOnStage = fFalse;
+    _state.onStage = fFalse;
     return;
 }
 
@@ -1552,18 +1111,18 @@ void Actor::_Hide(void)
 bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 {
     AssertBaseThis(0);
-    AssertIn(irpt, 0, _pglrpt->IvMac() + 1);
+    AssertIn(irpt, 0, _track.route->IvMac() + 1);
     AssertNilOrVarMem(prpt);
 
     RouteDistancePoint rpt;
     BRS dwrTotal = rZero; // Dist from prev node to node after the inserted node
 
-    if (!_pglrpt->FInsert(irpt, prpt))
+    if (!_track.route->FInsert(irpt, prpt))
         return fFalse;
 
     if (0 < irpt)
     {
-        _pglrpt->Get(irpt - 1, &rpt);
+        _track.route->Get(irpt - 1, &rpt);
         dwrTotal = rpt.dwr;
 
         // Do not alter end of route dwr's
@@ -1573,15 +1132,15 @@ bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
             rpt.dwr = dwrPrior;
             if (rZero == rpt.dwr)
                 rpt.dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-            _pglrpt->Put(irpt - 1, &rpt);
+            _track.route->Put(irpt - 1, &rpt);
         }
         else
             Assert(dwrPrior == rZero, "Illegal distance");
     }
 
-    if (irpt < _pglrpt->IvMac() - 1)
+    if (irpt < _track.route->IvMac() - 1)
     {
-        _pglrpt->Get(irpt + 1, &rpt);
+        _track.route->Get(irpt + 1, &rpt);
         if (rZero != prpt->dwr) // If not at end of subroute
         {
             // Set the distance to the next point in this subroute
@@ -1589,7 +1148,7 @@ bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
             prpt->dwr = BrsSub(dwrTotal, dwrPrior);
             if (rZero >= prpt->dwr)
                 prpt->dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-            _pglrpt->Put(irpt, prpt);
+            _track.route->Put(irpt, prpt);
         }
     }
     else
@@ -1613,7 +1172,7 @@ bool Actor::FSetStep(BRS dwrStep)
     AssertThis(0);
     Assert(kdwrNil == dwrStep || rZero <= dwrStep, "Invalid dwrStep argument");
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarStep, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarStep, fgrpNil))
         return fFalse;
 
     return _FAddDoAev(aetStep, kcbVarStep, &dwrStep);
@@ -1677,20 +1236,20 @@ bool Actor::FAddOnStageCore(void)
     BRS xr;
     BRS yr;
     BRS zr;
-    long cbVar;
+    LegacyLong cbVar;
     Add aevadd;
     bool fUpdateFrmRange = fFalse;
 
     cbVar = kcbVarAdd + kcbVarActn + kcbVarStep + kcbVarFreeze;
-    if (_pggaev->IvMac() == 0)
+    if (_track.events->IvMac() == 0)
     {
-        if (!_pggaev->FEnsureSpace(4, cbVar, fgrpNil) || !_pglrpt->FEnsureSpace(1, fgrpNil))
+        if (!_track.events->FEnsureSpace(4, cbVar, fgrpNil) || !_track.route->FEnsureSpace(1, fgrpNil))
             return fFalse;
     }
     else
     {
         cbVar += kcbVarCost + kcbVarRot + kcbVarSize + kcbVarPull;
-        if (!_pggaev->FEnsureSpace(8, cbVar, fgrpNil) || !_pglrpt->FEnsureSpace(1, fgrpNil))
+        if (!_track.events->FEnsureSpace(8, cbVar, fgrpNil) || !_track.route->FEnsureSpace(1, fgrpNil))
         {
             return fFalse;
         }
@@ -1706,36 +1265,36 @@ bool Actor::FAddOnStageCore(void)
     // NOTE: 3D spletter code uses this also.
     aevadd.ya = _pscen->Pbkgd()->BraRotYCamera();
 
-    if (_nfrmCur < _nfrmFirst)
+    if (_state.frame < _nfrmFirst)
     {
         fUpdateFrmRange = fTrue;
-        _nfrmFirst = _nfrmCur;
+        _nfrmFirst = _state.frame;
     }
-    if (_nfrmCur > _nfrmLast)
+    if (_state.frame > _nfrmLast)
     {
         fUpdateFrmRange = fTrue;
-        _nfrmLast = _nfrmCur;
+        _nfrmLast = _state.frame;
     }
 
     RouteDistancePoint rptNil = {rZero, rZero, rZero, rZero};
 
-    if (_fOnStage) // May have walked offstage
+    if (_state.onStage) // May have walked offstage
     {
         // Delete the remnant subroute (non-inclusive of current frame)
         _DeleteFwdCore(fFalse);
     }
 
-    _rtelCur.dnfrm = 0;
-    _rtelCur.dwrOffset = rZero;
-    if (_iaevAddCur < 0)
-        _rtelCur.irpt = 0;
+    _state.location.dnfrm = 0;
+    _state.location.dwrOffset = rZero;
+    if (_state.addEvent < 0)
+        _state.location.irpt = 0;
     else
-        _rtelCur.irpt++;
+        _state.location.irpt++;
 
-    AssertDo(_FInsertGgRpt(_rtelCur.irpt, &rptNil), "Logic error");
-    _AdjustAevForRteIns(_rtelCur.irpt, 0);
+    AssertDo(_FInsertGgRpt(_state.location.irpt, &rptNil), "Logic error");
+    _AdjustAevForRteIns(_state.location.irpt, 0);
 
-    _GetXyzFromRtel(&_rtelCur, &_xyzCur);
+    _GetXyzFromRtel(&_state.location, &_state.position);
 
     if (!_FAddDoAev(aetAdd, kcbVarAdd, &aevadd))
         return fFalse;
@@ -1743,8 +1302,8 @@ bool Actor::FAddOnStageCore(void)
     // Copy costume and transform events forward if this is
     // the earliest Add event : each subroute needs all
     // initialization events.
-    // Note: _iaevCur is already incremented at this point
-    if (1 == _iaevCur)
+    // Note: _state.nextEvent is already incremented at this point
+    if (1 == _state.nextEvent)
     {
         // The earliest Add.  Gather later events and insert them
         if (!_FAddAevFromLater())
@@ -1754,11 +1313,11 @@ bool Actor::FAddOnStageCore(void)
     {
         // Not the earliest Add.  Gather earlier events	and insert them
         ulong grfaet = faetActn | faetCost | faetPull | faetSize | faetRotF;
-        if (!_FAddAevFromPrev(_iaevCur - 1, grfaet))
+        if (!_FAddAevFromPrev(_state.nextEvent - 1, grfaet))
             return fFalse;
     }
 
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
 
     if (!FSetStep(rZero))
         return fFalse;
@@ -1787,12 +1346,12 @@ bool Actor::FAddOnStageCore(void)
 bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
     AssertBaseThis(0);
-    AssertIn(iaevLim, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaevLim, 0, _track.events->IvMac() + 1);
 
     Base aev;
     Base *paev;
     Base aevCur;
-    long cb;
+    LegacyLong cb;
     long iaev;
     long iaevAdd;
     long iaevNew;
@@ -1804,7 +1363,7 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     _FFindPrevAevAet(aetAdd, iaevLim, &iaevAdd);
     _FindAevLastSub(iaevAdd, iaevLim, &iaevLast);
 
-    _pggaev->GetFixed(_iaevCur - 1, &aevCur);
+    _track.events->GetFixed(_state.nextEvent - 1, &aevCur);
 
     // It is more efficient to insert non-costume events backwards
     for (iaev = iaevLast; iaev > iaevAdd; iaev--)
@@ -1813,7 +1372,7 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
             break;
 
         Assert(iaev >= 0, "Logic error");
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (!(grfaet & (1 << aev.aet)) || aev.aet == aetCost)
             continue;
 
@@ -1821,24 +1380,24 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
         grfaet ^= (1 << aev.aet);
 
         // Allocate space
-        cb = _pggaev->Cb(iaev);
+        cb = _track.events->Cb(iaev);
         aev.rtel = aevCur.rtel;
         // aev.nfrm is set by _FDoAevCore()
 
-        if (!_FInsertAev(_iaevCur, cb, pvNil, &aev))
+        if (!_FInsertAev(_state.nextEvent, cb, pvNil, &aev))
             return fFalse;
 
         // Insert event
-        _pggaev->Put(_iaevCur, _pggaev->QvGet(iaev));
+        _track.events->Put(_state.nextEvent, _track.events->QvGet(iaev));
 
         // Merge events to avoid duplicates
-        _MergeAev(_iaevFrmMin, _iaevCur, &iaevNew);
+        _MergeAev(_state.firstEventInFrame, _state.nextEvent, &iaevNew);
 
         if (!_FDoAevCore(iaevNew))
             return fFalse;
 
-        if (iaevNew == _iaevCur)
-            _iaevCur++;
+        if (iaevNew == _state.nextEvent)
+            _state.nextEvent++;
     }
 
     if (!(grfaet & (1 << aetCost)))
@@ -1847,7 +1406,7 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     // Costumes needed to be gathered forward
     for (iaev = iaevAdd + 1; iaev <= iaevLast; iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.aet != aetCost)
             continue;
 
@@ -1855,21 +1414,21 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
         // aev.nfrm is set by _FDoAevCore()
 
         // Allocate space
-        cb = _pggaev->Cb(iaev);
-        if (!_FInsertAev(_iaevCur, cb, pvNil, &aev))
+        cb = _track.events->Cb(iaev);
+        if (!_FInsertAev(_state.nextEvent, cb, pvNil, &aev))
             return fFalse;
 
         // Insert event
-        _pggaev->Put(_iaevCur, _pggaev->QvGet(iaev));
+        _track.events->Put(_state.nextEvent, _track.events->QvGet(iaev));
 
         // Merge events to avoid duplicates
-        _MergeAev(_iaevFrmMin, _iaevCur, &iaevNew);
+        _MergeAev(_state.firstEventInFrame, _state.nextEvent, &iaevNew);
 
         if (!_FDoAevCore(iaevNew))
             return fFalse;
 
-        if (iaevNew == _iaevCur)
-            _iaevCur++;
+        if (iaevNew == _state.nextEvent)
+            _state.nextEvent++;
     }
 
     // Remove redundant (same frame) events from previous Add
@@ -1878,19 +1437,19 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 
     // May need to delete entire previous subroute
     // if the prev Add occurred at the same frame
-    paev = (Base *)_pggaev->QvFixedGet(iaevAdd);
-    if (_nfrmCur == paev->nfrm)
+    paev = (Base *)_track.events->QvFixedGet(iaevAdd);
+    if (_state.frame == paev->nfrm)
     {
         // Deleting the entire subroute
-        _DelAddFrame(iaevAdd, _iaevAddCur);
+        _DelAddFrame(iaevAdd, _state.addEvent);
         return fTrue;
     }
 
     // May need to prune out same-frame events from prev subrte
-    for (iaev = _iaevAddCur - 1; iaev >= iaevAdd; iaev--)
+    for (iaev = _state.addEvent - 1; iaev >= iaevAdd; iaev--)
     {
-        paev = (Base *)_pggaev->QvFixedGet(iaev);
-        if (_nfrmCur == paev->nfrm)
+        paev = (Base *)_track.events->QvFixedGet(iaev);
+        if (_state.frame == paev->nfrm)
         {
             fPrunedPrevSubrte = fTrue;
             _RemoveAev(iaev);
@@ -1901,10 +1460,10 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     {
         // The previous path requires pruning
         // Terminating stop & freeze events need to be inserted
-        long nfrm = _nfrmCur;
-        if (!FGotoFrame(_nfrmCur - 1))
+        long nfrm = _state.frame;
+        if (!FGotoFrame(_state.frame - 1))
             return fFalse;
-        DeleteFwdCore(fFalse, pvNil, _iaevCur);
+        DeleteFwdCore(fFalse, pvNil, _state.nextEvent);
         return FGotoFrame(nfrm);
     }
 
@@ -1927,11 +1486,11 @@ bool Actor::_FAddAevFromLater(void)
     RouteLocation rtelAdd;
     bool fPositionBody = fFalse;
 
-    Assert(1 == _iaevCur, "_FAddAevFromLater logic error");
+    Assert(1 == _state.nextEvent, "_FAddAevFromLater logic error");
     // Find the next Add event
-    for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.aet == aetAdd)
         {
             iaevStart = iaev;
@@ -1944,9 +1503,9 @@ bool Actor::_FAddAevFromLater(void)
         goto LEnd;
 
     // Stuff in the events from this next Add event
-    for (iaev = iaevStart; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = iaevStart; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
         if (aev.rtel != rtelAdd)
         {
@@ -1955,17 +1514,17 @@ bool Actor::_FAddAevFromLater(void)
 
         if (aetCost == aev.aet || aetPull == aev.aet || aetSize == aev.aet || aetRotF == aev.aet)
         {
-            aev.rtel = _rtelCur;
+            aev.rtel = _state.location;
             // aev.nfrm is set by _FDoAevCore()
 
             // Allocate space
-            long cbNew = _pggaev->Cb(iaev);
-            if (!_FInsertAev(_iaevCur, cbNew, pvNil, &aev))
+            long cbNew = _track.events->Cb(iaev);
+            if (!_FInsertAev(_state.nextEvent, cbNew, pvNil, &aev))
                 return fFalse;
             iaev++;
 
             // Insert event
-            _pggaev->Put(_iaevCur, _pggaev->QvGet(iaev));
+            _track.events->Put(_state.nextEvent, _track.events->QvGet(iaev));
 
             if (!_FDoAevCur())
                 return fFalse;
@@ -1977,10 +1536,10 @@ bool Actor::_FAddAevFromLater(void)
 
     if (fPositionBody)
     {
-        _PositionBody(&_xyzCur);
+        _PositionBody(&_state.position);
     }
 
-    Assert(_pggaev->IvMac() > 0, "Logic Error");
+    Assert(_track.events->IvMac() > 0, "Logic Error");
 
 LEnd:
     return FSetActionCore(0, 0, 0);
@@ -1996,7 +1555,7 @@ bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0);
     AssertIn(aet, 0, aetLim);
-    AssertIn(iaevCur, 0, _pggaev->IvMac());
+    AssertIn(iaevCur, 0, _track.events->IvMac());
     AssertVarMem(piaevAdd);
 
     Base aev;
@@ -2004,7 +1563,7 @@ bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
     iaevCur--;
     for (; iaevCur >= 0; iaevCur--)
     {
-        _pggaev->GetFixed(iaevCur, &aev);
+        _track.events->GetFixed(iaevCur, &aev);
         if (aev.aet == aet)
         {
             *piaevAdd = iaevCur;
@@ -2026,14 +1585,14 @@ bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0);
     AssertIn(aet, 0, aetLim);
-    AssertIn(iaevCur, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaevCur, 0, _track.events->IvMac() + 1);
     AssertVarMem(piaevAdd);
 
     Base *paev;
 
-    for (; iaevCur < _pggaev->IvMac(); iaevCur++)
+    for (; iaevCur < _track.events->IvMac(); iaevCur++)
     {
-        paev = (Base *)_pggaev->QvFixedGet(iaevCur);
+        paev = (Base *)_track.events->QvFixedGet(iaevCur);
         if (paev->aet == aet)
         {
             *piaevAdd = iaevCur;
@@ -2059,17 +1618,17 @@ bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 {
     AssertBaseThis(0);
-    AssertIn(iaevAdd, 0, _pggaev->IvMac());
+    AssertIn(iaevAdd, 0, _track.events->IvMac());
     if (iaevLim != ivNil)
-        AssertIn(iaevLim, 0, _pggaev->IvMac() + 1);
+        AssertIn(iaevLim, 0, _track.events->IvMac() + 1);
     AssertVarMem(piaevLast);
 
     Base aev;
 
     if (iaevLim == ivNil)
-        iaevLim = _pggaev->IvMac();
+        iaevLim = _track.events->IvMac();
 
-    _pggaev->GetFixed(iaevLim - 1, &aev);
+    _track.events->GetFixed(iaevLim - 1, &aev);
 
     if (_FIsStalled(iaevAdd, &aev.rtel, piaevLast))
     {
@@ -2091,21 +1650,21 @@ bool Actor::FRemFromStageCore(void)
     AssertThis(0);
     Base *paev;
 
-    if (!_fOnStage)
+    if (!_state.onStage)
         return fTrue;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarStep, fgrpNil)) // step
+    if (!_track.events->FEnsureSpace(1, kcbVarStep, fgrpNil)) // step
         return fFalse;
 
-    AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
-    paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-    if (_nfrmCur == paev->nfrm)
+    AssertIn(_state.addEvent, 0, _track.events->IvMac());
+    paev = (Base *)_track.events->QvFixedGet(_state.addEvent);
+    if (_state.frame == paev->nfrm)
     {
         if (!_FDeleteEntireSubrte())
             return fFalse;
     }
 
-    if (_fOnStage)
+    if (_state.onStage)
         return _FAddDoAev(aetRem, kcbVarZero, pvNil);
     return fTrue;
 }
@@ -2122,14 +1681,14 @@ bool Actor::_FDeleteEntireSubrte(void)
     Base *paev;
     long nfrmSav;
 
-    paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-    Assert(paev->nfrm == _nfrmCur, "Logic error: trying to delete whole route from the middle");
+    paev = (Base *)_track.events->QvFixedGet(_state.addEvent);
+    Assert(paev->nfrm == _state.frame, "Logic error: trying to delete whole route from the middle");
 
     // Delete forward from here	(exclusive of current point)
-    _DeleteFwdCore(fFalse, pvNil, _iaevCur);
+    _DeleteFwdCore(fFalse, pvNil, _state.nextEvent);
 
     // Delete events & path for the sole remaining Add frame
-    _DelAddFrame(_iaevAddCur, _iaevCur);
+    _DelAddFrame(_state.addEvent, _state.nextEvent);
 
     // A hide should be done separately from event execution
     // because no subroute exists in this case
@@ -2137,11 +1696,11 @@ bool Actor::_FDeleteEntireSubrte(void)
     if (_ptmpl != pvNil && _pbody != pvNil)
         _ptmpl->FSetDefaultCost(_pbody);
     _SetStateRewound();
-    nfrmSav = _nfrmCur;
-    _nfrmCur = knfrmInvalid;
-    if (_pggaev->IvMac() > 0)
+    nfrmSav = _state.frame;
+    _state.frame = knfrmInvalid;
+    if (_track.events->IvMac() > 0)
     {
-        paev = (Base *)_pggaev->QvFixedGet(0);
+        paev = (Base *)_track.events->QvFixedGet(0);
         Assert(paev->aet == aetAdd, "Corrupt event list");
         _nfrmFirst = paev->nfrm;
         return FGotoFrame(nfrmSav);
@@ -2164,7 +1723,7 @@ void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 
     AssertIn(iaevAdd, 0, iaevLim);
 
-    paev = (Base *)_pggaev->QvFixedGet(iaevAdd);
+    paev = (Base *)_track.events->QvFixedGet(iaevAdd);
     irptAdd = paev->rtel.irpt;
 
     // Delete events in current frame of subroute
@@ -2176,16 +1735,16 @@ void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
     // Delete current point	if unused
     if (iaevAdd > 0)
     {
-        paev = (Base *)_pggaev->QvFixedGet(iaevAdd - 1);
+        paev = (Base *)_track.events->QvFixedGet(iaevAdd - 1);
         if (paev->rtel.irpt == irptAdd || (paev->rtel.irpt == (irptAdd - 1) && paev->rtel.dwrOffset > rZero))
         {
             return;
         }
     }
     _AdjustAevForRteDel(irptAdd, iaevAdd);
-    _pglrpt->Delete(irptAdd);
-    if (_rtelCur.irpt > irptAdd)
-        _rtelCur.irpt--;
+    _track.route->Delete(irptAdd);
+    if (_state.location.irpt > irptAdd)
+        _state.location.irpt--;
 
     return;
 }
@@ -2226,10 +1785,10 @@ bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCm
     aevcost.cmid = cmid;
     aevcost.fCmtl = fCmtl;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarCost, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarCost, fgrpNil))
         return fFalse;
 
-    _PrepCostFill(_iaevCur, &aevcost);
+    _PrepCostFill(_state.nextEvent, &aevcost);
     if (!_FAddDoAev(aetCost, kcbVarCost, &aevcost))
         return fFalse;
 
@@ -2279,11 +1838,11 @@ bool Actor::_FUnfreeze(void)
 void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz)
 {
     AssertThis(0);
-    AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
+    AssertIn(_state.addEvent, 0, _track.events->IvMac());
 
     Add aevadd;
 
-    _pggaev->Get(_iaevAddCur, &aevadd);
+    _track.events->Get(_state.addEvent, &aevadd);
 
     if (pvNil == pdxyz)
     {
@@ -2309,10 +1868,10 @@ void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz
     }
 
     // Modify the event
-    _pggaev->Put(_iaevAddCur, &aevadd);
-    _xfrm.xaPath = aevadd.xa;
-    _xfrm.yaPath = aevadd.ya;
-    _xfrm.zaPath = aevadd.za;
+    _track.events->Put(_state.addEvent, &aevadd);
+    _state.transform.xaPath = aevadd.xa;
+    _state.transform.yaPath = aevadd.ya;
+    _state.transform.zaPath = aevadd.za;
 }
 
 /***************************************************************************
@@ -2374,35 +1933,35 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     BMAT34 *pbmat34;
     long aet;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarRot, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarRot, fgrpNil))
         return fFalse;
 
     if (fFromHereFwd)
     {
         aet = aetRotF;
-        pbmat34 = &_xfrm.bmat34Fwd;
-        if (_fUseBmat34Cur) // _xfrm.bmat34Cur has last been used
+        pbmat34 = &_state.transform.bmat34Fwd;
+        if (_state.useCurrentRotation) // _state.transform.bmat34Cur has last been used
         {
-            // _xfrm.bmat34Cur stores the complete (no path added) orientation
-            BrMatrix34Copy(pbmat34, &_xfrm.bmat34Cur);
+            // _state.transform.bmat34Cur stores the complete (no path added) orientation
+            BrMatrix34Copy(pbmat34, &_state.transform.bmat34Cur);
             // Back the path orientation out from this matrix.
             // Otherwise the actor will jump in angle
             // This MUST be done in z then y then x order
             // Note: matrix inversion unnecessary
-            if (_xfrm.zaPath != aZero)
-                BrMatrix34PostRotateZ(pbmat34, -_xfrm.zaPath);
-            if (_xfrm.yaPath != aZero)
-                BrMatrix34PostRotateY(pbmat34, -_xfrm.yaPath);
-            if (_xfrm.xaPath != aZero)
-                BrMatrix34PostRotateX(pbmat34, -_xfrm.xaPath);
+            if (_state.transform.zaPath != aZero)
+                BrMatrix34PostRotateZ(pbmat34, -_state.transform.zaPath);
+            if (_state.transform.yaPath != aZero)
+                BrMatrix34PostRotateY(pbmat34, -_state.transform.yaPath);
+            if (_state.transform.xaPath != aZero)
+                BrMatrix34PostRotateX(pbmat34, -_state.transform.xaPath);
         }
     }
     else
     {
-        // _xfrm.bmat34Cur is kept current at <all> frames so that
+        // _state.transform.bmat34Cur is kept current at <all> frames so that
         // rotations can be post applied to it
         aet = aetRotH;
-        pbmat34 = &_xfrm.bmat34Cur;
+        pbmat34 = &_state.transform.bmat34Cur;
     }
 
     if (aZero != xa)
@@ -2418,14 +1977,14 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
         BrMatrix34PreRotateZ(pbmat34, za);
     }
 
-    Assert(_iaevCur <= _pggaev->IvMac(), "_iaevCur bug");
+    Assert(_state.nextEvent <= _track.events->IvMac(), "_state.nextEvent bug");
 
     // Add the event
     if (fFromHereFwd)
-        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _iaevCur, ivNil, faetNil);
+        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _state.nextEvent, ivNil, faetNil);
     AssertDo(_FAddDoAev(aet, kcbVarRot, pbmat34), "Ensure space insufficient");
 
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
     return fTrue;
 }
 
@@ -2464,28 +2023,28 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     BMAT34 *pbmat34;
     long aet;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarRot, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarRot, fgrpNil))
         return fFalse;
 
     if (fFromHereFwd)
     {
         aet = aetRotF;
-        pbmat34 = &_xfrm.bmat34Fwd;
-        if (_fUseBmat34Cur)
+        pbmat34 = &_state.transform.bmat34Fwd;
+        if (_state.useCurrentRotation)
         {
-            BrMatrix34Copy(pbmat34, &_xfrm.bmat34Cur);
-            if (_xfrm.zaPath != aZero)
-                BrMatrix34PostRotateZ(pbmat34, -_xfrm.zaPath);
-            if (_xfrm.yaPath != aZero)
-                BrMatrix34PostRotateY(pbmat34, -_xfrm.yaPath);
-            if (_xfrm.xaPath != aZero)
-                BrMatrix34PostRotateX(pbmat34, -_xfrm.xaPath);
+            BrMatrix34Copy(pbmat34, &_state.transform.bmat34Cur);
+            if (_state.transform.zaPath != aZero)
+                BrMatrix34PostRotateZ(pbmat34, -_state.transform.zaPath);
+            if (_state.transform.yaPath != aZero)
+                BrMatrix34PostRotateY(pbmat34, -_state.transform.yaPath);
+            if (_state.transform.xaPath != aZero)
+                BrMatrix34PostRotateX(pbmat34, -_state.transform.xaPath);
         }
     }
     else
     {
         aet = aetRotH;
-        pbmat34 = &_xfrm.bmat34Cur;
+        pbmat34 = &_state.transform.bmat34Cur;
     }
 
     // BRender uses row-vector convention. PostRotate (right-multiply) of
@@ -2518,10 +2077,10 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     *pbmat34 = bmatNorm;
 
     if (fFromHereFwd)
-        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _iaevCur, ivNil, faetNil);
+        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _state.nextEvent, ivNil, faetNil);
     AssertDo(_FAddDoAev(aet, kcbVarRot, pbmat34), "Ensure space insufficient");
 
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
     return fTrue;
 }
 
@@ -2535,7 +2094,7 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FNormalizeCore(ulong grfnorm)
 {
     AssertThis(0);
-    long rScaleStepOld = _xfrm.rScaleStep;
+    long rScaleStepOld = _state.transform.rScaleStep;
     ulong faet;
     long cbVar = 0;
 
@@ -2544,41 +2103,41 @@ bool Actor::FNormalizeCore(ulong grfnorm)
     if (grfnorm & fnormSize)
         cbVar += kcbVarSize + kcbVarPull;
 
-    if (!_pggaev->FEnsureSpace(3, cbVar, fgrpNil))
+    if (!_track.events->FEnsureSpace(3, cbVar, fgrpNil))
         return fFalse;
 
     if (grfnorm & fnormRotate)
     {
-        _InitXfrmRot(&_xfrm.bmat34Fwd);
-        _InitXfrmRot(&_xfrm.bmat34Cur);
-        _PrepXfrmFill(aetRotF, &_xfrm.bmat34Fwd, kcbVarRot, _iaevCur);
-        AssertDo(_FAddDoAev(aetRotF, kcbVarRot, &_xfrm.bmat34Fwd), "EnsureSpace insufficient");
+        _InitXfrmRot(&_state.transform.bmat34Fwd);
+        _InitXfrmRot(&_state.transform.bmat34Cur);
+        _PrepXfrmFill(aetRotF, &_state.transform.bmat34Fwd, kcbVarRot, _state.nextEvent);
+        AssertDo(_FAddDoAev(aetRotF, kcbVarRot, &_state.transform.bmat34Fwd), "EnsureSpace insufficient");
     }
 
     if (grfnorm & fnormSize)
     {
-        _xfrm.aevpull.rScaleX = rOne;
-        _xfrm.aevpull.rScaleY = rOne;
-        _xfrm.aevpull.rScaleZ = rOne;
-        faet = (_xfrm.rScaleStep != rOne) ? faetTweak : faetNil;
-        _xfrm.rScaleStep = rOne;
-        _PrepXfrmFill(aetPull, &_xfrm.aevpull, kcbVarPull, _iaevCur);
-        _PrepXfrmFill(aetSize, &_xfrm.rScaleStep, kcbVarSize, _iaevCur, ivNil, faet);
+        _state.transform.aevpull.rScaleX = rOne;
+        _state.transform.aevpull.rScaleY = rOne;
+        _state.transform.aevpull.rScaleZ = rOne;
+        faet = (_state.transform.rScaleStep != rOne) ? faetTweak : faetNil;
+        _state.transform.rScaleStep = rOne;
+        _PrepXfrmFill(aetPull, &_state.transform.aevpull, kcbVarPull, _state.nextEvent);
+        _PrepXfrmFill(aetSize, &_state.transform.rScaleStep, kcbVarSize, _state.nextEvent, ivNil, faet);
 
-        AssertDo(_FAddDoAev(aetPull, kcbVarPull, &_xfrm.aevpull), "EnsureSpace insufficient");
-        AssertDo(_FAddDoAev(aetSize, kcbVarSize, &_xfrm.rScaleStep), "EnsureSpace insufficient");
+        AssertDo(_FAddDoAev(aetPull, kcbVarPull, &_state.transform.aevpull), "EnsureSpace insufficient");
+        AssertDo(_FAddDoAev(aetSize, kcbVarSize, &_state.transform.rScaleStep), "EnsureSpace insufficient");
 
         // Possibly extend life of actor if shrunk
-        if (rScaleStepOld > rOne && pvNil != _pscen && _rtelCur.irpt < _pglrpt->IvMac() - 1) // optimization
+        if (rScaleStepOld > rOne && pvNil != _pscen && _state.location.irpt < _track.route->IvMac() - 1) // optimization
         {
             _fLifeDirty = fTrue;
             _pscen->InvalFrmRange();
         }
     }
 
-    Assert(_iaevCur <= _pggaev->IvMac(), "_iaevCur bug");
+    Assert(_state.nextEvent <= _track.events->IvMac(), "_state.nextEvent bug");
 
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
     return fTrue;
 }
 
@@ -2598,31 +2157,32 @@ bool Actor::FScale(BRS rScale)
 
     ulong faet = faetNil;
     long rScaleStep;
-    long rScaleStepOld = _xfrm.rScaleStep;
+    long rScaleStepOld = _state.transform.rScaleStep;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarSize, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarSize, fgrpNil))
         return fFalse;
 
     rScale = LwBound(rScale, krScaleMinFactor, krScaleMaxFactor);
 
-    rScaleStep = BrsMul(_xfrm.rScaleStep, rScale);
-    _xfrm.rScaleStep = LwBound(rScaleStep, krScaleMin, krScaleMax);
+    rScaleStep = BrsMul(_state.transform.rScaleStep, rScale);
+    _state.transform.rScaleStep = LwBound(rScaleStep, krScaleMin, krScaleMax);
 
     // Remove tweaks when a transformation that changes stepsize occurs
-    faet = (_xfrm.rScaleStep != rScale) ? faetTweak : faetNil;
-    _PrepXfrmFill(aetSize, &_xfrm.rScaleStep, kcbVarSize, _iaevCur, ivNil, faet);
+    faet = (_state.transform.rScaleStep != rScale) ? faetTweak : faetNil;
+    _PrepXfrmFill(aetSize, &_state.transform.rScaleStep, kcbVarSize, _state.nextEvent, ivNil, faet);
 
-    if (!_FAddDoAev(aetSize, kcbVarSize, &_xfrm.rScaleStep))
+    if (!_FAddDoAev(aetSize, kcbVarSize, &_state.transform.rScaleStep))
         return fFalse;
 
-    Assert(_iaevCur <= _pggaev->IvMac(), "_iaevCur bug");
+    Assert(_state.nextEvent <= _track.events->IvMac(), "_state.nextEvent bug");
 
-    if (_xfrm.rScaleStep != rScale)
-        _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-    _PositionBody(&_xyzCur);
+    if (_state.transform.rScaleStep != rScale)
+        _GetXyzFromRtel(&_state.location, &_state.position);
+    _PositionBody(&_state.position);
 
     // Possibly extend life of actor if shrunk
-    if (rScaleStepOld != _xfrm.rScaleStep && pvNil != _pscen && _rtelCur.irpt < _pglrpt->IvMac() - 1) // optimization
+    if (rScaleStepOld != _state.transform.rScaleStep && pvNil != _pscen &&
+        _state.location.irpt < _track.route->IvMac() - 1) // optimization
     {
         _fLifeDirty = fTrue;
         _pscen->InvalFrmRange();
@@ -2658,7 +2218,7 @@ bool Actor::FSoonerLater(long dnfrm)
             PushErc(ercSocBadFrameSlider);
     }
 
-    Assert(_iaevAddCur >= 0, "Invalid value for _iaevAddCur");
+    Assert(_state.addEvent >= 0, "Invalid value for _state.addEvent");
 
     // On a Sooner operation, slide the earlier subroutes
     // backward in time
@@ -2666,21 +2226,21 @@ bool Actor::FSoonerLater(long dnfrm)
     {
         dnfrmT = (-dnfrm);
         // The times of past events need to be correct.
-        for (iaev = _iaevCur - 1; dnfrmT > 0 && iaev >= 0; iaev--)
+        for (iaev = _state.nextEvent - 1; dnfrmT > 0 && iaev >= 0; iaev--)
         {
-            _pggaev->GetFixed(iaev, &aev);
+            _track.events->GetFixed(iaev, &aev);
             if (aev.aet != aetAdd || iaev == 0)
             {
                 aev.nfrm -= dnfrmT;
-                _pggaev->PutFixed(iaev, &aev);
+                _track.events->PutFixed(iaev, &aev);
                 continue;
             }
 
             // Account for subroute gaps
-            paevPrev = (Base *)_pggaev->QvFixedGet(iaev - 1);
+            paevPrev = (Base *)_track.events->QvFixedGet(iaev - 1);
             dnfrmSub = aev.nfrm - (paevPrev->nfrm);
             aev.nfrm -= dnfrmT;
-            _pggaev->PutFixed(iaev, &aev);
+            _track.events->PutFixed(iaev, &aev);
             dnfrmT -= (dnfrmSub - 1);
         }
     }
@@ -2688,14 +2248,14 @@ bool Actor::FSoonerLater(long dnfrm)
     {
         // Later
         dnfrmT = dnfrm;
-        for (iaev = _iaevAddCur; dnfrmT > 0 && iaev < _pggaev->IvMac(); iaev++)
+        for (iaev = _state.addEvent; dnfrmT > 0 && iaev < _track.events->IvMac(); iaev++)
         {
-            _pggaev->GetFixed(iaev, &aev);
-            if (aev.aet != aetAdd || iaev == _iaevAddCur)
+            _track.events->GetFixed(iaev, &aev);
+            if (aev.aet != aetAdd || iaev == _state.addEvent)
             {
                 nfrmSav = aev.nfrm;
                 aev.nfrm += dnfrmT;
-                _pggaev->PutFixed(iaev, &aev);
+                _track.events->PutFixed(iaev, &aev);
                 continue;
             }
             // Adjust for the gap between subroutes
@@ -2704,15 +2264,15 @@ bool Actor::FSoonerLater(long dnfrm)
             if (dnfrmT <= 0)
                 break;
             aev.nfrm += dnfrmT;
-            _pggaev->PutFixed(iaev, &aev);
+            _track.events->PutFixed(iaev, &aev);
         }
     }
-    _pggaev->GetFixed(0, &aev);
+    _track.events->GetFixed(0, &aev);
     _nfrmFirst = aev.nfrm;
-    _pggaev->GetFixed(_pggaev->IvMac() - 1, &aev);
+    _track.events->GetFixed(_track.events->IvMac() - 1, &aev);
     _nfrmLast = aev.nfrm;
 
-    _nfrmCur += dnfrm;
+    _state.frame += dnfrm;
 
     // Invalidate, but do not recompute the range
     _pscen->InvalFrmRange();
@@ -2740,29 +2300,29 @@ bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
     BRS rScaleYT;
     BRS rScaleZT;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarPull, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarPull, fgrpNil))
         return fFalse;
 
     rScaleX = LwBound(rScaleX, krScaleMinFactor, krScaleMaxFactor);
     rScaleY = LwBound(rScaleY, krScaleMinFactor, krScaleMaxFactor);
     rScaleZ = LwBound(rScaleZ, krScaleMinFactor, krScaleMaxFactor);
 
-    rScaleXT = BrsMul(_xfrm.aevpull.rScaleX, rScaleX);
-    rScaleYT = BrsMul(_xfrm.aevpull.rScaleY, rScaleY);
-    rScaleZT = BrsMul(_xfrm.aevpull.rScaleZ, rScaleZ);
+    rScaleXT = BrsMul(_state.transform.aevpull.rScaleX, rScaleX);
+    rScaleYT = BrsMul(_state.transform.aevpull.rScaleY, rScaleY);
+    rScaleZT = BrsMul(_state.transform.aevpull.rScaleZ, rScaleZ);
 
-    _xfrm.aevpull.rScaleX = LwBound(rScaleXT, krPullMin, krPullMax);
-    _xfrm.aevpull.rScaleY = LwBound(rScaleYT, krPullMin, krPullMax);
-    _xfrm.aevpull.rScaleZ = LwBound(rScaleZT, krPullMin, krPullMax);
+    _state.transform.aevpull.rScaleX = LwBound(rScaleXT, krPullMin, krPullMax);
+    _state.transform.aevpull.rScaleY = LwBound(rScaleYT, krPullMin, krPullMax);
+    _state.transform.aevpull.rScaleZ = LwBound(rScaleZT, krPullMin, krPullMax);
 
-    _PrepXfrmFill(aetPull, &_xfrm.aevpull, kcbVarPull, _iaevCur);
+    _PrepXfrmFill(aetPull, &_state.transform.aevpull, kcbVarPull, _state.nextEvent);
 
-    if (!_FAddDoAev(aetPull, kcbVarPull, &_xfrm.aevpull))
+    if (!_FAddDoAev(aetPull, kcbVarPull, &_state.transform.aevpull))
         return fFalse;
 
-    Assert(_iaevCur <= _pggaev->IvMac(), "_iaevCur bug");
+    Assert(_state.nextEvent <= _track.events->IvMac(), "_state.nextEvent bug");
 
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
     return fTrue;
 }
 
@@ -2781,17 +2341,17 @@ bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 
     RoutePoint xyz;
 
-    if (!_pggaev->FEnsureSpace(1, kcbVarTweak, fgrpNil))
+    if (!_track.events->FEnsureSpace(1, kcbVarTweak, fgrpNil))
         return fFalse;
 
-    xyz.dxr = BrsAdd(_xyzCur.dxr, dxr);
-    xyz.dyr = BrsAdd(_xyzCur.dyr, dyr);
-    xyz.dzr = BrsAdd(_xyzCur.dzr, dzr);
+    xyz.dxr = BrsAdd(_state.position.dxr, dxr);
+    xyz.dyr = BrsAdd(_state.position.dyr, dyr);
+    xyz.dzr = BrsAdd(_state.position.dzr, dzr);
 
-    if ((grfmaf & fmafGround) && (BrsAdd(_xyzCur.dyr, _dxyzRte.dyr) >= rZero) &&
-        (BrsAdd(xyz.dyr, _dxyzRte.dyr) < rZero))
+    if ((grfmaf & fmafGround) && (BrsAdd(_state.position.dyr, _state.routeTranslation.dyr) >= rZero) &&
+        (BrsAdd(xyz.dyr, _state.routeTranslation.dyr) < rZero))
     {
-        xyz.dyr = -_dxyzRte.dyr;
+        xyz.dyr = -_state.routeTranslation.dyr;
     }
 
     if (!_FAddDoAev(aetTweak, kcbVarTweak, &xyz))
@@ -2809,10 +2369,7 @@ bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 void Actor::_UpdateXyzRte(void)
 {
     AssertBaseThis(0);
-
-    _dxyzRte.dxr = BrsAdd(_dxyzFullRte.dxr, _dxyzSubRte.dxr);
-    _dxyzRte.dyr = BrsAdd(_dxyzFullRte.dyr, _dxyzSubRte.dyr);
-    _dxyzRte.dzr = BrsAdd(_dxyzFullRte.dzr, _dxyzSubRte.dzr);
+    _state.UpdateOrigin(_dxyzFullRte);
 }
 
 /***************************************************************************
@@ -2842,7 +2399,7 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     Base *paev;
     long iaev;
     bool fMoved;
-    ulong grfbra;
+    LegacyUlong grfbra;
     RoutePoint dxyz;
     BRS yrCurOld;
     BRA xa;
@@ -2856,11 +2413,11 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     if (!fMoved)
         return fTrue;
 
-    if (!_pggaev->FEnsureSpace(2, kcbVarMove + kcbVarRot, fgrpNil))
+    if (!_track.events->FEnsureSpace(2, kcbVarMove + kcbVarRot, fgrpNil))
         return fFalse;
 
     // Edit dyr to respect ground
-    yrCurOld = BrsAdd(_xyzCur.dyr, _dxyzRte.dyr);
+    yrCurOld = BrsAdd(_state.position.dyr, _state.routeTranslation.dyr);
     if (FPure(grfmaf & fmafGround) && (yrCurOld >= rZero) && (BrsAdd(dyr, yrCurOld) < rZero))
     {
         dyr = BrsSub(rZero, yrCurOld);
@@ -2875,30 +2432,30 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 
         // Back the path orientation out from this matrix & replace
         // with new orientation
-        if (_xfrm.zaPath != aZero)
-            BrMatrix34PostRotateZ(&_xfrm.bmat34Cur, -_xfrm.zaPath);
-        if (_xfrm.yaPath != aZero)
-            BrMatrix34PostRotateY(&_xfrm.bmat34Cur, -_xfrm.yaPath);
-        if (_xfrm.xaPath != aZero)
-            BrMatrix34PostRotateX(&_xfrm.bmat34Cur, -_xfrm.xaPath);
+        if (_state.transform.zaPath != aZero)
+            BrMatrix34PostRotateZ(&_state.transform.bmat34Cur, -_state.transform.zaPath);
+        if (_state.transform.yaPath != aZero)
+            BrMatrix34PostRotateY(&_state.transform.bmat34Cur, -_state.transform.yaPath);
+        if (_state.transform.xaPath != aZero)
+            BrMatrix34PostRotateX(&_state.transform.bmat34Cur, -_state.transform.xaPath);
 
         _ApplyRotFromVec(&dxyz, pvNil, &xa, &ya, &za, &grfbra);
         SetAddOrient(xa, ya, za, grfbra, &dxyz);
 
         // Force speed to be inversely proportional to angular rotation
-        if (_iaevAddCur != ivNil)
+        if (_state.addEvent != ivNil)
         {
             BRS dwra, drxa, drya, drza;
             BRS ra1, ra2;
 #ifdef DEBUG
             {
                 Base *paev;
-                paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-                Assert(_nfrmCur == paev->nfrm, "Unsupported use of fmafOrient");
+                paev = (Base *)_track.events->QvFixedGet(_state.addEvent);
+                Assert(_state.frame == paev->nfrm, "Unsupported use of fmafOrient");
             }
 #endif // DEBUG
        //  Set dwra = angular change (in scalar form)
-            _pggaev->Get(_iaevAddCur, &aevadd);
+            _track.events->Get(_state.addEvent, &aevadd);
             ra1 = BrAngleToScalar(xa);
             ra2 = BrAngleToScalar(aevadd.xa);
             drxa = BrsAbs(BrsSub(ra1, ra2));
@@ -2948,19 +2505,19 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
             dzr = BrsMul(dzr, dwra);
         }
 
-        // _xfrm.bmat34Cur is to hold the current full rotation
+        // _state.transform.bmat34Cur is to hold the current full rotation
         _LoadAddOrien(&aevadd, fTrue);
 
         // Update any type of rotate event in this frame
-        for (iaev = _iaevAddCur + 1; iaev < _iaevCur; iaev++)
+        for (iaev = _state.addEvent + 1; iaev < _state.nextEvent; iaev++)
         {
-            paev = (Base *)_pggaev->QvFixedGet(iaev);
+            paev = (Base *)_track.events->QvFixedGet(iaev);
             if (aetRotH == paev->aet)
-                _pggaev->Put(iaev, &_xfrm.bmat34Cur);
+                _track.events->Put(iaev, &_state.transform.bmat34Cur);
             if (aetRotF == paev->aet)
             {
                 // Insert orientation-rotation event
-                if (!_FAddDoAev(aetRotH, kcbVarRot, &_xfrm.bmat34Cur))
+                if (!_FAddDoAev(aetRotH, kcbVarRot, &_state.transform.bmat34Cur))
                 {
                     Bug("Should have ensured space");
                     return fFalse;
@@ -2978,13 +2535,13 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     }
     else
     {
-        if (_iaevAddCur == ivNil)
+        if (_state.addEvent == ivNil)
             return fFalse;
 
         if (!FPure(grfmaf & fmafEntireSubrte))
         {
             // Move actor just from this frame on (this subpath only)
-            // Note: FAddDoAev will update _dxyzSubRte
+            // Note: FAddDoAev will update _state.subrouteTranslation
             dxyz.dxr = dxr;
             dxyz.dyr = dyr;
             dxyz.dzr = dzr;
@@ -2995,20 +2552,20 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
         {
             // Translating whole subroute
 #ifdef DEBUG
-            long cbVar = _pggaev->Cb(_iaevAddCur);
+            long cbVar = _track.events->Cb(_state.addEvent);
             Assert(cbVar == kcbVarAdd, "Corrupt aev");
 #endif // DEBUG
        //  Adjust the translation state variables
-            _dxyzSubRte.dxr = BrsAdd(dxr, _dxyzSubRte.dxr);
-            _dxyzSubRte.dyr = BrsAdd(dyr, _dxyzSubRte.dyr);
-            _dxyzSubRte.dzr = BrsAdd(dzr, _dxyzSubRte.dzr);
+            _state.subrouteTranslation.dxr = BrsAdd(dxr, _state.subrouteTranslation.dxr);
+            _state.subrouteTranslation.dyr = BrsAdd(dyr, _state.subrouteTranslation.dyr);
+            _state.subrouteTranslation.dzr = BrsAdd(dzr, _state.subrouteTranslation.dzr);
 
             // Adjust the position in the add event
-            _pggaev->Get(_iaevAddCur, &aevadd);
+            _track.events->Get(_state.addEvent, &aevadd);
             aevadd.dxr = BrsAdd(aevadd.dxr, dxr);
             aevadd.dyr = BrsAdd(aevadd.dyr, dyr);
             aevadd.dzr = BrsAdd(aevadd.dzr, dzr);
-            _pggaev->Put(_iaevAddCur, &aevadd);
+            _track.events->Put(_state.addEvent, &aevadd);
         }
     }
     _UpdateXyzRte();
@@ -3019,7 +2576,7 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     fMoved = FPure(rZero != dxr || rZero != dyr || rZero != dzr);
 
     if (fMoved)
-        _PositionBody(&_xyzCur);
+        _PositionBody(&_state.position);
 
     return fTrue;
 }
@@ -3033,15 +2590,15 @@ void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
 {
     AssertThis(0);
 
-    // Set _xfrm.bmat34Cur always holds the current full rotation
+    // Set _state.transform.bmat34Cur always holds the current full rotation
     if (!fNoReset)
-        _InitXfrmRot(&_xfrm.bmat34Cur);
-    BrMatrix34PostRotateX(&_xfrm.bmat34Cur, paevadd->xa);
-    BrMatrix34PostRotateY(&_xfrm.bmat34Cur, paevadd->ya);
-    BrMatrix34PostRotateZ(&_xfrm.bmat34Cur, paevadd->za);
-    _xfrm.xaPath = paevadd->xa;
-    _xfrm.yaPath = paevadd->ya;
-    _xfrm.zaPath = paevadd->za;
+        _InitXfrmRot(&_state.transform.bmat34Cur);
+    BrMatrix34PostRotateX(&_state.transform.bmat34Cur, paevadd->xa);
+    BrMatrix34PostRotateY(&_state.transform.bmat34Cur, paevadd->ya);
+    BrMatrix34PostRotateZ(&_state.transform.bmat34Cur, paevadd->za);
+    _state.transform.xaPath = paevadd->xa;
+    _state.transform.yaPath = paevadd->ya;
+    _state.transform.zaPath = paevadd->za;
 }
 
 /***************************************************************************
@@ -3072,21 +2629,21 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     Assert(aet == aetSize || aet == aetRotF || aet == aetPull, "Illegal argument aet");
     AssertPvCb(pvVar, cbVar);
     AssertIn(cbVar, 0, 100); // Approximate bound
-    AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
-    AssertIn(iaevCmp, -1, _pggaev->IvMac() + 1);
+    AssertIn(iaevMin, 0, _track.events->IvMac() + 1);
+    AssertIn(iaevCmp, -1, _track.events->IvMac() + 1);
     Assert(aet != aetActn && aet != aetCost, "Illegal aet argument");
 
     long iaev;
     Base aev;
     bool fReplacePrev = fTrue;
     void *pvVarCmp = pvNil;
-    long cb;
+    LegacyLong cb;
 
-    _pggaev->Lock();
+    _track.events->Lock();
 
     if (ivNil != iaevCmp)
     {
-        pvVarCmp = _pggaev->QvGet(iaevCmp, &cb);
+        pvVarCmp = _track.events->QvGet(iaevCmp, &cb);
         Assert(cb == cbVar, "Logic error");
     }
     else
@@ -3095,11 +2652,11 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
         // and store the ptr in pvVarCmp
         for (iaev = 0; iaev < iaevMin - 1; iaev++)
         {
-            _pggaev->GetFixed(iaev, &aev);
+            _track.events->GetFixed(iaev, &aev);
             if (aet != aev.aet)
                 continue;
 
-            pvVarCmp = _pggaev->QvGet(iaev, &cb);
+            pvVarCmp = _track.events->QvGet(iaev, &cb);
             Assert(cb == cbVar, "Logic error");
         }
     }
@@ -3107,10 +2664,10 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     if (pvNil == pvVarCmp)
         pvVarCmp = pvVar;
 
-    for (iaev = iaevMin; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = iaevMin; iaev < _track.events->IvMac(); iaev++)
     {
         bool fDelete = fFalse;
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
         // Stage entrance events are boundaries to edits
         if (aetAdd == aev.aet)
@@ -3129,7 +2686,7 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
             if (fReplacePrev)
             {
                 pv1 = pvVarCmp;
-                pv2 = _pggaev->QvGet(iaev);
+                pv2 = _track.events->QvGet(iaev);
                 if (fcmpEq != FcmpCompareRgb(pv1, pv2, cbVar))
                 {
                     // Prepare to test for a match with new event
@@ -3146,7 +2703,7 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
 
             Assert(!fReplacePrev, "Logic Error");
             pv1 = pvVarCmp;
-            pv2 = _pggaev->QvGet(iaev);
+            pv2 = _track.events->QvGet(iaev);
             if (fcmpEq != FcmpCompareRgb(pv1, pv2, cbVar))
                 goto LEnd;
 
@@ -3155,19 +2712,19 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
             break;
 
         case aetTweak:
-            if ((grfaet & faetTweak) && (aev.rtel >= _rtelCur))
+            if ((grfaet & faetTweak) && (aev.rtel >= _state.location))
                 fDelete = fTrue;
             break;
         case aetRotH:
-            if ((grfaet & faetRotF) && (aev.rtel == _rtelCur))
+            if ((grfaet & faetRotF) && (aev.rtel == _state.location))
                 fDelete = fTrue;
             break;
         case aetFreeze:
-            if ((grfaet & faetFreeze) && (aev.rtel >= _rtelCur))
+            if ((grfaet & faetFreeze) && (aev.rtel >= _state.location))
                 fDelete = fTrue;
             break;
         case aetStep:
-            if ((grfaet & faetStep) && (aev.rtel >= _rtelCur))
+            if ((grfaet & faetStep) && (aev.rtel >= _state.location))
                 fDelete = fTrue;
             ;
             break;
@@ -3184,19 +2741,19 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     }
 
 LEnd:
-    _pggaev->Unlock();
+    _track.events->Unlock();
 }
 
 /***************************************************************************
 
     Insert Aev.  Update state variables
-    Since _pggaev is getting a copy of a tag, a call to DupTag is required
+    Since _track.events is getting a copy of a tag, a call to DupTag is required
 
 ***************************************************************************/
 bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaev, 0, _track.events->IvMac() + 1);
     AssertIn(cbNew, 0, 100); // approximate bound
     if (pvNil != pvVar)
         AssertPvCb(pvVar, cbNew);
@@ -3204,28 +2761,28 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
 
     PTAG ptag;
 
-    if (!_pggaev->FInsert(iaev, cbNew, pvVar, paev))
+    if (!_track.events->FInsert(iaev, cbNew, pvVar, paev))
         return fFalse;
 
     // If not simply allocating space
     if (pvVar != pvNil)
     {
         // Increment tag count
-        _pggaev->Lock();
-        if (_FIsIaevTag(_pggaev, iaev, &ptag))
+        _track.events->Lock();
+        if (_FIsIaevTag(_track.events, iaev, &ptag))
             TagManager::DupTag(ptag);
-        _pggaev->Unlock();
+        _track.events->Unlock();
 
         if (fUpdateState)
         {
-            if (iaev < _iaevCur)
-                _iaevCur++;
-            if (iaev <= _iaevActnCur)
-                _iaevActnCur++;
-            if (iaev <= _iaevAddCur)
-                _iaevAddCur++;
-            if (iaev < _iaevFrmMin)
-                _iaevFrmMin++;
+            if (iaev < _state.nextEvent)
+                _state.nextEvent++;
+            if (iaev <= _state.actionEvent)
+                _state.actionEvent++;
+            if (iaev <= _state.addEvent)
+                _state.addEvent++;
+            if (iaev < _state.firstEventInFrame)
+                _state.firstEventInFrame++;
         }
     }
 
@@ -3240,36 +2797,36 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
 void Actor::_RemoveAev(long iaev, bool fUpdateState)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _pggaev->IvMac());
+    AssertIn(iaev, 0, _track.events->IvMac());
 
     bool fUpdateSndFrame;
     PTAG ptag;
     PBase qaev;
 
     // First, close tags
-    _pggaev->Lock();
-    if (_FIsIaevTag(_pggaev, iaev, &ptag, &qaev))
+    _track.events->Lock();
+    if (_FIsIaevTag(_track.events, iaev, &ptag, &qaev))
         TagManager::CloseTag(ptag);
 
     /* Don't bother updating the frame sound indicator if we didn't change
         an event in the scene's current frame */
     fUpdateSndFrame = (qaev->aet == aetSnd) && (_pscen != pvNil) && (qaev->nfrm == _pscen->Nfrm());
 
-    _pggaev->Unlock(); // qaev is invalid past here!
+    _track.events->Unlock(); // qaev is invalid past here!
     TrashVar(&qaev);
 
-    _pggaev->Delete(iaev);
+    _track.events->Delete(iaev);
 
     if (fUpdateState)
     {
-        if (iaev < _iaevCur)
-            _iaevCur--;
-        if (iaev < _iaevActnCur)
-            _iaevActnCur--;
-        if (iaev < _iaevAddCur)
-            _iaevAddCur--;
-        if (iaev < _iaevFrmMin)
-            _iaevFrmMin--;
+        if (iaev < _state.nextEvent)
+            _state.nextEvent--;
+        if (iaev < _state.actionEvent)
+            _state.actionEvent--;
+        if (iaev < _state.addEvent)
+            _state.addEvent--;
+        if (iaev < _state.firstEventInFrame)
+            _state.firstEventInFrame--;
     }
 
     if (fUpdateSndFrame)
@@ -3291,15 +2848,15 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
 void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
 {
     AssertBaseThis(0);
-    AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaevMin, 0, _track.events->IvMac() + 1);
 
     Base aev;
     long iaev;
     long anid = anidPrev;
 
-    for (iaev = iaevMin; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = iaevMin; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
         // Stage entrance events are boundaries to edits
         if (aetAdd == aev.aet)
@@ -3308,7 +2865,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
         if (aetActn == aev.aet)
         {
             Action aevactn;
-            _pggaev->Get(iaev, &aevactn);
+            _track.events->Get(iaev, &aevactn);
 
             if (!(grfaet & faetActn))
             {
@@ -3333,7 +2890,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
                 return;
         }
 
-        if (aev.rtel < _rtelCur)
+        if (aev.rtel < _state.location)
             continue;
 
         if (aev.aet == aetTweak && (grfaet & faetTweak))
@@ -3365,7 +2922,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
 void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
     AssertBaseThis(0);
-    AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaevMin, 0, _track.events->IvMac() + 1);
     AssertVarMem(paevcost);
 
     long iaev;
@@ -3383,9 +2940,9 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
     _pbody->GetPartSetMaterial(paevcost->ibset, &fMtrl, &pmtrlCmp, &pcmtlCmp);
     fCmtl = !fMtrl;
 
-    for (iaev = iaevMin; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = iaevMin; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
         // Stage entrance events are boundaries to edits
         if (aetAdd == aev.aet)
@@ -3394,7 +2951,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
         if (aetCost != aev.aet)
             continue;
 
-        _pggaev->Get(iaev, &aevcost);
+        _track.events->Get(iaev, &aevcost);
         if (aevcost.ibset != paevcost->ibset)
             continue;
 
@@ -3458,9 +3015,9 @@ LEnd:
 void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0);
-    long irptMac = _pglrpt->IvMac();
+    long irptMac = _track.route->IvMac();
     AssertIn(irptAdjust, 0, irptMac);
-    AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaevMin, 0, _track.events->IvMac() + 1);
 
     long iaev;
     Base aev;
@@ -3469,17 +3026,17 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 
     if (irptAdjust > 0)
     {
-        _pglrpt->Get(irptAdjust - 1, &rptBack);
+        _track.route->Get(irptAdjust - 1, &rptBack);
         dwrBack = rptBack.dwr;
     }
     else
         dwrBack = rZero;
 
-    _pglrpt->Get(irptAdjust, &rptAdjust);
+    _track.route->Get(irptAdjust, &rptAdjust);
 
-    for (iaev = iaevMin; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = iaevMin; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.rtel.irpt >= irptAdjust) // offset from later point
         {
             aev.rtel.irpt++;
@@ -3499,7 +3056,7 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
                 aev.rtel.irpt++;
             }
         }
-        _pggaev->PutFixed(iaev, &aev);
+        _track.events->PutFixed(iaev, &aev);
     }
 }
 /***************************************************************************
@@ -3511,9 +3068,9 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0);
-    long irptMac = _pglrpt->IvMac();
+    long irptMac = _track.route->IvMac();
     AssertIn(irptAdjust, 0, irptMac);
-    AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
+    AssertIn(iaevMin, 0, _track.events->IvMac() + 1);
 
     long iaev;
     Base aev;
@@ -3524,16 +3081,16 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
         dwrBack = rZero;
     else
     {
-        _pglrpt->Get(irptAdjust - 1, &rptBack);
+        _track.route->Get(irptAdjust - 1, &rptBack);
         dwrBack = rptBack.dwr;
     }
 
-    _pglrpt->Get(irptAdjust, &rptAdjust);
+    _track.route->Get(irptAdjust, &rptAdjust);
     dwrFwd = rptAdjust.dwr;
 
-    for (iaev = iaevMin; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = iaevMin; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.rtel.irpt > irptAdjust) // offset from later point
         {
             aev.rtel.irpt--;
@@ -3553,7 +3110,7 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
         else
             continue;
 
-        _pggaev->PutFixed(iaev, &aev);
+        _track.events->PutFixed(iaev, &aev);
     }
 }
 
@@ -3571,86 +3128,8 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 void Actor::_AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
 {
     AssertBaseThis(0);
-    AssertVarMem(prtel);
-    AssertNilOrVarMem(pfEndRoute);
-
-    BRS dwrT;
-    bool fEndRoute = fFalse;
-    long iaev;
-    Base aev;
-
-    // If at start of path
-    // Note: _nfrmFirst is independent with respect to the current frame
-    if (nfrmCur <= _nfrmFirst)
-    {
-        prtel->irpt = 0;
-        prtel->dwrOffset = rZero;
-        prtel->dnfrm = 0;
-        goto LDone;
-    }
-
-    // End of route means trying to move beyond the last point.
-    if (rZero == dwrStep) // Not an "end-of-route"
-    {
-        prtel->dnfrm++;
-        goto LDone;
-    }
-
-    // Move to the correct path segment
-    dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
-    dwrT = BrsSub(dwrT, prtel->dwrOffset);
-    if (rZero == dwrT)
-    {
-        Assert(prtel->dwrOffset == rZero, "Expected zero offset");
-        prtel->dnfrm++;
-        fEndRoute = fTrue;
-        goto LDone;
-    }
-
-    while (dwrT <= dwrStep && rZero < dwrStep)
-    {
-        // Spec: Move the partial step
-        // Not an "end-of-route" - didn't try to move beyond
-        if (rZero == dwrT)
-        {
-            goto LDoneMove;
-        }
-        prtel->irpt++;
-        AssertIn(prtel->irpt, 1, _pglrpt->IvMac());
-        prtel->dwrOffset = rZero;
-        dwrStep = BrsSub(dwrStep, dwrT);
-        dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
-    }
-
-    dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
-    prtel->dwrOffset = BrsAdd(prtel->dwrOffset, dwrStep);
-
-LDoneMove:
-    prtel->dnfrm = 0;
-
-    if (!_fModeRecord && !_fRejoin)
-    {
-        // Spec: Ordinarily, the actor will display at the end of this step.
-        // If Actn or Step events exist, the the actor is to display
-        // at the location of the event.
-        for (iaev = iaevCur; iaev < _pggaev->IvMac(); iaev++)
-        {
-            _pggaev->GetFixed(iaev, &aev);
-            if ((aev.rtel <= *prtel) && (aev.aet == aetStep || aev.aet == aetActn))
-            {
-                *prtel = aev.rtel;
-                break;
-            }
-            if (aev.rtel > *prtel)
-                break;
-        }
-    }
-
-LDone:
-    if (pvNil != pfEndRoute)
-        *pfEndRoute = fEndRoute;
-
-    return;
+    ActorRouteEvaluator::Advance(_track, dwrStep, prtel, iaevCur, nfrmCur, _nfrmFirst, !_fModeRecord && !_fRejoin,
+                                 pfEndRoute);
 }
 
 /***************************************************************************
@@ -3661,27 +3140,7 @@ LDone:
 void Actor::_GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
-    AssertVarMem(prtel);
-    AssertVarMem(pxyz);
-
-    RouteDistancePoint rpt;
-    RouteDistancePoint rptFirst;
-    RouteDistancePoint rptSecond;
-    BRS rFract;
-
-    if (rZero == prtel->dwrOffset || (prtel->irpt) + 1 == _pglrpt->IvMac())
-    {
-        _pglrpt->Get(prtel->irpt, &rpt);
-        *pxyz = rpt.xyz;
-        return;
-    }
-
-    _pglrpt->Get(prtel->irpt, &rptFirst);
-    _pglrpt->Get(1 + prtel->irpt, &rptSecond);
-    Assert(rptFirst.dwr >= prtel->dwrOffset, "Possible offset bug in _GetXyzFromRtel");
-
-    rFract = BrsDiv(prtel->dwrOffset, rptFirst.dwr);
-    _GetXyzOnLine(&rptFirst.xyz, &rptSecond.xyz, rFract, pxyz);
+    ActorRouteEvaluator::Position(_track, prtel, pxyz);
 }
 
 /***************************************************************************
@@ -3693,22 +3152,7 @@ void Actor::_GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz)
 void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFract, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
-    AssertVarMem(pxyzFirst);
-    AssertVarMem(pxyzSecond);
-    AssertVarMem(pxyz);
-
-    // New pt = first + (second - first) * fractoffset;
-    pxyz->dxr = BrsSub(pxyzSecond->dxr, pxyzFirst->dxr);
-    pxyz->dyr = BrsSub(pxyzSecond->dyr, pxyzFirst->dyr);
-    pxyz->dzr = BrsSub(pxyzSecond->dzr, pxyzFirst->dzr);
-
-    pxyz->dxr = BrsMul(rFract, pxyz->dxr);
-    pxyz->dyr = BrsMul(rFract, pxyz->dyr);
-    pxyz->dzr = BrsMul(rFract, pxyz->dzr);
-
-    pxyz->dxr = BrsAdd(pxyz->dxr, pxyzFirst->dxr);
-    pxyz->dyr = BrsAdd(pxyz->dyr, pxyzFirst->dyr);
-    pxyz->dzr = BrsAdd(pxyz->dzr, pxyzFirst->dzr);
+    ActorRouteEvaluator::Interpolate(pxyzFirst, pxyzSecond, rFract, pxyz);
 }
 
 /***************************************************************************
@@ -3726,236 +3170,25 @@ void Actor::_PositionBody(RoutePoint *pxyz)
 
     _MatrixRotUpdate(pxyz, &bmat34);
 
-    xyz.dxr = BrsAdd(_dxyzRte.dxr, pxyz->dxr);
-    xyz.dyr = BrsAdd(_dxyzRte.dyr, pxyz->dyr);
-    xyz.dzr = BrsAdd(_dxyzRte.dzr, pxyz->dzr);
+    xyz.dxr = BrsAdd(_state.routeTranslation.dxr, pxyz->dxr);
+    xyz.dyr = BrsAdd(_state.routeTranslation.dyr, pxyz->dyr);
+    xyz.dzr = BrsAdd(_state.routeTranslation.dzr, pxyz->dzr);
     _pbody->LocateOrient(xyz.dxr, xyz.dyr, xyz.dzr, &bmat34);
 }
 
 /***************************************************************************
 
     Update the orientation matrices
-    _xfrm.bmat34Cur must be kept current
+    _state.transform.bmat34Cur must be kept current
 
 ***************************************************************************/
 void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
 {
     AssertBaseThis(0);
-    AssertVarMem(pxyz);
-    AssertVarMem(pbmat34);
-
-    RouteDistancePoint rpt;
-    BRA xa, ya, za;
-    BMAT34 bmat34TS; // Scaling matrix
-    BMAT34 bmat34TR; // Rotation matrix
-    bool fStretchSize;
-    Base *paev;
-
-    _xyzCur = *pxyz;
-    fStretchSize = (rOne != _xfrm.aevpull.rScaleX || rOne != _xfrm.aevpull.rScaleY || rOne != _xfrm.aevpull.rScaleZ ||
-                    rOne != _xfrm.rScaleStep);
-
-    // Set the orientation & rotation to zero-change
-    BrMatrix34Identity(&bmat34TS);
-
-    // Post apply the rest (face the camera) orientation
-    _ptmpl->GetRestOrien(&xa, &ya, &za);
-    BrMatrix34PostRotateX(&bmat34TS, xa);
-    BrMatrix34PostRotateY(&bmat34TS, ya);
-    BrMatrix34PostRotateZ(&bmat34TS, za);
-
-    if (fStretchSize)
-    {
-        // Apply any current stretching/squashing
-        // This must be applied BEFORE rotation to avoid stretching
-        // the actor along skewed axes
-        BrMatrix34PostScale(&bmat34TS, _xfrm.aevpull.rScaleX, _xfrm.aevpull.rScaleY, _xfrm.aevpull.rScaleZ);
-
-        // Apply any current uniform sizing
-        if (_xfrm.rScaleStep != rOne)
-        {
-            BrMatrix34PostScale(&bmat34TS, _xfrm.rScaleStep, _xfrm.rScaleStep, _xfrm.rScaleStep);
-        }
-    }
-
-    // bmat34Cur is the all inclusive orientation matrix
-    if (_fUseBmat34Cur)
-    {
-        // Single frame rotate events or static segments
-        BrMatrix34Mul(pbmat34, &bmat34TS, &_xfrm.bmat34Cur); // A = B * C
-    }
-    else
-    {
-        // Forward-rotate events or non-static segments
-        BrMatrix34Copy(&bmat34TR, &_xfrm.bmat34Fwd); // copy to bmat34TR
-
-        // Post apply the path orientation
-        AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
-        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-        _pglrpt->Get(paev->rtel.irpt, &rpt);
-#ifdef BUG1899
-        if (_ptmpl->FIsTdt() || (_rtelCur.irpt == paev->rtel.irpt && _rtelCur.dwrOffset == rZero))
-#else  //! BUG1899
-        if (_ptmpl->FIsTdt() || paev->nfrm == _nfrmCur || rpt.dwr == rZero)
-#endif //! BUG1899
-        {
-            // Single point	subroute ->
-            // Post apply single point orientation to event rotations
-            Add aevadd;
-            _pggaev->Get(_iaevAddCur, &aevadd);
-            BrMatrix34PostRotateX(&bmat34TR, aevadd.xa);
-            BrMatrix34PostRotateY(&bmat34TR, aevadd.ya);
-            BrMatrix34PostRotateZ(&bmat34TR, aevadd.za);
-            // Save the path part of the orientation
-            _xfrm.xaPath = aevadd.xa;
-            _xfrm.yaPath = aevadd.ya;
-            _xfrm.zaPath = aevadd.za;
-        }
-        else
-        {
-            // Orient along the route
-            _CalcRteOrient(&bmat34TR, &_xfrm.xaPath, &_xfrm.yaPath, &_xfrm.zaPath);
-        }
-
-        // Now combine rotation with stretching
-        BrMatrix34Mul(pbmat34, &bmat34TS, &bmat34TR);
-
-        // Note: The result of the entire rotation (including path) needs to
-        // be saved - otherwise, the actor will jump when the user first tries
-        // to do a tweak-rotate edit.
-        BrMatrix34Copy(&_xfrm.bmat34Cur, &bmat34TR); // Save final all-included rotation matrix
-    }
-}
-
-/***************************************************************************
-
-    Calculate the Post-imposed rotation tangent to the route
-    Calculation based on _iaevCur, _anidCur
-    NOTE: *pbmat34 is not pre-initialized
-
-***************************************************************************/
-void Actor::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
-{
-    AssertBaseThis(0);
-    AssertNilOrVarMem(pbmat34);
-    AssertNilOrVarMem(pxa);
-    AssertNilOrVarMem(pya);
-    AssertNilOrVarMem(pza);
-
-    long irptPrev;
-    long irptAdd;
-    RoutePoint xyz;
-    Base aev;
-    RouteDistancePoint rpt;
-
-    if (pvNil != pxa)
-        *pxa = aZero;
-    if (pvNil != pya)
-        *pya = aZero;
-    if (pvNil != pza)
-        *pza = aZero;
-
-    AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
-    _pggaev->GetFixed(_iaevAddCur, &aev);
-    irptAdd = aev.rtel.irpt;
-    irptPrev = (rZero < _rtelCur.dwrOffset || _rtelCur.irpt == aev.rtel.irpt) ? _rtelCur.irpt : _rtelCur.irpt - 1;
-
-    Assert(rZero == _rtelCur.dwrOffset || irptPrev < _pglrpt->IvMac(), "Incorrect offset in path");
-
-    // If at end of subpath, or if on a static segment,
-    // retain the orientation the actor last had
-    _pglrpt->Get(irptPrev, &rpt);
-    if (rZero == rpt.dwr)
-        irptPrev--;
-
-    if (irptPrev < irptAdd)
-        return; // Single point path
-
-    //
-    // Compute vector xyz as a weighted average of 3 vectors
-    //
-    xyz.dxr = rZero;
-    xyz.dyr = rZero;
-    xyz.dzr = rZero;
-
-    _UpdateXyzTan(&xyz, irptPrev, rFour);
-
-    if (irptPrev > irptAdd)
-    {
-        _UpdateXyzTan(&xyz, irptPrev - 1, rTwo);
-        if (irptPrev - 1 > irptAdd)
-        {
-            _UpdateXyzTan(&xyz, irptPrev - 2, rOne);
-        }
-    }
-
-    //
-    // Apply the rotation determined by vector xyz
-    //
-    _ApplyRotFromVec(&xyz, pbmat34, pxa, pya, pza, pgrfbra);
-    return;
-}
-
-/***************************************************************************
-
-    Update vector *pxyz by adding to it the normalized vector from nodes
-    (irpt to irpt + 1) * weighting factor rw.	The result
-    accumulates a weighted average approximation to the tangent to the
-    route.
-    Optimized for movie PLAYing
-
-***************************************************************************/
-void Actor::_UpdateXyzTan(RoutePoint *pxyz, long irpt, long rw)
-{
-    AssertBaseThis(0);
-
-    RouteDistancePoint rpt1;
-    RouteDistancePoint rpt2;
-    BRS dwr, dxr, dyr, dzr;
-
-    Assert(irpt + 1 < _pglrpt->IvMac(), "irpt out of range");
-
-    _pglrpt->Get(irpt, &rpt1);
-    _pglrpt->Get(irpt + 1, &rpt2);
-
-    dxr = BrsSub(rpt2.xyz.dxr, rpt1.xyz.dxr);
-    dyr = BrsSub(rpt2.xyz.dyr, rpt1.xyz.dyr);
-    dzr = BrsSub(rpt2.xyz.dzr, rpt1.xyz.dzr);
-
-    //
-    // Normalize the vector	(norm ~ max + 1/2 min)
-    //
-    dwr = BrsAbsMax3(dxr, dyr, dzr);
-    if (dxr == dwr)
-        dwr = BrsAdd(dwr, (BRS)(LwMax(LwAbs((long)dyr), LwAbs((long)dzr)) >> 1));
-    else
-    {
-        if (dyr == dwr)
-            dwr = BrsAdd(dwr, (BRS)(LwMax(LwAbs((long)dxr), LwAbs((long)dzr)) >> 1));
-        else
-            dwr = BrsAdd(dwr, (BRS)(LwMax(LwAbs((long)dxr), LwAbs((long)dyr)) >> 1));
-    }
-    dxr = BrsDiv(dxr, dwr);
-    dyr = BrsDiv(dyr, dwr);
-    dzr = BrsDiv(dzr, dwr);
-
-    dxr = LwBound(dxr, -rOne, rOne);
-    dyr = LwBound(dyr, -rOne, rOne);
-    dzr = LwBound(dzr, -rOne, rOne);
-
-    //
-    // Apply the weight
-    //
-    if (rw != rOne)
-    {
-        dxr = BrsMul(rw, dxr);
-        dyr = BrsMul(rw, dyr);
-        dzr = BrsMul(rw, dzr);
-    }
-
-    pxyz->dxr = BrsAdd(pxyz->dxr, dxr);
-    pxyz->dyr = BrsAdd(pxyz->dyr, dyr);
-    pxyz->dzr = BrsAdd(pxyz->dzr, dzr);
+    ActorPoseInputs inputs;
+    _ptmpl->GetRestOrien(&inputs.restX, &inputs.restY, &inputs.restZ);
+    inputs.fixedPathOrientation = _ptmpl->FIsTdt();
+    ActorPoseEvaluator::Update(_state, _track, inputs, pxyz, pbmat34);
 }
 
 /***************************************************************************
@@ -3969,77 +3202,10 @@ void Actor::_UpdateXyzTan(RoutePoint *pxyz, long irpt, long rw)
     which can be done using additional arguments.
 
 ***************************************************************************/
-void Actor::_ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
+void Actor::_ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, LegacyUlong *pgrfbra)
 {
     AssertBaseThis(0);
-    AssertNilOrVarMem(pbmat34);
-    AssertVarMem(pxyz);
-    AssertNilOrVarMem(pxa);
-    AssertNilOrVarMem(pya);
-    AssertNilOrVarMem(pza);
-
-    BRS dwr;
-    BRS rX, rY, rZ;
-    BRFR eX, eY, eZ, eW;
-    BRA aRot = aZero;
-
-    if (pvNil != pgrfbra)
-        *pgrfbra = 0;
-
-    /// Use cached tmpl _grfactn to determine the axes to rotate around
-    dwr = BrsAdd(BrsAbsMax3(pxyz->dxr, pxyz->dyr, pxyz->dzr), rOne);
-
-    // BrScalarToFraction required by Brender's BR_ATAN2 limitation
-    if (_grfactn & (factnRotateY | factnRotateZ))
-    {
-        rX = BrsDiv(pxyz->dxr, dwr);
-        eX = BrScalarToFraction(rX);
-    }
-    if (_grfactn & (factnRotateX | factnRotateZ))
-    {
-        rY = BrsDiv(pxyz->dyr, dwr);
-        eY = BrScalarToFraction(rY);
-    }
-    if (_grfactn & (factnRotateX | factnRotateY))
-    {
-        rZ = BrsDiv(pxyz->dzr, dwr);
-        eZ = BrScalarToFraction(rZ);
-    }
-
-    if (_grfactn & factnRotateY)
-    {
-        if (pxyz->dxr != rZero || pxyz->dzr != rZero)
-        {
-            aRot = BR_ATAN2(eX, eZ);
-            if (pvNil != pbmat34)
-                BrMatrix34PostRotateY(pbmat34, aRot);
-
-            if (pvNil != pgrfbra)
-                *pgrfbra |= fbraRotateY;
-        }
-    }
-
-    if (pvNil != pya)
-        *pya = aRot;
-
-    // Tilt the actor up / down
-    if (_grfactn & factnRotateX)
-    {
-        if (pxyz->dyr != rZero)
-        {
-            eW = BrScalarToFraction(BrsAdd(BrsAbs(rX), BrsAbs(rZ)));
-            aRot = BR_ATAN2(-eY, eW);
-            if (pvNil != pbmat34)
-                BrMatrix34PreRotateX(pbmat34, aRot);
-
-            if (pvNil != pgrfbra)
-                *pgrfbra |= fbraRotateX;
-        }
-    }
-    if (pvNil != pxa)
-        *pxa = aRot;
-    if (pvNil != pza)
-        *pxa = aZero;
+    ActorPoseEvaluator::ApplyVectorRotation(_state.actionFlags, pxyz, pbmat34, pxa, pya, pza, pgrfbra);
 }
 
 /***************************************************************************
@@ -4106,216 +3272,18 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pnfrmLast);
-
-    long iaev;
-    long iaevAdd;
-    BRS dwr;
-    Base aev;
-    Base *paev;
-    RouteLocation rtel;
-    bool fFreezeThisCel;
-    long anid = 0;
-    long celn = 0;
-    long nfrmPrevSub = 0;
-    BRS rScale = rOne;
-    BRS dwrStep = rZero;
-    bool fEndSubRoute = fFalse;  // moving past end of subroute (see Note above)
-    bool fDoneSubRoute = fFalse; // finished processing events on the current subroute
-
-    // While recording, delay the upcoming lifetime calculation
     if (_fModeRecord)
     {
         if (pnfrmLast != pvNil)
             *pnfrmLast = _nfrmLast;
-        _fLifeDirty = fTrue;
-        return fTrue;
+        _fLifeDirty = true;
+        return true;
     }
-
-    // Locate final subroute
-    rtel.irpt = 0;
-    rtel.dwrOffset = rZero;
-    rtel.dnfrm = -1;
-    iaevAdd = -1;
-    // REVIEW *****(SeanSe): Why not start at the end and go backwards?
-    for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
-    {
-        paev = (Base *)_pggaev->QvFixedGet(iaev);
-        if (aetAdd == paev->aet)
-            iaevAdd = iaev;
-    }
-
-    if (iaevAdd < 0)
-    {
-        _nfrmLast = _nfrmFirst;
-        if (pvNil != pnfrmLast)
-            *pnfrmLast = _nfrmFirst;
-        _fLifeDirty = fFalse;
-        return fTrue;
-    }
-
-    // Loop through each frame
-    long fFrozen = fFalse;
-    long iaevNew = 0;
-    RouteLocation rtelOld = rtel;
-    rtelOld.dnfrm = rtel.dnfrm - 1;
-    for (_nfrmLast = _nfrmFirst; ((rtel.irpt != _pglrpt->IvMac()) || (iaevNew != _pggaev->IvMac())); _nfrmLast++)
-    {
-        fFreezeThisCel = fFrozen;
-        rtelOld = rtel;
-        // Find distance to move
-        // An aetActn event later in this same frame can modify this.
-        if (kdwrNil == dwrStep)
-        {
-            if (!_ptmpl->FGetDwrActnCel(anid, celn, &dwr))
-            {
-                _fLifeDirty = fTrue;
-                return fFalse;
-            }
-        }
-        else
-        {
-            dwr = dwrStep;
-        }
-        dwr = BrsMul(dwr, rScale);
-        _AdvanceRtel(dwr, &rtel, iaevNew, _nfrmLast, &fEndSubRoute);
-
-        // Scan all events for this frame
-        for (iaev = iaevNew; iaev < _pggaev->IvMac(); iaev++)
-        {
-            _pggaev->GetFixed(iaev, &aev);
-
-            if ((aev.rtel > rtel) &&
-                ((aetAdd != aev.aet) || (_fModeRecord && !fEndSubRoute) || (!fEndSubRoute && !fDoneSubRoute)))
-            {
-                // To push out subroutes, do not process add events until finished
-                // with the previous subroute
-                goto LEndFrame;
-            }
-
-            switch (aev.aet)
-            {
-            case aetAdd:
-                fFreezeThisCel = fTrue;
-                anid = celn = 0;
-                if (aev.nfrm > _nfrmLast)
-                {
-                    goto LEndFrame;
-                }
-                else
-                {
-                    rtel = aev.rtel;
-                    fDoneSubRoute = fEndSubRoute = fFalse;
-                    nfrmPrevSub = _nfrmLast;
-                }
-                break;
-
-            case aetTweak:
-            case aetSnd:
-            case aetRem:
-            case aetCost:
-            case aetRotF:
-            case aetRotH:
-            case aetPull:
-            case aetMove:
-                break;
-
-            case aetFreeze:
-                int32_t ffriz;
-                _pggaev->Get(iaev, &ffriz);
-                fFrozen = FPure(ffriz);
-                break;
-
-            case aetSize: // Uniform size transformation
-                // Adjust step size : affects actor lifetime
-                _pggaev->Get(iaev, &rScale);
-                break;
-
-            case aetActn:
-                Action aevactn;
-
-                _pggaev->Get(iaev, &aevactn);
-                anid = aevactn.anid;
-                celn = aevactn.celn;
-                fFrozen = fFalse;
-                fFreezeThisCel = fTrue;
-                break;
-
-            case aetStep:
-                _pggaev->Get(iaev, &dwrStep);
-                break;
-
-            default:
-                Assert(0, "Unknown event type");
-                break;
-            }
-
-            if (aev.rtel > rtel)
-                goto LEndFrame;
-
-            if (aev.nfrm != _nfrmLast)
-            {
-                aev.nfrm = _nfrmLast;
-                _pggaev->PutFixed(iaev, &aev);
-            }
-        }
-
-    LEndFrame:
-
-        // Stepsize and lifetime is a function of celn's
-        if (!fFreezeThisCel && !(fEndSubRoute && _FIsDoneAevSub(iaev, rtel)))
-        {
-            celn++;
-        }
-
-        // Check for end of subroute or stalled actor (eg breathe in place forever)
-#ifdef BUG1960
-        // We are not finished updating events in the current subpath until we are either
-        // - beyond the subroute (fEndSubRoute)
-        // - out of events
-        // - stopped with no way to reach more events in the subpath (ie, stalled)
-        //   and finished updating later events at this same path location
-        if (fEndSubRoute ||
-            (dwrStep == rZero &&
-             (iaev == _pggaev->IvMac() ||
-              (!(aev.rtel.irpt == rtel.irpt && aev.rtel.dwrOffset == rtel.dwrOffset) && _FIsStalled(iaevNew, &rtel)))))
-#else  //! BUG1960
-        if (fEndSubRoute || ((dwrStep == rZero) && (iaev == _pggaev->IvMac() || _FIsStalled(iaevNew, &rtel))))
-#endif //! BUG1960
-        {
-            if (!fDoneSubRoute)
-                nfrmPrevSub = _nfrmLast;
-            fDoneSubRoute = fTrue;
-
-            // Are there more subroutes?
-            if (!_FFindNextAevAet(aetAdd, iaev, &iaev))
-            {
-                // For non-static motions, fEndSubRoute is set once the actor is
-                // beyond the end of the subroute.  Adjust back one frame.
-                if (fEndSubRoute && (dwrStep != rZero) && (_nfrmLast > _nfrmFirst))
-                    _nfrmLast--;
-
-                if (pvNil != pnfrmLast)
-                    *pnfrmLast = _nfrmLast;
-                _fLifeDirty = fFalse;
-                return fTrue;
-            }
-
-            // Add events jump in space.  Update rtel
-            _pggaev->GetFixed(iaev, &aev);
-            rtel = aev.rtel;
-
-            // Initialization for _AdvanceRtel()
-            anid = celn = 0;
-            rtel.dnfrm--;
-        }
-
-        iaevNew = iaev;
-    }
-
-    Assert(0, "Logic error");
-    if (pvNil != pnfrmLast)
+    bool success = ActorTimeline::FComputeLifetime(_track, _nfrmFirst, _fRejoin, _StepSource(), &_nfrmLast);
+    _fLifeDirty = !success;
+    if (success && pnfrmLast != pvNil)
         *pnfrmLast = _nfrmLast;
-    return fFalse;
+    return success;
 }
 
 /***************************************************************************
@@ -4332,36 +3300,11 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
 bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
 {
     AssertBaseThis(0);
-    AssertIn(iaevFirst, 0, _pggaev->IvMac());
-    AssertNilOrVarMem(piaevLast);
-
-    Base aev;
-    long iaev;
-
-    for (iaev = iaevFirst; iaev < _pggaev->IvMac(); iaev++)
-    {
-        _pggaev->GetFixed(iaev, &aev);
-        if ((aev.rtel.irpt > prtel->irpt) || (aev.rtel.dwrOffset > prtel->dwrOffset))
-        {
-            if (piaevLast != pvNil)
-            {
-                *piaevLast = iaev;
-            }
-            return fTrue;
-        }
-
-        if ((aev.rtel.irpt == prtel->irpt) && (aev.rtel.dwrOffset == prtel->dwrOffset))
-        {
-            if (aetStep == aev.aet)
-            {
-                BRS dwrAev;
-                _pggaev->Get(iaev, &dwrAev);
-                if (rZero != dwrAev)
-                    return fFalse;
-            }
-        }
-    }
-    return fFalse;
+    LegacyLong lastEvent;
+    const bool stalled = ActorTimeline::FIsStalled(_track, iaevFirst, prtel, piaevLast ? &lastEvent : pvNil);
+    if (stalled && piaevLast)
+        *piaevLast = lastEvent;
+    return stalled;
 }
 
 /***************************************************************************
@@ -4415,7 +3358,7 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
     long nfrmPrev;
     bool fClosestSubrte = fTrue;
 
-    _pglrpt->Get(_rtelCur.irpt, &rpt);
+    _track.route->Get(_state.location.irpt, &rpt);
     _fPathInserted = fFalse;
 
     // Do not rejoin to a one point offstage stub.
@@ -4425,11 +3368,11 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
         long iaev;
         Base aev;
 
-        long irptNext = _rtelCur.irpt + 1;
+        long irptNext = _state.location.irpt + 1;
 
-        for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+        for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
         {
-            _pggaev->GetFixed(iaev, &aev);
+            _track.events->GetFixed(iaev, &aev);
             if (irptNext < aev.rtel.irpt)
                 break;
             if (aetRem == aev.aet)
@@ -4437,30 +3380,30 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
                 _fRejoin = fFalse;
                 _RemoveAev(iaev);
                 iaev--;
-                _AdjustAevForRteDel(irptNext, _iaevCur);
-                _pglrpt->Delete(irptNext);
+                _AdjustAevForRteDel(irptNext, _state.nextEvent);
+                _track.route->Delete(irptNext);
             }
         }
     }
 
     // Recording must advance from the current point -> potentially
     // inserting the current point
-    if (rZero != _rtelCur.dwrOffset)
+    if (rZero != _state.location.dwrOffset)
     {
-        BRS dwrCur = _rtelCur.dwrOffset;
-        _GetXyzFromRtel(&_rtelCur, &rpt.xyz);
-        _rtelCur.irpt++;
-        _rtelCur.dwrOffset = rZero;
-        _rtelCur.dnfrm = 0;
-        if (!_FInsertGgRpt(_rtelCur.irpt, &rpt, dwrCur))
+        BRS dwrCur = _state.location.dwrOffset;
+        _GetXyzFromRtel(&_state.location, &rpt.xyz);
+        _state.location.irpt++;
+        _state.location.dwrOffset = rZero;
+        _state.location.dnfrm = 0;
+        if (!_FInsertGgRpt(_state.location.irpt, &rpt, dwrCur))
             goto LFail;
-        _GetXyzFromRtel(&_rtelCur, &_xyzCur);
-        _AdjustAevForRteIns(_rtelCur.irpt, 0);
+        _GetXyzFromRtel(&_state.location, &_state.position);
+        _AdjustAevForRteIns(_state.location.irpt, 0);
     }
 
     // Determine the gaps between subroutes
     _dnfrmGap = 0;
-    iaev = _iaevCur;
+    iaev = _state.nextEvent;
     if (_fLifeDirty)
     {
         // Validate future nfrm values
@@ -4471,26 +3414,26 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
         }
     }
 
-    for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.aet != aetAdd)
             continue;
         nfrmAdd = aev.nfrm;
         if (fClosestSubrte)
         {
-            nfrmPrev = _nfrmCur;
+            nfrmPrev = _state.frame;
             fClosestSubrte = fFalse;
         }
         else
         {
-            _pggaev->GetFixed(iaev - 1, &aev);
+            _track.events->GetFixed(iaev - 1, &aev);
             nfrmPrev = aev.nfrm;
         }
         _dnfrmGap -= (nfrmAdd - nfrmPrev);
     }
 
-    _rtelInsert = _rtelCur;
+    _rtelInsert = _state.location;
     _fModeRecord = fTrue;
     _dxyzRaw.dxr = rZero;
     _dxyzRaw.dyr = rZero;
@@ -4530,11 +3473,11 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     BRS rFractMoved;
     BRS dwrMouse;
 
-    Assert(_fOnStage, "Recording an actor that wasn't selectable??");
+    Assert(_state.onStage, "Recording an actor that wasn't selectable??");
     if (!_fModeRecord)
         return fTrue; // Potential client call on motion fill
 
-    if (!_pggaev->FEnsureSpace(2, kcbVarStep + kcbVarFreeze, fgrpNil) || !_pglrpt->FEnsureSpace(1, fgrpNil))
+    if (!_track.events->FEnsureSpace(2, kcbVarStep + kcbVarFreeze, fgrpNil) || !_track.route->FEnsureSpace(1, fgrpNil))
     {
         goto LFail;
     }
@@ -4547,9 +3490,9 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     dyr = BR_CONST_DIV(BrsAdd(_dxyzRaw.dyr, BR_CONST_MUL(2, dyr)), 3);
     dzr = BR_CONST_DIV(BrsAdd(_dxyzRaw.dzr, BR_CONST_MUL(2, dzr)), 3);
 
-    if (_fFrozen && !(grfmaf & fmafFreeze))
+    if (_state.frozen && !(grfmaf & fmafFreeze))
         AssertDo(_FUnfreeze(), "Ensurespace should have ensured space");
-    if (!_fFrozen && (grfmaf & fmafFreeze))
+    if (!_state.frozen && (grfmaf & fmafFreeze))
         AssertDo(_FFreeze(), "Ensurespace should have ensured space");
 
     if (pvNil != pfStepFrm)
@@ -4558,11 +3501,11 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
         *pfStepRte = fFalse;
 
     // Update distance from previously current point
-    Assert(_pglrpt->IvMac() > 0, "Illegal empty path");
+    Assert(_track.route->IvMac() > 0, "Illegal empty path");
 
     // In record mode, know prev point on a route Node
     // Determine if threshhold distance has been advanced
-    _pglrpt->Get(_rtelCur.irpt, &rptCur);
+    _track.route->Get(_state.location.irpt, &rptCur);
     xyzMouse.dxr = BrsAdd(dxr, rptCur.xyz.dxr);
     xyzMouse.dyr = BrsAdd(dyr, rptCur.xyz.dyr);
     xyzMouse.dzr = BrsAdd(dzr, rptCur.xyz.dzr);
@@ -4579,7 +3522,7 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
             return fTrue;
         }
 
-        if (rZero != _dwrStep)
+        if (rZero != _state.step)
         {
             AssertDo(FSetStep(rZero), "EnsureSpace insufficient");
         }
@@ -4610,16 +3553,16 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     // Adjust the point for ground zero.  The rule is if the mouse
     // is decreasing from above to below ground, stop at ground level
     // The original dwr is used *by design*
-    if ((grfmaf & fmafGround) && (BrsAdd(rptCur.xyz.dyr, _dxyzRte.dyr) >= rZero) &&
-        (BrsAdd(rptNew.xyz.dyr, _dxyzRte.dyr) < rZero))
+    if ((grfmaf & fmafGround) && (BrsAdd(rptCur.xyz.dyr, _state.routeTranslation.dyr) >= rZero) &&
+        (BrsAdd(rptNew.xyz.dyr, _state.routeTranslation.dyr) < rZero))
     {
-        rptNew.xyz.dyr = -_dxyzRte.dyr;
+        rptNew.xyz.dyr = -_state.routeTranslation.dyr;
     }
 
-    if (!_pglrpt->FInsert(1 + _rtelCur.irpt, &rptNew))
+    if (!_track.route->FInsert(1 + _state.location.irpt, &rptNew))
         goto LFail;
 
-    if (kdwrNil != _dwrStep)
+    if (kdwrNil != _state.step)
     {
         AssertDo(FSetStep(kdwrNil), "EnsureSpace insufficient");
     }
@@ -4627,9 +3570,9 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     // Reset distance in previous xyz entry
     rptCur.dwr = dwrCur;
     Assert(dwrCur != rZero, "Bug in InsertRoute");
-    _pglrpt->Put(_rtelCur.irpt, &rptCur);
+    _track.route->Put(_state.location.irpt, &rptCur);
 
-    _AdjustAevForRteIns(1 + _rtelCur.irpt, _iaevCur);
+    _AdjustAevForRteIns(1 + _state.location.irpt, _state.nextEvent);
     _fPathInserted = fTrue;
 
     if (pvNil != pfStepFrm)
@@ -4684,18 +3627,18 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     RouteDistancePoint rptJoin;
     RouteDistancePoint rptCur;
     BRS dwrMin = kdwrMax;
-    RouteLocation rtelJoin = _rtelCur;
+    RouteLocation rtelJoin = _state.location;
     bool fJoin = fFalse;
-    long irptLim = _pglrpt->IvMac();
-    long iaevJoinFirst = _iaevCur;
+    long irptLim = _track.route->IvMac();
+    long iaevJoinFirst = _state.nextEvent;
     long iaevNew;
 
     // Determine whether to rejoin to the path
-    // REVIEW (*****): Can we assert _fOnStage?
-    if (_fModeRecord && (!_fOnStage || fReplace))
+    // REVIEW (*****): Can we assert _state.onStage?
+    if (_fModeRecord && (!_state.onStage || fReplace))
     {
         // Delete remnant path
-        _DeleteFwdCore(fFalse, pvNil, _iaevCur);
+        _DeleteFwdCore(fFalse, pvNil, _state.nextEvent);
         if (!_FFreeze())
             goto LFail;
         if (!FSetStep(rZero))
@@ -4707,11 +3650,11 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     // Motion Fill or Path-rejoining
     //
     // _fModeRecord == fFalse on motion fill
-    if (!_fModeRecord || !_fPathInserted || !_fOnStage)
+    if (!_fModeRecord || !_fPathInserted || !_state.onStage)
     {
         // Set Action necessarily destroys end of path freeze events
         // Reinsert an end of path freeze event	if at end of subroute
-        if (_FIsDoneAevSub(_iaevCur, _rtelCur))
+        if (_FIsDoneAevSub(_state.nextEvent, _state.location))
         {
             if (!_FFreeze())
                 goto LFail;
@@ -4720,7 +3663,7 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     }
 
     // On !fReplace, force continuation to remainder of route.
-    if (rZero == _dwrStep)
+    if (rZero == _state.step)
     {
         if (!FSetStep(kdwrNil))
             goto LFail;
@@ -4734,11 +3677,11 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     }
     else
     {
-        Assert((_rtelCur.irpt < _pglrpt->IvMac() - 1), "Not enough points to rejoin");
+        Assert((_state.location.irpt < _track.route->IvMac() - 1), "Not enough points to rejoin");
 
-        for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+        for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
         {
-            _pggaev->GetFixed(iaev, &aev);
+            _track.events->GetFixed(iaev, &aev);
             if (aev.aet == aetAdd)
             {
                 irptLim = aev.rtel.irpt;
@@ -4747,14 +3690,14 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
         }
 
         // Locate the Join node
-        rtelJoin.irpt = _rtelCur.irpt + 1;
+        rtelJoin.irpt = _state.location.irpt + 1;
         rtelJoin.dwrOffset = rZero;
         rtelJoin.dnfrm = 0;
-        for (irpt = 1 + _rtelCur.irpt; irpt < irptLim; irpt++)
+        for (irpt = 1 + _state.location.irpt; irpt < irptLim; irpt++)
         {
-            _pglrpt->Get(irpt, &rpt);
-            dwr = BR_LENGTH3(BrsSub(_xyzCur.dxr, rpt.xyz.dxr), BrsSub(_xyzCur.dyr, rpt.xyz.dyr),
-                             BrsSub(_xyzCur.dzr, rpt.xyz.dzr));
+            _track.route->Get(irpt, &rpt);
+            dwr = BR_LENGTH3(BrsSub(_state.position.dxr, rpt.xyz.dxr), BrsSub(_state.position.dyr, rpt.xyz.dyr),
+                             BrsSub(_state.position.dzr, rpt.xyz.dzr));
             if (dwr < dwrMin)
             {
                 dwrMin = dwr;
@@ -4766,23 +3709,24 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
                 break;
         }
 
-        Assert(rtelJoin > _rtelCur, "Invalid Join point");
-        Assert(rZero == _rtelCur.dwrOffset, "_rtelCur invalid");
+        Assert(rtelJoin > _state.location, "Invalid Join point");
+        Assert(rZero == _state.location.dwrOffset, "_state.location invalid");
 
         // Update the dwr of the most recently recorded point to be
         // the length to the join point on the path
         // NOTE: This cannot be zero (it would signal end of path)
-        _pglrpt->Get(_rtelCur.irpt, &rptCur);
-        _pglrpt->Get(rtelJoin.irpt, &rptJoin);
-        rptCur.dwr = BR_LENGTH3(BrsSub(_xyzCur.dxr, rptJoin.xyz.dxr), BrsSub(_xyzCur.dyr, rptJoin.xyz.dyr),
-                                BrsSub(_xyzCur.dzr, rptJoin.xyz.dzr));
+        _track.route->Get(_state.location.irpt, &rptCur);
+        _track.route->Get(rtelJoin.irpt, &rptJoin);
+        rptCur.dwr =
+            BR_LENGTH3(BrsSub(_state.position.dxr, rptJoin.xyz.dxr), BrsSub(_state.position.dyr, rptJoin.xyz.dyr),
+                       BrsSub(_state.position.dzr, rptJoin.xyz.dzr));
 
         if (rZero == rptCur.dwr)
         {
             // Prevent pathological end-of-route case
             rptCur.dwr = rEps;
         }
-        _pglrpt->Put(_rtelCur.irpt, &rptCur);
+        _track.route->Put(_state.location.irpt, &rptCur);
     }
 
     //
@@ -4792,9 +3736,9 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     // Spec: Replace is viewed in UI as Action replace, not just path replace.	->
     // Delete intervening action, tweak, freeze, step and rem events.
     //
-    for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
 
 #ifdef BUG1961
         // If we were rejoin-recording from a static segment, there is
@@ -4820,7 +3764,7 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
             else
             {
                 aev.rtel = rtelJoin;
-                _pggaev->PutFixed(iaev, &aev);
+                _track.events->PutFixed(iaev, &aev);
                 _MergeAev(iaevJoinFirst, iaev, &iaevNew);
                 if (iaevNew < iaev)
                     iaev--;
@@ -4831,14 +3775,14 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     if (_fRejoin)
     {
         // Delete the path segment before the join point
-        for (irpt = rtelJoin.irpt - 1; irpt > _rtelCur.irpt; irpt--)
+        for (irpt = rtelJoin.irpt - 1; irpt > _state.location.irpt; irpt--)
         {
-            _AdjustAevForRteDel(irpt, _iaevCur);
-            _pglrpt->Delete(irpt);
+            _AdjustAevForRteDel(irpt, _state.nextEvent);
+            _track.route->Delete(irpt);
         }
 
         // Spec: Do an action fill forward.
-        _PrepActnFill(iaevJoinFirst, _anidCur, _anidCur, faetTweak | faetFreeze | faetActn);
+        _PrepActnFill(iaevJoinFirst, _state.action, _state.action, faetTweak | faetFreeze | faetActn);
     }
 
 #ifdef BUG1961
@@ -4887,23 +3831,23 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 
     _DeleteFwdCore(fDeleteAll, &fAlive, iaevCur);
 
-    if (fAlive && _nfrmCur >= _nfrmFirst)
+    if (fAlive && _state.frame >= _nfrmFirst)
     {
         // If no space exists, truncation isn't changing a thing
-        if (_pggaev->FEnsureSpace(2, kcbVarFreeze + kcbVarStep, fgrpNil))
+        if (_track.events->FEnsureSpace(2, kcbVarFreeze + kcbVarStep, fgrpNil))
         {
 #ifdef BUG1932
-            if (_iaevAddCur < 0 || _pggaev->IvMac() == 0)
+            if (_state.addEvent < 0 || _track.events->IvMac() == 0)
             {
                 // Safety net code : don't add events if bug exists
                 Bug("Invalid fAlive value");
                 goto LEnd;
             }
 #ifdef DEBUG
-            _pggaev->GetFixed(_iaevAddCur, &aev);
-            Assert(aetAdd == aev.aet, "Should be an add event at _iaevAddCur");
+            _track.events->GetFixed(_state.addEvent, &aev);
+            Assert(aetAdd == aev.aet, "Should be an add event at _state.addEvent");
 #endif // DEBUG
-            if (_fOnStage)
+            if (_state.onStage)
             {
                 // Insert terminating events ONLY if the actor is shown, not hidden
                 AssertDo(_FFreeze(), "Expected freeze event to succeed");
@@ -4917,14 +3861,14 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 #endif //! BUG1932
        // By construct, step events SET the location of display
        // Tweak events override the last step event.
-            for (iaev = _iaevCur - 1; iaev > 0; iaev--)
+            for (iaev = _state.nextEvent - 1; iaev > 0; iaev--)
             {
-                _pggaev->GetFixed(iaev, &aev);
-                if (aev.rtel != _rtelCur)
+                _track.events->GetFixed(iaev, &aev);
+                if (aev.rtel != _state.location)
                     break;
                 if (aev.aet == aetTweak)
                 {
-                    _pggaev->Swap(iaev, _iaevCur - 1);
+                    _track.events->Swap(iaev, _state.nextEvent - 1);
                     break;
                 }
             }
@@ -4963,31 +3907,31 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     Base *paev;
 
     if (ivNil == iaevCur)
-        iaevCur = _iaevCur;
+        iaevCur = _state.nextEvent;
 
 #ifndef BUG1870
     // Delete this section of code: Placement orientation should no
     // 		longer be overwritten.
     // Preserve the current orientation
-    if (_iaevAddCur >= 0)
+    if (_state.addEvent >= 0)
     {
         // If we are reducing the current subroute to a single point,
         // it is necessary to store the current orientation for wysiwyg
-        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
-        if (paev->nfrm == _nfrmCur)
+        paev = (Base *)_track.events->QvFixedGet(_state.addEvent);
+        if (paev->nfrm == _state.frame)
             _SaveCurPathOrien();
     }
 #endif //! BUG1870
 
     // If !fDeleteAll & only one subroute left, redefine fDeleteAll
-    iaevDelLim = _pggaev->IvMac();
-    irptDelLim = _pglrpt->IvMac();
+    iaevDelLim = _track.events->IvMac();
+    irptDelLim = _track.route->IvMac();
     if (!fDeleteAll)
     {
         fDeleteAll = fTrue;
-        for (iaev = iaevCur; iaev < _pggaev->IvMac(); iaev++)
+        for (iaev = iaevCur; iaev < _track.events->IvMac(); iaev++)
         {
-            paev = (Base *)_pggaev->QvFixedGet(iaev);
+            paev = (Base *)_track.events->QvFixedGet(iaev);
             if (aetAdd == paev->aet)
             {
                 fDeleteAll = fFalse;
@@ -5002,7 +3946,7 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     // excluding the last freeze event
     if (0 < iaevDelLim)
     {
-        for (iaev = iaevDelLim - 1; iaev >= _iaevCur; iaev--)
+        for (iaev = iaevDelLim - 1; iaev >= _state.nextEvent; iaev--)
         {
             _RemoveAev(iaev);
             _fLifeDirty = fTrue;
@@ -5010,22 +3954,22 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     }
 
     // Prune the corresponding route
-    irptDelFirst = _rtelCur.irpt + 1;
+    irptDelFirst = _state.location.irpt + 1;
     if (0 < irptDelLim)
     {
         // Note: Last remaining point on path is dependent on the event stream
-        if (_iaevCur <= 0 && fDeleteAll)
+        if (_state.nextEvent <= 0 && fDeleteAll)
         {
-            _pglrpt->FSetIvMac(0);
+            _track.route->FSetIvMac(0);
             _fLifeDirty = fTrue;
-            _rtelCur.irpt = -1;
+            _state.location.irpt = -1;
             goto LDone;
         }
         else
         {
             // Delete the current path node only if no other events
             // use the same node
-            if (_rtelCur.dwrOffset > rZero)
+            if (_state.location.dwrOffset > rZero)
             {
                 // Shorten the distance between the last two nodes
                 _TruncateSubRte(irptDelLim);
@@ -5037,25 +3981,25 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
                 for (irpt = irptDelLim - 1; irpt >= irptDelFirst; irpt--)
                 {
                     _AdjustAevForRteDel(irpt, 0);
-                    _pglrpt->Delete(irpt);
+                    _track.route->Delete(irpt);
                     _fLifeDirty = fTrue;
                 }
             }
         }
 
         // Adjust the distance on the tail point
-        if (_rtelCur.irpt >= 0)
+        if (_state.location.irpt >= 0)
         {
-            Assert(_pglrpt->IvMac() > 0, "Logic Error");
-            _pglrpt->Get(_rtelCur.irpt, &rpt);
+            Assert(_track.route->IvMac() > 0, "Logic Error");
+            _track.route->Get(_state.location.irpt, &rpt);
             rpt.dwr = rZero;
-            _pglrpt->Put(_rtelCur.irpt, &rpt);
+            _track.route->Put(_state.location.irpt, &rpt);
         }
     }
 
 LDone:
     _pscen->MarkDirty();
-    if (_nfrmCur < _nfrmFirst)
+    if (_state.frame < _nfrmFirst)
     {
         if (fDeleteAll)
         {
@@ -5064,9 +4008,9 @@ LDone:
             _InitState();
             return;
         }
-        else if (_pggaev->IvMac() > 0)
+        else if (_track.events->IvMac() > 0)
         {
-            paev = (Base *)_pggaev->QvFixedGet(0);
+            paev = (Base *)_track.events->QvFixedGet(0);
             _nfrmFirst = paev->nfrm;
             Assert(aetAdd == paev->aet, "Bug in Actor::DeleteFwdCore");
         }
@@ -5091,15 +4035,15 @@ void Actor::_SaveCurPathOrien(void)
     Base aev;
     ulong grfbra = 0;
 
-    if (_iaevAddCur >= 0 && !_ptmpl->FIsTdt())
+    if (_state.addEvent >= 0 && !_ptmpl->FIsTdt())
     {
-        _pggaev->GetFixed(_iaevAddCur, &aev);
-        _pglrpt->Get(aev.rtel.irpt, &rpt);
+        _track.events->GetFixed(_state.addEvent, &aev);
+        _track.route->Get(aev.rtel.irpt, &rpt);
         if (rZero != rpt.dwr) // ie, non-static path segment
         {
-            // _xfrm.waPath is current and CalcRteOrient() cannot be called
+            // _state.transform.waPath is current and CalcRteOrient() cannot be called
             // in all cases
-            SetAddOrient(_xfrm.xaPath, _xfrm.yaPath, _xfrm.zaPath, grfbra);
+            SetAddOrient(_state.transform.xaPath, _state.transform.yaPath, _state.transform.zaPath, grfbra);
         }
     }
 }
@@ -5124,10 +4068,10 @@ void Actor::DeleteBackCore(bool *pfAlive)
     long dnrpt;
 
     // Nop if not yet at first frame
-    if (_nfrmCur <= _nfrmFirst)
+    if (_state.frame <= _nfrmFirst)
     {
         if (pvNil != pfAlive)
-            *pfAlive = FPure(_pggaev->IvMac() > 0);
+            *pfAlive = FPure(_track.events->IvMac() > 0);
         return;
     }
 
@@ -5144,32 +4088,32 @@ void Actor::DeleteBackCore(bool *pfAlive)
     // If the current point is between nodes, a node will
     // be inserted as the new first node of the subroute.
     // Compute the dwr of the new node.
-    _pglrpt->Get(_rtelCur.irpt, &rptOld);
+    _track.route->Get(_state.location.irpt, &rptOld);
     dwrOld = rptOld.dwr;
-    dwrNew = BrsSub(dwrOld, _rtelCur.dwrOffset);
+    dwrNew = BrsSub(dwrOld, _state.location.dwrOffset);
 
     // Preserve the current orientation
     _SaveCurPathOrien();
 
     // Adjust offsets for events occurring at points between the
     // previous and next nodes
-    for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt > _rtelCur.irpt)
+        _track.events->GetFixed(iaev, &aev);
+        if (aev.rtel.irpt > _state.location.irpt)
             break;
 
-        if (aev.rtel.dwrOffset == _rtelCur.dwrOffset)
+        if (aev.rtel.dwrOffset == _state.location.dwrOffset)
         {
             aev.rtel.dwrOffset = rZero;
-            if (aev.rtel.dnfrm < _rtelCur.dnfrm)
+            if (aev.rtel.dnfrm < _state.location.dnfrm)
             {
                 Bug("Event list out of order (dnfrm error)");
                 aev.rtel.dnfrm = 0;
             }
             else
             {
-                aev.rtel.dnfrm -= _rtelCur.dnfrm;
+                aev.rtel.dnfrm -= _state.location.dnfrm;
             }
         }
 
@@ -5179,32 +4123,32 @@ void Actor::DeleteBackCore(bool *pfAlive)
         {
             // Set the event's dwrOffset to the correct
             // part of the new dwr
-            dwrOffsetT = BrsSub(aev.rtel.dwrOffset, _rtelCur.dwrOffset);
+            dwrOffsetT = BrsSub(aev.rtel.dwrOffset, _state.location.dwrOffset);
             aev.rtel.dwrOffset = dwrOffsetT;
         }
-        _pggaev->PutFixed(iaev, &aev);
+        _track.events->PutFixed(iaev, &aev);
     }
 
     //
-    // Alter the route's new first point to be _rtelCur.
-    // with the correct new dwr.  Then update _rtelCur.
+    // Alter the route's new first point to be _state.location.
+    // with the correct new dwr.  Then update _state.location.
     //
-    _GetXyzFromRtel(&_rtelCur, &rptOld.xyz);
+    _GetXyzFromRtel(&_state.location, &rptOld.xyz);
     rptOld.dwr = dwrNew;
-    _pglrpt->Put(_rtelCur.irpt, &rptOld);
-    dnrpt = _rtelCur.irpt;
-    _rtelCur.dnfrm = 0;
-    _rtelCur.dwrOffset = rZero;
-    _rtelCur.irpt = 0;
+    _track.route->Put(_state.location.irpt, &rptOld);
+    dnrpt = _state.location.irpt;
+    _state.location.dnfrm = 0;
+    _state.location.dwrOffset = rZero;
+    _state.location.irpt = 0;
 
     //
     // Merge the earlier events
     // Update the necessary state variables
     //
-    for (iaev = 0; iaev < _iaevCur; iaev++)
+    for (iaev = 0; iaev < _state.nextEvent; iaev++)
     {
-        _pggaev->GetFixed(iaev, &aev);
-        if (!_fOnStage || iaev < _iaevAddCur)
+        _track.events->GetFixed(iaev, &aev);
+        if (!_state.onStage || iaev < _state.addEvent)
         {
             _RemoveAev(iaev);
             iaev--;
@@ -5217,15 +4161,15 @@ void Actor::DeleteBackCore(bool *pfAlive)
 #ifdef BUG1870
             // Supercede orient-rotate with current rotation
             // 		so that static segment orientation will be preserved
-            // Note: events prior to _iaevFrmMin need to be included
+            // Note: events prior to _state.firstEventInFrame need to be included
             // 		due to orient-rotations lasting the lifetime of static
             // 		segments.
-            _pggaev->Put(iaev, &_xfrm.bmat34Cur);
+            _track.events->Put(iaev, &_state.transform.bmat34Cur);
             goto LDefault;
 #endif // BUG1870
         case aetTweak:
         case aetSnd:
-            if (iaev < _iaevFrmMin)
+            if (iaev < _state.firstEventInFrame)
             {
                 _RemoveAev(iaev);
                 iaev--;
@@ -5237,9 +4181,9 @@ void Actor::DeleteBackCore(bool *pfAlive)
 
         case aetActn:
             Action aevactn;
-            _pggaev->Get(iaev, &aevactn);
-            aevactn.celn = _celnCur;
-            _pggaev->Put(iaev, &aevactn);
+            _track.events->Get(iaev, &aevactn);
+            aevactn.celn = _state.cel;
+            _track.events->Put(iaev, &aevactn);
             goto LDefault;
 
         case aetRem:
@@ -5250,9 +4194,9 @@ void Actor::DeleteBackCore(bool *pfAlive)
 
         default:
         LDefault:
-            aev.rtel = _rtelCur;
-            aev.nfrm = _nfrmCur;
-            _pggaev->PutFixed(iaev, &aev);
+            aev.rtel = _state.location;
+            aev.nfrm = _state.frame;
+            _track.events->PutFixed(iaev, &aev);
             if (iaev > 0)
                 _MergeAev(0, iaev, &iaevNew);
             else
@@ -5261,9 +4205,9 @@ void Actor::DeleteBackCore(bool *pfAlive)
             if (iaevNew < iaev)
                 iaev--;
             if (aev.aet == aetAdd)
-                _iaevAddCur = iaevNew;
+                _state.addEvent = iaevNew;
             if (aev.aet == aetActn)
-                _iaevActnCur = iaevNew;
+                _state.actionEvent = iaevNew;
             break;
         }
     }
@@ -5279,37 +4223,37 @@ void Actor::DeleteBackCore(bool *pfAlive)
         // Delete the first section of the route
         // If offstage, also delete the current point
 #ifdef BUG1866
-        if (!_fOnStage)
+        if (!_state.onStage)
             dnrpt++;
 #endif // BUG1866
-        for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+        for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
         {
-            _pggaev->GetFixed(iaev, &aev);
+            _track.events->GetFixed(iaev, &aev);
             aev.rtel.irpt -= dnrpt;
-            _pggaev->PutFixed(iaev, &aev);
+            _track.events->PutFixed(iaev, &aev);
         }
 #ifndef BUG1866
-        if (!_fOnStage)
+        if (!_state.onStage)
             dnrpt++;
 #endif //! BUG1866
-        _pglrpt->Delete(0, dnrpt);
+        _track.route->Delete(0, dnrpt);
     }
 
     if (pvNil != pfAlive)
-        *pfAlive = FPure(_pggaev->IvMac() > 0);
+        *pfAlive = FPure(_track.events->IvMac() > 0);
 
-    if (_pggaev->IvMac() == 0)
+    if (_track.events->IvMac() == 0)
     {
         _InitState();
     }
     else
     {
         // Adjust remaining state variables
-        _pggaev->GetFixed(0, &aev);
+        _track.events->GetFixed(0, &aev);
         Assert(aev.aet == aetAdd, "An aetAdd event should be the first event");
         _nfrmFirst = aev.nfrm;
         _fLifeDirty = fTrue;
-        _iaevFrmMin = 0;
+        _state.firstEventInFrame = 0;
     }
 
     if (!_FComputeLifetime())
@@ -5337,47 +4281,47 @@ void Actor::_TruncateSubRte(long irptDelLim)
     long iaev;
     RouteDistancePoint rptNode1;
     RouteDistancePoint rptNode2;
-    long iaevLim = _iaevCur;
-    long irpt = _rtelCur.irpt;
+    long iaevLim = _state.nextEvent;
+    long irpt = _state.location.irpt;
 
-    if (_rtelCur.dwrOffset == rZero)
+    if (_state.location.dwrOffset == rZero)
         return;
 
     // Store the new length between nodes
-    _pglrpt->Get(irpt, &rptNode1);
-    rptNode1.dwr = _rtelCur.dwrOffset;
-    _pglrpt->Put(irpt, &rptNode1);
+    _track.route->Get(irpt, &rptNode1);
+    rptNode1.dwr = _state.location.dwrOffset;
+    _track.route->Put(irpt, &rptNode1);
 
     // Move node 2 rather than inserting a node
-    _GetXyzFromRtel(&_rtelCur, &rptNode2.xyz);
+    _GetXyzFromRtel(&_state.location, &rptNode2.xyz);
     rptNode2.dwr = rZero;
-    Assert(irpt + 1 < _pglrpt->IvMac(), "Error in truncation");
-    _pglrpt->Put(irpt + 1, &rptNode2);
+    Assert(irpt + 1 < _track.route->IvMac(), "Error in truncation");
+    _track.route->Put(irpt + 1, &rptNode2);
 
-    // Update _rtelCur
-    _rtelCur.dnfrm = 0;
-    _rtelCur.dwrOffset = rZero;
-    _rtelCur.irpt++;
+    // Update _state.location
+    _state.location.dnfrm = 0;
+    _state.location.dwrOffset = rZero;
+    _state.location.irpt++;
 
     // Update aev's rtel's
-    for (iaev = _iaevCur - 1; iaev >= 0; iaev--)
+    for (iaev = _state.nextEvent - 1; iaev >= 0; iaev--)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.rtel.irpt < irpt)
             break;
         if (aev.rtel.dwrOffset >= rptNode1.dwr)
         {
             aev.rtel.dwrOffset = rZero;
             aev.rtel.irpt++;
-            _pggaev->PutFixed(iaev, &aev);
+            _track.events->PutFixed(iaev, &aev);
         }
     }
 
     // Delete remaining subroute
-    for (irpt = irptDelLim - 1; irpt > _rtelCur.irpt; irpt--)
+    for (irpt = irptDelLim - 1; irpt > _state.location.irpt; irpt--)
     {
         _AdjustAevForRteDel(irpt, 0);
-        _pglrpt->Delete(irpt);
+        _track.route->Delete(irpt);
         _fLifeDirty = fTrue;
     }
 }
@@ -5392,7 +4336,7 @@ bool Actor::FPtIn(long xp, long yp, long *pibset)
     AssertThis(0);
     AssertVarMem(pibset);
 
-    return _pbody->FPtInBody(xp, yp, pibset);
+    return BodyWorld::FPtInBody(_pbody, _pscen->Pmvie()->Pbwld(), xp, yp, pibset);
 }
 
 /***************************************************************************
@@ -5406,30 +4350,30 @@ bool Actor::FPtIn(long xp, long yp, long *pibset)
 bool Actor::FMustRender(long nfrmRenderLast)
 {
     AssertThis(0);
-    Assert(nfrmRenderLast >= _nfrmCur, "Invalid argument to FMustRender");
+    Assert(nfrmRenderLast >= _state.frame, "Invalid argument to FMustRender");
     Assert(!_fLifeDirty, "FMustRender was called when nfrm values were invalid");
 
     Base *paev;
     long iaev;
 
-    if (nfrmRenderLast == _nfrmCur)
+    if (nfrmRenderLast == _state.frame)
         goto LStill;
     if (nfrmRenderLast < _nfrmFirst)
         goto LStill;
-    if (_nfrmCur > _nfrmLast)
+    if (_state.frame > _nfrmLast)
         goto LStill;
-    if (_pglrpt->IvMac() == 0)
+    if (_track.route->IvMac() == 0)
         goto LStill;
 
     // Intervening events?	Sounds don't affect rendering.
-    if (_iaevCur < _pggaev->IvMac())
+    if (_state.nextEvent < _track.events->IvMac())
     {
-        paev = (Base *)_pggaev->QvFixedGet(_iaevCur);
+        paev = (Base *)_track.events->QvFixedGet(_state.nextEvent);
         if (paev->nfrm <= nfrmRenderLast)
         {
-            for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
+            for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
             {
-                paev = (Base *)_pggaev->QvFixedGet(iaev);
+                paev = (Base *)_track.events->QvFixedGet(iaev);
                 if (paev->nfrm > nfrmRenderLast)
                     break;
                 if (aetSnd == paev->aet)
@@ -5443,11 +4387,11 @@ bool Actor::FMustRender(long nfrmRenderLast)
         }
     }
 
-    if (_dwrStep != rZero)
+    if (_state.step != rZero)
         goto LMoving; // moving along path
 
     // Not advancing, but moving in place?
-    if (_fFrozen || _ccelCur == 1)
+    if (_state.frozen || _state.celCount == 1)
         goto LStill;
 LMoving:
     return fTrue;
@@ -5486,14 +4430,14 @@ void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
 
     RoutePoint xyz;
 
-    _GetXyzFromRtel(&_rtelCur, &xyz);
+    _GetXyzFromRtel(&_state.location, &xyz);
 
     if (pvNil != pxr)
-        *pxr = BrsAdd(xyz.dxr, _dxyzRte.dxr);
+        *pxr = BrsAdd(xyz.dxr, _state.routeTranslation.dxr);
     if (pvNil != pyr)
-        *pyr = BrsAdd(xyz.dyr, _dxyzRte.dyr);
+        *pyr = BrsAdd(xyz.dyr, _state.routeTranslation.dyr);
     if (pvNil != pzr)
-        *pzr = BrsAdd(xyz.dzr, _dxyzRte.dyr);
+        *pzr = BrsAdd(xyz.dzr, _state.routeTranslation.dyr);
 }
 
 /***************************************************************************
@@ -5542,9 +4486,9 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
             return fFalse;
         }
     }
-    if (!ptmpl->FSetActnCel(_pbody, _anidCur, _celnCur))
+    if (!ptmpl->FSetActnCel(_pbody, _state.action, _state.cel))
         return fFalse;
-    _PositionBody(&_xyzCur);
+    _PositionBody(&_state.position);
     ReleasePpo(&_ptmpl);
     _ptmpl = ptmpl;
     TagManager::CloseTag(&_tagTmpl);
@@ -5560,12 +4504,12 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     // Need to remove any costume events acting on ibset >= cbsetNew
     // Loop backwards to prevent indexing problems since we are deleting
     // events in this GeneralGroup as we go
-    for (iaev = _pggaev->IvMac() - 1; iaev >= 0; iaev--)
+    for (iaev = _track.events->IvMac() - 1; iaev >= 0; iaev--)
     {
-        _pggaev->GetFixed(iaev, &aev);
+        _track.events->GetFixed(iaev, &aev);
         if (aev.aet == aetCost)
         {
-            _pggaev->Get(iaev, &aevcost);
+            _track.events->Get(iaev, &aevcost);
             if (aevcost.ibset >= cbsetNew)
             {
                 _RemoveAev(iaev, fTrue);
@@ -5581,27 +4525,27 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     Assert the validity of the Actor.
 
 ***************************************************************************/
-void Actor::AssertValid(ulong grfobj)
+void Actor::AssertValid(LegacyUlong grfobj)
 {
 
     Actor_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pbody, 0);
     AssertNilOrPo(_ptmpl, 0);
-    AssertPo(_pggaev, 0);
-    AssertPo(_pglrpt, 0);
+    AssertPo(_track.events, 0);
+    AssertPo(_track.route, 0);
     AssertPo(_pglsmm, 0);
 
-    long iaevMac = _pggaev->IvMac();
-    long irptMac = _pglrpt->IvMac();
+    long iaevMac = _track.events->IvMac();
+    long irptMac = _track.route->IvMac();
     bool fTracing = FPure(grfobj & fobjAssertFull);
 
-    AssertIn(_iaevCur, -1, iaevMac + 1);
+    AssertIn(_state.nextEvent, -1, iaevMac + 1);
     if (irptMac > 0)
-        AssertIn(_rtelCur.irpt, 0, irptMac);
-    if (ivNil != _iaevActnCur)
-        AssertIn(_iaevActnCur, 0, iaevMac);
-    if (_iaevAddCur != ivNil)
-        AssertIn(_iaevAddCur, 0, iaevMac);
+        AssertIn(_state.location.irpt, 0, irptMac);
+    if (ivNil != _state.actionEvent)
+        AssertIn(_state.actionEvent, 0, iaevMac);
+    if (_state.addEvent != ivNil)
+        AssertIn(_state.addEvent, 0, iaevMac);
 
     if (fTracing)
     {
@@ -5621,16 +4565,16 @@ void Actor::AssertValid(ulong grfobj)
         // Supply a debug readable view of br_scalar path
         for (irpt = 0; irpt < irptMac; irpt++)
         {
-            _pglrpt->Get(irpt, &rpt);
+            _track.route->Get(irpt, &rpt);
         }
 
-        AssertIn(_rtelCur.irpt, 0, irptMac + 1); // Supply a debug readable view of the event stream
-        _pggaev->GetFixed(0, &aev);
+        AssertIn(_state.location.irpt, 0, irptMac + 1); // Supply a debug readable view of the event stream
+        _track.events->GetFixed(0, &aev);
         Assert(aetAdd == aev.aet, "BUG: No add event at front of list");
 
-        for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
+        for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
         {
-            _pggaev->GetFixed(iaev, &aev);
+            _track.events->GetFixed(iaev, &aev);
             Assert(rtel <= aev.rtel, "Illegal ordering in event list");
             AssertIn(aev.aet, 0, aetLim);
 
@@ -5658,7 +4602,7 @@ void Actor::AssertValid(ulong grfobj)
 
             mpaetfSeen[aev.aet] = fTrue;
             rtel = aev.rtel;
-            _pglrpt->Get(aev.rtel.irpt, &rpt);
+            _track.route->Get(aev.rtel.irpt, &rpt);
             Assert(aev.rtel.dwrOffset < rpt.dwr || rpt.dwr == rZero, "Invalid rtel.dwrOffset");
 
             // Variable portion of aev retrieved for debug viewing
@@ -5666,50 +4610,50 @@ void Actor::AssertValid(ulong grfobj)
             {
             case aetAdd: {
                 Add aevadd;
-                Assert(_pggaev->Cb(iaev) == kcbVarAdd, "Corrupt size in event list");
-                _pggaev->Get(iaev, &aevadd);
+                Assert(_track.events->Cb(iaev) == kcbVarAdd, "Corrupt size in event list");
+                _track.events->Get(iaev, &aevadd);
                 break;
             }
             case aetActn: {
                 Action aevactn;
-                _pggaev->Get(iaev, &aevactn);
-                Assert(_pggaev->Cb(iaev) == kcbVarActn, "Corrupt size in event list");
+                _track.events->Get(iaev, &aevactn);
+                Assert(_track.events->Cb(iaev) == kcbVarActn, "Corrupt size in event list");
                 break;
             }
             case aetCost:
-                Assert(_pggaev->Cb(iaev) == kcbVarCost, "Corrupt size in event list");
+                Assert(_track.events->Cb(iaev) == kcbVarCost, "Corrupt size in event list");
                 break;
             case aetRotF:
             case aetRotH:
-                Assert(_pggaev->Cb(iaev) == kcbVarRot, "Corrupt size in event list");
+                Assert(_track.events->Cb(iaev) == kcbVarRot, "Corrupt size in event list");
                 break;
             case aetSize:
-                Assert(_pggaev->Cb(iaev) == kcbVarSize, "Corrupt size in event list");
+                Assert(_track.events->Cb(iaev) == kcbVarSize, "Corrupt size in event list");
                 break;
             case aetPull:
-                Assert(_pggaev->Cb(iaev) == kcbVarPull, "Corrupt size in event list");
+                Assert(_track.events->Cb(iaev) == kcbVarPull, "Corrupt size in event list");
                 break;
             case aetSnd:
                 break;
             case aetFreeze: {
                 int32_t faevfrz;
-                _pggaev->Get(iaev, &faevfrz);
-                Assert(_pggaev->Cb(iaev) == kcbVarFreeze, "Corrupt size in event list");
+                _track.events->Get(iaev, &faevfrz);
+                Assert(_track.events->Cb(iaev) == kcbVarFreeze, "Corrupt size in event list");
                 break;
             }
             case aetTweak:
-                Assert(_pggaev->Cb(iaev) == kcbVarTweak, "Corrupt size in event list");
+                Assert(_track.events->Cb(iaev) == kcbVarTweak, "Corrupt size in event list");
                 break;
             case aetStep: {
                 BRS dwrAev;
-                _pggaev->Get(iaev, &dwrAev);
-                Assert(_pggaev->Cb(iaev) == kcbVarStep, "Corrupt size in event list");
+                _track.events->Get(iaev, &dwrAev);
+                Assert(_track.events->Cb(iaev) == kcbVarStep, "Corrupt size in event list");
                 break;
             }
             case aetRem:
                 break;
             case aetMove:
-                Assert(_pggaev->Cb(iaev) == kcbVarMove, "Corrupt size in event list");
+                Assert(_track.events->Cb(iaev) == kcbVarMove, "Corrupt size in event list");
                 break;
             default:
                 Assert(0, "Unknown event type");
@@ -5731,18 +4675,18 @@ void Actor::MarkMem(void)
     Sound *paevsnd;
 
     Actor_PAR::MarkMem();
-    for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
+    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
     {
-        paev = (Base *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_track.events->QvFixedGet(iaev);
         if (aetSnd == paev->aet)
         {
-            paevsnd = (Sound *)_pggaev->QvGet(iaev);
+            paevsnd = (Sound *)_track.events->QvGet(iaev);
             if (paevsnd->tag.sid == ksidUseCrf)
                 paevsnd->tag.MarkMem();
         }
     }
-    MarkMemObj(_pggaev);
-    MarkMemObj(_pglrpt);
+    MarkMemObj(_track.events);
+    MarkMemObj(_track.route);
     MarkMemObj(_pbody);
     MarkMemObj(_ptmpl);
     MarkMemObj(_pglsmm);

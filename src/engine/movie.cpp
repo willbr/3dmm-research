@@ -33,11 +33,8 @@ ASSERTNAME
 #define krScaleMouseNonRecord BR_SCALAR(0.02)
 #define kdwrMousePerSecond BR_SCALAR(100.0) // "mouse drag" speed for arrow keys
 
-#define kdtsFrame (kdtsSecond / kfps)   // milliseconds per frame
-#define kdtimFrame (kdtimSecond / kfps) // clock ticks per frame
-#define kdtsCycleCels (kdtsFrame * 3)   // delay when cycling cels
-#define kdtsVlmFade 3                   // number of seconds to fade
-#define kdtimVlmFade (kdtimSecond / 4)  // number of clock ticks necessary to split 1 sec into 4 events
+#define kdtsFrame (kdtsSecond / kfps) // milliseconds per frame
+#define kdtsCycleCels (kdtsFrame * 3) // delay when cycling cels
 #define kzrMouseScalingFactor BR_SCALAR(100.0)
 
 const ChildChunkID kchidGstSource = 1;
@@ -56,11 +53,6 @@ const long krRotateScaleFactor = BR_SCALAR(0.001);
 // Mouse scaling factor when sooner/latering.
 //
 const long krSoonerScaleFactor = BR_SCALAR(0.05);
-
-//
-// Number of ticks to pass before scrolling a single pixel
-//
-#define kdtsScrolling 5
 
 //
 //
@@ -138,67 +130,6 @@ ON_CID_ME(cidRender, &Movie::FCmdRender, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
-//
-// A file written by this version of movie.cpp receives this cvn.  Any
-// file with this cvn value has exactly the same file format
-//
-const short kcvnCur = 2;
-
-//
-// A file written by this version of movie.cpp can be read by any version
-// of movie.cpp whose kcvnCur is >= to this (this should be <= kcvnCur)
-//
-const short kcvnBack = 2;
-
-//
-// A file whose cvn is less than kcvnMin cannot be directly read by
-// this version of movie.cpp (maybe a converter will read it).
-// (this should be <= kcvnCur)
-//
-const short kcvnMin = 1;
-
-//
-// Movie file prefix
-//
-struct MovieFilePrefix
-{
-    int16_t bo;       // byte order
-    int16_t osk;      // which system wrote this
-    DataVersion dver; // chunky file version
-};
-static_assert(sizeof(MovieFilePrefix) == 8, "MovieFilePrefix on-disk layout drift");
-const ByteOrderMask kbomMfp = 0x55000000;
-
-//
-// Used to keep track of the roll call list of the movie.
-// Runtime form: embeds a full TAG (with runtime pcrf). Size is allowed to
-// grow on x64 — this struct never reaches disk; the GST is marshalled to/from
-// RollCallActorEntryOnFile at the I/O boundary (see _ReadRollCallExtra and
-// the save path).
-//
-struct RollCallActorEntry
-{
-    int32_t arid;
-    int32_t cactRef;
-    uint32_t grfbrws; // browser properties
-    TAG tagTmpl;
-};
-
-typedef RollCallActorEntry *PRollCallActorEntry;
-
-// Wire format for RollCallActorEntry. Fixed at 28 bytes on every architecture
-// because TAGOnFile is fixed-width. This is what lands in the GST on disk.
-struct RollCallActorEntryOnFile
-{
-    int32_t arid;
-    int32_t cactRef;
-    uint32_t grfbrws;
-    TAGOnFile tagTmpl;
-};
-static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile wire format drift");
-
-const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
-
 /****************************************************
  *
  * Constructor for movies.  This function is private, use PmvieNew()
@@ -207,12 +138,10 @@ const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
  ****************************************************/
 Movie::Movie(void) : _clok(khidMvieClock)
 {
-    _aridLim = 0;
-    _cno = cnoNil;
     _iscen = ivNil;
-    _wit = witNil;
-    _trans = transNil;
-    _vlmOrg = 0;
+    _playback.wait = witNil;
+    _playback.transition = transNil;
+    _playback.fadeOriginalVolume = 0;
 
     SetCundbMax(1);
 }
@@ -276,7 +205,6 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
     PMovie pmvie;
     ChildChunkIdentification kid;
-    ChildChunkID chid;
     TagList *ptagl;
     PChunkyFile pcfl = pvNil;
     DataBlock blck;
@@ -307,8 +235,8 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     if (pvNil == pfni)
     {
-        pmvie->_pgstmactr = StringTable_GST::PgstNew(size(RollCallActorEntry));
-        if (pmvie->_pgstmactr == pvNil)
+        pmvie->_data.actors = StringTable_GST::PgstNew(size(RollCallActorEntry));
+        if (pmvie->_data.actors == pvNil)
         {
             goto LFail;
         }
@@ -353,33 +281,15 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Get file to read from
     //
-    pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
-    if (pcfl == pvNil)
-    {
+    if (!pmvie->_data.FLoad(pfni, cno))
         goto LFail;
-    }
+    cno = pmvie->_data.movieNumber;
+    pcfl = pmvie->_data.resources->Pcfl();
+    pcfl->AddRef();
 
-    if (!pmvie->FVerifyVersion(pcfl, &cno))
-        goto LFail;
-    pmvie->_cno = cno;
-
-    //
-    // Keep a reference to the user's file
-    //
     if (!pmvie->_FSetPfilSave(pfni))
     {
         Bug("Hey, we just opened this file!");
-        goto LFail;
-    }
-
-    //
-    // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
-    // serious cache-coherency problems otherwise.  Template data is not
-    // read-only, and chunk numbers change over time.
-    //
-    pmvie->_pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
-    if (pvNil == pmvie->_pcrfAutoSave)
-    {
         goto LFail;
     }
 
@@ -396,16 +306,6 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
             vptagm->FMergeGstSource(pgstSource, bo, osk);
             ReleasePpo(&pgstSource);
         }
-    }
-
-    //
-    // Get the movie roll-call
-    //
-    Assert(pcfl == pmvie->_pcrfAutoSave->Pcfl(), "pcfl isn't right");
-    if (!FReadRollCall(pmvie->_pcrfAutoSave, cno, &pmvie->_pgstmactr, &pmvie->_aridLim))
-    {
-        pmvie->_pgstmactr = pvNil;
-        goto LFail;
     }
 
     //
@@ -432,13 +332,6 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     // Set the movie title
     //
     pmvie->_SetTitle(pfni);
-
-    //
-    // Count the number of scenes in the movie
-    //
-    for (chid = 0; pcfl->FGetKidChidCtg(kctgMvie, cno, chid, kctgScen, &kid); chid++, pmvie->_cscen++)
-    {
-    }
 
     fSuccess = fTrue;
 
@@ -468,74 +361,9 @@ LFail:
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, long *paridLim)
+bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, LegacyLong *paridLim)
 {
-    AssertPo(pcrf, 0);
-    AssertVarMem(ppgst);
-    Assert(*ppgst == pvNil, "Overwriting existing StringTable_GST");
-    AssertNilOrVarMem(paridLim);
-
-    short bo;
-    long imactr, imactrMac;
-    PChunkyFile pcfl = pcrf->Pcfl();
-    ChildChunkIdentification kid;
-    DataBlock blck;
-    PStringTable_GST pgstOnFile = pvNil;
-    PStringTable_GST pgstRuntime = pvNil;
-    String stn;
-    RollCallActorEntryOnFile mactrOnFile;
-    RollCallActorEntry mactr;
-
-    if (!pcfl->FGetKidChidCtg(kctgMvie, cno, 0, kctgGst, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-    {
-        PushErc(ercSocBadFile);
-        goto LFail;
-    }
-
-    // Read the wire-format GST (extras are sized RollCallActorEntryOnFile).
-    pgstOnFile = StringTable_GST::PgstRead(&blck, &bo);
-    if (pgstOnFile == pvNil)
-        goto LFail;
-
-    // Marshal into a fresh runtime GST whose extras are sized RollCallActorEntry
-    // (which on x64 is wider than the wire form because TAG embeds a pointer).
-    pgstRuntime = StringTable_GST::PgstNew(size(RollCallActorEntry));
-    if (pgstRuntime == pvNil)
-        goto LFail;
-
-    imactrMac = pgstOnFile->IvMac();
-    for (imactr = 0; imactr < imactrMac; imactr++)
-    {
-        pgstOnFile->GetStn(imactr, &stn);
-        pgstOnFile->GetExtra(imactr, &mactrOnFile);
-        if (bo == kboOther)
-            SwapBytesBom(&mactrOnFile, kbomMactr);
-
-        mactr.arid = mactrOnFile.arid;
-        mactr.cactRef = mactrOnFile.cactRef;
-        mactr.grfbrws = mactrOnFile.grfbrws;
-        TagFromOnFile(&mactr.tagTmpl, mactrOnFile.tagTmpl);
-
-        if (paridLim != pvNil && mactr.arid >= *paridLim)
-            *paridLim = mactr.arid + 1;
-
-        // Open the tags, since they might be ThreeDTexts. FOpenTag may
-        // populate mactr.tagTmpl.pcrf for ksidUseCrf tags; that pcrf is the
-        // owning ref balanced by CloseTag, so it must land in the runtime GST.
-        AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, pcrf), "Should never fail when not copying the tag");
-
-        if (!pgstRuntime->FAddStn(&stn, &mactr))
-            goto LFail;
-    }
-
-    ReleasePpo(&pgstOnFile);
-    *ppgst = pgstRuntime;
-    return fTrue;
-LFail:
-    ReleasePpo(&pgstOnFile);
-    ReleasePpo(&pgstRuntime);
-    TrashVar(ppgst);
-    return fFalse;
+    return MovieData::FReadRollCall(pcrf, cno, ppgst, paridLim);
 }
 
 /******************************************************************************
@@ -575,21 +403,21 @@ void Movie::_DoSndGarbageCollection(bool fPurgeAll)
 
     long ikid;
 
-    if (pvNil == _pcrfAutoSave)
+    if (pvNil == _data.resources)
         return;
 
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _data.resources->Pcfl();
     if (pvNil == pcfl)
         return;
 
     /* Go backwards, since we might delete some */
-    ikid = pcfl->Ckid(kctgMvie, _cno);
+    ikid = pcfl->Ckid(kctgMvie, _data.movieNumber);
     while (ikid--)
     {
         ChildChunkIdentification kid;
         ChildChunkIdentification kidT;
 
-        if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
+        if (!pcfl->FGetKid(kctgMvie, _data.movieNumber, ikid, &kid))
         {
             Bug("ChunkyFile returned bogus Ckid()");
             break;
@@ -604,7 +432,7 @@ void Movie::_DoSndGarbageCollection(bool fPurgeAll)
         /* Always purge MSNDs with no actual sound attached */
         if (fPurgeAll || !pcfl->FGetKidChid(kctgMsnd, kid.cki.cno, kchidSnd, &kidT))
         {
-            pcfl->DeleteChild(kctgMvie, _cno, kctgMsnd, kid.cki.cno, kid.chid);
+            pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgMsnd, kid.cki.cno, kid.chid);
         }
     }
 
@@ -620,10 +448,7 @@ Movie::~Movie(void)
 {
     AssertBaseThis(0);
 
-    long imactr;
-    RollCallActorEntry mactr;
-
-    ReleasePpo(&_pcrfAutoSave);
+    ReleasePpo(&_data.resources);
     ReleasePpo(&_pfilSave);
 
     if (FPlaying())
@@ -634,10 +459,10 @@ Movie::~Movie(void)
         vpsndm->StopAll();
 
         // if we were fading, then restore sound volume
-        if (_vlmOrg)
+        if (_playback.fadeOriginalVolume)
         {
-            vpsndm->SetVlm(_vlmOrg);
-            _vlmOrg = 0;
+            vpsndm->SetVlm(_playback.fadeOriginalVolume);
+            _playback.fadeOriginalVolume = 0;
         }
     }
 
@@ -658,15 +483,7 @@ Movie::~Movie(void)
     //
     // Release the roll call
     //
-    if (_pgstmactr != pvNil)
-    {
-        for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
-        {
-            _pgstmactr->GetExtra(imactr, &mactr);
-            vptagm->CloseTag(&mactr.tagTmpl);
-        }
-        ReleasePpo(&_pgstmactr);
-    }
+    _data.ClearActors();
 
     //
     // Release the call back class
@@ -706,11 +523,11 @@ void Movie::MarkMem(void)
 
     Movie_PAR::MarkMem();
 
-    MarkMemObj(_pcrfAutoSave);
+    MarkMemObj(_data.resources);
 
     MarkMemObj(_pfilSave);
 
-    MarkMemObj(_pgstmactr);
+    MarkMemObj(_data.actors);
 
     MarkMemObj(Pscen());
 
@@ -734,12 +551,12 @@ void Movie::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void Movie::AssertValid(ulong grf)
+void Movie::AssertValid(LegacyUlong grf)
 {
     Movie_PAR::AssertValid(fobjAllocated);
 
-    AssertNilOrPo(_pcrfAutoSave, 0);
-    AssertPo(_pgstmactr, 0);
+    AssertNilOrPo(_data.resources, 0);
+    AssertPo(_data.actors, 0);
     AssertNilOrPo(Pbwld(), 0);
     AssertPo(&_clok, 0);
     AssertPo(_pmcc, 0);
@@ -761,7 +578,7 @@ void Movie::AssertValid(ulong grf)
 PTagList Movie::_PtaglFetch(void)
 {
     AssertThis(0);
-    Assert(_pcrfAutoSave != pvNil, "need pcrfAutosave");
+    Assert(_data.resources != pvNil, "need pcrfAutosave");
 
     PTagList ptagl;
     ChildChunkIdentification kid;
@@ -774,9 +591,9 @@ PTagList Movie::_PtaglFetch(void)
     //
     // Add each scene's tags
     //
-    for (chid = 0; _pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, chid, kctgScen, &kid); chid++)
+    for (chid = 0; _data.resources->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, chid, kctgScen, &kid); chid++)
     {
-        if (!Scene::FAddTagsToTagl(_pcrfAutoSave->Pcfl(), kid.cki.cno, ptagl))
+        if (!Scene::FAddTagsToTagl(_data.resources->Pcfl(), kid.cki.cno, ptagl))
         {
             ReleasePpo(&ptagl);
             return pvNil;
@@ -808,13 +625,13 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
 
     RollCallActorEntry mactr;
 
-    if (iarid < 0 || iarid >= _pgstmactr->IvMac())
+    if (iarid < 0 || iarid >= _data.actors->IvMac())
     {
         return fFalse;
     }
 
-    _pgstmactr->GetStn(iarid, pstn);
-    _pgstmactr->GetExtra(iarid, &mactr);
+    _data.actors->GetStn(iarid, pstn);
+    _data.actors->GetExtra(iarid, &mactr);
     *parid = mactr.arid;
     *pcactRef = mactr.cactRef;
     if (pvNil != ptagTmpl)
@@ -889,9 +706,9 @@ bool Movie::FChooseArid(long arid)
         // Search roll call for actor, and create
         // a new actor for it.
         //
-        for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
+        for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
         {
-            _pgstmactr->GetExtra(imactr, &mactr);
+            _data.actors->GetExtra(imactr, &mactr);
             if (mactr.arid == arid)
             {
                 pactr = Actor::PactrNew(&(mactr.tagTmpl));
@@ -966,12 +783,12 @@ bool Movie::FGetName(long arid, PString pstn)
     RollCallActorEntry mactr;
     long imactr;
 
-    for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
     {
-        _pgstmactr->GetExtra(imactr, &mactr);
+        _data.actors->GetExtra(imactr, &mactr);
         if (mactr.arid == arid)
         {
-            _pgstmactr->GetStn(imactr, pstn);
+            _data.actors->GetStn(imactr, pstn);
             return (fTrue);
         }
     }
@@ -1000,14 +817,14 @@ bool Movie::FNameActr(long arid, PString pstn)
     RollCallActorEntry mactr;
     long imactr;
 
-    for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
     {
 
-        _pgstmactr->GetExtra(imactr, &mactr);
+        _data.actors->GetExtra(imactr, &mactr);
         if (mactr.arid == arid)
         {
 
-            if (_pgstmactr->FPutStn(imactr, pstn))
+            if (_data.actors->FPutStn(imactr, pstn))
             {
 
                 _pmcc->UpdateRollCall();
@@ -1026,7 +843,7 @@ bool Movie::FNameActr(long arid, PString pstn)
  * Identifies whether the mactr is in prop browser
  *
  * Parameters:
- *   imactr - index in _pgstmactr
+ *   imactr - index in _data.actors
  *
  * Returns:
  *	 bool
@@ -1035,10 +852,10 @@ bool Movie::FNameActr(long arid, PString pstn)
 bool Movie::FIsPropBrwsIarid(long iarid)
 {
     AssertThis(0);
-    AssertIn(iarid, 0, _pgstmactr->IvMac());
+    AssertIn(iarid, 0, _data.actors->IvMac());
 
     RollCallActorEntry mactr;
-    _pgstmactr->GetExtra(iarid, &mactr);
+    _data.actors->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsProp);
 }
 
@@ -1047,7 +864,7 @@ bool Movie::FIsPropBrwsIarid(long iarid)
  * Identifies whether the mactr is in 3dtext object
  *
  * Parameters:
- *   imactr - index in _pgstmactr
+ *   imactr - index in _data.actors
  *
  * Returns:
  *	 bool
@@ -1056,10 +873,10 @@ bool Movie::FIsPropBrwsIarid(long iarid)
 bool Movie::FIsIaridTdt(long iarid)
 {
     AssertThis(0);
-    AssertIn(iarid, 0, _pgstmactr->IvMac());
+    AssertIn(iarid, 0, _data.actors->IvMac());
 
     RollCallActorEntry mactr;
-    _pgstmactr->GetExtra(iarid, &mactr);
+    _data.actors->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsTdt);
 }
 
@@ -1084,15 +901,15 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
     RollCallActorEntry mactr;
     long imactr;
 
-    for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
     {
 
-        _pgstmactr->GetExtra(imactr, &mactr);
+        _data.actors->GetExtra(imactr, &mactr);
         if (mactr.arid == arid)
         {
 
             mactr.tagTmpl = *ptag;
-            _pgstmactr->PutExtra(imactr, &mactr);
+            _data.actors->PutExtra(imactr, &mactr);
             return;
         }
     }
@@ -1126,10 +943,10 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
         //
         // Search for an actor with the same arid
         //
-        for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
+        for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
         {
 
-            _pgstmactr->GetExtra(imactr, &mactr);
+            _data.actors->GetExtra(imactr, &mactr);
             if (mactr.arid == pactr->Arid())
             {
                 TAG tagTmpl;
@@ -1143,7 +960,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
                     // Actor::GetTagTmpl doesn't AddRef the pcrf, so do it here:
                     TagManager::DupTag(&tagTmpl);
                 }
-                _pgstmactr->PutExtra(imactr, &mactr);
+                _data.actors->PutExtra(imactr, &mactr);
                 Pmcc()->UpdateRollCall();
                 return (fTrue);
             }
@@ -1151,7 +968,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
     }
     else
     {
-        pactr->SetArid(_aridLim++);
+        pactr->SetArid(_data.actorIdLimit++);
     }
 
     AssertPo(pstn, 0);
@@ -1172,8 +989,8 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
     mactr.cactRef = 1;
     pactr->GetTagTmpl(&mactr.tagTmpl);
     // Open the tag, since it might be a ThreeDText
-    AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _pcrfAutoSave), "Should never fail when not copying the tag");
-    if (_pgstmactr->FAddStn(pstn, &mactr))
+    AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _data.resources), "Should never fail when not copying the tag");
+    if (_data.actors->FAddStn(pstn, &mactr))
     {
         Pmcc()->UpdateRollCall();
         return (fTrue);
@@ -1205,9 +1022,9 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
     //
     // Search for the actor in the roll call
     //
-    for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
     {
-        _pgstmactr->GetExtra(imactr, &mactr);
+        _data.actors->GetExtra(imactr, &mactr);
         if (mactr.arid == pactr->Arid())
         {
             mactr.cactRef--;
@@ -1215,11 +1032,11 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
             if (fDelIfOnlyRef && mactr.cactRef == 0)
             {
                 vptagm->CloseTag(&mactr.tagTmpl);
-                _pgstmactr->Delete(imactr);
+                _data.actors->Delete(imactr);
             }
             else
             {
-                _pgstmactr->PutExtra(imactr, &mactr);
+                _data.actors->PutExtra(imactr, &mactr);
             }
 
             if (mactr.cactRef == 0)
@@ -1250,7 +1067,7 @@ bool Movie::FSwitchScen(long iscen)
 {
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
-    Assert((iscen == ivNil) || (_pcrfAutoSave != pvNil), "Invalid save file");
+    Assert((iscen == ivNil) || (_data.resources != pvNil), "Invalid save file");
 
     PScene pscen;
     ChildChunkIdentification kid;
@@ -1287,7 +1104,9 @@ bool Movie::FSwitchScen(long iscen)
     if (ms.dwMemoryLoad == 100)
     {
         // No physical RAM to spare, so free some stuff
+        vpappb->BeginLongOp();
         vptagm->ClearCache(sidNil, ftagmMemory);
+        vpappb->EndLongOp();
     }
 
 #endif // WIN
@@ -1304,9 +1123,10 @@ LRetry:
     //
     // Get info for next scene and read it in.
     //
-    AssertDo(_pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
+    AssertDo(_data.resources->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
+             "Should never fail");
 
-    pscen = Scene::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
+    pscen = Scene::PscenRead(this, _data.resources, kid.cki.cno);
 
     if ((pscen == pvNil) || !pscen->FPlayStartEvents())
     {
@@ -1411,7 +1231,7 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
 
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _data.resources->Pcfl();
     ChildChunkIdentification kid;
     ChildChunkID chidTmp;
 
@@ -1420,12 +1240,12 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
         //
         // Move down chids of all old scenes (increase by one)
         //
-        for (chidTmp = _cscen; chidTmp > chid;)
+        for (chidTmp = _data.sceneCount; chidTmp > chid;)
         {
             chidTmp--;
-            AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, chidTmp, kctgScen, &kid), "Should never fail");
+            AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, chidTmp, kctgScen, &kid), "Should never fail");
 
-            pcfl->ChangeChid(kctgMvie, _cno, kctgScen, kid.cki.cno, chidTmp, chidTmp + 1);
+            pcfl->ChangeChid(kctgMvie, _data.movieNumber, kctgScen, kid.cki.cno, chidTmp, chidTmp + 1);
         }
     }
     else
@@ -1433,11 +1253,12 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
         //
         // Move up chids of all old scenes (decrease by one)
         //
-        for (chidTmp = chid; chidTmp < (ChildChunkID)_cscen; chidTmp++)
+        for (chidTmp = chid; chidTmp < (ChildChunkID)_data.sceneCount; chidTmp++)
         {
-            AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, chidTmp + 1, kctgScen, &kid), "Should never fail");
+            AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, chidTmp + 1, kctgScen, &kid),
+                     "Should never fail");
 
-            pcfl->ChangeChid(kctgMvie, _cno, kctgScen, kid.cki.cno, chidTmp + 1, chidTmp);
+            pcfl->ChangeChid(kctgMvie, _data.movieNumber, kctgScen, kid.cki.cno, chidTmp + 1, chidTmp);
         }
     }
 }
@@ -1461,10 +1282,10 @@ bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     long ckid, ikid;
     ChildChunkIdentification kid;
 
-    ckid = pcfl->Ckid(kctgMvie, _cno);
+    ckid = pcfl->Ckid(kctgMvie, _data.movieNumber);
     for (ikid = 0; ikid < ckid; ikid++)
     {
-        if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
+        if (!pcfl->FGetKid(kctgMvie, _data.movieNumber, ikid, &kid))
         {
             Bug("ChunkyFile returned bogus ckid");
             break;
@@ -1518,7 +1339,7 @@ bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
             {
                 // Adopt as a child of the movie
                 chidMvie = _ChidMvieNewSnd();
-                if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgMsnd, kid.cki.cno, chidMvie))
+                if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgMsnd, kid.cki.cno, chidMvie))
                 {
                     goto LFail;
                 }
@@ -1559,14 +1380,14 @@ bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PC
     PChunkyFile pcfl;
 
     if (pvNil == pcrf)
-        pcrf = _pcrfAutoSave;
+        pcrf = _data.resources;
     pcfl = pcrf->Pcfl();
 
     if (ptag->sid != ksidUseCrf)
         return fTrue;
     if (cnoNil == cnoScen)
     {
-        if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
+        if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
             return fFalse;
         cnoScen = kidScen.cki.cno;
     }
@@ -1609,9 +1430,9 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
     ChildChunkIdentification kid;
     long ckid;
     long ikid;
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _data.resources->Pcfl();
 
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
+    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
         return fFalse;
     ckid = pcfl->Ckid(kctgScen, kidScen.cki.cno);
     for (ikid = 0; ikid < ckid; ikid++)
@@ -1652,14 +1473,14 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
     AssertVarMem(pfilSrc);
     AssertVarMem(pcno);
     AssertNilOrPo(pstn, 0);
-    Assert(_pcrfAutoSave != pvNil, "Bad working file.");
+    Assert(_data.resources != pvNil, "Bad working file.");
 
     PChunkyFile pcfl;
     Filename fniSrc;
     ChildChunkID chid;
     ChildChunkIdentification kidScen;
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Ensure we will be writing to the temp file
@@ -1681,10 +1502,11 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
             goto LFail;
     }
 
-    AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen), "Scene chunk doesn't exist!");
+    AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen),
+             "Scene chunk doesn't exist!");
 
     chid = _ChidMvieNewSnd();
-    if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgMsnd, *pcno, chid))
+    if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgMsnd, *pcno, chid))
     {
         pcfl->Delete(kctgMsnd, *pcno);
         return fFalse;
@@ -1726,7 +1548,7 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
 
     if (!FEnsureAutosave())
         return fFalse;
-    pcflDest = _pcrfAutoSave->Pcfl();
+    pcflDest = _data.resources->Pcfl();
     pcflSrc->GetFni(&fni);
 
     // Copy the msnd chunk from one movie to another
@@ -1734,10 +1556,11 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
     if (!pcflSrc->FCopy(kctgMsnd, cnoSrc, pcflDest, pcnoDest))
         return fFalse;
 
-    AssertDo(pcflDest->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen), "Scene chunk doesn't exist!");
+    AssertDo(pcflDest->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen),
+             "Scene chunk doesn't exist!");
 
     chid = _ChidMvieNewSnd(); // Find a unique chid for the new sound
-    if (!pcflDest->FAdoptChild(kctgMvie, _cno, kctgMsnd, *pcnoDest, chid))
+    if (!pcflDest->FAdoptChild(kctgMvie, _data.movieNumber, kctgMsnd, *pcnoDest, chid))
     {
         pcflDest->Delete(kctgMsnd, *pcnoDest);
         return fFalse;
@@ -1750,7 +1573,7 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
 /****************************************************
  *
  * Choose Scene Chid for New Sound
- * Note: _pcrfAutoSave is expected to be current
+ * Note: _data.resources is expected to be current
  * Parameters:
  *	none
  *
@@ -1761,13 +1584,13 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
 ChildChunkID Movie::_ChidScenNewSnd(void)
 {
     AssertBaseThis(0);
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _data.resources->Pcfl();
     long ckid;
     long chid;
     ChildChunkIdentification kidScen;
     ChildChunkIdentification kid;
 
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
+    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
         return fFalse;
 
     ckid = pcfl->Ckid(kctgScen, kidScen.cki.cno);
@@ -1782,7 +1605,7 @@ ChildChunkID Movie::_ChidScenNewSnd(void)
 /****************************************************
  *
  * Choose Mvie Chid for New Sound
- * Note: _pcrfAutoSave is expected to be current
+ * Note: _data.resources is expected to be current
  * Parameters:
  *	none
  *
@@ -1793,15 +1616,15 @@ ChildChunkID Movie::_ChidScenNewSnd(void)
 ChildChunkID Movie::_ChidMvieNewSnd(void)
 {
     AssertBaseThis(0);
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _data.resources->Pcfl();
     long ckid;
     long chid;
     ChildChunkIdentification kid;
 
-    ckid = pcfl->Ckid(kctgMvie, _cno);
+    ckid = pcfl->Ckid(kctgMvie, _data.movieNumber);
     for (chid = 0; chid < ckid; chid++)
     {
-        if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, chid, kctgMsnd, &kid))
+        if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, chid, kctgMsnd, &kid))
             return (ChildChunkID)chid;
     }
     return (ChildChunkID)chid;
@@ -1822,47 +1645,7 @@ ChildChunkID Movie::_ChidMvieNewSnd(void)
  ****************************************************/
 bool Movie::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
 {
-    AssertBaseThis(0); // Movie hasn't been loaded yet
-    AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-    ChunkNumber cnoMvie;
-    MovieFilePrefix mfp;
-    DataBlock blck;
-
-    // Get the cno of the first kid of the movie
-    if (pvNil == pcno || cnoNil == *pcno)
-    {
-        if (!pcfl->FGetCkiCtg(kctgMvie, 0, &(kid.cki)))
-        {
-            PushErc(ercSocBadFile);
-            return fFalse;
-        }
-        cnoMvie = kid.cki.cno;
-        if (pvNil != pcno)
-            *pcno = cnoMvie;
-    }
-
-    // Get version number of the file
-    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData() || (blck.Cb() != size(MovieFilePrefix)) ||
-        !blck.FReadRgb(&mfp, size(MovieFilePrefix), 0))
-    {
-        PushErc(ercSocBadFile);
-        return fFalse;
-    }
-
-    if (mfp.bo == kboOther)
-    {
-        SwapBytesBom(&mfp, kbomMfp);
-    }
-
-    // Check the version numbers
-    if (!mfp.dver.FReadable(kcvnCur, kcvnMin))
-    {
-        PushErc(ercSocBadVersion);
-        return fFalse;
-    }
-    return fTrue;
+    return MovieData::FVerifyVersion(pcfl, pcno);
 }
 
 /****************************************************
@@ -1880,14 +1663,14 @@ bool Movie::FRemScenCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
-    Assert(_pcrfAutoSave != pvNil, "Bad working file.");
+    Assert(_data.resources != pvNil, "Bad working file.");
 
     ChildChunkIdentification kid;
     PChunkyFile pcfl;
     PScene pscen;
     long iscenOld;
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Ensure we are using the temp file
@@ -1935,13 +1718,13 @@ bool Movie::FRemScenCore(long iscen)
     //
     // Remove the scene chunk.
     //
-    AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
-    pcfl->DeleteChild(kctgMvie, _cno, kctgScen, kid.cki.cno, iscen);
+    AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid), "Should never fail");
+    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, kid.cki.cno, iscen);
 
     //
     // Move up chids of all old scenes.
     //
-    _cscen--;
+    _data.sceneCount--;
     _MoveChids((ChildChunkID)iscen, fFalse);
 
     //
@@ -2009,9 +1792,10 @@ bool Movie::FRemScen(long iscen)
     else
     {
 
-        AssertDo(_pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
+        AssertDo(_data.resources->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
+                 "Should never fail");
 
-        pscen = Scene::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
+        pscen = Scene::PscenRead(this, _data.resources, kid.cki.cno);
 
         if ((pscen == pvNil) || !pscen->FPlayStartEvents())
         {
@@ -2093,7 +1877,7 @@ bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
     ptag->ctg = kctgMtrl;
     ptag->cno = cno;
 
-    if (!TagManager::FOpenTag(ptag, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(ptag, _data.resources))
     {
         return fFalse;
     }
@@ -2122,7 +1906,7 @@ bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
     }
 
     if (pvNil != ppcrf)
-        *ppcrf = _pcrfAutoSave;
+        *ppcrf = _data.resources;
 
     //
     // Switch to the autosave file
@@ -2172,7 +1956,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
         return (fFalse);
     }
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Switch to the autosave file
@@ -2192,7 +1976,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
     tagTdt.ctg = kctgTmpl;
     tagTdt.cno = cno;
 
-    if (!TagManager::FOpenTag(&tagTdt, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(&tagTdt, _data.resources))
     {
         return fFalse;
     }
@@ -2263,7 +2047,7 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
         return (fFalse);
     }
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Switch to the autosave file
@@ -2283,7 +2067,7 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
     tagTdtNew.ctg = kctgTmpl;
     tagTdtNew.cno = cno;
 
-    if (!TagManager::FOpenTag(&tagTdtNew, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(&tagTdtNew, _data.resources))
     {
         return fFalse;
     }
@@ -2369,7 +2153,7 @@ bool Movie::_FUseTempFile(void)
     ChildChunkIdentification kid;
     Filename fni;
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Make sure we are using the temporary file
@@ -2391,10 +2175,10 @@ bool Movie::_FUseTempFile(void)
         AssertDo(pcfl->FSetGrfcfl(fcflTemp, fcflTemp), 0);
 
         //
-        // Update _cno
+        // Update _data.movieNumber
         //
         AssertDo(pcfl->FGetCkiCtg(kctgMvie, 0, &(kid.cki)), "Should never fail");
-        _cno = kid.cki.cno;
+        _data.movieNumber = kid.cki.cno;
     }
 
     return fTrue;
@@ -2418,7 +2202,7 @@ bool Movie::_FMakeCrfValid(void)
     PChunkyFile pcfl;
     Filename fni;
 
-    if (_pcrfAutoSave != pvNil)
+    if (_data.resources != pvNil)
     {
         return (fTrue);
     }
@@ -2444,8 +2228,8 @@ bool Movie::_FMakeCrfValid(void)
     // serious cache-coherency problems otherwise.  Template data is not
     // read-only, and chunk numbers change over time.
     //
-    _pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
-    if (pvNil == _pcrfAutoSave)
+    _data.resources = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
+    if (pvNil == _data.resources)
     {
         ReleasePpo(&pcfl);
         return (fFalse);
@@ -2480,7 +2264,7 @@ bool Movie::_FMakeCrfValid(void)
 bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
 {
     AssertThis(0);
-    AssertNilOrPo(_pcrfAutoSave, 0);
+    AssertNilOrPo(_data.resources, 0);
     AssertNilOrPo(pfni, ffniFile);
 
 #ifdef BUG1848
@@ -2490,17 +2274,16 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     ChunkNumber cno;
     ChunkNumber cnoScen;
     ChunkNumber cnoSource;
-    MovieFilePrefix mfp;
     ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
     PChunkyFile pcfl;
     PStringTable_GST pgstSource = pvNil;
 
-    if (_pcrfAutoSave == pvNil)
+    if (_data.resources == pvNil)
     {
         return (fFalse);
     }
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // If no changes, then quit quick.
@@ -2524,21 +2307,10 @@ LRetry:
     //
     // Ensure movie chunk exists.
     //
-    if (_cno == cnoNil)
+    if (_data.movieNumber == cnoNil)
     {
-        if (!pcfl->FAdd(size(MovieFilePrefix), kctgMvie, &_cno, &blck))
-        {
+        if (!MovieData::FCreateRoot(pcfl, &_data.movieNumber))
             goto LFail0;
-        }
-
-        mfp.bo = kboCur;
-        mfp.osk = koskCur;
-        mfp.dver.Set(kcvnCur, kcvnBack);
-
-        if (!blck.FWrite(&mfp))
-        {
-            goto LFail0;
-        }
     }
 
     //
@@ -2550,7 +2322,7 @@ LRetry:
         //
         // Save scene in new chunk
         //
-        if (!Pscen()->FWrite(_pcrfAutoSave, &cnoScen))
+        if (!Pscen()->FWrite(_data.resources, &cnoScen))
         {
             goto LFail0;
         }
@@ -2558,12 +2330,12 @@ LRetry:
         //
         // Delete old chunk with this scene
         //
-        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen), "Should never fail");
+        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen), "Should never fail");
 
         //
         // Update chid for movie
         //
-        if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgScen, cnoScen, _iscen))
+        if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _iscen))
         {
             pcfl->Delete(kctgScen, cnoScen);
             goto LFail0;
@@ -2578,12 +2350,12 @@ LRetry:
         RollCallActorEntry mactr;
         long imactr;
 
-        for (imactr = 0; imactr < _pgstmactr->IvMac();)
+        for (imactr = 0; imactr < _data.actors->IvMac();)
         {
-            _pgstmactr->GetExtra(imactr, &mactr);
+            _data.actors->GetExtra(imactr, &mactr);
             if (mactr.cactRef == 0)
             {
-                _pgstmactr->Delete(imactr);
+                _data.actors->Delete(imactr);
                 vptagm->CloseTag(&mactr.tagTmpl);
             }
             else
@@ -2598,48 +2370,13 @@ LRetry:
     //
     // Get old roll call if it exists.
     //
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, 0, kctgGst, &kidGstRollCall))
+    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, 0, kctgGst, &kidGstRollCall))
     {
         kidGstRollCall.cki.cno = cnoNil;
     }
 
-    {
-        // Marshal the runtime GST into a transient wire-format GST whose
-        // extras are sized RollCallActorEntryOnFile (28 bytes on every arch).
-        // The runtime GST holds RollCallActorEntry which on x64 is wider, so
-        // we cannot FWrite it directly without breaking the .3MM wire format.
-        PStringTable_GST pgstOnFile = StringTable_GST::PgstNew(size(RollCallActorEntryOnFile));
-        if (pvNil == pgstOnFile)
-            goto LFail1;
-        long imactrSave, imactrMacSave = _pgstmactr->IvMac();
-        String stnSave;
-        RollCallActorEntry mactrSave;
-        RollCallActorEntryOnFile mactrSaveOnFile;
-        bool fOk = fTrue;
-        for (imactrSave = 0; imactrSave < imactrMacSave && fOk; imactrSave++)
-        {
-            _pgstmactr->GetStn(imactrSave, &stnSave);
-            _pgstmactr->GetExtra(imactrSave, &mactrSave);
-            mactrSaveOnFile.arid = mactrSave.arid;
-            mactrSaveOnFile.cactRef = mactrSave.cactRef;
-            mactrSaveOnFile.grfbrws = mactrSave.grfbrws;
-            mactrSaveOnFile.tagTmpl.From(mactrSave.tagTmpl);
-            if (!pgstOnFile->FAddStn(&stnSave, &mactrSaveOnFile))
-                fOk = fFalse;
-        }
-        if (!fOk || !pcfl->FAdd(pgstOnFile->CbOnFile(), kctgGst, &cno, &blck))
-        {
-            ReleasePpo(&pgstOnFile);
-            goto LFail1;
-        }
-        if (!pgstOnFile->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, _cno, kctgGst, cno, 0))
-        {
-            ReleasePpo(&pgstOnFile);
-            pcfl->Delete(kctgGst, cno);
-            goto LFail1;
-        }
-        ReleasePpo(&pgstOnFile);
-    }
+    if (!MovieData::FWriteRollCall(pcfl, _data.movieNumber, _data.actors, &cno))
+        goto LFail1;
 
     //
     // Save the known sources list
@@ -2648,7 +2385,7 @@ LRetry:
     //
     // Get old sources list if it exists.
     //
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, kchidGstSource, kctgGst, &kidGstSource))
+    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, kchidGstSource, kctgGst, &kidGstSource))
     {
         kidGstSource.cki.cno = cnoNil;
     }
@@ -2662,13 +2399,14 @@ LRetry:
         goto LFail2;
     }
 
-    if (!pgstSource->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, _cno, kctgGst, cnoSource, kchidGstSource))
+    if (!pgstSource->FWrite(&blck) ||
+        !pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgGst, cnoSource, kchidGstSource))
     {
         pcfl->Delete(kctgGst, cnoSource);
         goto LFail2;
     }
 
-    if (!pcfl->FSetName(kctgMvie, _cno, &_stnTitle))
+    if (!pcfl->FSetName(kctgMvie, _data.movieNumber, &_data.title))
     {
         goto LFail3;
     }
@@ -2678,7 +2416,7 @@ LRetry:
     //
     if (Pscen() != pvNil)
     {
-        pcfl->DeleteChild(kctgMvie, _cno, kctgScen, kidScen.cki.cno, _iscen);
+        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, kidScen.cki.cno, _iscen);
     }
 
     //
@@ -2686,7 +2424,7 @@ LRetry:
     //
     if (kidGstRollCall.cki.cno != cnoNil)
     {
-        pcfl->DeleteChild(kctgMvie, _cno, kctgGst, kidGstRollCall.cki.cno, 0);
+        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, kidGstRollCall.cki.cno, 0);
     }
 
     //
@@ -2694,7 +2432,7 @@ LRetry:
     //
     if (kidGstSource.cki.cno != cnoNil)
     {
-        pcfl->DeleteChild(kctgMvie, _cno, kctgGst, kidGstSource.cki.cno, kchidGstSource);
+        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, kidGstSource.cki.cno, kchidGstSource);
     }
 
     //
@@ -2760,15 +2498,15 @@ LRetry:
     return (fTrue);
 
 LFail3:
-    pcfl->DeleteChild(kctgMvie, _cno, kctgGst, cnoSource, kchidGstSource);
+    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, cnoSource, kchidGstSource);
 
 LFail2:
-    pcfl->DeleteChild(kctgMvie, _cno, kctgGst, cno, 0);
+    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, cno, 0);
 
 LFail1:
     if (Pscen() != pvNil)
     {
-        pcfl->DeleteChild(kctgMvie, _cno, kctgScen, cnoScen, _iscen);
+        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _iscen);
     }
 
 LFail0:
@@ -2889,7 +2627,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
     {
         pglckiDoomed->Get(icki1, &cki);
         pcfl->Delete(cki.ctg, cki.cno);
-        if (pcfl == _pcrfAutoSave->Pcfl()) // remove chunk from ChunkyResourceFile cache
+        if (pcfl == _data.resources->Pcfl()) // remove chunk from ChunkyResourceFile cache
         {
             PFNRPO pfnrpo;
 
@@ -2907,7 +2645,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
             }
             // ignore failure of FSetCrep, because return value of fFalse
             // just means that the chunk is not stored in the ChunkyResourceFile's cache
-            _pcrfAutoSave->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
+            _data.resources->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
         }
     }
 LEnd:
@@ -2990,12 +2728,12 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
     ChunkIdentification cki;
     PChunkyFile pcfl;
 
-    if (_pcrfAutoSave == pvNil)
+    if (_data.resources == pvNil)
     {
         return (pvNil);
     }
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Update the file
@@ -3016,11 +2754,11 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
     }
 
     //
-    // Update _cno
+    // Update _data.movieNumber
     //
     AssertDo(pcfl->FGetCkiCtg(kctgMvie, 0, &cki), "Should never fail");
 
-    _cno = cki.cno;
+    _data.movieNumber = cki.cno;
 
     _fDirty = fFalse;
 
@@ -3046,7 +2784,7 @@ bool Movie::FGetFniSave(Filename *pfni)
     AssertVarMem(pfni);
 
     return (_pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle, ksz3mm,
-                              &_stnTitle));
+                              &_data.title));
 }
 
 /****************************************************
@@ -3805,7 +3543,7 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
         goto LFail0;
     }
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
 
     //
     // Ensure we are using the temp file
@@ -3826,7 +3564,7 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
     //
     // Write it.
     //
-    if (!pscen->FWrite(_pcrfAutoSave, &cnoScen))
+    if (!pscen->FWrite(_data.resources, &cnoScen))
     {
         goto LFail0;
     }
@@ -3839,12 +3577,12 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
 
     _MoveChids((ChildChunkID)iscen, fTrue);
 
-    _cscen++;
+    _data.sceneCount++;
 
     //
     // Insert new scene as chid.
     //
-    if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgScen, cnoScen, iscen))
+    if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, iscen))
     {
         goto LFail2;
     }
@@ -3880,21 +3618,21 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
     return (fTrue);
 
 LFail3:
-    _cscen--;
-    pcfl->DeleteChild(kctgMvie, _cno, kctgScen, cnoScen, iscen);
+    _data.sceneCount--;
+    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, iscen);
     _MoveChids((ChildChunkID)iscen, fFalse);
     pcfl->FSave(kctgSoc);
 
-    if (_cscen > 0)
+    if (_data.sceneCount > 0)
     {
 
-        if (iscen < _cscen)
+        if (iscen < _data.sceneCount)
         {
             FSwitchScen(iscen);
         }
         else
         {
-            FSwitchScen(_cscen - 1);
+            FSwitchScen(_data.sceneCount - 1);
         }
     }
 
@@ -3944,7 +3682,7 @@ bool Movie::FAddScen(PTAG ptag)
     //
     // Set default name
     //
-    if ((Pscen() == pvNil) && (_stnTitle.Cch() == 0))
+    if ((Pscen() == pvNil) && (_data.title.Cch() == 0))
     {
         _SetTitle();
     }
@@ -4034,124 +3772,87 @@ bool Movie::FAddScen(PTAG ptag)
 void Movie::Play()
 {
     AssertThis(0);
-
-    if (FPlaying())
+    MoviePlayEvaluator evaluator(_playback);
+    for (;;)
     {
-
-        if (FStopPlaying())
-        {
-            //
-            // We will stop it soon anyway.
-            //
+        MoviePlayCommand command = evaluator.Next();
+        if (command.kind == MoviePlayCommandKind::Finished)
             return;
-        }
-
-        //
-        // Kill playing timer
-        //
-        SetFStopPlaying(fTrue);
-
-        if (_fPausing)
+        MoviePlaybackReply reply;
+        switch (command.kind)
         {
-            //
-            // There is no clock timer, so call directly
-            //
+        case MoviePlayCommandKind::RenderStop:
             FCmdRender(pvNil);
-        }
-    }
-    else
-    {
-
-        if (Pscen() == pvNil)
-        {
+            break;
+        case MoviePlayCommandKind::CheckScene:
+            reply.value = Pscen() != pvNil;
+            break;
+        case MoviePlayCommandKind::ResetSounds:
+            _pmsq->StopAll();
+            _pmsq->FlushMsq();
+            break;
+        case MoviePlayCommandKind::QueryEnd:
+            reply.value = Iscen() + 1 == Cscen() && Pscen()->Nfrm() == Pscen()->NfrmLast();
+            break;
+        case MoviePlayCommandKind::Rewind:
+            reply.success = FSwitchScen(0);
+            if (reply.success)
+                reply.success = Pscen()->FGotoFrm(Pscen()->NfrmFirst());
+            break;
+        case MoviePlayCommandKind::ReadTime:
+            reply.timestamp = TsCurrent();
+            break;
+        case MoviePlayCommandKind::StartClock:
+            _clok.Start(0);
+            SetFPlaying(true);
+            vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, true);
+            reply.success = _clok.FSetAlarm(0, this);
+            break;
+        case MoviePlayCommandKind::PrepareScene:
+            _pmsq->SndOnLong();
+            Pscen()->Enable(fscenPauses);
+            Pscen()->SelectActr(pvNil);
+            Pscen()->SelectTbox(pvNil);
+            // Replay must precede prerendering: replayed camera changes invalidate it.
+            reply.success = Pscen()->FReplayFrm(fscenPauses | fscenSounds | fscenActrs) && Pscen()->FStartPlaying();
+            break;
+        case MoviePlayCommandKind::NotifyStopped:
             Pmcc()->PlayStopped();
-            return;
-        }
-
-        // reset any outstanding sounds (from listener preview)
-        _pmsq->StopAll();
-        // flush any outstanding sound messages (from listener preview)
-        _pmsq->FlushMsq();
-
-        //
-        // Check for if we need to rewind
-        //
-        if ((Iscen() + 1 == Cscen()) && (Pscen()->Nfrm() == Pscen()->NfrmLast()))
-        {
-            if (!FSwitchScen(0))
-            {
-                Pmcc()->PlayStopped();
-                return;
-            }
-            if (!Pscen()->FGotoFrm(Pscen()->NfrmFirst()))
-            {
-                Pmcc()->PlayStopped();
-                return;
-            }
-        }
-
-        //
-        // Start playing timer
-        //
-        _fOldSoundsEnabled = FSoundsEnabled();
-        SetFSoundsEnabled(fTrue);
-        _cnfrm = 0;
-        _tsStart = TsCurrent();
-        SetFStopPlaying(fFalse);
-        _clok.Start(0);
-        SetFPlaying(fTrue);
-        vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, fTrue);
-
-        if (!_clok.FSetAlarm(0, this))
-        {
+            break;
+        case MoviePlayCommandKind::StartupFailed:
             Pmcc()->PlayStopped();
-            SetFPlaying(fFalse);
+            if (command.flag)
+                SetFStopPlaying(true);
+            else
+                SetFPlaying(false);
             _pmsq->PlayMsq();
-            SetFSoundsEnabled(_fOldSoundsEnabled);
-            return;
-        }
-
-        //
-        // Check if we need to play the opening transition
-        //
-        _pmsq->SndOnLong();
-        Pscen()->Enable(fscenPauses);
-        Pscen()->SelectActr(pvNil);
-        Pscen()->SelectTbox(pvNil);
-        // Have to FReplayFrm *before* FStartPlaying because a camera view
-        // change in FReplayFrm would wipe out prerendering (which FStartPlaying
-        // initiates)
-        if (!Pscen()->FReplayFrm(fscenPauses | fscenSounds | fscenActrs) || !Pscen()->FStartPlaying())
-        {
-            Pmcc()->PlayStopped();
-            SetFStopPlaying(fTrue);
-            _pmsq->PlayMsq();
-            SetFSoundsEnabled(_fOldSoundsEnabled);
-            return;
-        }
-
-        Pmcc()->DisableAccel();
-
-        if ((Iscen() == 0) && (Pscen()->Nfrm() == Pscen()->NfrmFirst()))
-        {
+            SetFSoundsEnabled(_playback.oldSoundsEnabled);
+            break;
+        case MoviePlayCommandKind::DisableAccelerators:
+            Pmcc()->DisableAccel();
+            break;
+        case MoviePlayCommandKind::QueryOpening:
+            reply.value = Iscen() == 0 && Pscen()->Nfrm() == Pscen()->NfrmFirst();
+            break;
+        case MoviePlayCommandKind::RefreshOpening:
             _pmcc->UpdateScrollbars();
             InvalViews();
             vpappb->UpdateMarked();
+            break;
+        case MoviePlayCommandKind::BackgroundSound:
+            Pscen()->PlayBkgdSnd();
+            break;
+        case MoviePlayCommandKind::DispatchSounds:
+            if (command.flag)
+                _pmsq->PlayMsq();
+            else
+                _pmsq->FlushMsq();
+            break;
+        case MoviePlayCommandKind::Finished:
+            break;
         }
-
-        Pscen()->PlayBkgdSnd();
+        evaluator.Complete(reply);
     }
-
-    // Play sound queue
-    if (FSoundsEnabled())
-    {
-        _pmsq->PlayMsq();
-    }
-    else
-    {
-        _pmsq->FlushMsq();
-    }
-    return;
 }
 
 /***************************************************************************
@@ -4177,10 +3878,8 @@ bool Movie::FCmdAlarm(PCommand pcmd)
 
     Command cmd;
 
-    if (FIdleSeen() || vpcex->PgobTracking() != pvNil)
+    if (_playback.FShouldRender(FIdleSeen() ? false : vpcex->PgobTracking() != pvNil))
     {
-
-        SetFIdleSeen(fFalse);
 
         ClearPb(&cmd, size(Command));
 
@@ -4204,11 +3903,11 @@ bool Movie::FCmdAlarm(PCommand pcmd)
             Pmcc()->EnableAccel();
             SetFPlaying(fFalse);
             SetFStopPlaying(fFalse);
-            SetFSoundsEnabled(_fOldSoundsEnabled);
+            SetFSoundsEnabled(_playback.oldSoundsEnabled);
             _clok.RemoveCmh(this);
-            _fPausing = fFalse;
-            _fScrolling = fFalse;
-            _wit = witNil;
+            _playback.pausing = fFalse;
+            _playback.scrolling = fFalse;
+            _playback.wait = witNil;
             pmvu = (PMovieView)PddgGet(0);
             pmvu->PauseUntilClick(fFalse);
             Pscen()->Enable(fscenTboxes);
@@ -4238,6 +3937,56 @@ bool Movie::FCmdAlarm(PCommand pcmd)
     return (fTrue);
 }
 
+// Runtime stop effects retain their original cleanup and restoration order.
+void Movie::_StopRenderPlayback(PMovieView view)
+{
+    AssertThis(0);
+    Pmcc()->EnableAccel();
+    _clok.Stop();
+    _clok.RemoveCmh(this);
+    _playback.pausing = fFalse;
+    _playback.scrolling = fFalse;
+    _playback.wait = witNil;
+    SetFStopPlaying(fFalse);
+    SetFPlaying(fFalse);
+    SetFSoundsEnabled(_playback.oldSoundsEnabled);
+    view->PauseUntilClick(fFalse);
+    if (Pscen() != pvNil)
+    {
+        Pscen()->Enable(fscenTboxes);
+        Pscen()->Disable(fscenPauses);
+    }
+    else
+        Assert(_iscen == ivNil, "Bogus scene state");
+
+    //
+    // Update views and scroll bars
+    //
+    InvalViewsAndScb();
+
+    //
+    // Clean up anything else
+    //
+    if (Pscen() != pvNil)
+        Pscen()->StopPlaying();
+    vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, fFalse);
+
+    //
+    // Set sound queue state
+    //
+    _pmsq->SndOnShort();
+
+    Pmcc()->PlayStopped();
+    vpsndm->StopAll();
+
+    // if we were fading, then restore sound volume
+    if (_playback.fadeOriginalVolume)
+    {
+        vpsndm->SetVlm(_playback.fadeOriginalVolume);
+        _playback.fadeOriginalVolume = 0;
+    }
+}
+
 /***************************************************************************
  *
  * Handle rendering a frame.
@@ -4260,329 +4009,111 @@ bool Movie::FCmdRender(PCommand pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
-
-    PMovieView pmvu;
-    PTBOX ptbox;
-    long itbox;
-    ulong tsCur = TsCurrent();
-
-    pmvu = (PMovieView)PddgGet(0);
-    AssertPo(pmvu, 0);
-
-    if (FStopPlaying())
+    ulong started = TsCurrent();
+    PMovieView view = (PMovieView)PddgGet(0);
+    AssertPo(view, 0);
+    MoviePlaybackEvaluator evaluator(_playback, started);
+    for (;;)
     {
-    LStopPlaying:
-
-        Pmcc()->EnableAccel();
-        _clok.Stop();
-        _clok.RemoveCmh(this);
-        _fPausing = fFalse;
-        _fScrolling = fFalse;
-        _wit = witNil;
-        SetFStopPlaying(fFalse);
-        SetFPlaying(fFalse);
-        SetFSoundsEnabled(_fOldSoundsEnabled);
-        pmvu->PauseUntilClick(fFalse);
-        if (Pscen() != pvNil)
+        MoviePlaybackCommand command = evaluator.Next();
+        if (command.kind == MoviePlaybackCommandKind::Finished)
+            return true;
+        MoviePlaybackReply reply;
+        switch (command.kind)
         {
+        case MoviePlaybackCommandKind::Stop:
+            _StopRenderPlayback(view);
+            break;
+        case MoviePlaybackCommandKind::ReadVolume:
+            reply.number = vpsndm->VlmCur();
+            break;
+        case MoviePlaybackCommandKind::SetVolume:
+            vpsndm->SetVlm(command.value);
+            break;
+        case MoviePlaybackCommandKind::ScrollText:
+            for (long index = 0;; ++index)
+            {
+                PTBOX caption = Pscen()->PtboxFromItbox(index);
+                AssertNilOrPo(caption, 0);
+                if (caption == pvNil)
+                    break;
+                if (caption->FNeedToScroll())
+                {
+                    caption->Scroll();
+                    _playback.scrolling = true;
+                    reply.value = true;
+                }
+            }
+            break;
+        case MoviePlaybackCommandKind::PresentFrame:
             Pscen()->Enable(fscenTboxes);
-            Pscen()->Disable(fscenPauses);
-        }
-        else
-            Assert(_iscen == ivNil, "Bogus scene state");
-
-        //
-        // Update views and scroll bars
-        //
-        InvalViewsAndScb();
-
-        //
-        // Clean up anything else
-        //
-        if (Pscen() != pvNil)
-            Pscen()->StopPlaying();
-        vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, fFalse);
-
-        //
-        // Set sound queue state
-        //
-        _pmsq->SndOnShort();
-
-        Pmcc()->PlayStopped();
-        vpsndm->StopAll();
-
-        // if we were fading, then restore sound volume
-        if (_vlmOrg)
-        {
-            vpsndm->SetVlm(_vlmOrg);
-            _vlmOrg = 0;
-        }
-
-        return (fTrue);
-    }
-
-    //
-    // if _vlmOrg is nonzero, then we are in the process of fading
-    //
-    if (_vlmOrg)
-    {
-        long vlm;
-
-        // get the current volume
-        vlm = vpsndm->VlmCur();
-
-        // massage it
-        vlm -= _vlmOrg / (kdtsVlmFade * 4); // kdtsVolFade seconds * 4 volume changes a second = total number deltas
-
-        // if new volume is below 0, then we are done
-        if (vlm <= 0)
-        {
-            SetFStopPlaying(fTrue);
-            vpsndm->SetVlm(0);
-            goto LStopPlaying;
-        }
-
-        // set the volume to new level
-        vpsndm->SetVlm(vlm);
-
-        if (!_clok.FSetAlarm(kdtimVlmFade, this))
-        {
-            goto LStopPlaying;
-        }
-
-        return fTrue;
-    }
-
-    if (_fScrolling)
-    {
-        //
-        // Do next text box scroll.
-        //
-        _fScrolling = fFalse;
-
-        for (itbox = 0;; itbox++)
-        {
-            ptbox = Pscen()->PtboxFromItbox(itbox);
-            AssertNilOrPo(ptbox, 0);
-            if (ptbox == pvNil)
-            {
-                break;
-            }
-
-            if (ptbox->FNeedToScroll())
-            {
-                ptbox->Scroll();
-                _fScrolling = fTrue;
-            }
-        }
-
-        if (_fScrolling && !_clok.FSetAlarm(kdtsScrolling, this))
-        {
-            _fScrolling = fFalse;
-            goto LStopPlaying;
-        }
-        else if (_fScrolling)
-        {
-            return fTrue;
-        }
-        else
-        {
-            goto LCheckForPause;
-        }
-    }
-
-    //
-    // If we are not pausing, then start the stuff for this frame
-    //
-    if (!_fPausing)
-    {
-
-        //
-        // Now do all text boxes.
-        //
-        Pscen()->Enable(fscenTboxes);
-        Pscen()->Disable(fscenActrs);
-        if (!Pscen()->FGotoFrm(Pscen()->Nfrm()))
-        {
+            Pscen()->Disable(fscenActrs);
+            reply.success = Pscen()->FGotoFrm(Pscen()->Nfrm());
             Pscen()->Enable(fscenActrs);
-            goto LStopPlaying;
-        }
-        Pscen()->Enable(fscenActrs);
-
-        //
-        // Draw the previous frame
-        //
-        MarkViews();
-
-        //
-        // Update scroll bars
-        //
-        _pmcc->UpdateScrollbars();
-
-        //
-        // Play outstanding sounds
-        //
-        if (FSoundsEnabled())
-        {
-            _pmsq->PlayMsq();
-        }
-        else
-        {
-            _pmsq->FlushMsq();
-        }
-
-        //
-        // Flush to the screen
-        //
-        vpappb->UpdateMarked();
-
-        //
-        // Check for any text box scrolling
-        //
-        //
-        for (itbox = 0;; itbox++)
-        {
-            ptbox = Pscen()->PtboxFromItbox(itbox);
-            AssertNilOrPo(ptbox, 0);
-            if (ptbox == pvNil)
-            {
-                break;
-            }
-
-            if (ptbox->FNeedToScroll())
-            {
-                if (!_clok.FSetAlarm(kdtsScrolling, this))
-                {
-                    goto LStopPlaying;
-                }
-
-                _fScrolling = fTrue;
-                return (fTrue);
-            }
-        }
-
-    LCheckForPause:
-
-        //
-        // Check for a pause
-        //
-        switch (_wit)
-        {
-        case witUntilClick:
-            _wit = witNil;
-            _fPausing = fTrue;
-            pmvu->PauseUntilClick(fTrue);
-            return (fTrue);
-        case witUntilSnd:
-            if (_pmsq->FPlaying(fFalse))
-            {
-                _fPausing = fTrue;
-                if (!_clok.FSetAlarm(0, this))
-                {
-                    goto LStopPlaying;
-                }
-                return (fTrue);
-            }
-
-            _fPausing = fFalse;
-            _wit = witNil;
             break;
-
-        case witForTime:
-            _wit = witNil;
-            _fPausing = fTrue;
-            _clok.FSetAlarm(_dts, this);
-            return (fTrue);
-        case witNil:
-            _fPausing = fFalse;
+        case MoviePlaybackCommandKind::DisplayFrame:
+            MarkViews();
+            _pmcc->UpdateScrollbars();
+            if (FSoundsEnabled())
+                _pmsq->PlayMsq();
+            else
+                _pmsq->FlushMsq();
+            vpappb->UpdateMarked();
             break;
-        default:
-            Bug("Bad Pause type");
-        }
-    }
-    else
-    {
-        if (_wit == witUntilSnd)
-        {
-            goto LCheckForPause;
-        }
-        else
-        {
-            pmvu->PauseUntilClick(fFalse);
-            _fPausing = fFalse;
-        }
-    }
-
-    //
-    // Advance everything to the next frame.
-    //     Account for time spent between beginning of this routine and
-    //     here.
-    //
-    if (!_clok.FSetAlarm(LwMax(0, kdtimFrame - LwMulDivAway((TsCurrent() - tsCur), kdtimSecond, kdtsSecond)), this, 0,
-                         fTrue))
-    {
-        goto LStopPlaying;
-    }
-
-    Pscen()->Disable(fscenTboxes);
-
-    if (Pscen()->Nfrm() == Pscen()->NfrmLast())
-    {
-
-        if (Iscen() == (Cscen() - 1))
-        {
-            // disable volume fade
-
-            // // since this is the last scene/last frame, we want to
-            // // fade out music, by setting _vlmOrg we turn off rendering and fade out
-            // // music until VlmCur is 0, at which point we go into stop state.
-
-            // if (!vpsndm->FPlayingAll()) // there are no sounds playing
-            //     SetFStopPlaying(fTrue); // there is nothing to fade
-            // else
-            // {
-            //     _vlmOrg = vpsndm->VlmCur(); // get the current volume
-            //     if ((0 == _vlmOrg))         // if there is volume to fade with
-                    SetFStopPlaying(fTrue); // there is nothing to fade
-            // }
-            return (fTrue);
-        }
-
-        _trans = Pscen()->Trans();
-
-        if (FSwitchScen(Iscen() + 1))
-        {
+        case MoviePlaybackCommandKind::QueryScrolling:
+            for (long index = 0;; ++index)
+            {
+                PTBOX caption = Pscen()->PtboxFromItbox(index);
+                AssertNilOrPo(caption, 0);
+                if (caption == pvNil)
+                    break;
+                if (caption->FNeedToScroll())
+                {
+                    reply.value = true;
+                    break;
+                }
+            }
+            break;
+        case MoviePlaybackCommandKind::SetClickPause:
+            view->PauseUntilClick(command.flag);
+            break;
+        case MoviePlaybackCommandKind::QuerySound:
+            reply.value = _pmsq->FPlaying(false);
+            break;
+        case MoviePlaybackCommandKind::ReadTime:
+            reply.timestamp = TsCurrent();
+            break;
+        case MoviePlaybackCommandKind::SetAlarm:
+            reply.success = _clok.FSetAlarm(command.value, this, 0, command.flag);
+            break;
+        case MoviePlaybackCommandKind::ReadPosition:
+            Pscen()->Disable(fscenTboxes);
+            reply.position = {static_cast<LegacyLong>(Iscen()), static_cast<LegacyLong>(Cscen()),
+                              static_cast<LegacyLong>(Pscen()->Nfrm()), static_cast<LegacyLong>(Pscen()->NfrmLast()),
+                              Pscen()->Trans()};
+            break;
+        case MoviePlaybackCommandKind::SwitchScene:
+            reply.success = FSwitchScen(command.value);
+            break;
+        case MoviePlaybackCommandKind::ReplayScene:
             AssertPo(Pscen(), 0);
             Pscen()->Disable(fscenTboxes);
             Pscen()->Enable(fscenPauses);
-            if (!Pscen()->FReplayFrm(fscenPauses | fscenSounds | fscenActrs))
-            {
-                SetFStopPlaying(fTrue);
-                return (fTrue);
-            }
-
-            Pscen()->PlayBkgdSnd();
+            reply.success = Pscen()->FReplayFrm(fscenPauses | fscenSounds | fscenActrs);
+            if (reply.success)
+                Pscen()->PlayBkgdSnd();
+            break;
+        case MoviePlaybackCommandKind::AdvanceFrame:
+            reply.success = Pscen()->FGotoFrm(command.value);
+            break;
+        case MoviePlaybackCommandKind::RenderWorld:
+            Pbwld()->Render();
+            break;
+        case MoviePlaybackCommandKind::Finished:
+            break;
         }
-        else
-        {
-            SetFStopPlaying(fTrue);
-            return (fTrue);
-        }
+        evaluator.Complete(reply);
     }
-    else
-    {
-
-        if (!Pscen()->FGotoFrm(Pscen()->Nfrm() + 1))
-        {
-            SetFStopPlaying(fTrue);
-            return (fTrue);
-        }
-    }
-
-    Pbwld()->Render();
-    _cnfrm++;
-
-    return (fTrue);
 }
 
 /***************************************************************************
@@ -4700,7 +4231,8 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
     AssertVarMem(pcmvi);
     AssertNilOrPo(pcmvi->pglscend, 0);
 
-    long iscen = 0, iscenMac = Cscen(), imvied;
+    long iscen = 0, iscenMac = Cscen();
+    LegacyLong imvied;
     SceneDescriptor scend;
     MovieDescriptor mvied;
     PChunkyFile pcfl;
@@ -4708,7 +4240,7 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
     scend.imvied = ivNil;
 
 #ifdef BUG1929
-    /* Ensure that _pcrfAutoSave points to the temp file, not the original movie file */
+    /* Ensure that _data.resources points to the temp file, not the original movie file */
     if (!_FUseTempFile())
         goto LFail;
 #endif // BUG1929
@@ -4726,9 +4258,9 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
         goto LFail;
     }
 
-    mvied.pcrf = _pcrfAutoSave;
-    mvied.cno = _cno;
-    mvied.aridLim = _aridLim;
+    mvied.pcrf = _data.resources;
+    mvied.cno = _data.movieNumber;
+    mvied.aridLim = _data.actorIdLimit;
     if (!pcmvi->pglmvied->FAdd(&mvied, &imvied))
         goto LFail;
     scend.imvied = imvied;
@@ -4743,7 +4275,8 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
         ChildChunkIdentification kid;
 
         /* Get ChunkNumber */
-        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Not enough scene chunks for movie");
+        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
+                 "Not enough scene chunks for movie");
         scend.cno = kid.cki.cno;
         scend.chid = iscen;
         scend.pmbmp = pvNil;
@@ -4826,8 +4359,8 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
     long imvied, imviedMac = pcmvi->pglmvied->IvMac();
     long aridMin = 0;
     ChildChunkID chidScen = 0;
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
-    PChunkyResourceFile pcrf = _pcrfAutoSave;
+    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyResourceFile pcrf = _data.resources;
     PDynamicArray pglmviedNew;
 
     pglmviedNew = pcmvi->pglmvied->PglDup();
@@ -4854,7 +4387,7 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
         else
         {
             Assert(mvied.pcrf == pcrf, "Invalid DynamicArray of MVIEDs");
-            Assert(mvied.cno == _cno, "Invalid DynamicArray of MVIEDs");
+            Assert(mvied.cno == _data.movieNumber, "Invalid DynamicArray of MVIEDs");
         }
         aridMin += mvied.aridLim;
     }
@@ -4884,7 +4417,7 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
             {
                 PScene pscen;
 
-                if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgScen, cnoScen, chidScen++))
+                if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, chidScen++))
                     goto LFail;
                 if (!_FAdoptMsndInMvie(pcfl, cnoScen))
                     goto LFail;
@@ -4922,13 +4455,13 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
                     pscen->RemActrsFromRollCall(fTrue);
                     ReleasePpo(&pscen);
                 }
-                pcfl->DeleteChild(kctgMvie, _cno, kctgScen, scend.cno, scend.chid);
+                pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, scend.cno, scend.chid);
             }
             else
             {
                 /* Set the ChildChunkID to be the current scene number */
                 cnoScen = scend.cno;
-                pcfl->ChangeChid(kctgMvie, _cno, kctgScen, scend.cno, scend.chid, chidScen++);
+                pcfl->ChangeChid(kctgMvie, _data.movieNumber, kctgScen, scend.cno, scend.chid, chidScen++);
             }
         }
 
@@ -4961,10 +4494,10 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
         }
     }
 
-    _cscen = chidScen;
-    _aridLim = aridMin;
+    _data.sceneCount = chidScen;
+    _data.actorIdLimit = aridMin;
     SetDirty();
-    if (_cscen == 0)
+    if (_data.sceneCount == 0)
     {
         Assert(_iscen == ivNil, 0);
         _pmcc->SceneNuked();
@@ -4974,13 +4507,13 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 
 #ifdef DEBUG
     {
-        long ckid = pcfl->Ckid(kctgMvie, _cno);
+        long ckid = pcfl->Ckid(kctgMvie, _data.movieNumber);
         ChildChunkIdentification kid;
         ChildChunkID chidLast = chidNil;
 
         for (long ikid = 0; ikid < ckid; ikid++)
         {
-            if (pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
+            if (pcfl->FGetKid(kctgMvie, _data.movieNumber, ikid, &kid))
             {
                 if (kid.cki.ctg == kctgScen)
                 {
@@ -5034,11 +4567,11 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     AssertThis(0);
 
     long imactr, imactrMac, icnoMac = 0;
-    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _data.resources->Pcfl();
     PStringTable_GST pgstmactr = pvNil;
 
     /* Update the roll call StringTable_GST */
-    if (!FReadRollCall(_pcrfAutoSave, cno, &pgstmactr))
+    if (!FReadRollCall(_data.resources, cno, &pgstmactr))
     {
         pgstmactr = pvNil;
         goto LFail;
@@ -5054,14 +4587,14 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 
         mactr.arid += aridMin;
         mactr.cactRef = 0;
-        if (!_pgstmactr->FAddStn(&stn, &mactr))
+        if (!_data.actors->FAddStn(&stn, &mactr))
             goto LFail;
     }
 
     /* Remap all the arids on the file */
     if (aridMin > 0)
     {
-        ulong grfcge, grfcgeIn = fcgeNil;
+        LegacyUlong grfcge, grfcgeIn = fcgeNil;
         PDynamicArray pglcno;
         ChunkIdentification ckiParLast = {ctgNil, cnoNil}, ckiPar;
         ChildChunkIdentification kid;
@@ -5133,12 +4666,12 @@ LFail:
         RollCallActorEntry mactr;
 
         /* Remove added entries to the movie's roll call */
-        imactrMac = _pgstmactr->IvMac();
+        imactrMac = _data.actors->IvMac();
         while (imactr--)
         {
-            _pgstmactr->GetExtra(--imactrMac, &mactr);
+            _data.actors->GetExtra(--imactrMac, &mactr);
             vptagm->CloseTag(&mactr.tagTmpl);
-            _pgstmactr->Delete(imactrMac);
+            _data.actors->Delete(imactrMac);
             pgstmactr->Delete(imactr);
         }
 
@@ -5486,7 +5019,7 @@ void Movie::GetName(PString pstnTitle)
     AssertThis(0);
     AssertPo(pstnTitle, 0);
 
-    *pstnTitle = _stnTitle;
+    *pstnTitle = _data.title;
 }
 
 /******************************************************************************
@@ -5500,7 +5033,7 @@ void Movie::ResetTitle(void)
 
     Filename fni;
 
-    _stnTitle.SetNil();
+    _data.title.SetNil();
     _SetTitle(FGetFni(&fni) ? &fni : pvNil);
 }
 
@@ -5573,7 +5106,7 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
         CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(Color), pglclrBkgd->IvMac()));
     }
 
-    switch (_trans)
+    switch (_playback.transition)
     {
     case transBlack:
         pgnvDst->FillRc(prcDst, kacrBlack);
@@ -5605,7 +5138,7 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
     ReleasePpo(&pglclrSystem);
     ReleasePpo(&pglclrBkgd);
 
-    _trans = transNil;
+    _playback.transition = transNil;
 }
 
 /***************************************************************************
@@ -5658,7 +5191,7 @@ long Movie::LwQueryLocation(long lwType, long lwId)
 
     PActor pactr;
     PTBOX ptbox;
-    long xp, yp;
+    LegacyLong xp, yp;
     RC rc;
 
     if (Pscen() == pvNil)
@@ -5773,10 +5306,10 @@ bool Movie::FUnusedSndsUser(bool *pfHaveValid)
     if (pfHaveValid != pvNil)
         *pfHaveValid = fFalse;
 
-    if (pvNil == _pcrfAutoSave)
+    if (pvNil == _data.resources)
         return fFalse;
 
-    pcfl = _pcrfAutoSave->Pcfl();
+    pcfl = _data.resources->Pcfl();
     ccki = pcfl->CckiCtg(kctgMsnd);
     for (icki = 0; icki < ccki; icki++)
     {
@@ -5822,31 +5355,31 @@ void Movie::_SetTitle(PFilename pfni)
 
     if (pfni == pvNil)
     {
-        if (_stnTitle.Cch() == 0)
+        if (_data.title.Cch() == 0)
         {
-            Pmcc()->GetStn(idsEngineDefaultTitle, &_stnTitle);
-            Pmcc()->UpdateTitle(&_stnTitle);
+            Pmcc()->GetStn(idsEngineDefaultTitle, &_data.title);
+            Pmcc()->UpdateTitle(&_data.title);
         }
         return;
     }
 
-    pfni->GetLeaf(&_stnTitle);
+    pfni->GetLeaf(&_data.title);
 
-    for (pch = _stnTitle.Psz() + _stnTitle.Cch(); (pch > _stnTitle.Psz()) && (*pch != ChLit('.')); pch--)
+    for (pch = _data.title.Psz() + _data.title.Cch(); (pch > _data.title.Psz()) && (*pch != ChLit('.')); pch--)
     {
     }
 
     if (*pch == ChLit('.'))
     {
-        _stnTitle.Delete(pch - _stnTitle.Psz());
+        _data.title.Delete(pch - _data.title.Psz());
     }
 
-    if (_stnTitle.Cch() == 0)
+    if (_data.title.Cch() == 0)
     {
-        Pmcc()->GetStn(idsEngineDefaultTitle, &_stnTitle);
+        Pmcc()->GetStn(idsEngineDefaultTitle, &_data.title);
     }
 
-    Pmcc()->UpdateTitle(&_stnTitle);
+    Pmcc()->UpdateTitle(&_data.title);
 }
 
 //
@@ -6324,8 +5857,7 @@ void MovieView::WarpCursToCenter(void)
     _dzrPrev = rZero;
     pt.xp = _xpPrev;
     pt.yp = _ypPrev;
-    MapPt(&pt, cooLocal, cooGlobal);
-    vpappb->PositionCurs(pt.xp, pt.yp);
+    vpappb->PositionCurs(this, pt.xp, pt.yp);
 }
 
 /***************************************************************************
@@ -6347,8 +5879,7 @@ void MovieView::WarpCursToActor(PActor pactr)
     PT pt;
 
     pactr->GetCenter(&pt.xp, &pt.yp);
-    MapPt(&pt, cooLocal, cooGlobal);
-    vpappb->PositionCurs(pt.xp, pt.yp);
+    vpappb->PositionCurs(this, pt.xp, pt.yp);
 }
 
 /***************************************************************************
@@ -6454,6 +5985,9 @@ bool MovieView::_fShowPoseReadout = fFalse;
  **************************************************************************/
 void MovieView::SlowKeyboardRepeat(void)
 {
+#ifdef KAUAI_SDL3
+    vpappb->SetSlowKeyRepeat(true);
+#else
     if (_fKbdDelayed)
         return;
 #ifdef WIN
@@ -6482,6 +6016,7 @@ void MovieView::SlowKeyboardRepeat(void)
     RawRtn();
 #endif
     _fKbdDelayed = fTrue;
+#endif
 }
 
 /***************************************************************************
@@ -6497,6 +6032,9 @@ void MovieView::SlowKeyboardRepeat(void)
  **************************************************************************/
 void MovieView::RestoreKeyboardRepeat(void)
 {
+#ifdef KAUAI_SDL3
+    vpappb->SetSlowKeyRepeat(false);
+#else
     if (!_fKbdDelayed)
         return;
 #ifdef WIN
@@ -6515,6 +6053,7 @@ void MovieView::RestoreKeyboardRepeat(void)
     RawRtn();
 #endif
     _fKbdDelayed = fFalse;
+#endif
 }
 
 /***************************************************************************
@@ -6553,11 +6092,7 @@ void MovieView::StartPlaceActor(bool fEntireScene)
     // middle of the cursor tracking, (if tracking with mouse btn up). Note,
     // this call clips the cursor movement to an area on the screen, so we are
     // assuming there is no way for the capture window to move during tracking.
-#ifdef WIN
-    RECT rectCapture;
-    GetWindowRect(HwndContainer(), &rectCapture);
-    ClipCursor(&rectCapture);
-#endif // WIN
+    vpappb->ConfineCurs(this);
 
     _fMouseDownSeen = fFalse;
     _tsLastSample = TsCurrent();
@@ -8418,9 +7953,7 @@ LEndTracking:
     vpcex->EndMouseTracking();
 
     // Remove any cursor clipping we may have begun when mouse tracking started.
-#ifdef WIN
-    ClipCursor(NULL);
-#endif // WIN
+    vpappb->ConfineCurs(nullptr);
 
     // Refresh the pose readout once at mouseup. BRender's per-frame dirty
     // region only covers the actor bounds, so the top-left readout strip
@@ -9296,7 +8829,7 @@ bool MovieView::FCmdKey(PCMD_KEY pcmd)
  *  None.
  *
  **************************************************************************/
-void MovieView::AssertValid(ulong grf)
+void MovieView::AssertValid(LegacyUlong grf)
 {
     MovieView_PAR::AssertValid(fobjAllocated);
 }
@@ -9490,7 +9023,7 @@ void MovieSceneUndo::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MovieSceneUndo::AssertValid(ulong grf)
+void MovieSceneUndo::AssertValid(LegacyUlong grf)
 {
     AssertNilOrPo(_pscen, 0);
 }
@@ -9508,7 +9041,7 @@ void MovieSceneUndo::AssertValid(ulong grf)
  *  None.
  *
  **************************************************************************/
-void MovieUndo::AssertValid(ulong grf)
+void MovieUndo::AssertValid(LegacyUlong grf)
 {
     MovieUndo_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);

@@ -15,7 +15,7 @@ extern "C"
 {
 #endif
 
-    typedef unsigned long int br_colour;
+    typedef br_uint_32 br_colour;
 
 #define BR_COLOUR_RGB(r, g, b) ((((unsigned int)(r)) << 16) | (((unsigned int)(g)) << 8) | ((unsigned int)(b)))
 

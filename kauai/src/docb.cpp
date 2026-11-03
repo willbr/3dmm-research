@@ -372,7 +372,7 @@ bool DocumentBase::FGetFniSave(Filename *pfni)
     return FGetFniSaveMacro(pfni, 'TEXT',
                             "\x9"
                             "Save As: ",
-                            "", PszLit("All files\0*.*\0"), vwig.hwndApp);
+                            "", PszLit("All files\0*.*\0"), (GraphicsObject::PgobScreen() ? GraphicsObject::PgobScreen()->Hwnd() : hNil));
 }
 
 /***************************************************************************
@@ -784,7 +784,7 @@ bool DocumentBase::FGetFormat(long cls, PDocumentBase *ppdocb)
 /***************************************************************************
     Assert validity of a DocumentBase
 ***************************************************************************/
-void DocumentBase::AssertValid(ulong grfdocb)
+void DocumentBase::AssertValid(LegacyUlong grfdocb)
 {
     long ipddg;
     PDocumentDisplayGraphicsObject pddg;
@@ -1307,7 +1307,7 @@ void DocumentDisplayGraphicsObject::_NewRc(void)
 /***************************************************************************
     Assert the validity of a DocumentDisplayGraphicsObject.
 ***************************************************************************/
-void DocumentDisplayGraphicsObject::AssertValid(ulong grfobj)
+void DocumentDisplayGraphicsObject::AssertValid(LegacyUlong grfobj)
 {
     DocumentDisplayGraphicsObject_PAR::AssertValid(grfobj | fobjAllocated);
     AssertPo(_pdocb, grfobj & fobjAssertFull);
@@ -1521,7 +1521,7 @@ bool DocumentMainWindow::FAddDsg(PDocumentScrollGraphicsObject pdsg, PDocumentSc
     AssertIn(rel, 0, krelOne + 1);
     DSED dsed;
     DSED *qdsed;
-    long idsedSplit, idsedPar, idsedEdge, idsedNew;
+    LegacyLong idsedSplit, idsedPar, idsedEdge, idsedNew;
 
     ClearPb(&dsed, size(dsed));
     dsed.idsedLeft = ivNil;
@@ -1988,7 +1988,7 @@ tribool DocumentMainWindow::TVert(PDocumentScrollGraphicsObject pdsg)
 /***************************************************************************
     Assert the validity of the DocumentMainWindow.
 ***************************************************************************/
-void DocumentMainWindow::AssertValid(ulong grfobj)
+void DocumentMainWindow::AssertValid(LegacyUlong grfobj)
 {
     long cdsed, idsed;
     DSED dsed;
@@ -2228,7 +2228,7 @@ bool DocumentScrollGraphicsObject::FCmdScroll(PCommand pcmd)
 /***************************************************************************
     Assert the validity of the DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DocumentScrollGraphicsObject::AssertValid(ulong grfobj)
+void DocumentScrollGraphicsObject::AssertValid(LegacyUlong grfobj)
 {
     PDocumentMainWindow pdmw;
 

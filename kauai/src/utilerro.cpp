@@ -33,9 +33,9 @@ ErrorStack::ErrorStack(void)
     kcerdMax - 1 entries down by one (and lose the bottom entry).
 ***************************************************************************/
 #ifdef DEBUG
-void ErrorStack::Push(long erc, PSZS pszsFile, long lwLine)
+void ErrorStack::Push(LegacyLong erc, PSZS pszsFile, LegacyLong lwLine)
 #else  //! DEBUG
-void ErrorStack::Push(long erc)
+void ErrorStack::Push(LegacyLong erc)
 #endif //! DEBUG
 {
     AssertThis(0);
@@ -75,7 +75,7 @@ LDone:
 /***************************************************************************
     Pop the top error from the stack.  Return fFalse if underflow.
 ***************************************************************************/
-bool ErrorStack::FPop(long *perc)
+bool ErrorStack::FPop(LegacyLong *perc)
 {
     AssertThis(0);
     AssertNilOrVarMem(perc);
@@ -113,7 +113,7 @@ void ErrorStack::Clear(void)
 /***************************************************************************
     Return the size of the error stack.
 ***************************************************************************/
-long ErrorStack::Cerc(void)
+LegacyLong ErrorStack::Cerc(void)
 {
     AssertThis(0);
     return _cerd;
@@ -122,10 +122,10 @@ long ErrorStack::Cerc(void)
 /***************************************************************************
     See if the given error code is on the stack.
 ***************************************************************************/
-bool ErrorStack::FIn(long erc)
+bool ErrorStack::FIn(LegacyLong erc)
 {
     AssertThis(0);
-    long ierd;
+    LegacyLong ierd;
 
     _mutx.Enter();
     for (ierd = 0; ierd < _cerd; ierd++)
@@ -143,10 +143,10 @@ bool ErrorStack::FIn(long erc)
 /***************************************************************************
     Return the i'th entry.
 ***************************************************************************/
-long ErrorStack::ErcGet(long ierc)
+LegacyLong ErrorStack::ErcGet(LegacyLong ierc)
 {
     AssertThis(0);
-    long erc;
+    LegacyLong erc;
 
     _mutx.Enter();
     if (!::FIn(ierc, 0, _cerd))
@@ -161,10 +161,10 @@ long ErrorStack::ErcGet(long ierc)
 /***************************************************************************
     Flush all instances of the given error code from the error stack.
 ***************************************************************************/
-void ErrorStack::Flush(long erc)
+void ErrorStack::Flush(LegacyLong erc)
 {
     AssertThis(0);
-    long ierdSrc, ierdDst;
+    LegacyLong ierdSrc, ierdDst;
 
     _mutx.Enter();
     for (ierdSrc = ierdDst = 0; ierdSrc < _cerd; ierdSrc++)
@@ -184,7 +184,7 @@ void ErrorStack::Flush(long erc)
 /***************************************************************************
     Assert the error stack is valid.
 ***************************************************************************/
-void ErrorStack::AssertValid(ulong grf)
+void ErrorStack::AssertValid(LegacyUlong grf)
 {
     ErrorStack_PAR::AssertValid(0);
     AssertIn(_cerd, 0, kcerdMax + 1);

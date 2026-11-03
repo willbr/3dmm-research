@@ -27,7 +27,7 @@ const short kboOther = 0x0100;
     Basic types
 ****************************************/
 
-typedef long FilePosition;
+typedef LegacyLong FilePosition;
 
 enum
 {
@@ -39,7 +39,7 @@ enum
     ffilTemp = 0x10,
     ffilMark = 0x20
 };
-const ulong kgrffilPerm = ffilWriteEnable | ffilDenyWrite | ffilDenyRead;
+const LegacyUlong kgrffilPerm = ffilWriteEnable | ffilDenyWrite | ffilDenyRead;
 
 // file error levels - in order of severity
 enum
@@ -74,20 +74,16 @@ class FileObject : public FileObject_PAR
     bool _fOpen : 1;
     bool _fEverOpen : 1;
     bool _fWrote : 1;
-    ulong _grffil; // permissions, mark and temp flags
-    long _el;
+    LegacyUlong _grffil; // permissions, mark and temp flags
+    LegacyLong _el;
 
-#ifdef MAC
-    short _fref;
-#elif defined(WIN)
-    HANDLE _hfile;
-#endif // WIN
+    KauaiFiles::FileHandle _hfile;
 
     // private methods
-    FileObject(Filename *pfni, ulong grffil);
+    FileObject(Filename *pfni, LegacyUlong grffil);
     ~FileObject(void);
 
-    bool _FOpen(bool fCreate, ulong grffil);
+    bool _FOpen(bool fCreate, LegacyUlong grffil);
     void _Close(bool fFinal = fFalse);
     void _SetFpPos(FilePosition fp);
 
@@ -106,8 +102,8 @@ class FileObject : public FileObject_PAR
     {
         return _pfilFirst;
     }
-    static PFileObject PfilOpen(Filename *pfni, ulong grffil = ffilDenyWrite);
-    static PFileObject PfilCreate(Filename *pfni, ulong grffil = ffilWriteEnable | ffilDenyWrite);
+    static PFileObject PfilOpen(Filename *pfni, LegacyUlong grffil = ffilDenyWrite);
+    static PFileObject PfilCreate(Filename *pfni, LegacyUlong grffil = ffilWriteEnable | ffilDenyWrite);
     static PFileObject PfilCreateTemp(Filename *pfni = pvNil);
     static PFileObject PfilFromFni(Filename *pfni);
 
@@ -117,16 +113,16 @@ class FileObject : public FileObject_PAR
         _grffil |= ffilMark;
     }
 
-    long ElError(void)
+    LegacyLong ElError(void)
     {
         return _el;
     }
-    void SetEl(long el = elNil)
+    void SetEl(LegacyLong el = elNil)
     {
         _el = el;
     }
-    bool FSetGrffil(ulong grffil, ulong grffilMask = ~0);
-    ulong GrffilCur(void)
+    bool FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask = ~0);
+    LegacyUlong GrffilCur(void)
     {
         return _grffil;
     }
@@ -143,8 +139,8 @@ class FileObject : public FileObject_PAR
 
     bool FSetFpMac(FilePosition fp);
     FilePosition FpMac(void);
-    bool FReadRgb(void *pv, long cb, FilePosition fp);
-    bool FReadRgbSeq(void *pv, long cb, FilePosition *pfp)
+    bool FReadRgb(void *pv, LegacyLong cb, FilePosition fp);
+    bool FReadRgbSeq(void *pv, LegacyLong cb, FilePosition *pfp)
     {
         AssertVarMem(pfp);
         if (!FReadRgb(pv, cb, *pfp))
@@ -152,8 +148,8 @@ class FileObject : public FileObject_PAR
         *pfp += cb;
         return fTrue;
     }
-    bool FWriteRgb(void *pv, long cb, FilePosition fp);
-    bool FWriteRgbSeq(void *pv, long cb, FilePosition *pfp)
+    bool FWriteRgb(void *pv, LegacyLong cb, FilePosition fp);
+    bool FWriteRgbSeq(void *pv, LegacyLong cb, FilePosition *pfp)
     {
         AssertVarMem(pfp);
         if (!FWriteRgb(pv, cb, *pfp))
@@ -182,7 +178,7 @@ struct FileLocation
 {
     PFileObject pfil;
     FilePosition fp;
-    long cb;
+    LegacyLong cb;
 
     bool FRead(void *pv)
     {
@@ -192,10 +188,10 @@ struct FileLocation
     {
         return FWriteRgb(pv, cb, 0);
     }
-    bool FReadRgb(void *pv, long cbRead, FilePosition dfp);
-    bool FWriteRgb(void *pv, long cbWrite, FilePosition dfp);
+    bool FReadRgb(void *pv, LegacyLong cbRead, FilePosition dfp);
+    bool FWriteRgb(void *pv, LegacyLong cbWrite, FilePosition dfp);
     bool FCopy(PFileLocation pfloDst);
-    bool FReadHq(HQ *phq, long cbRead, FilePosition dfp = 0);
+    bool FReadHq(HQ *phq, LegacyLong cbRead, FilePosition dfp = 0);
     bool FWriteHq(HQ hq, FilePosition dfp = 0);
     bool FReadHq(HQ *phq)
     {
@@ -237,29 +233,29 @@ class DataBlock : public DataBlock_PAR
 
     // for memory based blocks
     HQ _hq;
-    long _ibMin;
-    long _ibLim;
+    LegacyLong _ibMin;
+    LegacyLong _ibLim;
 
   public:
     DataBlock(PFileLocation pflo, bool fPacked = fFalse);
-    DataBlock(PFileObject pfil, FilePosition fp, long cb, bool fPacked = fFalse);
+    DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked = fFalse);
     DataBlock(HQ *phq, bool fPacked = fFalse);
     DataBlock(void);
     ~DataBlock(void);
 
     void Set(PFileLocation pflo, bool fPacked = fFalse);
-    void Set(PFileObject pfil, FilePosition fp, long cb, bool fPacked = fFalse);
+    void Set(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked = fFalse);
     void SetHq(HQ *phq, bool fPacked = fFalse);
     void Free(void);
     HQ HqFree(bool fPackedOk = fFalse);
-    long Cb(bool fPackedOk = fFalse);
+    LegacyLong Cb(bool fPackedOk = fFalse);
 
     // changing the range of the block
-    bool FMoveMin(long dib);
-    bool FMoveLim(long dib);
+    bool FMoveMin(LegacyLong dib);
+    bool FMoveLim(LegacyLong dib);
 
     // create a temp block
-    bool FSetTemp(long cb, bool fForceFile = fFalse);
+    bool FSetTemp(LegacyLong cb, bool fForceFile = fFalse);
 
     // reading from and writing to
     bool FRead(void *pv, bool fPackedOk = fFalse)
@@ -270,10 +266,10 @@ class DataBlock : public DataBlock_PAR
     {
         return FWriteRgb(pv, Cb(fPackedOk), 0, fPackedOk);
     }
-    bool FReadRgb(void *pv, long cb, long ib, bool fPackedOk = fFalse);
-    bool FWriteRgb(void *pv, long cb, long ib, bool fPackedOk = fFalse);
-    bool FReadHq(HQ *phq, long cb, long ib, bool fPackedOk = fFalse);
-    bool FWriteHq(HQ hq, long ib, bool fPackedOk = fFalse);
+    bool FReadRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk = fFalse);
+    bool FWriteRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk = fFalse);
+    bool FReadHq(HQ *phq, LegacyLong cb, LegacyLong ib, bool fPackedOk = fFalse);
+    bool FWriteHq(HQ hq, LegacyLong ib, bool fPackedOk = fFalse);
     bool FReadHq(HQ *phq, bool fPackedOk = fFalse)
     {
         return FReadHq(phq, Cb(fPackedOk), 0, fPackedOk);
@@ -285,12 +281,12 @@ class DataBlock : public DataBlock_PAR
     bool FGetFlo(PFileLocation pflo, bool fPackedOk = fFalse);
 
     // packing and unpacking
-    bool FPacked(long *pcfmt = pvNil);
-    bool FPackData(long cfmt = cfmtNil);
+    bool FPacked(LegacyLong *pcfmt = pvNil);
+    bool FPackData(LegacyLong cfmt = cfmtNil);
     bool FUnpackData(void);
 
     // Amount of memory being used
-    long CbMem(void);
+    LegacyLong CbMem(void);
 };
 
 /***************************************************************************

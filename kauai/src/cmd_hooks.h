@@ -14,7 +14,7 @@
     breaks that coupling: cmd code calls PcmhFromHid_Hook() / BuryCmh_Hook(),
     which forward to function pointers installed by appb._FInit. Headless
     tests / kauai-core consumers that never bring up ApplicationBase get
-    nil/no-op defaults, which is the correct behavior for them.
+    nil lookup and core dispatcher/alarm cleanup defaults.
 
     This is the first step of the cmd_core split planned in
     docs/superpowers/plans/2026-05-02-cmd-core-split.md.
@@ -25,21 +25,25 @@
 class CommandHandler;
 typedef CommandHandler *PCommandHandler;
 
-/* Resolve a registered handler-id to its CommandHandler. Default (no hook
-   installed) returns nil -- caller treats nil as "hid not in use". */
-typedef PCommandHandler (*PFN_PcmhFromHid)(long hid);
+/* Resolve a registered handler-id to its CommandHandler. Targeted recorded-
+   command playback requires this hook; without it recorded targets resolve
+   to nil. HID allocation also treats nil as "hid not in use". The callback
+   and its registry are host-owned and must outlive use. Hooks are process-
+   global; replace/clear them before destroying their owning host. */
+typedef PCommandHandler (*PFN_PcmhFromHid)(LegacyLong hid);
 
 /* Remove all references the gui side holds to a CommandHandler that's
    about to be destroyed (modal stack, mouse-tracking gob, etc).
-   Default (no hook installed) is a no-op -- correct for headless. */
+   Without a hook, core dispatcher and clock alarm references are removed. */
 typedef void (*PFN_BuryCmh)(PCommandHandler pcmh);
 
-/* Installer used by gui-side appb._FInit. */
+/* Installer used by gui-side appb._FInit or a headless command-replay host.
+   A nil burial hook retains core dispatcher/clock cleanup. */
 void SetCmdHooks(PFN_PcmhFromHid pfnPcmhFromHid, PFN_BuryCmh pfnBuryCmh);
 
 /* Internal accessors used by cmd.cpp. Forward-declared here so cmd.cpp
    doesn't have to see appb.h once it moves to kauai-core. */
-PCommandHandler PcmhFromHid_Hook(long hid);
+PCommandHandler PcmhFromHid_Hook(LegacyLong hid);
 void BuryCmh_Hook(PCommandHandler pcmh);
 
 #endif // !CMD_HOOKS_H

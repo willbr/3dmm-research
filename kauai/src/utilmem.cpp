@@ -10,28 +10,27 @@
     Shared (between Mac and Win) memory allocation routines.
 
     The APIs in this module implement fixed block (non-moveable,
-    non-resizeable) memory management.  On win, we use GlobalAlloc; on Mac
-    we use ::operator new.  The win hq is based on FAllocPv.  The mac
-    hq is a Mac handle.  _FResizePpv is win only (needed for
-    resizing HQs) and considered private to the memory management code
-    (if the implementation of Win HQs changes, it will go away).
+    non-resizeable) memory management. Raw storage uses the portable
+    core_platform allocator; the legacy debug headers, failure injection
+    and memory-liberation callback remain at this layer.
 ***************************************************************************/
+#include "win_headers.h"
 #include "util.h"
 ASSERTNAME
 
 #ifdef DEBUG
-const long kclwStackMbh = 5;
+const LegacyLong kclwStackMbh = 5;
 
 // memory block header
-struct MBH
+struct alignas(std::max_align_t) MBH
 {
-    long cb;                      // size of block, including header and footer
+    LegacyLong cb;                      // size of block, including header and footer
     PSZS pszsFile;                // source file that allocation request is coming from
-    long lwLine;                  // line in file that allocation request is coming from
-    long lwThread;                // thread id
+    LegacyLong lwLine;                  // line in file that allocation request is coming from
+    LegacyLong lwThread;                // thread id
     MBH *pmbhPrev;                // previous allocated block (in doubly linked list)
     MBH *pmbhNext;                // next allocated block
-    long rglwStack[kclwStackMbh]; // the EBP/A6 chain
+    LegacyLong rglwStack[kclwStackMbh]; // the EBP/A6 chain
     short cactRef;                // for marking memory
     short swMagic;                // magic number, to detect memory trashing
 };
@@ -48,17 +47,6 @@ priv void _LinkMbh(MBH *pmbh);
 priv void _UnlinkMbh(MBH *pmbh, MBH *pmbhOld);
 priv void _AssertMbh(MBH *pmbh);
 #endif // DEBUG
-
-#ifdef MAC
-#define malloc(cb) ::operator new(cb)
-#define free(pv) delete (pv)
-#endif // MAC
-#ifdef WIN
-#define malloc(cb) (void *)GlobalAlloc(GMEM_FIXED, cb)
-#define free(pv) GlobalFree((HGLOBAL)pv)
-#define _msize(pv) GlobalSize((HGLOBAL)pv)
-#define realloc(pv, cb) (void *)GlobalReAlloc((HGLOBAL)pv, cb, GMEM_MOVEABLE)
-#endif // WIN
 
 PFNLIB vpfnlib = pvNil;
 bool _fInLiberator = fFalse;
@@ -90,7 +78,7 @@ bool DebugMemoryAllocatorGlobals::FFail(void)
 /***************************************************************************
     Update values after an allocation
 ***************************************************************************/
-void DebugMemoryAllocatorGlobals::Allocate(long cbT)
+void DebugMemoryAllocatorGlobals::Allocate(LegacyLong cbT)
 {
     vmutxMem.Enter();
     if (cvRun < ++cv)
@@ -104,7 +92,7 @@ void DebugMemoryAllocatorGlobals::Allocate(long cbT)
 /***************************************************************************
     Update values after a resize
 ***************************************************************************/
-void DebugMemoryAllocatorGlobals::Resize(long dcb)
+void DebugMemoryAllocatorGlobals::Resize(LegacyLong dcb)
 {
     vmutxMem.Enter();
     if (cbRun < (cb += dcb))
@@ -115,7 +103,7 @@ void DebugMemoryAllocatorGlobals::Resize(long dcb)
 /***************************************************************************
     Update values after a block is freed
 ***************************************************************************/
-void DebugMemoryAllocatorGlobals::Free(long cbT)
+void DebugMemoryAllocatorGlobals::Free(LegacyLong cbT)
 {
     --cv;
     cb -= cbT;
@@ -126,14 +114,14 @@ void DebugMemoryAllocatorGlobals::Free(long cbT)
     Allocates a fixed block.
 ***************************************************************************/
 #ifdef DEBUG
-bool FAllocPvDebug(void **ppv, long cb, ulong grfmem, long mpr, PSZS pszsFile, long lwLine, DebugMemoryAllocatorGlobals *pdmagl)
+bool FAllocPvDebug(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr, PSZS pszsFile, LegacyLong lwLine, DebugMemoryAllocatorGlobals *pdmagl)
 #else  //! DEBUG
-bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
+bool FAllocPv(void **ppv, LegacyLong cb, LegacyUlong grfmem, LegacyLong mpr)
 #endif //! DEBUG
 {
     AssertVarMem(ppv);
     AssertIn(cb, 0, kcbMax);
-    long cbFree;
+    LegacyLong cbFree;
 
     if (cb > kcbMax)
     {
@@ -157,7 +145,7 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
 
     for (;;)
     {
-        *ppv = malloc(cb);
+        *ppv = KauaiPlatform::Allocate(cb);
         if (pvNil != *ppv || pvNil == vpfnlib)
             break;
 
@@ -204,13 +192,13 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
 #ifdef WIN
 #ifdef IN_80386
     // follow the EBP chain to capture a debug-mode allocation stack trace.
-    long *plw;
-    long ilw;
+    LegacyLong *plw;
+    LegacyLong ilw;
 
     __asm { mov plw,ebp }
     for (ilw = 0; ilw < kclwStackMbh; ilw++)
     {
-        if (pvNil == plw || IsBadReadPtr(plw, 2 * size(long)) || *plw <= (long)plw)
+        if (pvNil == plw || IsBadReadPtr(plw, 2 * size(LegacyLong)) || *plw <= (LegacyLong)plw)
         {
             pmbh->rglwStack[ilw] = 0;
             plw = pvNil;
@@ -218,12 +206,12 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
         else
         {
             pmbh->rglwStack[ilw] = plw[1];
-            plw = (long *)*plw;
+            plw = (LegacyLong *)*plw;
         }
     }
 #else
     // x64: inline asm not allowed. Optional debug instrumentation; leave empty.
-    for (long ilw = 0; ilw < kclwStackMbh; ilw++)
+    for (LegacyLong ilw = 0; ilw < kclwStackMbh; ilw++)
         pmbh->rglwStack[ilw] = 0;
 #endif // IN_80386
 #endif // WIN
@@ -245,22 +233,22 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
     return fTrue;
 }
 
-#ifdef WIN
 /***************************************************************************
     Resizes the given block.  *ppv may change.  If fmemClear, clears any
     newly added space.
 ***************************************************************************/
 #ifdef DEBUG
-bool _FResizePpvDebug(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr, DebugMemoryAllocatorGlobals *pdmagl)
+bool _FResizePpvDebug(void **ppv, LegacyLong cbNew, LegacyLong cbOld, LegacyUlong grfmem, LegacyLong mpr, DebugMemoryAllocatorGlobals *pdmagl)
 #else  //! DEBUG
-bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr)
+bool _FResizePpv(void **ppv, LegacyLong cbNew, LegacyLong cbOld, LegacyUlong grfmem, LegacyLong mpr)
 #endif //! DEBUG
 {
     AssertVarMem(ppv);
     AssertIn(cbNew, 0, kcbMax);
     AssertIn(cbOld, 0, kcbMax);
     AssertPvAlloced(*ppv, cbOld);
-    long cbFree;
+    const LegacyLong cbOldPayload = cbOld; // Preserve caller units on every failure path.
+    LegacyLong cbFree;
     void *pvNew, *pvOld;
 
 #ifdef DEBUG
@@ -287,15 +275,14 @@ bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr)
     cbNew += size(MBH) + size(MBF);
     AssertVar(pmbh->cb == cbOld, "bad cbOld value passed to _FResizePpv", &cbOld);
 
-    // trash the old stuff
-    if (cbOld > cbNew)
-        FillPb(PvAddBv(pmbh, cbNew), cbOld - cbNew, kbGarbage);
+    // Do not trash truncated bytes before realloc: a failed shrink must leave
+    // the original payload and footer intact, just like a failed growth.
     pvOld = pmbh;
 #endif // DEBUG
 
     for (;;)
     {
-        pvNew = realloc(pvOld, cbNew);
+        pvNew = KauaiPlatform::Reallocate(pvOld, cbNew);
 
         if (pvNil != pvNew || pvNil == vpfnlib)
             break;
@@ -319,9 +306,8 @@ bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr)
 
     if (pvNil == pvNew)
     {
-        Assert(cbOld < cbNew, "why did shrinking fail?");
     LFail:
-        AssertPvAlloced(*ppv, cbOld - size(MBH) - size(MBF));
+        AssertPvAlloced(*ppv, cbOldPayload);
         PushErc(ercOomPv);
 
         return fFalse;
@@ -365,7 +351,6 @@ bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr)
 
     return fTrue;
 }
-#endif // WIN
 
 /***************************************************************************
     If *ppv is not nil, frees it and sets *ppv to nil.
@@ -393,7 +378,7 @@ void FreePpv(void **ppv)
     *ppv = pmbh;
 #endif // DEBUG
 
-    free(*ppv);
+    KauaiPlatform::Free(*ppv);
     *ppv = pvNil;
 }
 
@@ -464,7 +449,8 @@ void _AssertMbh(MBH *pmbh)
     AssertVarMem(pmbh);
     Assert(pmbh->swMagic == kswMagicMem, "bad magic number");
     AssertIn(pmbh->cb - size(MBH) - size(MBF), 0, kcbMax);
-    Win(Assert(pmbh->cb <= (long)_msize(pmbh), "bigger than malloced block");) AssertPvCb(pmbh, pmbh->cb);
+    Assert(pmbh->cb <= (LegacyLong)KauaiPlatform::AllocationSize(pmbh), "bigger than allocated block");
+    AssertPvCb(pmbh, pmbh->cb);
     if (pmbh->pmbhPrev != pvNil)
     {
         AssertVarMem(pmbh->pmbhPrev);
@@ -487,7 +473,7 @@ void _AssertMbh(MBH *pmbh)
     Assert the validity of an allocated fixed block.  Cb is the size.
     If cb is unknown, pass cvNil.
 ***************************************************************************/
-void AssertPvAlloced(void *pv, long cb)
+void AssertPvAlloced(void *pv, LegacyLong cb)
 {
     if (vcactSuspendCheckPointers != 0)
         return;
@@ -505,7 +491,7 @@ void AssertPvAlloced(void *pv, long cb)
 void AssertUnmarkedMem(void)
 {
     MBH *pmbh;
-    long lwThread = LwThreadCur();
+    LegacyLong lwThread = LwThreadCur();
 
     // enter the critical section
     vmutxMem.Enter();
@@ -521,7 +507,7 @@ void AssertUnmarkedMem(void)
             stn.FFormatSz(PszLit("\nLost block: size=%d, StackTrace=(use map file)"), pmbh->cb);
             stn.GetSzs(szs);
 
-            if (FAssertProc(pmbh->pszsFile, pmbh->lwLine, szs, pmbh->rglwStack, kclwStackMbh * size(long)))
+            if (FAssertProc(pmbh->pszsFile, pmbh->lwLine, szs, pmbh->rglwStack, kclwStackMbh * size(LegacyLong)))
             {
                 Debugger();
             }
@@ -539,7 +525,7 @@ void AssertUnmarkedMem(void)
 void UnmarkAllMem(void)
 {
     MBH *pmbh;
-    long lwThread = LwThreadCur();
+    LegacyLong lwThread = LwThreadCur();
 
     // enter the critical section
     vmutxMem.Enter();

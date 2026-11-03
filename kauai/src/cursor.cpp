@@ -10,6 +10,10 @@
     Cursor class.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "cursor_data.h"
+#endif
 #include "frame.h"
 ASSERTNAME
 
@@ -20,7 +24,9 @@ RTCLASS(Cursor)
 ***************************************************************************/
 Cursor::~Cursor(void)
 {
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    KauaiSDL::Main().DestroyCursor(_sdlCursor);
+#elif defined(WIN)
     if (hNil != _hcrs)
         DestroyCursor(_hcrs);
 #endif // WIN
@@ -29,15 +35,45 @@ Cursor::~Cursor(void)
 /***************************************************************************
     Read a cursor out of a ChunkyResourceFile.
 ***************************************************************************/
-bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
+#ifdef KAUAI_SDL3
+    *pcb = size(Cursor);
+    if (!ppbaco)
+        return fTrue;
+    *ppbaco = pvNil;
+    KauaiCursors::Monochrome image;
+    if (!KauaiCursors::Read(*pblck, 32, 32, image))
+        return fFalse;
+    // Match the original 32-pixel cursor canvas even for a 16-pixel image.
+    byte andBits[128], xorBits[128];
+    FillPb(andBits, size(andBits), 255);
+    ClearPb(xorBits, size(xorBits));
+    for (int y = 0; y < image.height; ++y)
+    {
+        CopyPb(image.andBits.data() + y * image.pitch, andBits + y * 4, image.pitch);
+        CopyPb(image.xorBits.data() + y * image.pitch, xorBits + y * 4, image.pitch);
+    }
+    const auto id = KauaiSDL::Main().CreateCursor(andBits, xorBits, 32, 32, 4, image.hotX, image.hotY);
+    if (!id)
+        return fFalse;
+    auto cursor = NewObj Cursor;
+    if (!cursor)
+    {
+        KauaiSDL::Main().DestroyCursor(id);
+        return fFalse;
+    }
+    cursor->_sdlCursor = id;
+    *ppbaco = cursor;
+    return fTrue;
+#else
     PGeneralGroup pggcurf;
-    long icurf, icurfBest;
+    LegacyLong icurf, icurfBest;
     CursorOnFile curf;
     short bo;
-    long dxp, dyp, dzpT;
-    long dzpBest;
-    long cbRowDst, cbRowSrc, cbT;
+    LegacyLong dxp, dyp, dzpT;
+    LegacyLong dzpBest;
+    LegacyLong cbRowDst, cbRowSrc, cbT;
     byte *prgb, *qrgb;
     PCursor pcurs = pvNil;
 
@@ -51,7 +87,7 @@ bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber
         return fFalse;
     }
 
-#ifdef MAC
+#if defined(MAC) && !defined(KAUAI_SDL3)
     dxp = dyp = 16;
 #endif // MAC
 #ifdef WIN
@@ -67,7 +103,7 @@ bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber
         if (kboOther == bo)
             SwapBytesBom(&curf, kbomCurf);
         if (curf.dxp > dxp || curf.dyp > dyp || curf.curt != curtMonochrome ||
-            pggcurf->Cb(icurf) != (long)curf.dxp * curf.dyp / 4)
+            pggcurf->Cb(icurf) != (LegacyLong)curf.dxp * curf.dyp / 4)
         {
             continue;
         }
@@ -108,19 +144,19 @@ bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber
     if (hNil == pcurs->_hcrs)
         ReleasePpo(&pcurs);
 #endif // WIN
-#ifdef MAC
+#if defined(MAC) && !defined(KAUAI_SDL3)
     Assert(dxp == 16, 0);
-    long *plwAnd, *plwXor;
-    long ilw;
+    LegacyLong *plwAnd, *plwXor;
+    LegacyLong ilw;
 
-    plwAnd = (long *)prgb;
+    plwAnd = (LegacyLong *)prgb;
     plwXor = plwAnd + 8;
     pcurs->_crs.hotSpot.h = curf.xp;
     pcurs->_crs.hotSpot.v = curf.yp;
     for (ilw = 0; ilw < 8; ilw++)
     {
-        ((long *)pcurs->_crs.mask)[ilw] = ~*plwAnd;
-        ((long *)pcurs->_crs.data)[ilw] = ~*plwAnd++ ^ *plwXor++;
+        ((LegacyLong *)pcurs->_crs.mask)[ilw] = ~*plwAnd;
+        ((LegacyLong *)pcurs->_crs.data)[ilw] = ~*plwAnd++ ^ *plwXor++;
     }
 #endif // MAC
 
@@ -130,6 +166,7 @@ LFail:
 
     *ppbaco = pcurs;
     return pvNil != pcurs;
+#endif
 }
 
 /***************************************************************************
@@ -137,10 +174,12 @@ LFail:
 ***************************************************************************/
 void Cursor::Set(void)
 {
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    KauaiSDL::Main().SetCursor(_sdlCursor);
+#elif defined(WIN)
     SetCursor(_hcrs);
 #endif // WIN
-#ifdef MAC
+#if defined(MAC) && !defined(KAUAI_SDL3)
     SetCursor(&_crs);
 #endif // MAC
 }

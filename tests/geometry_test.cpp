@@ -18,13 +18,13 @@
 ASSERTNAME
 
 /* CLI assertion stubs (gui-side appb.cpp is not linked here). */
-void WarnProc(schar *f, long l, schar *m)
+void WarnProc(schar *f, LegacyLong l, schar *m)
 {
-    fprintf(stderr, "WARN %s:%ld %s\n", f ? f : "?", l, m ? m : "");
+    fprintf(stderr, "WARN %s:%" LEGACY_PRId " %s\n", f ? f : "?", l, m ? m : "");
 }
-bool FAssertProc(schar *f, long l, schar *m, void *, long)
+bool FAssertProc(schar *f, LegacyLong l, schar *m, void *, LegacyLong)
 {
-    fprintf(stderr, "ASSERT %s:%ld %s\n", f ? f : "?", l, m ? m : "");
+    fprintf(stderr, "ASSERT %s:%" LEGACY_PRId " %s\n", f ? f : "?", l, m ? m : "");
     return false;
 }
 
@@ -47,10 +47,10 @@ static int g_local_fail = 0;
 #define EXPECT_EQ(actual, expected)                                                                                    \
     do                                                                                                                 \
     {                                                                                                                  \
-        long _a = (long)(actual), _e = (long)(expected);                                                               \
+        LegacyLong _a = (LegacyLong)(actual), _e = (LegacyLong)(expected);                                                               \
         if (_a != _e)                                                                                                  \
         {                                                                                                              \
-            printf("    FAIL %s:%d  EXPECT_EQ(%s, %s)  got=%ld  expected=%ld\n", __FILE__, __LINE__, #actual,          \
+            printf("    FAIL %s:%d  EXPECT_EQ(%s, %s)  got=%" LEGACY_PRId "  expected=%" LEGACY_PRId "\n", __FILE__, __LINE__, #actual,          \
                    #expected, _a, _e);                                                                                 \
             g_local_fail++;                                                                                            \
         }                                                                                                              \
@@ -61,9 +61,9 @@ static int g_local_fail = 0;
     {                                                                                                                  \
         if ((rc).xpLeft != (l) || (rc).ypTop != (t) || (rc).xpRight != (r) || (rc).ypBottom != (b))                    \
         {                                                                                                              \
-            printf("    FAIL %s:%d  EXPECT_RC  got=(%ld,%ld,%ld,%ld)  expected=(%ld,%ld,%ld,%ld)\n", __FILE__,         \
-                   __LINE__, (rc).xpLeft, (rc).ypTop, (rc).xpRight, (rc).ypBottom, (long)(l), (long)(t), (long)(r),    \
-                   (long)(b));                                                                                         \
+            printf("    FAIL %s:%d  EXPECT_RC  got=(%" LEGACY_PRId ",%" LEGACY_PRId ",%" LEGACY_PRId ",%" LEGACY_PRId ")  expected=(%" LEGACY_PRId ",%" LEGACY_PRId ",%" LEGACY_PRId ",%" LEGACY_PRId ")\n", __FILE__,         \
+                   __LINE__, (rc).xpLeft, (rc).ypTop, (rc).xpRight, (rc).ypBottom, (LegacyLong)(l), (LegacyLong)(t), (LegacyLong)(r),    \
+                   (LegacyLong)(b));                                                                                         \
             g_local_fail++;                                                                                            \
         }                                                                                                              \
     } while (0)
@@ -73,8 +73,8 @@ static int g_local_fail = 0;
     {                                                                                                                  \
         if ((pt).xp != (x) || (pt).yp != (y))                                                                          \
         {                                                                                                              \
-            printf("    FAIL %s:%d  EXPECT_PT  got=(%ld,%ld)  expected=(%ld,%ld)\n", __FILE__, __LINE__, (pt).xp,      \
-                   (pt).yp, (long)(x), (long)(y));                                                                     \
+            printf("    FAIL %s:%d  EXPECT_PT  got=(%" LEGACY_PRId ",%" LEGACY_PRId ")  expected=(%" LEGACY_PRId ",%" LEGACY_PRId ")\n", __FILE__, __LINE__, (pt).xp,      \
+                   (pt).yp, (LegacyLong)(x), (LegacyLong)(y));                                                                     \
             g_local_fail++;                                                                                            \
         }                                                                                                              \
     } while (0)
@@ -510,7 +510,7 @@ static void TestRegionDiffEqual()
     Main + assert hooks
 ****************************************/
 
-void __cdecl main(long, char **)
+int main(int, char **)
 {
     printf("=== kauai geometry tests ===\n");
 

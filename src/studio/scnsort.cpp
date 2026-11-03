@@ -29,7 +29,7 @@ END_CMD_MAP_NIL()
 RTCLASS(SceneSorter)
 
 #ifdef DEBUG
-void SceneSorter::AssertValid(ulong grf)
+void SceneSorter::AssertValid(LegacyUlong grf)
 {
     SceneSorter_PAR::AssertValid(0);
     if (_iscenMac > 0)
@@ -771,7 +771,7 @@ long SceneSorter::_LwFromTrans(TRANS trans)
 RTCLASS(MaskedBitmapGraphicsObject)
 
 #ifdef DEBUG
-void MaskedBitmapGraphicsObject::AssertValid(ulong grf)
+void MaskedBitmapGraphicsObject::AssertValid(LegacyUlong grf)
 {
     MaskedBitmapGraphicsObject_PAR::AssertValid(0);
     AssertNilOrPo(_pmbmp, 0);

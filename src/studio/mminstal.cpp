@@ -42,8 +42,10 @@
 
 #include "studio.h"
 #include <mmsystem.h> // winmm.lib
+#ifndef KAUAI_SDL3
 #include <mmreg.h>    // required by msacm.h
 #include <msacm.h>    // msacm32.lib
+#endif
 #include <vfw.h>      // vfw32.lib
 
 #include "mminstal.h"
@@ -68,6 +70,7 @@
 
 ******************************************************************************/
 
+#ifndef KAUAI_SDL3
 WORD wHaveWaveDevice(DWORD dwReqFormats)
 {
     WORD wNumWavDev;
@@ -259,6 +262,7 @@ WORD wHaveACMCodec(DWORD dwReqCodec)
 #endif
     return (HAC_NOCONVERT);
 }
+#endif // !KAUAI_SDL3
 
 /******************************************************************************
 

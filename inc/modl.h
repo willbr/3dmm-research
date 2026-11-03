@@ -76,11 +76,11 @@ class Model : public Model_PAR
     {
     }
     bool _FInit(PDataBlock pblck);
-    bool _FPrelight(long cblit, BVEC3 *prgbvec3Light);
+    bool _FPrelight(LegacyLong cblit, BVEC3 *prgbvec3Light);
 
   public:
-    static PModel PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
-    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PModel PmodlNew(LegacyLong cbrv, BRV *prgbrv, LegacyLong cbrf, BRF *prgbrf);
+    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PModel PmodlReadFromDat(Filename *pfni);
     static PModel PmodlFromBmdl(PBMDL pbmdl);
     ~Model(void);

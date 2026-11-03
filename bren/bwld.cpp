@@ -18,12 +18,32 @@
 
 ***************************************************************************/
 #include "bren.h"
+#include <stdlib.h>
 
 // REVIEW *****: _pgptStretch is completely unused...remove it!
 
 ASSERTNAME
 
 namespace BRender {
+
+#ifdef WIN
+// GUI diagnostics belong to the World adapter; core consumers use stderr.
+static void BR_CALLBACK WorldWarning(char *message)
+{
+    AppendCrashLog("BRENDER_WARN", message);
+    MessageBox(0, message, "BRender Warning", MB_OK);
+}
+
+static void BR_CALLBACK WorldError(char *message)
+{
+    AppendCrashLog("BRENDER_FATAL", message);
+    MessageBox(0, message, "BRender Fatal Error", MB_OK);
+    exit(10);
+}
+
+static br_diaghandler WorldDiagHandler = {"World DiagHandler", WorldWarning, WorldError};
+static br_diaghandler *PreviousDiagHandler;
+#endif
 
 RTCLASS(World)
 
@@ -152,6 +172,9 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
 
     if (!_fBRenderInited)
     {
+#ifdef WIN
+        PreviousDiagHandler = BrDiagHandlerSet(&WorldDiagHandler);
+#endif
         BrBegin();
         BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
         _fBRenderInited = fTrue;
@@ -376,6 +399,9 @@ void World::CloseBRender(void)
     {
         BrZbEnd();
         BrEnd();
+#ifdef WIN
+        BrDiagHandlerSet(PreviousDiagHandler);
+#endif
         _fBRenderInited = fFalse;
     }
     if (pvNil != _prgtexbk)
@@ -840,7 +866,7 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
 /***************************************************************************
     Assert the validity of the World.
 ***************************************************************************/
-void World::AssertValid(ulong grf)
+void World::AssertValid(LegacyUlong grf)
 {
     World_PAR::AssertValid(fobjAllocated);
     AssertPo(_pgptWorking, 0);

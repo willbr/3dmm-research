@@ -15,7 +15,7 @@
 ASSERTNAME
 
 // min size of initial piece on file
-const long kcbMinFloFile = 2048;
+const LegacyLong kcbMinFloFile = 2048;
 
 RTCLASS(MemoryByteStream)
 RTCLASS(FileByteStream)
@@ -44,7 +44,7 @@ MemoryByteStream::~MemoryByteStream(void)
 /***************************************************************************
     Set the amount to grow by.
 ***************************************************************************/
-void MemoryByteStream::SetMinGrow(long cb)
+void MemoryByteStream::SetMinGrow(LegacyLong cb)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -56,7 +56,7 @@ void MemoryByteStream::SetMinGrow(long cb)
     Make sure there is at least cb bytes of space.  If fShrink is true,
     the amount of memory allocated by the MemoryByteStream may decrease.
 ***************************************************************************/
-bool MemoryByteStream::FEnsureSpace(long cb, bool fShrink)
+bool MemoryByteStream::FEnsureSpace(LegacyLong cb, bool fShrink)
 {
     AssertThis(0);
 
@@ -67,7 +67,7 @@ bool MemoryByteStream::FEnsureSpace(long cb, bool fShrink)
     Return a locked pointer into the byte stream.  The stream is stored
     contiguously.
 ***************************************************************************/
-void *MemoryByteStream::PvLock(long ib)
+void *MemoryByteStream::PvLock(LegacyLong ib)
 {
     AssertThis(0);
     AssertIn(ib, 0, _ibMac + 1);
@@ -91,7 +91,7 @@ void MemoryByteStream::Unlock(void)
 /***************************************************************************
     Fetch some bytes from the stream.
 ***************************************************************************/
-void MemoryByteStream::FetchRgb(long ib, long cb, void *prgb)
+void MemoryByteStream::FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb)
 {
     AssertThis(0);
     AssertIn(ib, 0, _ibMac + 1);
@@ -106,7 +106,7 @@ void MemoryByteStream::FetchRgb(long ib, long cb, void *prgb)
     Replace the range [ib,ib + cbDel) with cbIns bytes from prgb.  If cbIns
     is zero, prgb may be nil.
 ***************************************************************************/
-bool MemoryByteStream::FReplace(void *prgb, long cbIns, long ib, long cbDel)
+bool MemoryByteStream::FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cbIns, 0, kcbMax);
@@ -131,7 +131,7 @@ bool MemoryByteStream::FReplace(void *prgb, long cbIns, long ib, long cbDel)
 /***************************************************************************
     Write the byte stream to a file.
 ***************************************************************************/
-bool MemoryByteStream::FWriteRgb(PFileLocation pflo, long ib)
+bool MemoryByteStream::FWriteRgb(PFileLocation pflo, LegacyLong ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -143,7 +143,7 @@ bool MemoryByteStream::FWriteRgb(PFileLocation pflo, long ib)
 /***************************************************************************
     Write the byte stream to a block.
 ***************************************************************************/
-bool MemoryByteStream::FWriteRgb(PDataBlock pblck, long ib)
+bool MemoryByteStream::FWriteRgb(PDataBlock pblck, LegacyLong ib)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -166,11 +166,11 @@ bool MemoryByteStream::FWriteRgb(PDataBlock pblck, long ib)
     Make sure the hq is at least cbMin bytes.  If fShrink is true, make the
     hq exactly cbMin bytes long.
 ***************************************************************************/
-bool MemoryByteStream::_FEnsureSize(long cbMin, bool fShrink)
+bool MemoryByteStream::_FEnsureSize(LegacyLong cbMin, bool fShrink)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cbMin, 0, kcbMax);
-    long cb = hqNil == _hqrgb ? 0 : CbOfHq(_hqrgb);
+    LegacyLong cb = hqNil == _hqrgb ? 0 : CbOfHq(_hqrgb);
 
     if (cbMin <= cb && (!fShrink || cbMin == cb))
         return fTrue;
@@ -196,7 +196,7 @@ bool MemoryByteStream::_FEnsureSize(long cbMin, bool fShrink)
 /***************************************************************************
     Assert the validity of a byte stream (FileByteStream).
 ***************************************************************************/
-void MemoryByteStream::AssertValid(ulong grf)
+void MemoryByteStream::AssertValid(LegacyUlong grf)
 {
     MemoryByteStream_PAR::AssertValid(grf);
     AssertIn(_ibMac, 0, kcbMax);
@@ -237,7 +237,7 @@ FileByteStream::FileByteStream(void)
 FileByteStream::~FileByteStream(void)
 {
     AssertThis(fobjAssertFull);
-    long iflo;
+    LegacyLong iflo;
     FileLocation flo;
 
     if (0 < _ibMac)
@@ -257,13 +257,13 @@ FileByteStream::~FileByteStream(void)
     Find the flo that contains the given ib and assign *pib the postion
     of the first byte in the flo and *pcb the size of the flo.
 ***************************************************************************/
-long FileByteStream::_IfloFind(long ib, long *pib, long *pcb)
+LegacyLong FileByteStream::_IfloFind(LegacyLong ib, LegacyLong *pib, LegacyLong *pcb)
 {
     AssertBaseThis(0);
     AssertIn(ib, 0, _ibMac + 1);
     AssertVarMem(pib);
     AssertNilOrVarMem(pcb);
-    long iflo, cb;
+    LegacyLong iflo, cb;
     FileLocation flo;
 
     iflo = 0;
@@ -291,12 +291,12 @@ long FileByteStream::_IfloFind(long ib, long *pib, long *pcb)
 /***************************************************************************
     Make sure ib is on a piece boundary.
 ***************************************************************************/
-bool FileByteStream::_FEnsureSplit(long ib, long *piflo)
+bool FileByteStream::_FEnsureSplit(LegacyLong ib, LegacyLong *piflo)
 {
     AssertBaseThis(0);
     AssertIn(ib, 0, _ibMac + 1);
     AssertNilOrVarMem(piflo);
-    long iflo, ibMin, cbT;
+    LegacyLong iflo, ibMin, cbT;
     FileLocation flo;
 
     if (pvNil == _pggflo)
@@ -350,12 +350,12 @@ bool FileByteStream::_FEnsureSplit(long ib, long *piflo)
     Enumerate over all pieces spanning ibMin to ibLim and attempt to merge
     any adjacent ones.
 ***************************************************************************/
-void FileByteStream::_AttemptMerge(long ibMin, long ibLim)
+void FileByteStream::_AttemptMerge(LegacyLong ibMin, LegacyLong ibLim)
 {
     AssertBaseThis(0);
     AssertIn(ibMin, 0, _ibMac + 1);
     AssertIn(ibLim, ibMin, _ibMac + 1);
-    long iflo, ib;
+    LegacyLong iflo, ib;
     FileLocation flo, floT;
 
     if (pvNil == _pggflo)
@@ -392,7 +392,7 @@ void FileByteStream::_AttemptMerge(long ibMin, long ibLim)
     Replace a range in this bsf with the range in the given bsf.  This
     does the complete insertion, then the deletion.
 ***************************************************************************/
-bool FileByteStream::FReplaceBsf(PFileByteStream pbsfSrc, long ibSrc, long cbSrc, long ibDst, long cbDel)
+bool FileByteStream::FReplaceBsf(PFileByteStream pbsfSrc, LegacyLong ibSrc, LegacyLong cbSrc, LegacyLong ibDst, LegacyLong cbDel)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -401,9 +401,9 @@ bool FileByteStream::FReplaceBsf(PFileByteStream pbsfSrc, long ibSrc, long cbSrc
     AssertIn(ibDst, 0, _ibMac + 1);
     AssertIn(cbDel, 0, _ibMac + 1 - ibDst);
 
-    long ifloMinSrc, ifloLimSrc, ifloMinWhole, ifloDst, iflo;
-    long ibMinSrc, ibLimSrc, ibMinWhole, ib;
-    long cbMinFlo, cbLimFlo, cbIns, cbT;
+    LegacyLong ifloMinSrc, ifloLimSrc, ifloMinWhole, ifloDst, iflo;
+    LegacyLong ibMinSrc, ibLimSrc, ibMinWhole, ib;
+    LegacyLong cbMinFlo, cbLimFlo, cbIns, cbT;
     FileLocation flo;
     byte *pb;
     bool fRet;
@@ -532,15 +532,15 @@ bool FileByteStream::FReplaceBsf(PFileByteStream pbsfSrc, long ibSrc, long cbSrc
 /***************************************************************************
     Replace the range [ib, ib + cbDel) with cbIns bytes from prgb.
 ***************************************************************************/
-bool FileByteStream::FReplace(void *prgb, long cbIns, long ib, long cbDel)
+bool FileByteStream::FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(cbDel, 0, _ibMac - ib + 1);
     AssertIn(cbIns, 0, kcbMax);
     AssertPvCb(prgb, cbIns);
-    long ibT;
-    long iflo, cbT;
+    LegacyLong ibT;
+    LegacyLong iflo, cbT;
     FileLocation flo;
 
     if (cbDel == 0 && cbIns == 0)
@@ -673,13 +673,13 @@ LTryMerge:
 /***************************************************************************
     Replace the range [ib, ib + cbDel) with the flo.
 ***************************************************************************/
-bool FileByteStream::FReplaceFlo(PFileLocation pflo, bool fCopy, long ib, long cbDel)
+bool FileByteStream::FReplaceFlo(PFileLocation pflo, bool fCopy, LegacyLong ib, LegacyLong cbDel)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pflo, ffloReadable);
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(cbDel, 0, _ibMac - ib + 1);
-    long iflo;
+    LegacyLong iflo;
     FileLocation flo;
     bool fRet;
 
@@ -740,13 +740,13 @@ bool FileByteStream::FReplaceFlo(PFileLocation pflo, bool fCopy, long ib, long c
 /***************************************************************************
     Fetch cb bytes from position ib into prgb.
 ***************************************************************************/
-void FileByteStream::FetchRgb(long ib, long cb, void *prgb)
+void FileByteStream::FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(cb, 0, _ibMac - ib + 1);
     AssertPvCb(prgb, cb);
-    long iflo, cbT, ibMin;
+    LegacyLong iflo, cbT, ibMin;
     FileLocation flo;
 
     iflo = _IfloFind(ib, &ibMin);
@@ -783,7 +783,7 @@ void FileByteStream::FetchRgb(long ib, long cb, void *prgb)
 /***************************************************************************
     Write a portion of a FileByteStream to the given flo.
 ***************************************************************************/
-bool FileByteStream::FWriteRgb(PFileLocation pflo, long ib)
+bool FileByteStream::FWriteRgb(PFileLocation pflo, LegacyLong ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -795,16 +795,16 @@ bool FileByteStream::FWriteRgb(PFileLocation pflo, long ib)
 /***************************************************************************
     Write a portion of a FileByteStream to the given block.
 ***************************************************************************/
-bool FileByteStream::FWriteRgb(PDataBlock pblck, long ib)
+bool FileByteStream::FWriteRgb(PDataBlock pblck, LegacyLong ib)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(pblck->Cb(), 0, kcbMax);
-    long iflo;
+    LegacyLong iflo;
     FileLocation flo;
-    long cb, ibT, ibDst;
-    long cbWrite = pblck->Cb();
+    LegacyLong cb, ibT, ibDst;
+    LegacyLong cbWrite = pblck->Cb();
     bool fRet = fTrue;
 
     if (ib + cbWrite > _ibMac)
@@ -894,7 +894,7 @@ LShrinkGg:
 /***************************************************************************
     Assert the validity of a byte stream (FileByteStream).
 ***************************************************************************/
-void FileByteStream::AssertValid(ulong grfobj)
+void FileByteStream::AssertValid(LegacyUlong grfobj)
 {
     FileByteStream_PAR::AssertValid(grfobj);
     if (pvNil == _pggflo)
@@ -906,7 +906,7 @@ void FileByteStream::AssertValid(ulong grfobj)
     if (!(grfobj & fobjAssertFull))
         return;
 
-    long cb, cbT, iflo;
+    LegacyLong cb, cbT, iflo;
     FileLocation flo;
 
     for (cb = 0, iflo = _pggflo->IvMac(); iflo-- > 0;)

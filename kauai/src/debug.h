@@ -16,21 +16,14 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#ifdef WIN
 inline void Debugger(void)
 {
-#ifdef IN_80386
-    __asm { int 3 }
-#else
-    // MSVC x64: __asm not supported. Use the intrinsic equivalent.
-    __debugbreak();
-#endif
+    KauaiPlatform::BreakIntoDebugger();
 }
-#endif // WIN
 
 #ifdef DEBUG
-bool FAssertProc(schar *pszsFile, long lwLine, schar *pszsMsg, void *pv, long cb);
-void WarnProc(schar *pszsFile, long lwLine, schar *pszsMsg);
+bool FAssertProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg, void *pv, LegacyLong cb);
+void WarnProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg);
 #define ASSERTNAME static schar __szsFile[] = __FILE__;
 
 #define AssertCore(f, szs, pv, cb)                                                                                     \

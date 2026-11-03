@@ -50,8 +50,8 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     PChunkyResourceFile _pcrf; // The BaseCacheableObject has a ref count on this iff !_fAttached
     ChunkTagOrType _ctg;
     ChunkNumber _cno;
-    long _crep : 16;
-    long _fAttached : 1;
+    LegacyLong _crep : 16;
+    LegacyLong _fAttached : 1;
 
     friend class ChunkyResourceFile;
 
@@ -62,7 +62,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
   public:
     virtual void Release(void);
 
-    virtual void SetCrep(long crep);
+    virtual void SetCrep(LegacyLong crep);
     virtual void Detach(void);
 
     ChunkTagOrType Ctg(void)
@@ -77,7 +77,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     {
         return _pcrf;
     }
-    long Crep(void)
+    LegacyLong Crep(void)
     {
         return _crep;
     }
@@ -87,7 +87,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     // objects don't need to know what the actual class is.
     virtual bool FWrite(PDataBlock pblck);
     virtual bool FWriteFlo(PFileLocation pflo);
-    virtual long CbOnFile(void);
+    virtual LegacyLong CbOnFile(void);
 };
 
 /***************************************************************************
@@ -96,7 +96,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 typedef FNRPO *PFNRPO;
 
 typedef class ResourceCache *PResourceCache;
@@ -107,10 +107,10 @@ class ResourceCache : public ResourceCache_PAR
     RTCLASS_DEC
 
   public:
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal) = 0;
+    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, LegacyLong crep = crepNormal) = 0;
     virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
-    virtual bool FSetCrep(long crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
+    virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
 };
 
@@ -129,37 +129,37 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     struct CRE
     {
         PFNRPO pfnrpo;    // object reader
-        long cactRelease; // the last time this object was released
+        LegacyLong cactRelease; // the last time this object was released
         BaseCacheableObject *pbaco;      // the object
-        long cb;          // size of data
+        LegacyLong cb;          // size of data
     };
 
     PChunkyFile _pcfl;
     PDynamicArray _pglcre; // sorted by (cki, pfnrpo)
-    long _cbMax;
-    long _cbCur;
-    long _cactRelease;
+    LegacyLong _cbMax;
+    LegacyLong _cbCur;
+    LegacyLong _cactRelease;
 
-    ChunkyResourceFile(PChunkyFile pcfl, long cbMax);
-    bool _FFindCre(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre);
-    bool _FFindBaco(PBaseCacheableObject pbaco, long *picre);
-    bool _FPurgeCb(long cbPurge, long crepLast);
+    ChunkyResourceFile(PChunkyFile pcfl, LegacyLong cbMax);
+    bool _FFindCre(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, LegacyLong *picre);
+    bool _FFindBaco(PBaseCacheableObject pbaco, LegacyLong *picre);
+    bool _FPurgeCb(LegacyLong cbPurge, LegacyLong crepLast);
 
   public:
     ~ChunkyResourceFile(void);
-    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, long cbMax);
+    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
 
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
+    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, LegacyLong crep = crepNormal);
     virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual bool FSetCrep(long crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
 
-    long CbMax(void)
+    LegacyLong CbMax(void)
     {
         return _cbMax;
     }
-    void SetCbMax(long cbMax);
+    void SetCbMax(LegacyLong cbMax);
 
     PChunkyFile Pcfl(void)
     {
@@ -192,21 +192,21 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
 
   public:
     ~ChunkyResourceManager(void);
-    static PChunkyResourceManager PcrmNew(long ccrfInit);
+    static PChunkyResourceManager PcrmNew(LegacyLong ccrfInit);
 
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
+    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, LegacyLong crep = crepNormal);
     virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual bool FSetCrep(long crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
 
-    bool FAddCfl(PChunkyFile pcfl, long cbMax, long *piv = pvNil);
-    long Ccrf(void)
+    bool FAddCfl(PChunkyFile pcfl, LegacyLong cbMax, LegacyLong *piv = pvNil);
+    LegacyLong Ccrf(void)
     {
         AssertThis(0);
         return _pglpcrf->IvMac();
     }
-    PChunkyResourceFile PcrfGet(long icrf);
+    PChunkyResourceFile PcrfGet(LegacyLong icrf);
 };
 
 /***************************************************************************
@@ -234,7 +234,7 @@ class GenericHQ : public GenericHQ_PAR
     }
 
     // An object reader for a GenericHQ.
-    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 };
 
 /***************************************************************************

@@ -10,13 +10,14 @@
     Region code.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
+#include "region.h"
 ASSERTNAME
 
 RTCLASS(Region)
 RTCLASS(RegionScanner)
 
-long const kcdxpBlock = 100;
+LegacyLong const kcdxpBlock = 100;
 
 /***************************************************************************
     Region builder class.  For building the _pglxp of a region and getting
@@ -28,15 +29,15 @@ typedef class RegionBuilder *PRegionBuilder;
 class RegionBuilder : public RegionBuilder_PAR
 {
   protected:
-    long _ypCur;
+    LegacyLong _ypCur;
     RC _rcRef;
     RC _rc;
     PDynamicArray _pglxp;
     bool _fResize;
 
-    long _idypPrev;
-    long _idypCur;
-    long _ixpCur;
+    LegacyLong _idypPrev;
+    LegacyLong _idypCur;
+    LegacyLong _ixpCur;
 
   public:
     RegionBuilder(void)
@@ -49,9 +50,9 @@ class RegionBuilder : public RegionBuilder_PAR
     }
 
     bool FInit(RC *prcRef, PDynamicArray pglxp = pvNil);
-    bool FStartRow(long dyp, long cxpMax);
+    bool FStartRow(LegacyLong dyp, LegacyLong cxpMax);
     void EndRow(void);
-    void AddXp(long xp)
+    void AddXp(LegacyLong xp)
     {
         // can only be called while building a row.
         AssertThis(0);
@@ -62,7 +63,7 @@ class RegionBuilder : public RegionBuilder_PAR
             _rc.xpLeft = xp;
         if (_rc.xpRight < xp)
             _rc.xpRight = xp;
-        *(long *)_pglxp->QvGet(_ixpCur++) = xp;
+        *(LegacyLong *)_pglxp->QvGet(_ixpCur++) = xp;
     }
 
     bool FDone(void)
@@ -70,7 +71,7 @@ class RegionBuilder : public RegionBuilder_PAR
         AssertThis(0);
         return _ypCur >= _rcRef.ypBottom && _idypCur == ivNil;
     }
-    PDynamicArray PglxpFree(RC *prc, long *pdxp);
+    PDynamicArray PglxpFree(RC *prc, LegacyLong *pdxp);
 };
 
 /***************************************************************************
@@ -91,7 +92,7 @@ bool RegionBuilder::FInit(RC *prcRef, PDynamicArray pglxp)
     }
     else
     {
-        if (pvNil == (_pglxp = DynamicArray::PglNew(size(long))))
+        if (pvNil == (_pglxp = DynamicArray::PglNew(size(LegacyLong))))
             return fFalse;
         _pglxp->SetMinGrow(kcdxpBlock);
         _fResize = fTrue;
@@ -110,14 +111,14 @@ bool RegionBuilder::FInit(RC *prcRef, PDynamicArray pglxp)
 /***************************************************************************
     Begin a row.
 ***************************************************************************/
-bool RegionBuilder::FStartRow(long dyp, long cxpMax)
+bool RegionBuilder::FStartRow(LegacyLong dyp, LegacyLong cxpMax)
 {
     AssertThis(0);
     Assert(_idypCur == ivNil, "row already started");
     AssertIn(dyp, 0, kcbMax);
     Assert(_ypCur < _rcRef.ypBottom, "already filled");
     AssertIn(cxpMax, 0, kcbMax);
-    long ivLim;
+    LegacyLong ivLim;
 
     ivLim = _ixpCur + cxpMax + 2;
     if (_fResize)
@@ -137,7 +138,7 @@ bool RegionBuilder::FStartRow(long dyp, long cxpMax)
 
     dyp = LwMin(dyp, _rcRef.ypBottom - _ypCur);
     _idypCur = _ixpCur;
-    *(long *)_pglxp->QvGet(_ixpCur++) = dyp;
+    *(LegacyLong *)_pglxp->QvGet(_ixpCur++) = dyp;
     _ypCur += dyp;
     return fTrue;
 }
@@ -150,8 +151,8 @@ void RegionBuilder::EndRow(void)
     AssertThis(0);
     Assert((_ixpCur - _idypCur) & 1, "not an even number of xp values");
     Assert(_ixpCur < _pglxp->IvMac(), "overflow in EndRow");
-    long czp;
-    long *qrgxp = (long *)_pglxp->QvGet(0);
+    LegacyLong czp;
+    LegacyLong *qrgxp = (LegacyLong *)_pglxp->QvGet(0);
 
     qrgxp[_ixpCur++] = klwMax;
     if ((czp = _ixpCur - _idypCur) > 2)
@@ -159,7 +160,7 @@ void RegionBuilder::EndRow(void)
 
     // see if this row matches the last one
     if (ivNil != _idypPrev && czp == _idypCur - _idypPrev &&
-        FEqualRgb(&qrgxp[_idypPrev + 1], &qrgxp[_idypCur + 1], (czp - 1) * size(long)))
+        FEqualRgb(&qrgxp[_idypPrev + 1], &qrgxp[_idypCur + 1], (czp - 1) * size(LegacyLong)))
     {
         // this row matches the previous row
         qrgxp[_idypPrev] += qrgxp[_idypCur];
@@ -180,7 +181,7 @@ void RegionBuilder::EndRow(void)
 /***************************************************************************
     Clean up and return all the relevant information.
 ***************************************************************************/
-PDynamicArray RegionBuilder::PglxpFree(RC *prc, long *pdxp)
+PDynamicArray RegionBuilder::PglxpFree(RC *prc, LegacyLong *pdxp)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -284,7 +285,7 @@ void RegionScanner::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
     if (pvNil != (_pglxpSrc = pglxp))
     {
         _pglxpSrc->AddRef();
-        _pxpLimCur = (long *)_pglxpSrc->PvLock(0);
+        _pxpLimCur = (LegacyLong *)_pglxpSrc->PvLock(0);
         _pxpLimSrc = _pxpLimCur + _pglxpSrc->IvMac();
     }
     else
@@ -315,7 +316,7 @@ void RegionScanner::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
 ***************************************************************************/
 void RegionScanner::_ScanNextCore(void)
 {
-    long dxpT;
+    LegacyLong dxpT;
 
     Assert(_dyp <= 0, "why is _ScanNextCore being called?");
     if (_dypTot <= 0)
@@ -438,7 +439,7 @@ PRegion Region::PregnNew(RC *prc)
 Region::~Region(void)
 {
     ReleasePpo(&_pglxp);
-    FreePhrgn(&_hrgn);
+    ReleasePpo(&_nativeCache);
 }
 
 /***************************************************************************
@@ -454,7 +455,7 @@ void Region::SetRc(RC *prc)
     else
         _rc = *prc;
     ReleasePpo(&_pglxp);
-    FreePhrgn(&_hrgn);
+    ReleasePpo(&_nativeCache);
     _dxp = 0;
     AssertThis(0);
 }
@@ -462,7 +463,7 @@ void Region::SetRc(RC *prc)
 /***************************************************************************
     Offset the region.
 ***************************************************************************/
-void Region::Offset(long xp, long yp)
+void Region::Offset(LegacyLong xp, LegacyLong yp)
 {
     AssertThis(0);
     _rc.Offset(xp, yp);
@@ -498,14 +499,16 @@ bool Region::FIsRc(RC *prc)
 /***************************************************************************
     Scale the x values of the region by the given amount.
 ***************************************************************************/
-void Region::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
+void Region::Scale(LegacyLong lwNumX, LegacyLong lwDenX, LegacyLong lwNumY, LegacyLong lwDenY)
 {
     AssertThis(0);
     Assert(lwDenX > 0 && lwNumX >= 0, "bad X scaling");
     Assert(lwDenY > 0 && lwNumY >= 0, "bad Y scaling");
+    // Invalidate before every scale path, including empty/rectangular results.
+    ReleasePpo(&_nativeCache);
     RC rcScaled;
-    long yp, ypScaled, dyp, dypScaled;
-    long xp1, xp2;
+    LegacyLong yp, ypScaled, dyp, dypScaled;
+    LegacyLong xp1, xp2;
     RAT ratXp(lwNumX, lwDenX);
     RAT ratYp(lwNumY, lwDenY);
 
@@ -589,7 +592,7 @@ void Region::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
     }
 
     ReleasePpo(&_pglxp);
-    FreePhrgn(&_hrgn);
+    ReleasePpo(&_nativeCache);
 
     // force the region scanner to let go of the pglxp before the
     // region builder tries to resize it.
@@ -678,7 +681,7 @@ bool Region::_FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2
     AssertPo(pregsc1, 0);
     AssertPo(pregsc2, 0);
     void *pvSwap;
-    long dyp;
+    LegacyLong dyp;
     RegionBuilder regbl;
 
     if (!regbl.FInit(prc))
@@ -751,7 +754,7 @@ bool Region::_FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2
     }
 
     ReleasePpo(&_pglxp);
-    FreePhrgn(&_hrgn);
+    ReleasePpo(&_nativeCache);
 
     _pglxp = regbl.PglxpFree(&_rc, &_dxp);
     AssertThis(0);
@@ -843,7 +846,7 @@ bool Region::_FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pre
     AssertThis(0);
     AssertPo(pregsc1, 0);
     AssertPo(pregsc2, 0);
-    long dyp;
+    LegacyLong dyp;
     void *pvSwap;
     RegionBuilder regbl;
 
@@ -907,7 +910,7 @@ bool Region::_FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pre
     }
 
     ReleasePpo(&_pglxp);
-    FreePhrgn(&_hrgn);
+    ReleasePpo(&_nativeCache);
 
     _pglxp = regbl.PglxpFree(&_rc, &_dxp);
     AssertThis(0);
@@ -1025,8 +1028,8 @@ bool Region::_FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
     AssertThis(0);
     AssertPo(pregsc1, 0);
     AssertPo(pregsc2, 0);
-    long dyp;
-    long xp1, xp2;
+    LegacyLong dyp;
+    LegacyLong xp1, xp2;
     RegionBuilder regbl;
 
     if (!regbl.FInit(prc))
@@ -1095,205 +1098,19 @@ bool Region::_FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
     }
 
     ReleasePpo(&_pglxp);
-    FreePhrgn(&_hrgn);
+    ReleasePpo(&_nativeCache);
 
     _pglxp = regbl.PglxpFree(&_rc, &_dxp);
     AssertThis(0);
     return fTrue;
 }
 
-/***************************************************************************
-    Create a system region that is equivalent to the given region.
-***************************************************************************/
-HRGN Region::HrgnCreate(void)
-{
-#ifdef WIN
-    RGNDATAHEADER *prd;
-    SystemRectangle *prcs;
-    RegionScanner regsc;
-    long crcMac, crc;
-    HRGN hrgn;
-    long yp, dyp;
-
-    crcMac = _pglxp == pvNil ? 1 : _pglxp->IvMac() / 2;
-    if (!FAllocPv((void **)&prd, size(RGNDATAHEADER) + LwMul(crcMac, size(RECT)), fmemNil, mprNormal))
-    {
-        return hNil;
-    }
-
-    prcs = (SystemRectangle *)(prd + 1);
-    regsc.Init(this, &_rc);
-    crc = 0;
-    if (!_rc.FEmpty())
-    {
-        yp = _rc.ypTop;
-        for (;;)
-        {
-            dyp = regsc.DypCur();
-            while (regsc.XpCur() < klwMax)
-            {
-                prcs->left = regsc.XpCur() + _rc.xpLeft;
-                prcs->right = regsc.XpFetch() + _rc.xpLeft;
-                regsc.XpFetch();
-                prcs->top = yp;
-                prcs->bottom = yp + dyp;
-                prcs++;
-                crc++;
-            }
-            if ((yp += dyp) >= _rc.ypBottom)
-                break;
-            regsc.ScanNext(dyp);
-        }
-    }
-    AssertIn(crc, 0, crcMac + 1);
-    prd->dwSize = size(RGNDATAHEADER);
-    prd->iType = RDH_RECTANGLES;
-    prd->nCount = crc;
-    prd->nRgnSize = 0;
-    prd->rcBound = (SystemRectangle)_rc;
-
-    hrgn = ExtCreateRegion(pvNil, size(RGNDATAHEADER) + LwMul(crc, size(RECT)), (RGNDATA *)prd);
-    FreePpv((void **)&prd);
-    return hrgn;
-#endif // WIN
-#ifdef MAC
-    HRGN hrgn;
-
-    if (pvNil == _pglxp)
-    {
-        SystemRectangle rcs;
-
-        if (hNil == (hrgn = NewRgn()))
-            return hNil;
-        rcs = SystemRectangle(_rc);
-        RectRgn(hrgn, &rcs);
-        return hrgn;
-    }
-
-    RegionScanner regsc1;
-    RegionScanner regsc2;
-    RC rc;
-    long yp;
-    long cb;
-    long xp1, xp2;
-    short *psw;
-
-    regsc1.Init(this, &_rc);
-    rc = _rc;
-    rc.ypTop--;
-    regsc2.Init(this, &rc);
-    for (yp = _rc.ypTop, cb = size(Region);;)
-    {
-        cb += size(short);
-        xp1 = regsc1.XpCur();
-        xp2 = regsc2.XpCur();
-        for (;;)
-        {
-            if (xp1 == xp2)
-            {
-                if (xp1 == klwMax)
-                    break;
-                xp1 = regsc1.XpFetch();
-                xp2 = regsc2.XpFetch();
-                continue;
-            }
-            else if (xp1 < xp2)
-            {
-                cb += size(short);
-                xp1 = regsc1.XpFetch();
-            }
-            else
-            {
-                cb += size(short);
-                xp2 = regsc2.XpFetch();
-            }
-        }
-        cb += size(short);
-        if (yp >= _rc.ypBottom)
-            break;
-        yp += regsc1.DypCur();
-        regsc1.ScanNext(regsc1.DypCur());
-        regsc2.ScanNext(regsc2.DypCur());
-    }
-    cb += size(short);
-
-    if (hNil == (hrgn = (HRGN)NewHandle(cb)))
-        return hNil;
-
-    HLock((HN)hrgn);
-    (*hrgn)->rgnSize = (short)cb;
-    (*hrgn)->rgnBBox = SystemRectangle(_rc);
-
-    regsc1.Init(this, &_rc);
-    rc = _rc;
-    rc.ypTop--;
-    regsc2.Init(this, &rc);
-    for (yp = _rc.ypTop, psw = (short *)((*hrgn) + 1);;)
-    {
-        *psw++ = (short)yp;
-        xp1 = regsc1.XpCur();
-        xp2 = regsc2.XpCur();
-        for (;;)
-        {
-            if (xp1 == xp2)
-            {
-                if (xp1 == klwMax)
-                    break;
-                xp1 = regsc1.XpFetch();
-                xp2 = regsc2.XpFetch();
-                continue;
-            }
-            else if (xp1 < xp2)
-            {
-                *psw++ = (short)xp1;
-                xp1 = regsc1.XpFetch();
-            }
-            else
-            {
-                *psw++ = (short)xp2;
-                xp2 = regsc2.XpFetch();
-            }
-        }
-        *psw++ = 0x7FFF;
-        if (yp >= _rc.ypBottom)
-            break;
-        yp += regsc1.DypCur();
-        regsc1.ScanNext(regsc1.DypCur());
-        regsc2.ScanNext(regsc2.DypCur());
-    }
-    *psw++ = 0x7FFF;
-    Assert(psw == PvAddBv(*hrgn, cb), "wrong size!");
-    HUnlock((HN)hrgn);
-    return hrgn;
-#endif // MAC
-}
-
-/***************************************************************************
-    If we don't have a cached HRGN equivalent of this region, create one.
-    In either case return it.
-***************************************************************************/
-HRGN Region::HrgnEnsure(void)
-{
-    if (hNil != _hrgn)
-    {
-        if (_dptRgn.xp != 0 || _dptRgn.yp != 0)
-        {
-            OffsetRgn(_hrgn, (short)_dptRgn.xp, (short)_dptRgn.yp);
-            _dptRgn.xp = _dptRgn.yp = 0;
-        }
-        return _hrgn;
-    }
-
-    _dptRgn.xp = _dptRgn.yp = 0;
-    _hrgn = HrgnCreate();
-    return _hrgn;
-}
 
 #ifdef DEBUG
 /***************************************************************************
     Assert the validity of a Region.
 ***************************************************************************/
-void Region::AssertValid(ulong grf)
+void Region::AssertValid(LegacyUlong grf)
 {
     Region_PAR::AssertValid(0);
     AssertNilOrPo(_pglxp, 0);
@@ -1310,5 +1127,6 @@ void Region::MarkMem(void)
     AssertValid(0);
     Region_PAR::MarkMem();
     MarkMemObj(_pglxp);
+    MarkMemObj(_nativeCache);
 }
 #endif // DEBUG

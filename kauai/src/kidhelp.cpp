@@ -53,7 +53,7 @@ TextDocument::~TextDocument(void)
 /***************************************************************************
     Assert the validity of a TextDocument.
 ***************************************************************************/
-void TextDocument::AssertValid(ulong grf)
+void TextDocument::AssertValid(LegacyUlong grf)
 {
     TextDocument_PAR::AssertValid(0);
     AssertPo(_prca, 0);
@@ -186,8 +186,8 @@ bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
     ChunkTagOrType ctg;
     ChunkNumber cno;
-    long cb;
-    long rglw[2];
+    LegacyLong cb;
+    LegacyLong rglw[2];
     long clw;
 
     if (TextDocument_PAR::_FOpenArg(icact, sprm, bo, osk))
@@ -229,14 +229,14 @@ bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
             clw = 2;
         LSwapBytes:
             AssertIn(clw, 1, CvFromRgv(rglw) + 1);
-            if (cb < clw * size(long))
+            if (cb < clw * size(LegacyLong))
                 return fFalse;
 
             if (bo == kboOther)
             {
-                _pagcact->GetRgb(icact, size(ChunkTagOrType), clw * size(long), rglw);
+                _pagcact->GetRgb(icact, size(ChunkTagOrType), clw * size(LegacyLong), rglw);
                 SwapBytesRglw(rglw, clw);
-                _pagcact->PutRgb(icact, size(ChunkTagOrType), clw * size(long), rglw);
+                _pagcact->PutRgb(icact, size(ChunkTagOrType), clw * size(LegacyLong), rglw);
             }
             break;
 
@@ -304,16 +304,16 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
     AssertPo(pgnv, 0);
     AssertVarMem(pchp);
     AssertVarMem(prc);
-    long cb;
+    LegacyLong cb;
     PMaskedBitmapMBMP pmbmp;
     PChunkyResourceFile pcrf;
     ChildChunkIdentification kid;
-    long rglw[2];
+    LegacyLong rglw[2];
 
     if (sprmObject != sprm)
         return fFalse;
 
-    Assert(size(ChunkTagOrType) == size(long), 0);
+    Assert(size(ChunkTagOrType) == size(LegacyLong), 0);
     cb = _pagcact->Cb(icact);
     if (cb < size(rglw))
         return fFalse;
@@ -366,12 +366,12 @@ bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv
     AssertVarMem(pxp);
     AssertVarMem(pchp);
     AssertVarMem(prcClip);
-    long cb;
+    LegacyLong cb;
     RC rc;
     PMaskedBitmapMBMP pmbmp;
     PChunkyResourceFile pcrf;
     ChildChunkIdentification kid;
-    long rglw[2];
+    LegacyLong rglw[2];
     bool fDrawMbmp = fTrue;
 
     if (sprmObject != sprm)
@@ -476,7 +476,7 @@ bool TextDocument::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pv
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    byte rgb[size(ChunkIdentification) + size(long)];
+    byte rgb[size(ChunkIdentification) + size(LegacyLong)];
     ChunkIdentification *pcki = (ChunkIdentification *)rgb;
     ChunkNumber *pcnoTopic = (ChunkNumber *)(pcki + 1);
     ;
@@ -587,7 +587,7 @@ bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, 
     if (mpe.lw > 0)
     {
         byte *prgb;
-        long cb;
+        LegacyLong cb;
 
         prgb = (byte *)_pagcact->PvLock(mpe.lw - 1, &cb);
         cb -= size(byte) + size(ChunkNumber); // group number, cnoTopic
@@ -694,7 +694,7 @@ bool TopicGraphicsObject::_FInit(void)
     ChunkIdentification *pcki;
     long dxp;
     ChunkNumber cno;
-    long xp, ypBase;
+    LegacyLong xp, ypBase;
     ChunkNumber cnoTopic;
     byte bGroup;
     long lwMax;
@@ -889,7 +889,7 @@ bool TopicGraphicsObject::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNum
 void TopicGraphicsObject::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit)
 {
     AssertThis(0);
-    long lwRet = 0;
+    LegacyLong lwRet = 0;
 
     // run the script
     if (!_FRunScript(bGroup, grfcust, hidHit, chNil, cnoTopic, &lwRet))
@@ -903,7 +903,7 @@ void TopicGraphicsObject::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust
     Run the script. Returns false iff the TopicGraphicsObject doesn't exist after
     running the script.
 ***************************************************************************/
-bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic, long *plwRet)
+bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic, LegacyLong *plwRet)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwRet);
@@ -930,7 +930,7 @@ bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, a
 
         PWorldOfKidspace pwoks = _pwoks;
         long grid = Grid();
-        long rglw[5];
+        LegacyLong rglw[5];
 
         rglw[0] = (long)bGroup;
         rglw[1] = grfcust;

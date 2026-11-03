@@ -68,9 +68,11 @@ Theater::~Theater(void)
     AssertBaseThis(0);
     ReleasePpo(&_pmvie);
 #ifdef BUG1907
+    vpappb->BeginLongOp();
     vptagm->ClearCache(sidNil, ftagmFile); // Clear content out of HD cache
-                                           // Note: could clear out the RAM cache too, but I'm keeping this change
-                                           // as small as possible.
+    vpappb->EndLongOp();
+    // Note: could clear out the RAM cache too, but I'm keeping this change
+    // as small as possible.
 #endif                                     // BUG1907
 }
 
@@ -108,9 +110,11 @@ bool Theater::FCmdLoad(PCommand pcmd)
             goto LFail;
         ReleasePpo(&_pmvie);
     }
+    vpappb->BeginLongOp();
     vptagm->ClearCache(sidNil, ftagmFile); // Clear content out of HD cache
-                                           // Note: could clear out the RAM cache too, but I'm keeping this change
-                                           // as small as possible.
+    vpappb->EndLongOp();
+    // Note: could clear out the RAM cache too, but I'm keeping this change
+    // as small as possible.
 #endif                                     // BUG1907
     pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), pmcc, &fni, cnoNil);
     if (pmvie == pvNil)
@@ -222,7 +226,7 @@ bool Theater::FCmdRewind(PCommand pcmd)
 /***************************************************************************
     Assert the validity of the Theater.
 ***************************************************************************/
-void Theater::AssertValid(ulong grf)
+void Theater::AssertValid(LegacyUlong grf)
 {
     Theater_PAR::AssertValid(fobjAllocated);
     if (grf & ftatrMvie)

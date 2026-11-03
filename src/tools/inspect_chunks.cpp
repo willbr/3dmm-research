@@ -29,13 +29,13 @@ ASSERTNAME
 
 /* CLI-only stubs of kauai's assertion callbacks. See extract_bmdl.cpp
  * for rationale -- print to stderr instead of popping a dialog. */
-void WarnProc(schar *pszsFile, long lwLine, schar *pszsMsg)
+void WarnProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg)
 {
-    fprintf(stderr, "WARN %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+    fprintf(stderr, "WARN %s:%" LEGACY_PRId " %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
 }
-bool FAssertProc(schar *pszsFile, long lwLine, schar *pszsMsg, void *, long)
+bool FAssertProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg, void *, LegacyLong)
 {
-    fprintf(stderr, "ASSERT %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+    fprintf(stderr, "ASSERT %s:%" LEGACY_PRId " %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
     return false;
 }
 
@@ -74,54 +74,54 @@ static ChunkNumber ParseCno(const char *s)
 
 static int CmdListAll(PChunkyFile pcfl)
 {
-    long ccki = pcfl->Ccki();
-    fprintf(stderr, "inspect-chunks: %ld total chunks\n", ccki);
-    for (long i = 0; i < ccki; i++)
+    LegacyLong ccki = pcfl->Ccki();
+    fprintf(stderr, "inspect-chunks: %" LEGACY_PRId " total chunks\n", ccki);
+    for (LegacyLong i = 0; i < ccki; i++)
     {
         ChunkIdentification cki;
-        long ckid = 0;
+        LegacyLong ckid = 0;
         DataBlock blck;
         if (!pcfl->FGetCki(i, &cki, &ckid, &blck))
             continue;
         char tag[5];
         UnpackCtg(cki.ctg, tag);
-        printf("%4ld  %s  cno=0x%08lx  kids=%ld  size=%ld\n", i, tag, (unsigned long)cki.cno, ckid, blck.Cb());
+        printf("%4" LEGACY_PRId "  %s  cno=0x%08" LEGACY_PRIx "  kids=%" LEGACY_PRId "  size=%" LEGACY_PRId "\n", i, tag, (LegacyUlong)cki.cno, ckid, blck.Cb());
     }
     return 0;
 }
 
 static int CmdListCtg(PChunkyFile pcfl, ChunkTagOrType ctg)
 {
-    long ccki = pcfl->CckiCtg(ctg);
+    LegacyLong ccki = pcfl->CckiCtg(ctg);
     char tag[5];
     UnpackCtg(ctg, tag);
-    fprintf(stderr, "inspect-chunks: %ld %s chunks\n", ccki, tag);
-    for (long i = 0; i < ccki; i++)
+    fprintf(stderr, "inspect-chunks: %" LEGACY_PRId " %s chunks\n", ccki, tag);
+    for (LegacyLong i = 0; i < ccki; i++)
     {
         ChunkIdentification cki;
-        long ckid = 0;
+        LegacyLong ckid = 0;
         DataBlock blck;
         if (!pcfl->FGetCkiCtg(ctg, i, &cki, &ckid, &blck))
             continue;
-        printf("%4ld  %s  cno=0x%08lx  kids=%ld  size=%ld\n", i, tag, (unsigned long)cki.cno, ckid, blck.Cb());
+        printf("%4" LEGACY_PRId "  %s  cno=0x%08" LEGACY_PRIx "  kids=%" LEGACY_PRId "  size=%" LEGACY_PRId "\n", i, tag, (LegacyUlong)cki.cno, ckid, blck.Cb());
     }
     return 0;
 }
 
 static int CmdChildren(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
-    long ckid = pcfl->Ckid(ctg, cno);
+    LegacyLong ckid = pcfl->Ckid(ctg, cno);
     char tag[5];
     UnpackCtg(ctg, tag);
-    fprintf(stderr, "inspect-chunks: %s 0x%lx has %ld children\n", tag, (unsigned long)cno, ckid);
-    for (long i = 0; i < ckid; i++)
+    fprintf(stderr, "inspect-chunks: %s 0x%" LEGACY_PRIx " has %" LEGACY_PRId " children\n", tag, (LegacyUlong)cno, ckid);
+    for (LegacyLong i = 0; i < ckid; i++)
     {
         ChildChunkIdentification kid;
         if (!pcfl->FGetKid(ctg, cno, i, &kid))
             continue;
         char ktag[5];
         UnpackCtg(kid.cki.ctg, ktag);
-        printf("%4ld  %s  cno=0x%08lx  chid=0x%08lx\n", i, ktag, (unsigned long)kid.cki.cno, (unsigned long)kid.chid);
+        printf("%4" LEGACY_PRId "  %s  cno=0x%08" LEGACY_PRIx "  chid=0x%08" LEGACY_PRIx "\n", i, ktag, (LegacyUlong)kid.cki.cno, (LegacyUlong)kid.chid);
     }
     return 0;
 }
@@ -133,13 +133,13 @@ static int CmdDump(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, const 
     void *pv = NULL;
     FILE *out = NULL;
     int rc = 1;
-    long cb = 0;
+    LegacyLong cb = 0;
 
     if (!pcfl->FFind(ctg, cno, &blck))
     {
         char tag[5];
         UnpackCtg(ctg, tag);
-        fprintf(stderr, "inspect-chunks: chunk %s 0x%lx not found\n", tag, (unsigned long)cno);
+        fprintf(stderr, "inspect-chunks: chunk %s 0x%" LEGACY_PRIx " not found\n", tag, (LegacyUlong)cno);
         goto LDone;
     }
     if (!blck.FUnpackData())
@@ -148,7 +148,7 @@ static int CmdDump(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, const 
         goto LDone;
     }
     cb = blck.Cb();
-    fprintf(stderr, "inspect-chunks: unpacked size=%ld bytes\n", cb);
+    fprintf(stderr, "inspect-chunks: unpacked size=%" LEGACY_PRId " bytes\n", cb);
 
     if (!FAllocPv(&pv, cb, fmemNil, mprNormal))
     {
@@ -180,12 +180,12 @@ LDone:
 }
 
 /* Read a chunk's full bytes into a malloc'd buffer. */
-static uint8_t *ReadChunkBytes(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, long *pcb)
+static uint8_t *ReadChunkBytes(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *pcb)
 {
     DataBlock blck;
     if (!pcfl->FFind(ctg, cno, &blck)) return NULL;
     if (!blck.FUnpackData()) return NULL;
-    long cb = blck.Cb();
+    LegacyLong cb = blck.Cb();
     uint8_t *buf = (uint8_t *)malloc(cb);
     if (!blck.FReadRgb(buf, cb, 0)) { free(buf); return NULL; }
     *pcb = cb;
@@ -225,7 +225,7 @@ static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumb
         fprintf(stderr, "inspect-chunks: TMPL has no GLBS child\n");
         return 1;
     }
-    long cb_glbs = 0;
+    LegacyLong cb_glbs = 0;
     uint8_t *buf_glbs = ReadChunkBytes(pcfl, ctg_glbs, kid_glbs.cki.cno, &cb_glbs);
     if (!buf_glbs) { fprintf(stderr, "GLBS read failed\n"); return 1; }
     int npart_glbs = (int)((unsigned)buf_glbs[8] | ((unsigned)buf_glbs[9] << 8) |
@@ -269,7 +269,7 @@ static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumb
             PGeneralGroup pgg = GeneralGroup::PggRead(&blck, &bo);
             if (pgg != pvNil && pgg->IvMac() > 0)
             {
-                long cb_var = pgg->Cb(0);
+                LegacyLong cb_var = pgg->Cb(0);
                 int n_cps = (int)(cb_var / 4);
                 if (n_cps > 64) n_cps = 64;
                 int16_t *rgcps = (int16_t *)pgg->QvGet(0);
@@ -302,7 +302,7 @@ static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumb
         if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)chid_modl, ctg_bmdl, &kid_bmdl))
             continue;
 
-        unsigned long tmap_cno = 0;
+        LegacyUlong tmap_cno = 0;
         int ibset = ibset_of_part[part];
         int cmid = ibset;
         ChildChunkIdentification kid_cmtl, kid_mtrl, kid_tmap;
@@ -310,13 +310,13 @@ static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumb
             pcfl->FGetKidChidCtg(ctg_cmtl, kid_cmtl.cki.cno, 0, ctg_mtrl, &kid_mtrl) &&
             pcfl->FGetKidChidCtg(ctg_mtrl, kid_mtrl.cki.cno, 0, ctg_tmap, &kid_tmap))
         {
-            tmap_cno = (unsigned long)kid_tmap.cki.cno;
+            tmap_cno = (LegacyUlong)kid_tmap.cki.cno;
         }
 
         if (tmap_cno != 0)
-            printf("%d BMDL=0x%08lx TMAP=0x%08lx IMAT=%d\n", part, (unsigned long)kid_bmdl.cki.cno, tmap_cno, imat34);
+            printf("%d BMDL=0x%08" LEGACY_PRIx " TMAP=0x%08" LEGACY_PRIx " IMAT=%d\n", part, (LegacyUlong)kid_bmdl.cki.cno, tmap_cno, imat34);
         else
-            printf("%d BMDL=0x%08lx TMAP=NONE IMAT=%d\n", part, (unsigned long)kid_bmdl.cki.cno, imat34);
+            printf("%d BMDL=0x%08" LEGACY_PRIx " TMAP=NONE IMAT=%d\n", part, (LegacyUlong)kid_bmdl.cki.cno, imat34);
         n_emitted++;
     }
 
@@ -336,7 +336,7 @@ static int CmdName(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     UnpackCtg(ctg, tag);
     if (!pcfl->FGetName(ctg, cno, &stn))
     {
-        fprintf(stderr, "inspect-chunks: %s 0x%lx has no name\n", tag, (unsigned long)cno);
+        fprintf(stderr, "inspect-chunks: %s 0x%" LEGACY_PRIx " has no name\n", tag, (LegacyUlong)cno);
         return 1;
     }
     char buf[256] = {0};
@@ -372,7 +372,7 @@ static int CmdDumpAll(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, con
 
     work[work_tail++] = { ctg, cno };
 
-    long n_dumped = 0;
+    LegacyLong n_dumped = 0;
     while (work_head < work_tail)
     {
         ChunkTagOrType cctg = work[work_head].ctg;
@@ -397,14 +397,14 @@ static int CmdDumpAll(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, con
         char tag[5];
         UnpackCtg(cctg, tag);
         char path[1024];
-        snprintf(path, sizeof(path), "%s/%s_%08lx.bin", out_dir, tag, (unsigned long)ccno);
+        snprintf(path, sizeof(path), "%s/%s_%08" LEGACY_PRIx ".bin", out_dir, tag, (LegacyUlong)ccno);
         if (CmdDump(pcfl, cctg, ccno, path) != 0)
             return 1;
         n_dumped++;
 
         /* Enqueue children. */
-        long ckid = pcfl->Ckid(cctg, ccno);
-        for (long i = 0; i < ckid; i++)
+        LegacyLong ckid = pcfl->Ckid(cctg, ccno);
+        for (LegacyLong i = 0; i < ckid; i++)
         {
             ChildChunkIdentification kid;
             if (!pcfl->FGetKid(cctg, ccno, i, &kid))
@@ -419,7 +419,7 @@ static int CmdDumpAll(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, con
             work_tail++;
         }
     }
-    fprintf(stderr, "inspect-chunks: dump-all wrote %ld chunks under %s\n", n_dumped, out_dir);
+    fprintf(stderr, "inspect-chunks: dump-all wrote %" LEGACY_PRId " chunks under %s\n", n_dumped, out_dir);
     return 0;
 }
 
@@ -436,7 +436,7 @@ static void Usage(void)
             "<CNO> is hex (0xNN or NN).\n");
 }
 
-int __cdecl main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc < 3)
     {

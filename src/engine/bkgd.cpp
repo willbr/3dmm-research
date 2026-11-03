@@ -117,7 +117,7 @@ bool Background::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     A PFNRPO to read a Background from a file
 ***************************************************************************/
-bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -598,14 +598,14 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     PFileObject pfil = pvNil;
     String stnData;
     FilePosition fp;
-    long xr1 = BrScalarToInt(xrPlace);
-    long xr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(xrPlace - BrIntToScalar(xr1))));
-    long yr1 = BrScalarToInt(yrPlace);
-    long yr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(yrPlace - BrIntToScalar(yr1))));
-    long zr1 = BrScalarToInt(zrPlace);
-    long zr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(zrPlace - BrIntToScalar(zr1))));
+    LegacyLong xr1 = BrScalarToInt(xrPlace);
+    LegacyLong xr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(xrPlace - BrIntToScalar(xr1))));
+    LegacyLong yr1 = BrScalarToInt(yrPlace);
+    LegacyLong yr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(yrPlace - BrIntToScalar(yr1))));
+    LegacyLong zr1 = BrScalarToInt(zrPlace);
+    LegacyLong zr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(zrPlace - BrIntToScalar(zr1))));
 
-    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &_stn, _icam + 1))
+    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &_stn, static_cast<LegacyLong>(_icam + 1)))
         goto LFail;
     if (!fni.FBuildFromPath(&stnFile))
         goto LFail;
@@ -639,7 +639,7 @@ LFail:
 /***************************************************************************
     Assert the validity of the Background.
 ***************************************************************************/
-void Background::AssertValid(ulong grf)
+void Background::AssertValid(LegacyUlong grf)
 {
     Background_PAR::AssertValid(fobjAllocated);
     AssertIn(_cbactLight, 1, 100); // 100 is sanity check

@@ -15,6 +15,10 @@
 ***************************************************************************/
 #ifndef UTIL_H
 #define UTIL_H
+#include "legacy_types.h"
+#include "core_platform.h"
+#include "core_native.h"
+#include "platform_files.h"
 #include <stddef.h>
 #ifdef DEBUG
 #include <stdio.h>
@@ -41,32 +45,10 @@
 
 #include "mac.h"
 
-#elif defined(WIN)
+#endif
 
-#define CONST // so we don't have to use const everywhere that Windows wants it
-
-#ifdef UNICODE
-#define _UNICODE
-#endif // UNICODE
-
-// windef.h typedef's PZString to char *, this fools it into using PSZS instead
-#define PZString PSZS
-#include <windows.h>
-#include <windowsx.h>
-#include <vfw.h>
-#undef PZString
-
-#define MIR(foo) MAKEINTRESOURCE(foo)
-typedef HBITMAP HBMP;
-typedef HENHMETAFILE HPIC;
-typedef HPALETTE HPAL;
-typedef HCURSOR HCRS;
-#define hBadWin INVALID_HANDLE_VALUE // some windows APIs return this
-
-#endif // WIN
-
-#define size(foo) ((long)sizeof(foo))
-#define offset(FOO, field) ((int)&((FOO *)0)->field)
+#define size(foo) ((LegacyLong)sizeof(foo))
+#define offset(FOO, field) static_cast<LegacyLong>(offsetof(FOO, field))
 #define CvFromRgv(rgv) (size(rgv) / size(rgv[0]))
 #define BLOCK
 
@@ -90,10 +72,10 @@ const ushort ksuMin = 0;
 typedef unsigned int uint;
 
 typedef unsigned long ulong;
-const long klwMax = 0x7FFFFFFF;
-const long klwMin = -klwMax; // so -klwMin is positive
-const ulong kluMax = 0xFFFFFFFF;
-const ulong kluMin = 0;
+const LegacyLong klwMax = 0x7FFFFFFF;
+const LegacyLong klwMin = -klwMax; // so -klwMin is positive
+const LegacyUlong kluMax = 0xFFFFFFFF;
+const LegacyUlong kluMin = 0;
 
 // typedef int bool;
 
@@ -110,6 +92,7 @@ typedef char schar;
 const schar kschMax = (schar)0x7F;
 const schar kschMin = (schar)0x80;
 #endif //! MAC
+typedef schar *PSZS; // available before base/debug declarations, without SDK headers
 typedef ushort wchar;
 const wchar kwchMax = ksuMax;
 const wchar kwchMin = ksuMin;

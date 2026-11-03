@@ -38,37 +38,37 @@ class Clock : public Clock_PAR
     struct AlarmDescriptor
     {
         PCommandHandler pcmh;
-        ulong tim;
-        long lw;
+        LegacyUlong tim;
+        LegacyLong lw;
     };
 
     static PClock _pclokFirst;
 
     PClock _pclokNext;
-    ulong _tsBase;
-    ulong _timBase;
-    ulong _timCur;    // current time
-    ulong _dtimAlarm; // processing alarms up to _timCur + _dtimAlarm
-    ulong _timNext;   // next alarm time to process (for speed)
-    ulong _grfclok;
+    LegacyUlong _tsBase;
+    LegacyUlong _timBase;
+    LegacyUlong _timCur;    // current time
+    LegacyUlong _dtimAlarm; // processing alarms up to _timCur + _dtimAlarm
+    LegacyUlong _timNext;   // next alarm time to process (for speed)
+    LegacyUlong _grfclok;
     PDynamicArray _pglalad; // the registered alarms
 
   public:
-    Clock(long hid, ulong grfclok = fclokNil);
+    Clock(LegacyLong hid, LegacyUlong grfclok = fclokNil);
     ~Clock(void);
-    static PClock PclokFromHid(long hid);
+    static PClock PclokFromHid(LegacyLong hid);
     static void BuryCmh(PCommandHandler pcmh);
     void RemoveCmh(PCommandHandler pcmh);
 
-    void Start(ulong tim);
+    void Start(LegacyUlong tim);
     void Stop(void);
-    ulong TimCur(bool fAdjustForDelay = fFalse);
-    ulong DtimAlarm(void)
+    LegacyUlong TimCur(bool fAdjustForDelay = fFalse);
+    LegacyUlong DtimAlarm(void)
     {
         return _dtimAlarm;
     }
 
-    bool FSetAlarm(long dtim, PCommandHandler pcmhNotify = pvNil, long lwUser = 0, bool fAdjustForDelay = fFalse);
+    bool FSetAlarm(LegacyLong dtim, PCommandHandler pcmhNotify = pvNil, LegacyLong lwUser = 0, bool fAdjustForDelay = fFalse);
 
     // idle handling
     virtual bool FCmdAll(PCommand pcmd);

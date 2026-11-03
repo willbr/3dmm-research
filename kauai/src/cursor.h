@@ -16,23 +16,7 @@
 #ifndef CURSOR_H
 #define CURSOR_H
 
-enum
-{
-    curtMonochrome = 0,
-};
-
-// cursor on file - stored in a GeneralGroup with the rgb's in the variable part
-struct CursorOnFile
-{
-    long curt; // type of cursor
-    byte xp;   // hot spot
-    byte yp;
-    byte dxp; // size - either 16 or 32 and they should match
-    byte dyp;
-    // byte rgbAnd[];
-    // byte rgbXor[];
-};
-const ByteOrderMask kbomCurf = 0xC0000000;
+#include "cursor_format.h"
 
 typedef class Cursor *PCursor;
 #define Cursor_PAR BaseCacheableObject
@@ -43,10 +27,12 @@ class Cursor : public Cursor_PAR
 
   private:
   protected:
-#ifdef WIN
+#ifdef KAUAI_SDL3
+    std::uint64_t _sdlCursor;
+#elif defined(WIN)
     HCRS _hcrs;
 #endif // WIN
-#ifdef MAC
+#if defined(MAC) && !defined(KAUAI_SDL3)
     Cursor _crs;
 #endif // MAC
 
@@ -56,7 +42,7 @@ class Cursor : public Cursor_PAR
     ~Cursor(void);
 
   public:
-    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 
     void Set(void);
 };

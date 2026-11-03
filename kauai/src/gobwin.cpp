@@ -10,79 +10,39 @@
     Graphic object class.
 
 ***************************************************************************/
+#ifdef KAUAI_SDL3
+#include "sdl_host.h"
+#include "sdl_studio.h"
+#include "platform_text.h"
+#include "text_utf8.h"
+#endif
 #include "frame.h"
 ASSERTNAME
 
-PGraphicsObject GraphicsObject::_pgobScreen;
-
-/***************************************************************************
-    Create the screen gob.  If fgobEnsureHwnd is set, ensures that the
-    screen gob has an OS window associated with it.
-***************************************************************************/
-bool GraphicsObject::FInitScreen(ulong grfgob, long ginDef)
+void InvalHwndRcs(HWND window, SystemRectangle *rectangle)
 {
-    PGraphicsObject pgob;
-    GraphicsObjectBlock gcb(khidScreen, pvNil);
-
-    switch (ginDef)
-    {
-    case kginDraw:
-    case kginMark:
-    case kginSysInval:
-        _ginDefGob = ginDef;
-        break;
-    }
-
-    if (pvNil == (pgob = NewObj GraphicsObject(&gcb)))
-        return fFalse;
-    Assert(pgob == _pgobScreen, 0);
-
-    if (!pgob->FAttachHwnd(vwig.hwndApp))
-        return fFalse;
-
-    return fTrue;
+#ifdef KAUAI_SDL3
+    if (KauaiSDLBridge::Invalidate(window, rectangle))
+        return;
+#endif
+    InvalidateRect(window, rectangle, fFalse);
+}
+void ValidHwndRcs(HWND window, SystemRectangle *rectangle)
+{
+#ifdef KAUAI_SDL3
+    if (KauaiSDLBridge::Validate(window, rectangle))
+        return;
+#endif
+    ValidateRect(window, rectangle);
 }
 
-/***************************************************************************
-    Make the GraphicsObject a wrapper for the given system window.
-***************************************************************************/
-bool GraphicsObject::FAttachHwnd(HWND hwnd)
+CoreNative::WindowHandle GraphicsObject::_HwndApp()
 {
-    if (_hwnd != hNil)
-    {
-        ReleasePpo(&_pgpt);
-        // don't destroy the hwnd - the caller must do that
-        _hwnd = hNil;
-    }
-    if (hwnd != hNil)
-    {
-        if (pvNil == (_pgpt = GraphicsPort::PgptNewHwnd(hwnd)))
-            return fFalse;
-        _hwnd = hwnd;
-        SetRcFromHwnd();
-    }
-    return fTrue;
-}
-
-/***************************************************************************
-    Find the GraphicsObject associated with the given hwnd (if there is one).
-***************************************************************************/
-PGraphicsObject GraphicsObject::PgobFromHwnd(HWND hwnd)
-{
-    // NOTE: we used to use SetProp and GetProp for this, but profiling
-    // indicated that GetProp is very slow.
-    Assert(hwnd != hNil, "nil hwnd");
-    GraphicsObjectTreeEnumerator gte;
-    ulong grfgte;
-    PGraphicsObject pgob;
-
-    gte.Init(_pgobScreen, fgteNil);
-    while (gte.FNextGob(&pgob, &grfgte, fgteNil))
-    {
-        if (pgob->_hwnd == hwnd)
-            return pgob;
-    }
-    return pvNil;
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+        return static_cast<CoreNative::WindowHandle>(KauaiSDL::Main().WindowToken());
+#endif
+    return vwig.hwndApp;
 }
 
 /***************************************************************************
@@ -163,6 +123,20 @@ void GraphicsObject::_DestroyHwnd(HWND hwnd)
 void GraphicsObject::GetPtMouse(PT *ppt, bool *pfDown)
 {
     AssertThis(0);
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().Active())
+    {
+        float x, y; bool down;
+        KauaiSDL::Main().Mouse(x, y, down);
+        if (ppt)
+        {
+            ppt->xp = static_cast<long>(x); ppt->yp = static_cast<long>(y);
+            MapPt(ppt, cooHwnd, cooLocal);
+        }
+        if (pfDown) *pfDown = down;
+        return;
+    }
+#endif
     if (ppt != pvNil)
     {
         SystemPoint pts;
@@ -200,9 +174,15 @@ void GraphicsObject::Clean(void)
         return;
 
     vpappb->InvalMarked(hwnd);
-    GetUpdateRect(hwnd, &rcs, fFalse);
+#ifdef KAUAI_SDL3
+    if (!KauaiSDLBridge::DamageBounds(hwnd, &rcs))
+#endif
+        GetUpdateRect(hwnd, &rcs, fFalse);
     rcT = RC(rcs);
     if (rc.FIntersect(&rcT))
+#ifdef KAUAI_SDL3
+        if (!KauaiSDLBridge::Update(hwnd))
+#endif
         UpdateWindow(hwnd);
 }
 
@@ -216,6 +196,31 @@ void GraphicsObject::SetHwndName(PString pstn)
         Bug("GraphicsObject doesn't have an hwnd");
         return;
     }
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(_hwnd))
+    {
+        try
+        {
+#ifdef UNICODE
+            const auto encoding = BigLittle(KauaiText::Encoding::Utf16BE, KauaiText::Encoding::Utf16LE);
+#else
+            const auto encoding = KauaiText::Encoding::WindowsAnsi;
+#endif
+            const auto bytes = pstn->Cch() * sizeof(achar);
+            const auto count = KauaiText::ToUtf16(pstn->Psz(), bytes, encoding, nullptr, 0);
+            std::vector<std::uint16_t> units(count);
+            std::string title;
+            if ((!bytes || count) &&
+                (!count || KauaiText::ToUtf16(pstn->Psz(), bytes, encoding, units.data(), count)) &&
+                KauaiText::EncodeUtf8(units, title))
+                KauaiSDL::Main().SetTitle(title);
+        }
+        catch (const std::bad_alloc &)
+        {
+        }
+        return;
+    }
+#endif
     if (pvNil != vpmubCur)
     {
         vpmubCur->FChangeListCid(cidChooseWnd, (long)_hwnd, pvNil, (long)_hwnd, pstn);
@@ -228,6 +233,13 @@ void GraphicsObject::SetHwndName(PString pstn)
 ***************************************************************************/
 void GraphicsObject::MakeHwndActive(HWND hwnd)
 {
+#ifdef KAUAI_SDL3
+    if (KauaiSDL::Main().IsWindow(hwnd))
+    {
+        KauaiSDL::Main().Raise();
+        return;
+    }
+#endif
     if (IsWindow(hwnd) && GetParent(hwnd) == vwig.hwndClient && vwig.hwndClient != hNil)
         SendMessage(vwig.hwndClient, WM_MDIACTIVATE, (WPARAM)hwnd, 0);
 }

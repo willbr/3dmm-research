@@ -208,12 +208,12 @@ short _rgtt[] = {
     ttNil, ttNil, ttNil, ttNil, ttNil, ttNil, ttNil, ttNil,
     // x y a { | } ~
     ttNil, ttNil, ttNil, ttOpenBrace, ttBOr, ttCloseBrace, ttBNot};
-long _TtFromCh(achar ch);
+LegacyLong _TtFromCh(achar ch);
 
 /***************************************************************************
     Return the token type of a single character operator.
 ***************************************************************************/
-long _TtFromCh(achar ch)
+LegacyLong _TtFromCh(achar ch)
 {
     AssertIn(ch, kchMinTok, kchMinTok + size(_rgtt) / size(_rgtt[0]));
     return _rgtt[(byte)ch - kchMinTok];
@@ -274,12 +274,12 @@ short _rgttEqual[] = {
     ttNil, ttNil, ttNil, ttNil, ttNil, ttNil, ttNil, ttNil,
     // x y a { |
     ttNil, ttNil, ttNil, ttNil, ttABOr};
-long _TtFromChCh(achar ch1, achar ch2);
+LegacyLong _TtFromChCh(achar ch1, achar ch2);
 
 /***************************************************************************
     Return the token type of a double character token.
 ***************************************************************************/
-long _TtFromChCh(achar ch1, achar ch2)
+LegacyLong _TtFromChCh(achar ch1, achar ch2)
 {
     if (ch1 == ch2)
     {
@@ -355,7 +355,7 @@ LexerBase::~LexerBase(void)
 /***************************************************************************
     Assert the validity of a LexerBase.
 ***************************************************************************/
-void LexerBase::AssertValid(ulong grf)
+void LexerBase::AssertValid(LegacyUlong grf)
 {
     LexerBase_PAR::AssertValid(0);
     AssertNilOrPo(_pfil, 0);
@@ -396,7 +396,7 @@ void LexerBase::GetStnFile(PString pstn)
     Fetch some characters.  Don't advance the pointer into the file.  Can
     fetch at most kcchLexbBuf characters at a time.
 ***************************************************************************/
-bool LexerBase::_FFetchRgch(achar *prgch, long cch)
+bool LexerBase::_FFetchRgch(achar *prgch, LegacyLong cch)
 {
     AssertThis(0);
     AssertIn(cch, 1, kcchLexbBuf);
@@ -405,7 +405,7 @@ bool LexerBase::_FFetchRgch(achar *prgch, long cch)
     if (_ichLim < _ichCur + cch)
     {
         // need to read some more data
-        long cchT;
+        LegacyLong cchT;
 
         if (_fpCur + (_ichCur + cch - _ichLim) * size(achar) > _fpMac)
         {
@@ -462,7 +462,7 @@ bool LexerBase::_FSkipWhiteSpace(void)
     AssertThis(0);
     achar ch;
     bool fStar, fSkipComment, fSlash;
-    long lwLineSav;
+    LegacyLong lwLineSav;
     achar rgch[kcchPoundLine + 1];
     String stn;
 
@@ -605,8 +605,8 @@ bool LexerBase::FGetTok(PToken ptok)
     AssertThis(0);
     AssertVarMem(ptok);
     achar ch, ch2;
-    ulong grfct;
-    long cch;
+    LegacyUlong grfct;
+    LegacyLong cch;
 
     ptok->stn.SetNil();
     if (!_FSkipWhiteSpace())
@@ -789,7 +789,7 @@ LError:
 /***************************************************************************
     Return the size of extra data associated with the last token returned.
 ***************************************************************************/
-long LexerBase::CbExtra(void)
+LegacyLong LexerBase::CbExtra(void)
 {
     AssertThis(0);
     return 0;
@@ -808,7 +808,7 @@ void LexerBase::GetExtra(void *pv)
     Read a number.  The first character is passed in ch.  lwBase is the base
     of the number (must be <= 10).
 ***************************************************************************/
-void LexerBase::_ReadNumber(long *plw, achar ch, long lwBase, long cchMax)
+void LexerBase::_ReadNumber(LegacyLong *plw, achar ch, LegacyLong lwBase, LegacyLong cchMax)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -826,12 +826,12 @@ void LexerBase::_ReadNumber(long *plw, achar ch, long lwBase, long cchMax)
 /***************************************************************************
     Read in a hexadecimal value (without the 0x).
 ***************************************************************************/
-bool LexerBase::_FReadHex(long *plw)
+bool LexerBase::_FReadHex(LegacyLong *plw)
 {
     AssertThis(0);
     AssertVarMem(plw);
     achar ch;
-    ulong grfct;
+    LegacyUlong grfct;
 
     *plw = 0;
     if (!_FFetchRgch(&ch) || !((grfct = _GrfctCh(ch)) & fctHex))
@@ -864,7 +864,7 @@ bool LexerBase::_FReadControlCh(achar *pch)
     AssertVarMem(pch);
     // control sequence
     achar ch;
-    long lw;
+    LegacyLong lw;
 
     if (!_FFetchRgch(&ch))
         return fFalse;

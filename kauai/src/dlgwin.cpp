@@ -10,8 +10,13 @@
     Standard dialogs.
 
 ***************************************************************************/
+#include "dialog_resource.h"
+#ifdef KAUAI_SDL3
+#include "dialog_session.h"
+#endif
 #include "frame.h"
 ASSERTNAME
+using HDLG = HWND;
 
 // dialog init structure
 struct DLGI
@@ -20,219 +25,35 @@ struct DLGI
     long iditFocus;
 };
 
+class NativeDialogAdapter
+{
+  public:
+    static INT_PTR CALLBACK Dispatch(HWND hdlg, UINT msg, WPARAM w, LPARAM lw);
+};
+
 achar _szDlgProp[] = PszLit("Dialog");
 
 /***************************************************************************
-    Read the dialog resource and construct the GGDIT.
-    The dialog resource consists of:
-
-        DLGTEMPLATE structure
-        (0xFFFF, 2-byte value) or unicode string specifying the menu
-        (0xFFFF, 2-byte value) or unicode string specifying the class
-        unicode string for the title
-
-    The following fields only exist if the dialog has the DS_SETFONT style:
-
-        2-byte value specifying the font size
-        unicode string specifying the font
-
-    Next comes:
-
-        0-2 bytes align to dword
-
-    For each dialog item the resource contains:
-
-        DLGITEMTEMPLATE structure
-        (0xFFFF, 2-byte value) or unicode string specifying the class
-        (0xFFFF, 2-byte value) or unicode string specifying the title
+    Load resource bytes through the native adapter; parsing and logical item
+    grouping are shared with future SDL dialog hosts.
 ***************************************************************************/
-bool Dialog::_FInit(void)
+bool Dialog::_FReadResource(KauaiDialogs::Resource &model)
 {
-    HN hn;
-    long cbEntry;
-    long idit, csit;
-    bool fAddDit;
-    DialogItem dit;
-    short *psw;
-    short swClass;
-    DLGTEMPLATE dtm;
-    DLGITEMTEMPLATE ditm;
-    bool fRet = fFalse;
-
-    if ((hn = (HN)FindResource(vwig.hinst, MIR(_rid), RT_DIALOG)) == hNil ||
-        (hn = (HN)LoadResource(vwig.hinst, (HRSRC)hn)) == hNil || (psw = (short *)LockResource(hn)) == pvNil)
+    auto resource = FindResource(vwig.hinst, MIR(_rid), RT_DIALOG);
+    auto loaded = resource ? LoadResource(vwig.hinst, resource) : nullptr;
+    const auto bytes = loaded ? LockResource(loaded) : nullptr;
+    const auto count = resource ? SizeofResource(vwig.hinst, resource) : 0;
+    if (!bytes || !KauaiDialogs::ReadResource(bytes, count, model))
     {
         PushErc(ercDlgCantFind);
-        return fFalse;
+        return false;
     }
-
-    // get and skip the dtm
-    dtm = *(DLGTEMPLATE *)psw;
-    psw = (short *)PvAddBv(psw, size(dtm));
-
-    // get the number of items and ensure space in the GGDIT
-    Assert(dtm.cdit > 0, "no items in this dialog");
-    if (!FEnsureSpace(dtm.cdit, size(long), fgrpNil))
-        goto LFail;
-
-    // skip over the menu field
-    if (*psw == -1)
-        psw += 2;
-    else
-    {
-        while (*psw++ != 0)
-            ;
-    }
-
-    // skip over the class field
-    if (*psw == -1)
-        psw += 2;
-    else
-    {
-        while (*psw++ != 0)
-            ;
-    }
-
-    // skip over the title
-    while (*psw++ != 0)
-        ;
-
-    if (dtm.style & DS_SETFONT)
-    {
-        // skip over the point size
-        psw++;
-
-        // skip over the font name
-        while (*psw++ != 0)
-            ;
-    }
-
-    // look at the items
-    for (csit = dtm.cdit, idit = 0; csit > 0; csit--)
-    {
-        // align to dword
-        if ((long)psw & 2)
-            psw++;
-
-        // get and skip the ditm
-        ditm = *(DLGITEMTEMPLATE *)psw;
-        psw = (short *)PvAddBv(psw, size(ditm));
-
-        // get and skip the class
-        if (*psw == -1)
-        {
-            swClass = psw[1];
-            psw += 2;
-        }
-        else
-        {
-            swClass = 0;
-            while (*psw++ != 0)
-                ;
-        }
-
-        // skip the title
-        if (*psw == -1)
-            psw += 2;
-        else
-        {
-            while (*psw++ != 0)
-                ;
-        }
-
-        // the next word is a size of extra stuff
-        psw = (short *)PvAddBv(psw, psw[0] + size(short));
-
-        // We should be at the end of this item (except for possible padding).
-        // Now figure out what to do with the item.
-
-        fAddDit = fTrue;
-        switch (swClass)
-        {
-        default:
-            fAddDit = fFalse;
-            break;
-
-        case 0x0080: // button, radio button or check box
-            switch (ditm.style & 0x000F)
-            {
-            case 0:
-            case 1:
-                // button
-                dit.ditk = ditkButton;
-                cbEntry = 0;
-                break;
-
-            case 2:
-            case 3:
-                // check box
-                dit.ditk = ditkCheckBox;
-                cbEntry = size(long);
-                break;
-
-            case 4:
-            case 9:
-                // radio button
-                // if the radio button has the WS_GROUP style or the last
-                // dit is not a radio group, start a new group.
-                if (!(ditm.style & WS_GROUP) && idit > 0)
-                {
-                    GetDit(idit - 1, &dit);
-                    if (dit.ditk == ditkRadioGroup && dit.sitLim == ditm.id)
-                    {
-                        dit.sitLim++;
-                        PutDit(idit - 1, &dit);
-                        fAddDit = fFalse;
-                        break;
-                    }
-                }
-
-                // new group
-                dit.ditk = ditkRadioGroup;
-                cbEntry = size(long);
-                break;
-
-            default:
-                fAddDit = fFalse;
-                break;
-            }
-            break;
-
-        case 0x0081: // edit item
-            dit.ditk = ditkEditText;
-            cbEntry = 0;
-            break;
-
-        case 0x0085: // combo item
-            dit.ditk = ditkCombo;
-            cbEntry = 0;
-            break;
-        }
-
-        if (fAddDit)
-        {
-            Assert(cbEntry >= 0, 0);
-            dit.sitMin = ditm.id;
-            dit.sitLim = dit.sitMin + 1;
-            if (!FInsert(idit, cbEntry, pvNil, &dit))
-                goto LFail;
-
-            // zero the extra data
-            if (cbEntry > 0)
-                ClearPb(QvGet(idit), cbEntry);
-            idit++;
-        }
-    }
-
-    Assert(idit > 0, "no dits in this dialog");
-    FEnsureSpace(0, 0, fgrpShrink);
-    fRet = fTrue;
-
-LFail:
-    if (!fRet)
-        PushErc(ercDlgOom);
-
-    return fRet;
+    return true;
+}
+bool Dialog::_FInit(void)
+{
+    KauaiDialogs::Resource model;
+    return _FReadResource(model) && _FInitItems(model);
 }
 
 /***************************************************************************
@@ -240,7 +61,7 @@ LFail:
     matching the DLGPROC typedef. The return values used here (fTrue/fFalse,
     item indices) all fit in the low 32 bits regardless of architecture.
 ***************************************************************************/
-INT_PTR CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
+INT_PTR CALLBACK NativeDialogAdapter::Dispatch(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 {
     PDialog pdlg;
     DialogItem dit;
@@ -274,7 +95,7 @@ INT_PTR CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
             goto LFail;
 
         // create a timer so we can do idle processing
-        if (SetTimer(hdlg, (uint)hdlg, 10, pvNil) == 0)
+        if (SetTimer(hdlg, reinterpret_cast<UINT_PTR>(hdlg), 10, pvNil) == 0)
             goto LFail;
 
         // create a container gob and attach the hdlg
@@ -363,7 +184,7 @@ INT_PTR CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 
             // remove the pdlg property and kill the timer
             RemoveProp(hdlg, _szDlgProp);
-            KillTimer(hdlg, (uint)hdlg);
+            KillTimer(hdlg, reinterpret_cast<UINT_PTR>(hdlg));
 
             EndDialog(hdlg, idit);
             return fTrue;
@@ -381,12 +202,16 @@ INT_PTR CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 ***************************************************************************/
 long Dialog::IditDo(long iditFocus)
 {
+#ifdef KAUAI_SDL3
+    LegacyLong result;
+    if (_FDoSDL(iditFocus,result)) return result;
+#endif
     long idit;
     DLGI dlgi;
 
     dlgi.pdlg = this;
     dlgi.iditFocus = iditFocus;
-    idit = (long)DialogBoxParam(vwig.hinst, MIR(_rid), vwig.hwndApp, &_FDlgCore, (LPARAM)&dlgi);
+    idit = (long)DialogBoxParam(vwig.hinst, MIR(_rid), vwig.hwndApp, &NativeDialogAdapter::Dispatch, (LPARAM)&dlgi);
 
     return idit;
 }
@@ -397,6 +222,9 @@ long Dialog::IditDo(long iditFocus)
 ***************************************************************************/
 void Dialog::SelectDit(long idit)
 {
+#ifdef KAUAI_SDL3
+    if (_session) { _session->focus=idit; return; }
+#endif
     HDLG hdlg;
     DialogItem dit;
 

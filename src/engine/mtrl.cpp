@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(Material_MTRL)
@@ -27,6 +27,11 @@ const byte kbOpaque = 0xff;
 
 PTextureMap Material_MTRL::_ptmapShadeTable = pvNil; // shade table for all MTRLs
 
+void Material_MTRL::ReleaseShadeTable(void)
+{
+    ReleasePpo(&_ptmapShadeTable);
+}
+
 /***************************************************************************
     Call this function to assign the global shade table.  It is read from
     the given chunk.
@@ -35,15 +40,18 @@ bool Material_MTRL::FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNu
 {
     AssertPo(pcfl, 0);
 
+    PTextureMap replacement = TextureMap::PtmapRead(pcfl, ctg, cno);
+    if (pvNil == replacement)
+        return fFalse;
     ReleasePpo(&_ptmapShadeTable);
-    _ptmapShadeTable = TextureMap::PtmapRead(pcfl, ctg, cno);
-    return (pvNil != _ptmapShadeTable);
+    _ptmapShadeTable = replacement;
+    return fTrue;
 }
 
 /***************************************************************************
     Create a new solid-color material
 ***************************************************************************/
-PMaterial_MTRL Material_MTRL::PmtrlNew(long iclrBase, long cclr)
+PMaterial_MTRL Material_MTRL::PmtrlNew(LegacyLong iclrBase, LegacyLong cclr)
 {
     if (ivNil != iclrBase)
         AssertIn(iclrBase, 0, kbMax);
@@ -93,7 +101,7 @@ PMaterial_MTRL Material_MTRL::PmtrlNew(long iclrBase, long cclr)
 /***************************************************************************
     A PFNRPO to read Material_MTRL objects.
 ***************************************************************************/
-bool Material_MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Material_MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -410,7 +418,7 @@ Material_MTRL::~Material_MTRL(void)
 /***************************************************************************
     Assert the validity of the Material_MTRL.
 ***************************************************************************/
-void Material_MTRL::AssertValid(ulong grf)
+void Material_MTRL::AssertValid(LegacyUlong grf)
 {
     Material_MTRL_PAR::AssertValid(fobjAllocated);
 
@@ -492,11 +500,11 @@ bool CustomMaterial_CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, Chunk
 /***************************************************************************
     Create a new custom material
 ***************************************************************************/
-PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl)
+PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(LegacyLong ibset, LegacyLong cbprt, PMaterial_MTRL *prgpmtrl)
 {
     AssertPvCb(prgpmtrl, LwMul(cbprt, size(PMaterial_MTRL)));
     PCustomMaterial_CMTL pcmtl;
-    long imtrl;
+    LegacyLong imtrl;
 
     pcmtl = NewObj CustomMaterial_CMTL;
     if (pvNil == pcmtl)
@@ -527,7 +535,7 @@ PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(long ibset, long cbprt, PMate
 /***************************************************************************
     A PFNRPO to read CustomMaterial_CMTL objects.
 ***************************************************************************/
-bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -561,8 +569,8 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
 
-    long ikid;
-    long imtrl;
+    LegacyLong ikid;
+    LegacyLong imtrl;
     ChildChunkIdentification kid;
     DataBlock blck;
     PChunkyFile pcfl = pcrf->Pcfl();
@@ -588,7 +596,7 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
     // note: there might be a faster way to compute _cbprt
     for (ikid = 0; pcfl->FGetKid(ctg, cno, ikid, &kid); ikid++)
     {
-        if ((long)kid.chid > (_cbprt - 1))
+        if ((LegacyLong)kid.chid > (_cbprt - 1))
             _cbprt = kid.chid + 1;
     }
     if (!FAllocPv((void **)&_prgpmtrl, LwMul(_cbprt, size(PMaterial_MTRL)), fmemClear, mprNormal))
@@ -625,7 +633,7 @@ CustomMaterial_CMTL::~CustomMaterial_CMTL(void)
 {
     AssertBaseThis(0);
 
-    long imtrl;
+    LegacyLong imtrl;
 
     if (pvNil != _prgpmtrl)
     {
@@ -645,7 +653,7 @@ CustomMaterial_CMTL::~CustomMaterial_CMTL(void)
 /***************************************************************************
     Return ibmtl'th BMTL
 ***************************************************************************/
-BMTL *CustomMaterial_CMTL::Pbmtl(long ibmtl)
+BMTL *CustomMaterial_CMTL::Pbmtl(LegacyLong ibmtl)
 {
     AssertThis(0);
     AssertIn(ibmtl, 0, _cbprt);
@@ -656,7 +664,7 @@ BMTL *CustomMaterial_CMTL::Pbmtl(long ibmtl)
 /***************************************************************************
     Return imodl'th Model
 ***************************************************************************/
-PModel CustomMaterial_CMTL::Pmodl(long imodl)
+PModel CustomMaterial_CMTL::Pmodl(LegacyLong imodl)
 {
     AssertThis(0);
     AssertIn(imodl, 0, _cbprt);
@@ -672,7 +680,7 @@ bool CustomMaterial_CMTL::FHasModels(void)
 {
     AssertThis(0);
 
-    long imodl;
+    LegacyLong imodl;
 
     for (imodl = 0; imodl < _cbprt; imodl++)
     {
@@ -686,9 +694,9 @@ bool CustomMaterial_CMTL::FHasModels(void)
 /***************************************************************************
     Assert the validity of the CustomMaterial_CMTL
 ***************************************************************************/
-void CustomMaterial_CMTL::AssertValid(ulong grf)
+void CustomMaterial_CMTL::AssertValid(LegacyUlong grf)
 {
-    long imtrl;
+    LegacyLong imtrl;
 
     Material_MTRL_PAR::AssertValid(fobjAllocated);
     AssertPvCb(_prgpmtrl, LwMul(_cbprt, size(Material_MTRL *)));
@@ -708,7 +716,7 @@ void CustomMaterial_CMTL::MarkMem(void)
 {
     AssertThis(0);
 
-    long imtrl;
+    LegacyLong imtrl;
 
     Material_MTRL_PAR::MarkMem();
     MarkPv(_prgpmtrl);

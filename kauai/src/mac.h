@@ -58,13 +58,13 @@
 #define UppercaseText(prgch, cch, scr) UpperText(prgch, cch)
 #define LowercaseText(prgch, cch, scr) LowerText(prgch, cch)
 #include <SysEqu.h>
-inline long LMGetHeapEnd(void)
+inline LegacyLong LMGetHeapEnd(void)
 {
-    return *(long *)ApplLimit;
+    return *(LegacyLong *)ApplLimit;
 }
-inline long LMGetCurrentA5(void)
+inline LegacyLong LMGetCurrentA5(void)
 {
-    return *(long *)CurrentA5;
+    return *(LegacyLong *)CurrentA5;
 }
 #endif //! SYMC
 

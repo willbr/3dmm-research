@@ -3,8 +3,8 @@
 Kauai is Microsoft's in-house C++ application framework, originally
 designed to be cross-platform between Windows and Mac. Its sources are
 organised into platform-agnostic `.cpp` files plus per-platform
-`*win.cpp` / `*mac.cpp` companions. Today only the Windows files build;
-the Mac files are present in the tree for historical reference.
+`*win.cpp` / `*mac.cpp` companions. The full framework still builds on Windows. Portable platform services now have
+Windows and POSIX file backends; the old Mac files are historical references.
 
 The library is split into [`kauai-core`](library-split.md#kauai-core)
 (CLI/headless) and the full `kauai` (gui). The clusters below note
@@ -20,8 +20,9 @@ which side each file lives on.
 | `codec.cpp`       | core       | `Codec` interface + KauaiCodec encoder.                       |
 | `codkauai.cpp`    | core       | KauaiCodec decoder; pulls in the asm fast path on x86 (`kcdc_386.h`, `kcd2_386.h` codegen). |
 | `file.cpp`        | core       | `FileObject` cross-platform abstraction. See [`../kauai-reference/file-api.md`](../kauai-reference/file-api.md). |
-| `filewin.cpp`     | core (Win) | Win32 `ReadFile` / `WriteFile` implementation.                |
-| `fniwin.cpp`      | core (Win) | `Filename` (path manipulation) on Win32.                      |
+| `file_native.cpp` | core | Shared file lifecycle, permission restoration and error policy. |
+| `filename.cpp` | core | Shared filename navigation, filtering and enumeration. |
+| `platform_files_win.cpp` / `platform_files_posix.cpp` | core backend | Native [file/path services](platform-files.md), with no OS types in the interface. |
 | `mssio.cpp`       | core       | Microsoft IStream adapter for OLE / GDI+ interop.             |
 | `stream.cpp`      | core       | In-memory stream abstraction.                                 |
 
@@ -52,6 +53,12 @@ which side each file lives on.
 
 ## Graphics & UI
 
+`gfx.h` supplies the SDK-free high-level drawing API and portable value layouts.
+Runtime/native adapters include `gfx_port.h` for the native port definition.
+`gob.h` is also SDK-free: it exposes the object tree and opaque window interop
+tokens; backend implementations own invalidation calls. SDL window services
+handle root titles, logical bounds and scaled desktop coordinate conversion.
+
 | File              | Side  | Purpose                                                       |
 |-------------------|-------|---------------------------------------------------------------|
 | `gob.cpp`         | gui   | `GraphicsObject` — kauai's UI tree node (windows / panes).    |
@@ -59,15 +66,33 @@ which side each file lives on.
 | `gfx.cpp`         | gui   | `GraphicsPort`, `GraphicsEnvironment` — drawing state.        |
 | `gfxwin.cpp`      | gui   | Win32 GDI binding for `GraphicsPort`.                         |
 | `region.cpp`      | core  | Geometric `Region` / `RegionScanner` (clipping geometry).     |
-| `regionwin.cpp`   | core  | HRGN helpers (kept core because `region.cpp` calls them).     |
+| `regionwin.cpp`, `region_native_win.cpp` | gui | HRGN ownership and native region operations. |
 | `cursor.cpp`      | gui   | Cursor management.                                            |
 | `ctl.cpp`         | gui   | Generic controls (scrollbar, buttons).                        |
 | `clip.cpp`        | gui   | Clipboard.                                                    |
-| `pic.cpp`         | core  | `Picture` — Win MetaFile / Mac PICT abstraction.              |
-| `picwin.cpp`      | core  | Win32 ENHMETAFILE side of `Picture`.                          |
+| `picture_data.cpp` | core | Fixed-width picture envelope and opaque payload preservation. |
+| `pic.cpp`         | gui   | `Picture` native import/rendering wrapper.                    |
+| `picwin.cpp`      | gui   | Win32 ENHMETAFILE side of `Picture`.                          |
 | `mbmp.cpp`        | core  | `MaskedBitmapMBMP` data side (alloc / RLE codec / chunk I/O / .BMP import). |
 | `mbmpgui.cpp`     | gui   | `MaskedBitmapMBMP::Draw` / `DrawMask` (the actual blit).      |
-| `video.cpp`       | gui   | AVI playback wrapper.                                         |
+| `video.cpp`       | gui   | Shared video scheduling through the SDK-free host interface.   |
+| `avi_movie.cpp`   | core  | Bounded AVI/Video 1 decoding, palette/delta seeks, timing and PCM bytes. |
+| `video_sdl.cpp`   | SDL host | Audio-clocked video playback, stream output, gain and lifetime. |
+| `video_stream_sdl.cpp` | gui | Original video representation adapter: file loading, canvas drawing and redraw requests. |
+| `video_stream_win.cpp` | gui | Private VfW stream decoding and presentation.                |
+| `video_window.cpp` | gui  | Native window playback with opaque state.                      |
+
+## MIDI playback
+
+| File | Side | Purpose |
+|------|------|---------|
+| `midi.cpp` | core | MIDI stream parser and serialization. |
+| `mididev2.cpp` | core | Stream cache, queues, priority mixer, seek/resume and expiry; injected device factory. |
+| `midi_worker.cpp` | core | Timed worker with coalescing wakes and joined shutdown. |
+| `midi_stream_host.h` | core API | Fixed event records and SDK-free borrowed-buffer/device contract. |
+| `midi_stream_win.cpp` | gui backend | WinMM output, native headers, callbacks and device volume. |
+| `midi_synth.cpp` / `midi_render.cpp` | portable synth | SoundFont instruments and frame-clock event rendering. |
+| `midi_sdl.cpp` | SDL backend | PCM output and borrowed-buffer callbacks, without Windows MIDI APIs. |
 
 ## Documents & text
 
@@ -98,6 +123,12 @@ which side each file lives on.
 | `mididev2.cpp`    | gui   | Win32 `HMIDISTRM` device (alternate / fallback).              |
 
 ## Application bootstrap & command dispatch
+
+`appb.h` exposes the application API without importing a window SDK. Native
+Windows globals belong to private `appb_native_win.h`; callback aliases retain
+native ABI and are checked against SDK signatures. Main-thread SDL assertions
+use the SDL/ImGui modal host; worker/startup and frontend-failure paths retain
+the native fallback. The application implementation still uses Windows bootstrap.
 
 | File              | Side  | Purpose                                                       |
 |-------------------|-------|---------------------------------------------------------------|

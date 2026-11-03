@@ -20,13 +20,13 @@ RTCLASS(Codec)
     The header on a compressed block consists of the cfmt (a long in big
     endian order) and the decompressed length (a long in big endian order).
 ***************************************************************************/
-const long kcbCodecHeader = 2 * size(long);
+const LegacyLong kcbCodecHeader = 2 * size(LegacyLong);
 
 /***************************************************************************
     Constructor for the compression manager. pcodc is an optional default
     codec. cfmt is the default compression format.
 ***************************************************************************/
-CodecManager::CodecManager(PCodec pcodc, long cfmt)
+CodecManager::CodecManager(PCodec pcodc, LegacyLong cfmt)
 {
     AssertNilOrPo(pcodc, 0);
     Assert(cfmtNil != cfmt, "nil default compression format");
@@ -50,7 +50,7 @@ CodecManager::~CodecManager(void)
     ReleasePpo(&_pcodcDef);
     if (pvNil != _pglpcodc)
     {
-        long ipcodc;
+        LegacyLong ipcodc;
         PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
@@ -66,7 +66,7 @@ CodecManager::~CodecManager(void)
 /***************************************************************************
     Assert the validity of a CodecManager.
 ***************************************************************************/
-void CodecManager::AssertValid(ulong grf)
+void CodecManager::AssertValid(LegacyUlong grf)
 {
     CodecManager_PAR::AssertValid(0);
     Assert(cfmtNil != _cfmtDef, "nil default compression");
@@ -85,7 +85,7 @@ void CodecManager::MarkMem(void)
     MarkMemObj(_pcodcDef);
     if (pvNil != _pglpcodc)
     {
-        long ipcodc;
+        LegacyLong ipcodc;
         PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
@@ -101,7 +101,7 @@ void CodecManager::MarkMem(void)
 /***************************************************************************
     Set the default compression type.
 ***************************************************************************/
-void CodecManager::SetCfmtDefault(long cfmt)
+void CodecManager::SetCfmtDefault(LegacyLong cfmt)
 {
     AssertThis(0);
 
@@ -135,7 +135,7 @@ bool CodecManager::FRegisterCodec(PCodec pcodc)
 /***************************************************************************
     Return whether we can encode or decode the given format.
 ***************************************************************************/
-bool CodecManager::FCanDo(long cfmt, bool fEncode)
+bool CodecManager::FCanDo(LegacyLong cfmt, bool fEncode)
 {
     AssertThis(0);
     PCodec pcodc;
@@ -150,7 +150,7 @@ bool CodecManager::FCanDo(long cfmt, bool fEncode)
     Gets the type of compression used on the block (assuming it is
     compressed).
 ***************************************************************************/
-bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, long *pcfmt)
+bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -172,7 +172,7 @@ bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, long *pcfmt)
 /***************************************************************************
     Look for a codec that can handle the given format.
 ***************************************************************************/
-bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCodec *ppcodc)
+bool CodecManager::_FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc)
 {
     AssertThis(0);
     AssertVarMem(ppcodc);
@@ -186,7 +186,7 @@ bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCodec *ppcodc)
 
     if (pvNil != _pglpcodc)
     {
-        long ipcodc;
+        LegacyLong ipcodc;
         PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
@@ -207,7 +207,7 @@ bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCodec *ppcodc)
     Compress or decompress an hq of data. Note that the value of *phq
     may change. cfmt should be cfmtNil to decompress.
 ***************************************************************************/
-bool CodecManager::_FCodePhq(long cfmt, HQ *phq)
+bool CodecManager::_FCodePhq(LegacyLong cfmt, HQ *phq)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -215,8 +215,8 @@ bool CodecManager::_FCodePhq(long cfmt, HQ *phq)
 
     HQ hqDst;
     void *pvSrc;
-    long cbSrc;
-    long cbDst;
+    LegacyLong cbSrc;
+    LegacyLong cbDst;
     bool fRet;
 
     pvSrc = PvLockHq(*phq);
@@ -252,7 +252,7 @@ bool CodecManager::_FCodePhq(long cfmt, HQ *phq)
     *pcbDst with the required destination buffer size. This is just an
     estimate in the compress case.
 ***************************************************************************/
-bool CodecManager::_FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool CodecManager::_FCode(LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
 {
     AssertIn(cbSrc, 1, kcbMax);
     AssertPvCb(pvSrc, cbSrc);

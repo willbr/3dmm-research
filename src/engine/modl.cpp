@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
 ***************************************************************************/
-#include "soc.h"
+#include "soc_core.h"
 ASSERTNAME
 
 RTCLASS(Model)
@@ -19,7 +19,7 @@ RTCLASS(Model)
 // every architecture. br_face does -- on x64 the in-memory size grows by 4
 // bytes -- which is why faces go through BrFaceOnFile at the I/O boundary.
 static_assert(sizeof(br_vertex) == 32, "br_vertex wire size drift -- check /Zp4 packing");
-#if defined(_WIN64) || defined(_M_X64)
+#if INTPTR_MAX == INT64_MAX
 static_assert(sizeof(br_face) == 36, "br_face x64 in-memory size drift");
 #else
 static_assert(sizeof(br_face) == 32, "br_face x86 in-memory size drift");
@@ -77,18 +77,18 @@ static void _BrFaceToOnFile(BrFaceOnFile *pdst, const br_face *psrc)
     byteswap each (mask kbomBrf describes the on-file layout), and unpack
     into the runtime br_face[] at prgbrf. cfac == 0 is a no-op success.
 ***************************************************************************/
-static bool _FReadModelFaces(PDataBlock pblck, br_face *prgbrf, long cfac, long ib, bool fSwap)
+static bool _FReadModelFaces(PDataBlock pblck, br_face *prgbrf, LegacyLong cfac, LegacyLong ib, bool fSwap)
 {
     if (cfac <= 0)
         return fTrue;
-    long cb = LwMul(cfac, size(BrFaceOnFile));
+    LegacyLong cb = LwMul(cfac, size(BrFaceOnFile));
     BrFaceOnFile *prgof = pvNil;
     bool fOk = fFalse;
     if (!FAllocPv((void **)&prgof, cb, fmemNil, mprNormal))
         goto LDone;
     if (!pblck->FReadRgb(prgof, cb, ib))
         goto LDone;
-    for (long ifac = 0; ifac < cfac; ifac++)
+    for (LegacyLong ifac = 0; ifac < cfac; ifac++)
     {
         if (fSwap)
             SwapBytesBom(&prgof[ifac], kbomBrf);
@@ -103,7 +103,7 @@ LDone:
 /***************************************************************************
     Create a new PModel based on some vertices and faces.
 ***************************************************************************/
-PModel Model::PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf)
+PModel Model::PmodlNew(LegacyLong cbrv, BRV *prgbrv, LegacyLong cbrf, BRF *prgbrf)
 {
     AssertIn(cbrv, 0, ksuMax); // ushort in br_model
     AssertPvCb(prgbrv, LwMul(cbrv, size(BRV)));
@@ -134,7 +134,7 @@ LFail:
 /***************************************************************************
     A PFNRPO to read a Model from a file
 ***************************************************************************/
-bool Model::FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Model::FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -175,9 +175,9 @@ bool Model::_FInit(PDataBlock pblck)
     AssertPo(pblck, 0);
 
     ModelOnFile modlf;
-    long cbrgbrv;
-    long cbrgbrfOnFile;
-    long ibrv;
+    LegacyLong cbrgbrv;
+    LegacyLong cbrgbrfOnFile;
+    LegacyLong ibrv;
     BRV *pbrv;
     Model *pmodlThis = this;
     char szIdentifier[size(PModel) + 1];
@@ -346,9 +346,9 @@ bool Model::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    long cb;
-    long cbrgbrv;
-    long cbrgbrfOnFile;
+    LegacyLong cb;
+    LegacyLong cbrgbrv;
+    LegacyLong cbrgbrfOnFile;
     ModelOnFile *pmodlf;
 
     // br_vertex has no embedded pointer so its size matches the wire format
@@ -369,7 +369,7 @@ bool Model::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     CopyPb(_pbmdl->prepared_vertices, PvAddBv(pmodlf, size(ModelOnFile)), cbrgbrv);
     {
         BrFaceOnFile *prgof = (BrFaceOnFile *)PvAddBv(pmodlf, size(ModelOnFile) + cbrgbrv);
-        for (long ifac = 0; ifac < _pbmdl->nprepared_faces; ifac++)
+        for (LegacyLong ifac = 0; ifac < _pbmdl->nprepared_faces; ifac++)
             _BrFaceToOnFile(&prgof[ifac], &_pbmdl->prepared_faces[ifac]);
     }
     if (!pcfl->FPutPv(pmodlf, cb, ctg, cno))
@@ -396,8 +396,8 @@ void Model::AdjustTdfCharacter(void)
     BRS dxr = BrsHalf(dxrModl) + dxrSpacing;
     BRS dzrModl = Dzr();
     BRS dzr = BrsHalf(dzrModl);
-    long cbrv = _pbmdl->nprepared_vertices;
-    long ibrv;
+    LegacyLong cbrv = _pbmdl->nprepared_vertices;
+    LegacyLong ibrv;
 
     for (ibrv = 0; ibrv < cbrv; ibrv++)
     {
@@ -421,7 +421,7 @@ void Model::AdjustTdfCharacter(void)
     Prelight a model
     REVIEW *****: make this code more general
 ***************************************************************************/
-bool Model::_FPrelight(long cblit, BVEC3 *prgbvec3Light)
+bool Model::_FPrelight(LegacyLong cblit, BVEC3 *prgbvec3Light)
 {
     AssertIn(cblit, 1, 10);
     AssertPvCb(prgbvec3Light, LwMul(cblit, size(BVEC3)));
@@ -434,7 +434,7 @@ bool Model::_FPrelight(long cblit, BVEC3 *prgbvec3Light)
     PBACT pbactLight;
     BLIT blit;
     PBMTL pbmtl;
-    long iblit;
+    LegacyLong iblit;
     BCAM bcam = {"bah",
                  BR_CAMERA_PERSPECTIVE,
                  BR_ANGLE_DEG(60.0), // REVIEW *****
@@ -450,7 +450,7 @@ bool Model::_FPrelight(long cblit, BVEC3 *prgbvec3Light)
     const br_ufraction kbrufKdHilite = BR_UFRACTION(0.60);
     const br_ufraction kbrufKsHilite = BR_UFRACTION(0.00);
     const BRS krPowerHilite = BR_SCALAR(50);
-    const long kiclrHilite = 108; // palette index for hilite color
+    const LegacyLong kiclrHilite = 108; // palette index for hilite color
 
     ClearPb(&blit, size(BLIT));
     blit.colour = BR_COLOUR_RGB(0xff, 0xff, 0xff);
@@ -510,7 +510,7 @@ LFail:
 /***************************************************************************
     Assert the validity of the Model.
 ***************************************************************************/
-void Model::AssertValid(ulong grf)
+void Model::AssertValid(LegacyUlong grf)
 {
     Model_PAR::AssertValid(fobjAllocated);
     AssertVarMem(_pbmdl);

@@ -32,17 +32,17 @@ ASSERTNAME
  * and FAssertProc as the hard-fail one; the gui-side appb.cpp defines
  * them as "show a dialog". A CLI tool has no UI, so just print and
  * continue -- assertion fires are still surfaced to stderr. */
-void WarnProc(schar *pszsFile, long lwLine, schar *pszsMsg)
+void WarnProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg)
 {
-    fprintf(stderr, "WARN %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+    fprintf(stderr, "WARN %s:%" LEGACY_PRId " %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
 }
-bool FAssertProc(schar *pszsFile, long lwLine, schar *pszsMsg, void *, long)
+bool FAssertProc(schar *pszsFile, LegacyLong lwLine, schar *pszsMsg, void *, LegacyLong)
 {
-    fprintf(stderr, "ASSERT %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+    fprintf(stderr, "ASSERT %s:%" LEGACY_PRId " %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
     return false; /* false = continue; true = enter debugger */
 }
 
-int __cdecl main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     if (argc != 4)
     {
@@ -56,9 +56,9 @@ int __cdecl main(int argc, char **argv)
     PChunkyFile pcfl = pvNil;
     DataBlock blck;
     ChunkIdentification cki;
-    long ibmdl = atoi(argv[2]);
-    long ccki = 0;
-    long cb = 0;
+    LegacyLong ibmdl = atoi(argv[2]);
+    LegacyLong ccki = 0;
+    LegacyLong cb = 0;
     void *pv = NULL;
     FILE *out = NULL;
     int rc = 1;
@@ -78,27 +78,27 @@ int __cdecl main(int argc, char **argv)
     }
 
     ccki = pcfl->CckiCtg(kctgBmdl);
-    fprintf(stderr, "extract-bmdl: %s contains %ld BMDL chunks\n", argv[1], ccki);
+    fprintf(stderr, "extract-bmdl: %s contains %" LEGACY_PRId " BMDL chunks\n", argv[1], ccki);
     if (ibmdl < 0 || ibmdl >= ccki)
     {
-        fprintf(stderr, "extract-bmdl: index %ld out of range [0, %ld)\n", ibmdl, ccki);
+        fprintf(stderr, "extract-bmdl: index %" LEGACY_PRId " out of range [0, %" LEGACY_PRId ")\n", ibmdl, ccki);
         goto LDone;
     }
 
     if (!pcfl->FGetCkiCtg(kctgBmdl, ibmdl, &cki, pvNil, &blck))
     {
-        fprintf(stderr, "extract-bmdl: FGetCkiCtg failed for index %ld\n", ibmdl);
+        fprintf(stderr, "extract-bmdl: FGetCkiCtg failed for index %" LEGACY_PRId "\n", ibmdl);
         goto LDone;
     }
 
     if (!blck.FUnpackData())
     {
-        fprintf(stderr, "extract-bmdl: FUnpackData failed for chunk cno=0x%lx\n", (long)cki.cno);
+        fprintf(stderr, "extract-bmdl: FUnpackData failed for chunk cno=0x%" LEGACY_PRIx "\n", (LegacyLong)cki.cno);
         goto LDone;
     }
 
     cb = blck.Cb();
-    fprintf(stderr, "extract-bmdl: chunk %ld cno=0x%lx unpacked size=%ld bytes\n", ibmdl, (long)cki.cno, cb);
+    fprintf(stderr, "extract-bmdl: chunk %" LEGACY_PRId " cno=0x%" LEGACY_PRIx " unpacked size=%" LEGACY_PRId " bytes\n", ibmdl, (LegacyLong)cki.cno, cb);
 
     if (!FAllocPv(&pv, cb, fmemNil, mprNormal))
     {

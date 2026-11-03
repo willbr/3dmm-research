@@ -74,7 +74,7 @@ void SourceEmitter::Uninit(void)
 /***************************************************************************
     Assert the validity of a SourceEmitter.
 ***************************************************************************/
-void SourceEmitter::AssertValid(ulong grfchse)
+void SourceEmitter::AssertValid(LegacyUlong grfchse)
 {
     SourceEmitter_PAR::AssertValid(0);
     AssertPo(&_bsf, 0);
@@ -147,7 +147,7 @@ void SourceEmitter::DumpBlck(PDataBlock pblck)
 /***************************************************************************
     Dump raw data from memory.
 ***************************************************************************/
-void SourceEmitter::DumpRgb(void *prgb, long cb, long cactTab)
+void SourceEmitter::DumpRgb(void *prgb, LegacyLong cb, LegacyLong cactTab)
 {
     AssertThis(fchseDump);
     AssertIn(cb, 0, kcbMax);
@@ -176,14 +176,14 @@ void SourceEmitter::DumpParentCmd(ChunkTagOrType ctgPar, ChunkNumber cnoPar, Chi
 /***************************************************************************
     Dump a bitmap directive
 ***************************************************************************/
-void SourceEmitter::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PString pstnFile)
+void SourceEmitter::DumpBitmapCmd(byte bTransparent, LegacyLong dxp, LegacyLong dyp, PString pstnFile)
 {
     AssertThis(fchseDump);
     AssertPo(pstnFile, 0);
 
     String stn;
 
-    stn.FFormatSz(PszLit("BITMAP(%d, %d, %d) \"%s\""), (long)bTransparent, dxp, dyp, pstnFile);
+    stn.FFormatSz(PszLit("BITMAP(%d, %d, %d) \"%s\""), (LegacyLong)bTransparent, dxp, dyp, pstnFile);
     DumpSz(stn.Psz());
 }
 
@@ -223,7 +223,7 @@ void SourceEmitter::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentifica
 /***************************************************************************
     Dump the data in the _bsf
 ***************************************************************************/
-void SourceEmitter::_DumpBsf(long cactTab)
+void SourceEmitter::_DumpBsf(LegacyLong cactTab)
 {
     AssertThis(fchseDump);
     AssertIn(cactTab, 0, kcchMaxStn + 1);
@@ -231,9 +231,9 @@ void SourceEmitter::_DumpBsf(long cactTab)
     byte rgb[8], bT;
     String stn1;
     String stn2;
-    long cact;
-    long ib, ibMac;
-    long cb, ibT;
+    LegacyLong cact;
+    LegacyLong ib, ibMac;
+    LegacyLong cb, ibT;
 
     stn1.SetNil();
     for (cact = cactTab; cact-- > 0;)
@@ -307,8 +307,8 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
     AssertThis(fchseDump);
     AssertPo(pglb, 0);
 
-    long cbEntry;
-    long iv, ivMac;
+    LegacyLong cbEntry;
+    LegacyLong iv, ivMac;
     String stn;
     bool fAl = pglb->FIs(kclsAllocatedArray);
 
@@ -346,8 +346,8 @@ void SourceEmitter::DumpGroup(PVirtualGroup pggb)
     AssertThis(fchseDump);
     AssertPo(pggb, 0);
 
-    long cbFixed, cb;
-    long iv, ivMac;
+    LegacyLong cbFixed, cb;
+    LegacyLong iv, ivMac;
     String stnT;
     bool fAg = pggb->FIs(kclsAllocatedGroup);
 
@@ -395,8 +395,8 @@ bool SourceEmitter::FDumpStringTable(PVirtualStringTable pgstb)
     AssertThis(fchseDump);
     AssertPo(pgstb, 0);
 
-    long cbExtra;
-    long iv, ivMac;
+    LegacyLong cbExtra;
+    LegacyLong iv, ivMac;
     String stn1;
     String stn2;
     void *pvExtra = pvNil;
