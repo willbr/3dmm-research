@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <algorithm>
+#include <cmath>
 #include <utility>
 #include <vector>
 
@@ -177,6 +178,57 @@ int main(int argc, char **argv)
             return Fail(__LINE__, host);
         if (!host.PushPointer(123, 45, true) || !Next(host, KauaiSDL::EventKind::buttonDown, event) || event.x != 123 ||
             event.y != 45 || !host.PushPointer(123, 45, false) || !Next(host, KauaiSDL::EventKind::buttonUp, event))
+            return Fail(__LINE__, host);
+    }
+    // Fullscreen must fill the display even when its size is not an integer
+    // multiple of the canvas. Exercise both app and window-manager requests.
+    auto window = SDL_GetWindowFromID(host.WindowID());
+    for (bool external : {false, true})
+    {
+        if (!(external ? SDL_SetWindowFullscreen(window, true) : host.SetFullscreen(true)) || !SDL_SyncWindow(window))
+            return Fail(__LINE__, host);
+        while (host.Poll(event))
+        {
+        }
+        KauaiSDL::PresentationStatus view;
+        if (!host.Present(true) || !host.Presentation(view))
+            return Fail(__LINE__, host);
+        const float scale = std::min(view.outputWidth / 320.0f, view.outputHeight / 240.0f);
+        if (std::abs(view.width - 320 * scale) >= 1 || std::abs(view.height - 240 * scale) >= 1 ||
+            std::abs(view.x - (view.outputWidth - view.width) / 2) > 0.001f ||
+            std::abs(view.y - (view.outputHeight - view.height) / 2) > 0.001f || !host.SaveBMP(argv[1]))
+            return Fail(__LINE__, host);
+        auto image = SDL_LoadBMP(argv[1]);
+        if (!image || std::abs(image->w - view.width) >= 1 || std::abs(image->h - view.height) >= 1)
+            return Fail(__LINE__, host);
+        // Sample centers of source pixels to avoid nearest-neighbor boundaries.
+        for (const auto &point : {std::pair<int, int>{0, 0}, {160, 120}, {319, 239}})
+        {
+            const int x = std::min(image->w - 1, int((point.first + 0.5f) * view.width / 320));
+            const int y = std::min(image->h - 1, int((point.second + 0.5f) * view.height / 240));
+            Uint8 r, g, b;
+            if (!SDL_ReadSurfacePixel(image, x, y, &r, &g, &b, nullptr) ||
+                ((std::uint32_t(r) << 16) | (std::uint32_t(g) << 8) | b) !=
+                    (pixels[point.second * 320 + point.first] & 0xFFFFFF))
+                return Fail(__LINE__, host);
+        }
+        SDL_DestroySurface(image);
+        if (!host.SetIntegerScaling(true) || !host.IntegerScaling() || !host.Present(true) ||
+            !CheckPixels(host, argv[1], pixels))
+            return Fail(__LINE__, host);
+        if (!host.SetIntegerScaling(false) || host.IntegerScaling() || !host.Present(true) || !host.Presentation(view) ||
+            std::abs(view.width - 320 * scale) >= 1 || std::abs(view.height - 240 * scale) >= 1)
+            return Fail(__LINE__, host);
+        if (!host.PushPointer(123, 45, true) || !Next(host, KauaiSDL::EventKind::buttonDown, event) ||
+            std::abs(event.x - 123) > 0.001f || std::abs(event.y - 45) > 0.001f ||
+            !host.PushPointer(123, 45, false) || !Next(host, KauaiSDL::EventKind::buttonUp, event))
+            return Fail(__LINE__, host);
+        if (!(external ? SDL_SetWindowFullscreen(window, false) : host.SetFullscreen(false)) || !SDL_SyncWindow(window))
+            return Fail(__LINE__, host);
+        while (host.Poll(event))
+        {
+        }
+        if (!host.Present(true) || !CheckPixels(host, argv[1], pixels))
             return Fail(__LINE__, host);
     }
     for (auto key : {65u, 27u, 39u})

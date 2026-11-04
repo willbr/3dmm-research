@@ -1333,6 +1333,8 @@ static JVal Tool_GetState(const JVal &args)
         KauaiSDL::Main().WindowState(state);
         o.Set("hwnd_visible", JVal::MkBool(state.shown));
         o.Set("hwnd_iconic", JVal::MkBool(state.minimized));
+        o.Set("sdl_fullscreen", JVal::MkBool(state.fullscreen));
+        o.Set("sdl_integer_scaling", JVal::MkBool(KauaiSDL::Main().IntegerScaling()));
         o.Set("foreground", JVal::MkBool(state.keyboardFocus));
         std::string title;
         KauaiSDL::Main().Title(title);
