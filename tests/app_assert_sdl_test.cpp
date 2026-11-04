@@ -93,7 +93,9 @@ int main(int argc, char **argv)
     _putenv_s("KAUAI_FONT_PROVIDER", "freetype");
     auto app = NewObj AssertApp;
     CHECK(app && app->Open());
+#ifdef WIN
     vwig.lwThreadMain = LwThreadCur();
+#endif
     std::remove(argv[1]);
     for (unsigned control : {1u, 3u})
     {

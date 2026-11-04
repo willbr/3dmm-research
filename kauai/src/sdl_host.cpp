@@ -13,6 +13,11 @@
 
 namespace KauaiSDL
 {
+std::uint64_t SystemMemoryBytes()
+{
+    const auto megabytes = SDL_GetSystemRAM();
+    return megabytes > 0 ? static_cast<std::uint64_t>(megabytes) * 1024 * 1024 : 0;
+}
 namespace
 {
 std::uint32_t ModifiersFromSDL(SDL_Keymod value)
@@ -475,6 +480,10 @@ bool Host::IsWindow(void *value) const
 int Host::Width() const
 {
     return impl->width;
+}
+bool Host::WindowSize(int &width, int &height) const
+{
+    return impl->window && SDL_GetWindowSize(impl->window, &width, &height);
 }
 int Host::Height() const
 {

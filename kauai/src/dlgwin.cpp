@@ -13,6 +13,7 @@
 #include "dialog_resource.h"
 #ifdef KAUAI_SDL3
 #include "dialog_session.h"
+#include "dialog_resources.h"
 #endif
 #include "frame.h"
 ASSERTNAME
@@ -39,6 +40,9 @@ achar _szDlgProp[] = PszLit("Dialog");
 ***************************************************************************/
 bool Dialog::_FReadResource(KauaiDialogs::Resource &model)
 {
+#ifdef KAUAI_SDL3
+    if (KauaiDialogs::ReadApplicationResource(_rid, model)) return true;
+#endif
     auto resource = FindResource(vwig.hinst, MIR(_rid), RT_DIALOG);
     auto loaded = resource ? LoadResource(vwig.hinst, resource) : nullptr;
     const auto bytes = loaded ? LockResource(loaded) : nullptr;

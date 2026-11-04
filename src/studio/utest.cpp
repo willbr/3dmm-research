@@ -24,7 +24,7 @@
 #include "platform_users.h"
 #include <cstdio>
 #include "settings_store.h"
-#ifdef WIN
+#ifdef _WIN32
 #include "settings_store_win.h"
 #else
 #include "settings_store_posix.h"
@@ -734,6 +734,11 @@ void Application::_TryToActivateWindow(void)
 bool Application::_FEnsureOS(void)
 {
     AssertBaseThis(0);
+#ifdef KAUAI_SDL3
+    // SDL's host initialization checks platform support; the historical
+    // Windows 95/NT version dialog is not a portable startup requirement.
+    return fTrue;
+#endif
 #ifdef WIN
     DWORD dwVersion;
     byte bVersionMajor;
@@ -1312,10 +1317,10 @@ bool Application::_FOpenResourceFile(void)
     String stn;
 
     fni = _fniProductDir;
-    if (!fni.FSetLeaf(&_stnProductLong, kftgChunky) || tYes != fni.TExists())
+    if (!fni.FSetLeaf(&_stnProductLong, kftgChunky) || !fni.FResolveCase())
     {
         fni = _fniProductDir;
-        if (!fni.FSetLeaf(&_stnProductShort, kftgChunky) || tYes != fni.TExists())
+        if (!fni.FSetLeaf(&_stnProductShort, kftgChunky) || !fni.FResolveCase())
         {
             fni.GetStnPath(&stn);
             _FCantFindFileDialog(&stn); // ignore failure
@@ -1704,7 +1709,7 @@ bool Application::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData
     if (request.write && request.type == KauaiSettings::Type::String)
         Assert(CchSz((PZString)pvData) < cbData, "Invalid string for reg key");
 
-#ifdef WIN
+#ifdef _WIN32
     const auto &backend = KauaiSettings::WindowsBackend();
 #else
     const auto &backend = KauaiSettings::PosixBackend();
@@ -2518,6 +2523,15 @@ bool Application::_FFindMsKidsDir(void)
                 _fniMsKidsDir = candidate;
                 return fTrue;
             }
+            // CMake installs the executable beside the Microsoft Kids tree.
+            // This also supports relocatable Mac/Linux installs without an env var.
+            Filename installed = candidate;
+            String kids(PszLit("Microsoft Kids"));
+            if (installed.FDownDir(&kids, ffniMoveToDir) && _FMsKidsDirIsComplete(&installed))
+            {
+                _fniMsKidsDir = installed;
+                return fTrue;
+            }
             if (!candidate.FUpDir(pvNil, ffniMoveToDir))
                 break;
         }
@@ -2634,7 +2648,7 @@ bool Application::_FMsKidsDirIsComplete(Filename *path)
     stn = PszLit("BLDGDATA.CHK");
     if (!fni.FSetLeaf(&stn))
         return fFalse;
-    return tYes == fni.TExists();
+    return fni.FResolveCase();
 }
 
 /***************************************************************************
@@ -2700,13 +2714,13 @@ bool Application::_FQueryProductExists(String *pstnLong, String *pstnShort, File
     }
 
     fni = *pfni;
-    if (fni.FSetLeaf(pstnLong, kftgChunky) && (tYes == fni.TExists()))
+    if (fni.FSetLeaf(pstnLong, kftgChunky) && fni.FResolveCase())
         return fTrue;
     fni = *pfni;
-    if (fni.FSetLeaf(pstnShort, kftgChunky) && (tYes == fni.TExists()))
+    if (fni.FSetLeaf(pstnShort, kftgChunky) && fni.FResolveCase())
         return fTrue;
 LFail:
-    TrashVar(pfni);
+    pfni->SetNil();
     return fFalse;
 }
 
@@ -2717,14 +2731,13 @@ void Application::_Activate(bool fActive)
 {
     AssertBaseThis(0);
 
+    Application_PAR::_Activate(fActive);
+#ifdef KAUAI_SDL3
+    return; // SDL owns focus and window state on every platform.
+#endif
+
 #ifdef WIN
     bool fIsIconic;
-
-    Application_PAR::_Activate(fActive);
-
-#ifdef KAUAI_SDL3
-    return; // SDL manages focus without legacy desktop-mode/minimize changes.
-#endif
 
     fIsIconic = IsIconic(vwig.hwndApp);
 
@@ -3346,6 +3359,12 @@ void Application::MemStat(long *pdwTotalPhys, long *pdwAvailPhys)
         *pdwTotalPhys = ms.dwTotalPhys;
     if (pvNil != pdwAvailPhys)
         *pdwAvailPhys = ms.dwAvailPhys;
+#elif defined(KAUAI_SDL3)
+    const auto total = KauaiSDL::SystemMemoryBytes();
+    if (pdwTotalPhys) *pdwTotalPhys = static_cast<long>(total > klwMax ? klwMax : total);
+    // SDL reports installed RAM, not currently available RAM. Zero makes the
+    // old browser-cache heuristic conservative without inventing a value.
+    if (pdwAvailPhys) *pdwAvailPhys = 0;
 #else
     RawRtn();
 #endif //! WIN
@@ -4540,7 +4559,7 @@ LFail:
 }
 #endif // WIN
 
-#ifdef WIN
+#if defined(WIN) || defined(KAUAI_SDL3)
 /***************************************************************************
     Override standard _FGetNextEvt to catch WM_USER event.  Otherwise
     the event will get thrown away, because the event's hwnd is nil.
@@ -4595,7 +4614,7 @@ void Application::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grf
     }
 }
 
-#ifdef WIN
+#if defined(WIN) || defined(KAUAI_SDL3)
 /***************************************************************************
     Override default UpdateHwnd to optionally skip offscreen buffer
 ***************************************************************************/

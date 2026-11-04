@@ -66,8 +66,11 @@ int main()
     while (host.Poll(event))
     {
     }
+#ifdef WIN
     vwig.hdcApp = GetDC(nullptr);
-    CHECK(vwig.hdcApp && vntl.FInit());
+    CHECK(vwig.hdcApp);
+#endif
+    CHECK(vntl.FInit());
     auto app = NewObj ApplicationBase;
     CHECK(app);
     app->HideCurs();
@@ -94,8 +97,10 @@ int main()
     vpclip->Set();
     ReleasePpo(&document);
     ReleasePpo(&app);
+#ifdef WIN
     ReleaseDC(nullptr, vwig.hdcApp);
     vwig.hdcApp = nullptr;
+#endif
     host.Close();
     std::puts("SDL clipboard: text export, rich document retention, external import, line endings, long text and empty "
               "replacement passed.");

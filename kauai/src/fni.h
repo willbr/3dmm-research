@@ -105,6 +105,9 @@ class Filename : public Filename_PAR
     void GetStnPath(PString pstn);
 
     tribool TExists(void);
+    // Read-only legacy content lookup: prefer exact spelling, otherwise accept
+    // one unambiguous ASCII case match per component. Unchanged on failure.
+    bool FResolveCase(void);
     bool FDelete(void);
     bool FRename(PFilename pfniNew);
     bool FEqual(PFilename pfni);

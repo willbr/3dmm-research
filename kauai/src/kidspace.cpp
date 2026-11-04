@@ -1987,10 +1987,11 @@ struct GOKFL
     short bo;
     short osk;
     RC rc;
-    long lwAcrFore;
-    long lwAcrBack;
+    LegacyLong lwAcrFore;
+    LegacyLong lwAcrBack;
     byte rgbPat[8];
 };
+static_assert(sizeof(GOKFL) == 36, "FILL chunks use 32-bit rectangles and colors");
 const ByteOrderMask kbomGokfl = 0x5FFF0000;
 
 /***************************************************************************

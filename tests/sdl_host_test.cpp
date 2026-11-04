@@ -80,9 +80,15 @@ int main(int argc, char **argv)
     if (scalingOnly)
     {
         for (const auto &dimensions : {std::pair<int, int>{850, 510}, {1000, 700}, {1001, 721}, {321, 241}})
+        {
             if (!host.SetWindowSize(dimensions.first, dimensions.second) || !host.Present(true) ||
                 !CheckPixels(host, argv[1], pixels))
                 return Fail(__LINE__, host);
+            int width = 0, height = 0;
+            if (!host.WindowSize(width, height) || width != dimensions.first || height != dimensions.second ||
+                host.Width() != 320 || host.Height() != 240)
+                return Fail(__LINE__, host);
+        }
         std::puts("SDL presentation: every rendered pixel matches integer nearest-neighbor scaling.");
         return 0;
     }

@@ -118,8 +118,12 @@ int main(int argc, char **argv)
     dialog.artwork.pixels.assign(640 * 480, 0xFF102030);
     dialog.preview = Test::Preview;
     Test test{&dialog, root, argv[2]};
-    Check(RunFileDialog(dialog, 0, Test::Idle, &test) && dialog.accepted && test.stage == 6 && !test.failed &&
-          dialog.browser.selection.find("fixture.3mm") != std::string::npos && !CurrentDialog().active);
+    Check(SDL_InitSubSystem(SDL_INIT_VIDEO));
+    auto parent = SDL_CreateWindow("Portfolio parent", 640, 480, SDL_WINDOW_HIDDEN);
+    Check(parent);
+    Check(RunFileDialog(dialog, SDL_GetWindowID(parent), Test::Idle, &test) && dialog.accepted && test.stage == 6 &&
+          !test.failed && dialog.browser.selection.find("fixture.3mm") != std::string::npos && !CurrentDialog().active);
+    SDL_DestroyWindow(parent);
     auto image = SDL_LoadBMP(argv[2]);
     Check(image);
     Uint8 r, g, b, a;

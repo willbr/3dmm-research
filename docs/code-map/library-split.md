@@ -18,9 +18,10 @@ core does not require application, document/view or World replacements.
 
 The application boundary and first portable core build are implemented. Core
 retains global host configuration and BRender types; this is not a reentrant,
-installed SDK or a complete GUI-free scene/movie player. The optional SDL3/ImGui
-archive inspector is the first portable UI host; Studio playback/editing and
-device adapters remain future work.
+installed SDK or a complete GUI-free scene/movie player. The SDL3/ImGui archive
+inspector supplies a portable UI host. Studio also has
+SDL playback/editing and device adapters, with a Windows build that exercises
+its portable GUI runtime; see the [current verification](../tools/studio-sdl.md).
 
 ## Why the split exists
 
@@ -220,8 +221,21 @@ portfolio, scene sorter and text/scrollbar controls. Fixed-width selection and
 resource-table values no longer rely on LP64 `long` layout. Studio's resource
 string-table reader lives in `resource_tables.cpp` and uses only `kauai-core`;
 its byte-order/schema regression test runs without the GUI on Windows and
-Linux. Windows-only MCP diagnostics and codec installation remain outside the
-gate. See the [editor checkpoint](../tools/studio-sdl.md#studio-editor-compilation-update-for-3-november-2026).
+Linux. The Debug MCP server is now included in the compilation gate; its stdio,
+PNG, SDL input/state and dialog paths cross-compile for Linux/macOS. Native
+Windows diagnostic tools remain conditional, and codec installation remains
+outside the gate. See the [MCP checkpoint](../tools/studio-sdl.md#portable-mcp-checkpoint-4-november-2026)
+and [editor checkpoint](../tools/studio-sdl.md#studio-editor-compilation-update-for-3-november-2026).
+
+The full SDL Studio build and Clang/GCC resource pipeline are now enabled on
+Mac/Linux. Linux has linked and run the original editor, selected a scene,
+saved a movie and shut down cleanly. Native Linux `chomp` produces all eight
+archives byte-for-byte identically to the Windows host tool. Resource lookup
+can explicitly resolve unambiguous legacy case differences without changing
+ordinary file semantics. Packed FILL fields, script numeric/name packing and
+BRender list unlinking now use layouts/operations valid on 64-bit POSIX hosts.
+See the [application checkpoint](../tools/studio-sdl.md#maclinux-studio-build-4-november-2026)
+for the native Mac validation limit.
 
 `engine-runtime-compile-check` now compiles the actual playback sources, SDL
 recorder and BRender World adapter for Linux/macOS. Actor/core callbacks and

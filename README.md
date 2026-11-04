@@ -36,13 +36,12 @@ In May 2022, Microsoft released the original source code under the
 - **x86 (32-bit) — primary target.** Loads, edits, saves, and plays back
   `.3MM` movies; kidspace, portfolio, scene editing, and the splot machine
   all run.
-- **x64 (64-bit) — in progress.** Configures, links, and reaches the main
-  window. Several on-disk struct layouts that embed kauai's `TAG` have been
-  split into fixed-width on-file forms with an explicit marshal step so the
-  wire format stays byte-identical to 1995. Remaining LP64 work for the
-  on-disk format is tracked under `docs/superpowers/specs/` and
-  `docs/superpowers/plans/`.
-- **macOS / Linux — not yet.**
+- **x64 (64-bit) � Windows SDL3 editor verified.** Editing, playback, dialogs
+  and movie save/reopen pass the recorded workflows. An opt-in portable-runtime
+  build exercises the CPU/SDL GUI adapters without native Windows graphics or
+  dialog-resource fallbacks. See [current verification](docs/tools/studio-sdl.md).
+- **macOS / Linux � full Studio integration pending.** Shared runtime sources
+  have compilation coverage, and selected portable runtime tests execute on Linux.
 
 A naming-modernisation pass is also in flight: the original Hungarian-style
 3-5 letter type names (`TGOB`, `MACTR`, `APP`, …) are being renamed to
@@ -74,9 +73,10 @@ $ cmake --build build
 Output: `build/3dmovie.exe` plus chomped `.chk` data files under
 `build/3dmovie/`.
 
-x64 builds use the `x64:msvc:*` presets from an AMD64 MSVC environment. They
-configure and launch but still hit known serialisation bugs on real movies
-— see the Status section.
+x64 builds use the `x64:msvc:*` presets from an AMD64 MSVC environment.
+For the portable Windows SDL runtime, use `x64:msvc:portable-sdl-debug` and build
+`build/studio-portable-x64`. Its output is `3dmovie-sdl.exe`; build and test
+instructions are in [the SDL runtime notes](docs/tools/studio-sdl.md).
 
 Most auxiliary targets (`chomp`, `ched`, `chelp`, `chelpdmp`, `chmerge`,
 `kpack`, `mkmbmp`, the `ft`/`ut` test apps, `movie-chomp`) are
@@ -147,6 +147,19 @@ and quit. Pass `--mcp-server` on the command line to enable it. The
 project-root `.mcp.json` registers the server so a Claude Code session
 opened in the repo auto-discovers it. A scriptable Python driver lives at
 `scripts/mcp-driver.py` for shell-driven sessions.
+
+The SDL server uses portable stdio, PNG screenshots, SDL input/window state and
+modal-dialog actions. Native Windows diagnostic tools are conditional. Linux
+application startup, scene selection, save and shutdown checks pass; native Mac
+application validation remains outstanding. See [MCP implementation and tests](docs/code-map/mcp-server.md).
+
+### Mac/Linux SDL Studio
+
+The full application and resource compiler build with Clang/GCC. Use the native
+`sdl-debug` preset, supply an original Microsoft Kids tree as `MSKIDS_OVERLAY_DIR`,
+then build and install `build/studio-sdl`. Linux's native compiler produces the
+same eight resource archives as the Windows tool. macOS requires Apple's SDK and
+still needs a native build/run check. See [build and content/font setup](docs/tools/studio-sdl.md#maclinux-studio-build-4-november-2026).
 
 ## Contributing
 

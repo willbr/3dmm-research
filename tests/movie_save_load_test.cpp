@@ -732,6 +732,20 @@ int __cdecl main(int argc, char **argv)
     papp = NewObj TestApp();
     if (papp == pvNil)
         BAIL("new TestApp failed");
+#if defined(KAUAI_SDL3) && !defined(WIN)
+    {
+        auto palette = DynamicArray::PglNew(sizeof(Color), 256);
+        if (!palette || !palette->FSetIvMac(256)) BAIL("palette fixture failed");
+        for (int i = 0; i < 256; ++i)
+        {
+            const auto level = static_cast<byte>(i);
+            Color color{level, level, level, 0};
+            palette->Put(i, &color);
+        }
+        GraphicsPort::SetActiveColors(palette, 0);
+        ReleasePpo(&palette);
+    }
+#endif
 
     LOG("initializing vpcex (CommandExecutionManager) -- needed by Clock::Stop");
     /* vpcex is normally created by ApplicationBase::_FInit. Clock::Stop
@@ -864,11 +878,15 @@ int __cdecl main(int argc, char **argv)
 
     LOG("core -> runtime -> core caption persistence");
     {
+#ifdef WIN
         vwig.hdcApp = GetDC(NULL);
         bool captionOK = vwig.hdcApp != NULL && vntl.FInit() && TestCaptionPersistence(pmvie->Pscen());
         if (vwig.hdcApp != NULL)
             ReleaseDC(NULL, vwig.hdcApp);
         vwig.hdcApp = NULL;
+#else
+        bool captionOK = vntl.FInit() && TestCaptionPersistence(pmvie->Pscen());
+#endif
         if (!captionOK)
             BAIL("caption persistence failed");
     }

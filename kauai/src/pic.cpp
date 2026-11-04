@@ -22,6 +22,11 @@ RTCLASS(Picture)
 ***************************************************************************/
 PPicture Picture::PpicNew(CoreNative::PictureHandle hpic, RC *prc)
 {
+#if defined(KAUAI_SDL3) && !defined(WIN)
+    // Unsupported in the portable adapter; ownership stays with the caller.
+    PushErc(ercGfxCantDraw);
+    return nullptr;
+#else
     Assert(hpic != hNil, "nil hpic");
     AssertVarMem(prc);
     PPicture ppic;
@@ -33,6 +38,7 @@ PPicture Picture::PpicNew(CoreNative::PictureHandle hpic, RC *prc)
     ppic->_rc = *prc;
     AssertPo(ppic, 0);
     return ppic;
+#endif
 }
 
 /***************************************************************************
@@ -118,7 +124,7 @@ bool Picture::FPutInCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, C
 void Picture::AssertValid(LegacyUlong grf)
 {
     Picture_PAR::AssertValid(0);
-    Assert(_hpic != hNil, "bad hpic");
+    Assert(_hpic != hNil || _stored.CbOnFile() != 0, "bad picture");
 }
 #endif // DEBUG
 

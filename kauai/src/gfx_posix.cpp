@@ -17,6 +17,7 @@ std::uint64_t paletteVersion = 1;
 } // namespace
 Color *GraphicsPort::_prgclr;
 LegacyLong GraphicsPort::_cclrPal;
+long GraphicsPort::_cPortableIndexedPorts;
 
 PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *bounds, long depth)
 {
@@ -40,6 +41,7 @@ PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *bounds, long depth)
     port->_pixelBuffer = storage.release();
     port->_prgbPixels = static_cast<byte *>(port->_pixelBuffer->Pixels());
     port->_cbitPixel = static_cast<LegacyLong>(depth);
+    if (depth <= 8) ++_cPortableIndexedPorts;
     port->_cbRow = port->_pixelBuffer->Pitch();
     port->_ptBase = bounds->PtTopLeft();
     port->_rcOff.Set(0, 0, static_cast<LegacyLong>(width), static_cast<LegacyLong>(height));
@@ -60,6 +62,23 @@ GraphicsPort::~GraphicsPort()
 void GraphicsPort::Flush()
 {
     // CPU writes complete synchronously; there is no native drawing queue.
+}
+PGraphicsPort GraphicsPort::PgptNewPic(RC *)
+{
+    PushErc(ercGfxCantDraw);
+    return nullptr;
+}
+PPicture GraphicsPort::PpicRelease()
+{
+    // Preserve the consuming API contract even though recording is unavailable.
+    PushErc(ercGfxCantDraw);
+    Release();
+    return nullptr;
+}
+void GraphicsPort::DrawPic(PPicture, SystemRectangle *, GraphicsDrawingData *)
+{
+    // Leave destination pixels intact and let the caller report unsupported use.
+    PushErc(ercGfxCantDraw);
 }
 void GraphicsPort::SetActiveColors(PDynamicArray colors, ulong flags)
 {

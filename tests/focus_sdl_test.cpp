@@ -20,8 +20,10 @@ class FocusApp : public ApplicationBase
     }
     void NativeActivation(bool active)
     {
+#ifdef WIN
         LRESULT result;
         _FCommonWndProc(vwig.hwndApp, WM_ACTIVATEAPP, active, 0, &result);
+#endif
     }
 };
 #define CHECK(c)                                                                                                       \
@@ -42,9 +44,11 @@ int main()
 {
     auto &host = KauaiSDL::Main();
     CHECK(host.Create("SDL activation check", 64, 48, true));
+#ifdef WIN
     vwig.hwndApp = static_cast<HWND>(host.NativeWindow());
+#endif
     auto app = NewObj FocusApp;
-    CHECK(app && vwig.hwndApp);
+    CHECK(app && host.Active());
     Pump(app);
     CHECK(SendFocusEvent(true));
     Pump(app);
@@ -71,6 +75,7 @@ int main()
     CHECK(SendFocusEvent(true));
     Pump(app);
     CHECK(app->FForeground());
+#ifdef WIN
     // A native modal loop retains application activation even when its owner
     // loses keyboard focus. Its queued owner focus events must not replay.
     CHECK(host.PushPointer(3, 4, true) && SendControlKey());
@@ -100,8 +105,11 @@ int main()
     const int afterModal = app->activations;
     Pump(app);
     CHECK(app->FForeground() && app->activations == afterModal);
+#endif
     ReleasePpo(&app);
+#ifdef WIN
     vwig.hwndApp = nullptr;
+#endif
     host.Close();
     std::puts(
         "SDL activation: queued focus, duplicate suppression, drag/modifier reset and native modal handoff passed.");

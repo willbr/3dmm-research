@@ -68,18 +68,10 @@ bool Choose(Filename *selection, achar *filters, CoreNative::WindowHandle owner,
                 !dialog.accepted)
                 return false;
             String path;
-#ifdef UNICODE
-            std::vector<std::uint16_t> units;
-            if (!KauaiText::DecodeUtf8(browser.selection, units) || (units.size)() > kcchMaxStn)
+            std::basic_string<KauaiFiles::PathChar> native;
+            if (!KauaiFiles::NativePathFromUtf8(browser.selection, native) || (native.size)() > kcchMaxStn)
                 return false;
-            path.SetRgch(reinterpret_cast<achar *>(units.data()), static_cast<LegacyLong>((units.size)()));
-#else
-            // POSIX filenames are UTF-8 bytes, unlike the legacy resource labels.
-            if ((browser.selection.size)() > kcchMaxStn)
-                return false;
-            path.SetRgch(const_cast<char *>(browser.selection.data()),
-                         static_cast<LegacyLong>((browser.selection.size)()));
-#endif
+            path.SetRgch(reinterpret_cast<achar *>(&native[0]), static_cast<LegacyLong>((native.size)()));
             Filename candidate;
             if (!candidate.FBuildFromPath(&path))
                 return false;

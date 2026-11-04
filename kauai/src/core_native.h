@@ -7,7 +7,7 @@
 // Forward declarations preserve the existing Windows ABI without importing the
 // SDK. These are opaque interop values, never serialized movie data. Only a
 // native adapter may dereference them or submit them to the operating system.
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(KAUAI_PORTABLE_RUNTIME)
 struct HWND__;
 struct HRGN__;
 struct HENHMETAFILE__;

@@ -2,6 +2,36 @@
   "version": 3,
   "configurePresets": [
     {
+      "displayName": "Studio SDL3 Debug (Mac/Linux)",
+      "name": "sdl-debug",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/studio-sdl",
+      "installDir": "${sourceDir}/dist-sdl",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STUDIO_SDL3": "ON",
+        "KAUAI_FREETYPE": "ON",
+        "BUILD_PACKAGES": "OFF"
+      }
+    },
+    {
+      "displayName": "Portable Studio SDL3 x64 Debug",
+      "name": "x64:msvc:portable-sdl-debug",
+      "inherits": "msvc:x64:base",
+      "binaryDir": "${sourceDir}/build/studio-portable-x64",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "STUDIO_SDL3": "ON",
+        "STUDIO_PORTABLE_RUNTIME": "ON",
+        "BUILD_PACKAGES": "OFF"
+      }
+    },
+    {
       "name": "base",
       "hidden": true,
       "generator": "Ninja",

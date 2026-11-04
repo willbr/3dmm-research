@@ -79,6 +79,10 @@ std::string Join(const std::string &directory, const std::string &leaf)
     return directory + (directory.empty() || IsSeparator(static_cast<PathChar>(directory.back())) ? "" : "/") + leaf;
 }
 } // namespace
+bool NativePathFromUtf8(const std::string &text, std::basic_string<PathChar> &path)
+{
+    return Native(text, path);
+}
 bool Browser::Matches(const std::string &name, const std::string &patterns)
 {
     const auto text = Fold(name);

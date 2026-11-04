@@ -744,13 +744,13 @@ bool TagManager::FFindFile(LegacyLong sid, PString pstn, PFilename pfni, bool fA
     // First, look on the HD
     if (!_FGetFniHD(sid, pfni))
         return fFalse;
-    if (pfni->FSetLeaf(pstn, ftg) && tYes == pfni->TExists())
+    if (pfni->FSetLeaf(pstn, ftg) && pfni->FResolveCase())
         return fTrue;
 
     // Now look on the CD, asking for it if fAskForCD
     if (!_FGetFniCD(sid, pfni, fAskForCD))
         return fFalse;
-    if (pfni->FSetLeaf(pstn, ftg) && tYes == pfni->TExists())
+    if (pfni->FSetLeaf(pstn, ftg) && pfni->FResolveCase())
         return fTrue;
 
     pfni->SetNil();

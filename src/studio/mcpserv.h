@@ -8,7 +8,7 @@
     Active only in DEBUG builds and only when the `--mcp-server` command-line
     switch is passed. The server runs JSON-RPC 2.0 over stdin/stdout. A worker
     thread reads requests off stdin and queues them; the main GUI thread drains
-    the queue from `TopOfLoop` so all kauai/Win32 calls happen on the right
+    the queue from `TopOfLoop` so all Kauai/SDL calls happen on the right
     thread.
 ***************************************************************************/
 #pragma once
@@ -21,7 +21,7 @@ namespace mcp
 // before any kauai init. Framework console setup is independent of MCP.
 bool FParseEnabledFromCommandLine(const char *pszCmdLine);
 
-// Initialize the server: open stdin/stdout handles, spawn the reader thread.
+// Initialize the server: borrow inherited stdin/stdout, spawn the reader thread.
 // Call once after the main window exists. No-op if mcp mode wasn't selected.
 bool FInit(void);
 
@@ -30,7 +30,8 @@ bool FInit(void);
 // from `ApplicationBase::TopOfLoop`. No-op if not in mcp mode.
 void Drain(void);
 
-// Tear down the worker thread and stdio handles.
+// Stop and join the reader, including when the host keeps stdin open.
+// Inherited stdio handles/descriptors remain owned by the process.
 void Shutdown(void);
 
 // True if mcp server mode is active for this process.
