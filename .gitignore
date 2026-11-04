@@ -5,6 +5,7 @@ out/
 .vs/
 dist/
 dist-x64/
+/movies/
 build/
 build-x64/
 .cache/
