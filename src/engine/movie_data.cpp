@@ -222,7 +222,9 @@ bool MovieData::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PString
         mactr.grfbrws = mactrOnFile.grfbrws;
         TagFromOnFile(&mactr.tagTmpl, mactrOnFile.tagTmpl);
 
-        if (mactr.arid < 0 || mactr.arid == INT32_MAX || mactr.tagTmpl.sid < 0)
+        // Historical movies can contain negative actor IDs after scene merges.
+        // Only -1 is the absent-actor sentinel; keep other signed IDs intact.
+        if (mactr.arid == -1 || mactr.arid == INT32_MAX || mactr.tagTmpl.sid < 0)
             goto LFail;
         if (mactr.arid >= aridLimit)
             aridLimit = mactr.arid + 1;

@@ -430,7 +430,36 @@ static void TestMovieWireFormats()
     ReleasePpo(&decoded);
     Check(resources->CactRef() == refs);
 
-    // A second invalid row fails after the first embedded TAG was opened.
+    // Historical scene merges can produce signed actor IDs below zero. They
+    // remain stable identifiers and must not be mistaken for the -1 sentinel.
+    row = {};
+    row.arid = -749027345;
+    row.cactRef = 1;
+    row.tagTmpl.sid = ksidUseCrf;
+    row.tagTmpl.ctg = kctgTmpl;
+    row.tagTmpl.cno = 123;
+    SwapBytesRglw(&row, 7);
+    Check(wire->FAddStn(&name, &row));
+    Check(file->FAdd(wire->CbOnFile(), kctgGst, &number, &block));
+    Check(wire->FWrite(&block, kboOther));
+    ChildChunkIdentification old;
+    Check(file->FGetKidChidCtg(kctgMvie, root, 0, kctgGst, &old));
+    Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
+    file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
+    limit = 0;
+    Check(MovieData::FReadRollCall(resources, root, &decoded, &limit));
+    Check(limit == 28 && decoded->IvMac() == 2);
+    decoded->GetExtra(1, &actor);
+    Check(actor.arid == -749027345 && actor.tagTmpl.pcrf == resources);
+    for (LegacyLong index = 0; index < decoded->IvMac(); ++index)
+    {
+        decoded->GetExtra(index, &actor);
+        TagManager::CloseTag(&actor.tagTmpl);
+    }
+    ReleasePpo(&decoded);
+    Check(resources->CactRef() == refs);
+
+    // An invalid sentinel row fails after the embedded TAGs were opened.
     // Both resource references and caller-visible state must be restored.
     row = {};
     row.arid = -1;
@@ -438,7 +467,6 @@ static void TestMovieWireFormats()
     Check(wire->FAddStn(&name, &row));
     Check(file->FAdd(wire->CbOnFile(), kctgGst, &number, &block));
     Check(wire->FWrite(&block, kboOther));
-    ChildChunkIdentification old;
     Check(file->FGetKidChidCtg(kctgMvie, root, 0, kctgGst, &old));
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
