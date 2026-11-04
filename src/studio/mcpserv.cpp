@@ -7,15 +7,14 @@
     Wire protocol: newline-delimited JSON-RPC 2.0 over stdin/stdout.
 
     Threading model:
-    - One worker thread does blocking ReadFile on stdin, parses line-by-line
+    - One worker thread polls inherited stdin, parses line-by-line
       JSON-RPC, and pushes Request objects onto a queue protected by a mutex.
     - The main GUI thread calls mcp::Drain() once per kauai event-loop tick
       (from Application::TopOfLoop). Drain pops requests, dispatches synchronously
-      on the GUI thread (so it's always safe to touch HWNDs / GDI / vpcex), and
+      on the GUI thread (so it is safe to touch SDL, Kauai and vpcex), and
       writes responses back to stdout.
-    - Stdout writes are guarded by the same mutex so the worker thread (which
-      doesn't currently write, but might in the future for notifications) and
-      the main thread can't interleave message bytes.
+    - Stdout writes are mutex-guarded so worker-safe tools and main-thread
+      responses cannot interleave message bytes.
 ***************************************************************************/
 
 #ifdef DEBUG
@@ -39,6 +38,9 @@
 #include <cstring>
 #include <cctype>
 #include <cstdarg>
+#include <chrono>
+#include "mcp_io.h"
+#include "platform_files.h"
 #include "launch_context.h"
 #ifdef KAUAI_SDL3
 #include "sdl_host.h"
@@ -52,11 +54,19 @@
 #include "font_names.h"
 #endif
 
+#ifdef _WIN32
 #include <windows.h>
+#ifndef KAUAI_SDL3
 #include <objidl.h> // IStream
 #include <gdiplus.h>
-#include <rtcapi.h> // _RTC_SetErrorFuncW for runtime-check capture
+#ifdef _MSC_VER
 #pragma comment(lib, "gdiplus.lib")
+#endif
+#endif
+#ifdef _MSC_VER
+#include <rtcapi.h> // Optional MSVC runtime-check diagnostics
+#endif
+#endif // _WIN32
 
 #include "studio.h"
 #include "mcpserv.h"
@@ -425,13 +435,17 @@ struct Request
 static std::atomic<bool> _enabled{false};
 static std::atomic<bool> _initialized{false};
 static std::atomic<bool> _shouldExit{false};
-static HANDLE _hStdin = INVALID_HANDLE_VALUE;
-static HANDLE _hStdout = INVALID_HANDLE_VALUE;
 static std::thread _readerThread;
 static std::mutex _qMutex;
 static std::deque<Request> _queue;
 static std::mutex _writeMutex;
+#ifdef _WIN32
+#ifndef KAUAI_SDL3
 static ULONG_PTR _gdiplusToken = 0;
+#endif
+static HWND _nativeMainWindow = nullptr; // Snapshot before starting the reader.
+#endif
+static bool _quitPosted = false;
 
 // ============================================================
 // I/O helpers
@@ -439,18 +453,8 @@ static ULONG_PTR _gdiplusToken = 0;
 
 static void WriteRaw(const char *p, size_t n)
 {
-    if (_hStdout == INVALID_HANDLE_VALUE) return;
     std::lock_guard<std::mutex> lk(_writeMutex);
-    DWORD written = 0;
-    DWORD remaining = (DWORD)n;
-    while (remaining > 0)
-    {
-        if (!WriteFile(_hStdout, p, remaining, &written, NULL)) break;
-        if (written == 0) break;
-        p += written;
-        remaining -= written;
-    }
-    FlushFileBuffers(_hStdout);
+    if (!WriteStdout(p, n)) _shouldExit.store(true);
 }
 
 static void WriteMessage(const JVal &msg)
@@ -466,8 +470,8 @@ static void WriteMessage(const JVal &msg)
 // shows an empty File: field. Capture the structured error here so we can
 // see exactly which `thd` (or `tag`, etc.) site fired. We log to
 // AppendCrashLog (drains via the existing read_crash_log MCP tool) and then
-// return 1 so the standard dialog still appears, preserving normal behavior
-// for interactive use and so `list_dialogs` can present it to an MCP client.
+// continue after logging, as this Debug server did before the SDL port.
+#ifdef _MSC_VER
 static int __cdecl MyRtcErrorFunc(int errType, const wchar_t *file, int line, const wchar_t *module, const wchar_t *format, ...)
 {
     char body[2048];
@@ -500,6 +504,8 @@ static int __cdecl MyRtcErrorFunc(int errType, const wchar_t *file, int line, co
     return 0;
 }
 
+#endif // _MSC_VER
+
 static JVal MakeError(const JVal &id, int code, const std::string &message)
 {
     JVal r = JVal::MkObj();
@@ -522,7 +528,7 @@ static JVal MakeResult(const JVal &id, JVal result)
 }
 
 // ============================================================
-// Reader thread: blocking ReadFile loop with line splitting.
+// Reader thread: bounded stdio polling with line splitting.
 // ============================================================
 
 // Forward decl; defined after kTools because it walks that table.
@@ -532,11 +538,12 @@ static void ReaderThreadProc()
 {
     std::string buf;
     char chunk[4096];
-    for (;;)
+    while (!_shouldExit.load())
     {
-        DWORD got = 0;
-        BOOL ok = ReadFile(_hStdin, chunk, sizeof(chunk), &got, NULL);
-        if (!ok || got == 0)
+        std::size_t got = 0;
+        const auto status = ReadStdin(chunk, sizeof(chunk), got);
+        if (status == ReadStatus::timeout) continue;
+        if (status == ReadStatus::end)
         {
             // EOF / pipe closed: tell main thread to start shutting down.
             _shouldExit.store(true);
@@ -593,12 +600,22 @@ static void ReaderThreadProc()
 // Tools.
 // ============================================================
 
-extern HWND _GetMainHwnd(); // forward-decls below
+#ifdef _WIN32
+using McpWindow = HWND;
+#else
+using McpWindow = void *;
+#endif
+static McpWindow _GetMainWindow();
+static std::uint64_t TickCount()
+{
+    return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+}
 static JVal Tool_Initialize(const JVal &params);
 static JVal Tool_ListTools();
 static JVal Tool_CallTool(const JVal &params);
 
-// Pump Windows messages AND drain kauai's command queue for `ms`
+// Pump host events AND drain Kauai's command queue for `ms`
 // milliseconds. Used by `wait_ms`, `wait_for_gob`, and after click/key
 // tools so the GUI has a chance to settle before the next request runs.
 //
@@ -609,27 +626,28 @@ static JVal Tool_CallTool(const JVal &params);
 // running inside Drain (called from TopOfLoop), kauai's main loop is
 // suspended, so click->EnqueueCid->browser-opens never advances unless
 // we drain commands here too.
-static void PumpForMs(DWORD ms)
+static void PumpForMs(std::uint32_t ms)
 {
-    DWORD start = GetTickCount();
+    const auto start = TickCount();
     for (;;)
     {
-        DWORD elapsed = GetTickCount() - start;
+        const auto elapsed = TickCount() - start;
         if (elapsed >= ms) return;
-        DWORD remaining = ms - elapsed;
 #ifdef KAUAI_SDL3
-          if (KauaiSDL::Main().Active())
-          {
-              if (vpappb && (!vpcex || !vpcex->PgobTracking())) vpappb->PumpHostEvent();
-              if (vpcex)
-                  for (int i = 0; i < 8 && vpcex->FDispatchNextCmd(); ++i) {}
-              if (vpappb) vpappb->UpdateMarked();
-              GraphicsPort::Flush();
-              KauaiSDL::Main().Present();
-              Sleep(1);
-              continue;
-          }
+        if (KauaiSDL::Main().Active())
+        {
+            if (vpappb && (!vpcex || !vpcex->PgobTracking())) vpappb->PumpHostEvent();
+            if (vpcex)
+                for (int i = 0; i < 8 && vpcex->FDispatchNextCmd(); ++i) {}
+            if (vpappb) vpappb->UpdateMarked();
+            GraphicsPort::Flush();
+            KauaiSDL::Main().Present();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
+        }
 #endif
+#ifdef _WIN32
+        const auto remaining = ms - elapsed;
         MsgWaitForMultipleObjects(0, NULL, FALSE, remaining > 16 ? 16 : remaining, QS_ALLINPUT);
         MSG m;
         while (PeekMessage(&m, NULL, 0, 0, PM_REMOVE))
@@ -637,6 +655,9 @@ static void PumpForMs(DWORD ms)
             TranslateMessage(&m);
             DispatchMessage(&m);
         }
+#else
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
         // Drain pending kauai commands. Cap at 8 per pump cycle so a
         // recursive enqueue storm can't starve the timeout. FDispatchNextCmd
         // returns false when the queue is empty.
@@ -648,11 +669,18 @@ static void PumpForMs(DWORD ms)
     }
 }
 
-static HWND _GetMainHwnd()
+static McpWindow _GetMainWindow()
 {
+#ifdef KAUAI_SDL3
+    return static_cast<McpWindow>(KauaiSDL::Main().WindowToken());
+#elif defined(WIN)
     return vwig.hwndApp;
+#else
+    return nullptr;
+#endif
 }
 
+#if defined(_WIN32) && !defined(KAUAI_SDL3)
 static bool _GetClipboardEncoderClsid(const wchar_t *mime, CLSID *pClsid)
 {
     UINT num = 0, size = 0;
@@ -670,6 +698,8 @@ static bool _GetClipboardEncoderClsid(const wchar_t *mime, CLSID *pClsid)
     }
     return false;
 }
+
+#endif
 
 static const char kBase64Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static std::string Base64Encode(const unsigned char *data, size_t n)
@@ -691,27 +721,7 @@ static std::string Base64Encode(const unsigned char *data, size_t n)
 
 // Capture main window client area into an in-memory PNG, return base64.
 // Returns empty string on failure.
-static std::string EncodeBitmapPng(Gdiplus::Bitmap &bmp)
-{
-    std::string result;
-    IStream *stream = nullptr;
-    if (CreateStreamOnHGlobal(nullptr, TRUE, &stream) == S_OK)
-    {
-        CLSID png;
-        if (_GetClipboardEncoderClsid(L"image/png", &png) && bmp.Save(stream, &png, nullptr) == Gdiplus::Ok)
-        {
-            HGLOBAL memory = nullptr;
-            GetHGlobalFromStream(stream, &memory);
-            const auto length = GlobalSize(memory);
-            auto data = static_cast<unsigned char *>(GlobalLock(memory));
-            if (data && length) result = Base64Encode(data, length);
-            if (data) GlobalUnlock(memory);
-        }
-        stream->Release();
-    }
-    return result;
-}
-static std::string CaptureWindowPngBase64(HWND hwnd)
+static std::string CaptureWindowPngBase64(McpWindow hwnd)
 {
     if (!hwnd) return {};
 #ifdef KAUAI_SDL3
@@ -721,10 +731,11 @@ static std::string CaptureWindowPngBase64(HWND hwnd)
         std::vector<std::uint32_t> pixels;
         int width, height;
         if (!KauaiSDL::Main().CopyPixels(pixels, width, height)) return {};
-        Gdiplus::Bitmap bitmap(width, height, width * 4, PixelFormat32bppRGB, reinterpret_cast<BYTE *>(pixels.data()));
-        return EncodeBitmapPng(bitmap);
+        const auto png = EncodePng(pixels, width, height);
+        return Base64Encode(png.data(), png.size());
     }
 #endif
+#if defined(_WIN32) && !defined(KAUAI_SDL3)
     RECT rcClient;
     if (!GetClientRect(hwnd, &rcClient)) return {};
     int w = rcClient.right - rcClient.left;
@@ -773,6 +784,9 @@ static std::string CaptureWindowPngBase64(HWND hwnd)
     DeleteDC(hdcMem);
     ReleaseDC(hwnd, hdcWin);
     return b64;
+#else
+    return {};
+#endif
 }
 
 // Build an MCP `content` array from a single text item.
@@ -812,7 +826,7 @@ static JVal ContentError(const std::string &text)
 
 static JVal Tool_Screenshot(const JVal &args)
 {
-    HWND hwnd = _GetMainHwnd();
+    const auto hwnd = _GetMainWindow();
     if (!hwnd) return ContentError("main window not available");
     std::string b64 = CaptureWindowPngBase64(hwnd);
     if (b64.empty()) return ContentError("screenshot capture failed");
@@ -823,7 +837,7 @@ static JVal Tool_Screenshot(const JVal &args)
 
 static JVal Tool_Click(const JVal &args)
 {
-    HWND hwnd = _GetMainHwnd();
+    const auto hwnd = _GetMainWindow();
     if (!hwnd) return ContentError("main window not available");
     long x = (long)(args.Get("x") ? args.Get("x")->AsInt(-1) : -1);
     long y = (long)(args.Get("y") ? args.Get("y")->AsInt(-1) : -1);
@@ -841,7 +855,8 @@ static JVal Tool_Click(const JVal &args)
     }
 #endif
 
-    POINT p = {x, y};
+#ifdef _WIN32
+    POINT p = {static_cast<LONG>(x), static_cast<LONG>(y)};
     ClientToScreen(hwnd, &p);
 
     // Force the window foreground so SendInput is delivered to it. Win32
@@ -922,13 +937,16 @@ static JVal Tool_Click(const JVal &args)
     std::snprintf(msg, sizeof(msg), "clicked %s at client (%ld,%ld) screen (%ld,%ld)",
                   isRight ? "right" : "left", x, y, p.x, p.y);
     return ContentText(msg);
+#else
+    return ContentError("SDL window not available");
+#endif
 }
 
 // --- key -----------------------------------------------------------------
 
 static JVal Tool_Key(const JVal &args)
 {
-    HWND hwnd = _GetMainHwnd();
+    const auto hwnd = _GetMainWindow();
     if (!hwnd) return ContentError("main window not available");
     int vk = (int)(args.Get("vk") ? args.Get("vk")->AsInt(0) : 0);
     if (vk == 0) return ContentError("missing vk");
@@ -941,6 +959,7 @@ static JVal Tool_Key(const JVal &args)
     }
 #endif
 
+#ifdef _WIN32
     SetForegroundWindow(hwnd);
     PumpForMs(20);
 
@@ -956,6 +975,9 @@ static JVal Tool_Key(const JVal &args)
     char msg[64];
     std::snprintf(msg, sizeof(msg), "sent vk=0x%02x", vk);
     return ContentText(msg);
+#else
+    return ContentError("SDL window not available");
+#endif
 }
 
 // --- send_command --------------------------------------------------------
@@ -1093,7 +1115,7 @@ static JVal Tool_WaitForGob(const JVal &args)
     if (hid == 0) return ContentError("missing hid");
     if (timeoutMs <= 0) timeoutMs = 5000;
     if (timeoutMs > 30000) timeoutMs = 30000;
-    DWORD start = GetTickCount();
+    const auto start = TickCount();
     while (true)
     {
         JVal info = _GobInfo(hid);
@@ -1119,11 +1141,11 @@ static JVal Tool_WaitForGob(const JVal &args)
         }
         if (ready)
         {
-            info.Set("waited_ms", JVal::MkInt((long)(GetTickCount() - start)));
+            info.Set("waited_ms", JVal::MkInt((long)(TickCount() - start)));
             return _WrapInfoAsContent(info);
         }
-        DWORD elapsed = GetTickCount() - start;
-        if (elapsed >= (DWORD)timeoutMs)
+        const auto elapsed = TickCount() - start;
+        if (elapsed >= static_cast<std::uint32_t>(timeoutMs))
         {
             info.Set("timed_out", JVal::MkBool(true));
             info.Set("waited_ms", JVal::MkInt((long)elapsed));
@@ -1139,12 +1161,20 @@ static JVal Tool_WaitForGob(const JVal &args)
 
 static JVal Tool_GetState(const JVal &args)
 {
-    HWND hwnd = _GetMainHwnd();
+    const auto hwnd = _GetMainWindow();
     JVal o = JVal::MkObj();
     o.Set("alive", JVal::MkBool(true));
+    o.Set("application_foreground", JVal::MkBool(vpappb && vpappb->FForeground()));
 #ifdef KAUAI_SDL3
     o.Set("font_provider", JVal::MkStr(KauaiFonts::StudioFontProvider()));
+#if defined(KAUAI_PORTABLE_RUNTIME) || !defined(WIN)
+    o.Set("portable_runtime", JVal::MkBool(true));
+#endif
+#ifdef WIN
     o.Set("native_screen_context", JVal::MkBool(vwig.hdcApp != nullptr));
+#else
+    o.Set("native_screen_context", JVal::MkBool(false));
+#endif
     const auto midi = KauaiMidi::StudioMidiStats();
     const auto video = KauaiVideo::SDLVideoStats();
     o.Set("sdl_video_opened", JVal::MkInt(static_cast<long long>(video.opened)));
@@ -1165,7 +1195,7 @@ static JVal Tool_GetState(const JVal &args)
     const auto buffers = KauaiPixels::PixelBuffers();
     o.Set("portable_pixel_buffers", JVal::MkInt(static_cast<long long>(buffers.liveBuffers)));
     o.Set("portable_pixel_bytes", JVal::MkInt(static_cast<long long>(buffers.liveBytes)));
-    auto root = vwig.hwndApp ? GraphicsObject::PgobFromHwnd(vwig.hwndApp) : nullptr;
+    auto root = GraphicsObject::PgobFromHwnd(static_cast<CoreNative::WindowHandle>(KauaiSDL::Main().WindowToken()));
     auto framebuffer = root ? root->Pgpt() : nullptr;
     o.Set("sdl_native_framebuffer_mirror",
           framebuffer ? JVal::MkBool(framebuffer->FHasNativeMirror()) : JVal::MkNull());
@@ -1219,6 +1249,37 @@ static JVal Tool_GetState(const JVal &args)
     auto movie = studio ? studio->Pmvie() : nullptr;
     auto scene = movie ? movie->Pscen() : nullptr;
     o.Set("scene_actor_count", JVal::MkInt(scene ? scene->Cactr() : 0));
+    o.Set("movie_scene_count", JVal::MkInt(movie ? movie->Cscen() : 0));
+    o.Set("movie_playing", JVal::MkBool(movie && movie->FPlaying()));
+    o.Set("scene_frame", JVal::MkInt(scene ? scene->Nfrm() : 0));
+    o.Set("scene_first_frame", JVal::MkInt(scene ? scene->NfrmFirst() : 0));
+    o.Set("scene_last_frame", JVal::MkInt(scene ? scene->NfrmLast() : 0));
+    JVal captions = JVal::MkArr();
+    for (long index = 0; scene && index < scene->Ctbox(); ++index)
+    {
+        auto caption = scene->PtboxFromItbox(index);
+        JVal item = JVal::MkObj();
+        const auto count = std::min<long>(caption->CpMac(), 1024);
+        std::vector<achar> content(count);
+        if (count)
+            caption->FetchRgch(0, count, content.data());
+        std::string utf8;
+        const auto encoding = sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes;
+        KauaiFonts::TextToUtf8({content.data(), static_cast<std::size_t>(count), encoding}, utf8);
+        item.Set("text", JVal::MkStr(utf8));
+        for (const auto last : {false, true})
+        {
+            CHP properties;
+            properties.Clear();
+            caption->FetchChp(last ? std::max<long>(0, caption->CpMac() - 2) : 0, &properties);
+            String font;
+            vntl.GetStn(properties.onn, &font);
+            KauaiFonts::NameToUtf8({font.Prgch(), static_cast<std::size_t>(font.Cch()), encoding}, utf8);
+            item.Set(last ? "last_font" : "first_font", JVal::MkStr(utf8));
+        }
+        captions.a->push_back(std::move(item));
+    }
+    o.Set("scene_textboxes", std::move(captions));
     auto activeView = movie ? movie->PddgActive() : nullptr;
     if (activeView && activeView->FIs(kclsMovieView))
     {
@@ -1265,6 +1326,36 @@ static JVal Tool_GetState(const JVal &args)
     o.Set("selected_textbox", selected);
 #endif
     o.Set("hwnd_present", JVal::MkBool(hwnd != NULL));
+#ifdef KAUAI_SDL3
+    if (hwnd)
+    {
+        KauaiSDL::WindowStatus state;
+        KauaiSDL::Main().WindowState(state);
+        o.Set("hwnd_visible", JVal::MkBool(state.shown));
+        o.Set("hwnd_iconic", JVal::MkBool(state.minimized));
+        o.Set("foreground", JVal::MkBool(state.keyboardFocus));
+        std::string title;
+        KauaiSDL::Main().Title(title);
+        o.Set("title", JVal::MkStr(title));
+        JVal dimensions = JVal::MkObj();
+        int width = 0, height = 0;
+        if (KauaiSDL::Main().WindowSize(width, height))
+        {
+            dimensions.Set("w", JVal::MkInt(width));
+            dimensions.Set("h", JVal::MkInt(height));
+            o.Set("client_size", std::move(dimensions));
+        }
+    }
+    const auto dialog = KauaiSDL::CurrentDialog();
+    JVal dlg = JVal::MkObj();
+    dlg.Set("present", JVal::MkBool(dialog.active));
+    if (dialog.active)
+    {
+        dlg.Set("title", JVal::MkStr(dialog.title));
+        dlg.Set("class", JVal::MkStr("SDL"));
+    }
+    o.Set("dialog", std::move(dlg));
+#elif defined(_WIN32)
     if (hwnd)
     {
         o.Set("hwnd_visible", JVal::MkBool(IsWindowVisible(hwnd) ? true : false));
@@ -1297,7 +1388,7 @@ static JVal Tool_GetState(const JVal &args)
             DWORD pid = 0;
             GetWindowThreadProcessId(h, &pid);
             if (pid != c->pid) return TRUE;
-            if (h == vwig.hwndApp) return TRUE;
+            if (h == _GetMainWindow()) return TRUE;
             if (!IsWindowVisible(h)) return TRUE;
             char cls[64];
             cls[0] = 0;
@@ -1320,7 +1411,15 @@ static JVal Tool_GetState(const JVal &args)
         dlg.Set("class", JVal::MkStr(ctx.cls));
     }
     o.Set("dialog", std::move(dlg));
-    if (vpers) o.Set("error_stack_depth", JVal::MkInt(vpers->Cerc()));
+#endif
+    if (vpers)
+    {
+        o.Set("error_stack_depth", JVal::MkInt(vpers->Cerc()));
+        JVal codes = JVal::MkArr();
+        for (LegacyLong i = 0; i < vpers->Cerc(); ++i)
+            codes.a->push_back(JVal::MkInt(vpers->ErcGet(i)));
+        o.Set("error_codes", std::move(codes));
+    }
     JVal arr = JVal::MkArr();
     JVal item = JVal::MkObj();
     item.Set("type", JVal::MkStr("text"));
@@ -1337,8 +1436,8 @@ static JVal Tool_GetState(const JVal &args)
 
 static JVal Tool_WaitMs(const JVal &args)
 {
-    DWORD ms = (DWORD)(args.Get("ms") ? args.Get("ms")->AsInt(100) : 100);
-    if (ms > 30000) ms = 30000;
+    const auto requested = args.Get("ms") ? args.Get("ms")->AsInt(100) : 100;
+    const auto ms = static_cast<std::uint32_t>(std::max<long long>(0, std::min<long long>(30000, requested)));
     PumpForMs(ms);
     char buf[48];
     std::snprintf(buf, sizeof(buf), "waited %lu ms", (unsigned long)ms);
@@ -1349,9 +1448,9 @@ static JVal Tool_WaitMs(const JVal &args)
 
 static JVal Tool_ReadCrashLog(const JVal &args)
 {
-    char tmp[MAX_PATH];
-    if (!GetTempPathA(MAX_PATH, tmp)) return ContentError("GetTempPath failed");
-    std::string path = std::string(tmp) + "3dmmforever-crash.txt";
+    char tmp[4096];
+    if (!KauaiFiles::TempPath(tmp, sizeof(tmp))) return ContentError("TempPath failed");
+    std::string path = std::string(tmp) + "/3dmmforever-crash.txt";
     std::ifstream f(path);
     if (!f.good()) return ContentText(std::string("(no crash log at ") + path + ")");
     std::stringstream ss;
@@ -1363,7 +1462,7 @@ static JVal Tool_ReadCrashLog(const JVal &args)
 
 static JVal Tool_Quit(const JVal &args)
 {
-    PostMessage(vwig.hwndApp, WM_CLOSE, 0, 0);
+    if (vpcex) vpcex->EnqueueCid(cidQuit);
     return ContentText("quit posted");
 }
 
@@ -1377,6 +1476,7 @@ static JVal Tool_Quit(const JVal &args)
 // only runs from kauai's main loop which is suspended while the modal box is
 // up.
 
+#ifdef _WIN32
 namespace
 {
 struct DialogScanContext
@@ -1420,7 +1520,7 @@ static BOOL CALLBACK CollectDialog(HWND hwnd, LPARAM lparam)
     if (pid != ctx->pid) return TRUE;
     if (!IsWindowVisible(hwnd)) return TRUE;
     // Skip our own main app window: we already report it via get_state.
-    if (hwnd == vwig.hwndApp) return TRUE;
+    if (hwnd == _nativeMainWindow) return TRUE;
 
     wchar_t cls[64] = {0};
     GetClassNameW(hwnd, cls, 64);
@@ -1428,7 +1528,7 @@ static BOOL CALLBACK CollectDialog(HWND hwnd, LPARAM lparam)
     GetWindowTextW(hwnd, title, 512);
 
     JVal d = JVal::MkObj();
-    d.Set("hwnd", JVal::MkInt((long)(intptr_t)hwnd));
+    d.Set("hwnd", JVal::MkInt(static_cast<long long>(reinterpret_cast<std::intptr_t>(hwnd))));
     d.Set("class", JVal::MkStr(Utf16ToUtf8(cls)));
     d.Set("title", JVal::MkStr(Utf16ToUtf8(title)));
     d.Set("enabled", JVal::MkBool(IsWindowEnabled(hwnd) ? true : false));
@@ -1525,7 +1625,7 @@ static BOOL CALLBACK FindButtonByText(HWND hwnd, LPARAM lparam)
 //      (custom dialog procs).
 static JVal Tool_DismissDialog(const JVal &args)
 {
-    long hwnd_lw = args.Get("hwnd") ? (long)args.Get("hwnd")->AsInt(0) : 0;
+    const auto hwnd_lw = args.Get("hwnd") ? args.Get("hwnd")->AsInt(0) : 0;
     HWND hwnd = (HWND)(intptr_t)hwnd_lw;
     if (!hwnd || !IsWindow(hwnd)) return ContentError("invalid hwnd");
 
@@ -1566,9 +1666,11 @@ static JVal Tool_DismissDialog(const JVal &args)
         return ContentError(std::string("unknown button: ") + button);
     PostMessage(hwnd, WM_COMMAND, MAKEWPARAM(id, BN_CLICKED), 0);
     char buf[64];
-    std::snprintf(buf, sizeof(buf), "posted WM_COMMAND id=%d to hwnd=%ld", id, hwnd_lw);
+    std::snprintf(buf, sizeof(buf), "posted WM_COMMAND id=%d to hwnd=%lld", id, hwnd_lw);
     return ContentText(buf);
 }
+
+#endif // _WIN32
 
 // --- tool registry -------------------------------------------------------
 
@@ -1679,7 +1781,7 @@ static const ToolDef kTools[] = {
     },
     {
         "key",
-        "Send a Win32 virtual-key down+up to the foreground window.",
+        "Queue a key down/up using the legacy virtual-key code through the Studio input backend.",
         "{\"type\":\"object\","
         "\"properties\":{\"vk\":{\"type\":\"integer\"}},"
         "\"required\":[\"vk\"]}",
@@ -1714,7 +1816,7 @@ static const ToolDef kTools[] = {
     {
         "wait_for_gob",
         "Poll find_gob until the gob meets the readiness signal, pumping "
-        "Windows messages between probes. mode=visible (default) waits for "
+        "host events between probes. mode=visible (default) waits for "
         "non-empty rcVis -- gob actually painted; mode=positioned waits for "
         "found AND non-zero w/h (use for child gobs whose rcVis lags painting "
         "but whose rcCur is already in place after a MoveAbsGob); mode=exists "
@@ -1739,7 +1841,7 @@ static const ToolDef kTools[] = {
     },
     {
         "wait_ms",
-        "Pump Windows messages for N ms (capped at 30000) so the GUI can settle.",
+        "Pump host events for N ms (capped at 30000) so the GUI can settle.",
         "{\"type\":\"object\","
         "\"properties\":{\"ms\":{\"type\":\"integer\"}},"
         "\"required\":[\"ms\"]}",
@@ -1748,18 +1850,19 @@ static const ToolDef kTools[] = {
     },
     {
         "read_crash_log",
-        "Return the contents of %TEMP%\\3dmmforever-crash.txt.",
+        "Return 3dmmforever-crash.txt from the platform temporary directory.",
         "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
         &Tool_ReadCrashLog,
         false,
     },
     {
         "quit",
-        "Post WM_CLOSE to the main window for graceful shutdown.",
+        "Request graceful Studio shutdown through its command queue.",
         "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
         &Tool_Quit,
         false,
     },
+#ifdef _WIN32
     {
         "list_dialogs",
         "Enumerate top-level windows (other than the main app window) owned by "
@@ -1785,6 +1888,7 @@ static const ToolDef kTools[] = {
         &Tool_DismissDialog,
         true,
     },
+#endif
 };
 
 // Worker-direct dispatch: returns true if the request was handled inline
@@ -1803,7 +1907,8 @@ static bool TryDispatchWorkerDirect(const Request &req)
             if (!t.worker_safe) return false;
             auto *pargs = req.params.Get("arguments");
             JVal targs = pargs ? *pargs : JVal::MkObj();
-            WriteMessage(MakeResult(req.id, t.handler(targs)));
+            auto result = t.handler(targs);
+            if (req.hasId) WriteMessage(MakeResult(req.id, std::move(result)));
             return true;
         }
     }
@@ -1886,25 +1991,28 @@ bool FInit()
     if (!requested) return false;
     _enabled.store(true);
 
-    _hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    _hStdout = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (_hStdin == INVALID_HANDLE_VALUE || _hStdin == NULL)
+    if (!StdioAvailable())
     {
-        // Without an inherited stdin pipe we can't accept requests. Disable.
         _enabled.store(false);
         return false;
     }
-
+    _shouldExit.store(false);
+    _quitPosted = false;
+#ifdef _WIN32
+    _nativeMainWindow = _GetMainWindow();
+#ifndef KAUAI_SDL3
     Gdiplus::GdiplusStartupInput gsi;
     Gdiplus::GdiplusStartup(&_gdiplusToken, &gsi, NULL);
+#endif
 
     // Install our /RTC error handler so we capture which source file:line
     // tripped the runtime check (e.g. /RTCu uninitialized-variable). The
     // standard MSVC handler shows the modal Debug Error dialog but the dialog
-    // doesn't always preserve the file path. We log to AppendCrashLog first,
-    // then return 1 so the runtime still shows the dialog (so list_dialogs
-    // can also see it and the user can drive the repro interactively).
+    // doesn't always preserve the file path. Keep the existing logging hook.
+#ifdef _MSC_VER
     _RTC_SetErrorFuncW(&MyRtcErrorFunc);
+#endif
+#endif // _WIN32
 
     _readerThread = std::thread(ReaderThreadProc);
     _initialized.store(true);
@@ -1915,35 +2023,23 @@ void Shutdown()
 {
     if (!_initialized.load()) return;
     _shouldExit.store(true);
-    if (_hStdin != INVALID_HANDLE_VALUE)
-    {
-        // Closing stdin breaks the worker thread out of its blocking ReadFile.
-        CancelIoEx(_hStdin, NULL);
-    }
     if (_readerThread.joinable()) _readerThread.join();
+#if defined(_WIN32) && !defined(KAUAI_SDL3)
     if (_gdiplusToken)
     {
         Gdiplus::GdiplusShutdown(_gdiplusToken);
         _gdiplusToken = 0;
     }
+#endif
     _initialized.store(false);
+    _enabled.store(false);
+    std::lock_guard<std::mutex> lk(_qMutex);
+    _queue.clear();
 }
 
 void Drain()
 {
     if (!_initialized.load()) return;
-
-    // If the host disconnected, post WM_CLOSE so we exit cleanly rather than
-    // running headless forever. The user can also send `quit`.
-    if (_shouldExit.load())
-    {
-        static bool posted = false;
-        if (!posted)
-        {
-            posted = true;
-            if (vwig.hwndApp) PostMessage(vwig.hwndApp, WM_CLOSE, 0, 0);
-        }
-    }
 
     // Snapshot current queue contents to minimize lock-hold time.
     std::deque<Request> reqs;
@@ -1955,11 +2051,13 @@ void Drain()
     {
         if (req.method == "initialize")
         {
-            WriteMessage(MakeResult(req.id, Tool_Initialize(req.params)));
+            auto result = Tool_Initialize(req.params);
+            if (req.hasId) WriteMessage(MakeResult(req.id, std::move(result)));
         }
         else if (req.method == "tools/list")
         {
-            WriteMessage(MakeResult(req.id, Tool_ListTools()));
+            auto result = Tool_ListTools();
+            if (req.hasId) WriteMessage(MakeResult(req.id, std::move(result)));
         }
         else if (req.method == "tools/call")
         {
@@ -1967,11 +2065,13 @@ void Drain()
             // the Application::Run __try/__except in src/studio/utest.cpp so
             // the existing crash-log path captures it. The host will see the
             // stdio pipe close and can relaunch.
-            WriteMessage(MakeResult(req.id, Tool_CallTool(req.params)));
+            auto result = Tool_CallTool(req.params);
+            if (req.hasId) WriteMessage(MakeResult(req.id, std::move(result)));
         }
         else if (req.method == "ping")
         {
-            WriteMessage(MakeResult(req.id, JVal::MkObj()));
+            auto result = JVal::MkObj();
+            if (req.hasId) WriteMessage(MakeResult(req.id, std::move(result)));
         }
         else if (req.method == "notifications/initialized" || req.method == "notifications/cancelled")
         {
@@ -1980,6 +2080,17 @@ void Drain()
         else if (req.hasId)
         {
             WriteMessage(MakeError(req.id, -32601, std::string("method not found: ") + req.method));
+        }
+    }
+    if (_shouldExit.load() && !_quitPosted && vpcex)
+    {
+        // EOF may have arrived after our snapshot, with more requests queued
+        // behind it. Let the next Drain answer those before scheduling quit.
+        std::lock_guard<std::mutex> lk(_qMutex);
+        if (_queue.empty())
+        {
+            _quitPosted = true;
+            vpcex->EnqueueCid(cidQuit);
         }
     }
 }

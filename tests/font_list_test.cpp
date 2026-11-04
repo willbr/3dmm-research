@@ -11,10 +11,12 @@ void FrameMain(void)
 }
 int main()
 {
-#ifdef WIN
+#ifdef _WIN32
     _putenv_s("KAUAI_FONT_PROVIDER", "freetype");
+#ifdef WIN
     if (vwig.hdcApp)
         return 1;
+#endif
 #else
     setenv("KAUAI_FONT_PROVIDER", "freetype", 1);
 #endif

@@ -90,6 +90,7 @@ class GraphicsPort : public GraphicsPort_PAR
     bool _FDrawPixelMbmp(PMaskedBitmapMBMP bitmap, SystemRectangle *rectangle, GraphicsDrawingData *drawing);
     bool _PixelOwnPalette() const;
     void _SetPixelBackgroundColor(std::uint32_t color);
+    static long _cPortableIndexedPorts;
 #endif
 
 #ifdef WIN
@@ -207,6 +208,13 @@ class GraphicsPort : public GraphicsPort_PAR
 #endif
 #ifdef KAUAI_SDL3
     static PGraphicsPort PgptNewSDLWindow(CoreNative::WindowHandle window);
+#ifndef WIN
+    bool FHasNativeMirror() const { return false; }
+    bool FHasNativeContext() const { return false; }
+    static long CIndexedPortsCreated() { return _cPortableIndexedPorts; }
+    static long CIndexedContextsCreated() { return 0; }
+    static long CIndexedMirrorsCreated() { return 0; }
+#endif
 #endif
 #ifdef WIN
     static PGraphicsPort PgptNew(HDC hdc);

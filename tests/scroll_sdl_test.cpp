@@ -71,10 +71,13 @@ int main()
 {
     auto &host = KauaiSDL::Main();
     CHECK(host.Create("SDL control scroll check", 64, 48, true));
+    auto window = static_cast<CoreNative::WindowHandle>(host.WindowToken());
+#ifdef WIN
     vwig.hwndApp = static_cast<HWND>(host.NativeWindow());
     CHECK(vwig.hwndApp);
     vwig.hdcApp = GetDC(vwig.hwndApp);
     CHECK(vwig.hdcApp);
+#endif
     auto app = NewObj ScrollApp;
     CHECK(app && vntl.FInit() && GraphicsObject::FInitScreen(0, kginMark));
     auto root = GraphicsObject::PgobScreen();
@@ -101,11 +104,11 @@ int main()
             }
         RC marked;
         if (gin == kginMark)
-            CHECK(app->FGetMarkedRc(vwig.hwndApp, &marked));
+            CHECK(app->FGetMarkedRc(window, &marked));
         if (gin == kginSysInval)
             CHECK(root->FGetRcInval(&marked, kginSysInval));
         if (gin == kginDraw)
-            CHECK(!app->FGetMarkedRc(vwig.hwndApp, &marked));
+            CHECK(!app->FGetMarkedRc(window, &marked));
     }
     // Existing damage moves exactly, even while the window is hidden.
     root->ValidRc(nullptr, kginDraw);
@@ -155,9 +158,11 @@ int main()
     root->Pgpt()->Unlock();
     GraphicsObject::ShutDown();
     ReleasePpo(&app);
+#ifdef WIN
     ReleaseDC(vwig.hwndApp, vwig.hdcApp);
     vwig.hwndApp = nullptr;
     vwig.hdcApp = nullptr;
+#endif
     host.Close();
     std::puts("SDL control scrolling: framebuffer pixels, exposed areas, deferred/marked invalidation and pending "
               "repaint passed.");

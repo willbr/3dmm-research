@@ -2766,7 +2766,7 @@ void RuntimeVariableName::SetFromStn(PString pstn)
         // pack the encoded value into its 6 bit slot
         AssertIn(bT, 0, 64);
         lw = (LegacyLong)bT << (cbit + 2);
-        rgb[ibDst] = rgb[ibDst] & (-1L << cbit) | B1Lw(lw);
+        rgb[ibDst] = rgb[ibDst] & (~LegacyUlong(0) << cbit) | B1Lw(lw);
         if ((cbit += 2) <= 8)
             rgb[++ibDst] = B0Lw(lw);
         else

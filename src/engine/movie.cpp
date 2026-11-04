@@ -160,7 +160,6 @@ bool Movie::_FSetPfilSave(PFilename pfni)
     AssertBaseThis(0);
     AssertPo(pfni, 0);
 
-    long lAttrib;
     String stnFile;
 
     /* Look for the file and remember FileObject if found */
@@ -175,11 +174,8 @@ bool Movie::_FSetPfilSave(PFilename pfni)
         the FileObject, since if we didn't, we'll prompt for a new filename later
         anyway */
     pfni->GetStnPath(&stnFile);
-#ifdef WIN
-    _fReadOnly = (((lAttrib = GetFileAttributes(stnFile.Psz())) != 0xFFFFFFFF) && (lAttrib & FILE_ATTRIBUTE_READONLY));
-#else // MAC
-    RawRtn();
-#endif
+    KauaiFiles::PathInfo info;
+    _fReadOnly = KauaiFiles::Info(stnFile.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
     return fTrue;
 }
 

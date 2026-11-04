@@ -9,6 +9,7 @@
 
 namespace KauaiSDL
 {
+std::uint64_t SystemMemoryBytes();
 enum class EventKind
 {
     none,
@@ -91,6 +92,8 @@ class Host
     // maximized window must retain its size when opening a Studio dialog.
     bool EnsureInteractive();
     bool SetWindowSize(int width, int height);
+    // Client size in window units, independent of canvas size/display density.
+    bool WindowSize(int &width, int &height) const;
     bool SetTitle(const std::string &utf8);
     bool Title(std::string &utf8) const;
     bool Raise();

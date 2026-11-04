@@ -35,6 +35,20 @@ int main(int argc, char **argv)
     static TestApp app;
     _putenv_s("KAUAI_FONT_PROVIDER", "freetype");
     CHECK(vntl.FInit());
+#ifndef WIN
+    // Native ports borrow a device palette; the CPU backend requires an
+    // explicit palette, just as Studio installs one from its real resources.
+    auto palette = DynamicArray::PglNew(sizeof(Color), 256);
+    CHECK(palette && palette->FSetIvMac(256));
+    for (int i = 0; i < 256; ++i)
+    {
+        const auto level = static_cast<byte>(i);
+        Color color{level, level, level, 0};
+        palette->Put(i, &color);
+    }
+    GraphicsPort::SetActiveColors(palette, 0);
+    ReleasePpo(&palette);
+#endif
     CHECK(app.EnsureDrawingPort() && app.EnsureDrawingPort()->CbitPixel() == 8);
     const auto bytes = AviFixture::Fixture(true);
     auto file = std::fopen(argv[1], "wb");

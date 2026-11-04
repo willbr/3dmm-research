@@ -93,7 +93,9 @@ static bool Changed(PDialog dialog, LegacyLong *item, void *context)
 }
 int main()
 {
+#ifdef WIN
     vwig.hinst = GetModuleHandle(nullptr);
+#endif
     Test test;
     auto dialog = Dialog::PdlgNew(101, Changed, &test);
     if (!dialog || dialog->IvMac() != 5)

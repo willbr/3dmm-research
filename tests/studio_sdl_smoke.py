@@ -1,8 +1,10 @@
-"""Interactive Windows smoke check of the original English Studio through SDL.
+"""Interactive smoke check of the original English Studio through SDL.
 
 Uses a fresh movie; never opens or saves a user document. --portfolio-files
 saves and reopens only fixture movies in the artifact directory. Requires a
 Debug STUDIO_SDL3 build (MCP enabled) and the original English content directory.
+Desktop focus/minimize/resize/fullscreen checks are Windows-specific; the
+editing, SDL dialog and save/reopen workflow also runs on Mac/Linux.
 """
 import argparse
 import base64
@@ -52,6 +54,8 @@ def resize_studio(pid):
 
 def focus_studio(pid):
     """Capture checks require foreground input; Windows may deny it on launch."""
+    if os.name != "nt":
+        return
     import ctypes
     from ctypes import wintypes
     hwnd, user32 = studio_window(pid)
@@ -82,6 +86,8 @@ def focus_studio(pid):
 
 def keyboard_repeat_settings():
     """Observe desktop preferences without changing them."""
+    if os.name != "nt":
+        return None
     import ctypes
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     values = []
@@ -119,7 +125,11 @@ def main():
     parser.add_argument("--sdl-video", action="store_true", help="Play an original project AVI through SDL video/audio and its original scripts")
     parser.add_argument("--sdl-recording", action="store_true", help="Exercise original recording easel using SDL's dummy capture/playback device")
     parser.add_argument("--text", action="store_true", help="Create a textbox, enter SDL text and use the original font picker")
+    parser.add_argument("--playback", action="store_true", help="Extend the original timeline, then verify play, natural completion and stop")
+    parser.add_argument("--portable-runtime", action="store_true", help="Require the build that excludes native GUI adapters")
     args = parser.parse_args()
+    if os.name != "nt" and (args.resize or args.fullscreen):
+        parser.error("--resize and --fullscreen currently use Windows desktop APIs")
     if args.portfolio_files and not args.text:
         parser.error("--portfolio-files requires --text so the final save/discard check still has an edited movie")
     args.artifacts.mkdir(parents=True, exist_ok=True)
@@ -129,7 +139,7 @@ def main():
         [str(args.exe.resolve()), "--mcp-server"], cwd=args.content.resolve(),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8",
-        env={**os.environ, **({"SDL_AUDIODRIVER": "dummy"} if args.sdl_recording else {})},
+        env={**os.environ, "KAUAI_TEST_FAIL_FAST": "1", **({"SDL_AUDIODRIVER": "dummy"} if args.sdl_recording else {})},
     )
 
     def read_responses():
@@ -156,7 +166,12 @@ def main():
         process.stdin.flush()
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            response = responses.get(timeout=max(0.01, deadline - time.monotonic()))
+            try:
+                response = responses.get(timeout=min(0.2, max(0.01, deadline - time.monotonic())))
+            except queue.Empty:
+                if process.poll() is not None:
+                    raise RuntimeError("Studio exited with code " + str(process.returncode) + ": " + "".join(logs))
+                continue
             if response.get("id") == sequence:
                 if "error" in response:
                     raise RuntimeError(response["error"])
@@ -182,10 +197,10 @@ def main():
             raise AssertionError("Studio capture changed from baseline: " + name)
         return data
 
-    def check_portfolio_files():
+    def check_portfolio_files(prefix="portfolio"):
         import shutil
-        target = (args.artifacts / "portfolio-roundtrip.other.3mm").resolve()
-        reopened = (args.artifacts / "portfolio-reopened.3mm").resolve()
+        target = (args.artifacts / (prefix + "-roundtrip.other.3mm")).resolve()
+        reopened = (args.artifacts / (prefix + "-reopened.3mm")).resolve()
         target.unlink(missing_ok=True)
         reopened.unlink(missing_ok=True)
         deadline = time.monotonic() + 35
@@ -249,7 +264,7 @@ def main():
         state, control = wait_for(find_file, "SDL file list did not show the saved fixture")
         action(state, "click", control)
         state = wait_for(lambda: (current if any(c["id"] == 21 and c["number"] == 1 for c in current["controls"]) else None) if (current := portfolio()) else None, "Saved movie thumbnail did not render")
-        image = (args.artifacts / "portfolio-preview.bmp").resolve()
+        image = (args.artifacts / (prefix + "-preview.bmp")).resolve()
         image.unlink(missing_ok=True)
         action(state, "screenshot", text=str(image))
         wait_for(image.exists, "SDL movie preview screenshot was not saved")
@@ -259,21 +274,22 @@ def main():
         settle()
         if reopened.read_bytes() != before_open:
             raise AssertionError("Opening the fixture modified its bytes")
-        capture("portfolio-reopened")
+        capture(prefix + "-reopened")
     def check_portfolio(cid, hid, name):
         # Exercise the real Studio EnsureInteractive path before each portfolio.
         # Only this test's fresh process is minimized through the desktop.
-        import ctypes
-        from ctypes import wintypes
-        hwnd, user32 = studio_window(process.pid)
-        user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-        user32.IsIconic.argtypes = [wintypes.HWND]
-        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
-        deadline = time.monotonic() + 5
-        while not user32.IsIconic(hwnd):
-            if time.monotonic() >= deadline:
-                raise AssertionError("Could not minimize this test's Studio window")
-            time.sleep(0.03)
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+            hwnd, user32 = studio_window(process.pid)
+            user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+            user32.IsIconic.argtypes = [wintypes.HWND]
+            user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+            deadline = time.monotonic() + 5
+            while not user32.IsIconic(hwnd):
+                if time.monotonic() >= deadline:
+                    raise AssertionError("Could not minimize this test's Studio window")
+                time.sleep(0.03)
         call("send_command", cid=cid, hid=hid)
         deadline = time.monotonic() + 10
         while True:
@@ -286,7 +302,7 @@ def main():
             time.sleep(0.03)
         if not controls[20]["number"]:
             raise AssertionError("SDL portfolio did not load its original artwork")
-        if user32.IsIconic(hwnd):
+        if os.name == "nt" and user32.IsIconic(hwnd):
             raise AssertionError("Opening the SDL portfolio did not restore Studio")
         (args.artifacts / (name + "-dialog.json")).write_text(json.dumps(portfolio, indent=2), encoding="utf-8")
         image = (args.artifacts / (name + ".bmp")).resolve()
@@ -556,6 +572,69 @@ def main():
                     or not changed.get("text", "").startswith("SDL3 text!")):
                 raise AssertionError("Original font picker did not change the textbox font: " + str(changed))
 
+        def movie_state():
+            return json.loads(call("get_state")["content"][0]["text"])
+
+        def add_frame():
+            # Original Ctrl+frame-forward command sequence, including release.
+            call("send_command", cid=50045, lw0=22, lw1=1)
+            call("send_command", cid=50021, lw0=22)
+
+        if args.playback:
+            click_control(0x20086)  # Last frame.
+            original_last = movie_state()["scene_last_frame"]
+            for _ in range(30):
+                add_frame()
+                call("wait_ms", ms=20)
+            settle()
+            if movie_state()["scene_last_frame"] != original_last + 30:
+                raise AssertionError("Original frame controls did not extend the scene")
+            click_control(0x20088)  # First frame.
+            first = movie_state()["scene_first_frame"]
+            click_control(0x20039, False)  # Original Play button.
+            deadline = time.monotonic() + 20
+            observed = []
+            while time.monotonic() < deadline:
+                state = movie_state()
+                observed.append({key: state[key] for key in ("movie_playing", "scene_frame")})
+                if any(item["movie_playing"] and item["scene_frame"] > first for item in observed) and not state["movie_playing"]:
+                    break
+                time.sleep(0.04)
+            else:
+                raise AssertionError("Movie did not advance and finish through the SDL event loop: " + str(observed))
+            (args.artifacts / "timeline-playback.json").write_text(json.dumps(observed, indent=2), encoding="utf-8")
+            click_control(0x20088)
+            click_control(0x20039, False)
+            time.sleep(0.15)
+            if not movie_state()["movie_playing"]:
+                raise AssertionError("Movie did not restart")
+            click_control(0x20039, False)  # Same button stops playback.
+            # Stop completes on the next render alarm after the normal idle
+            # loop runs. Nested wait_ms pumping does not provide that idle.
+            deadline = time.monotonic() + 2
+            while movie_state()["movie_playing"]:
+                if time.monotonic() >= deadline:
+                    capture("timeline-stop-failed")
+                    raise AssertionError("Original Play/Stop control did not stop playback")
+                time.sleep(0.04)
+            if movie_state()["scene_frame"] >= movie_state()["scene_last_frame"]:
+                raise AssertionError("Stop test reached the end instead of stopping early")
+            click_control(0x20088)
+            capture("timeline-stopped")
+
+        if args.portfolio_files:
+            before_save = movie_state()
+            check_portfolio_files("edited-movie")
+            after_open = movie_state()
+            for field in ("movie_scene_count", "scene_actor_count", "scene_textboxes", "scene_first_frame", "scene_last_frame"):
+                if before_save[field] != after_open[field]:
+                    raise AssertionError("Edited movie did not round-trip " + field + ": " + str((before_save[field], after_open[field])))
+            (args.artifacts / "edited-roundtrip.json").write_text(json.dumps({"before": before_save, "after": after_open}, indent=2), encoding="utf-8")
+            # Leave a deliberate unsaved edit for the original exit/save query.
+            click_control(0x20086)
+            add_frame()
+            settle()
+
         call("key", vk=112)  # F1 must reach Studio's existing help binding.
         settle()
         help_book = capture("help")
@@ -584,6 +663,10 @@ def main():
         capture("save-query")
         state = json.loads(call("get_state")["content"][0]["text"])
         (args.artifacts / "state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
+        if state.get("error_stack_depth") != 0:
+            raise AssertionError("Studio retained errors after the editing workflow: " + str(state))
+        if args.portable_runtime and state.get("portable_runtime") is not True:
+            raise AssertionError("This workflow requires STUDIO_PORTABLE_RUNTIME=ON")
         if args.sdl_cursors and (state.get("sdl_cursors_created", 0) == 0 or state.get("sdl_cursors_selected", 0) == 0):
             raise AssertionError("Studio did not create and select its original cursor resources through SDL: " + str(state))
         if args.portable_pixels and (state.get("portable_pixel_buffers", 0) == 0 or state.get("portable_pixel_bytes", 0) < 640 * 480 * 4):
@@ -619,13 +702,17 @@ def main():
         detail = ", actor selection/placement" if args.actor else ""
         if args.text:
             detail += ", textbox input/font picker"
+        if args.playback:
+            detail += ", timeline play/restart/stop"
+        if args.portfolio_files:
+            detail += ", edited movie save/reopen"
         print("Original Studio: SDL scene selection" + detail + ", F1 help and save/discard exit passed.")
     finally:
         if process.poll() is None:
             # This tool runs on the reader thread even if the UI is blocked in
             # a native assertion/dialog, so retain actionable failure evidence.
             try:
-                diagnostic = call("list_dialogs")
+                diagnostic = call("list_dialogs" if os.name == "nt" else "get_sdl_dialog")
                 (args.artifacts / "dialogs.json").write_text(json.dumps(diagnostic, indent=2), encoding="utf-8")
             except (OSError, queue.Empty, TimeoutError):
                 pass

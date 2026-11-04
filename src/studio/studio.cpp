@@ -2743,7 +2743,12 @@ bool Studio::FCmdWriteBmpHires(PCommand pcmd)
     const std::time_t now = std::time(nullptr);
     std::tm st;
     String stn;
-    if (now == static_cast<std::time_t>(-1) || !localtime_r(&now, &st) ||
+#ifdef _WIN32
+    const bool haveTime = localtime_s(&st, &now) == 0;
+#else
+    const bool haveTime = localtime_r(&now, &st) != nullptr;
+#endif
+    if (now == static_cast<std::time_t>(-1) || !haveTime ||
         !stn.FFormatSz(PszLit("hires_%04d%02d%02d_%02d%02d%02d_%04d.bmp"),
                        static_cast<LegacyLong>(st.tm_year + 1900), static_cast<LegacyLong>(st.tm_mon + 1),
                        static_cast<LegacyLong>(st.tm_mday), static_cast<LegacyLong>(st.tm_hour),

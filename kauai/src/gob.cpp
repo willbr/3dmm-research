@@ -423,14 +423,16 @@ bool GraphicsObject::FGetRcInval(RC *prc, long gin)
     if (kginMark != gin)
     {
         // get any system invalidated area
-        SystemRectangle rcs;
+        SystemRectangle rcs{};
         RC rcT;
 
-#ifdef WIN
 #ifdef KAUAI_SDL3
         if (!KauaiSDLBridge::DamageBounds(pgob->_hwnd, &rcs))
 #endif
+#ifdef WIN
         GetUpdateRect(pgob->_hwnd, &rcs, fFalse);
+#else
+        { rcs = {}; }
 #endif // WIN
 #ifdef MAC
         PPRT pprt;

@@ -385,14 +385,19 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
             return false;
         if (scope.parent)
         {
-            if (!SDL_SetWindowParent(scope.window, scope.parent) || !SDL_SetWindowModal(scope.window, true))
-                return false;
-            scope.modal = true;
-            int x, y, w, h, dw, dh;
-            SDL_GetWindowPosition(scope.parent, &x, &y);
-            SDL_GetWindowSize(scope.parent, &w, &h);
-            SDL_GetWindowSize(scope.window, &dw, &dh);
-            SDL_SetWindowPosition(scope.window, x + (w - dw) / 2, y + (h - dh) / 2);
+            // The dummy driver has no window manager. Run the same modal
+            // session/event loop without requesting native window modality.
+            const auto driver = SDL_GetCurrentVideoDriver();
+            if (!driver || SDL_strcmp(driver, "dummy") != 0)
+            {
+                if (!SDL_SetWindowParent(scope.window, scope.parent) || !SDL_SetWindowModal(scope.window, true))
+                    return false;
+                scope.modal = true;
+            }
+            int x = 0, y = 0, w = 0, h = 0, dw = 0, dh = 0;
+            if (SDL_GetWindowPosition(scope.parent, &x, &y) && SDL_GetWindowSize(scope.parent, &w, &h) &&
+                SDL_GetWindowSize(scope.window, &dw, &dh))
+                SDL_SetWindowPosition(scope.window, x + (w - dw) / 2, y + (h - dh) / 2);
         }
         SDL_Rect usable;
         if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(scope.window), &usable))

@@ -20,8 +20,15 @@ ask most often.
 
 ## Build
 
-The project only compiles as **x86 (32-bit)**. CMake `FATAL_ERROR`s on 64-bit pointer width, and the `kcdc-386`/`kcd2-386` bootstrap codegen tools cannot currently cross-compile, so they are built host-as-target. Building from a 64-bit Windows host requires an x86 MSVC environment (e.g., via [VCVars](https://github.com/bruxisma/VCVars):
-`pushvc (invoke-vcvars -TargetArch x86 -HostArch AMD64)`).
+Native Windows builds support x86 and x64. Windows SDL3 Studio also has an
+opt-in portable GUI runtime: `cmake --preset x64:msvc:portable-sdl-debug`, then
+build `build/studio-portable-x64`. This excludes native GUI/graphics adapters;
+Windows OS service adapters remain platform-specific. Mac/Linux SDL Studio is
+enabled with `cmake --preset sdl-debug`; the Linux executable, native resource
+compiler and headless editing/save/exit paths are verified. Full native Cocoa
+build/run validation still needs a Mac. See `docs/tools/studio-sdl.md` for setup
+and current evidence.
+Building x86 from a 64-bit Windows host requires an x86 MSVC environment.
 
 Configure + build (Ninja generator, MSVC):
 

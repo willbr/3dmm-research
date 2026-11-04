@@ -2294,6 +2294,13 @@ bool CompilerLexer::FGetPath(Filename *pfni)
 #ifdef MAC
     return pfni->FBuild(0, 0, &stn, kftgText);
 #endif // MAC
+#if !defined(WIN) && !defined(MAC)
+    // Authored chunky sources use Windows separators on every host. Resolve
+    // them through the selected file backend, not a Windows-only lexer path.
+    for (LegacyLong i = 0; i < stn.Cch(); ++i)
+        if (stn.Prgch()[i] == '\\') stn.Prgch()[i] = KauaiFiles::Separator();
+    return pfni->FBuildFromPath(&stn) && pfni->FResolveCase();
+#endif
 }
 
 /***************************************************************************

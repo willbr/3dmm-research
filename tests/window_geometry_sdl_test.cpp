@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <utility>
+#include <windows.h>
 #include "frame.h"
 #undef size
 ASSERTNAME
@@ -22,8 +23,11 @@ int main()
 {
     auto &host = KauaiSDL::Main();
     CHECK(host.Create("Window geometry", 64, 48, true));
-    vwig.hwndApp = static_cast<HWND>(host.NativeWindow());
-    CHECK(vwig.hwndApp);
+    auto nativeWindow = static_cast<HWND>(host.NativeWindow());
+    CHECK(nativeWindow);
+#ifdef WIN
+    vwig.hwndApp = nativeWindow;
+#endif
     _putenv_s("KAUAI_FONT_PROVIDER", "freetype");
     auto app = NewObj ApplicationBase;
     CHECK(app && vntl.FInit() && GraphicsObject::FInitScreen(0, kginMark));
@@ -33,7 +37,7 @@ int main()
     // topmost dialogs. Native global hit testing correctly respects occlusion.
     RECT workArea;
     CHECK(SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0));
-    CHECK(SetWindowPos(vwig.hwndApp, HWND_TOPMOST, workArea.left + 32, workArea.top + 32, 0, 0,
+    CHECK(SetWindowPos(nativeWindow, HWND_TOPMOST, workArea.left + 32, workArea.top + 32, 0, 0,
                        SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW));
     RC parentBounds(10, 7, 40, 35), childBounds(3, 4, 18, 19);
     GraphicsObjectBlock parentBlock(7123, root, fgobNil, kginMark, &parentBounds);
@@ -91,7 +95,7 @@ int main()
         {
             POINT nativePoint = {hit.xp, hit.yp};
             POINT origin = {};
-            ClientToScreen(vwig.hwndApp, &origin);
+            ClientToScreen(nativeWindow, &origin);
             char windowClass[128] = {};
             GetClassNameA(WindowFromPoint(nativePoint), windowClass, 128);
             std::fprintf(stderr, "Occluder %s, desktop %dx%d\n", windowClass, GetSystemMetrics(SM_CXSCREEN),
@@ -100,8 +104,8 @@ int main()
                          "Hit %dx%d global %ld,%ld local %ld,%ld client origin %ld,%ld window %p actual %p visible %d "
                          "iconic %d\n",
                          dimensions.first, dimensions.second, hit.xp, hit.yp, local.xp, local.yp, origin.x, origin.y,
-                         static_cast<void *>(vwig.hwndApp), static_cast<void *>(WindowFromPoint(nativePoint)),
-                         IsWindowVisible(vwig.hwndApp), IsIconic(vwig.hwndApp));
+                         static_cast<void *>(nativeWindow), static_cast<void *>(WindowFromPoint(nativePoint)),
+                         IsWindowVisible(nativeWindow), IsIconic(nativeWindow));
         }
         CHECK(found == child && local == expectedHit);
         PT border(-1, 0);
@@ -113,7 +117,9 @@ int main()
     GraphicsObject::ShutDown();
     ReleasePpo(&app);
     host.Close();
+#ifdef WIN
     vwig.hwndApp = nullptr;
+#endif
     std::puts("SDL gob geometry: nested local/parent/port/window/global mapping, scaled rectangles, fixed canvas "
               "bounds and encoded title passed.");
 }

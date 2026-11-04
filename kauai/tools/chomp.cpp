@@ -14,7 +14,7 @@ ASSERTNAME
     Main routine for the stand-alone chunky compiler.  Returns non-zero
     iff there's an error.
 ***************************************************************************/
-int __cdecl main(int cpszs, char *prgpszs[])
+int main(int cpszs, char *prgpszs[])
 {
     Filename fniSrc, fniDst;
     PChunkyFile pcfl;
@@ -24,16 +24,20 @@ int __cdecl main(int cpszs, char *prgpszs[])
     bool fCompile = fTrue;
 
 #ifdef UNICODE
-    fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Unicode; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
+    fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Unicode" Debug("; Debug") ")\n");
 #else  //! UNICODE
-    fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Ansi; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
+    fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Ansi" Debug("; Debug") ")\n");
 #endif //! UNICODE
     fprintf(stderr, "Copyright (C) Microsoft Corp 1995. All rights reserved.\n\n");
 
     for (prgpszs++; --cpszs > 0; prgpszs++)
     {
         pszs = *prgpszs;
-        if (pszs[0] == '-' || pszs[0] == '/')
+        if (pszs[0] == '-'
+#ifdef _WIN32
+            || pszs[0] == '/'
+#endif
+        )
         {
             // option
             switch (pszs[1])
@@ -147,11 +151,11 @@ bool _fEnableWarnings = fTrue;
 /***************************************************************************
     Warning proc called by Warn() macro
 ***************************************************************************/
-void WarnProc(PSZS pszsFile, long lwLine, PSZS pszsMessage)
+void WarnProc(PSZS pszsFile, LegacyLong lwLine, PSZS pszsMessage)
 {
     if (_fEnableWarnings)
     {
-        fprintf(stderr, "%s(%ld) : warning", pszsFile, lwLine);
+        fprintf(stderr, "%s(%ld) : warning", pszsFile, static_cast<long>(lwLine));
         if (pszsMessage != pvNil)
         {
             fprintf(stderr, ": %s", pszsMessage);
@@ -163,7 +167,7 @@ void WarnProc(PSZS pszsFile, long lwLine, PSZS pszsMessage)
 /***************************************************************************
     Returning true breaks into the debugger.
 ***************************************************************************/
-bool FAssertProc(PSZS pszsFile, long lwLine, PSZS pszsMessage, void *pv, long cb)
+bool FAssertProc(PSZS pszsFile, LegacyLong lwLine, PSZS pszsMessage, void *pv, LegacyLong cb)
 {
     fprintf(stderr, "An assert occurred: \n");
     if (pszsMessage != pvNil)
@@ -190,14 +194,14 @@ bool FAssertProc(PSZS pszsFile, long lwLine, PSZS pszsMessage, void *pv, long cb
                 break;
 
             case 4:
-                fprintf(stderr, "%08lx", *(long *)pv);
+                fprintf(stderr, "%08x", *(LegacyUlong *)pv);
                 break;
             }
             printf("\n");
         }
     }
     fprintf(stderr, "   File: %s\n", pszsFile);
-    fprintf(stderr, "   Line: %ld\n", lwLine);
+    fprintf(stderr, "   Line: %ld\n", static_cast<long>(lwLine));
 
     return fFalse;
 }

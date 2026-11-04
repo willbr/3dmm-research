@@ -3,8 +3,10 @@
 #define KAUAI_FILE_BROWSER_H
 #include <string>
 #include <vector>
+#include "platform_files.h"
 namespace KauaiFiles
 {
+bool NativePathFromUtf8(const std::string &text, std::basic_string<PathChar> &path);
 struct BrowserEntry
 {
     std::string name, path;

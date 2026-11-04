@@ -7,6 +7,9 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#ifndef _WIN32
+#include <unwind.h>
+#endif
 #include "frame.h"
 ASSERTNAME
 namespace
@@ -282,6 +285,27 @@ void ApplicationBase::_CloseSDLWindow()
 #ifndef WIN
 PMenuBar vpmubCur = nullptr;
 
+void AppendCrashLog(const char *category, const char *body)
+{
+    char directory[1024];
+    if (!KauaiFiles::TempPath(directory, sizeof(directory))) return;
+    std::string path = std::string(directory) + "/3dmmforever-crash.txt";
+    KauaiFiles::OpenOptions options;
+    options.write = true;
+    auto file = KauaiFiles::Open(path.c_str(), options);
+    if (!file)
+    {
+        options.creation = KauaiFiles::Creation::CreateExclusive;
+        file = KauaiFiles::Open(path.c_str(), options);
+    }
+    if (!file) return;
+    std::uint32_t bytes;
+    std::string entry = std::string("\n[") + category + "] " + (body ? body : "") + "\n";
+    if (KauaiFiles::Size(file, &bytes) && KauaiFiles::Seek(file, bytes))
+        KauaiFiles::Write(file, entry.data(), static_cast<std::uint32_t>(entry.length()));
+    KauaiFiles::Close(file);
+}
+
 bool ApplicationBase::_FInitOS()
 {
     String title;
@@ -308,9 +332,22 @@ bool ApplicationBase::_FInitDebug()
     return fTrue;
 }
 
-bool ApplicationBase::FAssertProcApp(PSZS file, long line, PSZS message, void *, long)
+bool ApplicationBase::FAssertProcApp(PSZS file, long line, PSZS message, void *data, long count)
 {
     std::fprintf(stderr, "%s:%ld: %s\n", file ? file : "", line, message ? message : "Assertion failure");
+    if (std::getenv("KAUAI_TEST_FAIL_FAST"))
+    {
+#ifndef _WIN32
+        int depth = 0;
+        _Unwind_Backtrace([](_Unwind_Context *context, void *opaque) {
+            auto &frame = *static_cast<int *>(opaque);
+            std::fprintf(stderr, "  frame %d: %p\n", frame++, reinterpret_cast<void *>(_Unwind_GetIP(context)));
+            return frame < 32 ? _URC_NO_REASON : _URC_END_OF_STACK;
+        }, &depth);
+#endif
+        std::fflush(stderr);
+        std::_Exit(2);
+    }
     // Early startup failures must remain diagnosable without a dialog host.
     if (!KauaiSDL::Main().Active())
         return fTrue;
@@ -321,6 +358,19 @@ bool ApplicationBase::FAssertProcApp(PSZS file, long line, PSZS message, void *,
     text.SetSzs(message ? message : const_cast<PSZS>("Assertion failure"));
     filename.SetSzs(file ? file : const_cast<PSZS>(""));
     details.FFormatSz(PszLit("%s:%d"), &filename, static_cast<LegacyLong>(line));
+    if (data && count > 0)
+    {
+        const auto bytes = static_cast<const unsigned char *>(data);
+        for (long offset = 0; offset < count && offset < 80; offset += 4)
+        {
+            std::uint32_t word = 0;
+            const auto remaining = count - offset;
+            std::memcpy(&word, bytes + offset, remaining < 4 ? remaining : 4);
+            char hex[16];
+            std::snprintf(hex, sizeof(hex), "%08x ", word);
+            stack.FAppendSz(hex);
+        }
+    }
     const auto choice = _TmcSDLAssert(&text, &details, &stack);
     _fInAssert = fFalse;
     if (choice == 2)
@@ -332,7 +382,13 @@ bool ApplicationBase::FAssertProcApp(PSZS file, long line, PSZS message, void *,
 
 bool ApplicationBase::_FBindSDLNativeWindow()
 {
-    return KauaiSDL::Main().Active();
+    KauaiSDL::WindowStatus status;
+    if (!KauaiSDL::Main().WindowState(status)) return false;
+    // SDL can acquire focus during creation, before this application's event
+    // dispatcher is running. Establish that initial state as well as handling
+    // subsequent SDL focus events.
+    _Activate(status.keyboardFocus);
+    return true;
 }
 void ApplicationBase::_ReleaseSDLNativeWindow()
 {

@@ -3,6 +3,260 @@
 The port keeps Studio's original Kauai UI, resource scripts and editing tools.
 The archive inspector is a separate diagnostic application.
 
+## Mac/Linux Studio build, 4 November 2026
+
+The full SDL Studio target is enabled on Mac/Linux. Resource preprocessing now
+supports Clang/GCC as well as MSVC, preserves the original lexer's line format,
+and tracks nested header dependencies with Ninja/Make. Native builds build and
+run `chomp` automatically (`build/studio-sdl/tools/chomp` on POSIX). Cross builds
+must supply a host tool with `-DCHOMP_EXECUTABLE=/path/to/host/chomp` or an emulator.
+The embedded dialog templates require no Windows resource compiler.
+
+With a native C/C++ toolchain, CMake and Ninja installed, configure an original
+Microsoft Kids data tree as the content overlay (the directory containing
+`3D Movie Maker` and `Users`):
+
+```sh
+cmake --preset sdl-debug -DMSKIDS_OVERLAY_DIR="/path/to/Microsoft Kids"
+cmake --build build/studio-sdl
+cmake --install build/studio-sdl
+KAUAI_FONT_PATH="/path/to/fonts" ./dist-sdl/3dmovie-sdl
+```
+
+Dependencies are fetched by the build. macOS needs Apple's native SDK/toolchain
+for SDL's Cocoa backend. Original data and fonts are separate inputs; see
+[`FONTS.md`](../../FONTS.md). The font fixture used for Linux verification includes
+the original Windows families, not an invented replacement font. No fonts or
+proprietary SDK files are added to the repository.
+
+Installation renames the generated main archive to `3dmovie.chk`, preserves newly
+built resource archives when overlaying original data with different filename
+casing, and creates the default profile directory even without the sample CDs.
+The executable recognizes its adjacent `Microsoft Kids` tree. A separately
+located tree can be selected with `THREEDMM_CONTENT_ROOT`.
+
+The shared editing smoke script now supports Mac/Linux. Its desktop
+focus/minimize/resize/fullscreen checks remain Windows-specific:
+
+```sh
+python3 tests/studio_mcp_stdio_test.py build/studio-sdl/3dmovie-sdl "/path/to/Microsoft Kids/3D Movie Maker"
+python3 tests/studio_sdl_smoke.py build/studio-sdl/3dmovie-sdl "/path/to/Microsoft Kids/3D Movie Maker" build/mac-smoke --portable-runtime --actor --portable-fonts --sdl-cursors --portfolio --portfolio-files --portable-pixels --text --playback
+```
+
+Integration fixes include explicit case-insensitive legacy content reads on
+case-sensitive filesystems (exact matches win; ambiguous matches fail), preserving
+live Filename objects on failed content probes, 32-bit FILL resource fields,
+defined unsigned script-name/numeric packing, and safe packed BRender list unlinking.
+Ordinary filesystem operations keep their native case behavior. Headless SDL
+modal dialogs use the existing session loop without native dummy-driver modality.
+
+Evidence is recorded in `build/studio-linux-{configure,build,default-build,install}.log`,
+`build/studio-linux-app-final2-runtime.log`, `build/studio-linux-native-resources.json`,
+`build/studio-final-windows-{build,tests,smoke}.log`, and
+`build/windows-portable-integration/`. Linux application/runtime checks and native
+resource comparisons are separate from macOS verification: the Windows host has
+no complete Apple toolchain, so full Cocoa build/run validation still belongs on
+the user's Mac. Earlier guarded-build checkpoints below are historical.
+
+Final Linux runtime checks passed original Studio initialization, PNG capture,
+scene selection, movie save, quit with stdin still open, adjacent installed-data
+discovery from an unrelated cwd, and EOF shutdown with the last request answered.
+The retained error stack is empty. The packed-list, script packing/numeric and
+case-sensitive filename regressions run in the same VM. All eight archives built
+by native Linux `chomp` match the Windows tool's output exactly; the JSON report
+records that resource phase separately from an earlier application cleanup test
+that exposed the now-fixed BRender alignment bug. The cross test build uses
+optimization plus undefined-behavior checks to keep emulated compression tractable.
+The full Windows portable regression suite and original actor/text/timeline/
+edited-save/reopen desktop workflow passed; focused checks also cover the later
+packed-list fix. Native Windows GUI support is retained.
+
+## Portable Windows runtime, 4 November 2026
+
+`STUDIO_PORTABLE_RUNTIME=ON` selects the CPU/SDL GUI backend on Windows. It
+excludes native window, GDI graphics/font, picture, dialog, menu and region
+adapters, and compiled Windows UI resources from Studio. The native backend
+remains available separately. Windows OS adapters still supply files, settings,
+identity and font locations; these services have separate POSIX implementations.
+The Debug MCP server now uses portable stdio and SDL tools, with optional native
+Windows diagnostics. This verifies the shared GUI runtime intended for Mac/Linux,
+not a complete Mac application. The full Mac/Linux build path is now enabled;
+see the current checkpoint above for verification limits.
+
+### Portable MCP checkpoint, 4 November 2026
+
+The actual Debug server is included in `studio-runtime-compile-check` and
+cross-compiles for Linux x64 and macOS arm64. `studio-mcp-io` supplies inherited
+stdio with bounded reader waits and a lossless RGB PNG encoder. The SDL server
+uses no GDI+ screenshot encoder. Input, window state and modal actions use the
+existing SDL host, including opaque window tokens on platforms without HWNDs.
+Timing uses the C++ steady clock; quit and EOF enqueue Studio's normal quit
+command. Native Windows dialog inspection/dismissal and MSVC diagnostics stay
+conditional. No network dependency was added.
+
+`mcp-io-test` covers idle pipes, fragmented UTF-8/CRLF input, EOF, writes larger
+than a pipe buffer and disconnected stdout (including POSIX SIGPIPE handling).
+`mcp-png` independently decodes CRCs, zlib data, channel order and row order.
+The real Studio protocol regression opens no movie and uses fresh processes:
+
+```console
+python tests/studio_mcp_stdio_test.py build/studio-portable-x64/3dmovie-sdl.exe "dist/Microsoft Kids/3D Movie Maker"
+```
+
+Windows passed fragmented JSON-RPC, large IDs, notifications, protocol errors,
+screenshots, quit with stdin still open, and EOF with a final queued request.
+The original editing workflow passed resize/fullscreen, actors, caption fonts,
+timeline playback, dialogs and edited movie save/reopen. Linux ran the pipe
+regression in the headless VM. Evidence is in
+`build/mcp-{portable,native,linux,mac}-build.log`,
+`build/mcp-{protocol,linux}-runtime.log`, `build/mcp-editing-final.log` and
+`build/windows-mcp-portable-final/`. macOS execution and full non-Windows Studio
+integration remain unverified. PNG output uses stored DEFLATE blocks and is
+larger than the previous GDI+ encoding. See [the MCP code map](../code-map/mcp-server.md).
+
+From an initialized x64 MSVC environment:
+
+```console
+cmake --preset x64:msvc:portable-sdl-debug
+cmake --build build/studio-portable-x64 --target studio library-checks
+ctest --test-dir build/studio-portable-x64 --output-on-failure
+python tests/studio_sdl_smoke.py build/studio-portable-x64/3dmovie-sdl.exe "dist/Microsoft Kids/3D Movie Maker" build/windows-portable-smoke --portable-runtime --resize --fullscreen --actor --portable-fonts --sdl-cursors --portfolio --portfolio-files --portable-pixels --sdl-audio --sdl-midi --sdl-video --text --playback
+```
+
+The full desktop workflow passed actor placement, caption font changes,
+timeline advancement/completion/restart/stop, WAVE/MIDI/AVI playback, dialogs,
+overwrite decisions and edited-movie save/reopen. Its state reports zero retained
+errors, native font operations, screen contexts, indexed drawing contexts/mirrors
+and framebuffer contexts/mirrors. Portable runtime regressions also check picture
+data preservation/unsupported operations and UTF-8 filename dialogs with native
+path conversion, cancellation and overwrite decisions.
+A separate desktop run passed recording, preview and WAVE import through the
+original recording easel with synthetic SDL capture input; no room audio was
+recorded. Its artifacts are in `build/windows-portable-recording-verified/`.
+
+This exposed and fixed initial application focus/activation, the browser memory
+query, movie read-only detection and uninitialized SDL repaint-damage bounds.
+SDL reports installed RAM; unknown available RAM makes the old cache heuristic
+conservatively release unused resources. `KAUAI_TEST_FAIL_FAST=1` makes automated
+portable assertions exit with console diagnostics; interactive assertions retain
+their dialog.
+
+### Temporary picture stubs
+
+Portable EMF/WMF/PICT import, recording and drawing are deferred. The portable
+adapter returns null or reports `ercGfxCantDraw`, without assertions or changes
+to destination pixels. Recording never returns a pretend successful picture.
+Existing `META` envelopes, payload bytes and preferred display bounds still
+round-trip unchanged through `PictureData` and the `Picture` wrapper. Native
+Windows picture implementations remain available in the native backend.
+
+All 15 installed `.chk`/`.3cn` archives were inspected and contain no `META`
+chunks, and no direct picture import/record/draw calls were found in Studio or
+the movie engine. The callers are the Kauai `ft` test app and `chomp`/`ched`
+authoring tools. The stubs satisfy framework linkage while those optional
+picture features remain unsupported. The `picture-portable` regression checks
+byte preservation, explicit unsupported returns, and unchanged destination
+pixels. The earlier experimental EMF interpreter, recorder and GDI fixtures
+have been removed.
+
+After this change, all 80 portable Windows CTests passed. The desktop regression
+again passed actor/text editing, font changes, timeline play/restart/stop,
+portfolios and edited-movie save/reopen, with an empty error stack. Evidence:
+`build/picture-stubs-ctest.log`, `build/picture-stubs-smoke.log`, and
+`build/windows-picture-stubs-smoke/`. The native Windows Studio build and
+`pixel-port` regression also passed.
+
+### Portable dialog resources
+
+The original 15 Studio templates are embedded in `src/studio/dialog_resources.cpp`
+and supplied through `KauaiDialogs::ResourceProvider`, with the original parser,
+controls and callbacks. The portable executable loads neither Windows resources
+nor `.rc` data. The native Windows regression compares the bundle against freshly
+compiled resource output. After changing dialog sources, regenerate it with:
+
+```console
+python tools/embed-dialog-resources.py build/studio-sdl-x64/CMakeFiles/studio.dir/src/studio/utest.rc.res src/studio/dialog_resources.cpp
+```
+
+The two controller-test templates are bundled in
+`tests/dialog_resources_portable.cpp` by the same tool. Headless Linux now links
+and runs the actual picture, filename-dialog and font-list checks. Logs are
+`build/picture-stubs-linux-build.log` and `build/picture-stubs-linux-runtime.log`; Windows
+logs use `build/portable-*.log`, with desktop artifacts in
+`build/windows-portable-final-verified/` for the earlier full media workflow.
+The retained Windows SDL backend previously passed 94 CTests. The edited movie
+has identical x86/x64 archive dumps and neither reader changes its input hash.
+GitHub Actions remain disabled.
+
+## Current priority and testing authorization, 4 November 2026
+
+The user resumed work and explicitly directed the port to focus on Windows
+with SDL. Linux/macOS integration is deferred; it is not the current completion
+gate. Preserve the original Studio editor and verify real Windows SDL editing,
+playback, dialogs and movie save/reopen workflows.
+
+The user is away today and explicitly authorized use of their desktop for
+testing. Desktop Studio smoke tests, window focus, resizing and fullscreen
+checks are authorized for this testing session. Use fresh fixture movies and
+test-owned processes. This authorization supersedes the earlier desktop-testing
+restriction below for today; the older checkpoints remain historical evidence.
+
+## Windows SDL verification checkpoint, 4 November 2026
+
+The original Studio works through SDL3 on Windows in the tested workflows.
+The current Debug x64 Studio and `library-checks` builds passed, followed by
+all 93 Windows CTests (107 seconds). The full desktop workflow passed with
+the normal Windows audio device: scene selection, actor placement, text entry
+and font changes, WAVE/MIDI preview, original project AVI playback, help,
+portfolio selection, overwrite decisions, movie save/reopen and normal exit.
+A separate full run exercised the original recording easel with synthetic SDL
+capture input; no room audio was recorded.
+
+The desktop regression now also extends a scene to 31 frames through Studio's
+original scrollbar commands, observes actual timeline advancement and natural
+completion, and checks restart and early stop through the original Play button.
+Stop completion must be observed after the normal event loop runs: nested MCP
+`wait_ms` pumping omits the idle event required by the render alarm. The test
+now polls normal-loop progress; no playback implementation change was needed.
+
+The edited movie is saved and reopened after actor/text editing. Scene and actor
+counts, frame bounds, caption text, and first/last character fonts match before
+and after. The fixture retains Comic Sans MS text with a Consolas final character.
+Both x86 and x64 archive readers produce identical dumps of that file without
+changing its hash. This checks the actual edited fixture and stored data; it
+does not claim an exhaustive comparison against every historical editor build.
+
+Fullscreen used the existing 2560x1440 desktop, with integer presentation;
+windowed resizing to a 984x661 client retained a centered 640x480 canvas.
+A normal launch without `--mcp-server` also displayed the editor, resized with
+black borders, and closed with exit code zero. The desktop capture was inspected.
+Final Studio error-stack depth was zero, the test logs contained no diagnostics,
+and all test-owned Studio processes exited.
+
+Evidence under `build/inspector-deps/`:
+
+- `windows-sdl-resume-build.log`, `windows-sdl-library-build.log` and
+  `windows-sdl-regressions-20261104.log`.
+- `windows-sdl-smoke-20261104.log`: full workflow including synthetic recording.
+- `windows-sdl-editing-focused-20261104.log`: extended timeline and edited save/reopen.
+- `windows-sdl-final-20261104.log`: combined workflow with normal audio output.
+- `windows-edited-compat.json`: unchanged fixture hash and matching x86/x64 dumps.
+
+Screenshots and JSON observations are in `build/windows-sdl-final-20261104/`;
+normal-launch results are in `build/windows-sdl-normal-20261104/`.
+The expanded diagnostic state reports timeline and caption values without
+changing the movie. Re-run the combined desktop test with:
+
+```console
+python tests/studio_sdl_smoke.py build/studio-sdl-x64/3dmovie-sdl.exe "dist/Microsoft Kids/3D Movie Maker" build/windows-sdl-smoke --resize --fullscreen --actor --portable-fonts --sdl-cursors --portfolio --portfolio-files --portable-pixels --sdl-audio --sdl-midi --sdl-video --text --playback
+```
+
+Linux/macOS work remains deferred. Before the priority change, the unfinished
+POSIX filename-dialog fixture was changed to use the project's file services
+and compiled successfully; its runtime checks have not been run. The native
+picture link gap remains specific to the deferred non-Windows integration.
+GitHub Actions remain disabled.
+
 ## Desktop testing constraint and current handoff
 
 ### Paused commit checkpoint, 3 November 2026

@@ -125,14 +125,14 @@ std::unique_ptr<Face> FileFontHost::Open(Text family, std::int32_t pixels, bool 
 const char *StudioFontProvider()
 {
 #ifdef KAUAI_FREETYPE
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(KAUAI_PORTABLE_RUNTIME)
     const auto name = std::getenv("KAUAI_FONT_PROVIDER");
     return name && std::strcmp(name, "gdi") == 0 ? "gdi" : "freetype";
 #else
     return "freetype";
 #endif
 #else
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(KAUAI_PORTABLE_RUNTIME)
     return "gdi";
 #else
     return "none";

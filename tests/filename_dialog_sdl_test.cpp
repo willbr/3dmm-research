@@ -5,8 +5,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
+#include "platform_files.h"
+#include "file_browser.h"
 #include <thread>
 #include "util.h"
 ASSERTNAME
@@ -32,7 +32,7 @@ static bool Choose(Filename &filename, const std::string &path, bool open, bool 
 {
     std::atomic<bool> finished{false};
     std::thread input([&] {
-        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
         std::uint64_t generation = 0;
         int stage = 0;
         bool declined = false;
@@ -90,34 +90,44 @@ int main()
     const auto driver = std::getenv("SDL_VIDEODRIVER");
     if (!driver || std::strcmp(driver, "dummy"))
         return 77; // This test must never open desktop windows.
-    namespace fs = std::filesystem;
-    const auto root = fs::temp_directory_path() /
-                      ("kauai-dialog-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-    CHECK(fs::create_directory(root));
-    const auto existing = root / "caf\xC3\xA9.3mm", fresh = root / "new.3mm";
-    {
-        std::ofstream output(existing);
-        output << "original movie bytes";
-        CHECK(output.good());
-    }
+    char temporary[1024];
+    CHECK(KauaiFiles::TempPath(temporary, sizeof(temporary)));
+    const auto root = std::string(temporary) + "/kauai-dialog-" +
+                      std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    CHECK(KauaiFiles::MakeDirectory(root.c_str()));
+    const auto displayExisting = root + "/caf\xC3\xA9.3mm", fresh = root + "/new.3mm";
+    std::string existing;
+    CHECK(KauaiFiles::NativePathFromUtf8(displayExisting, existing));
+    const char original[] = "original movie bytes";
+    KauaiFiles::OpenOptions options;
+    options.write = true;
+    options.creation = KauaiFiles::Creation::CreateExclusive;
+    auto file = KauaiFiles::Open(existing.c_str(), options);
+    CHECK(file && KauaiFiles::Write(file, original, sizeof(original)));
+    KauaiFiles::Close(file);
     Filename filename;
-    CHECK(Choose(filename, existing.string(), true, false, false));
+    CHECK(Choose(filename, displayExisting, true, false, false));
     String path;
     filename.GetStnPath(&path);
-    CHECK(existing.string() == path.Psz());
-    CHECK(!Choose(filename, existing.string(), true, true, false));
+    char resolved[1024];
+    CHECK(KauaiFiles::FullPath(existing.c_str(), resolved, sizeof(resolved)) && KauaiFiles::EqualPaths(resolved, path.Psz()));
+    CHECK(!Choose(filename, displayExisting, true, true, false));
     CHECK(filename.Ftg() == ftgNil);
-    CHECK(Choose(filename, fresh.string(), false, false, false));
+    CHECK(Choose(filename, fresh, false, false, false));
     filename.GetStnPath(&path);
-    CHECK(fresh.string() == path.Psz() && !fs::exists(fresh));
-    CHECK(!Choose(filename, existing.string(), false, false, false));
+    KauaiFiles::PathInfo info;
+    CHECK(KauaiFiles::FullPath(fresh.c_str(), resolved, sizeof(resolved)) && KauaiFiles::EqualPaths(resolved, path.Psz()) && KauaiFiles::Info(fresh.c_str(), &info) == KauaiFiles::Status::Missing);
+    CHECK(!Choose(filename, displayExisting, false, false, false));
     CHECK(filename.Ftg() == ftgNil);
-    CHECK(Choose(filename, existing.string(), false, false, true));
-    std::ifstream input(existing);
-    std::string contents((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-    CHECK(contents == "original movie bytes");
-    input.close();
-    CHECK(fs::remove(existing) && fs::remove(root));
+    CHECK(Choose(filename, displayExisting, false, false, true));
+    options = {};
+    file = KauaiFiles::Open(existing.c_str(), options);
+    char contents[sizeof(original)];
+    std::uint32_t bytes;
+    CHECK(file && KauaiFiles::Size(file, &bytes) && bytes == sizeof(original));
+    CHECK(KauaiFiles::Read(file, contents, sizeof(contents)) && !std::memcmp(contents, original, sizeof(original)));
+    KauaiFiles::Close(file);
+    CHECK(KauaiFiles::Delete(existing.c_str()) && KauaiFiles::DeleteDirectory(root.c_str()));
     std::puts(
         "Filename SDL dialogs: UTF-8 open, cancel, new save, overwrite refusal/acceptance; no file writes passed.");
 }

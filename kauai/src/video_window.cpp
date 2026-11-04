@@ -194,6 +194,9 @@ long VideoWindow::NfrCur(void)
     RawRtn(); // REVIEW shonk: Mac: implement VideoWindow::NfrCur
     return 0;
 #endif // MAC
+#if !defined(WIN) && !defined(MAC)
+    return 0; // Native movie controls are absent; Studio uses VideoStreamSDL.
+#endif
 }
 
 /***************************************************************************
@@ -288,6 +291,9 @@ bool VideoWindow::FPlay(RC *prc)
     RawRtn(); // REVIEW shonk: Mac: implement VideoWindow::NfrCur
     return fFalse;
 #endif // MAC
+#if !defined(WIN) && !defined(MAC)
+    return false; // Native controls are absent; Studio uses VideoStreamSDL.
+#endif
 }
 
 /***************************************************************************

@@ -78,6 +78,37 @@ int main()
     file = FileObject::PfilCreate(&second);
     Check(file != pvNil && file->FWriteRgb((void *)"other", 5, 0));
     ReleasePpo(&file);
+    // Only explicit legacy content reads fold case. Normal POSIX paths and
+    // file creation keep their native case-sensitive behavior.
+    Filename folded = root;
+    leaf = PszLit("RENAMED.TXT");
+    Check(folded.FSetLeaf(&leaf) && folded.FResolveCase() && folded.FEqual(&renamed));
+#ifndef _WIN32
+    folded = root;
+    folded.GetStnPath(&path);
+    Check(path.FAppendSz(PszLit("CHILD/SECOND.BIN")) && folded.FBuildFromPath(&path));
+    Check(folded.TExists() == tNo && folded.FResolveCase() && folded.FEqual(&second));
+    Filename mixed = root, lower = root;
+    leaf = PszLit("Case.bin");
+    Check(mixed.FSetLeaf(&leaf));
+    leaf = PszLit("case.bin");
+    Check(lower.FSetLeaf(&leaf));
+    file = FileObject::PfilCreate(&mixed);
+    Check(file != pvNil);
+    ReleasePpo(&file);
+    file = FileObject::PfilCreate(&lower);
+    Check(file != pvNil);
+    ReleasePpo(&file);
+    folded = root;
+    leaf = PszLit("CASE.BIN");
+    Check(folded.FSetLeaf(&leaf));
+    folded.GetStnPath(&path);
+    Check(!folded.FResolveCase()); // Two matches are ambiguous.
+    String unchanged;
+    folded.GetStnPath(&unchanged);
+    Check(path.FEqual(&unchanged));
+    Check(lower.FResolveCase() && lower.FDelete() && mixed.FDelete()); // Exact spelling wins.
+#endif
     Filename sameDirectory = root;
     leaf = PszLit("other.bin");
     Check(sameDirectory.FSetLeaf(&leaf));

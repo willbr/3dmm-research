@@ -149,7 +149,14 @@ void BR_PUBLIC_ENTRY BrSimpleInsert(struct br_simple_list *list, struct br_simpl
 
 struct br_simple_node * BR_PUBLIC_ENTRY BrSimpleRemove(struct br_simple_node *node)
 {
-	*(node->prev) = node->next;
+    /* BRender keeps four-byte-packed structures on 64-bit hosts. The saved
+     * link slot can be four-byte aligned even though pointers require eight.
+     */
+    unsigned char *destination = (unsigned char *)node->prev;
+    const unsigned char *source = (const unsigned char *)&node->next;
+    unsigned int i;
+    for(i = 0; i < sizeof(node->next); ++i)
+        destination[i] = source[i];
 
 	if(node->next)
 		node->next->prev = node->prev;

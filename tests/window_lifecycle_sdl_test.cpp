@@ -6,6 +6,7 @@
 #include <SDL3/SDL_video.h>
 #include <cstring>
 #include <cstdio>
+#include <windows.h>
 #include "frame.h"
 #undef size
 ASSERTNAME
@@ -44,7 +45,11 @@ int main()
         const bool nativeFonts = std::strcmp(KauaiFonts::StudioFontProvider(), "freetype") != 0;
         CHECK(app->Open());
         const auto window = static_cast<HWND>(host.NativeWindow());
+#ifdef WIN
         CHECK(window && vwig.hwndApp == window && bool(vwig.hdcApp) == nativeFonts);
+#else
+        CHECK(window && !nativeFonts);
+#endif
         // Kauai must not replace SDL's native window procedure.
         // SDL registers a Unicode class; use W accessors to compare actual
         // procedures rather than distinct ANSI compatibility thunks.
@@ -95,7 +100,10 @@ int main()
                 quit = true;
         CHECK(quit && IsWindow(window));
         app->Close();
-        CHECK(!host.Active() && !vwig.hwndApp && !vwig.hdcApp && !IsWindow(window));
+        CHECK(!host.Active() && !IsWindow(window));
+#ifdef WIN
+        CHECK(!vwig.hwndApp && !vwig.hdcApp);
+#endif
         app->Close(); // Partial/duplicate cleanup is safe.
         CHECK(!app->FSetProp(kpridMaximized, fTrue) && !app->FSetProp(kpridFullScreen, fTrue));
     }

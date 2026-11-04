@@ -733,7 +733,7 @@ bool LexerBase::FGetTok(PToken ptok)
                 }
                 break;
             }
-            ptok->lw = (ptok->lw << 8) + (byte)ch;
+            ptok->lw = static_cast<LegacyLong>((static_cast<LegacyUlong>(ptok->lw) << 8) + (byte)ch);
             cch++;
         }
         // constant too long
@@ -818,7 +818,8 @@ void LexerBase::_ReadNumber(LegacyLong *plw, achar ch, LegacyLong lwBase, Legacy
     *plw = ch - ChLit('0');
     while (--cchMax > 0 && _FFetchRgch(&ch) && (_GrfctCh(ch) & fctDec) && (ch - ChLit('0') < lwBase))
     {
-        *plw = *plw * lwBase + (ch - ChLit('0'));
+        *plw = static_cast<LegacyLong>(static_cast<LegacyUlong>(*plw) * static_cast<LegacyUlong>(lwBase) +
+                                      static_cast<LegacyUlong>(ch - ChLit('0')));
         _Advance();
     }
 }
@@ -832,6 +833,7 @@ bool LexerBase::_FReadHex(LegacyLong *plw)
     AssertVarMem(plw);
     achar ch;
     LegacyUlong grfct;
+    LegacyUlong value = 0;
 
     *plw = 0;
     if (!_FFetchRgch(&ch) || !((grfct = _GrfctCh(ch)) & fctHex))
@@ -840,17 +842,18 @@ bool LexerBase::_FReadHex(LegacyLong *plw)
     do
     {
         if (grfct & fctDec)
-            *plw = *plw * 16 + (ch - ChLit('0'));
+            value = value * 16 + (ch - ChLit('0'));
         else if (grfct & fctLow)
-            *plw = *plw * 16 + (10 + ch - ChLit('a'));
+            value = value * 16 + (10 + ch - ChLit('a'));
         else
         {
             Assert(grfct & fctUpp, "bad grfct");
-            *plw = *plw * 16 + (10 + ch - ChLit('A'));
+            value = value * 16 + (10 + ch - ChLit('A'));
         }
         _Advance();
     } while (_FFetchRgch(&ch) && ((grfct = _GrfctCh(ch)) & fctHex));
 
+    *plw = static_cast<LegacyLong>(value);
     return fTrue;
 }
 
