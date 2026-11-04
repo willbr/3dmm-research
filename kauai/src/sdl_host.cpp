@@ -138,6 +138,7 @@ struct Host::Impl
     int width = 0, height = 0, pitch = 0;
     float mouseX = 0, mouseY = 0;
     bool mouseDown = false, initialized = false, clipboardOwned = false, focusSuspended = false;
+    bool integerScaling = false;
     bool captureRequested = false, confinementRequested = false, pointerSuspended = false;
     bool captureApplied = false, focused = false;
     std::uint32_t modifiers = 0;
@@ -201,7 +202,7 @@ struct Host::Impl
         renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
         if (!renderer)
             return false;
-        if (!SDL_SetRenderLogicalPresentation(renderer, w, h, SDL_LOGICAL_PRESENTATION_INTEGER_SCALE))
+        if (!SetPresentation((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0))
             return false;
         SDL_SetRenderVSync(renderer, 0);
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
@@ -211,6 +212,14 @@ struct Host::Impl
         SDL_StartTextInput(window);
         focused = (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) != 0;
         return true;
+    }
+    bool SetPresentation(bool fullscreen)
+    {
+        // Fill the available fullscreen area without cropping or stretching the
+        // canvas. Windowed presentation keeps its whole-number pixel grid.
+        const auto mode = fullscreen && !integerScaling ? SDL_LOGICAL_PRESENTATION_LETTERBOX
+                                                       : SDL_LOGICAL_PRESENTATION_INTEGER_SCALE;
+        return renderer && SDL_SetRenderLogicalPresentation(renderer, width, height, mode);
     }
     bool ApplyPointer()
     {
@@ -434,7 +443,28 @@ void Host::ResumeAfterModal()
 }
 bool Host::SetFullscreen(bool fullscreen)
 {
-    return impl->window && SDL_SetWindowFullscreen(impl->window, fullscreen);
+    if (!impl->window || !SDL_SetWindowFullscreen(impl->window, fullscreen) || !impl->SetPresentation(fullscreen))
+        return false;
+    impl->damage.Invalidate();
+    return true;
+}
+bool Host::SetIntegerScaling(bool enabled)
+{
+    if (!impl->window || !impl->renderer)
+        return false;
+    const bool previous = impl->integerScaling;
+    impl->integerScaling = enabled;
+    if (!impl->SetPresentation((SDL_GetWindowFlags(impl->window) & SDL_WINDOW_FULLSCREEN) != 0))
+    {
+        impl->integerScaling = previous;
+        return false;
+    }
+    impl->damage.Invalidate();
+    return true;
+}
+bool Host::IntegerScaling() const
+{
+    return impl->integerScaling;
 }
 bool Host::SetMaximized(bool maximized)
 {
@@ -595,6 +625,17 @@ bool Host::Poll(Event &event, int timeoutMs)
         case SDL_EVENT_WINDOW_RESIZED:
             impl->damage.Invalidate();
             event.kind = EventKind::resized;
+            break;
+        case SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+        case SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+            if (next.window.windowID == SDL_GetWindowID(impl->window))
+            {
+                // Also follow transitions requested by the desktop/window manager.
+                if (!impl->SetPresentation(next.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN))
+                    return false;
+                impl->damage.Invalidate();
+                event.kind = EventKind::resized;
+            }
             break;
         case SDL_EVENT_WINDOW_FOCUS_GAINED:
         case SDL_EVENT_WINDOW_FOCUS_LOST:

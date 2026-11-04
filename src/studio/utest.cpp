@@ -472,6 +472,11 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
             World::SetNoTexture(fNoTexture);
         if (FGetSetRegKey(kszShowPoseReadoutValue, &fShowPoseReadout, size(bool), fregBinary))
             MovieView::SetShowPoseReadout(fShowPoseReadout);
+#ifdef KAUAI_SDL3
+        bool fIntegerScaling = fFalse;
+        if (FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregBinary))
+            KauaiSDL::Main().SetIntegerScaling(fIntegerScaling);
+#endif
     }
 
     if (!_FInitTdt())
@@ -3515,6 +3520,9 @@ enum
     iditPoseReadoutInfo,
     iditSaveChanges,
     iditRenderModeInfo,
+#ifdef KAUAI_SDL3
+    iditIntegerScalingInfo,
+#endif
     iditLimInfo
 };
 
@@ -3603,10 +3611,19 @@ bool Application::FCmdInfo(PCommand pcmd)
     pdlg->PutCheck(iditWireframeInfo, World::RenderWireframe());
     pdlg->PutCheck(iditNoTextureInfo, World::NoTexture());
     pdlg->PutCheck(iditPoseReadoutInfo, MovieView::FShowPoseReadout());
+#ifdef KAUAI_SDL3
+    pdlg->PutCheck(iditIntegerScalingInfo, KauaiSDL::Main().IntegerScaling());
+#endif
 
     idit = pdlg->IditDo();
 
     fSaveChanges = pdlg->FGetCheck(iditSaveChanges);
+#ifdef KAUAI_SDL3
+    bool fIntegerScaling = FPure(pdlg->FGetCheck(iditIntegerScalingInfo));
+    KauaiSDL::Main().SetIntegerScaling(fIntegerScaling);
+    if (fSaveChanges)
+        FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregSetKey | fregBinary);
+#endif
     if (FPure(_fSlowCPU) != FPure(pdlg->LwGetRadio(iditRenderModeInfo)))
     {
         PMovie pmvie;

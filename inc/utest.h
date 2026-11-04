@@ -64,6 +64,7 @@ class KidWorld : public KidWorld_PAR
 #define kszWireframeValue PszLit("Wireframe")
 #define kszNoTextureValue PszLit("NoTexture")
 #define kszShowPoseReadoutValue PszLit("ShowPoseReadout")
+#define kszIntegerScalingValue PszLit("IntegerScaling")
 
 // FGetSetRegKey flags
 enum

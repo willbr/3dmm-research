@@ -3,7 +3,7 @@
 Uses a fresh movie; never opens or saves a user document. --portfolio-files
 saves and reopens only fixture movies in the artifact directory. Requires a
 Debug STUDIO_SDL3 build (MCP enabled) and the original English content directory.
-Desktop focus/minimize/resize/fullscreen checks are Windows-specific; the
+Desktop focus/minimize/resize checks are Windows-specific; the fullscreen,
 editing, SDL dialog and save/reopen workflow also runs on Mac/Linux.
 """
 import argparse
@@ -106,6 +106,14 @@ def check_integer_presentation(state):
         raise AssertionError("Studio presentation is not using whole-number pixel scaling: " + str(view))
 
 
+def check_fullscreen_presentation(state):
+    view = state["sdl_presentation"]
+    scale = min(view["output_width"] / 640, view["output_height"] / 480)
+    # SDL rounds the non-limiting dimension down to a physical pixel.
+    if abs(view["width"] - 640 * scale) >= 1 or abs(view["height"] - 480 * scale) >= 1:
+        raise AssertionError("Studio fullscreen canvas does not fit the display: " + str(view))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("exe", type=pathlib.Path)
@@ -130,8 +138,8 @@ def main():
     parser.add_argument("--playback", action="store_true", help="Extend the original timeline, then verify play, natural completion and stop")
     parser.add_argument("--portable-runtime", action="store_true", help="Require the build that excludes native GUI adapters")
     args = parser.parse_args()
-    if os.name != "nt" and (args.resize or args.fullscreen):
-        parser.error("--resize and --fullscreen currently use Windows desktop APIs")
+    if os.name != "nt" and args.resize:
+        parser.error("--resize currently uses Windows desktop APIs")
     if args.portfolio_files and not args.text:
         parser.error("--portfolio-files requires --text so the final save/discard check still has an edited movie")
     args.artifacts.mkdir(parents=True, exist_ok=True)
@@ -328,11 +336,14 @@ def main():
         focus_studio(process.pid)
         settle()
         if args.fullscreen:
-            import ctypes
-            user32 = ctypes.WinDLL("user32")
-            desktop_size = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
+            desktop_size = None
+            if os.name == "nt":
+                import ctypes
+                user32 = ctypes.WinDLL("user32")
+                desktop_size = (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
             sizes = []
-            for fullscreen in (True, False):
+            previous_state = json.loads(call("get_state")["content"][0]["text"])
+            for fullscreen, integer_scaling in ((True, False), (True, True), (False, False)):
                 call("send_command", cid=40038)  # Original Product Info command.
                 deadline = time.monotonic() + 10
                 while True:
@@ -347,17 +358,22 @@ def main():
                 controls = {item["id"]: item for item in dialog["controls"]}
                 if controls[1010]["number"]:
                     dialog_action("click", 1010)  # Keep persistent defaults unchecked.
+                if bool(controls[1029]["number"]) != integer_scaling:
+                    dialog_action("click", 1029)
                 dialog_action("click", 1015 if fullscreen else 1016)
                 expected = 0 if fullscreen else 1
                 while True:
                     observed = json.loads(call("get_sdl_dialog")["content"][0]["text"])
                     values = {item["id"]: item for item in observed["controls"]}
-                    if values[1015]["number"] == expected and values[1010]["number"] == 0:
+                    if (values[1015]["number"] == expected and values[1010]["number"] == 0
+                            and bool(values[1029]["number"]) == integer_scaling):
                         break
                     if time.monotonic() >= deadline:
                         raise AssertionError("SDL dialog controls did not update")
                     time.sleep(0.03)
                 mode = "fullscreen" if fullscreen else "windowed"
+                if integer_scaling:
+                    mode += "-integer"
                 (args.artifacts / ("product-info-" + mode + ".json")).write_text(json.dumps(observed, indent=2), encoding="utf-8")
                 image = (args.artifacts / ("product-info-" + mode + ".bmp")).resolve()
                 image.unlink(missing_ok=True)
@@ -371,13 +387,28 @@ def main():
                     if time.monotonic() >= deadline:
                         raise AssertionError("SDL Product Info did not close")
                     time.sleep(0.03)
-                time.sleep(0.5)
-                mode_state = json.loads(call("get_state")["content"][0]["text"])
-                check_integer_presentation(mode_state)
-                sizes.append(mode_state["client_size"])
-                if desktop_size != (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)):
+                deadline = time.monotonic() + 10
+                while True:
+                    mode_state = json.loads(call("get_state")["content"][0]["text"])
+                    changed_mode = previous_state["sdl_fullscreen"] != fullscreen
+                    ready = (mode_state["sdl_fullscreen"] == fullscreen
+                             and mode_state["sdl_integer_scaling"] == integer_scaling
+                             and (not changed_mode or mode_state["client_size"] != previous_state["client_size"]))
+                    if ready:
+                        if fullscreen and not integer_scaling:
+                            check_fullscreen_presentation(mode_state)
+                        else:
+                            check_integer_presentation(mode_state)
+                        break
+                    if time.monotonic() >= deadline:
+                        raise AssertionError("SDL window transition did not finish: " + str(mode_state))
+                    time.sleep(0.05)
+                sizes.append({"fullscreen": fullscreen, "integer_scaling": integer_scaling,
+                              "client_size": mode_state["client_size"], "presentation": mode_state["sdl_presentation"]})
+                previous_state = mode_state
+                if desktop_size is not None and desktop_size != (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)):
                     raise AssertionError("Studio changed the desktop resolution")
-            if sizes[0] == sizes[1]:
+            if sizes[0]["client_size"] == sizes[-1]["client_size"]:
                 raise AssertionError("Studio did not change between fullscreen and window mode")
             (args.artifacts / "window-modes.json").write_text(json.dumps(sizes, indent=2), encoding="utf-8")
         if args.resize:

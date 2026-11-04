@@ -54,8 +54,21 @@ installation has a much smaller replacement. Generated archives still take
 precedence over the original overlay. Build artifacts and extracted content
 stay under the ignored `build` and `dist` directories.
 
-The shared editing smoke script now supports Mac/Linux. Its desktop
-focus/minimize/resize/fullscreen checks remain Windows-specific:
+Fullscreen fits the display while preserving the canvas's 4:3 aspect ratio.
+Open **Product Info** with **Control+Shift+I** and enable **Integer scaling** to
+restrict fullscreen to whole-number pixel multiples. Windowed mode always uses
+integer scaling. **Make these the default settings** saves the scaling choice
+for future launches.
+
+Native macOS checks in `build/mac-fullscreen-smoke/` verify a 1200x900 fitted
+canvas on a 1440x900 display, a 640x480 canvas with integer scaling enabled,
+and restoration of the 640x480 window. The SDL host test also checks rendered
+pixels, pointer coordinates, both scaling modes and desktop-driven fullscreen
+transitions with the dummy display backend.
+
+The shared editing smoke script supports Mac/Linux, including `--fullscreen`
+checks for both scaling modes and returning to a window. Its desktop
+focus/minimize/resize checks remain Windows-specific:
 
 ```sh
 python3 tests/studio_mcp_stdio_test.py build/studio-sdl/3dmovie-sdl "/path/to/Microsoft Kids/3D Movie Maker"
@@ -1947,10 +1960,12 @@ content tree supplied as the working directory before searching system installs,
 so available local clips do not incorrectly trigger a request for another CD.
 
 The bridge flushes queued GDI drawing before CPU pixel access. SDL creates and owns the resizable Studio
-window, scales the original canvas by whole-number pixel multiples with black
-borders, and handles desktop fullscreen without changing the desktop's
-resolution. Integer logical presentation and nearest-neighbor sampling preserve
-uniform pixels; a 640x480 minimum client area prevents fractional downscaling.
+window, scales the original canvas by whole-number pixel multiples when windowed,
+and fits the canvas to desktop fullscreen without changing the display's
+resolution or its 4:3 aspect ratio. The Product Info dialog's **Integer scaling**
+option also enables whole-number scaling in fullscreen. Nearest-neighbor
+sampling is used in both modes; a 640x480 minimum client area prevents windowed
+downscaling.
 The host and smoke checks verify the actual presentation rectangle after
 resizing and switching fullscreen modes. SDL's own window procedure now stays
 installed: Kauai no longer subclasses the SDL main window or forwards its native
