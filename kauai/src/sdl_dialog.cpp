@@ -538,10 +538,12 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
                 scope.Click(*found);
                 if (action.kind == DialogActionKind::text)
                 {
-                    scope.Key(SDL_SCANCODE_LCTRL, true, SDL_KMOD_CTRL);
-                    scope.Key(SDL_SCANCODE_A, true, SDL_KMOD_CTRL);
-                    scope.Key(SDL_SCANCODE_A, false, SDL_KMOD_CTRL);
-                    scope.Key(SDL_SCANCODE_LCTRL, false);
+                    const auto shortcut = io.ConfigMacOSXBehaviors ? SDL_SCANCODE_LGUI : SDL_SCANCODE_LCTRL;
+                    const auto modifiers = io.ConfigMacOSXBehaviors ? SDL_KMOD_GUI : SDL_KMOD_CTRL;
+                    scope.Key(shortcut, true, modifiers);
+                    scope.Key(SDL_SCANCODE_A, true, modifiers);
+                    scope.Key(SDL_SCANCODE_A, false, modifiers);
+                    scope.Key(shortcut, false);
                     scope.textEvents.push_back(action.text);
                     SDL_Event text{};
                     text.type = SDL_EVENT_TEXT_INPUT;

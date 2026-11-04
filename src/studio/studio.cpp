@@ -1241,7 +1241,7 @@ bool Studio::FCmdCreatePopup(PCommand pcmd)
         break;
     case cidTextFont: {
         PStringTable_GST pgst;
-        long onnCur, onnSystem = vntl.OnnSystem();
+        LegacyLong onnCur, onnSystem = vntl.OnnSystem();
 
         if ((pgst = StringTable_GST::PgstNew(size(onnCur))) == pvNil)
             break;

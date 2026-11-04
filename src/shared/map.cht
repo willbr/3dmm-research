@@ -29,7 +29,7 @@
 *
 *****************************************************************************/
 #include "socdefn.h"
-#include "shared\map.chh"
+#include "shared/map.chh"
 
 WAVE_CHUNK( "shared\sound\mapobj.wav", kwavMapObject )
 WAVE_CHUNK( "shared\sound\mapopen.wav", kwavMapOpen )	

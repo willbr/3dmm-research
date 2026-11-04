@@ -40,8 +40,9 @@ In May 2022, Microsoft released the original source code under the
   and movie save/reopen pass the recorded workflows. An opt-in portable-runtime
   build exercises the CPU/SDL GUI adapters without native Windows graphics or
   dialog-resource fallbacks. See [current verification](docs/tools/studio-sdl.md).
-- **macOS / Linux — full Studio integration pending.** Shared runtime sources
-  have compilation coverage, and selected portable runtime tests execute on Linux.
+- **macOS arm64 / Linux -- SDL Studio builds.** Native macOS editing, font
+  selection, playback and movie save/reopen pass the recorded workflow. Linux
+  startup/edit/save/shutdown checks also pass. See [SDL verification](docs/tools/studio-sdl.md).
 
 A naming-modernisation pass is also in flight: the original Hungarian-style
 3-5 letter type names (`TGOB`, `MACTR`, `APP`, â€¦) are being renamed to
@@ -150,8 +151,8 @@ opened in the repo auto-discovers it. A scriptable Python driver lives at
 
 The SDL server uses portable stdio, PNG screenshots, SDL input/window state and
 modal-dialog actions. Native Windows diagnostic tools are conditional. Linux
-application startup, scene selection, save and shutdown checks pass; native Mac
-application validation remains outstanding. See [MCP implementation and tests](docs/code-map/mcp-server.md).
+application startup, scene selection, save and shutdown checks pass; native
+macOS arm64 editing/playback/save/reopen and MCP shutdown checks also pass. See [MCP implementation and tests](docs/code-map/mcp-server.md).
 
 ### Mac/Linux SDL Studio
 
@@ -159,7 +160,7 @@ The full application and resource compiler build with Clang/GCC. Use the native
 `sdl-debug` preset, supply an original Microsoft Kids tree as `MSKIDS_OVERLAY_DIR`,
 then build and install `build/studio-sdl`. Linux's native compiler produces the
 same eight resource archives as the Windows tool. macOS requires Apple's SDK and
-still needs a native build/run check. See [build and content/font setup](docs/tools/studio-sdl.md#maclinux-studio-build-4-november-2026).
+passes the native arm64 editing workflow. See [build and content/font setup](docs/tools/studio-sdl.md#maclinux-studio-build-4-november-2026).
 
 ## Contributing
 

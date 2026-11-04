@@ -260,7 +260,7 @@ inline LegacyLong BvSubPvs(void *pv1, void *pv2)
 ****************************************/
 // Mutex is supplied by core_platform.h, without OS handle types.
 
-extern Mutex vmutxMem;
+extern Mutex &vmutxMem;
 
 /****************************************
     Current thread id

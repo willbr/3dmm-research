@@ -24,10 +24,9 @@ Native Windows builds support x86 and x64. Windows SDL3 Studio also has an
 opt-in portable GUI runtime: `cmake --preset x64:msvc:portable-sdl-debug`, then
 build `build/studio-portable-x64`. This excludes native GUI/graphics adapters;
 Windows OS service adapters remain platform-specific. Mac/Linux SDL Studio is
-enabled with `cmake --preset sdl-debug`; the Linux executable, native resource
-compiler and headless editing/save/exit paths are verified. Full native Cocoa
-build/run validation still needs a Mac. See `docs/tools/studio-sdl.md` for setup
-and current evidence.
+enabled with `cmake --preset sdl-debug`; Linux startup/save/exit and native
+macOS arm64 Cocoa editing, playback, font selection and movie save/reopen are
+verified. See `docs/tools/studio-sdl.md` for content setup and current evidence.
 Building x86 from a 64-bit Windows host requires an x86 MSVC environment.
 
 Configure + build (Ninja generator, MSVC):

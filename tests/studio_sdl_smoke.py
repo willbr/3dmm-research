@@ -111,6 +111,8 @@ def main():
     parser.add_argument("exe", type=pathlib.Path)
     parser.add_argument("content", type=pathlib.Path)
     parser.add_argument("artifacts", type=pathlib.Path)
+    parser.add_argument("--startup-timeout", type=float, default=60,
+                        help="Startup response timeout in seconds, including native system font discovery")
     parser.add_argument("--resize", action="store_true", help="Exercise a wider, scaled and letterboxed window")
     parser.add_argument("--fullscreen", action="store_true", help="Exercise the original fullscreen/window mode controls")
     parser.add_argument("--baseline", type=pathlib.Path, help="Compare PNG captures with a previous run using the same encoder")
@@ -164,7 +166,7 @@ def main():
         process.stdin.write(json.dumps({"jsonrpc": "2.0", "id": sequence,
                                        "method": method, "params": params}) + "\n")
         process.stdin.flush()
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + (args.startup_timeout if method == "initialize" else 20)
         while time.monotonic() < deadline:
             try:
                 response = responses.get(timeout=min(0.2, max(0.01, deadline - time.monotonic())))

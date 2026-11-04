@@ -74,6 +74,12 @@ set(BRENDER_FW_C
 )
 
 add_library(brender_fw STATIC ${BRENDER_FW_C})
+if(APPLE AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+  # BRender's four-byte-packed structures contain unaligned pointer fixups.
+  # Mach-O chained fixups require eight-byte alignment; classic relocations
+  # preserve the shared legacy layouts without changing the BRender ABI.
+  target_link_options(brender_fw INTERFACE "LINKER:-no_fixup_chains")
+endif()
 target_include_directories(brender_fw
   PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/inc"
