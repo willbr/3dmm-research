@@ -66,9 +66,9 @@ LegacyUlong DtsCaret(void);
     Mutexes to protect various global linked lists, etc.
 ***************************************************************************/
 #ifdef DEBUG
-extern Mutex vmutxBase;
+extern Mutex &vmutxBase;
 #endif // DEBUG
-extern Mutex vmutxMem;
+extern Mutex &vmutxMem;
 
 /***************************************************************************
     Global random number generator and shuffler. These are used by the

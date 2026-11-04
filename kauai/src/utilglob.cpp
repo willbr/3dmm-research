@@ -24,15 +24,22 @@ ASSERTNAME
 
 RTCLASS(UniversalScalableApplicationClock)
 
-// Allocate globals in utilglob before any other globals to avoid crashes on exit
+// MSVC initializes these utility objects before application globals.
+#ifdef _MSC_VER
 #pragma init_seg(lib)
+#endif
+
+// Global font tables and other objects release tracked allocations from their
+// destructors. Their order across translation units is unspecified, so the two
+// allocator locks must remain usable until process exit, including after this
+// translation unit's destructors. Keep these locks for the process lifetime.
 
 #ifdef DEBUG
 // protects our debug linked list object management
-Mutex vmutxBase;
+Mutex &vmutxBase = *new Mutex;
 #endif // DEBUG
 
-Mutex vmutxMem;
+Mutex &vmutxMem = *new Mutex;
 
 // Shuffler and random number generator for the script interpreter
 Shuffler vsflUtil;

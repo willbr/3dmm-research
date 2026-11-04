@@ -24,7 +24,8 @@ KAUAI_FONT_PATH="/path/to/fonts" ./dist-sdl/3dmovie-sdl
 ```
 
 Dependencies are fetched by the build. macOS needs Apple's native SDK/toolchain
-for SDL's Cocoa backend. Original data and fonts are separate inputs; see
+for SDL's Cocoa backend. Native Apple Silicon build/run checks now pass, as
+recorded below. Original data and fonts are separate inputs; see
 [`FONTS.md`](../../FONTS.md). The font fixture used for Linux verification includes
 the original Windows families, not an invented replacement font. No fonts or
 proprietary SDK files are added to the repository.
@@ -34,6 +35,24 @@ built resource archives when overlaying original data with different filename
 casing, and creates the default profile directory even without the sample CDs.
 The executable recognizes its adjacent `Microsoft Kids` tree. A separately
 located tree can be selected with `THREEDMM_CONTENT_ROOT`.
+
+For the local ISO in `dist`, prepare an original content overlay and the bundled
+Comic Sans fonts without mounting the image:
+
+```sh
+7zz e dist/3DMOVIE100.iso '-odist/original/Microsoft Kids/3D Movie Maker' '3DMOVIE/*' -aos
+7zz e dist/3DMOVIE100.iso '-odist/original/Microsoft Kids/Users/Melanie' 'SAMPLES/*' -aos
+7zz e dist/3DMOVIE100.iso -odist/original/fonts SETUP/COMIC.TTF SETUP/COMICBD.TTF -aos
+cmake --preset sdl-debug -DMSKIDS_OVERLAY_DIR="$PWD/dist/original/Microsoft Kids" -DCMAKE_INSTALL_PREFIX="$PWD/dist/sdl"
+cmake --build build/studio-sdl --parallel 8
+cmake --install build/studio-sdl
+KAUAI_FONT_PATH="$PWD/dist/original/fonts" ./dist/sdl/3dmovie-sdl
+```
+
+This uses the ISO's complete `BLDGDATA.CHK`; the separate `Microsoft Kids.7z`
+installation has a much smaller replacement. Generated archives still take
+precedence over the original overlay. Build artifacts and extracted content
+stay under the ignored `build` and `dist` directories.
 
 The shared editing smoke script now supports Mac/Linux. Its desktop
 focus/minimize/resize/fullscreen checks remain Windows-specific:
@@ -55,8 +74,31 @@ Evidence is recorded in `build/studio-linux-{configure,build,default-build,insta
 `build/studio-final-windows-{build,tests,smoke}.log`, and
 `build/windows-portable-integration/`. Linux application/runtime checks and native
 resource comparisons are separate from macOS verification: the Windows host has
-no complete Apple toolchain, so full Cocoa build/run validation still belongs on
+no complete Apple toolchain. The native Cocoa results below were collected on
 the user's Mac. Earlier guarded-build checkpoints below are historical.
+
+Native macOS arm64 verification on 4 November 2026 used AppleClang 17, the
+`sdl-debug` preset and the ISO overlay recipe above. Build and install passed.
+The Cocoa Studio workflow passed scene selection, actor placement, textbox
+input/font selection, timeline play/restart/stop, edited movie save/reopen,
+portfolio previews/overwrite decisions, F1 help and save/discard exit. PNGs,
+saved fixture movies and an empty retained error stack are recorded in
+`build/mac-smoke/`; the workflow log is `build/mac-smoke.log`.
+MCP fragmented input, notifications, screenshot capture, quit and EOF shutdown
+passed (`build/mac-mcp.log`). Eight focused CTest checks passed: global cleanup,
+BRender lists, the resource compiler pipeline, string compatibility, platform
+services, SDL host, dialogs and file dialogs. The real BRender actor render
+check also passed. These runs do not establish microphone, MIDI or AVI playback
+behavior on macOS.
+
+Native fixes use forward slashes in resource includes, classic Mach-O
+relocations for BRender's four-byte-packed pointer layouts, process-lifetime
+allocator locks for global destructor cleanup, ImGui's configured shortcut
+modifier for dialog text replacement, and four-byte font IDs in the font menu.
+`global-cleanup-test` covers tracked allocation release after `main`; the editing
+workflow covers the font picker and Command+A dialog regression. Startup may
+include scanning macOS's full system font collection; the smoke test allows a
+separate, configurable startup timeout.
 
 Final Linux runtime checks passed original Studio initialization, PNG capture,
 scene selection, movie save, quit with stdin still open, adjacent installed-data

@@ -309,6 +309,9 @@ target_sources(geometry-test PRIVATE
 # Links kauai-core only -- runs on x64 today.
 target_link_libraries(geometry-test PRIVATE kauai-core)
 
+add_executable(global-cleanup-test EXCLUDE_FROM_ALL tests/global_cleanup_test.cpp)
+target_link_libraries(global-cleanup-test PRIVATE kauai-core)
+
 # KauaiCodec round-trip tests. On x86 the decoder uses the inline-asm fast
 # path generated from kauai/src/kcd2_386.c; on x64 it falls back to the
 # portable C path inside _FDecode/_FDecode2. The same encoder (always C)
@@ -1326,6 +1329,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
+  global-cleanup-test
   preview-checks
   mbmp-pixels-test
   actor-render-test extract-bmdl inspect-chunks three-mm three-mm-fixture
@@ -1391,6 +1395,7 @@ if(WIN32 AND SOC_X86 AND AudioMan_FOUND)
 endif()
 
 if(BUILD_TESTING)
+  add_test(NAME global-cleanup COMMAND global-cleanup-test)
   add_test(NAME brender-list COMMAND brender-list-test)
   add_test(NAME script-name COMMAND script-name-test)
   add_test(NAME mcp-io COMMAND mcp-io-test)

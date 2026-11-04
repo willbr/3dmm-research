@@ -5,8 +5,9 @@ server that lets an AI agent (Claude Code, etc.) drive the studio
 headlessly: take screenshots, click points, send kauai commands,
 inspect dialogs, read crash logs, and request graceful shutdown. The SDL server
 uses portable stdio, timing and PNG encoding. Full Mac/Linux SDL Studio builds are
-enabled, and Linux startup/edit/save/shutdown checks pass. Native Mac application
-build/run validation remains outstanding; see the [build checkpoint](../tools/studio-sdl.md#maclinux-studio-build-4-november-2026).
+enabled, and Linux startup/edit/save/shutdown checks pass. Native macOS arm64
+build, editing/playback/save/reopen, PNG capture and quit/EOF shutdown checks
+also pass; see the [build checkpoint](../tools/studio-sdl.md#maclinux-studio-build-4-november-2026).
 
 ## Enabling
 

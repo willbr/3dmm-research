@@ -8,7 +8,7 @@
 #include "kidgs.chh"
 
 // Localized strings
-#include "studio\utestgst.cht"
+#include "studio/utestgst.cht"
 
 //
 // Initial Palette
