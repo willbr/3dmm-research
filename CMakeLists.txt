@@ -1111,10 +1111,12 @@ add_custom_target(studio_build_stamp ALL
 )
 set_source_files_properties("${STUDIO_BUILD_STAMP_SRC}" PROPERTIES GENERATED TRUE)
 
-if(STUDIO_PORTABLE_RUNTIME)
-  add_executable(studio)
-else()
-  add_executable(studio WIN32)
+add_executable(studio WIN32)
+if(WIN32 AND STUDIO_PORTABLE_RUNTIME)
+  # Keep the SDK-free main(argc, argv) adapter, but launch as a GUI application.
+  # MSVC otherwise selects WinMainCRTStartup for the Windows subsystem. The
+  # main CRT startup still initializes argv and inherited MCP stdio pipes.
+  target_link_options(studio PRIVATE $<$<LINK_LANG_AND_ID:CXX,MSVC>:/ENTRY:mainCRTStartup>)
 endif()
 if(STUDIO_SDL3)
   kauai_copy_midi_assets(studio)

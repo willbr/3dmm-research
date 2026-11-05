@@ -22,6 +22,11 @@ the existing extracted-tree lookup is preferred; ISO discovery happens before
 falling back to unrelated system installations. Multiple adjacent ISOs require
 an explicit selection.
 
+The Windows portable runtime builds as a GUI executable, so normal launches do
+not open a console window. MSVC uses `mainCRTStartup` with the existing portable
+`main(argc, argv)` adapter; redirected stdin/stdout remain available for
+`--mcp-server` automation. Mac/Linux startup is unchanged.
+
 On first use, the built-in reader extracts the retail product files, sample
 movies, help files and Comic Sans fonts into an application-private cache.
 It does not mount the image, run its installer or require 7-Zip. The software
