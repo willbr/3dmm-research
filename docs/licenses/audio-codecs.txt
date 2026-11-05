@@ -1,0 +1,21 @@
+The SDL audio adapter additionally decodes GSM 6.10 WAV49 and MP3-in-WAV.
+Both dependencies are linked statically; no runtime codec installation is needed.
+
+libgsm 1.0.24: https://www.quut.com/gsm/gsm-1.0.24.tar.gz
+SHA256 a3c40c6471928383f4abfcb2e8f24012a1f562be2f17b8d672145d5986681a92
+Copyright and terms: libgsm-LICENSE.txt.
+The CMake integration generates a private header that replaces longword and
+ulongword with int32_t and uint32_t. This keeps GSM arithmetic fixed at 32 bits
+on Windows, Linux and macOS. The downloaded source remains unchanged.
+WAV49 is enabled; only the decoder and its supporting DSP sources are built.
+
+dr_mp3: https://github.com/mackron/dr_libs
+Pinned commit 35b5c392cc15456736c440a68dbe073178bbffe0.
+SHA256 of the GitHub source archive:
+d46fa0a831a65b16fcf2b169e6b739c66536437ee78049893788582eb93e39de
+Terms: dr-mp3-LICENSE.txt. dr_mp3 also incorporates minimp3, dedicated to the
+public domain under CC0: https://github.com/lieff/minimp3.
+Only dr_mp3.h is used, with its file I/O disabled. Source is unmodified.
+
+Decoder notices are embedded in Studio and included in the ISO content cache
+as licenses/audio-codecs-LICENSE.txt, including builds without bundled MIDI.

@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_audio.h"
 #include "wave_codec.h"
+#include "compressed_wave.h"
 #include <SDL3/SDL.h>
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
@@ -21,18 +22,48 @@ void TrimFact(const void *data, std::size_t bytes, const SDL_AudioSpec &spec, Ui
         frames < decodedBytes / static_cast<unsigned>(frameBytes))
         decodedBytes = frames * static_cast<unsigned>(frameBytes);
 }
+struct WavePCM
+{
+    SDL_AudioSpec source = {};
+    Uint8 *sdlData = nullptr;
+    Uint32 bytes = 0;
+    DecodedWave compressed;
+    ~WavePCM()
+    {
+        SDL_free(sdlData);
+    }
+    const Uint8 *Data() const
+    {
+        return sdlData ? sdlData : reinterpret_cast<const Uint8 *>(compressed.samples.data());
+    }
+    bool Load(const void *data, std::size_t count)
+    {
+        switch (DecodeCompressedWave(data, count, compressed))
+        {
+        case CompressedWaveResult::Invalid:
+            return SDL_SetError("Invalid compressed WAVE audio");
+        case CompressedWaveResult::Decoded:
+            source = {SDL_AUDIO_S16, compressed.channels, compressed.sampleRate};
+            bytes = static_cast<Uint32>(compressed.samples.size() * sizeof(std::int16_t));
+            return true;
+        case CompressedWaveResult::NotHandled:
+            if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(data, count), true, &source, &sdlData, &bytes))
+                return false;
+            TrimFact(data, count, source, bytes);
+            return true;
+        }
+        return false;
+    }
+};
 } // namespace
 bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave)
 {
     if (!data || bytes < 12 || bytes > INT_MAX)
         return false;
-    SDL_AudioSpec source;
-    Uint8 *decoded = nullptr;
-    Uint32 decodedBytes = 0;
-    if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(data, bytes), true, &source, &decoded, &decodedBytes))
+    WavePCM pcm;
+    if (!pcm.Load(data, bytes))
         return false;
-    std::unique_ptr<Uint8, decltype(&SDL_free)> owned(decoded, SDL_free);
-    TrimFact(data, bytes, source, decodedBytes);
+    const auto decodedBytes = pcm.bytes;
     if (!decodedBytes || decodedBytes > INT_MAX)
         return false;
     try
@@ -49,7 +80,7 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
         const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, 11025};
         Uint8 *converted = nullptr;
         int count = 0;
-        if (!SDL_ConvertAudioSamples(&source, decoded, static_cast<int>(decodedBytes), &destination, &converted,
+        if (!SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(decodedBytes), &destination, &converted,
                                      &count))
             return false;
         std::unique_ptr<Uint8, decltype(&SDL_free)> samplesOwner(converted, SDL_free);
@@ -76,17 +107,15 @@ bool DecodeWave(const void *data, std::size_t bytes, std::shared_ptr<const Sampl
 {
     if (!data || bytes < 12 || bytes > INT_MAX)
         return false;
-    SDL_AudioSpec source, destination = {SDL_AUDIO_F32, 2, SampleRate};
-    Uint8 *decoded = nullptr, *converted = nullptr;
-    Uint32 decodedBytes = 0;
+    SDL_AudioSpec destination = {SDL_AUDIO_F32, 2, SampleRate};
+    WavePCM pcm;
+    Uint8 *converted = nullptr;
     int convertedBytes = 0;
-    if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(data, bytes), true, &source, &decoded, &decodedBytes))
+    if (!pcm.Load(data, bytes))
         return false;
-    TrimFact(data, bytes, source, decodedBytes);
     const bool success =
-        decodedBytes <= INT_MAX && SDL_ConvertAudioSamples(&source, decoded, static_cast<int>(decodedBytes),
-                                                           &destination, &converted, &convertedBytes);
-    SDL_free(decoded);
+        pcm.bytes <= INT_MAX && SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(pcm.bytes),
+                                                        &destination, &converted, &convertedBytes);
     if (!success || convertedBytes < 0 || convertedBytes % (2 * sizeof(float)))
     {
         SDL_free(converted);

@@ -1,0 +1,16 @@
+#if defined(__APPLE__)
+.section __DATA,__const
+.globl _StudioSoundFontStart
+.globl _StudioSoundFontEnd
+_StudioSoundFontStart:
+.incbin "@KAUAI_MIDI_BANK_FILE@"
+_StudioSoundFontEnd:
+#else
+.section .rodata
+.globl StudioSoundFontStart
+.globl StudioSoundFontEnd
+StudioSoundFontStart:
+.incbin "@KAUAI_MIDI_BANK_FILE@"
+StudioSoundFontEnd:
+.section .note.GNU-stack,"",@progbits
+#endif

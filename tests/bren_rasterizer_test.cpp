@@ -37,6 +37,8 @@ extern "C" void BR_ASM_CALL TriangleRenderPIZ2I(struct temp_vertex_fixed *, stru
                                                 struct temp_vertex_fixed *);
 extern "C" void BR_ASM_CALL TriangleRenderPIZ2TIA(struct temp_vertex_fixed *, struct temp_vertex_fixed *,
                                                   struct temp_vertex_fixed *);
+extern "C" void BR_ASM_CALL TriangleRenderPIZ2TIANT(struct temp_vertex_fixed *, struct temp_vertex_fixed *,
+                                                   struct temp_vertex_fixed *);
 /* BrFixedFMac3 is declared in fwproto.h (pulled in by brender.h above). */
 
 /* fwsetup.c references these globals through extern declarations and the
@@ -101,6 +103,7 @@ static unsigned char g_shade_id[256 * 256];
 
 static br_pixelmap g_tex_pm;
 static br_material g_mat;
+static br_pixelmap g_output_pm;
 
 static void init_buffers(void)
 {
@@ -149,13 +152,19 @@ static void install_zb(void)
     zb.material = &g_mat;
     zb.texture_buffer = g_tex;
     zb.shade_table = g_shade_id;
+    memset(&g_output_pm, 0, sizeof(g_output_pm));
+    g_output_pm.width = WIDTH;
+    g_output_pm.height = HEIGHT;
+    g_output_pm.row_bytes = WIDTH;
+    g_output_pm.pixels = g_colour;
+    fw.output = &g_output_pm;
 }
 
 static void mkv(struct temp_vertex_fixed *v, int x, int y, br_fixed_ls z, int intensity)
 {
     memset(v, 0, sizeof(*v));
-    v->v[0] = (br_fixed_ls)x << 16;
-    v->v[1] = (br_fixed_ls)y << 16;
+    v->v[0] = (br_fixed_ls)((uint32_t)x << 16);
+    v->v[1] = (br_fixed_ls)((uint32_t)y << 16);
     v->v[2] = z;
     v->comp[C_I] = (br_fixed_ls)intensity << 16;
 }
@@ -166,6 +175,93 @@ static void mkv_uv(struct temp_vertex_fixed *v, int x, int y, br_fixed_ls z, int
     mkv(v, x, y, z, intensity);
     v->comp[C_U] = u;
     v->comp[C_V] = vc;
+}
+
+/* Replay the rounded triangle that corrupted Litterbug scene 41's movie
+ * index at frame 6, then exercise every viewport edge and both span directions.
+ * A larger translated render supplies the expected clipped colour AND depth,
+ * so dropping pixels or forgetting to advance interpolants cannot pass. */
+static int test_clipped_edges(void)
+{
+    const int w = 544, h = 306, margin = 4, stride = 560;
+    const size_t guard = 131072, capacity = (size_t)stride * (h + 2 * margin);
+    unsigned char *colour = (unsigned char *)malloc(capacity + 2 * guard);
+    unsigned short *depth = (unsigned short *)malloc((capacity + 2 * guard) * sizeof(*depth));
+    unsigned char *reference = (unsigned char *)malloc(capacity);
+    unsigned short *reference_depth = (unsigned short *)malloc(capacity * sizeof(*reference_depth));
+    if (!colour || !depth || !reference || !reference_depth)
+        return 1;
+    const int triangles[][6] = {
+        {-2, 187, 253, 196, 253, 199}, /* Captured real movie triangle. */
+        {w + 2, 187, w - 253, 196, w - 253, 199},
+        {80, -2, 280, 24, 160, 12},
+        {80, h + 2, 280, h - 24, 160, h - 12},
+        {-2, -2, 60, 4, 4, 60},
+        {w + 2, h + 2, w - 60, h - 4, w - 4, h - 60}};
+    const int order[][3] = {{0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,0,1}, {2,1,0}};
+    init_buffers();
+    init_material();
+    for (int i = 0; i < TEX_W * TEX_H; ++i)
+        g_tex[i] = (i % 5) ? (unsigned char)(1 + i % 254) : 0;
+    for (int i = 0; i < 256 * 256; ++i)
+        g_shade_id[i] = (unsigned char)((i / 256 + i % 256) & 255);
+    int result = 0;
+    for (int t = 0; t < 6 && !result; ++t)
+        for (int winding = 0; winding < 6 && !result; ++winding)
+            for (int transparent = 0; transparent < 2 && !result; ++transparent)
+            {
+                memset(colour, 0x5a, capacity + 2 * guard);
+                memset(depth, 0x5a, (capacity + 2 * guard) * sizeof(*depth));
+                for (int y = 0; y < h; ++y)
+                {
+                    memset(colour + guard + y * stride, 0, w);
+                    memset(depth + guard + y * stride, 0xff, w * sizeof(*depth));
+                }
+                memset(reference, 0, capacity);
+                memset(reference_depth, 0xff, capacity * sizeof(*reference_depth));
+                struct temp_vertex_fixed vertices[3];
+                for (int pass = 0; pass < 2; ++pass)
+                {
+                    install_zb();
+                    const int shift = pass ? margin : 0;
+                    g_output_pm.width = w + 2 * shift;
+                    g_output_pm.height = h + 2 * shift;
+                    g_output_pm.row_bytes = stride;
+                    zb.row_width = stride;
+                    zb.depth_row_width = stride * 2;
+                    zb.colour_buffer = pass ? reference : colour + guard;
+                    g_output_pm.pixels = zb.colour_buffer;
+                    zb.depth_buffer = (br_fixed_ls *)(pass ? reference_depth : depth + guard);
+                    for (int i = 0; i < 3; ++i)
+                        mkv_uv(&vertices[i], triangles[t][i * 2] + shift, triangles[t][i * 2 + 1] + shift,
+                               (1000 + i * 70) * 65536, 40 + i * 70,
+                               (-3 + i * 25) * 65536, (2 + i * 13) * 65536);
+                    auto render = transparent ? TriangleRenderPIZ2TIA : TriangleRenderPIZ2TIANT;
+                    render(&vertices[order[winding][0]], &vertices[order[winding][1]], &vertices[order[winding][2]]);
+                }
+                int painted = 0;
+                for (size_t i = 0; i < capacity + 2 * guard; ++i)
+                {
+                    const bool inside = i >= guard && i - guard < (size_t)stride * h && (i - guard) % stride < w;
+                    if (!inside)
+                        result |= colour[i] != 0x5a || depth[i] != 0x5a5a;
+                    else
+                    {
+                        const size_t at = i - guard;
+                        const size_t expected = (at / stride + margin) * stride + at % stride + margin;
+                        result |= colour[i] != reference[expected] || depth[i] != reference_depth[expected];
+                        painted += depth[i] != 0xffff;
+                    }
+                }
+                if (!painted)
+                    result = 1;
+                if (result)
+                    fprintf(stderr, "Clipped raster mismatch: triangle=%d order=%d transparent=%d\n", t, winding, transparent);
+            }
+    free(reference_depth); free(reference); free(depth); free(colour);
+    if (!result)
+        printf("Clipped raster: 72 renders, colour/depth guards and translated reference passed\n");
+    return result;
 }
 
 static void scene_tri_piz2i(void)
@@ -1856,6 +1952,8 @@ int main(int argc, char **argv)
      * setting up zb state and writing PGM. */
     if (strcmp(argv[1], "fmac") == 0)
         return run_fmac_unit(argv[2]);
+    if (strcmp(argv[1], "clipped-edges") == 0)
+        return test_clipped_edges();
 
     /* actor-* modes go through the full BrZbScene pipeline. They need
      * their own buffers (allocated by BrPixelmapAllocate), not our

@@ -15,6 +15,9 @@
     in a different thread.
 
 ***************************************************************************/
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "util.h"
 ASSERTNAME
 
@@ -371,6 +374,20 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType ctg, ChunkNum
     {
         if (pvNil != pfError)
             *pfError = fTrue;
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+        const auto batch = std::getenv("THREEDMM_BATCH_TEST");
+        if (batch && std::strcmp(batch, "1") == 0)
+        {
+            Filename file;
+            String path;
+            char name[kcchMaxStz];
+            _pcfl->GetFni(&file);
+            file.GetStnPath(&path);
+            path.GetSzs(name);
+            std::fprintf(stderr, "BATCH_RESOURCE_LOAD_FAILED ctg=%08lx cno=%08lx file=%s\n",
+                         static_cast<unsigned long>(ctg), static_cast<unsigned long>(cno), name);
+        }
+#endif
         PushErc(ercCrfCantLoad);
         return pvNil;
     }

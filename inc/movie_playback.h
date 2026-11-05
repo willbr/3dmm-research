@@ -2,6 +2,7 @@
    Licensed under the MIT License. */
 #ifndef MOVIE_PLAYBACK_H
 #define MOVIE_PLAYBACK_H
+#include <cstdint>
 #include "scene_data.h"
 #include "socdef.h"
 
@@ -12,6 +13,8 @@ const LegacyLong kPlaybackFadeTicks = kdtimSecond / 4;
 
 struct MoviePlaybackState
 {
+    bool unpaced = false; // Enabled only by the opt-in batch-test host.
+    LegacyLong skippedClickPauses = 0, skippedTimedPauses = 0, skippedSoundPauses = 0;
     bool playing = false;
     bool scrolling = false;
     bool pausing = false;
@@ -26,6 +29,16 @@ struct MoviePlaybackState
     TRANS transition = transNil;
     LegacyLong fadeOriginalVolume = 0;
     bool FShouldRender(bool tracking);
+};
+
+struct MoviePlaybackTestProgress
+{
+    bool active = false, complete = false, failed = false;
+    const char *error = "";
+    std::uint64_t frames = 0, expectedFrames = 0, framesInScene = 0, steps = 0, scrollSteps = 0;
+    LegacyLong scenes = 0, scene = -1, frame = 0, first = 0, last = 0;
+    LegacyLong failureCommand = -1, originalVolume = 0;
+    LegacyUlong started = 0, elapsed = 0;
 };
 
 struct MoviePlaybackPosition

@@ -108,6 +108,9 @@
     _dxyzRte combines the overall actor translation for efficiency only.
 
 ***************************************************************************/
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "frame.h"
 #include "soc.h"
 
@@ -347,6 +350,18 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
             evaluator.Complete(_FDoFrm(command.displayFrame, &positionDirty, pfSoundInFrame));
             break;
         case ActorSeekCommandKind::Finished:
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+            if (!evaluator.Success())
+            {
+                const auto batch = std::getenv("THREEDMM_BATCH_TEST");
+                if (batch && std::strcmp(batch, "1") == 0)
+                    std::fprintf(stderr, "BATCH_ACTOR_FRAME_FAILED actor=%ld frame=%ld action=%ld cel=%ld event=%ld "
+                                         "template_sid=%ld template_cno=%08lx\n",
+                                 _arid, nfrm, static_cast<long>(_state.action), static_cast<long>(_state.cel),
+                                 static_cast<long>(_state.nextEvent), static_cast<long>(_tagTmpl.sid),
+                                 static_cast<unsigned long>(_tagTmpl.cno));
+            }
+#endif
             return evaluator.Success();
         }
     }

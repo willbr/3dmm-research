@@ -26,6 +26,7 @@ Actors, Text boxes, etc.
 
 ***************************************************************************/
 
+#include <cstdio>
 #include "soc.h"
 ASSERTNAME
 
@@ -3799,10 +3800,11 @@ void Movie::Play()
             reply.timestamp = TsCurrent();
             break;
         case MoviePlayCommandKind::StartClock:
-            _clok.Start(0);
+            if (!_playback.unpaced)
+                _clok.Start(0);
             SetFPlaying(true);
             vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, true);
-            reply.success = _clok.FSetAlarm(0, this);
+            reply.success = _playback.unpaced || _clok.FSetAlarm(0, this);
             break;
         case MoviePlayCommandKind::PrepareScene:
             _pmsq->SndOnLong();
@@ -4040,6 +4042,13 @@ bool Movie::FCmdRender(PCommand pcmd)
                     reply.value = true;
                 }
             }
+            if (_playback.unpaced)
+            {
+                vpappb->UpdateMarked();
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+                ++_playbackTest.scrollSteps;
+#endif
+            }
             break;
         case MoviePlaybackCommandKind::PresentFrame:
             Pscen()->Enable(fscenTboxes);
@@ -4055,6 +4064,10 @@ bool Movie::FCmdRender(PCommand pcmd)
             else
                 _pmsq->FlushMsq();
             vpappb->UpdateMarked();
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+            if (_playbackTest.active)
+                _RecordPlaybackTestFrame();
+#endif
             break;
         case MoviePlaybackCommandKind::QueryScrolling:
             for (long index = 0;; ++index)
@@ -4080,7 +4093,7 @@ bool Movie::FCmdRender(PCommand pcmd)
             reply.timestamp = TsCurrent();
             break;
         case MoviePlaybackCommandKind::SetAlarm:
-            reply.success = _clok.FSetAlarm(command.value, this, 0, command.flag);
+            reply.success = _playback.unpaced || _clok.FSetAlarm(command.value, this, 0, command.flag);
             break;
         case MoviePlaybackCommandKind::ReadPosition:
             Pscen()->Disable(fscenTboxes);
@@ -4089,6 +4102,8 @@ bool Movie::FCmdRender(PCommand pcmd)
                               Pscen()->Trans()};
             break;
         case MoviePlaybackCommandKind::SwitchScene:
+            if (_playback.unpaced)
+                std::fprintf(stderr, "BATCH_SCENE_LOAD scene=%ld\n", static_cast<long>(command.value));
             reply.success = FSwitchScen(command.value);
             break;
         case MoviePlaybackCommandKind::ReplayScene:
@@ -4100,6 +4115,8 @@ bool Movie::FCmdRender(PCommand pcmd)
                 Pscen()->PlayBkgdSnd();
             break;
         case MoviePlaybackCommandKind::AdvanceFrame:
+            if (_playback.unpaced)
+                std::fprintf(stderr, "BATCH_FRAME scene=%ld frame=%ld\n", Iscen(), static_cast<long>(command.value));
             reply.success = Pscen()->FGotoFrm(command.value);
             break;
         case MoviePlaybackCommandKind::RenderWorld:
@@ -4108,9 +4125,140 @@ bool Movie::FCmdRender(PCommand pcmd)
         case MoviePlaybackCommandKind::Finished:
             break;
         }
+        if (_playback.unpaced && !reply.success)
+        {
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+            _playbackTest.failed = true;
+            _playbackTest.error = "playback_command_failed";
+            _playbackTest.failureCommand = static_cast<LegacyLong>(command.kind);
+#endif
+        }
         evaluator.Complete(reply);
     }
 }
+
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+bool Movie::FBeginPlaybackTest()
+{
+    if (FPlaying() || _playbackTest.active)
+        return false;
+    _playbackTest = MoviePlaybackTestProgress();
+    _playbackTest.active = true;
+    _playbackTest.started = TsCurrentSystem();
+    _playbackTest.originalVolume = vpsndm->VlmCur();
+    _playback.unpaced = true;
+    _playback.skippedClickPauses = _playback.skippedTimedPauses = _playback.skippedSoundPauses = 0;
+    vpsndm->SetVlm(0); // Keep asset loading/decoding, without audible playback.
+    std::fprintf(stderr, "BATCH_START scenes=%ld\n", Cscen());
+    if (!Cscen() || !FSwitchScen(0) || !Pscen()->FGotoFrm(Pscen()->NfrmFirst()))
+    {
+        _playbackTest.failed = true;
+        _playbackTest.error = "cannot_prepare_first_scene";
+        _FinishPlaybackTest();
+        return false;
+    }
+    std::fprintf(stderr, "BATCH_FRAME scene=0 frame=%ld\n", Pscen()->NfrmFirst());
+    Play();
+    if (!FPlaying())
+    {
+        _playbackTest.failed = true;
+        _playbackTest.error = "cannot_start_playback";
+        _FinishPlaybackTest();
+        return false;
+    }
+    return true;
+}
+void Movie::_RecordPlaybackTestFrame()
+{
+    auto &test = _playbackTest;
+    if (test.scene != Iscen())
+    {
+        if (Iscen() != test.scene + 1 || (test.scene >= 0 && test.framesInScene !=
+            static_cast<std::uint64_t>(std::int64_t(test.last) - test.first + 1)))
+        {
+            test.failed = true;
+            test.error = "incomplete_scene_coverage";
+            return;
+        }
+        test.scene = static_cast<LegacyLong>(Iscen());
+        test.first = static_cast<LegacyLong>(Pscen()->NfrmFirst());
+        test.last = static_cast<LegacyLong>(Pscen()->NfrmLast());
+        test.framesInScene = 0;
+        if (test.last < test.first)
+        {
+            test.failed = true;
+            test.error = "invalid_scene_frame_range";
+            return;
+        }
+        ++test.scenes;
+        test.expectedFrames += std::uint64_t(std::int64_t(test.last) - test.first + 1);
+        std::fprintf(stderr, "BATCH_SCENE scene=%ld first=%ld last=%ld\n", static_cast<long>(test.scene),
+                     static_cast<long>(test.first), static_cast<long>(test.last));
+    }
+    if (std::int64_t(Pscen()->Nfrm()) != std::int64_t(test.first) + test.framesInScene)
+    {
+        test.failed = true;
+        test.error = "nonsequential_movie_frame";
+        return;
+    }
+    test.frame = static_cast<LegacyLong>(Pscen()->Nfrm());
+    ++test.framesInScene;
+    ++test.frames;
+}
+void Movie::_FinishPlaybackTest()
+{
+    if (FPlaying())
+    {
+        SetFStopPlaying(true);
+        FCmdRender(pvNil);
+    }
+    _playbackTest.elapsed = TsCurrentSystem() - _playbackTest.started;
+    _playbackTest.active = false;
+    _playback.unpaced = false;
+    vpsndm->StopAll();
+    vpsndm->SetVlm(_playbackTest.originalVolume);
+}
+void Movie::StepPlaybackTest(LegacyLong frameBudget, LegacyUlong milliseconds)
+{
+    if (!_playbackTest.active)
+        return;
+    const auto start = TsCurrentSystem();
+    const auto initial = _playbackTest.frames;
+    do
+    {
+        ++_playbackTest.steps;
+        FCmdRender(pvNil);
+        if (vpers && vpers->Cerc())
+        {
+            _playbackTest.failed = true;
+            _playbackTest.error = "playback_error_stack";
+        }
+        if (_playbackTest.failed || !FPlaying())
+        {
+            _playbackTest.complete = !_playbackTest.failed && _playbackTest.scenes == Cscen() &&
+                _playbackTest.scene + 1 == Cscen() && _playbackTest.frame == _playbackTest.last &&
+                _playbackTest.frames == _playbackTest.expectedFrames;
+            if (!_playbackTest.complete && !_playbackTest.failed)
+            {
+                _playbackTest.failed = true;
+                _playbackTest.error = "playback_stopped_before_end";
+            }
+            _FinishPlaybackTest();
+            return;
+        }
+    } while (_playbackTest.frames - initial < static_cast<unsigned>(frameBudget) &&
+             TsCurrentSystem() - start < milliseconds);
+    _playbackTest.elapsed = TsCurrentSystem() - _playbackTest.started;
+}
+void Movie::StopPlaybackTest()
+{
+    if (!_playbackTest.active)
+        return;
+    _playbackTest.failed = true;
+    _playbackTest.error = "cancelled";
+    _FinishPlaybackTest();
+}
+#endif
 
 /***************************************************************************
  *
@@ -5102,7 +5250,7 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
         CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(Color), pglclrBkgd->IvMac()));
     }
 
-    switch (_playback.transition)
+    switch (_playback.unpaced ? transCut : _playback.transition)
     {
     case transBlack:
         pgnvDst->FillRc(prcDst, kacrBlack);

@@ -891,14 +891,18 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseC
         // Tag knows pcrf, so just read from there.  Nothing we can do if
         // it's not there.
         AssertPo(ptag->pcrf, 0);
-        return ptag->pcrf->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
+        pbaco = ptag->pcrf->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
     }
-
-    pcrmSource = _PcrmSourceGet(ptag->sid, !fUseCD);
-    if (pvNil == pcrmSource)
-        return pvNil;
-
-    pbaco = pcrmSource->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
+    else
+    {
+        pcrmSource = _PcrmSourceGet(ptag->sid, !fUseCD);
+        if (pcrmSource != pvNil)
+            pbaco = pcrmSource->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
+    }
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    if (pbaco == pvNil && _missingTagTest)
+        _missingTagTest(ptag);
+#endif
     return pbaco;
 }
 

@@ -2076,6 +2076,21 @@ static void RunPlayback(MoviePlaybackState &state, PlaybackTrace &trace)
 
 static void TestMoviePlaybackControl()
 {
+    for (const auto reason : {witUntilClick, witForTime, witUntilSnd})
+    {
+        MoviePlaybackState accelerated;
+        accelerated.unpaced = true;
+        PlaybackTrace trace;
+        trace.pauseOnPresent = reason;
+        trace.soundPlaying = true;
+        RunPlayback(accelerated, trace);
+        Check(accelerated.renderedFrames == 1 && !accelerated.pausing && accelerated.wait == witNil);
+        Check(trace.count == 8 && trace.commands[4].kind == MoviePlaybackCommandKind::SetAlarm &&
+              trace.commands[4].value == 0);
+        Check(accelerated.skippedClickPauses == (reason == witUntilClick) &&
+              accelerated.skippedTimedPauses == (reason == witForTime) &&
+              accelerated.skippedSoundPauses == (reason == witUntilSnd));
+    }
     MoviePlaybackState state;
     Check(!state.FShouldRender(false));
     state.idleSeen = true;

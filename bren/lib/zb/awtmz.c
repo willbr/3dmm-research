@@ -7,6 +7,7 @@
  * Arbitary width texture mapper
  */
 #include <math.h>
+#include <stdint.h>
 
 #include "brender.h"
 #include "zb.h"

@@ -91,10 +91,13 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
 
     zb.main.f = zb.top.f = 0x80000000;
 
-    offset = high16(a->v[X])+high16(a->v[Y])*colour_width;
-    zb.awsl.start = zb.awsl.end = zb.colour_buffer+offset*BPP;
-    zb.awsl.zstart = (char *)zb.depth_buffer+offset*2;
+    /* Projected/clipped vertices can round just outside the viewport. Keep
+     * signed screen coordinates: high16(-2 << 16) is 65534, not -2. */
+    offset = sxa+sya*colour_width;
+    zb.awsl.start = zb.awsl.end = (char *)((intptr_t)zb.colour_buffer+(intptr_t)offset*BPP);
+    zb.awsl.zstart = (char *)((intptr_t)zb.depth_buffer+(intptr_t)offset*2);
     zb.top.count = syb-sya;
+    zb.top.start = sya;
 
     zb.bot.f = 0x80000000;
 
@@ -102,6 +105,7 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
     zb.bot.d_f = (br_uint_32)zb.bot.grad << 16;
     zb.bot.d_i = sar16(zb.bot.grad)+colour_width;
     zb.bot.count = syc-syb;
+    zb.bot.start = syb;
 
     g_divisor = zb.top.x*zb.main.y-zb.main.x*zb.top.y;
     if (!g_divisor) return;
@@ -204,7 +208,7 @@ FNAME(struct temp_vertex_fixed *a,struct temp_vertex_fixed *b,struct temp_vertex
 
     TNAME();
 
-    zb.awsl.end = zb.colour_buffer+high16(b->v[X])*BPP+high16(b->v[Y])*zb.row_width;
+    zb.awsl.end = (char *)((intptr_t)zb.colour_buffer+(intptr_t)sxb*BPP+(intptr_t)syb*zb.row_width);
     zb.awsl.edge = &zb.bot;
 
     ASSERT(zb.awsl.source_current>=zb.awsl.texture_start);

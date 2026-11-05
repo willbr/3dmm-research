@@ -17,7 +17,7 @@
       responses cannot interleave message bytes.
 ***************************************************************************/
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
 
 // IMPORTANT: pull in the C++ standard library and Windows headers BEFORE any
 // kauai header. `kauai/src/util.h` defines `#define size(x) sizeof(x)` (a
@@ -70,6 +70,7 @@
 
 #include "studio.h"
 #include "mcpserv.h"
+#include "studio_iso.h"
 
 // kauai/src/util.h defines `size(x)` as a function-like macro. Once studio.h
 // has been processed we no longer need it; undefine so our own code can call
@@ -117,6 +118,7 @@ struct JVal
     static JVal MkNull() { return {}; }
     static JVal MkBool(bool v) { JVal r; r.t = JT::Bool; r.b = v; return r; }
     static JVal MkInt(long long v) { JVal r; r.t = JT::Int; r.i = v; return r; }
+    static JVal MkDbl(double v) { JVal r; r.t = JT::Dbl; r.d = v; return r; }
     static JVal MkStr(std::string v) { JVal r; r.t = JT::Str; r.s = std::move(v); return r; }
     static JVal MkArr() { JVal r; r.t = JT::Arr; r.a = std::make_shared<JArr>(); return r; }
     static JVal MkObj() { JVal r; r.t = JT::Obj; r.o = std::make_shared<JObj>(); return r; }
@@ -1159,6 +1161,64 @@ static JVal Tool_WaitForGob(const JVal &args)
 
 // --- get_state -----------------------------------------------------------
 
+static JVal Tool_TestMoviePlayback(const JVal &args)
+{
+    const auto enabled = std::getenv("THREEDMM_BATCH_TEST");
+    if (!enabled || std::strcmp(enabled, "1"))
+        return ContentError("Requires THREEDMM_BATCH_TEST=1 in an isolated test process");
+    const auto studio = vpapp->Pstdio();
+    const auto movie = studio ? studio->Pmvie() : nullptr;
+    if (!movie)
+        return ContentError("No movie is open");
+    const auto actionValue = args.Get("action");
+    const auto action = actionValue ? actionValue->AsStr() : "step";
+    if (action == "start")
+    {
+        if (!movie->FBeginPlaybackTest() && !movie->PlaybackTestProgress().failed)
+            return ContentError("Movie is already playing");
+    }
+    else if (action == "stop")
+        movie->StopPlaybackTest();
+    else if (action == "step")
+    {
+        const auto framesValue = args.Get("max_frames"), timeValue = args.Get("max_ms");
+        const auto frames = framesValue ? framesValue->AsInt() : 256;
+        const auto time = timeValue ? timeValue->AsInt() : 200;
+        if (frames < 1 || frames > 10000 || time < 1 || time > 1000)
+            return ContentError("max_frames must be 1..10000 and max_ms 1..1000");
+        movie->StepPlaybackTest(static_cast<LegacyLong>(frames), static_cast<LegacyUlong>(time));
+    }
+    else
+        return ContentError("action must be start, step or stop");
+    const auto &test = movie->PlaybackTestProgress();
+    JVal result = JVal::MkObj();
+    result.Set("active", JVal::MkBool(test.active));
+    result.Set("complete", JVal::MkBool(test.complete));
+    result.Set("failed", JVal::MkBool(test.failed));
+    result.Set("error", JVal::MkStr(test.error));
+    result.Set("frames", JVal::MkInt(static_cast<long long>(test.frames)));
+    result.Set("expected_frames", JVal::MkInt(static_cast<long long>(test.expectedFrames)));
+    result.Set("scroll_steps", JVal::MkInt(static_cast<long long>(test.scrollSteps)));
+    result.Set("steps", JVal::MkInt(static_cast<long long>(test.steps)));
+    result.Set("scenes", JVal::MkInt(test.scenes));
+    result.Set("scene_count", JVal::MkInt(movie->Cscen()));
+    result.Set("scene", JVal::MkInt(test.scene));
+    result.Set("frame", JVal::MkInt(test.frame));
+    result.Set("first_frame", JVal::MkInt(test.first));
+    result.Set("last_frame", JVal::MkInt(test.last));
+    result.Set("elapsed_ms", JVal::MkInt(test.elapsed));
+    result.Set("failure_command", JVal::MkInt(test.failureCommand));
+    result.Set("skipped_click_pauses", JVal::MkInt(movie->TestSkippedClickPauses()));
+    result.Set("skipped_timed_pauses", JVal::MkInt(movie->TestSkippedTimedPauses()));
+    result.Set("skipped_sound_pauses", JVal::MkInt(movie->TestSkippedSoundPauses()));
+#ifdef DEBUG
+    result.Set("assertions_enabled", JVal::MkBool(true));
+#else
+    result.Set("assertions_enabled", JVal::MkBool(false));
+#endif
+    return _WrapInfoAsContent(result);
+}
+
 static std::uint64_t HashMovieBytes(std::uint64_t hash, const void *data, std::size_t count)
 {
     const auto bytes = static_cast<const unsigned char *>(data);
@@ -1184,6 +1244,18 @@ static JVal MovieDetails(PScene scene)
         item.Set("on_stage", JVal::MkBool(actor->FOnStage()));
         item.Set("action", JVal::MkInt(actor->AnidCur()));
         item.Set("cel", JVal::MkInt(actor->CelnCur()));
+        const auto &evaluated = actor->EvaluatedFrameState();
+        item.Set("frame", JVal::MkInt(evaluated.frame));
+        item.Set("next_event", JVal::MkInt(evaluated.nextEvent));
+        JVal position = JVal::MkArr();
+        position.a->push_back(JVal::MkDbl(BrScalarToFloat(evaluated.position.dxr)));
+        position.a->push_back(JVal::MkDbl(BrScalarToFloat(evaluated.position.dyr)));
+        position.a->push_back(JVal::MkDbl(BrScalarToFloat(evaluated.position.dzr)));
+        item.Set("position", std::move(position));
+        TAG templateTag;
+        actor->GetTagTmpl(&templateTag);
+        item.Set("template_sid", JVal::MkInt(templateTag.sid));
+        item.Set("template_cno", JVal::MkInt(templateTag.cno));
         String name;
         actor->GetName(&name);
         std::string utf8;
@@ -1252,6 +1324,11 @@ static JVal Tool_GetState(const JVal &args)
     const auto midi = KauaiMidi::StudioMidiStats();
     const auto video = KauaiVideo::SDLVideoStats();
     o.Set("sdl_video_opened", JVal::MkInt(static_cast<long long>(video.opened)));
+    const auto &iso = StudioContent::CurrentISO();
+    o.Set("iso_content", JVal::MkBool(iso.used));
+    o.Set("iso_cache_reused", JVal::MkBool(iso.reused));
+    o.Set("iso_source", JVal::MkStr(iso.image));
+    o.Set("iso_cache_root", JVal::MkStr(iso.root));
     o.Set("sdl_video_started", JVal::MkInt(static_cast<long long>(video.started)));
     o.Set("sdl_video_completed", JVal::MkInt(static_cast<long long>(video.completed)));
     o.Set("sdl_video_decoded", JVal::MkInt(static_cast<long long>(video.decoded)));
@@ -1329,6 +1406,7 @@ static JVal Tool_GetState(const JVal &args)
         if (details->AsBool())
             o.Set("scene_actors", MovieDetails(scene));
     o.Set("scene_actor_count", JVal::MkInt(scene ? scene->Cactr() : 0));
+    o.Set("scene_textbox_count", JVal::MkInt(scene ? scene->Ctbox() : 0));
     o.Set("movie_scene_count", JVal::MkInt(movie ? movie->Cscen() : 0));
     o.Set("movie_playing", JVal::MkBool(movie && movie->FPlaying()));
     o.Set("scene_frame", JVal::MkInt(scene ? scene->Nfrm() : 0));
@@ -1515,6 +1593,37 @@ static JVal Tool_GetState(const JVal &args)
 }
 
 // --- wait_ms -------------------------------------------------------------
+
+static JVal Tool_SeekMovie(const JVal &args)
+{
+    const auto enabled = std::getenv("THREEDMM_BATCH_TEST");
+    if (!enabled || std::strcmp(enabled, "1"))
+        return ContentError("Requires THREEDMM_BATCH_TEST=1 in an isolated test process");
+    auto studio = vpapp->Pstdio();
+    auto movie = studio ? studio->Pmvie() : nullptr;
+    if (!movie || movie->FPlaying()) return ContentError("No idle movie is open");
+    const auto requestedScene = args.Get("scene"), requestedFrame = args.Get("frame");
+    if (!requestedScene || !requestedFrame || !requestedScene->IsInt() || !requestedFrame->IsInt())
+        return ContentError("scene and frame must be one-based integers matching the UI");
+    const auto sceneNumber = requestedScene->AsInt();
+    if (sceneNumber < 1 || sceneNumber > movie->Cscen()) return ContentError("scene_out_of_range");
+    const auto sceneIndex = sceneNumber - 1;
+    bool success = movie->FSwitchScen(static_cast<long>(sceneIndex));
+    auto scene = movie->Pscen();
+    if (!scene) return ContentError("scene_not_ready");
+    const auto frameCount = std::int64_t(scene->NfrmLast()) - scene->NfrmFirst() + 1;
+    if (requestedFrame->AsInt() < 1 || requestedFrame->AsInt() > frameCount) return ContentError("frame_out_of_range");
+    const auto frame = std::int64_t(scene->NfrmFirst()) + requestedFrame->AsInt() - 1;
+    if (success) success = scene->FGotoFrm(static_cast<long>(frame));
+    if (success) movie->Pbwld()->Render();
+    movie->Pmcc()->UpdateScrollbars();
+    vpappb->UpdateMarked();
+    JVal result = JVal::MkObj();
+    result.Set("success", JVal::MkBool(success));
+    result.Set("scene_number", JVal::MkInt(movie->Iscen() + 1));
+    result.Set("frame_number", JVal::MkInt(scene->Nfrm() - scene->NfrmFirst() + 1));
+    return _WrapInfoAsContent(result);
+}
 
 static JVal Tool_WaitMs(const JVal &args)
 {
@@ -1921,6 +2030,12 @@ static const ToolDef kTools[] = {
         &Tool_GetState,
         false,
     },
+    {"test_movie_playback", "Advance every movie frame without timer waits; isolated test processes only.",
+     "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"max_frames\":{\"type\":\"integer\"},\"max_ms\":{\"type\":\"integer\"}},\"additionalProperties\":false}",
+     &Tool_TestMoviePlayback, false},
+    {"seek_movie", "Seek using one-based scene/frame UI numbers and return the engine's actual success status.",
+     "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\"},\"frame\":{\"type\":\"integer\"}},\"required\":[\"scene\",\"frame\"],\"additionalProperties\":false}",
+     &Tool_SeekMovie, false},
     {
         "wait_ms",
         "Pump host events for N ms (capped at 30000) so the GUI can settle.",

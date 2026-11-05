@@ -2,6 +2,8 @@
 #include "soc_core.h"
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include "rich_text_data.h"
 ASSERTNAME
 void WarnProc(schar *, LegacyLong, schar *)
 {
@@ -53,14 +55,54 @@ static bool Costume(ActorTrack &track, int frame, int set, int cmid, PChunkyReso
     return false;
 }
 
+static bool BatchPauses(PGeneralGroup frames, LegacyLong insertion)
+{
+    const WaitReason reasons[] = {witUntilClick, witForTime, witUntilSnd};
+    for (int i = 0; i < 3; ++i)
+    {
+        SceneEvent event = {2 + i, sevtPause};
+        SceneEventPause pause = {reasons[i], 6000};
+        if (!frames->FInsert(insertion + i, sizeof(pause), &pause, &event))
+            return false;
+    }
+    return true;
+}
+static bool BatchCredits(PChunkyFile file, ChunkNumber *number)
+{
+    RichTextData text;
+    text.fontName.SetSzs(PszLit("Arial"));
+    text.defaults.dypFont = 16;
+    text.defaults.dxpDef = 180;
+    text.defaults.lwAcrBack = 0x00ffffff;
+    text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    text.text.pfil = FileObject::PfilCreateTemp();
+    char credits[4096];
+    int count = 0;
+    for (int line = 0; line < 24; ++line)
+        count += std::snprintf(credits + count, sizeof(credits) - count, "Scrolling credits line %d\r", line + 1);
+    text.text.cb = count;
+    if (!text.properties || !text.text.pfil || !text.text.pfil->FSetFpMac(count) ||
+        !text.text.FWriteRgb(credits, count, 0))
+        return false;
+    ChunkIdentification rich;
+    TextBoxData box;
+    box.firstFrame = -2;
+    box.maxFrame = 31;
+    box.story = false; // Scrolling box, rather than a stationary story box.
+    box.bounds.Set(40, 24, 220, 72);
+    return text.FWrite(file, &rich) && file->FAdd(0, kctgTbox, number) && box.FWrite(file, *number) &&
+           file->FAdoptChild(kctgTbox, *number, rich.ctg, rich.cno, 0);
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 4 && argc != 5)
+    if (argc != 4 && argc != 5 && !(argc == 6 && std::strcmp(argv[5], "--batch") == 0))
     {
-        std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES]\n");
+        std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES [--batch]]\n");
         return 2;
     }
-    const bool movie = argc == 5;
+    const bool movie = argc >= 5;
+    const bool batch = argc == 6;
     const int source = movie ? 2 : 1;
     String backgroundPath;
     backgroundPath.SetSzs(argv[2]);
@@ -87,7 +129,7 @@ int main(int argc, char **argv)
         return 1;
     SceneData scene;
     ChunkNumber sceneNumber;
-    scene.firstFrame = 1;
+    scene.firstFrame = batch ? -2 : 1;
     scene.lastFrame = movie ? 30 : 10;
     bool ok = scene.FCreate(file, &sceneNumber);
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
@@ -254,6 +296,15 @@ int main(int argc, char **argv)
     std::uint32_t nextCamera = 1;
     SceneEvent change = {movie ? 15 : 5, sevtChngCamera};
     ok = ok && frames->FInsert(0, sizeof(nextCamera), &nextCamera, &change);
+    ChunkNumber credits = 0;
+    if (batch)
+    {
+        std::uint32_t slot = 0;
+        SceneEvent start = {1, sevtAddTbox};
+        ok = ok && BatchPauses(frames, 0) && BatchCredits(file, &credits) &&
+             file->FAdoptChild(kctgScen, sceneNumber, kctgTbox, credits, slot) &&
+             starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &start);
+    }
     ok = ok && SceneData::FWriteEvents(file, sceneNumber, frames, starts) && file->FSave(kctgMvie);
     // Preview mode compares against a background-only scene. Movie mode keeps
     // the actors and authors a different camera sequence in the second scene.
@@ -265,6 +316,8 @@ int main(int argc, char **argv)
     else
         for (int i = 0; ok && i < count; ++i)
             ok = file->FAdoptChild(kctgScen, emptyScene, kctgActr, actors[i], i);
+    if (batch)
+        ok = ok && file->FAdoptChild(kctgScen, emptyScene, kctgTbox, credits, 0);
     auto secondFrames = movie ? GeneralGroup::PggNew(sizeof(SceneEvent)) : pvNil;
     if (movie)
     {
@@ -272,6 +325,8 @@ int main(int argc, char **argv)
         SceneEvent first = {1, sevtChngCamera}, later = {15, sevtChngCamera};
         ok = ok && secondFrames && secondFrames->FInsert(0, sizeof(firstCamera), &firstCamera, &first) &&
              secondFrames->FInsert(1, sizeof(laterCamera), &laterCamera, &later);
+        if (batch)
+            ok = ok && BatchPauses(secondFrames, 1);
     }
     ok =
         ok && SceneData::FWriteEvents(file, emptyScene, movie ? secondFrames : frames, starts) && file->FSave(kctgMvie);

@@ -1313,14 +1313,14 @@ void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong
 }
 
 /***************************************************************************
-    Set the transition to apply the next time we do offscreen fast updating.
+    Apply the palette requested by an offscreen transition. Animated effects
+    are currently disabled, so the palette change happens immediately.
     gft is the transition type.  The meaning of lwGft depends on the
     transition.  dts is how long each phase of the transition should take.
     pglclr is the new palette (may be nil).  acr is an intermediary color
     to transition to.  If acr is clear, no intermediary transition is done.
 
-    If pglclr is not nil, this AddRef's it and holds onto it until after
-    the transition is done.
+    A nil pglclr leaves the active palette unchanged.
 ***************************************************************************/
 void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PDynamicArray pglclr, AbstractColor acr)
 {
@@ -1328,18 +1328,11 @@ void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PDynamicArray pglc
     AssertNilOrPo(pglclr, 0);
     AssertPo(&acr, 0);
 
-    return;
-    
-    _gft = gft;
-    _lwGft = lwGft;
-    _dtsGft = dts;
-    ReleasePpo(&_pglclr);
+    // Transitions are disabled, but room scripts also use this call to
+    // install their palette. Keep that change even without the effect;
+    // otherwise their artwork uses unused entries in the startup palette.
     if (pvNil != pglclr)
-    {
-        _pglclr = pglclr;
-        _pglclr->AddRef();
-    }
-    _acr = acr;
+        GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
 }
 
 /***************************************************************************

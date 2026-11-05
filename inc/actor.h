@@ -213,6 +213,9 @@ class Actor : public Actor_PAR
     void _CloseTags(void);
 
   public:
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    const ActorFrameState &EvaluatedFrameState() const { return _state; }
+#endif
     ~Actor(void);
     static PActor PactrNew(TAG *ptagTmpl);
     void SetPscen(Scene *pscen);
