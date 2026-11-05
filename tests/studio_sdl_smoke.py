@@ -106,12 +106,12 @@ def check_integer_presentation(state):
         raise AssertionError("Studio presentation is not using whole-number pixel scaling: " + str(view))
 
 
-def check_fullscreen_presentation(state):
+def check_fitted_presentation(state):
     view = state["sdl_presentation"]
     scale = min(view["output_width"] / 640, view["output_height"] / 480)
     # SDL rounds the non-limiting dimension down to a physical pixel.
     if abs(view["width"] - 640 * scale) >= 1 or abs(view["height"] - 480 * scale) >= 1:
-        raise AssertionError("Studio fullscreen canvas does not fit the display: " + str(view))
+        raise AssertionError("Studio canvas does not fit the available area: " + str(view))
 
 
 def main():
@@ -395,8 +395,8 @@ def main():
                              and mode_state["sdl_integer_scaling"] == integer_scaling
                              and (not changed_mode or mode_state["client_size"] != previous_state["client_size"]))
                     if ready:
-                        if fullscreen and not integer_scaling:
-                            check_fullscreen_presentation(mode_state)
+                        if not integer_scaling:
+                            check_fitted_presentation(mode_state)
                         else:
                             check_integer_presentation(mode_state)
                         break
@@ -417,7 +417,10 @@ def main():
             state = json.loads(call("get_state")["content"][0]["text"])
             if state["client_size"]["w"] <= 640:
                 raise AssertionError("Studio rejected the SDL window resize")
-            check_integer_presentation(state)
+            if state["sdl_integer_scaling"]:
+                check_integer_presentation(state)
+            else:
+                check_fitted_presentation(state)
         before = capture("studio")
         if args.portfolio:
             check_portfolio(101, 20005, "portfolio-open")

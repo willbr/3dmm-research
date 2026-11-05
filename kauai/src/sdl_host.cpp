@@ -202,7 +202,7 @@ struct Host::Impl
         renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
         if (!renderer)
             return false;
-        if (!SetPresentation((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) != 0))
+        if (!SetPresentation())
             return false;
         SDL_SetRenderVSync(renderer, 0);
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, w, h);
@@ -213,12 +213,10 @@ struct Host::Impl
         focused = (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) != 0;
         return true;
     }
-    bool SetPresentation(bool fullscreen)
+    bool SetPresentation()
     {
-        // Fill the available fullscreen area without cropping or stretching the
-        // canvas. Windowed presentation keeps its whole-number pixel grid.
-        const auto mode = fullscreen && !integerScaling ? SDL_LOGICAL_PRESENTATION_LETTERBOX
-                                                       : SDL_LOGICAL_PRESENTATION_INTEGER_SCALE;
+        // Apply the same scaling preference in every window mode.
+        const auto mode = integerScaling ? SDL_LOGICAL_PRESENTATION_INTEGER_SCALE : SDL_LOGICAL_PRESENTATION_LETTERBOX;
         return renderer && SDL_SetRenderLogicalPresentation(renderer, width, height, mode);
     }
     bool ApplyPointer()
@@ -443,7 +441,7 @@ void Host::ResumeAfterModal()
 }
 bool Host::SetFullscreen(bool fullscreen)
 {
-    if (!impl->window || !SDL_SetWindowFullscreen(impl->window, fullscreen) || !impl->SetPresentation(fullscreen))
+    if (!impl->window || !SDL_SetWindowFullscreen(impl->window, fullscreen) || !impl->SetPresentation())
         return false;
     impl->damage.Invalidate();
     return true;
@@ -454,7 +452,7 @@ bool Host::SetIntegerScaling(bool enabled)
         return false;
     const bool previous = impl->integerScaling;
     impl->integerScaling = enabled;
-    if (!impl->SetPresentation((SDL_GetWindowFlags(impl->window) & SDL_WINDOW_FULLSCREEN) != 0))
+    if (!impl->SetPresentation())
     {
         impl->integerScaling = previous;
         return false;
@@ -631,7 +629,7 @@ bool Host::Poll(Event &event, int timeoutMs)
             if (next.window.windowID == SDL_GetWindowID(impl->window))
             {
                 // Also follow transitions requested by the desktop/window manager.
-                if (!impl->SetPresentation(next.type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN))
+                if (!impl->SetPresentation())
                     return false;
                 impl->damage.Invalidate();
                 event.kind = EventKind::resized;

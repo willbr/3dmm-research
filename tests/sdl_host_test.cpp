@@ -30,7 +30,9 @@ static bool CheckPixels(KauaiSDL::Host &host, const char *path, const std::vecto
         return false;
     const int scale = std::min(view.outputWidth / 320, view.outputHeight / 240);
     // Readback covers SDL's presentation viewport, excluding the letterbox.
-    bool matches = image->w == view.width && image->h == view.height;
+    bool matches = scale >= 1 && view.width == 320 * scale && view.height == 240 * scale &&
+                   view.x == (view.outputWidth - view.width) / 2 && view.y == (view.outputHeight - view.height) / 2 &&
+                   image->w == view.width && image->h == view.height;
     for (int y = 0; matches && y < image->h; ++y)
         for (int x = 0; matches && x < image->w; ++x)
         {
@@ -41,6 +43,33 @@ static bool CheckPixels(KauaiSDL::Host &host, const char *path, const std::vecto
             if (!matches)
                 std::fprintf(stderr, "Rendered pixel mismatch at %d,%d in %dx%d output\n", x, y, image->w, image->h);
         }
+    SDL_DestroySurface(image);
+    return matches;
+}
+static bool CheckFittedPixels(KauaiSDL::Host &host, const char *path, const std::vector<std::uint32_t> &pixels)
+{
+    KauaiSDL::PresentationStatus view;
+    if (!host.Presentation(view) || !host.SaveBMP(path))
+        return false;
+    const float scale = std::min(view.outputWidth / 320.0f, view.outputHeight / 240.0f);
+    if (std::abs(view.width - 320 * scale) >= 1 || std::abs(view.height - 240 * scale) >= 1 ||
+        std::abs(view.x - (view.outputWidth - view.width) / 2) > 0.001f ||
+        std::abs(view.y - (view.outputHeight - view.height) / 2) > 0.001f)
+        return false;
+    auto image = SDL_LoadBMP(path);
+    if (!image)
+        return false;
+    bool matches = std::abs(image->w - view.width) < 1 && std::abs(image->h - view.height) < 1;
+    // Sample source-pixel centers, away from fractional nearest-neighbor boundaries.
+    for (const auto &point : {std::pair<int, int>{0, 0}, {160, 120}, {319, 239}})
+    {
+        const int x = std::min(image->w - 1, int((point.first + 0.5f) * view.width / 320));
+        const int y = std::min(image->h - 1, int((point.second + 0.5f) * view.height / 240));
+        Uint8 r, g, b;
+        matches = matches && SDL_ReadSurfacePixel(image, x, y, &r, &g, &b, nullptr) &&
+                  ((std::uint32_t(r) << 16) | (std::uint32_t(g) << 8) | b) ==
+                      (pixels[point.second * 320 + point.first] & 0xFFFFFF);
+    }
     SDL_DestroySurface(image);
     return matches;
 }
@@ -76,21 +105,42 @@ int main(int argc, char **argv)
     host.BindPixels(pixels.data(), 320 * 4);
     if (!host.Present(true) || !host.SaveBMP(argv[1]))
         return Fail(__LINE__, host);
+    if (host.IntegerScaling() || !CheckFittedPixels(host, argv[1], pixels))
+        return Fail(__LINE__, host);
     // This mode also runs against the real display renderer without depending
     // on clipboard ownership or foreground input in a hidden test window.
     if (scalingOnly)
     {
         for (const auto &dimensions : {std::pair<int, int>{850, 510}, {1000, 700}, {1001, 721}, {321, 241}})
         {
-            if (!host.SetWindowSize(dimensions.first, dimensions.second) || !host.Present(true) ||
-                !CheckPixels(host, argv[1], pixels))
+            if (!host.SetWindowSize(dimensions.first, dimensions.second))
                 return Fail(__LINE__, host);
+            for (bool integer : {true, false})
+                if (!host.SetIntegerScaling(integer) || !host.Present(true) ||
+                    !(integer ? CheckPixels(host, argv[1], pixels) : CheckFittedPixels(host, argv[1], pixels)))
+                    return Fail(__LINE__, host);
             int width = 0, height = 0;
             if (!host.WindowSize(width, height) || width != dimensions.first || height != dimensions.second ||
                 host.Width() != 320 || host.Height() != 240)
                 return Fail(__LINE__, host);
         }
-        std::puts("SDL presentation: every rendered pixel matches integer nearest-neighbor scaling.");
+        // Exercise a real window-manager maximize, including changing the preference
+        // while maximized. The dummy driver does not provide maximization.
+        auto window = SDL_GetWindowFromID(host.WindowID());
+        if (!host.EnsureInteractive() || !host.SetMaximized(true) || !SDL_SyncWindow(window))
+            return Fail(__LINE__, host);
+        KauaiSDL::Event event;
+        while (host.Poll(event))
+        {
+        }
+        KauaiSDL::WindowStatus state;
+        if (!host.WindowState(state) || !state.maximized)
+            return Fail(__LINE__, host);
+        for (bool integer : {true, false})
+            if (!host.SetIntegerScaling(integer) || !host.Present(true) ||
+                !(integer ? CheckPixels(host, argv[1], pixels) : CheckFittedPixels(host, argv[1], pixels)))
+                return Fail(__LINE__, host);
+        std::puts("SDL presentation: fitted and integer scaling passed after resizing and maximizing.");
         return 0;
     }
     KauaiSDL::Event event;
@@ -163,7 +213,8 @@ int main(int argc, char **argv)
     // Sizes between integer multiples keep a uniform pixel grid and hit testing.
     for (const auto &dimensions : {std::pair<int, int>{850, 510}, {1000, 700}, {1001, 721}, {321, 241}, {160, 120}})
     {
-        if (!host.SetWindowSize(dimensions.first, dimensions.second) || !host.Present(true))
+        if (!host.SetWindowSize(dimensions.first, dimensions.second) || !host.SetIntegerScaling(true) ||
+            !host.Present(true))
             return Fail(__LINE__, host);
         KauaiSDL::PresentationStatus presentation;
         if (!host.Presentation(presentation))
@@ -178,6 +229,11 @@ int main(int argc, char **argv)
             return Fail(__LINE__, host);
         if (!host.PushPointer(123, 45, true) || !Next(host, KauaiSDL::EventKind::buttonDown, event) || event.x != 123 ||
             event.y != 45 || !host.PushPointer(123, 45, false) || !Next(host, KauaiSDL::EventKind::buttonUp, event))
+            return Fail(__LINE__, host);
+        if (!host.SetIntegerScaling(false) || !host.Present(true) || !CheckFittedPixels(host, argv[1], pixels) ||
+            !host.PushPointer(123, 45, true) || !Next(host, KauaiSDL::EventKind::buttonDown, event) ||
+            std::abs(event.x - 123) > 0.001f || std::abs(event.y - 45) > 0.001f || !host.PushPointer(123, 45, false) ||
+            !Next(host, KauaiSDL::EventKind::buttonUp, event))
             return Fail(__LINE__, host);
     }
     // Fullscreen must fill the display even when its size is not an integer
@@ -216,19 +272,20 @@ int main(int argc, char **argv)
         if (!host.SetIntegerScaling(true) || !host.IntegerScaling() || !host.Present(true) ||
             !CheckPixels(host, argv[1], pixels))
             return Fail(__LINE__, host);
-        if (!host.SetIntegerScaling(false) || host.IntegerScaling() || !host.Present(true) || !host.Presentation(view) ||
-            std::abs(view.width - 320 * scale) >= 1 || std::abs(view.height - 240 * scale) >= 1)
+        if (!host.SetIntegerScaling(false) || host.IntegerScaling() || !host.Present(true) ||
+            !host.Presentation(view) || std::abs(view.width - 320 * scale) >= 1 ||
+            std::abs(view.height - 240 * scale) >= 1)
             return Fail(__LINE__, host);
         if (!host.PushPointer(123, 45, true) || !Next(host, KauaiSDL::EventKind::buttonDown, event) ||
-            std::abs(event.x - 123) > 0.001f || std::abs(event.y - 45) > 0.001f ||
-            !host.PushPointer(123, 45, false) || !Next(host, KauaiSDL::EventKind::buttonUp, event))
+            std::abs(event.x - 123) > 0.001f || std::abs(event.y - 45) > 0.001f || !host.PushPointer(123, 45, false) ||
+            !Next(host, KauaiSDL::EventKind::buttonUp, event))
             return Fail(__LINE__, host);
         if (!(external ? SDL_SetWindowFullscreen(window, false) : host.SetFullscreen(false)) || !SDL_SyncWindow(window))
             return Fail(__LINE__, host);
         while (host.Poll(event))
         {
         }
-        if (!host.Present(true) || !CheckPixels(host, argv[1], pixels))
+        if (!host.Present(true) || !CheckFittedPixels(host, argv[1], pixels))
             return Fail(__LINE__, host);
     }
     for (auto key : {65u, 27u, 39u})
