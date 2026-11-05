@@ -215,6 +215,7 @@ class Application : public Application_PAR
     virtual void _Activate(bool fActive);
     virtual bool _FGetNextEvt(PEVT pevt);
 #ifdef KAUAI_SDL3
+    bool _FDispatchWindowShortcut(const EVT &event) override;
     bool _FDispatchShortcut(const EVT &event) override;
 #endif
 #ifdef WIN

@@ -111,6 +111,24 @@ def move_studio_pointer(pid, state, x, y):
         user32.SetThreadDpiAwarenessContext(previous)
 
 
+def send_alt_enter(pid):
+    """Send a held Alt+Enter chord only to this test's foreground window."""
+    import ctypes
+    from ctypes import wintypes
+    focus_studio(pid)
+    user32 = ctypes.WinDLL("user32")
+    user32.keybd_event.argtypes = [wintypes.BYTE, wintypes.BYTE, wintypes.DWORD, ctypes.c_size_t]
+    try:
+        user32.keybd_event(18, 0, 0, 0)  # Alt down.
+        # Repeated keydowns while held must produce exactly one toggle.
+        for _ in range(4):
+            user32.keybd_event(13, 0, 0, 0)
+            time.sleep(0.04)
+    finally:
+        user32.keybd_event(13, 0, 2, 0)
+        user32.keybd_event(18, 0, 2, 0)
+
+
 def keyboard_repeat_settings():
     """Observe desktop preferences without changing them."""
     if os.name != "nt":
@@ -223,6 +241,21 @@ def main():
 
     def settle():
         call("wait_ms", ms=500)
+
+    def toggle_fullscreen():
+        previous = json.loads(call("get_state")["content"][0]["text"])
+        send_alt_enter(process.pid)
+        settle()
+        current = json.loads(call("get_state", movie_details=True)["content"][0]["text"])
+        if current["sdl_fullscreen"] == previous["sdl_fullscreen"]:
+            raise AssertionError("Alt+Enter did not toggle fullscreen exactly once")
+        if current["sdl_integer_scaling"] != previous["sdl_integer_scaling"]:
+            raise AssertionError("Alt+Enter changed the integer scaling preference")
+        if current["sdl_integer_scaling"]:
+            check_integer_presentation(current)
+        else:
+            check_fitted_presentation(current)
+        return current
 
     def capture(name):
         result = call("screenshot")
@@ -433,6 +466,29 @@ def main():
                 sizes.append({"fullscreen": fullscreen, "integer_scaling": integer_scaling,
                               "client_size": mode_state["client_size"], "presentation": mode_state["sdl_presentation"]})
                 previous_state = mode_state
+                if os.name == "nt":
+                    # Verify both directions, held-key repeats and preference retention
+                    # for each fitted/integer setting selected through Product Info.
+                    for hotkey_fullscreen in (not fullscreen, fullscreen):
+                        restored = toggle_fullscreen()
+                        call("send_command", cid=40038)
+                        deadline = time.monotonic() + 10
+                        while True:
+                            dialog = json.loads(call("get_sdl_dialog")["content"][0]["text"])
+                            if dialog["active"] and dialog["ready"]:
+                                break
+                            if time.monotonic() >= deadline:
+                                raise AssertionError("Product Info did not open after Alt+Enter")
+                            time.sleep(0.03)
+                        controls = {item["id"]: item for item in dialog["controls"]}
+                        if bool(controls[1015]["number"]) != (not hotkey_fullscreen):
+                            raise AssertionError("Product Info window mode disagrees with Alt+Enter")
+                        call("sdl_dialog_action", generation=dialog["generation"], action="click", control=2)
+                        settle()
+                        if json.loads(call("get_state")["content"][0]["text"])["sdl_fullscreen"] != hotkey_fullscreen:
+                            raise AssertionError("Product Info undid the Alt+Enter window mode")
+                    if restored["client_size"] != mode_state["client_size"]:
+                        raise AssertionError("Alt+Enter did not restore the previous window size")
                 if desktop_size is not None and desktop_size != (user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)):
                     raise AssertionError("Studio changed the desktop resolution")
             if sizes[0]["client_size"] == sizes[-1]["client_size"]:
@@ -599,6 +655,9 @@ def main():
                 if keyboard_repeat_settings() != keyboard_settings:
                     raise AssertionError("SDL placement changed desktop keyboard repeat preferences")
                 if os.name == "nt":
+                    if args.fullscreen:
+                        toggle_fullscreen()
+                        actor_input = toggle_fullscreen()  # Also exercise the mouse-tracking key path.
                     inserted = [item for item in actor_input["scene_actors"] if item["id"] not in previous_ids]
                     if len(inserted) != 1 or inserted[0]["kind"] != label:
                         raise AssertionError("Expected one new " + label + ": " + str(inserted))
