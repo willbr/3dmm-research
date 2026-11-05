@@ -11,6 +11,9 @@ build-x64/
 .cache/
 /notes.md
 
+# Local test outputs and scratch files belong here.
+/tmp/
+
 # Local Claude scratch files
 _claude_*
 .claude/
