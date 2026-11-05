@@ -14,6 +14,7 @@ import json
 import pathlib
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 import threading
@@ -56,6 +57,7 @@ def test_movie(executable, iso, source, output, cache, timeout=120, max_frames=1
     copied = output / source.name
     source_hash = digest(source)
     shutil.copy2(source, copied)
+    copied.chmod(copied.stat().st_mode | stat.S_IWUSR)
     result = {'movie': str(source.resolve()), 'sha256': source_hash, 'artifacts': str(output.resolve()),
               'status': 'error', 'progress': None}
     args = SimpleNamespace(exe=executable, content=output, artifacts=output, response_timeout=timeout + 5,

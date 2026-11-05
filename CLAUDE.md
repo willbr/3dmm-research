@@ -24,6 +24,10 @@ The [hard constraints in plan.md](plan.md#hard-constraints) are standing project
 
 Always commit completed project changes after appropriate validation. Do not wait for a separate request to commit. Keep commits focused on the task and exclude unrelated user files and assets.
 
+## Reference movies
+
+Treat `movies/` as immutable reference data. Keep every file read-only and never clear its protection or save edits there. Use private copies under `tmp/` for testing and editing; make only those copies writable. Protect newly imported reference files too.
+
 ## Build
 
 Native Windows builds support x86 and x64. Windows SDL3 Studio also has an

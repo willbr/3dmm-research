@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import shutil
+import stat
 import subprocess
 import time
 import winreg
@@ -77,6 +78,7 @@ class RetailSession:
         self.source_hash = digest(self.source)
         self.movie = self.artifacts / self.source.name
         shutil.copy2(self.source, self.movie)
+        self.movie.chmod(self.movie.stat().st_mode | stat.S_IWUSR)
         self.oracle, self.process = None, None
         self.verified = False
         self.closed = False

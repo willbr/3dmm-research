@@ -12,6 +12,7 @@ import json
 import os
 import pathlib
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -69,6 +70,7 @@ def main():
     movie = output / args.movie.name
     source_hash = digest(args.movie)
     shutil.copy2(args.movie, movie)
+    movie.chmod(movie.stat().st_mode | stat.S_IWUSR)
     run = str(uuid.uuid4())
     launch = SimpleNamespace(exe=args.exe, content=output, artifacts=output, response_timeout=60,
         launch_arguments=['--iso', str(args.iso.resolve())], environment={
