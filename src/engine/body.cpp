@@ -850,7 +850,11 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
             ibmtl++;
         }
     }
-    Assert(ibmtl == pcmtl->Cbprt(), "didn't use all custom materials!");
+    // Some shipped prop costumes contain spare material entries (e.g.
+    // TMPL 0x1021 has one part, but its alternate CMTLs have two entries).
+    // Only the entries for existing parts are used. Pmodl/Pbmtl check that
+    // each required entry exists; unused trailing entries are harmless.
+    Assert(ibmtl <= pcmtl->Cbprt(), "not enough custom materials!");
     if (_cactHidden == 0)
     {
         _RenderChanged();

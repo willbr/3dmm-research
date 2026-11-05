@@ -15,6 +15,8 @@ struct FileDialog
     KauaiFiles::Browser browser;
     std::string title;
     DialogImage artwork, acceptButton, cancelButton, homeButton;
+    DialogImage acceptPressed, cancelPressed, homePressed;
+    DialogImage documentIcon;
     void *context = nullptr;
     bool (*preview)(void *, const std::string &, DialogImage &) = nullptr;
     bool accepted = false;

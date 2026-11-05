@@ -1159,6 +1159,80 @@ static JVal Tool_WaitForGob(const JVal &args)
 
 // --- get_state -----------------------------------------------------------
 
+static std::uint64_t HashMovieBytes(std::uint64_t hash, const void *data, std::size_t count)
+{
+    const auto bytes = static_cast<const unsigned char *>(data);
+    for (std::size_t i = 0; i < count; ++i)
+        hash = (hash ^ bytes[i]) * UINT64_C(1099511628211);
+    return hash;
+}
+
+// Explicit opt-in keeps ordinary state polling cheap for large user movies.
+static JVal MovieDetails(PScene scene)
+{
+    JVal actors = JVal::MkArr();
+    auto roll = scene ? scene->PglRollCall() : nullptr; // Borrowed, read-only.
+    for (long i = 0; roll && i < roll->IvMac(); ++i)
+    {
+        PActor actor;
+        roll->Get(i, &actor);
+        auto body = actor->Pbody();
+        auto tmpl = actor->Ptmpl();
+        JVal item = JVal::MkObj(), textures = JVal::MkArr();
+        item.Set("id", JVal::MkInt(actor->Arid()));
+        item.Set("kind", JVal::MkStr(tmpl->FIsTdt() ? "3d_text" : tmpl->FIsProp() ? "prop" : "actor"));
+        item.Set("on_stage", JVal::MkBool(actor->FOnStage()));
+        item.Set("action", JVal::MkInt(actor->AnidCur()));
+        item.Set("cel", JVal::MkInt(actor->CelnCur()));
+        String name;
+        actor->GetName(&name);
+        std::string utf8;
+        KauaiFonts::NameToUtf8({name.Prgch(), static_cast<std::size_t>(name.Cch()),
+                                sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes},
+                               utf8);
+        item.Set("name", JVal::MkStr(utf8));
+        std::uint64_t pose = UINT64_C(14695981039346656037), appearance = pose;
+        const int parts = body ? body->Cbact() - 2 : 0;
+        item.Set("parts", JVal::MkInt(parts));
+        for (int part = 0; part < parts; ++part)
+        {
+            auto bact = body->PbactPart(part);
+            pose = HashMovieBytes(pose, &bact->t.t.mat, sizeof(bact->t.t.mat));
+            if (bact->model)
+            {
+                auto number = Model::PmodlFromBmdl(bact->model)->Cno();
+                appearance = HashMovieBytes(appearance, &number, sizeof(number));
+            }
+            if (bact->material)
+            {
+                auto material = bact->material;
+                appearance = HashMovieBytes(appearance, &material->colour, sizeof(material->colour));
+                appearance = HashMovieBytes(appearance, &material->index_base, sizeof(material->index_base));
+                auto texture = material->colour_map;
+                if (texture && texture->pixels && texture->type == BR_PMT_INDEX_8)
+                {
+                    std::uint64_t hash = UINT64_C(14695981039346656037);
+                    for (int row = 0; row < texture->height; ++row)
+                        hash =
+                            HashMovieBytes(hash, static_cast<const byte *>(texture->pixels) + row * texture->row_bytes,
+                                           texture->width);
+                    textures.a->push_back(JVal::MkStr(std::to_string(hash)));
+                    appearance = HashMovieBytes(appearance, &hash, sizeof(hash));
+                }
+            }
+        }
+        item.Set("pose_hash", JVal::MkStr(std::to_string(pose)));
+        item.Set("appearance_hash", JVal::MkStr(std::to_string(appearance)));
+        item.Set("texture_hashes", std::move(textures));
+        if (body)
+            item.Set("position_hash", JVal::MkStr(std::to_string(HashMovieBytes(UINT64_C(14695981039346656037),
+                                                                                &body->PbactRoot()->t.t.mat,
+                                                                                sizeof(body->PbactRoot()->t.t.mat)))));
+        actors.a->push_back(std::move(item));
+    }
+    return actors;
+}
+
 static JVal Tool_GetState(const JVal &args)
 {
     const auto hwnd = _GetMainWindow();
@@ -1248,6 +1322,12 @@ static JVal Tool_GetState(const JVal &args)
     auto studio = vpapp->Pstdio();
     auto movie = studio ? studio->Pmvie() : nullptr;
     auto scene = movie ? movie->Pscen() : nullptr;
+    o.Set("movie_scene", JVal::MkInt(movie ? movie->Iscen() : -1));
+    o.Set("scene_camera", JVal::MkInt(scene && scene->Pbkgd() ? scene->Pbkgd()->Icam() : -1));
+    o.Set("scene_camera_count", JVal::MkInt(scene && scene->Pbkgd() ? scene->Pbkgd()->Ccam() : 0));
+    if (const auto details = args.Get("movie_details"))
+        if (details->AsBool())
+            o.Set("scene_actors", MovieDetails(scene));
     o.Set("scene_actor_count", JVal::MkInt(scene ? scene->Cactr() : 0));
     o.Set("movie_scene_count", JVal::MkInt(movie ? movie->Cscen() : 0));
     o.Set("movie_playing", JVal::MkBool(movie && movie->FPlaying()));
@@ -1837,7 +1917,7 @@ static const ToolDef kTools[] = {
     {
         "get_state",
         "Report main window state, foreground status, modal dialog (if any), and ErrorStack depth.",
-        "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+        "{\"type\":\"object\",\"properties\":{\"movie_details\":{\"type\":\"boolean\"}},\"additionalProperties\":false}",
         &Tool_GetState,
         false,
     },

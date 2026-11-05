@@ -160,8 +160,9 @@ endif()
 if(STUDIO_SDL3 OR BUILD_SDL_DIALOGS)
   include(ImGuiDependency)
   add_library(kauai-sdl-dialog STATIC kauai/src/sdl_dialog.cpp kauai/src/sdl_file_dialog.cpp)
+  target_compile_features(kauai-sdl-dialog PRIVATE cxx_std_17)
   target_include_directories(kauai-sdl-dialog PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-  target_link_libraries(kauai-sdl-dialog PUBLIC kauai-core PRIVATE imgui-sdl3)
+  target_link_libraries(kauai-sdl-dialog PUBLIC kauai-core PRIVATE imgui-sdl3 kauai-font-host)
   add_executable(dialog-sdl-test EXCLUDE_FROM_ALL tests/dialog_sdl_test.cpp)
   target_link_libraries(dialog-sdl-test PRIVATE kauai-sdl-dialog SDL3::SDL3-static)
   add_executable(file-dialog-sdl-test EXCLUDE_FROM_ALL tests/file_dialog_sdl_test.cpp)
@@ -1632,6 +1633,8 @@ if(BUILD_TESTING)
   if(EXISTS "${TEST_CONTENT_DIR}/tmpls.3cn" AND EXISTS "${TEST_MAIN_CHK}")
     add_test(NAME actor-render COMMAND actor-render-test "${TEST_MAIN_CHK}"
       "${TEST_CONTENT_DIR}/tmpls.3cn" 0x2010 "${PROJECT_BINARY_DIR}/actor-test.pgm")
+    add_test(NAME actor-render-spare-materials COMMAND actor-render-test "${TEST_MAIN_CHK}"
+      "${TEST_CONTENT_DIR}/tmpls.3cn" 0x1021 "${PROJECT_BINARY_DIR}/actor-spare-materials.pgm" 15)
   endif()
   if(EXISTS "${TEST_CONTENT_DIR}/tmpls.3cn" AND EXISTS "${TEST_CONTENT_DIR}/bkgds.3cn"
       AND EXISTS "${TEST_CONTENT_DIR}/tdfs.3cn" AND EXISTS "${TEST_CONTENT_DIR}/mtrls.3cn"
@@ -1649,5 +1652,18 @@ if(BUILD_TESTING)
       ${preview_gui_args}
       -DTEST_DIR=${PROJECT_BINARY_DIR}/preview-test
       -P ${PROJECT_SOURCE_DIR}/tests/check_previews.cmake)
+    if(BUILD_STUDIO AND STUDIO_SDL3 AND NOT STUDIO_NATIVE_WINDOWS)
+      find_package(Python3 COMPONENTS Interpreter QUIET)
+      if(Python3_Interpreter_FOUND)
+        get_filename_component(studio_test_runtime "${TEST_MAIN_CHK}" DIRECTORY)
+        add_dependencies(library-checks studio preview-scene-fixture)
+        add_test(NAME studio-movie-workflow COMMAND "${Python3_EXECUTABLE}"
+          "${PROJECT_SOURCE_DIR}/tests/studio_movie_workflow.py"
+          $<TARGET_FILE:studio> "${studio_test_runtime}" "${PROJECT_BINARY_DIR}/movie-workflow"
+          --fixture-exe $<TARGET_FILE:preview-scene-fixture> --content-dir "${TEST_CONTENT_DIR}")
+        set_tests_properties(studio-movie-workflow PROPERTIES TIMEOUT 180
+          ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software")
+      endif()
+    endif()
   endif()
 endif()

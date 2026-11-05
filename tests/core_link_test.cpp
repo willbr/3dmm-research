@@ -68,6 +68,49 @@ static PCommandHandler ReplayLookup(LegacyLong hid)
     return s_replayTarget != pvNil && hid == s_replayTarget->Hid() ? s_replayTarget : pvNil;
 }
 
+static void TestReadOnlyEmptyChunkSave()
+{
+    Filename source, destination;
+    Check(source.FGetTemp() && destination.FGetTemp());
+    const ChunkTagOrType type = 'TEST';
+    byte payload[] = {1, 2, 3, 4};
+    ChunkNumber first, hole, last, empty;
+    PChunkyFile file = ChunkyFile::PcflCreate(&source, fcflWriteEnable);
+    Check(file != pvNil);
+    Check(file->FAddPv(payload, sizeof(payload), type, &first));
+    Check(file->FAddPv(payload, sizeof(payload), type, &hole));
+    Check(file->FAddPv(payload, sizeof(payload), type, &last));
+    file->Delete(type, hole); // Persist a nonempty free-space map between live chunks.
+    Check(file->FSave(type));
+    ReleasePpo(&file);
+
+    file = ChunkyFile::PcflOpen(&source, fcflNil);
+    Check(file != pvNil);
+    Check(file->FAdd(0, type, &empty)); // No storage allocation or primary-file write.
+    Check(file->FSave(type, &destination));
+    ReleasePpo(&file);
+
+    file = ChunkyFile::PcflOpen(&destination, fcflNil);
+    DataBlock block;
+    byte actual[sizeof(payload)];
+    Check(file != pvNil && file->FFind(type, empty, &block));
+    Check(block.Cb() == 0);
+    Check(file->FFind(type, last, &block));
+    Check(block.FReadRgb(actual, sizeof(actual), 0));
+    Check(std::memcmp(actual, payload, sizeof(payload)) == 0);
+    file->SetTemp(true);
+    ReleasePpo(&file);
+
+    file = ChunkyFile::PcflOpen(&source, fcflNil);
+    Check(file != pvNil && !file->FFind(type, empty));
+    Check(file->FFind(type, first, &block));
+    Check(block.FReadRgb(actual, sizeof(actual), 0));
+    Check(std::memcmp(actual, payload, sizeof(payload)) == 0);
+    Check(file->FFind(type, last));
+    file->SetTemp(true);
+    ReleasePpo(&file);
+}
+
 static void TestCommandReplay()
 {
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
@@ -291,8 +334,10 @@ static void Changed(void *context)
 {
     ++static_cast<RenderHost *>(context)->changes;
 }
+static int missingSourcePrompts = 0;
 static bool MissingSource(PString)
 {
+    ++missingSourcePrompts;
     return false;
 }
 
@@ -2408,6 +2453,60 @@ static void TestTextBoxPersistence()
     ReleasePpo(&file);
 }
 
+static void TestMaterialHeaders()
+{
+    // Third-party MTRLPACK1-2 MTRL 0x50004: the Windows marker is zero,
+    // while the other fields describe an ordinary solid palette material.
+    const byte legacy[] = {0, 0, 3, 3, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 21, 7, 0, 0, 50, 0};
+    const byte little[] = {1, 0, 3, 3, 0x33, 0x22, 0x11, 0, 0, 0x20, 0, 0xa0, 0, 0x10, 21, 7, 0, 0, 50, 0};
+    const byte big[] = {0, 1, 3, 3, 0, 0x11, 0x22, 0x33, 0x20, 0, 0xa0, 0, 0x10, 0, 21, 7, 0, 50, 0, 0};
+    PChunkyFile file = ChunkyFile::PcflCreateTemp();
+    Check(file != pvNil);
+    PChunkyResourceFile resource = ChunkyResourceFile::PcrfNew(file, 0);
+    Check(resource != pvNil);
+    for (int index = 0; index < 7; ++index)
+    {
+        byte bytes[sizeof(MaterialOnFile)];
+        std::memcpy(bytes, index == 0 ? legacy : index == 2 ? big : little, sizeof(bytes));
+        if (index == 3)
+            bytes[0] = 0x34; // Unknown byte-order marker.
+        if (index == 4)
+        {
+            bytes[0] = 0; // Zero marker without the known Windows OS kind.
+            bytes[2] = bytes[3] = 2;
+        }
+        if (index == 5)
+        {
+            bytes[2] = bytes[3] = 0;
+            bytes[0] = 0;
+        }
+        ChunkNumber number;
+        Check(file->FAddPv(bytes, sizeof(bytes) - (index == 6 ? 1 : 0), kctgMtrl, &number));
+        PMaterial_MTRL material = (PMaterial_MTRL)resource->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl);
+        if (index < 3)
+        {
+            Check(material != pvNil);
+            PBMTL rendered = material->Pbmtl();
+            Check(rendered->index_base == 21 && rendered->index_range == 7 && rendered->power == BR_SCALAR(50));
+            Check(rendered->colour == (index == 0 ? 0 : 0x00112233));
+            Check(rendered->ka == (index == 0 ? 0 : (br_ufraction)0x2000));
+            Check(rendered->kd == (index == 0 ? (br_ufraction)0xffff : (br_ufraction)0xa000));
+            Check(rendered->ks == (index == 0 ? 0 : (br_ufraction)0x1000));
+            ChunkNumber written;
+            Check(material->FWrite(file, kctgMtrl, &written));
+            MaterialOnFile header;
+            DataBlock block;
+            Check(file->FFind(kctgMtrl, written, &block) && block.FReadRgb(&header, sizeof(header), 0));
+            Check(header.bo == kboCur); // Saving normalizes the legacy marker.
+        }
+        else
+            Check(material == pvNil);
+        ReleasePpo(&material);
+    }
+    ReleasePpo(&resource);
+    ReleasePpo(&file);
+}
+
 static void TestEngineServices()
 {
     // Clear caches without an Application or native window existing.
@@ -2417,6 +2516,21 @@ static void TestEngineServices()
     Check(root.FBuildFromPath(&path));
     PTagManager manager = TagManager::PtagmNew(&root, MissingSource, 0);
     Check(manager != pvNil);
+    String missingName;
+    missingName.SetSzs(PszLit("3dmm-test-missing-source-5316"));
+    Check(manager->FAddStnSource(&missingName, 42));
+    TAG missingTag = {};
+    missingTag.sid = 42;
+    missingTag.ctg = kctgTmpl;
+    missingTag.cno = 1;
+    missingSourcePrompts = 0;
+    // Portfolio/document probes can miss without asserting or requesting
+    // media. An explicitly permitted media lookup must honor cancellation.
+    Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl) == pvNil);
+    Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl) == pvNil);
+    Check(missingSourcePrompts == 0);
+    Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl, fTrue) == pvNil);
+    Check(missingSourcePrompts == 1);
     manager->ClearCache();
     ReleasePpo(&manager);
 
@@ -2434,6 +2548,7 @@ static void TestEngineServices()
     Check(Material_MTRL::FSetShadeTable(fixture, kctgTmap, shadeNumber));
     ReleasePpo(&shade);
     ReleasePpo(&fixture);
+    TestMaterialHeaders();
     RenderHost first = {BrActorAllocate(BR_ACTOR_NONE, 0), 0, 0};
     RenderHost second = {BrActorAllocate(BR_ACTOR_NONE, 0), 0, 0};
     Check(first.root != 0 && second.root != 0);
@@ -2507,6 +2622,7 @@ int main()
     TestPortableClockAndMemory();
     TestFailedResize();
     TestRichTextPersistence();
+    TestReadOnlyEmptyChunkSave();
     vpcex = CommandExecutionManager::PcexNew(20, 20);
     Check(vpcex != pvNil);
     TestCommandReplay();

@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_dialog.h"
 #include "sdl_modal_internal.h"
+#include "font_host.h"
 #include <SDL3/SDL.h>
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
@@ -8,10 +9,13 @@
 #include "imgui_stdlib.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
+#include "sdl_classic_dialog.h"
+#include "sdl_dialog_font.h"
 #include <algorithm>
 #include <deque>
 #include <list>
 #include <mutex>
+#include <cstring>
 
 namespace KauaiSDL
 {
@@ -31,6 +35,10 @@ struct Window
     bool cursorVisible = SDL_CursorVisible(), initialized = false, platform = false, drawing = false, modal = false;
     bool clipboardChanged = false, quitRequested = false;
     std::list<std::string> textEvents;
+    std::string fontFamily;
+    ImVec2 units = ImVec2(2, 2);
+    ImFont *captionFont = nullptr;
+    float scale = 1;
     ~Window()
     {
         // Pushed text events borrow our strings. Drain them before releasing storage.
@@ -110,6 +118,43 @@ struct Window
         SDL_PushEvent(&event);
     }
 };
+SDL_HitTestResult SDLCALL CaptionHit(SDL_Window *window, const SDL_Point *point, void *context)
+{
+    const float scale = static_cast<Window *>(context)->scale;
+    int width = 0;
+    SDL_GetWindowSize(window, &width, nullptr);
+    return point->y >= ClassicDialog::Border * scale &&
+                   point->y < (ClassicDialog::Border + ClassicDialog::CaptionHeight) * scale &&
+                   point->x >= ClassicDialog::Border * scale && point->x < width - 24 * scale
+               ? SDL_HITTEST_DRAGGABLE
+               : SDL_HITTEST_NORMAL;
+}
+void SelectDialogFont(Window &scope)
+{
+    for (const char *family :
+         {"MS Sans Serif", "Microsoft Sans Serif", "Tahoma", "Arial", "Liberation Sans", "DejaVu Sans", "Helvetica"})
+    {
+        KauaiFonts::Text name{family, std::strlen(family)};
+        auto face = KauaiFonts::CreateStudioFace(name, DialogFont::Pixels, false, false, false);
+        KauaiFonts::Metrics metrics;
+        const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        if (!face || !face->Measure({alphabet, sizeof(alphabet) - 1}, metrics))
+            continue;
+        scope.fontFamily = family;
+        // Windows dialog base units: rounded average alphabet width / 4,
+        // and the font's cell height / 8. Keep the original resource layout.
+        scope.units.x = std::max(1.f, float((metrics.advance / 26 + 1) / 2) / 4);
+        scope.units.y = std::max(1.f, float(metrics.cellHeight) / 8);
+        return;
+    }
+}
+void DialogFonts(Window &scope)
+{
+    if (scope.fontFamily.empty())
+        return;
+    ImGui::GetIO().FontDefault = DialogFont::Add(scope.fontFamily.c_str());
+    scope.captionFont = DialogFont::Add(scope.fontFamily.c_str(), true);
+}
 struct Publication
 {
     DialogState previous;
@@ -148,7 +193,8 @@ DialogControl Describe(const KauaiDialogs::Control &control, const KauaiDialogs:
     }
     return result;
 }
-DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t window, std::uint64_t generation)
+DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t window, std::uint64_t generation,
+                 bool active, ImFont *captionFont, ImVec2 units)
 {
     using namespace KauaiDialogs;
     DialogState state;
@@ -162,9 +208,40 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
     ImGui::SetNextWindowSize(viewport->Size);
     ImGui::Begin("##original-dialog", nullptr,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
-                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_HorizontalScrollbar);
-    const auto windowPosition = ImGui::GetWindowPos();
-    const ImVec2 origin(windowPosition.x - ImGui::GetScrollX(), windowPosition.y - ImGui::GetScrollY());
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar);
+    const auto windowPosition = viewport->Pos;
+    auto frame = ImGui::GetWindowDrawList();
+    const ImVec2 outer(viewport->Pos.x + viewport->Size.x, viewport->Pos.y + viewport->Size.y);
+    ClassicDialog::Bevel(frame, viewport->Pos, outer, false, scale);
+    const ImVec2 titleLow(viewport->Pos.x + ClassicDialog::Border * scale,
+                          viewport->Pos.y + ClassicDialog::Border * scale);
+    const ImVec2 titleHigh(outer.x - ClassicDialog::Border * scale, titleLow.y + ClassicDialog::CaptionHeight * scale);
+    frame->AddRectFilled(titleLow, titleHigh, active ? ClassicDialog::Navy : ClassicDialog::Shadow);
+    ImGui::PushFont(captionFont);
+    frame->PushClipRect(titleLow, ImVec2(titleHigh.x - 20 * scale, titleHigh.y), true);
+    frame->AddText(ImVec2(titleLow.x + 3 * scale, titleLow.y + 2 * scale), ClassicDialog::White, state.title.c_str());
+    frame->PopClipRect();
+    ImGui::PopFont();
+    const ImVec2 closeLow(titleHigh.x - 16 * scale, titleLow.y + 2 * scale);
+    const ImVec2 closeHigh(closeLow.x + 14 * scale, closeLow.y + 14 * scale);
+    ImGui::SetCursorScreenPos(closeLow);
+    ImGui::BeginDisabled(!session.cancelControl);
+    if (ImGui::InvisibleButton("##caption-close", ImVec2(14 * scale, 14 * scale)))
+        session.Cancel();
+    ClassicDialog::Button(frame, closeLow, closeHigh, ImGui::IsItemActive(), false, false, scale);
+    frame->AddLine(ImVec2(closeLow.x + 4 * scale, closeLow.y + 4 * scale),
+                   ImVec2(closeHigh.x - 4 * scale, closeHigh.y - 4 * scale), ClassicDialog::Black, 1.5f * scale);
+    frame->AddLine(ImVec2(closeHigh.x - 4 * scale, closeLow.y + 4 * scale),
+                   ImVec2(closeLow.x + 4 * scale, closeHigh.y - 4 * scale), ClassicDialog::Black, 1.5f * scale);
+    ImGui::EndDisabled();
+    ImGui::SetCursorScreenPos(ImVec2(titleLow.x, viewport->Pos.y + ClassicDialog::ContentTop * scale));
+    ImGui::BeginChild(
+        "##dialog-content",
+        ImVec2(std::max(1.f, viewport->Size.x - 2 * ClassicDialog::Border * scale),
+               std::max(1.f, viewport->Size.y - (ClassicDialog::ContentTop + ClassicDialog::Border) * scale)),
+        0, ImGuiWindowFlags_HorizontalScrollbar);
+    const auto contentPosition = ImGui::GetWindowPos();
+    const ImVec2 origin(contentPosition.x - ImGui::GetScrollX(), contentPosition.y - ImGui::GetScrollY());
     const auto savedFocus = session.focus;
     std::int32_t defaultButton = -1;
     bool multilineActive = false;
@@ -176,8 +253,9 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
         const auto descriptor = Describe(control, session);
         auto geometry = descriptor;
         const auto &bounds = control.bounds;
-        const ImVec2 position(origin.x + bounds.x * 2 * scale, origin.y + bounds.y * 2 * scale);
-        const ImVec2 dimensions(std::max(1.f, bounds.width * 2 * scale), std::max(1.f, bounds.height * 2 * scale));
+        const ImVec2 position(origin.x + bounds.x * units.x * scale, origin.y + bounds.y * units.y * scale);
+        const ImVec2 dimensions(std::max(1.f, bounds.width * units.x * scale),
+                                std::max(1.f, bounds.height * units.y * scale));
         ImGui::SetCursorScreenPos(position);
         ImGui::PushID(static_cast<int>(index));
         ImGui::BeginDisabled(!descriptor.enabled);
@@ -188,9 +266,12 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
         {
             auto draw = ImGui::GetWindowDrawList();
             const float textHeight = ImGui::GetFontSize();
-            draw->AddRect(ImVec2(position.x, position.y + textHeight / 2),
-                          ImVec2(position.x + dimensions.x, position.y + dimensions.y),
-                          ImGui::GetColorU32(ImGuiCol_Border));
+            ClassicDialog::Edge(draw, ImVec2(position.x + scale, position.y + textHeight / 2 + scale),
+                                ImVec2(position.x + dimensions.x + scale, position.y + dimensions.y + scale),
+                                ClassicDialog::White, ClassicDialog::White, scale);
+            ClassicDialog::Edge(draw, ImVec2(position.x, position.y + textHeight / 2),
+                                ImVec2(position.x + dimensions.x, position.y + dimensions.y), ClassicDialog::Shadow,
+                                ClassicDialog::Shadow, scale);
             const auto size = ImGui::CalcTextSize(descriptor.label.c_str());
             draw->AddRectFilled(ImVec2(position.x + 5 * scale, position.y),
                                 ImVec2(position.x + 12 * scale + size.x, position.y + size.y),
@@ -208,7 +289,7 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
             if (alignment == 2)
                 offset = std::max(0.f, dimensions.x - textWidth);
             ImGui::SetCursorScreenPos(ImVec2(position.x + offset, position.y));
-            ImGui::PushTextWrapPos((bounds.x + bounds.width) * 2 * scale);
+            ImGui::PushTextWrapPos((bounds.x + bounds.width) * units.x * scale);
             ImGui::TextUnformatted(descriptor.label.c_str());
             ImGui::PopTextWrapPos();
         }
@@ -216,6 +297,19 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
         {
             auto &value = session.values[item];
             const auto kind = session.bindings[item].kind;
+            auto draw = ImGui::GetWindowDrawList();
+            const bool decorated =
+                kind == ItemKind::button || kind == ItemKind::checkBox || kind == ItemKind::radioGroup;
+            if (!descriptor.enabled)
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            if (decorated)
+            {
+                draw->ChannelsSplit(2);
+                draw->ChannelsSetCurrent(1);
+                for (auto color : {ImGuiCol_Button, ImGuiCol_ButtonHovered, ImGuiCol_ButtonActive, ImGuiCol_FrameBg,
+                                   ImGuiCol_FrameBgHovered, ImGuiCol_FrameBgActive, ImGuiCol_CheckMark})
+                    ImGui::PushStyleColor(color, ImVec4(0, 0, 0, 0));
+            }
             if (savedFocus == item)
                 ImGui::SetKeyboardFocusHere();
             if (kind == ItemKind::button)
@@ -240,6 +334,9 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
             }
             else if (kind == ItemKind::editText)
             {
+                ImGui::PushStyleColor(
+                    ImGuiCol_FrameBg,
+                    ImGui::ColorConvertU32ToFloat4(descriptor.readOnly ? ClassicDialog::Face : ClassicDialog::White));
                 ImGuiInputTextFlags flags =
                     descriptor.readOnly ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
                 if (control.style & 0x20)
@@ -256,6 +353,7 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
                 }
                 else
                     changed = ImGui::InputText("##value", &value.text, flags);
+                ImGui::PopStyleColor();
             }
             else if (kind == ItemKind::combo)
             {
@@ -279,6 +377,30 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
             }
             interactive = true;
             const auto low = ImGui::GetItemRectMin(), high = ImGui::GetItemRectMax();
+            if (decorated)
+            {
+                draw->ChannelsSetCurrent(0);
+                if (kind == ItemKind::button)
+                    ClassicDialog::Button(draw, low, high, ImGui::IsItemActive(), ImGui::IsItemFocused(),
+                                          buttonStyle == 1, scale);
+                else
+                {
+                    const bool radio = kind == ItemKind::radioGroup;
+                    const bool checked =
+                        radio ? value.number == static_cast<std::int32_t>(control.id - session.bindings[item].first)
+                              : value.number != 0;
+                    ClassicDialog::Check(draw, low, checked, descriptor.enabled, radio, scale);
+                    if (ImGui::IsItemFocused())
+                        ClassicDialog::Focus(draw, ImVec2(low.x + ImGui::GetFrameHeight() + 2 * scale, low.y), high,
+                                             scale);
+                }
+                draw->ChannelsMerge();
+                ImGui::PopStyleColor(7);
+            }
+            else if (kind == ItemKind::editText && (control.style & 0x00800000 || control.extendedStyle & 0x200))
+                ClassicDialog::Bevel(draw, low, high, true, scale);
+            if (!descriptor.enabled)
+                ImGui::PopStyleColor();
             geometry.x = low.x - windowPosition.x;
             geometry.y = low.y - windowPosition.y;
             geometry.width = high.x - low.x;
@@ -307,7 +429,8 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
     // Keep the complete resource canvas scrollable, including draw-list-only
     // group boxes and empty trailing space. Scrolling never rescales controls.
     ImGui::SetCursorScreenPos(origin);
-    ImGui::Dummy(ImVec2(session.resource.bounds.width * 2 * scale, session.resource.bounds.height * 2 * scale));
+    ImGui::Dummy(
+        ImVec2(session.resource.bounds.width * units.x * scale, session.resource.bounds.height * units.y * scale));
     if (session.focus == savedFocus)
         session.focus = -1;
     if (!ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId))
@@ -317,6 +440,7 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
         if (!multilineActive && defaultButton >= 0 && ImGui::IsKeyPressed(ImGuiKey_Enter, false))
             session.Notify(defaultButton);
     }
+    ImGui::EndChild();
     ImGui::End();
     return state;
 }
@@ -377,12 +501,23 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
         const float scale =
             std::max(1.f, SDL_GetDisplayContentScale(scope.parent ? SDL_GetDisplayForWindow(scope.parent)
                                                                   : SDL_GetPrimaryDisplay()));
+        scope.scale = scale;
+        SelectDialogFont(scope);
+        if (view)
+            scope.units = ImVec2(2, 2); // Portfolio artwork retains its 640x480 canvas.
         const auto title = KauaiDialogs::Caption(session.resource.title);
-        scope.window = SDL_CreateWindow(title.c_str(), static_cast<int>(session.resource.bounds.width * 2 * scale),
-                                        static_cast<int>(session.resource.bounds.height * 2 * scale),
-                                        SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN);
+        scope.window = SDL_CreateWindow(
+            view && scope.parent ? SDL_GetWindowTitle(scope.parent) : title.c_str(),
+            static_cast<int>((session.resource.bounds.width * scope.units.x + (view ? 0 : 2 * ClassicDialog::Border)) *
+                             scale),
+            static_cast<int>((session.resource.bounds.height * scope.units.y +
+                              (view ? 0 : ClassicDialog::ContentTop + ClassicDialog::Border)) *
+                             scale),
+            SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | (view ? 0 : SDL_WINDOW_BORDERLESS));
         if (!scope.window)
             return false;
+        if (!view)
+            SDL_SetWindowHitTest(scope.window, CaptionHit, &scope);
         if (scope.parent)
         {
             // The dummy driver has no window manager. Run the same modal
@@ -421,14 +556,10 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
         auto &io = ImGui::GetIO();
         io.IniFilename = nullptr;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-        ImGui::StyleColorsDark();
-        auto &style = ImGui::GetStyle();
-        style.WindowPadding = ImVec2(0, 0);
-        style.FramePadding = ImVec2(3, 1);
-        style.WindowRounding = 0;
-        style.FrameRounding = 0;
-        style.ScaleAllSizes(scale);
-        style.FontScaleDpi = scale;
+        ClassicDialog::Style(scale);
+        DialogFonts(scope);
+        if (view && view->initialize)
+            view->initialize(view->context);
         scope.platform = ImGui_ImplSDL3_InitForSDLRenderer(scope.window, scope.renderer);
         if (!scope.platform)
             return false;
@@ -484,7 +615,9 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
                 view->draw(view->context, session, scale, snapshot, scope.renderer);
             }
             else
-                snapshot = Draw(session, scale, id, publication.generation);
+                snapshot = Draw(session, scale, id, publication.generation,
+                                (SDL_GetWindowFlags(scope.window) & SDL_WINDOW_INPUT_FOCUS) != 0, scope.captionFont,
+                                scope.units);
             // ImGui applies requested keyboard focus across frames. Publish a
             // ready layout after it settles so queued clicks cannot race a
             // callback's SelectDit request and lose their active widget.
