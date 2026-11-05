@@ -41,9 +41,9 @@ bool FAssertProc(schar *f, LegacyLong l, schar *m, void *, LegacyLong)
 
 int __cdecl main(int argc, char **argv)
 {
-    if (argc != 5)
+    if (argc != 5 && argc != 6)
     {
-        fprintf(stderr, "usage: actor-render-test <main-chk-with-shade-table> <chk-file> <tmpl-cno> <out.pgm>\n");
+        fprintf(stderr, "usage: actor-render-test <main-chk-with-shade-table> <chk-file> <tmpl-cno> <out.pgm> [spare-material-cmid]\n");
         fprintf(stderr, "  e.g. actor-render-test 'dist/Microsoft Kids/3D Movie Maker/3dmovie.chk' content-files/tmpls.3cn 0x2010 out.pgm\n");
         return 2;
     }
@@ -153,6 +153,42 @@ int __cdecl main(int argc, char **argv)
         goto LDone;
     }
     fprintf(stderr, "Rest pose set.\n");
+
+    if (argc == 6)
+    {
+        // Real shipped prop fixture: one part, with two entries in its
+        // alternate costume. Exercise application, ownership and restore.
+        PCustomMaterial_CMTL costume = ptmpl->PcmtlFetch((LegacyLong)strtol(argv[5], NULL, 0));
+        if (costume == pvNil)
+            goto LDone;
+        const bool spare = pbody->Cbact() == 3 && costume->Ibset() == 0 && costume->Cbprt() == 2;
+        if (spare)
+        {
+            BodyCostume previous;
+            if (!previous.FGet(pbody))
+            {
+                ReleasePpo(&costume);
+                goto LDone;
+            }
+            pbody->SetPartSetCmtl(costume);
+            PBody duplicate = pbody->PbodyDup();
+            const bool matched = duplicate != pvNil && pbody->PbactPart(0)->material == costume->Pbmtl(0) &&
+                                 duplicate->PbactPart(0)->material == costume->Pbmtl(0);
+            ReleasePpo(&duplicate);
+            previous.Set(pbody);
+            if (matched)
+                pbody->SetPartSetCmtl(costume);
+            ReleasePpo(&costume);
+            if (!matched)
+                goto LDone;
+        }
+        else
+        {
+            fprintf(stderr, "Expected a one-part prop with a two-entry costume\n");
+            ReleasePpo(&costume);
+            goto LDone;
+        }
+    }
 
     /* Render the loaded body via BrZbScene. The body's BACT tree is
      * already populated with proper transforms, models, and materials

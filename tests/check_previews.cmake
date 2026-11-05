@@ -9,7 +9,7 @@ execute_process(COMMAND "${API_EXE}" "${MAIN_CHK}" "${CONTENT_DIR}/tmpls.3cn" "$
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Actor/prop previews failed: ${result}")
 endif()
-execute_process(COMMAND "${FIXTURE_EXE}" "${TEST_DIR}/scene.3mm" "${CONTENT_DIR}/bkgds.3cn" RESULT_VARIABLE result TIMEOUT 30)
+execute_process(COMMAND "${FIXTURE_EXE}" "${TEST_DIR}/scene.3mm" "${CONTENT_DIR}/bkgds.3cn" "${MAIN_CHK}" RESULT_VARIABLE result TIMEOUT 30)
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Cannot create scene fixture: ${result}")
 endif()

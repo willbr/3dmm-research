@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_file_dialog.h"
+#include "portfolio_icon.h"
 #include "sdl_dialog.h"
 #include "sdl_host.h"
 #include "pixel_canvas.h"
@@ -153,6 +154,10 @@ bool Choose(Filename *selection, const Request &request)
         preview.Asset(kcnoMbmpPortBtnOk, dialog.acceptButton);
         preview.Asset(kcnoMbmpPortBtnCancel, dialog.cancelButton);
         preview.Asset(kcnoMbmpPortBtnHome, dialog.homeButton);
+        preview.Asset(kcnoMbmpPortBtnOkSel, dialog.acceptPressed);
+        preview.Asset(kcnoMbmpPortBtnCancelSel, dialog.cancelPressed);
+        preview.Asset(kcnoMbmpPortBtnHomeSel, dialog.homePressed);
+        DocumentIcon(dialog.documentIcon);
         dialog.preview = Preview::Load;
         dialog.context = &preview;
         do

@@ -2218,7 +2218,9 @@ bool ChunkyFile::_FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtr
     }
     else
     {
-        Assert(!_fFreeMapNotRead, "free map not read yet");
+        // Empty chunks reserve no storage, including on read-only files whose
+        // free-space map is loaded only when primary storage becomes writable.
+        Assert(cb == 0 || !_fFreeMapNotRead, "free map not read yet");
         pcsto = &_csto;
     }
 

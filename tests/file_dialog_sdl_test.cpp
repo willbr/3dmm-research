@@ -65,22 +65,46 @@ struct Test
         case 2:
             if (browser.directory.find("sub") == std::string::npos)
                 break;
-            test.failed |= !test.Send(DialogActionKind::click, 4);
+            test.failed |= !browser.error.empty(); // Enter navigates without trying to accept an empty filename.
+            test.failed |= !test.Send(DialogActionKind::click, 13);
             ++test.stage;
             break;
         case 3:
+            // Choose the real current-folder ancestor from the navigation
+            // tree, rather than its duplicate in the common places section.
+            for (const auto &place : state.controls)
+                if (place.id >= 0x100000 && place.text == browser.home && place.label != "My movies")
+                {
+                    test.failed |= !test.Send(DialogActionKind::click, place.id);
+                    ++test.stage;
+                    break;
+                }
+            break;
+        case 4:
+            if (browser.entries.size() != 2)
+                break;
+            test.failed |= !test.Send(DialogActionKind::click, 5); // Back to sub.
+            ++test.stage;
+            break;
+        case 5:
+            if (browser.directory.find("sub") == std::string::npos)
+                break;
+            test.failed |= !test.Send(DialogActionKind::click, 4); // Up to fixture.
+            ++test.stage;
+            break;
+        case 6:
             if (browser.entries.size() != 2)
                 break;
             test.failed |= !test.Send(DialogActionKind::click, 1001);
             ++test.stage;
             break;
-        case 4:
+        case 7:
             if (control(21).number != 1)
                 break;
             test.failed |= !test.Send(DialogActionKind::screenshot, 0, test.screenshot);
             ++test.stage;
             break;
-        case 5:
+        case 8:
             test.failed |= !test.Send(DialogActionKind::click, 1);
             ++test.stage;
             break;
@@ -121,7 +145,7 @@ int main(int argc, char **argv)
     Check(SDL_InitSubSystem(SDL_INIT_VIDEO));
     auto parent = SDL_CreateWindow("Portfolio parent", 640, 480, SDL_WINDOW_HIDDEN);
     Check(parent);
-    Check(RunFileDialog(dialog, SDL_GetWindowID(parent), Test::Idle, &test) && dialog.accepted && test.stage == 6 &&
+    Check(RunFileDialog(dialog, SDL_GetWindowID(parent), Test::Idle, &test) && dialog.accepted && test.stage == 9 &&
           !test.failed && dialog.browser.selection.find("fixture.3mm") != std::string::npos && !CurrentDialog().active);
     SDL_DestroyWindow(parent);
     auto image = SDL_LoadBMP(argv[2]);

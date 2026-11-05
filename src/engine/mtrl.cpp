@@ -150,7 +150,16 @@ bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
         return fFalse;
     if (kboOther == mtrlf.bo)
         SwapBytesBom(&mtrlf, kbomMtrlf);
-    Assert(kboCur == mtrlf.bo, "bad MaterialOnFile");
+    // MTRLPACK1-2 materials use a zero marker with an otherwise normal
+    // little-endian Windows header. Keep this compatibility case narrow;
+    // an unknown byte order in other files is a load failure.
+    if (mtrlf.bo == 0 && mtrlf.osk == koskSbWin)
+        mtrlf.bo = kboCur;
+    if (kboCur != mtrlf.bo)
+    {
+        PushErc(ercSocBadFile);
+        return fFalse;
+    }
 
     // An arbitrary placeholder string is passed to BrMaterialAllocate (to be
     // stored in a string pointed to by _pbmtl->identifier). The contents of
@@ -410,8 +419,11 @@ Material_MTRL::~Material_MTRL(void)
         ReleasePpo(&ptmap);
         _pbmtl->colour_map = pvNil;
     }
-    BrMaterialRemove(_pbmtl);
-    BrMaterialFree(_pbmtl);
+    if (_pbmtl != pvNil)
+    {
+        BrMaterialRemove(_pbmtl);
+        BrMaterialFree(_pbmtl);
+    }
 }
 
 #ifdef DEBUG

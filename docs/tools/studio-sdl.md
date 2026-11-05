@@ -2660,6 +2660,35 @@ without changing its bytes. The copied fixture lets Studio perform a fresh open
 instead of activating an already-open document. Screenshots include
 `portfolio-open.bmp`, `portfolio-save.bmp` and `portfolio-preview.bmp`.
 
+Portable dialogs use the classic gray controls, beveled borders, dotted focus
+rectangles and compact dialog-unit layout. Text uses Studio's font service,
+including the original MS Sans Serif bitmap face when available, with a
+monochrome outline fallback on other hosts. The portfolio retains its original
+artwork, pressed buttons and document icon. Its location dropdown lists the
+host's common user folders, drive roots and the current folder's ancestors;
+Back, Up, sortable dates and file-type filtering support ordinary navigation.
+
+The separate `studio-movie-workflow` CTest exercises a generated two-scene movie
+in the actual portable Studio. It requires the original content fixtures and
+runtime archives, and runs with SDL's dummy video/audio drivers. Build
+`library-checks`, then run:
+
+```sh
+ctest --test-dir build/studio-portable-x64 -R '^studio-movie-workflow$' --output-on-failure
+```
+
+The fixture includes camera cuts, skeletal animation and movement, two props,
+3D text, costume changes and two embedded checkerboard textures. The test checks
+live actor transforms and material pixels, rendered workspace images, backward
+and repeated seeking, and natural playback through both scenes. It saves through
+the portfolio, reopens in a fresh process, and compares both scenes' state and
+images while requiring the source fixture to remain unchanged. Artifacts under
+`movie-workflow/` include screenshots, runtime logs, saved movies and a JSON
+coverage report. This verifies loading, rendering, playback and persistence of
+an authored movie; the editing smoke test above covers separate UI authoring
+workflows. Neither check establishes compatibility with every community movie
+or expansion pack, or substitutes for running Studio on macOS/Linux.
+
 1. Remove remaining native window/control helpers from the Kauai runtime while
    retaining the SDL-owned main window lifecycle and existing Studio commands.
 2. Extend portable drawing beneath `GraphicsPort` to

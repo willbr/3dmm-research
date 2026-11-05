@@ -591,7 +591,10 @@ LSetupSfs:
     {
         if (fDontHitCD)
         {
-            Bug("should have valid pcrmSource!");
+            // A document or portfolio preview may refer to an expansion
+            // that is not installed. A local-only lookup is allowed to
+            // miss, even when no source manager has been opened yet.
+            return pvNil;
         }
         else
         {
@@ -891,8 +894,7 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseC
         return ptag->pcrf->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
     }
 
-    // fTrue parameter ensures that _PcrmSourceGet won't hit the CD
-    pcrmSource = _PcrmSourceGet(ptag->sid, fTrue);
+    pcrmSource = _PcrmSourceGet(ptag->sid, !fUseCD);
     if (pvNil == pcrmSource)
         return pvNil;
 
