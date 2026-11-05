@@ -138,6 +138,9 @@ class TagManager : public TagManager_PAR
     PDynamicArray _pglsfs;        // DynamicArray of source file structs
     PStringTable_GST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    void (*_missingTagTest)(PTAG) = nullptr;
+#endif
 
   protected:
     TagManager(void)
@@ -176,6 +179,9 @@ class TagManager : public TagManager_PAR
     bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
     PBaseCacheableObject PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    void SetMissingTagTestCallback(void (*callback)(PTAG)) { _missingTagTest = callback; }
+#endif
     void ClearCache(LegacyLong sid = sidNil,
                     LegacyUlong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 

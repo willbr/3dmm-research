@@ -18,11 +18,16 @@
 ***************************************************************************/
 #include "studio_startup.h"
 #include "studio_content.h"
+#ifdef KAUAI_SDL3
+#include "studio_iso.h"
+#endif
 #include "launch_context.h"
 #include "studio_product_names.h"
 #include "platform_files.h"
 #include "platform_users.h"
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include "settings_store.h"
 #ifdef _WIN32
 #include "settings_store_win.h"
@@ -45,6 +50,31 @@
 #define STUDIO_NAME_LITERAL(value) PszLit(value)
 
 ASSERTNAME
+
+static bool BatchPlaybackTest()
+{
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    const auto value = std::getenv("THREEDMM_BATCH_TEST");
+    return value && std::strcmp(value, "1") == 0;
+#else
+    return false;
+#endif
+}
+static void BatchPlaybackExit(int code)
+{
+    std::fflush(stderr);
+    // The isolated batch process has a live MCP reader. std::exit would
+    // destroy its joinable static thread and replace this error with an abort.
+    std::_Exit(code);
+}
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+static void BatchMissingTag(PTAG tag)
+{
+    std::fprintf(stderr, "BATCH_MISSING_ASSET sid=%ld ctg=%08lx cno=%08lx\n", static_cast<long>(tag->sid),
+                 static_cast<unsigned long>(tag->ctg), static_cast<unsigned long>(tag->cno));
+    BatchPlaybackExit(4);
+}
+#endif
 
 // If the following value is defined, 3DMM displays the dlidDesktopResizing
 // and dlidDesktopResized dialogs before and immediately after res-switching.
@@ -600,9 +630,9 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 
     EnsureInteractive();
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     // Bring up the embedded MCP server if `--mcp-server` was passed. No-op
-    // otherwise, so this is safe to call unconditionally in DEBUG builds.
+    // otherwise, so this is safe to call in builds with test tools enabled.
     mcp::FInit();
 #endif
 
@@ -1345,6 +1375,13 @@ bool Application::_FCantFindFileDialog(PString pstnFile)
 {
     AssertBaseThis(0);
     AssertPo(pstnFile, 0);
+    if (BatchPlaybackTest())
+    {
+        char path[kcchMaxStz];
+        pstnFile->GetSzs(path);
+        std::fprintf(stderr, "BATCH_MISSING_FILE %s\n", path);
+        BatchPlaybackExit(4);
+    }
 
     PDialog pdlg;
 
@@ -1394,6 +1431,13 @@ bool Application::_FGenericError(PSTZ message)
 bool Application::_FGenericError(PString message)
 {
     AssertBaseThis(0);
+    if (BatchPlaybackTest())
+    {
+        char detail[kcchMaxStz];
+        message->GetSzs(detail);
+        std::fprintf(stderr, "BATCH_ERROR %s\n", detail);
+        BatchPlaybackExit(3);
+    }
 
     PDialog pdlg;
 
@@ -1781,6 +1825,10 @@ bool Application::_FInitProductNames(void)
         return fFalse;
     }
 
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    if (BatchPlaybackTest())
+        vptagm->SetMissingTagTestCallback(BatchMissingTag);
+#endif
     if (!_FReadProductTitles(&pgst))
     {
         _FGenericError(PszLit("_FInitProductNames: _FReadProductTitles"));
@@ -2398,6 +2446,9 @@ void Application::_ParseCommandLine(void)
                                  static_cast<long>(options.shortName.length()));
     if (options.unknownSwitches)
         Warn("Bad command-line switch");
+#ifdef KAUAI_SDL3
+    StudioContent::SetISORequest(StudioContent::Text(options.isoPath.begin(), options.isoPath.end()));
+#endif
     if (options.document)
     {
         if (options.documentIsLiteral)
@@ -2495,6 +2546,17 @@ bool Application::_FFindMsKidsDir(void)
     String stn;
 
 #ifdef KAUAI_SDL3
+    if (StudioContent::HasISORequest())
+    {
+        const auto iso = StudioContent::PrepareISO(false);
+        if (iso.status != StudioContent::Status::Ready || iso.path.empty())
+        {
+            _FGenericError(PszLit("Cannot prepare ISO content; see the startup log for details"));
+            return fFalse;
+        }
+        stn.SetSz(const_cast<achar *>(iso.path.c_str()));
+        return _fniMsKidsDir.FBuildFromPath(&stn, kftgDir);
+    }
     const auto configured = StudioContent::ConfiguredRoot();
     if (configured.status != StudioContent::Status::Ready)
     {
@@ -2540,6 +2602,17 @@ bool Application::_FFindMsKidsDir(void)
             if (!candidate.FUpDir(pvNil, ffniMoveToDir))
                 break;
         }
+    }
+    const auto iso = StudioContent::PrepareISO(true);
+    if (iso.status != StudioContent::Status::Ready)
+    {
+        _FGenericError(PszLit("Cannot prepare ISO content; see the startup log for details"));
+        return fFalse;
+    }
+    if (!iso.path.empty())
+    {
+        stn.SetSz(const_cast<achar *>(iso.path.c_str()));
+        return _fniMsKidsDir.FBuildFromPath(&stn, kftgDir);
     }
 #endif
 
@@ -3929,7 +4002,7 @@ LFail:
 /***************************************************************************
     Clean up routine - app is shutting down
 ***************************************************************************/
-#ifdef DEBUG
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
 /***************************************************************************
     Override of ApplicationBase::TopOfLoop so the embedded MCP server can
     drain its inbound JSON-RPC queue once per kauai event-loop tick. Tools
@@ -3948,7 +4021,7 @@ void Application::TopOfLoop(void)
 ***************************************************************************/
 void Application::_CleanUp(void)
 {
-#ifdef DEBUG
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     mcp::Shutdown();
 #endif
     _FWriteUserData();
@@ -4054,6 +4127,13 @@ tribool Application::TModal(PResourceCache prca, long tpc, PString pstnBackup, l
 bool Application::FInsertCD(PString pstnTitle)
 {
     AssertPo(pstnTitle, 0);
+    if (BatchPlaybackTest())
+    {
+        char title[kcchMaxStz];
+        pstnTitle->GetSzs(title);
+        std::fprintf(stderr, "BATCH_MISSING_SOURCE %s\n", title);
+        BatchPlaybackExit(4);
+    }
 
     String stnBackup;
     bool tRet;
@@ -4077,6 +4157,12 @@ bool Application::FInsertCD(PString pstnTitle)
 void Application::DisplayErrors(void)
 {
     AssertThis(0);
+    if (BatchPlaybackTest() && vpers && vpers->Cerc())
+    {
+        for (LegacyLong index = 0; index < vpers->Cerc(); ++index)
+            std::fprintf(stderr, "BATCH_ERROR_CODE %ld\n", static_cast<long>(vpers->ErcGet(index)));
+        BatchPlaybackExit(3);
+    }
 
     LegacyLong erc;
     String stnMessage;

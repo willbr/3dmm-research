@@ -50,6 +50,20 @@ MoviePlaybackCommand MoviePlaybackEvaluator::Next()
                 _phase = _state.wait == witUntilSnd ? Phase::CheckPause : Phase::ClickOff;
             break;
         case Phase::CheckPause:
+            if (_state.unpaced)
+            {
+                switch (_state.wait)
+                {
+                case witUntilClick: ++_state.skippedClickPauses; break;
+                case witForTime: ++_state.skippedTimedPauses; break;
+                case witUntilSnd: ++_state.skippedSoundPauses; break;
+                default: break;
+                }
+                _state.wait = witNil;
+                _state.pausing = false;
+                _phase = Phase::ReadTime;
+                break;
+            }
             switch (_state.wait)
             {
             case witUntilClick:
@@ -191,7 +205,7 @@ void MoviePlaybackEvaluator::Complete(const MoviePlaybackReply &reply)
         _phase = Phase::ReadTime;
         break;
     case Phase::ReadTime:
-        _delay = FrameDelay(_frameStart, reply.timestamp);
+        _delay = _state.unpaced ? 0 : FrameDelay(_frameStart, reply.timestamp);
         _phase = Phase::FrameAlarm;
         break;
     case Phase::FrameAlarm:

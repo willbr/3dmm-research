@@ -5,7 +5,7 @@
     mcpserv.h: embedded MCP (Model Context Protocol) server for driving
     3dmovie.exe headlessly from Claude Code or any other MCP host.
 
-    Active only in DEBUG builds and only when the `--mcp-server` command-line
+    Active in DEBUG or opt-in STUDIO_TEST_TOOLS builds when the `--mcp-server` command-line
     switch is passed. The server runs JSON-RPC 2.0 over stdin/stdout. A worker
     thread reads requests off stdin and queues them; the main GUI thread drains
     the queue from `TopOfLoop` so all Kauai/SDL calls happen on the right
@@ -13,7 +13,7 @@
 ***************************************************************************/
 #pragma once
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
 
 namespace mcp
 {
@@ -38,4 +38,4 @@ void Shutdown(void);
 bool FActive(void);
 } // namespace mcp
 
-#endif // DEBUG
+#endif // DEBUG || STUDIO_TEST_TOOLS

@@ -8,6 +8,29 @@
 #endif
 static bool ArgumentCases()
 {
+    {
+        StudioStartup::Options<char> iso;
+        const char *args[] = {"app", "--iso", "a disc image.iso", "movie.3mm"};
+        const char *equals[] = {"app", "--iso=/disc/image.iso"};
+        const char *missing[] = {"app", "--iso"};
+        const char *empty[] = {"app", "--iso="};
+        const char *repeated[] = {"app", "--iso=one.iso", "--iso=two.iso"};
+        if (!StudioStartup::ParseArguments(4, args, iso) || iso.isoPath != args[2] ||
+            !iso.document || std::strcmp(iso.document, "movie.3mm") ||
+            !StudioStartup::ParseArguments(2, equals, iso) || iso.isoPath != "/disc/image.iso" ||
+            StudioStartup::ParseArguments(2, missing, iso) || StudioStartup::ParseArguments(2, empty, iso) ||
+            StudioStartup::ParseArguments(3, repeated, iso))
+            return false;
+        if (!StudioStartup::Parse("app --iso \"a disc image.iso\" movie.3mm", iso) ||
+            iso.isoPath != "a disc image.iso" || !iso.document || std::strcmp(iso.document, "movie.3mm") ||
+            !StudioStartup::Parse("app --iso=\"another image.iso\"", iso) || iso.isoPath != "another image.iso" ||
+            StudioStartup::Parse("app --iso", iso) || StudioStartup::Parse("app --iso=\"\"", iso))
+            return false;
+        const char16_t *wideArgs[] = {u"app", u"--iso", u"/images/\u6620\u753b.iso"};
+        StudioStartup::Options<char16_t> wideISO;
+        if (!StudioStartup::ParseArguments(3, wideArgs, wideISO) || wideISO.isoPath != wideArgs[2])
+            return false;
+    }
     StudioStartup::Options<char> options;
     const char *args[] = {"app", "-m", "-S", "-f", "-pMovie \"Maker\"", "-t3D", "/tmp/My \"movie\".3mm"};
     if (!StudioStartup::ParseArguments(7, args, options) || !options.dontMinimize || !options.hasSpeed ||

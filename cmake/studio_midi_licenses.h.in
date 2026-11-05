@@ -1,0 +1,4 @@
+/* Generated from the distributed software MIDI licenses. */
+static const char StudioMIDIBankLicense[] = R"3dmmlicense(@bank_license@)3dmmlicense";
+static const char StudioMIDICodeLicense[] = R"3dmmlicense(@code_license@)3dmmlicense";
+static const char StudioMIDIPatches[] = R"3dmmlicense(@patches@)3dmmlicense";

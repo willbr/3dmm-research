@@ -202,7 +202,7 @@ class Application : public Application_PAR
     // ApplicationBase methods that we override
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
     virtual bool _FInitOS(void);
-#ifdef DEBUG
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     virtual void TopOfLoop(void);
 #endif
     virtual bool _FInitMenu(void)

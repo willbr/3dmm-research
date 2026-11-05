@@ -31,10 +31,20 @@ class Studio:
     def __init__(self, args, movie, label):
         self.args = args
         self.log = (args.artifacts / (label + '.log')).open('w', encoding='utf-8')
-        self.process = subprocess.Popen([str(args.exe.resolve()), '--mcp-server', str(movie.resolve())],
+        command = [str(args.exe.resolve()), '--mcp-server']
+        if movie is not None:
+            command.append(str(movie.resolve()))
+        command[2:2] = getattr(args, 'launch_arguments', [])
+        environment = {**os.environ, 'KAUAI_TEST_FAIL_FAST': '1',
+                       'THREEDMM_CONTENT_ROOT': str(args.content.resolve().parent)}
+        for name, value in getattr(args, 'environment', {}).items():
+            if value is None:
+                environment.pop(name, None)
+            else:
+                environment[name] = value
+        self.process = subprocess.Popen(command,
             cwd=args.content.resolve(), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=self.log,
-            text=True, encoding='utf-8', env={**os.environ, 'KAUAI_TEST_FAIL_FAST': '1',
-                'THREEDMM_CONTENT_ROOT': str(args.content.resolve().parent)})
+            text=True, encoding='utf-8', env=environment)
         self.replies = queue.Queue()
         self.sequence = 0
         def read():
@@ -50,7 +60,7 @@ class Studio:
         self.process.stdin.write(json.dumps({'jsonrpc': '2.0', 'id': self.sequence, 'method': 'tools/call',
             'params': {'name': name, 'arguments': arguments}}) + '\n')
         self.process.stdin.flush()
-        reply = self.replies.get(timeout=45)
+        reply = self.replies.get(timeout=getattr(self.args, 'response_timeout', 45))
         assert reply is not None, 'Studio exited; inspect the runtime log'
         assert reply['id'] == self.sequence, reply
         assert 'error' not in reply, reply

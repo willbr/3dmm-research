@@ -579,6 +579,11 @@ class Movie : public Movie_PAR
 
   protected:
     MoviePlaybackState _playback; // Playback values, independent of views and clocks.
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    MoviePlaybackTestProgress _playbackTest;
+    void _RecordPlaybackTestFrame();
+    void _FinishPlaybackTest();
+#endif
     MovieData _data;              // Archive state and roll-call ownership, independent of views.
 
     PFileObject _pfilSave;     // User's document
@@ -622,6 +627,15 @@ class Movie : public Movie_PAR
     bool _FSetPfilSave(PFilename pfni);
 
   public:
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    bool FBeginPlaybackTest();
+    void StepPlaybackTest(LegacyLong frames, LegacyUlong milliseconds);
+    void StopPlaybackTest();
+    const MoviePlaybackTestProgress &PlaybackTestProgress() const { return _playbackTest; }
+    LegacyLong TestSkippedClickPauses() const { return _playback.skippedClickPauses; }
+    LegacyLong TestSkippedTimedPauses() const { return _playback.skippedTimedPauses; }
+    LegacyLong TestSkippedSoundPauses() const { return _playback.skippedSoundPauses; }
+#endif
     //
     // Begin client useable functions
     //

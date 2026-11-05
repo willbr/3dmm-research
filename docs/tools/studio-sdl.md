@@ -3,6 +3,51 @@
 The port keeps Studio's original Kauai UI, resource scripts and editing tools.
 The archive inspector is a separate diagnostic application.
 
+## Run with the retail ISO
+
+The SDL executable can run with just the executable and an original ISO 9660
+3D Movie Maker disc image. It uses the original disc's UI archives; rebuilding
+or bundling replacement `.chk` files is unnecessary for this mode. A single
+`.iso` beside the executable (or in the working directory) is discovered when
+no extracted content tree is selected. To select a particular image explicitly:
+
+```sh
+./3dmovie-sdl --iso "/path/to/3DMOVIE100.iso"
+```
+
+Windows uses the same option on `3dmovie-sdl.exe`. `--iso=PATH` and the UTF-8
+`THREEDMM_ISO` environment variable are also supported. Explicit ISO selection
+takes precedence over `THREEDMM_CONTENT_ROOT`. Without explicit ISO selection,
+the existing extracted-tree lookup is preferred; ISO discovery happens before
+falling back to unrelated system installations. Multiple adjacent ISOs require
+an explicit selection.
+
+On first use, the built-in reader extracts the retail product files, sample
+movies, help files and Comic Sans fonts into an application-private cache.
+It does not mount the image, run its installer or require 7-Zip. The software
+MIDI instrument bank and its licenses are embedded in the executable and written
+to the same cache, so no adjacent `assets/` folder is needed. Explicit font and
+SoundFont overrides remain supported. The default cache is under SDL's per-user
+preference directory for `3DMMForever/Studio`; `THREEDMM_CACHE_DIR` selects an
+absolute alternative.
+
+Cache identity includes the canonical ISO path, size, modification time and
+supplemental MIDI contents. A completed manifest and file sizes are checked on
+reuse. Extraction publishes atomically, handles concurrent launches and rejects
+unsafe filenames, out-of-range extents, truncated images and unsupported layouts.
+An incomplete or damaged cache is preserved and a new generation is created;
+cached samples or other existing files are never deleted during repair. The
+original ISO and existing `Microsoft Kids` trees remain untouched. Expansion
+packs and user-authored content are separate from the base-game ISO.
+
+`studio-iso-cache` tests a synthetic disc, cache reuse/repair, fonts and samples,
+malformed input, supplemental files and concurrent extraction. With
+`TEST_STUDIO_ISO` set to an available retail image, `studio-iso-workflow` runs a
+copied executable in an isolated directory containing only those two files. It
+checks cold/warm caching, room colors, audible software MIDI, scene creation,
+save/reopen and explicit ISO precedence. Reports and test packages are under
+`tmp/studio-iso-workflow/`.
+
 ## Mac/Linux Studio build, 4 November 2026
 
 The full SDL Studio target is enabled on Mac/Linux. Resource preprocessing now
@@ -2688,6 +2733,199 @@ coverage report. This verifies loading, rendering, playback and persistence of
 an authored movie; the editing smoke test above covers separate UI authoring
 workflows. Neither check establishes compatibility with every community movie
 or expansion pack, or substitutes for running Studio on macOS/Linux.
+
+`studio-building-workflow` checks the original map navigation into the ticket
+booth, lobby and studio rooms. The startup palette contains bright green
+placeholders in unused slots; each room must install its own palette before
+its artwork is drawn. Room scripts request this through `SetGft`, which applies
+the palette even while animated transitions are disabled. The test rejects
+screens filled with the startup green and checks the ticket booth before,
+during and after its introductory video. Screenshots and the report go in
+`tmp/studio-building-workflow/`. Both workflow tests suppress Python bytecode
+files in the source tree.
+
+For unattended movie compatibility runs, configure a **Release** build with
+`-DSTUDIO_TEST_TOOLS=ON` and build `studio` and `preview-scene-fixture`.
+This explicitly enables the MCP test interface without enabling debug assertions.
+Ordinary Release builds leave the test interface disabled.
+
+The portable audio adapter decodes Microsoft GSM 6.10 WAV49 and MP3-in-WAV
+using statically linked libgsm and dr_mp3, alongside SDL's PCM and ADPCM
+support. SDL still resamples and plays all decoded sounds. The same decoder
+path supports importing these files, normalizing imports to the existing
+legacy PCM/ADPCM formats. Neither FFmpeg nor installed native codecs are
+required at runtime. Decoder licenses are embedded in Studio and included
+in the ISO cache. Dependency versions and integration details are recorded in
+`docs/licenses/audio-codecs.txt`.
+
+`compressed-wave-test` compares generated GSM and stereo MP3 fixtures with
+independent reference PCM, checks sample counts, malformed inputs and legacy
+RIFF padding, and exercises both playback conversion and import. Its fixtures
+are generated tones; no community movie audio is checked into the repository.
+
+```sh
+python tools/batch_movie_playback.py tmp/studio-batch-release/3dmovie-sdl.exe movies tmp/movie-batch --iso dist/3DMOVIE100.iso --jobs 2 --timeout 120
+ctest --test-dir tmp/studio-batch-release -R '^(engine-core-link|studio-batch-workflow)$' --output-on-failure
+```
+
+The batch runner recursively finds `.3mm` files, copies each into its own test
+directory, and opens it in a separate process using the original ISO resources.
+It drives ordinary scene playback without frame-clock waits, verifies every
+frame in every scene in sequence, and renders scrolling text on every scroll
+update. Scroll updates have their own counter because a caption can keep
+scrolling while the movie remains on the same timeline frame. Click, timed and
+sound waits are skipped and counted; sounds are still loaded with playback
+volume muted. Scene transitions become immediate cuts. This tests frame and
+caption coverage, rather than audiovisual timing or transition animations.
+Actual throughput depends on scene complexity; there is no fixed 1,000 fps rate.
+
+Each process uses dummy SDL video/audio drivers and exits on ordinary runtime
+errors or missing assets instead of waiting for a dialog. The runner imposes a
+wall-clock timeout and frame limit, records the last scene/frame attempted, and
+distinguishes completed movies, playback failures, missing assets, crashes and
+timeouts. It never saves a source movie and checks its hash after testing.
+`tmp/movie-batch/latest.json` points to the aggregate report. Each movie has a
+progress journal, runtime log, source copy, result JSON and, when available, a
+final screenshot. `.vmm` packages are excluded; expansion-dependent movies may
+fail against the base retail ISO.
+Failure checkpoints retain the engine's zero-based `scene` and stored `frame`
+coordinates. Use `scene_number` and `frame_number` to locate the failure in
+Studio's UI. Scene frame ranges can start above or below 1; the displayed frame
+number is the stored frame minus the scene's first stored frame plus 1.
+
+`studio-batch-workflow` generates a two-scene regression movie from the ISO,
+including signed frame ranges, scrolling credits and all three pause types.
+It requires all 66 timeline frames, both scenes, scroll progress and two skipped
+pauses of each type to complete in Release with assertions disabled. It complements
+the ordinary-speed movie workflow's camera, actor, texture and save/reopen checks.
+
+### Original ISO retail regression oracle
+
+`tools/retail_oracle` is a separate Windows x86 test bridge for the original
+`3DMOVIE.EXE` extracted from the retail ISO. It rejects any EXE whose SHA256 is
+not `cc7c05cd4b63c0d1f2a0cee6fed86d85bd9f54e35952818f412f128425b2bca5`.
+The launcher creates its own process, injects the DLL before application startup,
+restores its temporary entry-point breakpoint and detaches the debugger. Neither
+the EXE on disk nor an existing user process is patched.
+
+Build from an MSVC x86 developer shell, separately from the x64 SDL build:
+
+```powershell
+cmake -S tools/retail_oracle -B tmp/retail-oracle/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build tmp/retail-oracle/build
+```
+
+Python 3 with Pillow and 7-Zip are developer dependencies. Retail requires an
+interactive Windows desktop; its captures do not need foreground focus or mouse
+input. SDL runs with dummy video/audio drivers. The original retail EXE remains
+32-bit and uses its original renderer and timer. This is not a headless retail
+backend or an accelerated replacement for its playback engine.
+
+Compare every frame of a scene against an SDL executable built with
+`STUDIO_TEST_TOOLS=ON`:
+
+```powershell
+python tools/retail_oracle/compare.py --sdl tmp/studio-batch-release/3dmovie-sdl.exe --iso dist/3DMOVIE100.iso --bridge tmp/retail-oracle/build --movie 'movies/Litterbug 2.3mm' --output tmp/retail-comparison --scenes 41 --frames all
+```
+
+`--scenes all` visits every scene. `--frames START:END` selects an inclusive
+range. Both arguments use one-based UI numbers, including for scenes whose
+stored frame range starts elsewhere. The SDL `seek_movie` MCP tool is restricted
+to `THREEDMM_BATCH_TEST=1`. It executes the real engine methods and returns their
+success result, including ordinary Release-build failures.
+
+Each run freezes one movie copy for both processes, hashes the input, ISO,
+retail resources, SDL EXE and bridge DLL, and records successful resource opens
+from the retail process. Resource opens must stay inside the extracted ISO
+package. The package includes the installer-created `Microsoft Kids/Users`
+directories. Native paths use backslashes because the original command-line
+parser splits document paths itself. Keep test paths within retail's original
+255-character limit and representable in the Windows ANSI code page.
+
+Retail's application registry writes go into a private per-process HKCU branch.
+Windowed rendering, better quality and textures are explicitly selected there.
+SDL test settings use a separate `KAUAI_TEST_SETTINGS_RUN` branch, available only
+in Debug or `STUDIO_TEST_TOOLS` builds. Teardown removes those private preferences
+and terminates only the identity-checked process created by that session. The
+integration test checks that installed-game preferences and source movies remain
+unchanged.
+
+The native DLL runs scene/frame methods, captures and command dispatch on the
+retail UI thread. Its layout profile is separate from the refactored classes:
+original booleans are 32-bit, actor coordinates are signed BRender 16.16 scalars,
+and addresses are RVAs for the pinned EXE. State includes scene/frame bounds,
+camera, actor/textbox counts, error depth and each actor's identity, visibility,
+template, action, cel, evaluated frame, next event and position. A native exception
+or UI timeout poisons the bridge; subsequent operations fail rather than treating
+partially modified state as valid.
+
+`latest.json` points to a report with per-frame native results, state differences,
+viewport pixel counts and channel errors. Both full client screenshots are saved.
+Pixel comparison excludes the surrounding Studio UI; the default viewport is
+`45 99 594 407`, adjustable with `--viewport`. Visible actor positions use an
+explicit relative tolerance of `1e-6` and absolute tolerance of `1e-4` world units.
+Pixels require an exact match by default. `--max-different-pixels` changes only
+that explicit pixel threshold. Exit codes are 0 for matched, 1 for differences,
+including shared playback failures, and 2 for an infrastructure error. If both
+engines reject a seek with matching compared state, the frame is recorded as
+`shared_failure` and still returns a nonzero exit code. Its screenshot metrics
+remain diagnostic, with `comparable: false`: partial failed scenes can repaint
+at different times and do not establish a rendered-frame regression. A renderer
+difference, native false return,
+exception and timeout must not be reported as successful compatibility.
+
+The MCP stdio frontend launches and manages the same isolated process:
+
+```powershell
+python tools/retail_oracle/server.py --iso dist/3DMOVIE100.iso --bridge tmp/retail-oracle/build --movie 'movies/Litterbug 2.3mm' --output tmp/retail-mcp
+```
+
+Supported tools are `get_state`, `seek_movie`, `screenshot`, `wait_ms` and
+`send_command`. The latter queues an untargeted original Kauai command with
+`cid` and `lw0` through `lw3`; tests must observe the resulting state to prove it
+executed. Targeted HID dispatch, direct textbox/material inspection, dialog
+automation, save/reopen and audio sample comparison are not yet implemented in
+the retail profile. Scrolling-caption timing, recording and authoring therefore
+need additional scenarios; this bridge is the foundation for those comparisons,
+not evidence that all original workflows have already passed.
+
+Run the opt-in integration workflow with the existing generated movie fixture:
+
+```powershell
+python tests/retail_oracle_workflow.py --sdl tmp/studio-batch-release/3dmovie-sdl.exe --iso dist/3DMOVIE100.iso --bridge tmp/retail-oracle/build --fixture tmp/studio-batch-release/preview-scene-fixture.exe --output tmp/retail-oracle-workflow
+```
+
+It compares all 60 frames across two scenes containing camera cuts, animated
+actors, two props, 3D text, costume changes and embedded textures. It also checks
+the actual MCP frontend, invalid scene handling, backward/repeated seeking,
+native command-driven playback, captures, source preservation and preferences
+isolation. State mismatches fail the workflow. Pixel differences remain visible
+as failures in the separate comparison report; passing the bridge workflow does
+not waive those renderer differences. The standalone bridge CMake project can
+register this test with `RETAIL_ORACLE_INTEGRATION_TESTS=ON` and paths supplied
+through `RETAIL_ORACLE_ISO`, `RETAIL_ORACLE_SDL` and `RETAIL_ORACLE_FIXTURE`.
+
+The Litterbug 2 scene 41 failure was traced with a data breakpoint to a textured
+triangle in frame 6. A projected X coordinate of -2 was read as unsigned 65534
+when constructing the rasterizer's buffer offset, and the resulting writes
+corrupted the movie's in-memory chunk index. Resolving the next sound cue then
+failed at UI frame 7. The renderer now retains signed coordinates and clips
+colour/depth spans to each viewport row, advancing all interpolants over skipped
+pixels. `brender-clipped-edges` replays that captured triangle and checks 72
+edge/winding/transparency cases against a larger translated reference render,
+including colour/depth guard regions and row padding. Litterbug's complete
+134 scenes, 3,179 frames and 1,992 scrolling updates now finish in Release.
+All 12 frames of scene 41 succeed and match retail's compared actor/camera state;
+the smaller pre-existing pixel differences remain recorded. The separate
+Directors War Part 1 failure at scene 106, frame 2 is also reproduced by the
+original ISO retail EXE, with matching compared actor/camera state. The movie
+contains the referenced MSND 0x1c and 0x1f chunks, but scene 0xc3 has no MSND
+children for the actor's sound references. This failure does not require an
+expansion diagnosis: it is an unresolved embedded sound link shared with retail.
+Keep retail's rejection behavior; do not silently repair or bypass it. The full
+38-movie rerun completed 28 movies (86,679 frames and 16,293 scroll updates),
+set aside nine cases with unavailable assets, and retained this one shared
+retail failure. All tested source copies remained unchanged.
 
 1. Remove remaining native window/control helpers from the Kauai runtime while
    retaining the SDL-owned main window lifecycle and existing Studio commands.

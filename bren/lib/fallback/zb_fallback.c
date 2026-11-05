@@ -5,10 +5,8 @@
  * Status:
  *   - TriangleRenderPIZ2I: ported (naive scanline rasterizer below).
  *     Verified against asm path via tests/bren_rasterizer_test.cpp.
- *   - TrapezoidRenderPIZ2TIA, TrapezoidRenderPIZ2TIANT: STILL STUBBED.
- *     Until ported, textured 3D content (actors, props, 3D text) does
- *     not render on x64. See docs/superpowers/specs/2026-05-01-brender-
- *     x64-enablement.md.
+ *   - TrapezoidRenderPIZ2TIA, TrapezoidRenderPIZ2TIANT: portable textured
+ *     scan converters, with viewport clipping for rounded edge vertices.
  *
  * The math/blit helpers (_sar16, SafeFixedMac2Div, _GetSysQual,
  * _MemFill_A, _MemRectFill_A, _MemCopyBits_A) are real C ports that
@@ -63,13 +61,16 @@ static void render_trapezoid_tia(int transparent)
 {
     struct scan_edge *edge = zb.awsl.edge;
     int count = edge->count;
-    if (count <= 0)
+    if (count <= 0 || !fw.output)
         return;
 
     int row_width = zb.row_width;
-    uint8_t *fb_start = (uint8_t *)zb.awsl.start;
-    uint8_t *fb_end = (uint8_t *)zb.awsl.end;
-    uint16_t *zp_start = (uint16_t *)zb.awsl.zstart;
+    int scan_y = edge->start;
+    /* Keep edge cursors as addresses until clipping has put them inside the
+     * image. A rounded vertex may start before the first pixel/scanline. */
+    intptr_t fb_start = (intptr_t)zb.awsl.start;
+    intptr_t fb_end = (intptr_t)zb.awsl.end;
+    intptr_t zp_start = (intptr_t)zb.awsl.zstart;
 
     uint8_t *tex_buf = (uint8_t *)zb.texture_buffer;
     uint8_t *shade = (uint8_t *)zb.shade_table;
@@ -90,58 +91,33 @@ static void render_trapezoid_tia(int transparent)
         uint32_t cur_u = (uint32_t)zb.pu.current;
         uint32_t cur_v = (uint32_t)zb.pv.current;
 
-        /* Pixel direction. Asm checks (start >= _end) at scanline entry
-         * and chooses a forward or backward inner loop. */
-        if (fb_start < fb_end)
+        /* Clip each span to its actual scanline, including subpixel maps.
+         * Skipped pixels still advance Z/light/UV by the original gradients. */
+        if (scan_y >= 0 && scan_y < fw.output->height)
         {
-            uint8_t *fb = fb_start;
-            uint16_t *zp = zp_start;
-            while (fb < fb_end)
+            intptr_t row_begin = (intptr_t)zb.colour_buffer + (intptr_t)scan_y * row_width + fw.output->base_x;
+            intptr_t row_end = row_begin + fw.output->width;
+            int direction = fb_start < fb_end ? 1 : -1;
+            intptr_t first, limit;
+            if (direction > 0)
             {
-                int u = (int)((int32_t)cur_u >> 16);
-                int v = (int)((int32_t)cur_v >> 16);
-                u %= tex_w;
-                if (u < 0)
-                    u += tex_w;
-                v %= tex_h;
-                if (v < 0)
-                    v += tex_h;
-                uint8_t texel = tex_buf[v * tex_stride + u];
-                if (!transparent || texel != 0)
-                {
-                    uint16_t z16 = (uint16_t)((uint32_t)cur_z >> 16);
-                    /* Asm uses cmp/sbb + jb, which skips only on strict
-                     * depth < current; ties write. Use <= so a later
-                     * triangle at the same Z overdraws (painter-style). */
-                    if (z16 <= *zp)
-                    {
-                        *zp = z16;
-                        int intensity = (int)(((uint32_t)cur_i >> 16) & 0xFF);
-                        *fb = shade[intensity * 256 + texel];
-                    }
-                }
-                cur_z += dz_x;
-                cur_i += di_x;
-                cur_u += du_x;
-                cur_v += dv_x;
-                fb++;
-                zp++;
+                first = fb_start > row_begin ? fb_start : row_begin;
+                limit = fb_end < row_end ? fb_end : row_end;
             }
-        }
-        else
-        {
-            /* Backward: walk from fb_start-1 down to fb_end, taking deltas
-             * with a NEGATIVE sign (the asm `sub edx, ebp` form). */
-            uint8_t *fb = fb_start;
-            uint16_t *zp = zp_start;
-            while (fb > fb_end)
+            else
             {
-                fb--;
-                zp--;
-                cur_z -= dz_x;
-                cur_i -= di_x;
-                cur_u -= du_x;
-                cur_v -= dv_x;
+                first = (fb_start < row_end ? fb_start : row_end) - 1;
+                limit = fb_end > row_begin ? fb_end : row_begin;
+            }
+            uint32_t skipped = (uint32_t)(first - fb_start);
+            cur_z += skipped * (uint32_t)dz_x;
+            cur_i += skipped * (uint32_t)di_x;
+            cur_u += skipped * (uint32_t)du_x;
+            cur_v += skipped * (uint32_t)dv_x;
+            for (intptr_t pixel = first; direction > 0 ? pixel < limit : pixel >= limit; pixel += direction)
+            {
+                uint8_t *fb = (uint8_t *)pixel;
+                uint16_t *zp = (uint16_t *)(zp_start + (pixel - fb_start) * 2);
                 int u = (int)((int32_t)cur_u >> 16);
                 int v = (int)((int32_t)cur_v >> 16);
                 u %= tex_w;
@@ -164,6 +140,10 @@ static void render_trapezoid_tia(int transparent)
                         *fb = shade[intensity * 256 + texel];
                     }
                 }
+                cur_z += (uint32_t)direction * (uint32_t)dz_x;
+                cur_i += (uint32_t)direction * (uint32_t)di_x;
+                cur_u += (uint32_t)direction * (uint32_t)du_x;
+                cur_v += (uint32_t)direction * (uint32_t)dv_x;
             }
         }
 
@@ -189,8 +169,8 @@ static void render_trapezoid_tia(int transparent)
          * single triangle (depth buffer is uniformly clear there) but
          * fails spuriously when an earlier triangle has painted z-values
          * in the misaligned slot. */
-        zp_start += zb.main.d_i + main_carry;
-        (void)row_width;
+        zp_start += 2 * (zb.main.d_i + main_carry);
+        ++scan_y;
 
         /* Parameter walkers. d_carry is "delta when long edge carried",
          * d_nocarry the alternative. */
@@ -216,6 +196,7 @@ static void render_trapezoid_tia(int transparent)
     zb.awsl.start = (char *)fb_start;
     zb.awsl.end = (char *)fb_end;
     zb.awsl.zstart = (char *)zp_start;
+    edge->start = scan_y;
     edge->count = 0; /* asm exits with count == 0; mirror that */
 }
 

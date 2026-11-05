@@ -1,0 +1,11 @@
+/* Generated from the pinned decoder distributions. */
+static const char CompressedAudioLicenses[] = R"3dmmlicense(libgsm 1.0.24
+https://www.quut.com/gsm/
+The build uses fixed-width 32-bit private arithmetic types on all platforms.
+
+@gsm_license@
+
+dr_mp3 (dr_libs 35b5c392cc15456736c440a68dbe073178bbffe0)
+https://github.com/mackron/dr_libs
+
+@mp3_license@)3dmmlicense";
