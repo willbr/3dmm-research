@@ -2653,8 +2653,19 @@ desktop keyboard delay or speed. `input-sdl-test` checks these boundaries using
 timestamped SDL events and an isolated dummy backend, plus pointer policy and
 host restart. The control integration test covers capture suspension and
 tracked-control removal. The Studio smoke test requires actual SDL capture/grab
-while placing an actor, release afterward, and unchanged desktop keyboard
-preferences. `actor-input-state.json` records the live placement state.
+while placing actors and props, release afterward, and unchanged desktop keyboard
+preferences. On Windows, `--actor` also moves the desktop pointer without clicking,
+checks each object's live body transform and visible frame, and verifies that a
+stationary pointer causes no drift. These checks map through the SDL viewport,
+including fitted presentation in a resized window. `actor-motion.json` and
+`prop-motion.json` record the movement states.
+
+Placement uses the original 50-pixel edge margin for cursor recentering. A legacy
+change to 200 pixels inverted the safe rectangle in the 306-pixel-high stage,
+causing continuous warps to the center that swallowed mouse movement. Restoring
+50 fixes actor and prop placement without changing the original movement math.
+The expanded smoke check passes with the fix and rejects the previous build
+because its actor does not follow the pointer.
 
 Studio portfolio requests now use the SDK-free `inc/portfolio_host.h` boundary.
 `portf.cpp` coordinates Studio strings, sounds and result commands.

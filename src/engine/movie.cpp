@@ -43,7 +43,7 @@ const ChildChunkID kchidGstSource = 1;
 //
 // How many pixels from edge to warp cursor back to center
 //
-const long kdpInset = 200;
+const long kdpInset = 50;
 
 //
 // Mouse scaling factor when rotating

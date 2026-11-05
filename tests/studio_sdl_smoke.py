@@ -84,6 +84,33 @@ def focus_studio(pid):
         raise AssertionError("Could not activate this test's Studio window for input/capture checks")
 
 
+def move_studio_pointer(pid, state, x, y):
+    """Move the desktop pointer without clicking, through the current SDL viewport."""
+    import ctypes
+    from ctypes import wintypes
+    hwnd, user32 = studio_window(pid)
+    user32.SetThreadDpiAwarenessContext.argtypes = [wintypes.HANDLE]
+    user32.SetThreadDpiAwarenessContext.restype = wintypes.HANDLE
+    previous = user32.SetThreadDpiAwarenessContext(wintypes.HANDLE(-4))
+    try:
+        user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+        user32.ClientToScreen.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.POINT)]
+        user32.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+        client = wintypes.RECT()
+        if not user32.GetClientRect(hwnd, ctypes.byref(client)):
+            raise AssertionError("Could not read this test's Studio client bounds")
+        view = state["sdl_presentation"]
+        left = (view["output_width"] - view["width"]) / 2
+        top = (view["output_height"] - view["height"]) / 2
+        point = wintypes.POINT(
+            round((left + x * view["width"] / 640) * client.right / view["output_width"]),
+            round((top + y * view["height"] / 480) * client.bottom / view["output_height"]))
+        if not user32.ClientToScreen(hwnd, ctypes.byref(point)) or not user32.SetCursorPos(point.x, point.y):
+            raise AssertionError("Could not move the pointer over this test's Studio window")
+    finally:
+        user32.SetThreadDpiAwarenessContext(previous)
+
+
 def keyboard_repeat_settings():
     """Observe desktop preferences without changing them."""
     if os.name != "nt":
@@ -124,7 +151,7 @@ def main():
     parser.add_argument("--resize", action="store_true", help="Exercise a wider, scaled and letterboxed window")
     parser.add_argument("--fullscreen", action="store_true", help="Exercise the original fullscreen/window mode controls")
     parser.add_argument("--baseline", type=pathlib.Path, help="Compare PNG captures with a previous run using the same encoder")
-    parser.add_argument("--actor", action="store_true", help="Select and place an actor using the original Studio controls")
+    parser.add_argument("--actor", action="store_true", help="Insert an actor and prop; on Windows verify movement before clicking to place")
     parser.add_argument("--portable-fonts", action="store_true", help="Require FreeType glyph rendering with no GDI fallback")
     parser.add_argument("--sdl-cursors", action="store_true", help="Require original cursor resources created and selected through SDL")
     parser.add_argument("--portfolio", action="store_true", help="Open and cancel Studio's original portfolio, checking its custom preview controls")
@@ -553,30 +580,57 @@ def main():
             call("click", x=205, y=21)  # Original Actors & Props tab.
             settle()
             capture("actor-panel")
-            click_control(0x20075)  # Original Actors browser button.
-            capture("actor-browser")
-            browser_info = json.loads(call("find_gob", hid=0x2003F)["content"][0]["text"])
-            if not browser_info["found"]:
-                raise AssertionError("Original actor browser did not open")
-            click_control(0x21120)  # First actor thumbnail.
-            actor_input = json.loads(call("get_state")["content"][0]["text"])
-            (args.artifacts / "actor-input-state.json").write_text(json.dumps(actor_input, indent=2), encoding="utf-8")
-            if not all(actor_input[name] for name in ("sdl_capture_requested", "sdl_confinement_requested", "sdl_slow_key_repeat")):
-                raise AssertionError("Actor placement did not request SDL tracking/confinement and local repeat")
-            if not actor_input["sdl_capture_active"] or not actor_input["sdl_confinement_active"]:
-                raise AssertionError("SDL did not capture and confine the pointer for actor placement")
-            if keyboard_repeat_settings() != keyboard_settings:
-                raise AssertionError("SDL actor placement changed desktop keyboard repeat preferences")
-            call("click", x=300, y=300)  # Place the selected actor on the stage.
-            settle()
-            capture("actor-placed")
-            if json.loads(call("get_state")["content"][0]["text"]).get("scene_actor_count", 0) == 0:
-                state = json.loads(call("get_state")["content"][0]["text"])
-                (args.artifacts / "actor-failure-state.json").write_text(json.dumps(state, indent=2), encoding="utf-8")
-                raise AssertionError("SDL placement did not add an actor to the movie")
-            actor_input = json.loads(call("get_state")["content"][0]["text"])
-            if any(actor_input[name] for name in ("sdl_capture_requested", "sdl_confinement_requested", "sdl_slow_key_repeat")):
-                raise AssertionError("Actor placement left SDL tracking or slow repeat enabled")
+            for label, browser_button, browser_hid, count in (
+                    ("actor", 0x20075, 0x2003F, 1), ("prop", 0x20076, 0x20040, 2)):
+                previous = json.loads(call("get_state", movie_details=True)["content"][0]["text"])
+                previous_ids = {item["id"] for item in previous.get("scene_actors", [])}
+                click_control(browser_button)
+                capture(label + "-browser")
+                browser_info = json.loads(call("find_gob", hid=browser_hid)["content"][0]["text"])
+                if not browser_info["found"]:
+                    raise AssertionError("Original " + label + " browser did not open")
+                click_control(0x21120)  # First original-content thumbnail.
+                actor_input = json.loads(call("get_state", movie_details=True)["content"][0]["text"])
+                (args.artifacts / (label + "-input-state.json")).write_text(json.dumps(actor_input, indent=2), encoding="utf-8")
+                if not all(actor_input[name] for name in ("sdl_capture_requested", "sdl_confinement_requested", "sdl_slow_key_repeat")):
+                    raise AssertionError(label + " placement did not request tracking/confinement and local repeat")
+                if not actor_input["sdl_capture_active"] or not actor_input["sdl_confinement_active"]:
+                    raise AssertionError("SDL did not capture and confine the pointer for " + label + " placement")
+                if keyboard_repeat_settings() != keyboard_settings:
+                    raise AssertionError("SDL placement changed desktop keyboard repeat preferences")
+                if os.name == "nt":
+                    inserted = [item for item in actor_input["scene_actors"] if item["id"] not in previous_ids]
+                    if len(inserted) != 1 or inserted[0]["kind"] != label:
+                        raise AssertionError("Expected one new " + label + ": " + str(inserted))
+                    # The live body transform follows editing immediately;
+                    # the evaluated playback position is a last-seek snapshot.
+                    actor_id, position = inserted[0]["id"], inserted[0]["position_hash"]
+                    placement_states = [actor_input]
+                    before_motion = capture(label + "-floating")
+                    for x, y in ((340, 250), (370, 260)):
+                        move_studio_pointer(process.pid, actor_input, x, y)
+                        settle()
+                        actor_input = json.loads(call("get_state", movie_details=True)["content"][0]["text"])
+                        moved = next(item for item in actor_input["scene_actors"] if item["id"] == actor_id)
+                        if moved["position_hash"] == position or not actor_input["sdl_capture_requested"]:
+                            raise AssertionError(label + " did not follow the mouse before placement")
+                        position = moved["position_hash"]
+                        placement_states.append(actor_input)
+                    if capture(label + "-moved") == before_motion:
+                        raise AssertionError(label + " movement did not change the visible frame")
+                    settle()
+                    idle = json.loads(call("get_state", movie_details=True)["content"][0]["text"])
+                    if next(item for item in idle["scene_actors"] if item["id"] == actor_id)["position_hash"] != position:
+                        raise AssertionError(label + " drifted with a stationary pointer")
+                    (args.artifacts / (label + "-motion.json")).write_text(json.dumps(placement_states, indent=2), encoding="utf-8")
+                call("click", x=300, y=300)  # Commit the floating object through the original place tool.
+                settle()
+                capture(label + "-placed")
+                actor_input = json.loads(call("get_state")["content"][0]["text"])
+                if actor_input.get("scene_actor_count", 0) != count:
+                    raise AssertionError("SDL placement did not add the " + label + " to the movie")
+                if any(actor_input[name] for name in ("sdl_capture_requested", "sdl_confinement_requested", "sdl_slow_key_repeat")):
+                    raise AssertionError("SDL placement left tracking or slow repeat enabled")
         if args.text:
             click_control(0x20008)  # Original Words tab.
             capture("text-panel")
@@ -735,7 +789,7 @@ def main():
         process.stdin.close()
         if process.wait(timeout=15) != 0:
             raise AssertionError("Studio did not exit normally")
-        detail = ", actor selection/placement" if args.actor else ""
+        detail = ", actor and prop placement" if args.actor else ""
         if args.text:
             detail += ", textbox input/font picker"
         if args.playback:
