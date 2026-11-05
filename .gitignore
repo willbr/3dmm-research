@@ -9,6 +9,7 @@ dist-x64/
 build/
 build-x64/
 .cache/
+/notes.md
 
 # Local Claude scratch files
 _claude_*
