@@ -275,6 +275,11 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
     virtual bool FGetMarkedRc(CoreNative::WindowHandle hwnd, RC *prc);
     virtual void UpdateMarked(void);
+#ifdef KAUAI_SDL3
+    virtual void DrawHostOverlay(PGraphicsEnvironment pgnv)
+    {
+    }
+#endif
     virtual void InvalMarked(CoreNative::WindowHandle hwnd);
     virtual void SetGft(long gft, long lwGft, ulong dts = kdtsSecond, PDynamicArray pglclr = pvNil, AbstractColor acr = kacrClear);
 

@@ -826,6 +826,10 @@ bool Studio::FCmdPlay(PCommand pcmd)
 
         if (_pmvie->Pscen() != pvNil)
         {
+#ifdef KAUAI_SDL3
+            if (!_pmvie->FPlaying() && (vpappb->GrfcustCur() & fcustShift))
+                static_cast<Application *>(vpappb)->FBeginMovieOnlyPlayback();
+#endif
             _pmvie->Play();
         }
     }
@@ -1578,6 +1582,9 @@ void Studio::SetCurs(long tool)
 void Studio::PlayStopped(void)
 {
     AssertThis(0);
+#ifdef KAUAI_SDL3
+    static_cast<Application *>(vpappb)->EndMovieOnlyPlayback();
+#endif
 
     PKidspaceGraphicObject pgok;
 

@@ -65,6 +65,7 @@ class KidWorld : public KidWorld_PAR
 #define kszNoTextureValue PszLit("NoTexture")
 #define kszShowPoseReadoutValue PszLit("ShowPoseReadout")
 #define kszIntegerScalingValue PszLit("IntegerScaling")
+#define kszRenderScaleValue PszLit("RenderScale")
 
 // FGetSetRegKey flags
 enum
@@ -95,6 +96,19 @@ class Application : public Application_PAR
     bool _fOnscreenDrawing;
     PChunkyFile _pcfl;                   // resource file for app
     PStudio _pstdio;               // Current studio
+#ifdef KAUAI_SDL3
+    bool _fMovieOnly = false;
+    RC _rcMovieOnly;
+    bool _fMovieTransition = false;
+    PGraphicsPort _pgptStudioPresentation = nullptr;
+    RC _rcStudioPresentation;
+    PGraphicsPort _pgptStudioSnapshot = nullptr;
+    LegacyUlong _studioMovieSerial = 0;
+    LegacyUlong _studioPresentationSerial = 0;
+    long _studioViewGrid = 0;
+    bool _fDrawingStudioPresentation = false;
+    void _DrawStudioPresentation();
+#endif
     PTheater _ptatr;                 // Current theater
     PChunkyResourceManager _pcrmAll;                // The app ChunkyResourceManager -- all crfs are loaded into this.
     PDynamicArray _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
@@ -215,6 +229,7 @@ class Application : public Application_PAR
     virtual void _Activate(bool fActive);
     virtual bool _FGetNextEvt(PEVT pevt);
 #ifdef KAUAI_SDL3
+    void _DispatchEvt(PEVT event) override;
     bool _FDispatchWindowShortcut(const EVT &event) override;
     bool _FDispatchShortcut(const EVT &event) override;
 #endif
@@ -283,6 +298,16 @@ class Application : public Application_PAR
     {
         return _pstdio;
     }
+#ifdef KAUAI_SDL3
+    bool FBeginMovieOnlyPlayback();
+    void EndMovieOnlyPlayback();
+    bool FMovieOnlyPlayback() const
+    {
+        return _fMovieOnly;
+    }
+    void DrawHostOverlay(PGraphicsEnvironment pgnv) override;
+    void DrawMoviePause(PGraphicsEnvironment pgnv);
+#endif
     PKidWorld Pkwa(void)
     {
         return _pkwa;

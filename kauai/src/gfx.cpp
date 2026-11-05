@@ -1151,7 +1151,25 @@ bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc)
     }
 
     ReleasePpo(&pgpt);
-    pgnv->CopyPixels(this, prc, prc);
+#ifdef KAUAI_PORTABLE_RUNTIME
+    if (_pgpt->CbitPixel() == 32)
+    {
+        // The SDL display stores RGB, but dissolve operates on palette indices.
+        // Capture the already-paletted movie losslessly instead of invoking the
+        // unsupported general true-color-to-indexed copy policy.
+        SystemRectangle source, destination;
+        if (!_FMapRcRcs(prc, &source) || !pgnv->_FMapRcRcs(prc, &destination) ||
+            !pgnv->_pgpt->FCopyIndexedSnapshot(_pgpt, &source, &destination))
+        {
+            PushErc(ercGfxCantDraw);
+            ReleasePpo(&pgnv);
+            *ppgnv = pvNil;
+            return fFalse;
+        }
+    }
+    else
+#endif
+        pgnv->CopyPixels(this, prc, prc);
     GraphicsPort::Flush();
     *ppgnv = pgnv;
     return fTrue;

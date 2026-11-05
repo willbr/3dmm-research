@@ -19,6 +19,8 @@
 #ifndef CHRES_H
 #define CHRES_H
 
+#include <cstdint>
+
 namespace Chunky {
 
 typedef class ChunkyResourceFile *PChunkyResourceFile;
@@ -137,13 +139,15 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     PChunkyFile _pcfl;
     PDynamicArray _pglcre; // sorted by (cki, pfnrpo)
     LegacyLong _cbMax;
-    LegacyLong _cbCur;
+    // Aggregate resident size may exceed the per-object allocation limit,
+    // especially for decoded SDL audio while several sounds are in use.
+    std::int64_t _cbCur;
     LegacyLong _cactRelease;
 
     ChunkyResourceFile(PChunkyFile pcfl, LegacyLong cbMax);
     bool _FFindCre(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, LegacyLong *picre);
     bool _FFindBaco(PBaseCacheableObject pbaco, LegacyLong *picre);
-    bool _FPurgeCb(LegacyLong cbPurge, LegacyLong crepLast);
+    bool _FPurgeCb(std::int64_t cbPurge, LegacyLong crepLast);
 
   public:
     ~ChunkyResourceFile(void);

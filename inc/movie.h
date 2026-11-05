@@ -151,6 +151,13 @@ class MovieView : public MovieView_PAR
 
     long _dxp;
     long _dyp; // width and height rendered area.
+#ifdef KAUAI_SDL3
+    PGraphicsPort _pgptSuperSize = nullptr, _pgptSuperSizeIndexed = nullptr;
+    RC _rcSuperSize;
+    bool _fDrawingSuperSize = false;
+    LegacyUlong _superSizeFrameSerial = 0;
+    LegacyUlong _superSizeRgbSerial = 0;
+#endif
 
     bool _fTrackingMouse; // Is the mouse currently being tracked?
     long _xpPrev;         // X location of the mouse.
@@ -260,6 +267,14 @@ class MovieView : public MovieView_PAR
     //
     // View specific functions.
     //
+#ifdef KAUAI_SDL3
+    bool FDrawSubtree(PGraphicsEnvironment pgnv, RC *prcClip, ulong grfgob) override;
+    PGraphicsPort PgptSuperSizeFrame(bool redraw = false, bool indexed = false);
+    LegacyUlong SuperSizeFrameSerial() const
+    {
+        return _superSizeFrameSerial;
+    }
+#endif
     void SetTool(long tool);
     long Tool(void)
     {
@@ -579,6 +594,8 @@ class Movie : public Movie_PAR
 
   protected:
     MoviePlaybackState _playback; // Playback values, independent of views and clocks.
+    bool _fUserPaused = false, _fUserResumeRender = false;
+    LegacyUlong _timUserPause = 0;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     MoviePlaybackTestProgress _playbackTest;
     void _RecordPlaybackTestFrame();
@@ -739,6 +756,11 @@ class Movie : public Movie_PAR
                                       //   change bkgd if scene is empty
     bool FSetTransition(TRANS trans); // Set the transition type for the current scene.
     void Play(void);                  // Start/Stop a movie playing.
+    void SetUserPaused(bool paused);  // Freeze the live clock/audio without restarting the scene.
+    bool FUserPaused() const
+    {
+        return _fUserPaused;
+    }
     bool FPause(WaitReason wit, long dts);   // Insert a pause here.
 
     bool FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns);

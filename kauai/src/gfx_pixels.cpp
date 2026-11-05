@@ -3,6 +3,7 @@
 // synchronization, palette activation and color references stay in adapters.
 #include "pixel_canvas.h"
 #include "dib_frame.h"
+#include "sdl_surface.h"
 #include <vector>
 #include <new>
 #include "frame.h"
@@ -227,6 +228,26 @@ bool GraphicsPort::_FGetPixelBrush8(GraphicsDrawingData *drawing, KauaiPixels::B
     return _FGetPixelBrush(drawing, rgb, hilite) && KauaiPixels::ResolveBrush8(rgb, _rgclrPixels, 256, brush, hilite);
 }
 
+bool GraphicsPort::FCopyIndexedSnapshot(PGraphicsPort source, SystemRectangle *sourceRect,
+                                        SystemRectangle *destinationRect)
+{
+    if (_cbitPixel != 8 || source->_cbitPixel != 32)
+        return false;
+    _EnsurePalette();
+    Flush();
+    return KauaiPixels::SnapshotIndexed(
+        {_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow},
+        {source->_prgbPixels, source->_rcOff.Dxp(), source->_rcOff.Dyp(), source->_cbRow}, RC(*sourceRect),
+        RC(*destinationRect), _rgclrPixels, 256);
+}
+bool GraphicsPort::FGetIndexedPalette(Color *colors)
+{
+    if (_cbitPixel != 8 || !colors)
+        return false;
+    _EnsurePalette();
+    BltPb(_rgclrPixels, colors, sizeof(_rgclrPixels));
+    return true;
+}
 bool GraphicsPort::_FDrawPackedCopy(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect,
                                     GraphicsDrawingData *drawing)
 {
@@ -252,6 +273,43 @@ bool GraphicsPort::_FDrawPackedCopy(PGraphicsPort source, SystemRectangle *sourc
                                         source->_cbitPixel,
                                         source->_cbitPixel <= 8 ? source->_rgclrPixels : nullptr,
                                         source->_cbitPixel <= 8 ? 1 << source->_cbitPixel : 0};
+    if (src.Dxp() == dst.Dxp() && src.Dyp() == dst.Dyp() && src.Dxp() > 0 && src.Dyp() > 0 &&
+        (input.depth == 8 || input.depth == 32) && (destination.depth == 8 || destination.depth == 32))
+    {
+        RC bounds(0, 0, destination.width, destination.height);
+        if (!bounds.FIntersect(&dst) || (drawing->prcsClip && !bounds.FIntersect(&clip)))
+            return true;
+        std::vector<KauaiPixels::DamageRect> clips;
+        RegionScanner scanner;
+        if (_pregnClip)
+            scanner.Init(_pregnClip, &bounds);
+        else
+            scanner.InitRc(&bounds, &bounds);
+        try
+        {
+            for (LegacyLong y = bounds.ypTop; y < bounds.ypBottom;)
+            {
+                const LegacyLong height = LwMin(scanner.DypCur(), bounds.ypBottom - y);
+                while (scanner.XpCur() < klwMax)
+                {
+                    const auto left = scanner.XpCur() + bounds.xpLeft;
+                    const auto right = scanner.XpFetch() + bounds.xpLeft;
+                    scanner.XpFetch();
+                    clips.push_back({left, y, right, y + height});
+                }
+                y += height;
+                if (y < bounds.ypBottom)
+                    scanner.ScanNext(height);
+            }
+            if (clips.empty() ||
+                KauaiSDL::BlitPixels(destination, input, {src.xpLeft, src.ypTop, src.xpRight, src.ypBottom},
+                                     {dst.xpLeft, dst.ypTop, dst.xpRight, dst.ypBottom}, clips.data(), clips.size()))
+                return true;
+        }
+        catch (const std::bad_alloc &)
+        {
+        }
+    }
     return KauaiPixels::CopyPacked(destination, input, src, dst, drawing->prcsClip ? &clip : nullptr, _pregnClip);
 }
 

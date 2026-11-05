@@ -12,6 +12,12 @@ void Present()
     if (!host.Active())
         return;
     Paint();
+    auto root = GraphicsObject::PgobFromHwnd(static_cast<CoreNative::WindowHandle>(host.WindowToken()));
+    if (vpappb && root && root->Pgpt())
+    {
+        GraphicsEnvironment environment(root->Pgpt());
+        vpappb->DrawHostOverlay(&environment);
+    }
     GraphicsPort::Flush();
     host.Present();
 }

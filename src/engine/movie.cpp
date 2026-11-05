@@ -445,6 +445,10 @@ Movie::~Movie(void)
 {
     AssertBaseThis(0);
 
+    if (_fUserPaused && vpsndm)
+        vpsndm->ResumeAll();
+    _fUserPaused = false;
+
     ReleasePpo(&_data.resources);
     ReleasePpo(&_pfilSave);
 
@@ -3769,6 +3773,12 @@ bool Movie::FAddScen(PTAG ptag)
 void Movie::Play()
 {
     AssertThis(0);
+    if (_fUserPaused && FPlaying())
+    {
+        _playback.stopRequested = true;
+        FCmdRender(nullptr); // The frozen clock cannot deliver the ordinary stop alarm.
+        return;
+    }
     MoviePlayEvaluator evaluator(_playback);
     for (;;)
     {
@@ -3869,10 +3879,43 @@ void Movie::Play()
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
+void Movie::SetUserPaused(bool paused)
+{
+    if (_fUserPaused == paused || (paused && !FPlaying()))
+        return;
+    _fUserPaused = paused;
+    if (paused)
+    {
+        _timUserPause = _clok.TimCur();
+        _clok.Stop(); // Registered alarms keep their remaining movie-clock time.
+        if (vpsndm)
+            vpsndm->PauseAll();
+    }
+    else
+    {
+        if (vpsndm)
+            vpsndm->ResumeAll();
+        if (FPlaying())
+        {
+            _clok.Start(_timUserPause);
+            // A render already queued before pausing may have consumed its alarm.
+            if (_fUserResumeRender && !_clok.FSetAlarm(0, this))
+                SetFStopPlaying(true);
+        }
+        _fUserResumeRender = false;
+    }
+    InvalViews();
+}
 bool Movie::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
+
+    if (_fUserPaused && !_playback.stopRequested)
+    {
+        _fUserResumeRender = true;
+        return true;
+    }
 
     Command cmd;
 
@@ -3900,6 +3943,7 @@ bool Movie::FCmdAlarm(PCommand pcmd)
             //
             Pmcc()->EnableAccel();
             SetFPlaying(fFalse);
+            SetUserPaused(false);
             SetFStopPlaying(fFalse);
             SetFSoundsEnabled(_playback.oldSoundsEnabled);
             _clok.RemoveCmh(this);
@@ -3947,6 +3991,7 @@ void Movie::_StopRenderPlayback(PMovieView view)
     _playback.wait = witNil;
     SetFStopPlaying(fFalse);
     SetFPlaying(fFalse);
+    SetUserPaused(false);
     SetFSoundsEnabled(_playback.oldSoundsEnabled);
     view->PauseUntilClick(fFalse);
     if (Pscen() != pvNil)
@@ -4007,6 +4052,11 @@ bool Movie::FCmdRender(PCommand pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
+    if (_fUserPaused && !_playback.stopRequested)
+    {
+        _fUserResumeRender = true;
+        return true;
+    }
     ulong started = TsCurrent();
     PMovieView view = (PMovieView)PddgGet(0);
     AssertPo(view, 0);
@@ -5461,7 +5511,8 @@ bool Movie::FUnusedSndsUser(bool *pfHaveValid)
         ChildChunkIdentification kid;
 
         AssertDo(pcfl->FGetCkiCtg(kctgMsnd, icki, &cki), "Should never fail");
-        Assert(_FIsChild(pcfl, cki.ctg, cki.cno), "Not a child of Movie chunk");
+        // Retail also scans sounds without a movie-root link. Keep its
+        // reference-count test and the existing close-time purge prompt.
         if (pcfl->CckiRef(cki.ctg, cki.cno) < 2)
         {
             fUnused = fTrue;
@@ -5559,6 +5610,10 @@ RTCLASS(MovieView)
  ****************************************************/
 MovieView::~MovieView(void)
 {
+#ifdef KAUAI_SDL3
+    ReleasePpo(&_pgptSuperSize);
+    ReleasePpo(&_pgptSuperSizeIndexed);
+#endif
     if (_tagTool.sid != ksidInvalid)
         TagManager::CloseTag(&_tagTool);
     ReleasePpo(&_paundGroup);
@@ -5897,6 +5952,87 @@ void MovieView::SetTagTool(PTAG ptag)
     if (_tagTool.sid != ksidInvalid)
         TagManager::DupTag(ptag);
 }
+
+#ifdef KAUAI_SDL3
+PGraphicsPort MovieView::PgptSuperSizeFrame(bool redraw, bool indexed)
+{
+    const auto scale = Pmvie()->Pbwld()->RenderScale();
+    if (_fDrawingSuperSize)
+        return nullptr;
+    if (scale == 1)
+    {
+        if (redraw)
+        {
+            ReleasePpo(&_pgptSuperSize);
+            ReleasePpo(&_pgptSuperSizeIndexed);
+        }
+        return nullptr;
+    }
+    RC native;
+    GetRc(&native, cooLocal);
+    RC high(0, 0, native.Dxp() * scale, native.Dyp() * scale);
+    if (native.FEmpty())
+        return nullptr;
+    if (!_pgptSuperSizeIndexed || _rcSuperSize != high)
+    {
+        if (!redraw)
+            return nullptr;
+        auto indexedPort = GraphicsPort::PgptNewOffscreen(&high, 8);
+        if (!indexedPort)
+        {
+            PushErc(ercGfxCantDraw);
+            return nullptr;
+        }
+        ReleasePpo(&_pgptSuperSize);
+        ReleasePpo(&_pgptSuperSizeIndexed);
+        _pgptSuperSizeIndexed = indexedPort;
+        _rcSuperSize = high;
+    }
+    if (redraw)
+    {
+        // Retain the movie palette while drawing the entire subtree, including
+        // text boxes. Studio and movie-only playback share the same pixels;
+        // the RGB copy is for SDL presentation, not another text rendering pass.
+        _fDrawingSuperSize = true;
+        DrawTree(_pgptSuperSizeIndexed, &high, nullptr, fgobNoVis);
+        _fDrawingSuperSize = false;
+        ++_superSizeFrameSerial;
+    }
+    if (indexed)
+        return _pgptSuperSizeIndexed;
+    if (!_pgptSuperSize)
+    {
+        _pgptSuperSize = GraphicsPort::PgptNewOffscreen(&high, 32);
+        if (!_pgptSuperSize)
+        {
+            PushErc(ercGfxCantDraw);
+            return nullptr;
+        }
+        _superSizeRgbSerial = _superSizeFrameSerial - 1;
+    }
+    if (_superSizeRgbSerial != _superSizeFrameSerial)
+    {
+        GraphicsEnvironment source(_pgptSuperSizeIndexed), color(_pgptSuperSize);
+        color.CopyPixels(&source, &high, &high);
+        _superSizeRgbSerial = _superSizeFrameSerial;
+    }
+    return _pgptSuperSize;
+}
+
+bool MovieView::FDrawSubtree(PGraphicsEnvironment pgnv, RC *prcClip, ulong grfgob)
+{
+    auto imagePort = PgptSuperSizeFrame(!(grfgob & fgobUseCache), pgnv->Pgpt()->CbitPixel() == 8);
+    if (!imagePort)
+        return false;
+    GraphicsEnvironment image(imagePort);
+    RC native;
+    GetRc(&native, cooLocal);
+    RC source = *prcClip;
+    source.Map(&native, &_rcSuperSize);
+    pgnv->CopyPixels(&image, &source, prcClip);
+    return true;
+}
+#endif
 
 /***************************************************************************
  *
@@ -8994,6 +9130,10 @@ void MovieView::MarkMem(void)
     AssertThis(0);
     MovieView_PAR::MarkMem();
     MarkMemObj(Pmvie());
+#ifdef KAUAI_SDL3
+    MarkMemObj(_pgptSuperSize);
+    MarkMemObj(_pgptSuperSizeIndexed);
+#endif
 }
 #endif // DEBUG
 

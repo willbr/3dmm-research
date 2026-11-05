@@ -181,9 +181,9 @@ static void mkv_uv(struct temp_vertex_fixed *v, int x, int y, br_fixed_ls z, int
  * index at frame 6, then exercise every viewport edge and both span directions.
  * A larger translated render supplies the expected clipped colour AND depth,
  * so dropping pixels or forgetting to advance interpolants cannot pass. */
-static int test_clipped_edges(void)
+static int test_clipped_edges(int w = 544, int h = 306)
 {
-    const int w = 544, h = 306, margin = 4, stride = 560;
+    const int margin = 4, stride = w + 16;
     const size_t guard = 131072, capacity = (size_t)stride * (h + 2 * margin);
     unsigned char *colour = (unsigned char *)malloc(capacity + 2 * guard);
     unsigned short *depth = (unsigned short *)malloc((capacity + 2 * guard) * sizeof(*depth));
@@ -191,13 +191,13 @@ static int test_clipped_edges(void)
     unsigned short *reference_depth = (unsigned short *)malloc(capacity * sizeof(*reference_depth));
     if (!colour || !depth || !reference || !reference_depth)
         return 1;
-    const int triangles[][6] = {
-        {-2, 187, 253, 196, 253, 199}, /* Captured real movie triangle. */
-        {w + 2, 187, w - 253, 196, w - 253, 199},
-        {80, -2, 280, 24, 160, 12},
-        {80, h + 2, 280, h - 24, 160, h - 12},
-        {-2, -2, 60, 4, 4, 60},
-        {w + 2, h + 2, w - 60, h - 4, w - 4, h - 60}};
+    const int triangles[][6] = {{-2, 187, 253, 196, 253, 199}, /* Captured real movie triangle. */
+                                {w + 2, 187, w - 253, 196, w - 253, 199},
+                                {80, -2, 280, 24, 160, 12},
+                                {80, h + 2, 280, h - 24, 160, h - 12},
+                                {-2, -2, 60, 4, 4, 60},
+                                {w + 2, h + 2, w - 60, h - 4, w - 4, h - 60},
+                                {w / 2, -2, w / 2 - 19, 17, w / 2 + 197, 168}}; /* 4x Litterbug flat-shaded triangle. */
     const int order[][3] = {{0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,0,1}, {2,1,0}};
     init_buffers();
     init_material();
@@ -206,9 +206,9 @@ static int test_clipped_edges(void)
     for (int i = 0; i < 256 * 256; ++i)
         g_shade_id[i] = (unsigned char)((i / 256 + i % 256) & 255);
     int result = 0;
-    for (int t = 0; t < 6 && !result; ++t)
+    for (int t = 0; t < 7 && !result; ++t)
         for (int winding = 0; winding < 6 && !result; ++winding)
-            for (int transparent = 0; transparent < 2 && !result; ++transparent)
+            for (int transparent = 0; transparent < 3 && !result; ++transparent)
             {
                 memset(colour, 0x5a, capacity + 2 * guard);
                 memset(depth, 0x5a, (capacity + 2 * guard) * sizeof(*depth));
@@ -236,7 +236,9 @@ static int test_clipped_edges(void)
                         mkv_uv(&vertices[i], triangles[t][i * 2] + shift, triangles[t][i * 2 + 1] + shift,
                                (1000 + i * 70) * 65536, 40 + i * 70,
                                (-3 + i * 25) * 65536, (2 + i * 13) * 65536);
-                    auto render = transparent ? TriangleRenderPIZ2TIA : TriangleRenderPIZ2TIANT;
+                    auto render = transparent == 2 ? TriangleRenderPIZ2I
+                                  : transparent    ? TriangleRenderPIZ2TIA
+                                                   : TriangleRenderPIZ2TIANT;
                     render(&vertices[order[winding][0]], &vertices[order[winding][1]], &vertices[order[winding][2]]);
                 }
                 int painted = 0;
@@ -260,7 +262,7 @@ static int test_clipped_edges(void)
             }
     free(reference_depth); free(reference); free(depth); free(colour);
     if (!result)
-        printf("Clipped raster: 72 renders, colour/depth guards and translated reference passed\n");
+        printf("Clipped raster: 126 cases at %dx%d, colour/depth guards and translated reference passed\n", w, h);
     return result;
 }
 
@@ -1953,7 +1955,7 @@ int main(int argc, char **argv)
     if (strcmp(argv[1], "fmac") == 0)
         return run_fmac_unit(argv[2]);
     if (strcmp(argv[1], "clipped-edges") == 0)
-        return test_clipped_edges();
+        return test_clipped_edges() || test_clipped_edges(2176, 1224);
 
     /* actor-* modes go through the full BrZbScene pipeline. They need
      * their own buffers (allocated by BrPixelmapAllocate), not our

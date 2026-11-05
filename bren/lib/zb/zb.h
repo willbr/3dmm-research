@@ -56,8 +56,11 @@ typedef int screen_scalar;
 /*
  * Maximum output pixelmap dimensions
  */
-#define MAX_OUTPUT_WIDTH	2048
-#define MAX_OUTPUT_HEIGHT	2048
+/* 4x Studio viewports are 2176x1224. Screen coordinates remain 16.16;
+ * the old 2048 check was a conservative viewport cap, not a texture limit.
+ * The historical row table below is disabled, so this changes no ABI. */
+#define MAX_OUTPUT_WIDTH	4096
+#define MAX_OUTPUT_HEIGHT	4096
 
 /*
  * Per vertex (in model) structure

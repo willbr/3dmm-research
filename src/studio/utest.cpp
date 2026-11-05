@@ -506,6 +506,9 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         bool fIntegerScaling = fFalse;
         if (FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregBinary))
             KauaiSDL::Main().SetIntegerScaling(fIntegerScaling);
+        LegacyLong renderScale = 1;
+        if (FGetSetRegKey(kszRenderScaleValue, &renderScale, size(renderScale), fregBinary))
+            World::SetDefaultRenderScale(renderScale);
 #endif
     }
 
@@ -3031,6 +3034,23 @@ void Application::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGraphic
         return;
     }
 
+#ifdef KAUAI_SDL3
+    // Preserve the original palette-based transition presentation.
+    struct TransitionGuard
+    {
+        bool &active;
+        TransitionGuard(bool &value) : active(value)
+        {
+            active = true;
+        }
+        ~TransitionGuard()
+        {
+            active = false;
+        }
+    } transitionGuard(_fMovieTransition);
+    KauaiSDL::Main().SetPresentationPixels(nullptr);
+#endif
+
     Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");
 
     // Need to do a transition, but if it's a slow transition (not a cut),
@@ -3595,6 +3615,7 @@ enum
     iditRenderModeInfo,
 #ifdef KAUAI_SDL3
     iditIntegerScalingInfo,
+    iditRenderSizeInfo,
 #endif
     iditLimInfo
 };
@@ -3686,6 +3707,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     pdlg->PutCheck(iditPoseReadoutInfo, MovieView::FShowPoseReadout());
 #ifdef KAUAI_SDL3
     pdlg->PutCheck(iditIntegerScalingInfo, KauaiSDL::Main().IntegerScaling());
+    pdlg->PutRadio(iditRenderSizeInfo, World::DefaultRenderScale() == 4 ? 2 : World::DefaultRenderScale() == 2 ? 1 : 0);
 #endif
 
     idit = pdlg->IditDo();
@@ -3696,6 +3718,20 @@ bool Application::FCmdInfo(PCommand pcmd)
     KauaiSDL::Main().SetIntegerScaling(fIntegerScaling);
     if (fSaveChanges)
         FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregSetKey | fregBinary);
+    LegacyLong renderScale = 1L << pdlg->LwGetRadio(iditRenderSizeInfo);
+    if (pmvie && !pmvie->Pbwld()->FSetRenderScale(renderScale))
+    {
+        TGiveAlertSz(PszLit("There is not enough memory for this rendering size."), bkOk, cokExclamation);
+        renderScale = World::DefaultRenderScale();
+    }
+    else
+    {
+        World::SetDefaultRenderScale(renderScale);
+        if (pmvie)
+            pmvie->InvalViews();
+    }
+    if (fSaveChanges)
+        FGetSetRegKey(kszRenderScaleValue, &renderScale, size(renderScale), fregSetKey | fregBinary);
 #endif
     if (FPure(_fSlowCPU) != FPure(pdlg->LwGetRadio(iditRenderModeInfo)))
     {
@@ -4021,6 +4057,12 @@ void Application::TopOfLoop(void)
 ***************************************************************************/
 void Application::_CleanUp(void)
 {
+#ifdef KAUAI_SDL3
+    EndMovieOnlyPlayback();
+    KauaiSDL::Main().SetPresentationPixels(nullptr);
+    ReleasePpo(&_pgptStudioPresentation);
+    ReleasePpo(&_pgptStudioSnapshot);
+#endif
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     mcp::Shutdown();
 #endif
@@ -4668,8 +4710,237 @@ LFail:
     the event will get thrown away, because the event's hwnd is nil.
 ***************************************************************************/
 #ifdef KAUAI_SDL3
+bool Application::FBeginMovieOnlyPlayback()
+{
+    auto movie = _pstdio ? _pstdio->Pmvie() : nullptr;
+    auto view = movie ? static_cast<PMovieView>(movie->PddgGet(0)) : nullptr;
+    auto &host = KauaiSDL::Main();
+    if (_fMovieOnly || !view || !movie->Pscen())
+        return false;
+    view->GetRc(&_rcMovieOnly, cooHwnd);
+    const auto scale = movie->Pbwld()->RenderScale();
+    if (scale > 1 && !view->PgptSuperSizeFrame(true, true))
+    {
+        return false;
+    }
+    KauaiPixels::DamageRect rectangle{_rcMovieOnly.xpLeft, _rcMovieOnly.ypTop, _rcMovieOnly.xpRight,
+                                      _rcMovieOnly.ypBottom};
+    host.SetPresentationPixels(nullptr);
+    if (!host.SetPresentationSource(&rectangle))
+    {
+        return false;
+    }
+    _fMovieOnly = true;
+    HideCurs();
+    return true;
+}
+void Application::EndMovieOnlyPlayback()
+{
+    if (!_fMovieOnly)
+        return;
+    _fMovieOnly = false;
+    auto &host = KauaiSDL::Main();
+    host.SetPresentationSource(nullptr);
+    ShowCurs();
+    host.Invalidate();
+}
+void Application::DrawHostOverlay(PGraphicsEnvironment pgnv)
+{
+    if (_fDrawingStudioPresentation)
+        return;
+    if (!_fMovieOnly)
+    {
+        _DrawStudioPresentation();
+        return;
+    }
+    auto movie = _pstdio ? _pstdio->Pmvie() : nullptr;
+    if (!_fMovieOnly || !movie)
+        return;
+    auto &host = KauaiSDL::Main();
+    if (movie->FUserPaused())
+        DrawMoviePause(pgnv);
+    auto view = static_cast<PMovieView>(movie->PddgGet(0));
+    const bool indexed = !movie->FUserPaused();
+    auto frame = view ? view->PgptSuperSizeFrame(false, indexed) : nullptr;
+    if (frame && !_fMovieTransition)
+    {
+        const auto scale = movie->Pbwld()->RenderScale();
+        RC target(0, 0, _rcMovieOnly.Dxp() * scale, _rcMovieOnly.Dyp() * scale);
+        if (movie->FUserPaused())
+        {
+            GraphicsEnvironment high(frame);
+            high.SetRcSrc(&_rcMovieOnly);
+            high.SetRcDst(&target);
+            DrawMoviePause(&high);
+        }
+        auto pixels = frame->PrgbLockPixels();
+        if (indexed)
+        {
+            Color palette[256];
+            if (frame->FGetIndexedPalette(palette))
+                host.SetIndexedPresentationPixels(pixels, target.Dxp(), target.Dyp(), frame->CbRow(), palette, false,
+                                                  view->SuperSizeFrameSerial());
+        }
+        else
+            host.SetPresentationPixels(pixels, target.Dxp(), target.Dyp(), frame->CbRow());
+        frame->Unlock();
+    }
+    else
+    {
+        host.SetPresentationPixels(nullptr);
+    }
+}
+void Application::_DrawStudioPresentation()
+{
+    auto &host = KauaiSDL::Main();
+    auto movie = _pstdio ? _pstdio->Pmvie() : nullptr;
+    auto view = movie ? static_cast<PMovieView>(movie->PddgGet(0)) : nullptr;
+    auto root = GraphicsObject::PgobFromHwnd(static_cast<CoreNative::WindowHandle>(host.WindowToken()));
+    const auto scale = movie ? movie->Pbwld()->RenderScale() : 1;
+    if (!view || !root || scale == 1 || _fMovieTransition)
+    {
+        host.SetPresentationPixels(nullptr);
+        if (scale == 1)
+        {
+            ReleasePpo(&_pgptStudioPresentation);
+            ReleasePpo(&_pgptStudioSnapshot);
+        }
+        return;
+    }
+    RC native;
+    root->GetRc(&native, cooLocal);
+    RC high(0, 0, native.Dxp() * scale, native.Dyp() * scale);
+    bool redraw = !_pgptStudioPresentation || high != _rcStudioPresentation;
+    if (redraw)
+    {
+        auto port = GraphicsPort::PgptNewOffscreen(&high, 32);
+        auto snapshot = GraphicsPort::PgptNewOffscreen(&native, 32);
+        if (!port || !snapshot)
+        {
+            ReleasePpo(&port);
+            ReleasePpo(&snapshot);
+            host.SetPresentationPixels(nullptr);
+            PushErc(ercGfxCantDraw);
+            return;
+        }
+        host.SetPresentationPixels(nullptr);
+        ReleasePpo(&_pgptStudioPresentation);
+        _pgptStudioPresentation = port;
+        ReleasePpo(&_pgptStudioSnapshot);
+        _pgptStudioSnapshot = snapshot;
+        _rcStudioPresentation = high;
+    }
+    RC viewport;
+    view->GetRc(&viewport, cooHwnd);
+    viewport.FIntersect(&native);
+    // Keep the completed Studio image, repainting only changed areas. Splitting
+    // the controls around the movie avoids expanding a frame-counter change
+    // into a repaint of the whole window. DrawTree retains normal draw order.
+    RC bands[5] = {RC(native.xpLeft, native.ypTop, native.xpRight, viewport.ypTop),
+                   RC(native.xpLeft, viewport.ypBottom, native.xpRight, native.ypBottom),
+                   RC(native.xpLeft, viewport.ypTop, viewport.xpLeft, viewport.ypBottom),
+                   RC(viewport.xpRight, viewport.ypTop, native.xpRight, viewport.ypBottom), viewport};
+    RC dirty[5];
+    for (auto &rectangle : dirty)
+        rectangle.Zero();
+    redraw = redraw || _studioViewGrid != view->Grid();
+    const auto canvas = root->Pgpt()->PrgbLockPixels();
+    auto snapshot = _pgptStudioSnapshot->PrgbLockPixels();
+    const auto bytes = native.Dxp() * 4;
+    for (long y = 0; y < native.Dyp(); ++y)
+    {
+        const auto source = canvas + y * root->Pgpt()->CbRow();
+        auto previous = snapshot + y * _pgptStudioSnapshot->CbRow();
+        if (redraw || std::memcmp(source, previous, bytes) != 0)
+        {
+            long first = 0, last = native.Dxp();
+            if (!redraw)
+            {
+                while (first < last && std::memcmp(source + first * 4, previous + first * 4, 4) == 0)
+                    ++first;
+                while (last > first && std::memcmp(source + (last - 1) * 4, previous + (last - 1) * 4, 4) == 0)
+                    --last;
+            }
+            RC row(first, y, last, y + 1);
+            for (int i = 0; i < 5; ++i)
+            {
+                RC clip = row;
+                if (clip.FIntersect(&bands[i]))
+                    dirty[i].Union(&clip);
+            }
+            std::memcpy(previous, source, bytes);
+        }
+    }
+    _pgptStudioSnapshot->Unlock();
+    root->Pgpt()->Unlock();
+    if (!dirty[4].FEmpty() && _studioMovieSerial == view->SuperSizeFrameSerial())
+        view->PgptSuperSizeFrame(true, true); // Direct editing/caret changes.
+    if (_studioMovieSerial != view->SuperSizeFrameSerial())
+        dirty[4] = viewport;
+    bool changed = false;
+    _fDrawingStudioPresentation = true;
+    for (auto &rectangle : dirty)
+        if (!rectangle.FEmpty())
+        {
+            root->DrawTree(_pgptStudioPresentation, &high, &rectangle, fgobUseVis | fgobUseCache);
+            changed = true;
+        }
+    _fDrawingStudioPresentation = false;
+    _studioMovieSerial = view->SuperSizeFrameSerial();
+    _studioViewGrid = view->Grid();
+    if (changed && ++_studioPresentationSerial == 0)
+        ++_studioPresentationSerial;
+    auto pixels = _pgptStudioPresentation->PrgbLockPixels();
+    host.SetPresentationPixels(pixels, high.Dxp(), high.Dyp(), _pgptStudioPresentation->CbRow(), true,
+                               _studioPresentationSerial);
+    _pgptStudioPresentation->Unlock();
+}
+void Application::DrawMoviePause(PGraphicsEnvironment pgnv)
+{
+    const long centerX = (_rcMovieOnly.xpLeft + _rcMovieOnly.xpRight) / 2;
+    const long centerY = (_rcMovieOnly.ypTop + _rcMovieOnly.ypBottom) / 2;
+    RC box(_rcMovieOnly.xpLeft + 24, centerY - 55, _rcMovieOnly.xpRight - 24, centerY + 55);
+    pgnv->FillRc(&box, kacrBlack);
+    String title(PszLit("Paused")), prompt(PszLit("press space to resume"));
+    pgnv->SetFont(OnnDefVariable(), fontBold, 32, tahCenter, tavCenter);
+    pgnv->DrawStn(&title, centerX, centerY - 20, kacrWhite);
+    pgnv->SetFont(OnnDefVariable(), fontNil, 22, tahCenter, tavCenter);
+    pgnv->DrawStn(&prompt, centerX, centerY + 23, kacrWhite);
+}
+void Application::_DispatchEvt(PEVT event)
+{
+    if (_fMovieOnly && (event->kind == KauaiInput::Kind::buttonDown || event->kind == KauaiInput::Kind::buttonUp))
+    {
+        auto movie = _pstdio ? _pstdio->Pmvie() : nullptr;
+        if (!movie || movie->FUserPaused() || !_rcMovieOnly.FPtIn(long(event->x), long(event->y)))
+            return;
+    }
+    Application_PAR::_DispatchEvt(event);
+}
 bool Application::_FDispatchWindowShortcut(const EVT &event)
 {
+    if (_fMovieOnly)
+    {
+        auto movie = _pstdio ? _pstdio->Pmvie() : nullptr;
+        if (event.kind == KauaiInput::Kind::character)
+            return true;
+        if (event.kind == KauaiInput::Kind::keyDown && event.modifiers == 0 && (event.key == 32 || event.key == 27))
+        {
+            if (!event.repeat && movie)
+            {
+                if (event.key == 32)
+                    movie->SetUserPaused(!movie->FUserPaused());
+                else if (movie->FPlaying())
+                    movie->Play();
+                else
+                    EndMovieOnlyPlayback();
+            }
+            return true;
+        }
+        // Keep hidden editor commands out of movie-only playback.
+        if (event.kind == KauaiInput::Kind::keyDown && !(event.key == 13 && event.modifiers == KauaiSDL::alt))
+            return true;
+    }
     if (event.kind != KauaiInput::Kind::keyDown || event.key != 13 || event.modifiers != KauaiSDL::alt)
         return false;
     // Consume repeats so holding Alt+Enter cannot repeatedly switch modes.
@@ -5152,6 +5423,10 @@ void Application::MarkMem(void)
 {
     AssertThis(0);
     Application_PAR::MarkMem();
+#ifdef KAUAI_SDL3
+    MarkMemObj(_pgptStudioPresentation);
+    MarkMemObj(_pgptStudioSnapshot);
+#endif
     MarkMemObj(vptagm);
     Material_MTRL::MarkShadeTable();
     ThreeDText::MarkActionNames();

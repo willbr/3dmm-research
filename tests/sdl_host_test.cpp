@@ -73,16 +73,72 @@ static bool CheckFittedPixels(KauaiSDL::Host &host, const char *path, const std:
     SDL_DestroySurface(image);
     return matches;
 }
+// Standalone hardware/software presentation check; it never touches clipboard
+// or desktop input. The full host workflow below uses an isolated dummy driver.
+static int IndexedPresentation(const char *path, KauaiSDL::Host &host)
+{
+    std::vector<std::uint32_t> canvas(320 * 240), copied;
+    std::vector<std::uint8_t> indices(644 * 480, 0xEE);
+    Color palette[256];
+    host.BindPixels(canvas.data(), 320 * 4);
+    for (unsigned frame = 1; frame <= 3; ++frame)
+    {
+        for (int i = 0; i < 256; ++i)
+            palette[i] = {std::uint8_t(i * 17), std::uint8_t(255 - i), std::uint8_t(i + frame * 23), 0};
+        for (int y = 0; y < 480; ++y)
+            for (int x = 0; x < 640; ++x)
+                indices[y * 644 + x] = std::uint8_t(x / 2 + y / 2 + (frame == 1 ? 0 : 5));
+        int width, height;
+        if (!host.SetIndexedPresentationPixels(indices.data(), 640, 480, 644, palette, true, frame == 1 ? 1 : 2) ||
+            !host.Present(true) || !host.Present(true) || !host.SaveBMP(path, false) ||
+            !host.CopyPresentationPixels(copied, width, height) || width != 640 || height != 480)
+            return Fail(__LINE__, host);
+        auto image = SDL_LoadBMP(path);
+        if (!image)
+            return Fail(__LINE__, host);
+        for (const auto &point : {std::pair<int, int>{0, 0}, {159, 119}, {319, 239}, {17, 203}})
+        {
+            const auto color = palette[indices[point.second * 2 * 644 + point.first * 2]];
+            const auto expected = (std::uint32_t(color.bRed) << 16) | (std::uint32_t(color.bGreen) << 8) | color.bBlue;
+            Uint8 r, g, b;
+            if (!SDL_ReadSurfacePixel(image, int((point.first + 0.5) * image->w / 320),
+                                      int((point.second + 0.5) * image->h / 240), &r, &g, &b, nullptr) ||
+                ((std::uint32_t(r) << 16) | (std::uint32_t(g) << 8) | b) != expected ||
+                copied[point.second * 2 * 640 + point.first * 2] != expected)
+            {
+                SDL_DestroySurface(image);
+                return Fail(__LINE__, host);
+            }
+        }
+        SDL_DestroySurface(image);
+    }
+    host.SetPresentationPixels(nullptr);
+    host.UnbindPixels(canvas.data());
+    std::puts("SDL indexed presentation: padded frames, palette changes and texture reuse passed.");
+    return 0;
+}
 int main(int argc, char **argv)
 {
     const bool scalingOnly = argc == 3 && std::strcmp(argv[2], "--scaling-only") == 0;
-    if (argc != 2 && !scalingOnly)
+    const bool indexedOnly = argc == 3 && std::strcmp(argv[2], "--indexed-only") == 0;
+    if (argc != 2 && !scalingOnly && !indexedOnly)
         return 2;
     KauaiSDL::Host host;
     if (!host.Create("Kauai SDL host check", 320, 240, true))
     {
         std::fprintf(stderr, "%s\n", host.Error());
         return Fail(__LINE__, host);
+    }
+    if (indexedOnly)
+        return IndexedPresentation(argv[1], host);
+    if (std::strcmp(SDL_GetCurrentVideoDriver(), "dummy") == 0)
+    {
+        host.ResumeAfterModal();
+        KauaiSDL::WindowStatus state;
+        KauaiSDL::Event event;
+        if (!host.WindowState(state) || !state.keyboardFocus || !Next(host, KauaiSDL::EventKind::focus, event) ||
+            !event.active)
+            return Fail(__LINE__, host);
     }
     std::vector<std::uint32_t> pixels(320 * 240);
     KauaiPixels::DamageRect damage;
@@ -288,6 +344,139 @@ int main(int argc, char **argv)
         if (!host.Present(true) || !CheckFittedPixels(host, argv[1], pixels))
             return Fail(__LINE__, host);
     }
+    // Movie-only presentation crops the existing canvas, while input remains
+    // in original canvas coordinates and each scaling policy still applies.
+    const KauaiPixels::DamageRect source{40, 30, 240, 142};
+    if (!host.SetWindowSize(1000, 700) || !host.SetPresentationSource(&source))
+        return Fail(__LINE__, host);
+    for (bool integer : {false, true})
+    {
+        KauaiSDL::PresentationStatus view;
+        if (!host.SetIntegerScaling(integer) || !host.Present(true) || !host.Presentation(view) || view.sourceX != 40 ||
+            view.sourceY != 30 || view.sourceWidth != 200 || view.sourceHeight != 112 || !host.SaveBMP(argv[1]))
+            return Fail(__LINE__, host);
+        float scale = std::min(view.outputWidth / 200.0f, view.outputHeight / 112.0f);
+        if (integer)
+            scale = std::floor(scale);
+        if (std::abs(view.width - 200 * scale) >= 1 || std::abs(view.height - 112 * scale) >= 1)
+            return Fail(__LINE__, host);
+        auto image = SDL_LoadBMP(argv[1]);
+        if (!image)
+            return Fail(__LINE__, host);
+        for (const auto &point : {std::pair<int, int>{0, 0}, {100, 56}, {199, 111}})
+        {
+            Uint8 r, g, b;
+            if (!SDL_ReadSurfacePixel(image, int((point.first + 0.5f) * view.width / 200),
+                                      int((point.second + 0.5f) * view.height / 112), &r, &g, &b, nullptr) ||
+                ((std::uint32_t(r) << 16) | (std::uint32_t(g) << 8) | b) !=
+                    (pixels[(point.second + 30) * 320 + point.first + 40] & 0xFFFFFF))
+                return Fail(__LINE__, host);
+        }
+        SDL_DestroySurface(image);
+        float desktopX, desktopY, canvasX, canvasY;
+        if (!host.CanvasToDesktop(123, 75, desktopX, desktopY) ||
+            !host.DesktopToCanvas(desktopX, desktopY, canvasX, canvasY) || std::abs(canvasX - 123) > 0.001f ||
+            std::abs(canvasY - 75) > 0.001f || !host.PushPointer(123, 75, true) ||
+            !Next(host, KauaiSDL::EventKind::buttonDown, event) || std::abs(event.x - 123) > 0.001f ||
+            std::abs(event.y - 75) > 0.001f || !host.PushPointer(123, 75, false) ||
+            !Next(host, KauaiSDL::EventKind::buttonUp, event))
+            return Fail(__LINE__, host);
+    }
+    // A higher-resolution image replaces the selected source without changing
+    // its logical shape or pointer coordinates. Invalid replacements are atomic.
+    std::vector<std::uint32_t> high(800 * 448, 0x0012AB34), copied;
+    int highWidth, highHeight;
+    KauaiSDL::PresentationStatus highView;
+    if (!host.SetPresentationPixels(high.data(), 800, 448, 800 * 4) || !host.Present(true) ||
+        !host.Presentation(highView) || highView.sourceWidth != 200 || highView.frameWidth != 800 ||
+        highView.frameHeight != 448 || !host.CopyPresentationPixels(copied, highWidth, highHeight) ||
+        highWidth != 800 || highHeight != 448 || copied != high ||
+        host.SetPresentationPixels(high.data(), 4097, 448, 4097 * 4) || !host.SaveBMP(argv[1]))
+        return Fail(__LINE__, host);
+    auto highImage = SDL_LoadBMP(argv[1]);
+    Uint8 red, green, blue;
+    if (!highImage ||
+        !SDL_ReadSurfacePixel(highImage, highImage->w / 2, highImage->h / 2, &red, &green, &blue, nullptr) ||
+        red != 0x12 || green != 0xAB || blue != 0x34)
+        return Fail(__LINE__, host);
+    SDL_DestroySurface(highImage);
+    // Palettized frames use the same capture API, support padded rows, and
+    // update when either pixels or the palette changes. Repeated immutable
+    // frames must survive readback and cursor-free presentation unchanged.
+    Color palette[256]{};
+    std::vector<std::uint8_t> indices(804 * 448, 0xEE);
+    for (int y = 0; y < 448; ++y)
+        std::fill_n(indices.data() + y * 804, 800, 3);
+    palette[3] = {0x34, 0xAB, 0x12, 0};
+    palette[4] = {0x56, 0x78, 0x9A, 0};
+    for (unsigned frame = 1; frame <= 3; ++frame)
+    {
+        if (frame == 2)
+            for (int y = 0; y < 448; ++y)
+                std::fill_n(indices.data() + y * 804, 800, 4);
+        if (frame == 3)
+            palette[4] = palette[3];
+        const auto expected = frame == 2 ? 0x009A7856u : 0x0012AB34u;
+        if (!host.SetIndexedPresentationPixels(indices.data(), 800, 448, 804, palette, true, frame == 1 ? 1 : 2) ||
+            !host.Present(true) || !host.Present(true) || !host.SaveBMP(argv[1], false) ||
+            !host.CopyPresentationPixels(copied, highWidth, highHeight) || highWidth != 800 || highHeight != 448 ||
+            !std::all_of(copied.begin(), copied.end(), [expected](auto pixel) { return pixel == expected; }))
+            return Fail(__LINE__, host);
+        auto image = SDL_LoadBMP(argv[1]);
+        if (!image || !SDL_ReadSurfacePixel(image, image->w / 2, image->h / 2, &red, &green, &blue, nullptr) ||
+            ((std::uint32_t(red) << 16) | (std::uint32_t(green) << 8) | blue) != expected)
+            return Fail(__LINE__, host);
+        SDL_DestroySurface(image);
+    }
+    // Cursor AND/XOR masks and hotspots must use logical coordinates even when
+    // the presented pixels have four times the resolution of the canvas crop.
+    const auto highCursor = host.CreateCursor(andBits, xorBits, 8, 2, 2, 1, 1);
+    if (!highCursor || !host.SetCursor(highCursor) || !host.SetWindowSize(800, 448) ||
+        !host.SetPresentationPixels(high.data(), 800, 448, 800 * 4, true))
+        return Fail(__LINE__, host);
+    for (bool indexed : {false, true})
+    {
+        if (indexed && !host.SetIndexedPresentationPixels(indices.data(), 800, 448, 804, palette, true, 2))
+            return Fail(__LINE__, host);
+        for (const auto position : {std::pair<int, int>{140, 86}, {40, 30}})
+        {
+            if (!host.PushPointer(float(position.first), float(position.second), false) ||
+                !Next(host, KauaiSDL::EventKind::buttonUp, event) || !host.SaveBMP(argv[1], true))
+                return Fail(__LINE__, host);
+            auto image = SDL_LoadBMP(argv[1]);
+            if (!image || image->w != 800 || image->h != 448)
+                return Fail(__LINE__, host);
+            const int left = position.first - 1 - source.left, top = position.second - 1 - source.top;
+            for (int y = std::max(0, top * 4); y < (top + 2) * 4; ++y)
+                for (int x = std::max(0, left * 4); x < (left + 8) * 4; ++x)
+                {
+                    const int cx = x / 4 - left, cy = y / 4 - top;
+                    const auto bit = 0x80 >> cx;
+                    auto expected = 0x12AB34u;
+                    if (!(andBits[cy * 2] & bit))
+                        expected = 0;
+                    if (xorBits[cy * 2] & bit)
+                        expected ^= 0xFFFFFF;
+                    Uint8 r, g, b;
+                    if (!SDL_ReadSurfacePixel(image, x, y, &r, &g, &b, nullptr) ||
+                        ((std::uint32_t(r) << 16) | (std::uint32_t(g) << 8) | b) != expected)
+                        return Fail(__LINE__, host);
+                }
+            SDL_DestroySurface(image);
+        }
+    }
+    host.DestroyCursor(highCursor);
+    if (!host.CopyPresentationPixels(copied, highWidth, highHeight) || copied != high)
+        return Fail(__LINE__, host);
+    if (!host.SetPresentationPixels(nullptr))
+        return Fail(__LINE__, host);
+    for (const KauaiPixels::DamageRect invalid :
+         {KauaiPixels::DamageRect{-1, 0, 20, 20}, {0, 0, 321, 240}, {1, 1, 1, 10}})
+        if (host.SetPresentationSource(&invalid))
+            return Fail(__LINE__, host);
+    if (!host.SetPresentationSource(nullptr) || !host.SetIntegerScaling(false) || !host.Present(true) ||
+        !CheckFittedPixels(host, argv[1], pixels))
+        return Fail(__LINE__, host);
     for (auto key : {65u, 27u, 39u})
     {
         if (!host.PushKey(key, true) || !Next(host, KauaiSDL::EventKind::keyDown, event) || event.key != key)

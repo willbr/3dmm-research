@@ -828,6 +828,17 @@ static JVal ContentError(const std::string &text)
 
 static JVal Tool_Screenshot(const JVal &args)
 {
+#ifdef KAUAI_SDL3
+    if (args.Get("presentation") && args.Get("presentation")->AsBool())
+    {
+        std::vector<std::uint32_t> pixels;
+        int width, height;
+        if (!KauaiSDL::Main().CopyPresentationPixels(pixels, width, height))
+            return ContentError("presentation pixels unavailable");
+        const auto png = EncodePng(pixels, width, height);
+        return ContentImage(Base64Encode(png.data(), png.size()));
+    }
+#endif
     const auto hwnd = _GetMainWindow();
     if (!hwnd) return ContentError("main window not available");
     std::string b64 = CaptureWindowPngBase64(hwnd);
@@ -850,9 +861,20 @@ static JVal Tool_Click(const JVal &args)
     if (KauaiSDL::Main().IsWindow(hwnd))
     {
         const unsigned which = isRight ? 3 : 1;
-        if (!KauaiSDL::Main().PushPointer(static_cast<float>(x), static_cast<float>(y), true, which) ||
+        const auto shift = args.Get("shift");
+        const bool shifted = shift && shift->AsBool();
+        if ((shifted && !KauaiSDL::Main().PushKey(16, true, KauaiSDL::shift)) ||
+            !KauaiSDL::Main().PushPointer(static_cast<float>(x), static_cast<float>(y), true, which) ||
             !KauaiSDL::Main().PushPointer(static_cast<float>(x), static_cast<float>(y), false, which))
             return ContentError(KauaiSDL::Main().Error());
+        if (shifted)
+        {
+            // Let the click's script dispatch its command while Shift is held.
+            // Releasing in the same batch could turn Shift+Play into Play.
+            PumpForMs(50);
+            if (!KauaiSDL::Main().PushKey(16, false))
+                return ContentError(KauaiSDL::Main().Error());
+        }
         return ContentText("Queued click through SDL input.");
     }
 #endif
@@ -1384,6 +1406,12 @@ static JVal Tool_GetState(const JVal &args)
         view.Set("height", JVal::MkInt(static_cast<long long>(presentation.height)));
         view.Set("output_width", JVal::MkInt(presentation.outputWidth));
         view.Set("output_height", JVal::MkInt(presentation.outputHeight));
+        view.Set("source_x", JVal::MkInt(presentation.sourceX));
+        view.Set("source_y", JVal::MkInt(presentation.sourceY));
+        view.Set("source_width", JVal::MkInt(presentation.sourceWidth));
+        view.Set("source_height", JVal::MkInt(presentation.sourceHeight));
+        view.Set("frame_width", JVal::MkInt(presentation.frameWidth));
+        view.Set("frame_height", JVal::MkInt(presentation.frameHeight));
         o.Set("sdl_presentation", view);
     }
     const auto fonts = KauaiFonts::FontProviderStats();
@@ -1398,6 +1426,19 @@ static JVal Tool_GetState(const JVal &args)
     JVal selected = JVal::MkObj();
     auto studio = vpapp->Pstdio();
     auto movie = studio ? studio->Pmvie() : nullptr;
+    o.Set("movie_only", JVal::MkBool(vpapp->FMovieOnlyPlayback()));
+    o.Set("movie_paused", JVal::MkBool(movie && movie->FUserPaused()));
+    o.Set("render_scale", JVal::MkInt(World::DefaultRenderScale()));
+    if (movie)
+    {
+        long width, height;
+        movie->Pbwld()->GetRenderSize(&width, &height);
+        o.Set("render_width", JVal::MkInt(width));
+        o.Set("render_height", JVal::MkInt(height));
+    }
+    auto playbackView = movie ? static_cast<PMovieView>(movie->PddgGet(0)) : nullptr;
+    o.Set("movie_waiting_for_click",
+          JVal::MkBool(movie && movie->FPlaying() && playbackView && playbackView->FPausing()));
     auto scene = movie ? movie->Pscen() : nullptr;
     o.Set("movie_scene", JVal::MkInt(movie ? movie->Iscen() : -1));
     o.Set("scene_camera", JVal::MkInt(scene && scene->Pbkgd() ? scene->Pbkgd()->Icam() : -1));
@@ -1953,8 +1994,8 @@ static const ToolDef kTools[] = {
 #endif
     {
         "screenshot",
-        "Capture the 3dmovie main window client area as PNG.",
-        "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+        "Capture the Studio canvas as PNG; presentation=true captures the movie-only frame at its rendering size.",
+        "{\"type\":\"object\",\"properties\":{\"presentation\":{\"type\":\"boolean\"}},\"additionalProperties\":false}",
         &Tool_Screenshot,
         false,
     },
@@ -1963,6 +2004,7 @@ static const ToolDef kTools[] = {
         "Click a point in the 3dmovie main window's client coordinates.",
         "{\"type\":\"object\","
         "\"properties\":{"
+        "\"shift\":{\"type\":\"boolean\"},"
         "\"x\":{\"type\":\"integer\"},"
         "\"y\":{\"type\":\"integer\"},"
         "\"button\":{\"type\":\"string\",\"enum\":[\"left\",\"right\"]}"
@@ -2026,15 +2068,18 @@ static const ToolDef kTools[] = {
     {
         "get_state",
         "Report main window state, foreground status, modal dialog (if any), and ErrorStack depth.",
-        "{\"type\":\"object\",\"properties\":{\"movie_details\":{\"type\":\"boolean\"}},\"additionalProperties\":false}",
+        "{\"type\":\"object\",\"properties\":{\"movie_details\":{\"type\":\"boolean\"}},\"additionalProperties\":"
+        "false}",
         &Tool_GetState,
         false,
     },
     {"test_movie_playback", "Advance every movie frame without timer waits; isolated test processes only.",
-     "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"max_frames\":{\"type\":\"integer\"},\"max_ms\":{\"type\":\"integer\"}},\"additionalProperties\":false}",
+     "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"max_frames\":{\"type\":\"integer\"},"
+     "\"max_ms\":{\"type\":\"integer\"}},\"additionalProperties\":false}",
      &Tool_TestMoviePlayback, false},
     {"seek_movie", "Seek using one-based scene/frame UI numbers and return the engine's actual success status.",
-     "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\"},\"frame\":{\"type\":\"integer\"}},\"required\":[\"scene\",\"frame\"],\"additionalProperties\":false}",
+     "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\"},\"frame\":{\"type\":\"integer\"}},"
+     "\"required\":[\"scene\",\"frame\"],\"additionalProperties\":false}",
      &Tool_SeekMovie, false},
     {
         "wait_ms",
