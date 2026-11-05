@@ -67,3 +67,13 @@
     * keep SDL3 and ImGui in host adapters; core libraries remain usable by CLI tools and regression tests
     * first remove native dialogs and registry/DLL spelling integration from core, then port allocation, synchronization, timing, files and text
     * isolate GDI regions/metafiles and preserve legacy `.3mm` data and encoding behavior during the migration
+
+* selectable file/asset backends using SDL3 streams
+    * support normal folders, direct ISO reads and embedded assets through `SDL_IOStream`
+    * reuse the ISO directory parser and expose bounded streams for individual assets, avoiding bulk extraction
+    * include file-existence checks and directory enumeration in backend selection; keep movie saves on the writable filesystem
+    * allow loose files and expansion packs to override ISO assets through an explicit search order
+    * evaluate a thin, generic, SDL-independent interface versus using SDL directly in core libraries and CLI tools
+    * keep or rename `KauaiFiles` only where it provides useful contracts; remove unnecessary legacy behavior and redundant wrappers
+    * retain caching as an optional fallback for components that still require real filenames, such as font discovery
+    * compare startup time, disk usage and runtime reads, and require both backends to pass the same movie and building workflow tests
