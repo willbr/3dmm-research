@@ -99,10 +99,10 @@ installation has a much smaller replacement. Generated archives still take
 precedence over the original overlay. Build artifacts and extracted content
 stay under the ignored `build` and `dist` directories.
 
-Fullscreen fits the display while preserving the canvas's 4:3 aspect ratio.
+The canvas fits the available area while preserving its 4:3 aspect ratio.
 Open **Product Info** with **Control+Shift+I** and enable **Integer scaling** to
-restrict fullscreen to whole-number pixel multiples. Windowed mode always uses
-integer scaling. **Make these the default settings** saves the scaling choice
+restrict scaling to whole-number pixel multiples in windowed, maximized and
+fullscreen modes. **Make these the default settings** saves the scaling choice
 for future launches.
 
 Native macOS checks in `build/mac-fullscreen-smoke/` verify a 1200x900 fitted
@@ -2005,10 +2005,9 @@ content tree supplied as the working directory before searching system installs,
 so available local clips do not incorrectly trigger a request for another CD.
 
 The bridge flushes queued GDI drawing before CPU pixel access. SDL creates and owns the resizable Studio
-window, scales the original canvas by whole-number pixel multiples when windowed,
-and fits the canvas to desktop fullscreen without changing the display's
-resolution or its 4:3 aspect ratio. The Product Info dialog's **Integer scaling**
-option also enables whole-number scaling in fullscreen. Nearest-neighbor
+window and fits the canvas to the available area without changing the display's
+resolution or the canvas's 4:3 aspect ratio. The Product Info dialog's **Integer scaling**
+option enables whole-number scaling in windowed, maximized and fullscreen modes. Nearest-neighbor
 sampling is used in both modes; a 640x480 minimum client area prevents windowed
 downscaling.
 The host and smoke checks verify the actual presentation rectangle after

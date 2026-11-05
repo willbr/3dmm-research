@@ -84,8 +84,8 @@ class Host
     std::uint32_t WindowID() const;
     void ResumeAfterModal();
     bool SetFullscreen(bool fullscreen);
-    // Fullscreen fits the display by default; this opts into whole pixel multiples.
-    // Windowed presentation always uses integer scaling.
+    // Fit the available area by default; opt into whole pixel multiples in
+    // windowed, maximized and fullscreen modes.
     bool SetIntegerScaling(bool enabled);
     bool IntegerScaling() const;
     bool SetMaximized(bool maximized);
@@ -102,7 +102,7 @@ class Host
     bool Title(std::string &utf8) const;
     bool Raise();
     // Desktop coordinates use SDL window units, including display density.
-    // Mapping includes windowed integer scaling, fullscreen fit, letterboxing
+    // Mapping includes the selected scaling mode, letterboxing
     // and the render viewport.
     // Output is unchanged on failure (including unavailable desktop positions).
     bool CanvasToDesktop(float x, float y, float &desktopX, float &desktopY) const;
