@@ -2,7 +2,8 @@
 
 ## Hard constraints
 
-- **`.3MM` files written by 3DMMForever must remain loadable by original 1995 3DMM.** Reduced fidelity OK; load failure or playback breakage not OK.
+- **Backwards compatibility is non-negotiable. Retail 3D Movie Maker is the behavioral reference.** Existing movies must retain their loading, playback, editing, resource-reference and timing semantics. Do not silently repair files, substitute assets, ignore errors or introduce fallback behavior that changes retail's result. A failure reproduced in both engines is a shared failure, not a port regression to suppress. Compatibility-breaking changes belong in 3DMMPlus, not 3DMMForever.
+- **`.3MM` files written by 3DMMForever must remain loadable and playable by original 1995 3DMM without losing movie semantics.** Validate legacy loading and retail save/reopen behavior before claiming compatibility.
   - Additive chunks at unused chids/ctgs only. No in-place struct growth (the loader rejects on size mismatch).
   - No new `SceneEventType` values. The 1995 reader doesn't understand them; using them in a movie breaks it.
   - **Adding new *optional* chunks is fine; making any new chunk required is forbidden** — required chunks force a `kcvnBack` bump beyond 2, and the 1995 reader's `DataVersion::FReadable` check rejects.

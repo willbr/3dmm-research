@@ -18,6 +18,8 @@ ask most often.
 
 3DMMForever is an open-source restoration of Microsoft's 3D Movie Maker (1995, MIT-released in 2022). The intent is to keep behavior and feature parity with the original (640x480 UI, kidspace, 3DMM-compatible movie files) while making the code build with modern tooling and eventually port to Mac/Linux. Heavier modernizations are reserved for the future `3DMMPlus` fork.
 
+The [hard constraints in plan.md](plan.md#hard-constraints) are standing project rules: never break backwards compatibility, and use retail behavior as the reference. Preserve retail's handling of incomplete files; do not add silent repairs or compatibility-changing fallbacks.
+
 ## Build
 
 Native Windows builds support x86 and x64. Windows SDL3 Studio also has an
