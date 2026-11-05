@@ -153,6 +153,8 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void _DispatchEvt(PEVT pevt);
     virtual bool _FTranslateKeyEvt(EVT *pevt, PCMD_KEY pcmd);
 #ifdef KAUAI_SDL3
+    // Window commands remain available while a control tracks the pointer.
+    virtual bool _FDispatchWindowShortcut(const EVT &event) { return false; }
     virtual bool _FDispatchShortcut(const EVT &event) { return false; }
     void _HostMouseDown(const EVT &event);
 #endif

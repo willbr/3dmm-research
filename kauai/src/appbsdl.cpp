@@ -172,7 +172,7 @@ void ApplicationBase::_DispatchEvt(PEVT event)
         break;
     case K::keyDown:
     case K::character:
-        if (!_FDispatchShortcut(*event))
+        if (!_FDispatchWindowShortcut(*event) && !_FDispatchShortcut(*event))
         {
             CMD_KEY key;
             if (_FTranslateKeyEvt(event, &key) && vpcex)
@@ -235,7 +235,8 @@ bool ApplicationBase::_FTranslateKeyEvt(PEVT event, PCMD_KEY key)
 bool ApplicationBase::FGetNextKeyFromOsQueue(PCMD_KEY key)
 {
     EVT event;
-    return _hostEvents.NextKey(KauaiSDL::Main(), event) && !_FDispatchShortcut(event) && _FTranslateKeyEvt(&event, key);
+    return _hostEvents.NextKey(KauaiSDL::Main(), event) && !_FDispatchWindowShortcut(event) &&
+           !_FDispatchShortcut(event) && _FTranslateKeyEvt(&event, key);
 }
 void ApplicationBase::TrackMouse(PGraphicsObject gob, PT *point)
 {
@@ -245,6 +246,8 @@ void ApplicationBase::TrackMouse(PGraphicsObject gob, PT *point)
         using K = KauaiInput::Kind;
         if (event.kind == K::motion || event.kind == K::buttonDown || event.kind == K::buttonUp)
             break;
+        if (event.kind == K::keyDown)
+            _FDispatchWindowShortcut(event);
         if (event.kind != K::keyDown && event.kind != K::keyUp && event.kind != K::character)
             _DispatchEvt(&event);
     }

@@ -4668,6 +4668,22 @@ LFail:
     the event will get thrown away, because the event's hwnd is nil.
 ***************************************************************************/
 #ifdef KAUAI_SDL3
+bool Application::_FDispatchWindowShortcut(const EVT &event)
+{
+    if (event.kind != KauaiInput::Kind::keyDown || event.key != 13 || event.modifiers != KauaiSDL::alt)
+        return false;
+    // Consume repeats so holding Alt+Enter cannot repeatedly switch modes.
+    if (!event.repeat)
+    {
+        KauaiSDL::WindowStatus state;
+        auto &host = KauaiSDL::Main();
+        if (host.WindowState(state) && host.SetFullscreen(!state.fullscreen))
+            _fRunInWindow = state.fullscreen;
+        else
+            fprintf(stderr, "Cannot toggle Studio SDL3 fullscreen: %s\n", host.Error());
+    }
+    return true;
+}
 bool Application::_FDispatchShortcut(const EVT &event)
 {
     if (event.kind != KauaiInput::Kind::keyDown) return false;

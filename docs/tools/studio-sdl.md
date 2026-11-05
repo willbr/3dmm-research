@@ -105,6 +105,12 @@ restrict scaling to whole-number pixel multiples in windowed, maximized and
 fullscreen modes. **Make these the default settings** saves the scaling choice
 for future launches.
 
+**Alt+Enter** toggles desktop fullscreen and restores the previous window size
+when returning to windowed mode. Holding the keys toggles only once per press.
+The shortcut preserves the scaling choice, updates Product Info's window-mode
+selection, and remains available while placing an actor or prop. The Windows
+`--fullscreen --actor` smoke workflow checks these paths with desktop key input.
+
 Native macOS checks in `build/mac-fullscreen-smoke/` verify a 1200x900 fitted
 canvas on a 1440x900 display, a 640x480 canvas with integer scaling enabled,
 and restoration of the 640x480 window. The SDL host test also checks rendered
