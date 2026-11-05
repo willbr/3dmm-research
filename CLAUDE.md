@@ -20,6 +20,10 @@ ask most often.
 
 The [hard constraints in plan.md](plan.md#hard-constraints) are standing project rules: never break backwards compatibility, and use retail behavior as the reference. Preserve retail's handling of incomplete files; do not add silent repairs or compatibility-changing fallbacks.
 
+## Git workflow
+
+Always commit completed project changes after appropriate validation. Do not wait for a separate request to commit. Keep commits focused on the task and exclude unrelated user files and assets.
+
 ## Build
 
 Native Windows builds support x86 and x64. Windows SDL3 Studio also has an
