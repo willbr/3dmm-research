@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "damage_map.h"
+#include "color.h"
 
 namespace KauaiSDL
 {
@@ -55,7 +56,9 @@ struct PointerStatus
 struct PresentationStatus
 {
     float x = 0, y = 0, width = 0, height = 0;
+    int sourceX = 0, sourceY = 0, sourceWidth = 0, sourceHeight = 0;
     int outputWidth = 0, outputHeight = 0;
+    int frameWidth = 0, frameHeight = 0;
 };
 struct WindowStatus
 {
@@ -88,6 +91,18 @@ class Host
     // windowed, maximized and fullscreen modes.
     bool SetIntegerScaling(bool enabled);
     bool IntegerScaling() const;
+    // Present a canvas subrectangle (nullptr restores the complete canvas).
+    // Input and desktop mappings continue to use complete-canvas coordinates.
+    bool SetPresentationSource(const KauaiPixels::DamageRect *rectangle);
+    // Borrow a higher-resolution image of the selected logical source area.
+    // nullptr restores the canvas. Caller retains storage until reset.
+    // nearest keeps bitmap UI art crisp when the image includes Studio controls.
+    // A nonzero serial identifies immutable frame contents until the serial changes.
+    bool SetPresentationPixels(const void *pixels, int width = 0, int height = 0, int pitch = 0, bool nearest = false,
+                               std::uint64_t serial = 0);
+    bool SetIndexedPresentationPixels(const void *pixels, int width, int height, int pitch, const Color *palette,
+                                      bool nearest = false, std::uint64_t serial = 0);
+    bool CopyPresentationPixels(std::vector<std::uint32_t> &pixels, int &width, int &height) const;
     bool SetMaximized(bool maximized);
     // Actual window-manager state; requests may take effect asynchronously.
     // Leaves status unchanged when no window exists.
@@ -133,7 +148,7 @@ class Host
     bool CopyPixels(std::vector<std::uint32_t> &pixels, int &width, int &height) const;
     // Automation goes through SDL's event queue, just like device input.
     bool PushPointer(float x, float y, bool down, std::uint32_t button = 1);
-    bool PushKey(std::uint32_t key, bool down);
+    bool PushKey(std::uint32_t key, bool down, std::uint32_t modifiers = 0);
     bool PushText(const std::string &utf8);
     // UTF-8 text, owned by the caller after retrieval. Clipboard events mark
     // external changes; ownership preserves Studio's richer internal data.

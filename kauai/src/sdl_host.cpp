@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_host.h"
+#include "sdl_surface.h"
 #include <SDL3/SDL.h>
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
@@ -133,9 +134,22 @@ struct Host::Impl
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
     SDL_Texture *texture = nullptr;
+    SDL_Texture *presentationTexture = nullptr;
+    const void *presentationPixels = nullptr;
+    int presentationWidth = 0, presentationHeight = 0, presentationPitch = 0;
+    bool presentationIndexed = false, presentationNearest = false, presentationDirty = true;
+    bool uploadedIndexed = false;
+    int uploadedWidth = 0, uploadedHeight = 0;
+    std::uint64_t presentationSerial = 0;
+    std::array<Color, 256> presentationColors{};
+    SDL_Palette *presentationPalette = nullptr;
+    std::vector<std::uint32_t> presentationRgb;
+    std::uint64_t uploadedCursor = 0;
+    int uploadedMouseX = 0, uploadedMouseY = 0;
     void *native = nullptr;
     const void *pixels = nullptr;
     int width = 0, height = 0, pitch = 0;
+    SDL_FRect source = {};
     float mouseX = 0, mouseY = 0;
     bool mouseDown = false, initialized = false, clipboardOwned = false, focusSuspended = false;
     bool integerScaling = false;
@@ -185,6 +199,8 @@ struct Host::Impl
         SDL_DestroyCursor(waitCursor);
         SDL_DestroyCursor(transparentCursor);
         SDL_DestroyTexture(texture);
+        SDL_DestroyTexture(presentationTexture);
+        SDL_DestroyPalette(presentationPalette);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         if (initialized)
@@ -194,6 +210,7 @@ struct Host::Impl
     {
         width = w;
         height = h;
+        source = {0, 0, float(w), float(h)};
         if (!damage.Init(w, h))
             return false;
         if (!window || !SDL_SetWindowMinimumSize(window, w, h))
@@ -210,14 +227,16 @@ struct Host::Impl
             return false;
         SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
         SDL_StartTextInput(window);
-        focused = (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) != 0;
+        const auto driver = SDL_GetCurrentVideoDriver();
+        focused =
+            (driver && std::strcmp(driver, "dummy") == 0) || (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS) != 0;
         return true;
     }
     bool SetPresentation()
     {
         // Apply the same scaling preference in every window mode.
         const auto mode = integerScaling ? SDL_LOGICAL_PRESENTATION_INTEGER_SCALE : SDL_LOGICAL_PRESENTATION_LETTERBOX;
-        return renderer && SDL_SetRenderLogicalPresentation(renderer, width, height, mode);
+        return renderer && SDL_SetRenderLogicalPresentation(renderer, int(source.w), int(source.h), mode);
     }
     bool ApplyPointer()
     {
@@ -285,39 +304,191 @@ struct Host::Impl
             ApplyCursor();
         }
     }
-    bool Upload(bool includeCursor)
+    bool StreamPixels(SDL_Texture *image, const void *data, int imageWidth, int imageHeight, int imagePitch, int bytes)
     {
-        if (width < 1 || height < 1 || width > INT32_MAX / 4 || pitch < width * 4 ||
-            std::uint64_t(pitch) * height > std::numeric_limits<std::size_t>::max())
+        void *locked = nullptr;
+        int lockedPitch = 0;
+        if (!SDL_LockTexture(image, nullptr, &locked, &lockedPitch))
+            return false;
+        for (int y = 0; y < imageHeight; ++y)
+            std::memcpy(static_cast<std::uint8_t *>(locked) + std::size_t(y) * lockedPitch,
+                        static_cast<const std::uint8_t *>(data) + std::size_t(y) * imagePitch,
+                        std::size_t(imageWidth) * bytes);
+        SDL_UnlockTexture(image);
+        return true;
+    }
+    bool UploadImage(SDL_Texture *image, const void *data, int imageWidth, int imageHeight, int imagePitch,
+                     const SDL_FRect &logical, bool includeCursor)
+    {
+        if (!data || imageWidth < 1 || imageHeight < 1 || imageWidth > INT32_MAX / 4 || imagePitch < imageWidth * 4 ||
+            logical.w <= 0 || logical.h <= 0 ||
+            std::uint64_t(imagePitch) * imageHeight > std::numeric_limits<std::size_t>::max())
             return false;
         const auto found = cursors.find(currentCursor);
         if (!includeCursor || !cursorVisible || !mouseInside || found == cursors.end())
-            return SDL_UpdateTexture(texture, nullptr, pixels, pitch);
+            return StreamPixels(image, data, imageWidth, imageHeight, imagePitch, 4);
         try
         {
-            cursorPixels.resize(std::size_t(width) * height);
-            for (int y = 0; y < height; ++y)
-                std::memcpy(cursorPixels.data() + std::size_t(y) * width,
-                            static_cast<const std::uint8_t *>(pixels) + std::size_t(y) * pitch, width * 4);
+            cursorPixels.resize(std::size_t(imageWidth) * imageHeight);
+            for (int y = 0; y < imageHeight; ++y)
+                std::memcpy(cursorPixels.data() + std::size_t(y) * imageWidth,
+                            static_cast<const std::uint8_t *>(data) + std::size_t(y) * imagePitch, imageWidth * 4);
             const auto &cursor = found->second;
             const int left = static_cast<int>(mouseX) - cursor.hotX, top = static_cast<int>(mouseY) - cursor.hotY;
-            for (int y = std::max(0, -top); y < cursor.height && y + top < height; ++y)
-                for (int x = std::max(0, -left); x < cursor.width && x + left < width; ++x)
+            const int firstX = std::max(0, int(std::floor((left - logical.x) * imageWidth / logical.w)));
+            const int firstY = std::max(0, int(std::floor((top - logical.y) * imageHeight / logical.h)));
+            const int lastX =
+                std::min(imageWidth, int(std::ceil((left + cursor.width - logical.x) * imageWidth / logical.w)));
+            const int lastY =
+                std::min(imageHeight, int(std::ceil((top + cursor.height - logical.y) * imageHeight / logical.h)));
+            for (int y = firstY; y < lastY; ++y)
+                for (int x = firstX; x < lastX; ++x)
                 {
-                    const auto offset = y * (cursor.width / 8) + x / 8;
-                    const auto bit = 0x80 >> (x & 7);
-                    auto &pixel = cursorPixels[std::size_t(y + top) * width + x + left];
+                    const int cx = int((x + 0.5) * logical.w / imageWidth + logical.x) - left;
+                    const int cy = int((y + 0.5) * logical.h / imageHeight + logical.y) - top;
+                    if (cx < 0 || cy < 0 || cx >= cursor.width || cy >= cursor.height)
+                        continue;
+                    const auto offset = cy * (cursor.width / 8) + cx / 8;
+                    const auto bit = 0x80 >> (cx & 7);
+                    auto &pixel = cursorPixels[std::size_t(y) * imageWidth + x];
                     if (!(cursor.andBits[offset] & bit))
                         pixel &= 0xFF000000;
                     if (cursor.xorBits[offset] & bit)
                         pixel ^= 0xFFFFFF;
                 }
-            return SDL_UpdateTexture(texture, nullptr, cursorPixels.data(), width * 4);
+            return StreamPixels(image, cursorPixels.data(), imageWidth, imageHeight, imageWidth * 4, 4);
         }
         catch (const std::bad_alloc &)
         {
             return false;
         }
+    }
+    bool Upload(bool includeCursor)
+    {
+        return UploadImage(texture, pixels, width, height, pitch, {0, 0, float(width), float(height)}, includeCursor);
+    }
+    bool UploadPresentation(bool includeCursor)
+    {
+        if (!presentationPixels)
+            return true;
+        const auto cursor =
+            includeCursor && cursorVisible && mouseInside && cursors.count(currentCursor) ? currentCursor : 0;
+        const int x = int(mouseX), y = int(mouseY);
+        if (presentationSerial && !presentationDirty && uploadedCursor == cursor &&
+            (!cursor || (uploadedMouseX == x && uploadedMouseY == y)))
+            return true;
+        // Indexed textures let SDL perform palette lookup during presentation.
+        // An AND/XOR cursor needs true-color pixels so inversion retains its
+        // legacy meaning, including colors absent from the movie palette.
+        const bool indexed = presentationIndexed && !cursor;
+        if (!presentationTexture || indexed != uploadedIndexed || uploadedWidth != presentationWidth ||
+            uploadedHeight != presentationHeight)
+        {
+            auto next = SDL_CreateTexture(renderer, indexed ? SDL_PIXELFORMAT_INDEX8 : SDL_PIXELFORMAT_XRGB8888,
+                                          SDL_TEXTUREACCESS_STREAMING, presentationWidth, presentationHeight);
+            if (!next)
+                return false;
+            if (indexed)
+            {
+                if (!presentationPalette)
+                    presentationPalette = SDL_CreatePalette(256);
+                if (!presentationPalette || !SDL_SetTexturePalette(next, presentationPalette))
+                {
+                    SDL_DestroyTexture(next);
+                    return false;
+                }
+            }
+            SDL_SetTextureBlendMode(next, SDL_BLENDMODE_NONE);
+            SDL_DestroyTexture(presentationTexture);
+            presentationTexture = next;
+            uploadedIndexed = indexed;
+            uploadedWidth = presentationWidth;
+            uploadedHeight = presentationHeight;
+        }
+        SDL_SetTextureScaleMode(presentationTexture,
+                                presentationNearest ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
+        bool success;
+        if (indexed)
+        {
+            SDL_Color colors[256];
+            for (int i = 0; i < 256; ++i)
+                colors[i] = {presentationColors[i].bRed, presentationColors[i].bGreen, presentationColors[i].bBlue,
+                             255};
+            success = SDL_SetPaletteColors(presentationPalette, colors, 0, 256) &&
+                      StreamPixels(presentationTexture, presentationPixels, presentationWidth, presentationHeight,
+                                   presentationPitch, 1);
+        }
+        else
+        {
+            const void *data = presentationPixels;
+            int row = presentationPitch;
+            if (presentationIndexed)
+            {
+                try
+                {
+                    presentationRgb.resize(std::size_t(presentationWidth) * presentationHeight);
+                }
+                catch (const std::bad_alloc &)
+                {
+                    return false;
+                }
+                if (!ExpandPresentation(presentationRgb.data()))
+                    return false;
+                data = presentationRgb.data();
+                row = presentationWidth * 4;
+            }
+            success = UploadImage(presentationTexture, data, presentationWidth, presentationHeight, row, source,
+                                  includeCursor);
+        }
+        if (success)
+        {
+            presentationDirty = false;
+            uploadedCursor = cursor;
+            uploadedMouseX = x;
+            uploadedMouseY = y;
+        }
+        return success;
+    }
+    bool ExpandPresentation(void *destination) const
+    {
+        const KauaiPixels::DamageRect bounds{0, 0, presentationWidth, presentationHeight};
+        const KauaiPixels::PackedSurface input{const_cast<void *>(presentationPixels),
+                                               presentationWidth,
+                                               presentationHeight,
+                                               presentationPitch,
+                                               8,
+                                               presentationColors.data(),
+                                               256};
+        const KauaiPixels::PackedSurface output{destination, presentationWidth, presentationHeight,
+                                                presentationWidth * 4, 32};
+        return BlitPixels(output, input, bounds, bounds);
+    }
+    bool BorrowPresentation(const void *data, int w, int h, int row, const Color *colors, bool nearest,
+                            std::uint64_t serial)
+    {
+        if (!data)
+        {
+            presentationPixels = nullptr;
+            presentationDirty = true;
+            return true;
+        }
+        if (!renderer || w < 1 || h < 1 || w > 4096 || h > 4096 || row < w * (colors ? 1 : 4))
+            return false;
+        presentationDirty = presentationDirty || !serial || serial != presentationSerial ||
+                            data != presentationPixels || w != presentationWidth || h != presentationHeight ||
+                            row != presentationPitch || bool(colors) != presentationIndexed ||
+                            nearest != presentationNearest ||
+                            (colors && std::memcmp(colors, presentationColors.data(), sizeof(Color) * 256));
+        presentationPixels = data;
+        presentationWidth = w;
+        presentationHeight = h;
+        presentationPitch = row;
+        presentationIndexed = colors != nullptr;
+        presentationNearest = nearest;
+        presentationSerial = serial;
+        if (colors)
+            std::copy_n(colors, 256, presentationColors.begin());
+        return true;
     }
 };
 Host::Host() : impl(new Impl)
@@ -395,7 +566,7 @@ bool Host::CanvasToDesktop(float x, float y, float &desktopX, float &desktopY) c
     float wx, wy;
     if (!impl->renderer || !std::isfinite(x) || !std::isfinite(y) ||
         !SDL_GetWindowPosition(impl->window, &left, &top) ||
-        !SDL_RenderCoordinatesToWindow(impl->renderer, x, y, &wx, &wy))
+        !SDL_RenderCoordinatesToWindow(impl->renderer, x - impl->source.x, y - impl->source.y, &wx, &wy))
         return false;
     wx += left;
     wy += top;
@@ -414,8 +585,8 @@ bool Host::DesktopToCanvas(float x, float y, float &canvasX, float &canvasY) con
         !SDL_RenderCoordinatesFromWindow(impl->renderer, x - left, y - top, &cx, &cy) || !std::isfinite(cx) ||
         !std::isfinite(cy))
         return false;
-    canvasX = cx;
-    canvasY = cy;
+    canvasX = cx + impl->source.x;
+    canvasY = cy + impl->source.y;
     return true;
 }
 void Host::ResumeAfterModal()
@@ -425,10 +596,16 @@ void Host::ResumeAfterModal()
     SuspendFocusEvents(false);
     FlushInput(true, true);
     impl->ResetKeys();
-    impl->focused = (SDL_GetWindowFlags(impl->window) & SDL_WINDOW_INPUT_FOCUS) != 0;
+    // The headless driver has no OS keyboard focus. Returning from its modal
+    // UI must nevertheless resume the logical app and its sound queues.
+    const auto driver = SDL_GetCurrentVideoDriver();
+    impl->focused = (driver && std::strcmp(driver, "dummy") == 0) ||
+                    (SDL_GetWindowFlags(impl->window) & SDL_WINDOW_INPUT_FOCUS) != 0;
     float x,y;
     SDL_GetMouseState(&x,&y);
     SDL_RenderCoordinatesFromWindow(impl->renderer,x,y,&impl->mouseX,&impl->mouseY);
+    impl->mouseX += impl->source.x;
+    impl->mouseY += impl->source.y;
     impl->MouseInside(SDL_GetMouseFocus()==impl->window && impl->mouseX>=0 && impl->mouseX<impl->width &&
                       impl->mouseY>=0 && impl->mouseY<impl->height);
     impl->ApplyPointer();
@@ -464,6 +641,43 @@ bool Host::IntegerScaling() const
 {
     return impl->integerScaling;
 }
+bool Host::SetPresentationSource(const KauaiPixels::DamageRect *rectangle)
+{
+    if (!impl->renderer)
+        return false;
+    SDL_FRect next{0, 0, float(impl->width), float(impl->height)};
+    if (rectangle)
+    {
+        if (rectangle->left < 0 || rectangle->top < 0 || rectangle->right > impl->width ||
+            rectangle->bottom > impl->height || rectangle->left >= rectangle->right ||
+            rectangle->top >= rectangle->bottom)
+            return false;
+        next = {float(rectangle->left), float(rectangle->top), float(rectangle->right - rectangle->left),
+                float(rectangle->bottom - rectangle->top)};
+    }
+    const auto previous = impl->source;
+    impl->source = next;
+    if (!impl->SetPresentation())
+    {
+        impl->source = previous;
+        return false;
+    }
+    impl->damage.Invalidate();
+    impl->presentationDirty = true;
+    if (!rectangle)
+        impl->presentationPixels = nullptr;
+    return true;
+}
+bool Host::SetPresentationPixels(const void *pixels, int width, int height, int pitch, bool nearest,
+                                 std::uint64_t serial)
+{
+    return impl->BorrowPresentation(pixels, width, height, pitch, nullptr, nearest, serial);
+}
+bool Host::SetIndexedPresentationPixels(const void *pixels, int width, int height, int pitch, const Color *palette,
+                                        bool nearest, std::uint64_t serial)
+{
+    return palette && impl->BorrowPresentation(pixels, width, height, pitch, palette, nearest, serial);
+}
 bool Host::SetMaximized(bool maximized)
 {
     if (!impl->window)
@@ -478,8 +692,11 @@ bool Host::WindowState(WindowStatus &status) const
     if (!impl->window)
         return false;
     const auto flags = SDL_GetWindowFlags(impl->window);
+    const auto driver = SDL_GetCurrentVideoDriver();
+    const bool logicalFocus = driver && std::strcmp(driver, "dummy") == 0;
     status = {bool(flags & SDL_WINDOW_MINIMIZED), bool(flags & SDL_WINDOW_MAXIMIZED),
-              bool(flags & SDL_WINDOW_FULLSCREEN), !(flags & SDL_WINDOW_HIDDEN), bool(flags & SDL_WINDOW_INPUT_FOCUS)};
+              bool(flags & SDL_WINDOW_FULLSCREEN), !(flags & SDL_WINDOW_HIDDEN),
+              logicalFocus ? impl->focused : bool(flags & SDL_WINDOW_INPUT_FOCUS)};
     return true;
 }
 bool Host::EnsureInteractive()
@@ -528,6 +745,12 @@ bool Host::Presentation(PresentationStatus &status) const
     status.y = rectangle.y;
     status.width = rectangle.w;
     status.height = rectangle.h;
+    status.sourceX = int(impl->source.x);
+    status.sourceY = int(impl->source.y);
+    status.sourceWidth = int(impl->source.w);
+    status.sourceHeight = int(impl->source.h);
+    status.frameWidth = impl->presentationPixels ? impl->presentationWidth : int(impl->source.w);
+    status.frameHeight = impl->presentationPixels ? impl->presentationHeight : int(impl->source.h);
     return true;
 }
 const char *Host::Error() const
@@ -551,10 +774,14 @@ bool Host::Present(bool force)
     const auto now = SDL_GetTicks();
     if (!force && now - impl->lastPresent < 16)
         return true;
-    if (!impl->Upload(true))
+    if (!impl->presentationPixels && !impl->Upload(true))
+        return false;
+    if (!impl->UploadPresentation(true))
         return false;
     SDL_SetRenderDrawColor(impl->renderer, 0, 0, 0, 255);
-    if (!SDL_RenderClear(impl->renderer) || !SDL_RenderTexture(impl->renderer, impl->texture, nullptr, nullptr))
+    if (!SDL_RenderClear(impl->renderer) ||
+        !SDL_RenderTexture(impl->renderer, impl->presentationPixels ? impl->presentationTexture : impl->texture,
+                           impl->presentationPixels ? nullptr : &impl->source, nullptr))
         return false;
     SDL_RenderPresent(impl->renderer);
     impl->lastPresent = now;
@@ -562,15 +789,36 @@ bool Host::Present(bool force)
 }
 bool Host::SaveBMP(const char *path, bool includeCursor)
 {
-    if (!impl->pixels || !impl->renderer || !impl->Upload(includeCursor))
+    if (!impl->pixels || !impl->renderer || (!impl->presentationPixels && !impl->Upload(includeCursor)))
+        return false;
+    if (!impl->UploadPresentation(includeCursor))
         return false;
     SDL_RenderClear(impl->renderer);
-    SDL_RenderTexture(impl->renderer, impl->texture, nullptr, nullptr);
+    SDL_RenderTexture(impl->renderer, impl->presentationPixels ? impl->presentationTexture : impl->texture,
+                      impl->presentationPixels ? nullptr : &impl->source, nullptr);
     auto surface = SDL_RenderReadPixels(impl->renderer, nullptr);
     const bool saved = surface && SDL_SaveBMP(surface, path);
     SDL_DestroySurface(surface);
     SDL_RenderPresent(impl->renderer);
     return saved;
+}
+bool Host::CopyPresentationPixels(std::vector<std::uint32_t> &pixels, int &width, int &height) const
+{
+    const bool high = impl->presentationPixels != nullptr;
+    const auto source = high ? impl->presentationPixels : impl->pixels;
+    if (!source)
+        return false;
+    width = high ? impl->presentationWidth : int(impl->source.w);
+    height = high ? impl->presentationHeight : int(impl->source.h);
+    const int pitch = high ? impl->presentationPitch : impl->pitch;
+    const int left = high ? 0 : int(impl->source.x), top = high ? 0 : int(impl->source.y);
+    pixels.resize(std::size_t(width) * height);
+    if (high && impl->presentationIndexed)
+        return impl->ExpandPresentation(pixels.data());
+    for (int y = 0; y < height; ++y)
+        std::memcpy(pixels.data() + std::size_t(y) * width,
+                    static_cast<const std::uint8_t *>(source) + std::size_t(y + top) * pitch + left * 4, width * 4);
+    return true;
 }
 bool Host::CopyPixels(std::vector<std::uint32_t> &pixels, int &width, int &height) const
 {
@@ -600,6 +848,8 @@ bool Host::Poll(Event &event, int timeoutMs)
             float x, y;
             SDL_GetMouseState(&x, &y);
             SDL_RenderCoordinatesFromWindow(impl->renderer, x, y, &impl->mouseX, &impl->mouseY);
+            impl->mouseX += impl->source.x;
+            impl->mouseY += impl->source.y;
             impl->MouseInside(impl->mouseX >= 0 && impl->mouseX < impl->width && impl->mouseY >= 0 &&
                               impl->mouseY < impl->height);
             break;
@@ -654,8 +904,8 @@ bool Host::Poll(Event &event, int timeoutMs)
             break;
         case SDL_EVENT_MOUSE_MOTION:
             event.kind = EventKind::motion;
-            event.x = next.motion.x;
-            event.y = next.motion.y;
+            event.x = next.motion.x + impl->source.x;
+            event.y = next.motion.y + impl->source.y;
             impl->mouseX = event.x;
             impl->mouseY = event.y;
             impl->MouseInside(event.x >= 0 && event.x < impl->width && event.y >= 0 && event.y < impl->height);
@@ -663,8 +913,8 @@ bool Host::Poll(Event &event, int timeoutMs)
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP:
             event.kind = next.type == SDL_EVENT_MOUSE_BUTTON_DOWN ? EventKind::buttonDown : EventKind::buttonUp;
-            event.x = next.button.x;
-            event.y = next.button.y;
+            event.x = next.button.x + impl->source.x;
+            event.y = next.button.y + impl->source.y;
             event.button = next.button.button;
             impl->mouseX = event.x;
             impl->mouseY = event.y;
@@ -772,7 +1022,8 @@ bool Host::PushPointer(float x, float y, bool down, std::uint32_t button)
 {
     // Automation uses logical Studio coordinates. Re-enter the same window
     // coordinate path as physical input, including scaling and letterboxing.
-    if (!impl->renderer || !SDL_RenderCoordinatesToWindow(impl->renderer, x, y, &x, &y))
+    if (!impl->renderer ||
+        !SDL_RenderCoordinatesToWindow(impl->renderer, x - impl->source.x, y - impl->source.y, &x, &y))
         return false;
     SDL_Event event = {};
     event.type = down ? SDL_EVENT_MOUSE_BUTTON_DOWN : SDL_EVENT_MOUSE_BUTTON_UP;
@@ -783,7 +1034,7 @@ bool Host::PushPointer(float x, float y, bool down, std::uint32_t button)
     event.button.y = y;
     return SDL_PushEvent(&event);
 }
-bool Host::PushKey(std::uint32_t key, bool down)
+bool Host::PushKey(std::uint32_t key, bool down, std::uint32_t modifiers)
 {
     SDL_Event event = {};
     event.type = down ? SDL_EVENT_KEY_DOWN : SDL_EVENT_KEY_UP;
@@ -795,6 +1046,9 @@ bool Host::PushKey(std::uint32_t key, bool down)
             break;
         }
     event.key.down = down;
+    event.key.mod =
+        static_cast<SDL_Keymod>(((modifiers & shift) ? SDL_KMOD_LSHIFT : 0) |
+                                ((modifiers & control) ? SDL_KMOD_LCTRL : 0) | ((modifiers & alt) ? SDL_KMOD_LALT : 0));
     return SDL_PushEvent(&event);
 }
 bool Host::PushText(const std::string &utf8)
@@ -935,7 +1189,8 @@ bool Host::WarpPointerGlobal(float x, float y)
 bool Host::WarpPointer(float x, float y)
 {
     float windowX, windowY;
-    if (!impl->renderer || !SDL_RenderCoordinatesToWindow(impl->renderer, x, y, &windowX, &windowY))
+    if (!impl->renderer ||
+        !SDL_RenderCoordinatesToWindow(impl->renderer, x - impl->source.x, y - impl->source.y, &windowX, &windowY))
         return false;
     SDL_WarpMouseInWindow(impl->window, windowX, windowY);
     // Tracking may read the pointer before SDL delivers the generated motion.

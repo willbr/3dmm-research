@@ -259,6 +259,12 @@ void TriangleRenderPIZ2I(struct temp_vertex_fixed *v0, struct temp_vertex_fixed 
     int64_t i0 = vs[0]->comp[C_I], i1 = vs[1]->comp[C_I], i2 = vs[2]->comp[C_I];
 
     int32_t row_width = zb.row_width;
+    if (!fw.output || row_width <= 0)
+        return;
+    const int32_t left = fw.output->base_x;
+    const int32_t right = left + fw.output->width;
+    const int32_t first_y = y0 < 0 ? 0 : y0;
+    const int32_t last_y = y2 > fw.output->height ? fw.output->height : y2;
     uint8_t *colour = (uint8_t *)zb.colour_buffer;
     uint16_t *depth = (uint16_t *)zb.depth_buffer;
 
@@ -267,7 +273,7 @@ void TriangleRenderPIZ2I(struct temp_vertex_fixed *v0, struct temp_vertex_fixed 
 
     /* For each scanline, find the X intersection on the long edge and on
      * the appropriate short edge, plus the Z and intensity at each. */
-    for (int32_t y = y0; y < y2; y++)
+    for (int32_t y = first_y; y < last_y; y++)
     {
         int32_t yf = y - y0;
         int32_t xL = x0 + (int32_t)(((int64_t)(x2 - x0) * yf) / long_dy);
@@ -310,10 +316,19 @@ void TriangleRenderPIZ2I(struct temp_vertex_fixed *v0, struct temp_vertex_fixed 
         int64_t dz = (zb_ - za) / span;
         int64_t di = (ib - ia) / span;
 
-        uint8_t *cptr = colour + (size_t)y * row_width + xa;
-        uint16_t *zptr = depth + (size_t)y * row_width + xa;
+        /* Rounded projected vertices can extend beyond the viewport. Preserve
+         * the original interpolants while clipping both colour and depth writes. */
+        const int32_t start = xa < left ? left : xa;
+        const int32_t end = xb > right ? right : xb;
+        if (start >= end)
+            continue;
+        z += dz * (start - xa);
+        i += di * (start - xa);
 
-        for (int32_t x = 0; x < span; x++)
+        uint8_t *cptr = colour + (size_t)y * row_width + start;
+        uint16_t *zptr = depth + (size_t)y * row_width + start;
+
+        for (int32_t x = 0; x < end - start; x++)
         {
             uint16_t z16 = (uint16_t)((uint64_t)z >> 16);
             if (z16 < zptr[x])

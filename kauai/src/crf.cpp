@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include "util.h"
 ASSERTNAME
 
@@ -300,7 +301,7 @@ tribool ChunkyResourceFile::TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pf
         return tMaybe;
 
     AssertPo(cre.pbaco, 0);
-    AssertIn(cre.cb, 0, kcbMax);
+    Assert(cre.cb >= 0, "negative resource size");
 
     if (_cbCur + cre.cb > _cbMax && !_FPurgeCb(_cbCur + cre.cb - _cbMax, crep - 1))
     {
@@ -393,7 +394,10 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType ctg, ChunkNum
     }
 
     AssertPo(cre.pbaco, 0);
-    AssertIn(cre.cb, 0, kcbMax);
+    // A decoded resource can exceed the allocation limit for its on-disk
+    // chunk (SDL audio uses separate sample storage). The reader reports a
+    // signed 32-bit resident charge; aggregate accounting is wider.
+    Assert(cre.cb >= 0, "negative resource size");
 
     cre.pbaco->_pcrf = this;
     cre.pbaco->_ctg = ctg;
@@ -516,7 +520,7 @@ void ChunkyResourceFile::BacoDetached(PBaseCacheableObject pbaco)
     }
     _pglcre->Get(icre, &cre);
     _cbCur -= cre.cb;
-    AssertIn(_cbCur, 0, kcbMax);
+    Assert(_cbCur >= 0, "negative cache size");
     _pglcre->Delete(icre);
 }
 
@@ -669,10 +673,10 @@ bool ChunkyResourceFile::_FFindBaco(PBaseCacheableObject pbaco, LegacyLong *picr
     Try to purge at least cbPurge bytes of space.  Doesn't free anything
     with a crep > crepLast or that is locked.
 ***************************************************************************/
-bool ChunkyResourceFile::_FPurgeCb(LegacyLong cbPurge, LegacyLong crepLast)
+bool ChunkyResourceFile::_FPurgeCb(std::int64_t cbPurge, LegacyLong crepLast)
 {
     AssertThis(0);
-    AssertIn(cbPurge, 1, kcbMax);
+    Assert(cbPurge > 0, "empty cache purge");
     if (crepLast <= crepToss)
         return fFalse;
 
@@ -694,8 +698,8 @@ bool ChunkyResourceFile::_FPurgeCb(LegacyLong cbPurge, LegacyLong crepLast)
         // REVIEW shonk: tune kcbRelease and the weighting factor...
         const LegacyLong kcbRelease = 256;
         LegacyLong icre, crep;
-        LegacyLong lw, dcb;
-        LegacyLong lwBest = klwMax;
+        std::int64_t lw, dcb;
+        auto lwBest = std::numeric_limits<std::int64_t>::max();
         LegacyLong icreBest = ivNil;
         LegacyLong crepBest = crepLast;
 
@@ -711,8 +715,8 @@ bool ChunkyResourceFile::_FPurgeCb(LegacyLong cbPurge, LegacyLong crepLast)
             AssertIn(cre.cactRelease, 0, _cactRelease);
 
             dcb = cre.cb - cbPurge;
-            lw = -LwMul(kcbRelease, LwMin(kcbMax / kcbRelease, _cactRelease - cre.cactRelease)) + LwMul(2, LwAbs(dcb)) -
-                 dcb;
+            lw = -LwMul(kcbRelease, LwMin(kcbMax / kcbRelease, _cactRelease - cre.cactRelease)) +
+                 2 * (dcb < 0 ? -dcb : dcb) - dcb;
             if (crep < crepBest || lw < lwBest)
             {
                 icreBest = icre;
@@ -745,7 +749,7 @@ void ChunkyResourceFile::AssertValid(LegacyUlong grf)
     AssertPo(_pglcre, 0);
     AssertPo(_pcfl, 0);
     AssertIn(_cbMax, 0, kcbMax);
-    AssertIn(_cbCur, 0, kcbMax);
+    Assert(_cbCur >= 0, "negative cache size");
     AssertIn(_cactRelease, 0, kcbMax);
 }
 

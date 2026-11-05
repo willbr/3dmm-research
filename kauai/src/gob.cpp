@@ -781,6 +781,10 @@ void GraphicsObject::DrawTree(PGraphicsPort pgpt, RC *prc, RC *prcClip, ulong gr
             }
 
             // draw the gob
+#ifdef KAUAI_SDL3
+            if (pgob->FDrawSubtree(&gnv, &rcClipGob, grfgob))
+                goto LOffsetNextSib;
+#endif
             pgob->Draw(&gnv, &rcClipGob);
         }
         if (grfgte & fgtePost)
@@ -908,6 +912,13 @@ void GraphicsObject::DrawTreeRgn(PGraphicsPort pgpt, RC *prc, Region *pregn, ulo
             // copied to the screen. Using pregnClipGob would cause lots
             // of hregn creations.
             pgpt->ClipToRegn(&pregn);
+#ifdef KAUAI_SDL3
+            if (pgob->FDrawSubtree(&gnv, &rcClipGob, grfgob))
+            {
+                pgpt->ClipToRegn(&pregn);
+                goto LOffsetNextSib;
+            }
+#endif
             pgob->Draw(&gnv, &rcClipGob);
             pgpt->ClipToRegn(&pregn);
         }

@@ -64,6 +64,18 @@ static int PackedCopies()
     CHECK(CopyPacked(eight, thirtyTwo, row, row, nullptr, nullptr, stretch));
     const std::uint8_t expectedBytes[] = {1, 2, 3, 4, 0xA5, 0xA5, 0xA5, 0xA5};
     CHECK(std::memcmp(bytes, expectedBytes, sizeof(bytes)) == 0);
+    // Transition snapshots recover exact palette colors from the SDL display;
+    // general near-size quantization above remains deliberately unsupported.
+    std::uint8_t snapshot[8];
+    std::memset(snapshot, 0xA5, sizeof(snapshot));
+    CHECK(SnapshotIndexed({snapshot, 4, 1, 8}, {rgb, 4, 1, 16}, row, row, palette, 256));
+    CHECK(std::memcmp(snapshot, expectedBytes, sizeof(snapshot)) == 0);
+    rgb[3] = 0x123456;
+    std::memset(snapshot, 0xA5, sizeof(snapshot));
+    CHECK(!SnapshotIndexed({snapshot, 4, 1, 8}, {rgb, 4, 1, 16}, row, row, palette, 256));
+    for (auto value : snapshot)
+        CHECK(value == 0xA5);
+    rgb[3] = 0xFFFFFF;
     std::uint8_t overlapping[] = {0x12, 0x34, 0x56, 0xA5};
     PackedSurface self{overlapping, 6, 1, 4, 4, palette, 16};
     CHECK(CopyPacked(self, self, row, RC(1, 0, 5, 1)));

@@ -55,6 +55,8 @@ class World : public World_PAR
     PRegion _pregnDirtyScreen;     // Rgn to copy from working buffer to screen
     bool _fHalfX;                // Render at half horizontal resolution
     bool _fHalfY;                // Render at half vertical resolution
+    long _renderScale = 1;
+    static long _defaultRenderScale;
     bool _fWorldChanged;         // Need to rerender?
     PFNBEGINREND _pfnbeginrend;  // Callback to each actor before rendering
     PFNBACTREND _pfnbactrend;    // Callback when an actor is rendered
@@ -74,6 +76,8 @@ class World : public World_PAR
     }
     bool _FInit(long dxp, long dyp, bool fHalfX, bool fHalfY);
     bool _FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY);
+    bool _FSetBufferMode(bool fHalfX, bool fHalfY, long scale);
+    bool _FScaleBackground(PMaskedBitmapMBMP bitmap, PZBMP depth, long scale);
     void _CleanWorkingBuffers(void);
 #ifdef DEBUG
     bool _FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale);
@@ -135,6 +139,26 @@ class World : public World_PAR
     }
     static void SetNoTexture(bool fOn);
     bool FSetHalfMode(bool fHalfX, bool fHalfY);
+    // Runtime preference only; camera and movie-file coordinates stay native.
+    bool FSetRenderScale(long scale);
+    long RenderScale() const
+    {
+        return _renderScale;
+    }
+    static long DefaultRenderScale()
+    {
+        return _defaultRenderScale;
+    }
+    static void SetDefaultRenderScale(long scale)
+    {
+        if (scale == 1 || scale == 2 || scale == 4)
+            _defaultRenderScale = scale;
+    }
+    void GetRenderSize(long *width, long *height) const
+    {
+        *width = _rcBuffer.xpRight;
+        *height = _rcBuffer.ypBottom;
+    }
     bool FHalfX(void)
     {
         return _fHalfX;

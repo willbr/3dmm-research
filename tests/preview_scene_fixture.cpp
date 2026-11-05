@@ -96,13 +96,16 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number)
 
 int main(int argc, char **argv)
 {
-    if (argc != 4 && argc != 5 && !(argc == 6 && std::strcmp(argv[5], "--batch") == 0))
+    if (argc != 4 && argc != 5 &&
+        !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0)))
     {
-        std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES [--batch]]\n");
+        std::fprintf(stderr,
+                     "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES [--batch|--dissolve]]\n");
         return 2;
     }
     const bool movie = argc >= 5;
-    const bool batch = argc == 6;
+    const bool batch = argc == 6 && std::strcmp(argv[5], "--batch") == 0;
+    const bool dissolve = argc == 6 && std::strcmp(argv[5], "--dissolve") == 0;
     const int source = movie ? 2 : 1;
     String backgroundPath;
     backgroundPath.SetSzs(argv[2]);
@@ -309,6 +312,8 @@ int main(int argc, char **argv)
     // Preview mode compares against a background-only scene. Movie mode keeps
     // the actors and authors a different camera sequence in the second scene.
     ChunkNumber emptyScene;
+    if (dissolve)
+        scene.transition = transDissolve;
     ok = ok && scene.FCreate(file, &emptyScene);
     if (!movie)
         for (int i = 0; i < 5; ++i)

@@ -3,6 +3,7 @@
 #include "ellipse_geometry.h"
 #include "dib_frame.h"
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
@@ -721,6 +722,49 @@ bool DrawDibFrame(const Surface32 &destination, const DibFrame &frame, const RC 
             std::memcpy(Pixel(destination, x, y), pixel, 4);
         }
     });
+    return true;
+}
+bool SnapshotIndexed(const Surface8 &destination, const Surface32 &source, const RC &sourceRect,
+                     const RC &destinationRect, const Color *palette, std::int32_t colors)
+{
+    RC src = sourceRect, dst = destinationRect;
+    if (!Valid(destination) || !Valid(source) || !palette || colors < 1 || colors > 256 || src.FEmpty() ||
+        dst.FEmpty() || sourceRect.xpLeft < 0 || sourceRect.ypTop < 0 || sourceRect.xpRight > source.width ||
+        sourceRect.ypBottom > source.height || destinationRect.xpLeft < 0 || destinationRect.ypTop < 0 ||
+        destinationRect.xpRight > destination.width || destinationRect.ypBottom > destination.height ||
+        src.Dxp() != dst.Dxp() || src.Dyp() != dst.Dyp())
+        return false;
+    std::array<std::pair<std::uint32_t, std::uint8_t>, 256> entries;
+    for (int i = 0; i < colors; ++i)
+        entries[i] = {Rgb(palette[i]), static_cast<std::uint8_t>(i)};
+    std::sort(entries.begin(), entries.begin() + colors);
+    const auto width = src.Dxp(), height = src.Dyp();
+    std::vector<std::uint8_t> indices;
+    try
+    {
+        indices.resize(std::size_t(width) * height);
+    }
+    catch (const std::exception &)
+    {
+        return false;
+    }
+    // Preflight every pixel before writing: a non-palette color must not leave
+    // behind a partially converted transition frame.
+    for (int y = 0; y < height; ++y)
+        for (int x = 0; x < width; ++x)
+        {
+            std::uint32_t rgb;
+            std::memcpy(&rgb, Pixel(source, sourceRect.xpLeft + x, sourceRect.ypTop + y), sizeof(rgb));
+            rgb &= 0xFFFFFF;
+            const auto found =
+                std::lower_bound(entries.begin(), entries.begin() + colors, std::make_pair(rgb, std::uint8_t(0)));
+            if (found == entries.begin() + colors || found->first != rgb)
+                return false;
+            indices[std::size_t(y) * width + x] = found->second;
+        }
+    for (int y = 0; y < height; ++y)
+        std::memcpy(Pixel(destination, destinationRect.xpLeft, destinationRect.ypTop + y),
+                    indices.data() + std::size_t(y) * width, width);
     return true;
 }
 bool CopyPacked(const PackedSurface &destination, const PackedSurface &source, const RC &sourceRect,

@@ -111,6 +111,135 @@ The shortcut preserves the scaling choice, updates Product Info's window-mode
 selection, and remains available while placing an actor or prop. The Windows
 `--fullscreen --actor` smoke workflow checks these paths with desktop key input.
 
+**Shift+click Play** starts movie-only playback in the current window. The existing
+544x306 movie viewport fits the window at its original 16:9 aspect ratio; Studio's
+controls are omitted from presentation. A windowed app stays windowed, and an
+already-fullscreen app stays fullscreen. **Alt+Enter** controls fullscreen independently.
+**Space** pauses/resumes this mode, with
+a large **Paused / press space to resume** banner. The movie clock and queued
+audio pause in place, retaining frame, scrolling-caption progress and remaining
+authored waits. Clicks while Space-paused do not resume or dismiss an authored
+pause. **Escape** stops playback and restores Studio in the current window;
+natural completion also restores the editor. Ordinary Play
+and the original movie data remain unchanged.
+
+Product Info's **Render size** selects **Original (544x306)**, **2x super size
+(1088x612)** or **4x super size (2176x1224)**. Original is the default. Super sizes
+rerasterize actors, props and 3D text with the same camera framing; they do not
+add detail to the original background artwork. Background colors and depths are
+replicated to preserve the authored occlusion. Both Studio and movie-only playback
+render the complete movie view at the selected size, including 2D text boxes and
+scrolling credits. Studio composes a **1280x960** image at 2x or **2560x1920** at
+4x, placing the full-resolution movie directly inside the enlarged interface.
+It avoids reducing the movie to 544x306 before enlarging Studio. Bitmap controls
+use nearest-neighbor scaling; the layout, hit testing and mouse coordinates
+remain 640x480. Normal draw order keeps panels, text editing and dialogs above
+the movie, and custom cursor masks scale with the presented image. Movie-only
+presentation fits the movie itself to the window and adds the pause banner.
+The shared renderer retains the movie palette so both views preserve the original
+colors and transitions. The legacy palette-based scene transitions retain their
+native canvas resolution. **Better Speed** applies to Original size; super sizes use
+full-quality buffers and require more CPU and memory. **Make these the default
+settings** persists the rendering size without changing movie files.
+
+Equal-size indexed and true-color transfers use SDL surface blits. Unsupported
+legacy formats, palette remapping, overlapping buffers and legacy scaling keep
+the existing pixel path. The high-resolution movie remains indexed until a
+true-color consumer needs it, and its RGB conversion is cached per frame.
+Movie-only playback supplies an indexed SDL texture and palette; SDL handles
+renderer support and conversion. Studio caches its composed image and redraws
+changed regions through the normal object tree, retaining foreground panels
+and editing controls. Unchanged frames reuse the uploaded texture. Software
+AND/XOR cursors retain true-color compositing, including inverted colors.
+
+In the Windows x64 Debug desktop benchmark (Rebirth scene 19, frames 15–34,
+three runs), median 4x Studio playback improved from 2.18 to 6.60 fps and 4x
+movie-only playback from 3.61 to 6.61 fps. Original stayed at 6.66 fps. These
+reach the existing playback clock's pace; no movie timing was changed. Five
+captured Rebirth frames matched the prior native and 4x composed images exactly.
+Evidence: `tmp/sdl-presentation/performance.json`. The 4x fixture workflow also
+passed transitions, scrolling captions and pause/resume. Desktop editing checked
+text entry, the font popup, save and caret blinking with rapid screen captures
+of the caret itself (`tmp/shared-render/edit-3_8hzbqo/report.json`), avoiding
+aliasing from repeated large PNG transfers.
+
+`studio-movie-only-workflow` checks generated animated and scrolling-caption
+movies against the ISO, including a scene dissolve, frozen images/state, resume,
+Escape while paused, natural completion and unchanged movie hashes. It runs headlessly with
+SDL's dummy driver. Run `tests/studio_movie_only_workflow.py EXE FIXTURE ISO
+ARTIFACTS --desktop` for real display checks and pause-banner desktop captures.
+`--render-scale 2` or `--render-scale 4` also checks actual frame dimensions,
+foreground detail finer than repeated native pixels, frozen high-resolution
+captions, resumed scrolling, live size changes and saved settings across restart.
+It also checks that idle Studio text changes with render size, that Studio controls
+remain unchanged, and that its fitted text pixels match the movie-only image.
+MCP `screenshot` with `presentation: true` captures the composed Studio image or
+movie-only frame at its internal size; ordinary screenshots retain the 640x480
+Studio canvas contract. Enlarged Studio checks require fine 3D and text detail
+inside the viewport and verify that bitmap buttons remain nearest-neighbor
+copies of their native artwork. Super-size checks also complete ordinary Studio
+playback through both fixture scenes and their dissolve. Cursor tests cover scaled AND/XOR masks,
+hotspots and clipping; a resized desktop editing run also verified text input,
+the font menu, caret blinking and save.
+The enlarged Studio checks passed at 2x and 4x; evidence is in
+`tmp/shared-render/large-final-4x/run-wxfbtbsi/report.json` and
+`tmp/shared-render/edit-ji9hi3yn/report.json`. Original-size playback also passed.
+
+For complete real-movie coverage, run `tests/studio_complete_movie_workflow.py
+EXE ISO MOVIE ARTIFACTS`. This uses ordinary paced Shift+Play with transitions,
+audio processing and scrolling captions enabled; it does not use turbo playback,
+which changes transitions to cuts. Authored click pauses are acknowledged only
+when the view reports waiting for a click. The workflow requires every scene,
+the final frame and restoration of the editor, and verifies that playback leaves
+the movie copy unchanged. It uses a private movie copy and settings; `--desktop`
+enables the real video driver. The default uses SDL dummy video/audio drivers.
+The report records playback completion separately from application shutdown;
+an assertion in the movie's close/save handling still fails the overall check.
+The identified unused-sound prompt is answered with **Keep** by default;
+`--unused-sounds remove` tests the other choice. Closing may rewrite the private
+copy, matching retail; the original source movie must remain unchanged.
+`--render-scale 4` runs the complete movie at the largest rendering size.
+
+The super-size checks passed at 2x and 4x, including a real desktop 4x run.
+A complete 4x `Litterbug 2.3mm` run rendered at 2176x1224 through all 134 scenes
+(3,179 reported frames), processed audio and scrolling credits, restored Studio
+and exited normally with an empty error stack. Playback preserved the test copy;
+the original movie remained unchanged through shutdown. Headless modal dialogs
+restore logical focus so SDL's dummy video driver resumes audio after Product
+Info closes. Evidence: `tmp/supersize-full-movie/run-f5fc9fa6/report.json`.
+
+SDL transition snapshots recover the displayed movie's palette colors exactly
+from its RGB canvas. This avoids the unsupported general RGB-to-indexed copy
+that previously raised `ercGfxCantDraw` during a dissolve. Colors absent from the
+palette still produce an error; the conversion does not approximate colors or
+skip transitions.
+
+Resource-cache totals and purge scores use 64-bit accounting. Decoded SDL sound
+samples can individually or collectively exceed the legacy 128 MiB allocation
+limit while still in use. File/chunk limits and eviction priorities remain intact;
+`resource-cache` checks retention and release beyond 2 GiB of reported resident
+sizes without allocating that memory.
+
+A Windows SDL Debug run of `Litterbug 2.3mm` completed ordinary paced movie-only
+playback through all 134 scenes (3,179 reported frames), including dissolves,
+audio processing and closing captions, then restored Studio with an empty error
+stack. SDL dummy video/audio drivers were used. The original movie and test copy
+were unchanged. The subsequent Quit failed the existing `FUnusedSndsUser`
+assertion, `Not a child of Movie chunk`, recorded as a shutdown failure in that
+run's report. The retail comparison below led to removing this Debug-only check.
+
+A subsequent close test with the hash-pinned ISO retail EXE confirmed its normal
+quit confirmation is followed by the unused-sound keep/remove prompt for this
+movie. Both choices exited normally with code 0 and rewrote the disposable movie
+copy. Both retained 220 MSND chunks, 210 WAVE chunks and 219 movie-root sound links;
+the source movie and installed preferences remained unchanged. The Debug
+root-link assertion and the user-facing unused-sound prompt check different
+conditions; the assertion is absent from retail. Evidence is under
+`tmp/retail-close/verified-close-summary.json` and its referenced run reports.
+The SDL Debug close check now also reaches the prompt and exits with code 0 for
+both choices, with assertions otherwise enabled. The reference-count scan,
+prompt and sound cleanup remain unchanged; no missing links are added or repaired.
+
 Native macOS checks in `build/mac-fullscreen-smoke/` verify a 1200x900 fitted
 canvas on a 1440x900 display, a 640x480 canvas with integer scaling enabled,
 and restoration of the 640x480 window. The SDL host test also checks rendered

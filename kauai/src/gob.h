@@ -28,6 +28,9 @@ enum
     fgobNoVis = 0,      // for DrawTree
     fgobAutoVis = 4,    // for DrawTree
     fgobUseVis = 8,     // for DrawTree
+#ifdef KAUAI_SDL3
+    fgobUseCache = 16, // presentation pass may reuse an already-rendered subtree
+#endif
 };
 
 // GraphicsObject invalidation types
@@ -240,6 +243,13 @@ class GraphicsObject : public GraphicsObject_PAR
     virtual void DrawTree(PGraphicsPort pgpt, RC *prc, RC *prcUpdate, ulong grfgob);
     virtual void DrawTreeRgn(PGraphicsPort pgpt, RC *prc, Region *pregn, ulong grfgob);
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
+#ifdef KAUAI_SDL3
+    // Return true when the complete subtree has been drawn as one image.
+    virtual bool FDrawSubtree(PGraphicsEnvironment pgnv, RC *prcClip, ulong grfgob)
+    {
+        return false;
+    }
+#endif
 
     // mouse handling and hit testing
     void GetPtMouse(PT *ppt, bool *pfDown);

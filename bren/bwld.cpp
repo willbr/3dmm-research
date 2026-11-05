@@ -56,6 +56,7 @@ const long kcbPixelZ = 2;
 bool World::_fBRenderInited = fFalse;
 bool World::_fRenderWireframe = fFalse;
 bool World::_fNoTexture = fFalse;
+long World::_defaultRenderScale = 1;
 
 /***************************************************************************
     No-texture mode: walk every BRender material, save its colour_map, and
@@ -150,6 +151,8 @@ PWorld World::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
     PWorld pbwld;
 
     pbwld = NewObj World;
+    if (pbwld)
+        pbwld->_renderScale = _defaultRenderScale;
 
     if (pbwld == pvNil || !pbwld->_FInit(dxp, dyp, fHalfX, fHalfY))
     {
@@ -223,12 +226,16 @@ bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
     AssertBaseThis(0);
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
     AssertIn(dyp, 1, ksuMax);
+    if (dxp > 4096 / _renderScale || dyp > 4096 / _renderScale)
+        return false;
 
     _fHalfX = fHalfX;
     _fHalfY = fHalfY;
-    if (_fHalfX)
+    dxp *= _renderScale;
+    dyp *= _renderScale;
+    if (_renderScale == 1 && _fHalfX)
         dxp /= 2;
-    if (_fHalfY)
+    if (_renderScale == 1 && _fHalfY)
         dyp /= 2;
 
     _rcBuffer.Set(0, 0, dxp, dyp);
@@ -279,7 +286,7 @@ bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
     // If in _fHalfY and not _fHalfX, allocated a _rcView-sized buffer
     // for faster blitting -- see Draw()
     ReleasePpo(&_pgptStretch);
-    if (!_fHalfX && _fHalfY)
+    if (_renderScale == 1 && !_fHalfX && _fHalfY)
     {
         _pgptStretch = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
         if (pvNil == _pgptStretch)
@@ -315,13 +322,26 @@ World::~World(void)
 ***************************************************************************/
 bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
 {
+    return _FSetBufferMode(fHalfX, fHalfY, _renderScale);
+}
+
+bool World::FSetRenderScale(long scale)
+{
+    if (scale != 1 && scale != 2 && scale != 4)
+        return false;
+    return _FSetBufferMode(_fHalfX, _fHalfY, scale);
+}
+
+bool World::_FSetBufferMode(bool fHalfX, bool fHalfY, long scale)
+{
     AssertThis(0);
 
-    if (FPure(_fHalfX) == FPure(fHalfX) && FPure(_fHalfY) == FPure(fHalfY))
+    if (FPure(_fHalfX) == FPure(fHalfX) && FPure(_fHalfY) == FPure(fHalfY) && scale == _renderScale)
         return fTrue;
 
     bool fHalfXSave = _fHalfX;
     bool fHalfYSave = _fHalfY;
+    const long scaleSave = _renderScale;
     RC rcBufferSave = _rcBuffer;
     PGraphicsPort pgptWorkingSave = _pgptWorking;
     PGraphicsPort pgptStretchSave = _pgptStretch;
@@ -337,6 +357,7 @@ bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
     _pzbmpWorking = pvNil;
     _pzbmpBackground = pvNil;
 
+    _renderScale = scale;
     if (!_FInitBuffers(_rcView.Dxp(), _rcView.Dyp(), fHalfX, fHalfY))
         goto LFail;
 
@@ -357,6 +378,10 @@ bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
     ReleasePpo(&pzbmpWorkingSave);
     ReleasePpo(&pzbmpBackgroundSave);
 
+    _pregnDirtyWorking->SetRc(&_rcBuffer);
+    _pregnDirtyScreen->SetRc(&_rcBuffer);
+    _fWorldChanged = true;
+
     AssertThis(0);
 
     return fTrue;
@@ -375,6 +400,7 @@ LFail:
     // restore everything
     _fHalfX = fHalfXSave;
     _fHalfY = fHalfYSave;
+    _renderScale = scaleSave;
     _rcBuffer = rcBufferSave;
     _bpmpZ = bpmpZSave;
     _bpmpRGB = bpmpRGBSave;
@@ -436,6 +462,38 @@ inline void SqueezePb(void *pvSrc, void *pvDst, long cbSrc)
     Load bitmaps from the given chunks into _pgptBackground and
     _pzbmpBackground.
 ***************************************************************************/
+bool World::_FScaleBackground(PMaskedBitmapMBMP bitmap, PZBMP depth, long scale)
+{
+    auto full = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
+    if (!full)
+        return false;
+    {
+        GraphicsEnvironment source(full), destination(_pgptBackground);
+        source.DrawMbmp(bitmap, 0, 0);
+        destination.CopyPixels(&source, &_rcView, &_rcBuffer);
+    }
+    ReleasePpo(&full);
+
+    // Preserve exact scene depths at background silhouettes: interpolate no Z.
+    const auto width = _rcView.Dxp(), height = _rcView.Dyp();
+    auto nativeDepth = ZBMP::PzbmpNew(width, height);
+    if (!nativeDepth)
+        return false;
+    depth->Draw(nativeDepth->Prgb(), nativeDepth->CbRow(), height, 0, 0, &_rcView);
+    const auto sourcePitch = nativeDepth->CbRow(), destinationPitch = _pzbmpBackground->CbRow();
+    const auto source = static_cast<const byte *>(nativeDepth->Prgb());
+    auto destination = static_cast<byte *>(_pzbmpBackground->Prgb());
+    for (long y = 0; y < height * scale; ++y)
+    {
+        const auto input = reinterpret_cast<const ushort *>(source + (y / scale) * sourcePitch);
+        auto output = reinterpret_cast<ushort *>(destination + y * destinationPitch);
+        for (long x = 0; x < width * scale; ++x)
+            output[x] = input[x / scale];
+    }
+    ReleasePpo(&nativeDepth);
+    return true;
+}
+
 bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTagOrType ctgRGB, ChunkNumber cnoRGB, ChunkTagOrType ctgZ, ChunkNumber cnoZ)
 {
     AssertThis(0);
@@ -462,7 +520,15 @@ bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTagOrType ctgRGB, Chun
     pmbmpNew->SetCrep(crepTossFirst);
     pzbmpNew->SetCrep(crepTossFirst);
 
-    if (_fHalfX || _fHalfY)
+    if (_renderScale > 1)
+    {
+        const bool filled = _FScaleBackground(pmbmpNew, pzbmpNew, _renderScale);
+        ReleasePpo(&pmbmpNew);
+        ReleasePpo(&pzbmpNew);
+        if (!filled)
+            return false;
+    }
+    else if (_fHalfX || _fHalfY)
     {
         // Need to squeeze pmbmpNew and pzbmpNew into _pgptBackground
         // and _pzbmpBackground.  For pmbmpNew, it is drawn into a
@@ -629,6 +695,8 @@ void World::Render(void)
         if (pbact->type == BR_ACTOR_NONE && pvNil != _pfngetrect)
         {
             _pfngetrect(pbact, &rc);
+            if (_renderScale > 1)
+                rc.Map(&_rcView, &_rcBuffer);
             _pregnDirtyWorking->FUnionRc(&rc);
         }
     }
@@ -748,6 +816,13 @@ void World::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bSty
         pbactT = pbactT->parent;
     pbwld = (PWorld)pbactT->identifier;
     AssertPo(pbwld, 0);
+    if (pbwld->_renderScale > 1)
+    {
+        rc.xpLeft /= pbwld->_renderScale;
+        rc.ypTop /= pbwld->_renderScale;
+        rc.xpRight = (rc.xpRight + pbwld->_renderScale - 1) / pbwld->_renderScale;
+        rc.ypBottom = (rc.ypBottom + pbwld->_renderScale - 1) / pbwld->_renderScale;
+    }
     if (pvNil != pbwld->_pfnbactrend)
         pbwld->_pfnbactrend(pbact, &rc); // call client callback
 }
@@ -761,7 +836,10 @@ void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
     AssertThis(0);
     AssertPo(pgob, 0);
 
-    _pregnDirtyScreen->Scale((_fHalfX ? 2 : 1), 1, (_fHalfY ? 2 : 1), 1);
+    if (_renderScale > 1)
+        _pregnDirtyScreen->Scale(1, _renderScale, 1, _renderScale);
+    else
+        _pregnDirtyScreen->Scale((_fHalfX ? 2 : 1), 1, (_fHalfY ? 2 : 1), 1);
     _pregnDirtyScreen->Offset(dxp, dyp);
     vpappb->MarkRegn(_pregnDirtyScreen, pgob);
     _pregnDirtyScreen->SetRc(pvNil); // screen is clean
@@ -827,10 +905,18 @@ void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp,
     AssertThis(0);
 
     // Convert to _rcBuffer coordinates:
-    if (_fHalfX)
-        xp /= 2;
-    if (_fHalfY)
-        yp /= 2;
+    if (_renderScale > 1)
+    {
+        xp *= _renderScale;
+        yp *= _renderScale;
+    }
+    else
+    {
+        if (_fHalfX)
+            xp /= 2;
+        if (_fHalfY)
+            yp /= 2;
+    }
     xp -= _bpmpRGB.origin_x;
     yp -= _bpmpRGB.origin_y;
 
@@ -876,7 +962,7 @@ void World::AssertValid(LegacyUlong grf)
     AssertPo(_pregnDirtyWorking, 0);
     AssertPo(_pregnDirtyScreen, 0);
     AssertNilOrPo(_pcrf, 0);
-    if (!_fHalfX && _fHalfY)
+    if (_renderScale == 1 && !_fHalfX && _fHalfY)
         AssertPo(_pgptStretch, 0);
     else
         Assert(pvNil == _pgptStretch, "don't need _pgptStretch!");
@@ -1036,15 +1122,9 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     AssertPo(pfni, 0);
     AssertIn(scale, 1, 17);
 
-    // BRender's Z-buffered scene renderer caps a single BPMP at roughly 1024
-    // pixels on the wide axis (the shipped rasterizer is named PIZ2TP1024)
-    // and emits a "pixelmap is too big" fatal otherwise. Tiling can't save us
-    // either: BR_CAMERA_PERSPECTIVE_FOV always projects camera-space (0,0) to
-    // the BPMP center, and bpmp.origin_x/y is for 2D primitive placement, not
-    // 3D projection -- there's no native off-axis sub-frustum to hook. So
-    // `scale` is treated as a ceiling: we render at the largest in-spec scale
-    // and ignore anything above that.
-    const long kdxpRenderMax = 2048;
+    // Keep exports inside the renderer's viewport cap. PIZ2TP1024 names a
+    // texture-size specialization, not the maximum output resolution.
+    const long kdxpRenderMax = 4096;
 
     long scaleRender = scale;
     while (scaleRender > 1 &&
@@ -1094,7 +1174,9 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     bpmpZ.origin_y = bpmpRGB.origin_y;
     bpmpZ.pixels = pzbmpRender->Prgb();
 
+    BrZbSetRenderBoundsCallback(nullptr);
     BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
+    BrZbSetRenderBoundsCallback(_ActorRendered);
     GraphicsPort::Flush();
     pgptRender->Unlock();
 
