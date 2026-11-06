@@ -10,6 +10,21 @@ from mcp_rig import Rig, Pose, Baker, quaternion, euler, rotate, retail_dimensio
 
 
 class RigTest(unittest.TestCase):
+    def test_force_replaces_static_existing_tracks(self):
+        rig = Rig()
+        rig.prop("existing", 4130, (5, 5, 5), "#ffffff", position=(2, 3, -40))
+        calls = []
+        baker = Baker(rig, lambda tool, **args: calls.append((tool, args)))
+        baker.actors["existing"], baker.bases["existing"] = 9, (5, 5, 5)
+        baker.pose(0, initial=True)
+        calls.clear()
+        baker.pose(1)
+        self.assertEqual(calls, [])
+        baker.pose(1, force=True)
+        edit = calls[-1][1]["edits"][0]
+        self.assertEqual(edit["position"], [2, 3, -40])
+        self.assertEqual(set(edit), {"actor_id", "position", "rotation", "scale", "stretch"})
+
     def test_baker_emits_only_changed_components_and_retries_failures(self):
         rig = Rig()
         rig.prop("part", 4130, (5, 5, 5), "#ffffff")

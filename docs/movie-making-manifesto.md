@@ -13,7 +13,7 @@ Reference exercises prioritise fidelity; original films should develop their own
 7. **Follow the actual design.** Check clothing from every visible angle. Build facial expression from the reference's shapes; avoid invented features.
 8. **Separate hands from props.** Use shape, colour and staging so a parcel, garment and fingers remain distinguishable.
 9. **Preserve continuity.** Keep scale, handedness, carried objects and screen direction consistent. A turn must not accidentally reposition the actor.
-10. **Bake efficiently and compatibly.** Use script-side groups and joints, export ordinary retail-readable events, and avoid redundant keys for unchanged values.
+10. **Bake efficiently and compatibly.** Use script-side groups and joints, export ordinary retail-readable events, and avoid redundant keys for newly created actors. When replacing existing animation, overwrite every affected frame so old keys cannot restore previous poses or scenery.
 11. **Review the saved movie.** Compare frames and watch complete shots in motion. Inspect intermediate poses and transitions. Passing runtime tests does not prove a visual match.
 12. **Protect the originals.** Keep references read-only, preserve earlier versions, and put experiments under ignored `tmp/`. Keep copyrighted test media out of Git.
 13. **Give the film a purpose.** Decide what the viewer should understand or feel. Give characters motives and make their changes believable.

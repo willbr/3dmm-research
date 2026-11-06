@@ -288,11 +288,11 @@ class Baker:
                 progress(name, len(self.actors))
         self.pose(time, initial=True)
 
-    def pose(self, time, initial=False):
+    def pose(self, time, initial=False, force=False):
         world, edits, pending = self.rig.evaluate(time), [], {}
         for name, actor_id in self.actors.items():
             node = self.rig.nodes[name]
-            if not initial and not self.rig.animated(name):
+            if not initial and not force and not self.rig.animated(name):
                 continue
             pose = world[name]
             size = tuple(
@@ -312,7 +312,7 @@ class Baker:
             changed = {
                 key: value
                 for key, value in edit.items()
-                if key == "actor_id" or initial or previous.get(key) != value
+                if key == "actor_id" or initial or force or previous.get(key) != value
             }
             if len(changed) > 1:
                 edits.append(changed)

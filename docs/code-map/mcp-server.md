@@ -207,6 +207,12 @@ controls keyframe sampling; it does not change the engine's six-frame-per-second
 playback rate. This improves articulation and easing within the
 native frame cadence. There is no mesh skinning or inverse-kinematics solver.
 
+When rebaking actors in an existing movie, call `baker.pose(time, force=True)`
+at **every** replacement frame. Existing saved keys can otherwise restore old
+transforms after a cached or static pose was skipped. Forced poses reapply all
+transform components, including static props; material changes remain explicit.
+The default cache is appropriate for actors created by `baker.create()`.
+
 `mcp-rig` checks pivot geometry, inherited scale, shortest rotations, Euler
 conversion, attachment continuity and cycle rejection without assets.
 `studio-rig-workflow` bakes a generic articulated assembly through actual MCP,

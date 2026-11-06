@@ -48,6 +48,7 @@ def main():
     rig.key("receiver", 2, position=(5, 2, 0), rotation=(0, -25, 0))
     rig.reparent("Transfer object #2", "receiver", 1)
     movie = out / "Jointed assembly.3mm"
+    retargeted = out / "Retargeted static part.3mm"
     with authoring_studio(args.exe, args.iso, out) as studio:
         call = lambda tool, **kw: content(studio, tool, **kw)
         call("create_scene", background_cno=11)
@@ -96,6 +97,33 @@ def main():
                     < 0.03
                 ), (frame, name, actual_size)
             assert studio.state()["error_stack_depth"] == 0
+        # Replace a previously moving prop with a static pose throughout its
+        # saved timeline. Old route/rotation/stretch keys must not reappear.
+        replacement = Rig()
+        replacement.prop("Upper segment #1", 4130, (3, 6, 2), "#1b6c34", position=(-3, 12, -40))
+        call = lambda tool, **kw: content(studio, tool, **kw)
+        patch = Baker(replacement, call)
+        name = "Upper segment #1"
+        patch.actors[name], patch.bases[name] = baker.actors[name], baker.bases[name]
+        for frame in range(1, 10):
+            call("edit_frame", frame=frame)
+            patch.pose((frame - 1) / 4, force=True)
+        call("save_movie", path=str(retargeted))
+    with authoring_studio(args.exe, args.iso, out, retargeted) as studio:
+        for frame in list(range(1, 10)) + [5, 1, 9]:
+            content(studio, "edit_frame", frame=frame)
+            actual = content(studio, "inspect_actor", actor_id=baker.actors["Upper segment #1"])
+            assert max(abs(a - b) for a, b in zip(actual["position"], (-3, 12, -40))) < 0.03, (frame, actual)
+            size = [
+                actual["scale"] * s * b
+                for s, b in zip(actual["stretch"], baker.bases["Upper segment #1"])
+            ]
+            assert max(abs(a - b) for a, b in zip(size, (3, 6, 2))) < 0.03, (frame, actual)
+            for row in range(3):
+                for col in range(3):
+                    assert (
+                        abs(actual["rotation_matrix"][row][col] - (1 if row == col else 0)) < 0.004
+                    ), (frame, actual)
     print(
         "Script-side rig: joint pivots, inherited transforms, group scale, handoff and legacy save/reopen passed:",
         out,
