@@ -26,6 +26,7 @@ glossary of old Hungarian-style class names.
 
 ## See also
 
+- [Movie-making manifesto](movie-making-manifesto.md): practical rules for modelling, staging, animation and reference review.
 - [`../README.md`](../README.md) — top-level project README (build,
   status, architecture overview).
 - [`../CLAUDE.md`](../CLAUDE.md) — conventions for human and AI
