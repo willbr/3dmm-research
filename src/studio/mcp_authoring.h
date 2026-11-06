@@ -227,6 +227,27 @@ static JVal Tool_SelectScene(const JVal &args)
     return ContentText("Scene selected.");
 }
 
+static JVal Tool_SetFramePause(const JVal &args)
+{
+    auto movie = AuthorMovie();
+    const auto kind = args.Get("kind"), milliseconds = args.Get("ms");
+    if (!movie || !movie->Pscen() || !kind || !kind->IsStr() ||
+        (milliseconds && (!milliseconds->IsInt() || milliseconds->AsInt() < 0 || milliseconds->AsInt() > 3600000)))
+        return ContentError("Supply an idle scene and pause kind none, sound, click or time (with ms)");
+    const auto name = kind->AsStr();
+    const WaitReason reason = name == "none"    ? witNil
+                              : name == "sound" ? witUntilSnd
+                              : name == "click" ? witUntilClick
+                                                : witForTime;
+    if ((name != "none" && name != "sound" && name != "click" && name != "time") ||
+        (name == "time" ? !milliseconds || milliseconds->AsInt() == 0 : milliseconds && milliseconds->AsInt() != 0))
+        return ContentError("time requires ms in 1..3600000; other kinds do not take a duration");
+    if (!movie->Pscen()->FPause(reason, milliseconds ? long(milliseconds->AsInt()) : 0))
+        return ContentError("Cannot set frame pause");
+    AuthorRefresh(movie);
+    return ContentText("Native frame pause set.");
+}
+
 static JVal Tool_CreateTextBox(const JVal &args)
 {
     auto movie = AuthorMovie();

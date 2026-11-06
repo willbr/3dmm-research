@@ -2005,6 +2005,11 @@ static const ToolDef kTools[] = {
     {"select_scene", "Select an existing one-based scene for authoring without extending it.",
      "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\",\"minimum\":1}},\"required\":[\"scene\"]}",
      &Tool_SelectScene, false},
+    {"set_frame_pause", "Set a native pause at the current authoring frame; sound waits for audio to finish.",
+     "{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"none\",\"sound\",\"click\","
+     "\"time\"]},"
+     "\"ms\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":3600000}},\"required\":[\"kind\"]}",
+     &Tool_SetFramePause, false},
     {"create_text_box", "Insert native story text at this frame on the 544 by 306 movie canvas; defaults to scene end.",
      "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"},\"bounds\":{\"type\":\"array\","
      "\"items\":{\"type\":\"integer\"},\"minItems\":4,\"maxItems\":4},\"font_size\":{\"type\":\"integer\"},"

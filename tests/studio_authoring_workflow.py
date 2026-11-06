@@ -10,6 +10,7 @@ import json
 import os
 import pathlib
 import tempfile
+import time
 import uuid
 from types import SimpleNamespace
 from studio_movie_workflow import Studio
@@ -69,6 +70,7 @@ def content(studio, tool, **arguments):
 
 
 def main():
+    os.environ["THREEDMM_BATCH_TEST"] = "1"
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("exe", "iso", "artifacts"):
         parser.add_argument(name, type=pathlib.Path)
@@ -183,6 +185,19 @@ def main():
         call("edit_frame", frame=3)
         call("select_scene", scene=1)
         assert studio.state()["scene_textbox_count"] == 1
+        for invalid in ({"kind": "unknown"}, {"kind": "time"}, {"kind": "sound", "ms": 100}):
+            try:
+                studio.call("set_frame_pause", **invalid)
+            except AssertionError as error:
+                assert "isError" in str(error), error
+            else:
+                raise AssertionError("Invalid pause accepted")
+        call("edit_frame", frame=6)
+        call("set_frame_pause", kind="time", ms=50)
+        call("set_frame_pause", kind="none")
+        for frame, kind, options in ((6, "time", {"ms": 100}), (7, "click", {}), (8, "sound", {})):
+            call("edit_frame", frame=frame)
+            call("set_frame_pause", kind=kind, **options)
         call("save_movie", path=str(movie))
         try:
             studio.call("save_movie", path=str(movie))
@@ -206,6 +221,12 @@ def main():
                 content(studio, "inspect_actor", actor_id=cube)["position"],
                 content(studio, "inspect_actor", actor_id=sphere)["position"],
             ) == expected[frame]
+        result = content(studio, "test_movie_playback", action="start")
+        deadline = time.monotonic() + 15
+        while not result["complete"] and not result["failed"] and time.monotonic() < deadline:
+            result = content(studio, "test_movie_playback", action="step", max_frames=20, max_ms=500)
+        assert result["complete"] and not result["failed"], result
+        assert result["skipped_sound_pauses"] == 1 and result["skipped_timed_pauses"] == 1 and result["skipped_click_pauses"] == 1, result
     (out / "result.json").write_text(
         json.dumps({"status": "passed", "movie": str(movie)}, indent=2)
     )
