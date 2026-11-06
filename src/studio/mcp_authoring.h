@@ -232,10 +232,18 @@ static JVal Tool_CreateTextBox(const JVal &args)
     auto movie = AuthorMovie();
     const auto text = args.Get("text"), bounds = args.Get("bounds"), fontSize = args.Get("font_size");
     const auto bold = args.Get("bold"), color = args.Get("color");
+    const auto lastFrame = args.Get("last_frame"), alignment = args.Get("align"), font = args.Get("font");
     if (!movie || !movie->Pscen() || !text || !text->IsStr() || text->AsStr().empty() || text->AsStr().size() > 4096 ||
         text->AsStr().find('\0') != std::string::npos || !bounds || !bounds->IsArr() || bounds->a->size() != 4 ||
         (fontSize && (!fontSize->IsInt() || fontSize->AsInt() < 6 || fontSize->AsInt() > 120)) ||
-        (bold && bold->t != JT::Bool))
+        (bold && bold->t != JT::Bool) ||
+        (lastFrame &&
+         (!lastFrame->IsInt() || lastFrame->AsInt() < movie->Pscen()->Nfrm() - movie->Pscen()->NfrmFirst() + 1 ||
+          lastFrame->AsInt() > movie->Pscen()->NfrmLast() - movie->Pscen()->NfrmFirst() + 1)) ||
+        (alignment && (!alignment->IsStr() || (alignment->AsStr() != "left" && alignment->AsStr() != "center" &&
+                                               alignment->AsStr() != "right"))) ||
+        (font && (!font->IsStr() || font->AsStr().empty() || font->AsStr().size() > 200 ||
+                  font->AsStr().find('\0') != std::string::npos)))
         return ContentError("Supply text, bounds [left, top, right, bottom], and optional font_size 6..120/bold/color");
     long coordinates[4];
     for (int i = 0; i < 4; ++i)
@@ -265,6 +273,19 @@ static JVal Tool_CreateTextBox(const JVal &args)
                                   sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes,
                                   encoded))
         return ContentError("Text cannot be represented by the legacy movie format");
+    long fontIndex = -1;
+    if (font)
+    {
+        std::vector<std::uint8_t> name;
+        if (!KauaiFonts::NameFromUtf8(
+                font->AsStr(), sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes,
+                name))
+            return ContentError("Invalid font name");
+        String label;
+        label.SetRgch(reinterpret_cast<achar *>(name.data()), long(name.size() / sizeof(achar)));
+        if (!vntl.FGetOnn(&label, &fontIndex))
+            return ContentError("Font is not installed");
+    }
     RC rectangle(coordinates[0], coordinates[1], coordinates[2], coordinates[3]);
     auto caption = TextBox::PtboxNew(movie->Pscen(), &rectangle, true);
     if (!caption)
@@ -275,8 +296,23 @@ static JVal Tool_CreateTextBox(const JVal &args)
     chp.acrFore.Set(byte(rgb >> 16), byte(rgb >> 8), byte(rgb));
     chp.acrBack = kacrClear;
     chp.grfont = bold && bold->AsBool() ? fontBold : 0;
+    if (fontIndex >= 0)
+        chp.onn = fontIndex;
+    PAP pap;
+    caption->FetchPap(0, &pap);
+    if (alignment)
+        pap.jc = alignment->AsStr() == "center" ? jcCenter : alignment->AsStr() == "right" ? jcRight : jcLeft;
     const bool added = movie->Pscen()->FAddTbox(caption);
-    const bool ok = added && caption->FReplaceRgch(encoded.data(), long(encoded.size() / sizeof(achar)), 0, 0, &chp);
+    bool ok = added && caption->FReplaceRgch(encoded.data(), long(encoded.size() / sizeof(achar)), 0, 0, &chp, &pap);
+    if (ok && lastFrame)
+    {
+        ok = caption->FGotoFrame(movie->Pscen()->NfrmFirst() + long(lastFrame->AsInt()));
+        if (ok)
+        {
+            caption->HideCore();
+            ok = caption->FGotoFrame(movie->Pscen()->Nfrm());
+        }
+    }
     if (added && !ok)
     {
         movie->Pscen()->FRemTboxCore(caption);

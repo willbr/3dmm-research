@@ -117,7 +117,7 @@ operations, authored events, undo and the original movie writer.
 | `list_assets` | `kind`: `props` (default), `actors`, `backgrounds`, `materials`; returns original names, `sid` and `cno`. |
 | `create_scene` | `background_cno`, optional `sid` (default 2); appends a scene and returns its camera matrix/FOV. Retail black background is 11. |
 | `select_scene` | Existing one-based `scene`; switches the idle movie for authoring without extending its timeline. |
-| `create_text_box` | `text`, `bounds: [left,top,right,bottom]` on the 544×306 movie canvas; optional `font_size` (6–120, default 18), `bold` and `color: #RRGGBB` (white). Inserts ordinary transparent story text from the current frame to scene end. Uses the default font and the legacy text encoding. |
+| `create_text_box` | `text`, `bounds: [left,top,right,bottom]` on the 544×306 movie canvas; optional `font_size` (6–120, default 18), `bold`, `color: #RRGGBB` (white), installed `font` name, and `align` (`left`, `center`, `right`). Inserts transparent story text from the current frame through optional inclusive `last_frame`, which must already exist in this scene; defaults to scene end. Uses the legacy text encoding. |
 | `create_actor` | `template_cno`, optional `sid` (2) and `name`; commits placement and returns `actor_id`, world position, size and model dimensions. Cube is 4130; Sphere is 4131. |
 | `inspect_actor` | `actor_id`; reads world position, rotation matrix, scale, stretch, name and model bounds. |
 | `transform_actor` | `actor_id` and any of `position`, `offset`, `rotation`, `scale`, `stretch`, `color`. With `color`, optional `shaded: false` uses one nearest palette entry for a flat backdrop colour; shaded retail ramps remain the default. |

@@ -159,6 +159,9 @@ def main():
             {"text": "Bad bounds", "bounds": [0, 0, 545, 50]},
             {"text": "Bad size", "bounds": [0, 0, 100, 50], "font_size": 0},
             {"text": "Bad color", "bounds": [0, 0, 100, 50], "color": "blue"},
+            {"text": "Bad lifetime", "bounds": [0, 0, 100, 50], "last_frame": 3},
+            {"text": "Bad alignment", "bounds": [0, 0, 100, 50], "align": "diagonal"},
+            {"text": "Missing font", "bounds": [0, 0, 100, 50], "font": "__MCP_MISSING_FONT__"},
         ):
             try:
                 studio.call("create_text_box", **invalid)
@@ -168,7 +171,7 @@ def main():
                 raise AssertionError("Invalid text box accepted")
         assert studio.state()["scene_textbox_count"] == 0
         call("create_text_box", text="Native title", bounds=[24, 24, 360, 100],
-             font_size=28, bold=True, color="#175d36")
+             font_size=28, bold=True, color="#175d36", align="center", last_frame=6)
         for invalid in ({"scene": 0}, {"scene": 2}):
             try:
                 studio.call("select_scene", **invalid)
@@ -193,10 +196,12 @@ def main():
         content(studio, "select_scene", scene=1)
         captions = studio.state()["scene_textboxes"]
         assert len(captions) == 1 and captions[0]["text"].startswith("Native title"), captions
+        assert captions[0]["first_frame"] == 4 and captions[0]["last_frame"] == 6, captions
         assert studio.state()["scene_actor_count"] == 2
         assert studio.state()["scene_last_frame"] == 8
         for frame in (8, 1, 4):
             content(studio, "edit_frame", frame=frame)
+            assert studio.state()["scene_textboxes"][0]["visible"] == (frame == 4)
             assert (
                 content(studio, "inspect_actor", actor_id=cube)["position"],
                 content(studio, "inspect_actor", actor_id=sphere)["position"],

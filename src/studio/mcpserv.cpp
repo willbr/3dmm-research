@@ -1472,6 +1472,13 @@ static JVal Tool_GetState(const JVal &args)
         const auto encoding = sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes;
         KauaiFonts::TextToUtf8({content.data(), static_cast<std::size_t>(count), encoding}, utf8);
         item.Set("text", JVal::MkStr(utf8));
+        long firstFrame, lastFrame;
+        if (caption->FGetLifetime(&firstFrame, &lastFrame))
+        {
+            item.Set("first_frame", JVal::MkInt(firstFrame - scene->NfrmFirst() + 1));
+            item.Set("last_frame", JVal::MkInt(lastFrame - scene->NfrmFirst() + 1));
+        }
+        item.Set("visible", JVal::MkBool(caption->FIsVisible()));
         for (const auto last : {false, true})
         {
             CHP properties;
@@ -1998,10 +2005,12 @@ static const ToolDef kTools[] = {
     {"select_scene", "Select an existing one-based scene for authoring without extending it.",
      "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\",\"minimum\":1}},\"required\":[\"scene\"]}",
      &Tool_SelectScene, false},
-    {"create_text_box", "Insert native story text at this frame on the 544 by 306 movie canvas, visible to scene end.",
+    {"create_text_box", "Insert native story text at this frame on the 544 by 306 movie canvas; defaults to scene end.",
      "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"},\"bounds\":{\"type\":\"array\","
      "\"items\":{\"type\":\"integer\"},\"minItems\":4,\"maxItems\":4},\"font_size\":{\"type\":\"integer\"},"
-     "\"bold\":{\"type\":\"boolean\"},\"color\":{\"type\":\"string\"}},\"required\":[\"text\",\"bounds\"]}",
+     "\"bold\":{\"type\":\"boolean\"},\"color\":{\"type\":\"string\"},\"font\":{\"type\":\"string\"},"
+     "\"align\":{\"type\":\"string\",\"enum\":[\"left\",\"center\",\"right\"]},\"last_frame\":{\"type\":\"integer\"}},"
+     "\"required\":[\"text\",\"bounds\"]}",
      &Tool_CreateTextBox, false},
     {"create_actor", "Insert and commit a named actor or prop from its template tag, with native undo.",
      "{\"type\":\"object\",\"properties\":{\"template_cno\":{\"type\":\"integer\"},\"sid\":{\"type\":\"integer\"},"
