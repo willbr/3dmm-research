@@ -39,6 +39,7 @@
 #include <cctype>
 #include <cstdarg>
 #include <chrono>
+#include <cmath>
 #include "mcp_io.h"
 #include "platform_files.h"
 #include "launch_context.h"
@@ -52,6 +53,7 @@
 #include "pixel_buffer.h"
 #include "font_host.h"
 #include "font_names.h"
+#include "file_browser.h"
 #endif
 
 #ifdef _WIN32
@@ -1103,6 +1105,10 @@ static JVal _WrapInfoAsContent(const JVal &info)
     return res;
 }
 
+#ifdef KAUAI_SDL3
+#include "mcp_authoring.h"
+#endif
+
 static JVal Tool_FindGob(const JVal &args)
 {
     long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
@@ -1977,6 +1983,49 @@ static JVal Tool_SDLDialogAction(const JVal &args)
 
 static const ToolDef kTools[] = {
 #ifdef KAUAI_SDL3
+    {"list_assets", "List original asset names and source/chunk tags for direct authoring.",
+     "{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"props\",\"actors\","
+     "\"backgrounds\",\"materials\"]}}}",
+     &Tool_ListAssets, false},
+    {"create_scene", "Add a scene using a background tag from list_assets; returns its camera transform.",
+     "{\"type\":\"object\",\"properties\":{\"background_cno\":{\"type\":\"integer\"},\"sid\":{\"type\":\"integer\"}},"
+     "\"required\":[\"background_cno\"]}",
+     &Tool_CreateScene, false},
+    {"edit_frame", "Select a one-based authoring frame, extending the scene when necessary.",
+     "{\"type\":\"object\",\"properties\":{\"frame\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":100000}},"
+     "\"required\":[\"frame\"]}",
+     &Tool_EditFrame, false},
+    {"create_actor", "Insert and commit a named actor or prop from its template tag, with native undo.",
+     "{\"type\":\"object\",\"properties\":{\"template_cno\":{\"type\":\"integer\"},\"sid\":{\"type\":\"integer\"},"
+     "\"name\":{\"type\":\"string\"}},\"required\":[\"template_cno\"]}",
+     &Tool_CreateActor, false},
+    {"transform_actor",
+     "Edit a prop/actor at this frame: absolute world xyz, relative offset, world-axis Euler degrees, uniform scale, "
+     "xyz stretch and #RRGGBB colour. relative applies to rotation/size; absolute is default. Uses normal authored "
+     "events and undo.",
+     "{\"type\":\"object\",\"properties\":{\"actor_id\":{\"type\":\"integer\"},\"position\":{\"type\":\"array\","
+     "\"items\":{\"type\":\"number\"},\"minItems\":3,\"maxItems\":3},\"offset\":{\"type\":\"array\",\"items\":{"
+     "\"type\":\"number\"},\"minItems\":3,\"maxItems\":3},\"rotation\":{\"type\":\"array\",\"items\":{\"type\":"
+     "\"number\"},\"minItems\":3,\"maxItems\":3},\"scale\":{\"type\":\"number\",\"minimum\":0.25,\"maximum\":10},"
+     "\"stretch\":{\"type\":\"array\",\"items\":{\"type\":\"number\",\"minimum\":0.25,\"maximum\":4},\"minItems\":3,"
+     "\"maxItems\":3},\"relative\":{\"type\":\"boolean\"},\"color\":{\"type\":\"string\"}},\"required\":[\"actor_id\"]"
+     "}",
+     &Tool_TransformActor, false},
+    {"inspect_actor", "Read an actor's world position, authored rotation/size and model dimensions.",
+     "{\"type\":\"object\",\"properties\":{\"actor_id\":{\"type\":\"integer\"}},\"required\":[\"actor_id\"]}",
+     &Tool_InspectActor, false},
+    {"transform_actors",
+     "Apply up to 256 transform_actor edits in order, with one repaint. Stops on the first error and reports completed "
+     "edits; each edit keeps native undo.",
+     "{\"type\":\"object\",\"properties\":{\"edits\":{\"type\":\"array\",\"items\":{\"type\":\"object\"},\"minItems\":"
+     "1,\"maxItems\":256}},\"required\":[\"edits\"]}",
+     &Tool_TransformActors, false},
+    {"import_sound", "Import a WAVE file and place it as a non-looping scene speech cue at the authoring frame.",
+     "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"]}", &Tool_ImportSound,
+     false},
+    {"save_movie", "Save using the original movie writer; requires a new destination file.",
+     "{\"type\":\"object\",\"properties\":{\"path\":{\"type\":\"string\"}},\"required\":[\"path\"]}", &Tool_SaveMovie,
+     false},
     {"get_sdl_dialog", "Observe the active SDL modal dialog and original control IDs without touching Kauai state.",
      "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}", &Tool_GetSDLDialog, true},
     {"sdl_dialog_action",

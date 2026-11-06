@@ -105,6 +105,48 @@ dialog tools are available on every SDL platform. `wait_for_gob` pumps host
 events and commands; nested waits omit the idle render tick, so clients should
 poll state through the normal loop when observing movie playback.
 
+## Direct SDL authoring
+
+SDL Debug builds (or builds with `STUDIO_TEST_TOOLS`) also expose direct
+scene/prop authoring. These main-thread tools require an idle Studio movie;
+stop playback and finish mouse tracking before editing. They use normal engine
+operations, authored events, undo and the original movie writer.
+
+| Tool | Arguments and behavior |
+|------|------------------------|
+| `list_assets` | `kind`: `props` (default), `actors`, `backgrounds`, `materials`; returns original names, `sid` and `cno`. |
+| `create_scene` | `background_cno`, optional `sid` (default 2); appends a scene and returns its camera matrix/FOV. Retail black background is 11. |
+| `create_actor` | `template_cno`, optional `sid` (2) and `name`; commits placement and returns `actor_id`, world position, size and model dimensions. Cube is 4130; Sphere is 4131. |
+| `inspect_actor` | `actor_id`; reads world position, rotation matrix, scale, stretch, name and model bounds. |
+| `transform_actor` | `actor_id` and any of `position`, `offset`, `rotation`, `scale`, `stretch`, `color`. |
+| `transform_actors` | `edits`: 1?256 transform argument objects; one repaint, native undo per edit. On failure, earlier edits remain; error includes `completed`. |
+| `edit_frame` | One-based `frame` (1?100000); selects an authoring frame and extends the scene when necessary. Marks the document dirty. |
+| `import_sound` | `path` to a WAVE file; imports and places a non-looping scene speech cue at the current frame. |
+| `save_movie` | `path` to a **new** destination; saves through the normal legacy writer. Refuses existing or uncheckable destinations. |
+
+`position: [x,y,z]` is absolute world position; `offset` is a relative world
+translation. Supply one or the other. `rotation: [x,y,z]` uses world-axis Euler
+degrees, applied X then Y then Z; absolute rotation starts from the template's
+default orientation. Size uses uniform `scale` (0.25?10) and
+per-axis `stretch` (each 0.25?4), matching retail editing limits. Rotation and
+size are absolute by default; `relative: true` composes them with the current
+pose. Omitting a size component preserves it. `color: "#RRGGBB"` paints every
+body set using the nearest original indexed palette ramp; RGB is approximate,
+with dark facial details using the nearest dark entry. This creates ordinary
+MTRL resources, readable by retail.
+
+Edits apply at the current frame. To animate prop assemblies, select successive
+frames with `edit_frame` and submit each pose with `transform_actors`. No
+mouse dragging or serialized-file rewriting is involved. A single failed edit
+restores its actor snapshot; a batch is intentionally sequential, not atomic.
+Actor names must fit the legacy movie encoding; filenames use native path
+conversion. Keep reference movies immutable and write experiments under `tmp/`.
+
+`tests/studio_authoring_workflow.py EXE ISO ARTIFACTS` verifies transforms,
+axis order, rejected edits, forward/backward frame poses and save/reopen in a
+fresh process. CTest registers it as `studio-authoring-workflow` when the ISO
+and SDL test tools are available.
+
 ## Verification
 
 `studio-runtime-compile-check` includes the actual Debug server on Linux/macOS.

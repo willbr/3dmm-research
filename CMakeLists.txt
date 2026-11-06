@@ -1727,6 +1727,11 @@ if(BUILD_TESTING)
         "${TEST_STUDIO_ISO}" "${PROJECT_SOURCE_DIR}/tmp/studio-iso-workflow")
       set_tests_properties(studio-iso-workflow PROPERTIES TIMEOUT 180
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy;SDL_RENDER_DRIVER=software;PYTHONDONTWRITEBYTECODE=1")
+      add_test(NAME studio-authoring-workflow COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/studio_authoring_workflow.py" $<TARGET_FILE:studio>
+        "${TEST_STUDIO_ISO}" "${PROJECT_SOURCE_DIR}/tmp/studio-authoring-workflow")
+      set_tests_properties(studio-authoring-workflow PROPERTIES TIMEOUT 120
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
       add_dependencies(library-checks preview-scene-fixture)
       add_test(NAME studio-movie-only-workflow COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/tests/studio_movie_only_workflow.py" $<TARGET_FILE:studio>

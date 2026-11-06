@@ -54,11 +54,11 @@ class Studio:
         self.reader = threading.Thread(target=read, daemon=True)
         self.reader.start()
 
-    def call(self, name, **arguments):
+    def call(self, tool, **arguments):
         assert self.process.poll() is None, 'Studio exited; inspect ' + self.log.name
         self.sequence += 1
         self.process.stdin.write(json.dumps({'jsonrpc': '2.0', 'id': self.sequence, 'method': 'tools/call',
-            'params': {'name': name, 'arguments': arguments}}) + '\n')
+            'params': {'name': tool, 'arguments': arguments}}) + '\n')
         self.process.stdin.flush()
         reply = self.replies.get(timeout=getattr(self.args, 'response_timeout', 45))
         assert reply is not None, 'Studio exited; inspect the runtime log'
