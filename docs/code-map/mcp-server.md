@@ -149,6 +149,64 @@ and SDL test tools are available.
 
 ## Verification
 
+### Script-side groups and joints
+
+[`tools/mcp_rig.py`](../../tools/mcp_rig.py) provides a small, standard-library
+authoring layer over the direct tools. Groups and joints are script nodes;
+only leaf geometry becomes ordinary props in the saved movie. No engine or
+movie-format extensions are required.
+
+```python
+from mcp_rig import Rig, Baker
+
+rig = Rig()
+rig.group("body", position=(0, 12, -40))
+rig.group("shoulder", "body", position=(3, 0, 0))
+rig.group("elbow", "shoulder", position=(0, -5, 0))
+rig.prop("Upper segment #1", 4130, (2, 5, 2), "#1b6c34",
+         "shoulder", position=(0, -2.5, 0))
+rig.prop("Lower segment #1", 4131, (2, 4, 2), "#cc4433",
+         "elbow", position=(0, -2, 0))
+rig.key("shoulder", 0)
+rig.key("shoulder", 2, rotation=(0, 0, 65))
+rig.key("elbow", 0)
+rig.key("elbow", 2, rotation=(0, 0, 35))
+
+# call(tool, **arguments) returns the decoded JSON/text tool result.
+# Start with an idle scene at authoring frame 1.
+baker = Baker(rig, call)
+baker.create()
+baker.bake(frames=15, duration=2)
+```
+
+Group and prop transforms are local to their parent. `key` values are offsets
+from the bind pose; position/scale interpolate numerically and rotations use
+quaternion interpolation along the shorter arc. Easing is `smooth` by default,
+with `linear` and `hold` alternatives; it applies to the interval after that
+key. Prop dimensions can have independent `size` keys. Hierarchy scale is
+uniform; per-axis dimensions affect the prop geometry without stretching its
+children. This avoids shear and respects retail's size limits.
+
+`rig.reparent(node, new_parent, time, keep_world=True)` switches attachments
+at a timeline time while preserving the object's world transform at that
+instant. Subsequent poses follow the new parent; `None` detaches to world space.
+With `keep_world=False`, the node attaches at the new parent's origin before
+its keyed offsets. Cycles are rejected. Keep prop labels short enough for the
+legacy name field; script group names are not serialized.
+
+The baker reads model dimensions from MCP, converts world poses into native
+position/rotation/scale/stretch events, and batches up to 256 edits per request.
+It writes every animated prop's pose at each sampled frame, preserving retail
+playback semantics. A duration controls keyframe sampling; it does not change
+the engine's playback rate. This improves articulation and easing within the
+native frame cadence. There is no mesh skinning or inverse-kinematics solver.
+
+`mcp-rig` checks pivot geometry, inherited scale, shortest rotations, Euler
+conversion, attachment continuity and cycle rejection without assets.
+`studio-rig-workflow` bakes a generic articulated assembly through actual MCP,
+then verifies every saved pose's position, orientation and dimensions after
+reopening, including reverse seeks. All generated movies stay under `tmp/`.
+
 `studio-runtime-compile-check` includes the actual Debug server on Linux/macOS.
 `mcp-io` and `mcp-png` CTests verify transport and independently decoded PNG
 pixels. `tests/studio_mcp_stdio_test.py EXE CONTENT_DIR` drives real Studio through

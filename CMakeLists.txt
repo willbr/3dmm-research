@@ -1441,6 +1441,10 @@ if(BUILD_TESTING)
     add_test(NAME mcp-png COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/mcp_png_test.py" "$<TARGET_FILE:mcp-io-test>")
     set_tests_properties(mcp-png PROPERTIES TIMEOUT 15)
+    add_test(NAME mcp-rig COMMAND "${Python3_EXECUTABLE}"
+      "${PROJECT_SOURCE_DIR}/tests/mcp_rig_test.py")
+    set_tests_properties(mcp-rig PROPERTIES TIMEOUT 15
+      ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
     if(BUILD_STUDIO)
       if(CHOMP_EXECUTABLE)
         set(chomp_test_command "${CHOMP_EXECUTABLE}")
@@ -1731,6 +1735,11 @@ if(BUILD_TESTING)
         "${PROJECT_SOURCE_DIR}/tests/studio_authoring_workflow.py" $<TARGET_FILE:studio>
         "${TEST_STUDIO_ISO}" "${PROJECT_SOURCE_DIR}/tmp/studio-authoring-workflow")
       set_tests_properties(studio-authoring-workflow PROPERTIES TIMEOUT 120
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+      add_test(NAME studio-rig-workflow COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/studio_rig_workflow.py" $<TARGET_FILE:studio>
+        "${TEST_STUDIO_ISO}" "${PROJECT_SOURCE_DIR}/tmp/studio-rig-workflow")
+      set_tests_properties(studio-rig-workflow PROPERTIES TIMEOUT 120
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
       add_dependencies(library-checks preview-scene-fixture)
       add_test(NAME studio-movie-only-workflow COMMAND "${Python3_EXECUTABLE}"
