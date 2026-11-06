@@ -276,6 +276,7 @@ class Baker:
 
     def __init__(self, rig, call):
         self.rig, self.call, self.actors, self.bases = rig, call, {}, {}
+        self.previous = {}
 
     def create(self, time=0, progress=None):
         for name, node in self.rig.nodes.items():
@@ -288,7 +289,7 @@ class Baker:
         self.pose(time, initial=True)
 
     def pose(self, time, initial=False):
-        world, edits = self.rig.evaluate(time), []
+        world, edits, pending = self.rig.evaluate(time), [], {}
         for name, actor_id in self.actors.items():
             node = self.rig.nodes[name]
             if not initial and not self.rig.animated(name):
@@ -307,9 +308,18 @@ class Baker:
             )
             if initial:
                 edit["color"] = node.color
-            edits.append(edit)
+            previous = self.previous.get(name, {})
+            changed = {
+                key: value
+                for key, value in edit.items()
+                if key == "actor_id" or initial or previous.get(key) != value
+            }
+            if len(changed) > 1:
+                edits.append(changed)
+            pending[name] = edit
         for start in range(0, len(edits), 256):
             self.call("transform_actors", edits=edits[start : start + 256])
+        self.previous.update(pending)
 
     def bake(self, frames, duration, progress=None):
         if frames < 2 or not math.isfinite(duration) or duration <= 0:

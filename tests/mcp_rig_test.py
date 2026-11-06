@@ -6,10 +6,40 @@ import sys
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tools"))
-from mcp_rig import Rig, Pose, quaternion, euler, rotate, retail_dimensions
+from mcp_rig import Rig, Pose, Baker, quaternion, euler, rotate, retail_dimensions
 
 
 class RigTest(unittest.TestCase):
+    def test_baker_emits_only_changed_components_and_retries_failures(self):
+        rig = Rig()
+        rig.prop("part", 4130, (5, 5, 5), "#ffffff")
+        rig.key("part", 0)
+        rig.key("part", 1, position=(4, 0, 0))
+        calls = []
+
+        def call(tool, **args):
+            calls.append((tool, args))
+
+        baker = Baker(rig, call)
+        baker.actors["part"], baker.bases["part"] = 7, (5, 5, 5)
+        baker.pose(0, initial=True)
+        self.assertIn("color", calls[-1][1]["edits"][0])
+        calls.clear()
+        baker.pose(0)
+        self.assertEqual(calls, [])
+        baker.pose(1)
+        self.assertEqual(calls[-1][1]["edits"], [{"actor_id": 7, "position": [4, 0, 0]}])
+
+        def fail(tool, **args):
+            raise RuntimeError("transport failed")
+
+        baker.call = fail
+        with self.assertRaises(RuntimeError):
+            baker.pose(0)
+        baker.call = call
+        baker.pose(0)
+        self.assertEqual(calls[-1][1]["edits"], [{"actor_id": 7, "position": [0, 0, 0]}])
+
     def close(self, actual, expected, tolerance=1e-7):
         self.assertLess(max(abs(a - b) for a, b in zip(actual, expected)), tolerance)
 

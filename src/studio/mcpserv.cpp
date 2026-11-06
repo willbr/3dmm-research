@@ -1995,20 +1995,30 @@ static const ToolDef kTools[] = {
      "{\"type\":\"object\",\"properties\":{\"frame\":{\"type\":\"integer\",\"minimum\":1,\"maximum\":100000}},"
      "\"required\":[\"frame\"]}",
      &Tool_EditFrame, false},
+    {"select_scene", "Select an existing one-based scene for authoring without extending it.",
+     "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\",\"minimum\":1}},\"required\":[\"scene\"]}",
+     &Tool_SelectScene, false},
+    {"create_text_box", "Insert native story text at this frame on the 544 by 306 movie canvas, visible to scene end.",
+     "{\"type\":\"object\",\"properties\":{\"text\":{\"type\":\"string\"},\"bounds\":{\"type\":\"array\","
+     "\"items\":{\"type\":\"integer\"},\"minItems\":4,\"maxItems\":4},\"font_size\":{\"type\":\"integer\"},"
+     "\"bold\":{\"type\":\"boolean\"},\"color\":{\"type\":\"string\"}},\"required\":[\"text\",\"bounds\"]}",
+     &Tool_CreateTextBox, false},
     {"create_actor", "Insert and commit a named actor or prop from its template tag, with native undo.",
      "{\"type\":\"object\",\"properties\":{\"template_cno\":{\"type\":\"integer\"},\"sid\":{\"type\":\"integer\"},"
      "\"name\":{\"type\":\"string\"}},\"required\":[\"template_cno\"]}",
      &Tool_CreateActor, false},
     {"transform_actor",
      "Edit a prop/actor at this frame: absolute world xyz, relative offset, world-axis Euler degrees, uniform scale, "
-     "xyz stretch and #RRGGBB colour. relative applies to rotation/size; absolute is default. Uses normal authored "
+     "xyz stretch and #RRGGBB colour (shaded false selects one palette entry). relative applies to rotation/size; "
+     "absolute is default. Uses normal authored "
      "events and undo.",
      "{\"type\":\"object\",\"properties\":{\"actor_id\":{\"type\":\"integer\"},\"position\":{\"type\":\"array\","
      "\"items\":{\"type\":\"number\"},\"minItems\":3,\"maxItems\":3},\"offset\":{\"type\":\"array\",\"items\":{"
      "\"type\":\"number\"},\"minItems\":3,\"maxItems\":3},\"rotation\":{\"type\":\"array\",\"items\":{\"type\":"
      "\"number\"},\"minItems\":3,\"maxItems\":3},\"scale\":{\"type\":\"number\",\"minimum\":0.25,\"maximum\":10},"
      "\"stretch\":{\"type\":\"array\",\"items\":{\"type\":\"number\",\"minimum\":0.25,\"maximum\":4},\"minItems\":3,"
-     "\"maxItems\":3},\"relative\":{\"type\":\"boolean\"},\"color\":{\"type\":\"string\"}},\"required\":[\"actor_id\"]"
+     "\"maxItems\":3},\"relative\":{\"type\":\"boolean\"},\"color\":{\"type\":\"string\"},"
+     "\"shaded\":{\"type\":\"boolean\"}},\"required\":[\"actor_id\"]"
      "}",
      &Tool_TransformActor, false},
     {"inspect_actor", "Read an actor's world position, authored rotation/size and model dimensions.",

@@ -124,6 +124,8 @@ def main():
             {"scale": 11},
             {"position": [1, 2, 3], "offset": [1, 2, 3]},
             {"color": "#oops!!"},
+            {"shaded": False},
+            {"color": "#ffffff", "shaded": "no"},
         ):
             try:
                 studio.call("transform_actor", actor_id=cube, **invalid)
@@ -151,6 +153,33 @@ def main():
                 call("inspect_actor", actor_id=cube)["position"],
                 call("inspect_actor", actor_id=sphere)["position"],
             ) == expected[frame]
+        call("edit_frame", frame=4)
+        call("transform_actor", actor_id=sphere, color="#829bb2", shaded=False)
+        for invalid in (
+            {"text": "Bad bounds", "bounds": [0, 0, 545, 50]},
+            {"text": "Bad size", "bounds": [0, 0, 100, 50], "font_size": 0},
+            {"text": "Bad color", "bounds": [0, 0, 100, 50], "color": "blue"},
+        ):
+            try:
+                studio.call("create_text_box", **invalid)
+            except AssertionError as error:
+                assert "isError" in str(error), error
+            else:
+                raise AssertionError("Invalid text box accepted")
+        assert studio.state()["scene_textbox_count"] == 0
+        call("create_text_box", text="Native title", bounds=[24, 24, 360, 100],
+             font_size=28, bold=True, color="#175d36")
+        for invalid in ({"scene": 0}, {"scene": 2}):
+            try:
+                studio.call("select_scene", **invalid)
+            except AssertionError as error:
+                assert "isError" in str(error), error
+            else:
+                raise AssertionError("Invalid scene accepted")
+        call("create_scene", background_cno=11)
+        call("edit_frame", frame=3)
+        call("select_scene", scene=1)
+        assert studio.state()["scene_textbox_count"] == 1
         call("save_movie", path=str(movie))
         try:
             studio.call("save_movie", path=str(movie))
@@ -159,6 +188,11 @@ def main():
         else:
             raise AssertionError("Existing movie overwrite accepted")
     with authoring_studio(args.exe, args.iso, out, movie) as studio:
+        content(studio, "select_scene", scene=2)
+        assert studio.state()["scene_last_frame"] == 3
+        content(studio, "select_scene", scene=1)
+        captions = studio.state()["scene_textboxes"]
+        assert len(captions) == 1 and captions[0]["text"].startswith("Native title"), captions
         assert studio.state()["scene_actor_count"] == 2
         assert studio.state()["scene_last_frame"] == 8
         for frame in (8, 1, 4):

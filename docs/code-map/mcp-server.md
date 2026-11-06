@@ -116,9 +116,11 @@ operations, authored events, undo and the original movie writer.
 |------|------------------------|
 | `list_assets` | `kind`: `props` (default), `actors`, `backgrounds`, `materials`; returns original names, `sid` and `cno`. |
 | `create_scene` | `background_cno`, optional `sid` (default 2); appends a scene and returns its camera matrix/FOV. Retail black background is 11. |
+| `select_scene` | Existing one-based `scene`; switches the idle movie for authoring without extending its timeline. |
+| `create_text_box` | `text`, `bounds: [left,top,right,bottom]` on the 544×306 movie canvas; optional `font_size` (6–120, default 18), `bold` and `color: #RRGGBB` (white). Inserts ordinary transparent story text from the current frame to scene end. Uses the default font and the legacy text encoding. |
 | `create_actor` | `template_cno`, optional `sid` (2) and `name`; commits placement and returns `actor_id`, world position, size and model dimensions. Cube is 4130; Sphere is 4131. |
 | `inspect_actor` | `actor_id`; reads world position, rotation matrix, scale, stretch, name and model bounds. |
-| `transform_actor` | `actor_id` and any of `position`, `offset`, `rotation`, `scale`, `stretch`, `color`. |
+| `transform_actor` | `actor_id` and any of `position`, `offset`, `rotation`, `scale`, `stretch`, `color`. With `color`, optional `shaded: false` uses one nearest palette entry for a flat backdrop colour; shaded retail ramps remain the default. |
 | `transform_actors` | `edits`: 1?256 transform argument objects; one repaint, native undo per edit. On failure, earlier edits remain; error includes `completed`. |
 | `edit_frame` | One-based `frame` (1?100000); selects an authoring frame and extends the scene when necessary. Marks the document dirty. |
 | `import_sound` | `path` to a WAVE file; imports and places a non-looping scene speech cue at the current frame. |
@@ -196,9 +198,11 @@ legacy name field; script group names are not serialized.
 
 The baker reads model dimensions from MCP, converts world poses into native
 position/rotation/scale/stretch events, and batches up to 256 edits per request.
-It writes every animated prop's pose at each sampled frame, preserving retail
-playback semantics. A duration controls keyframe sampling; it does not change
-the engine's playback rate. This improves articulation and easing within the
+It emits only changed transform components at each sampled frame, preserving
+retail playback semantics. Unchanged poses produce no actor edits. A failed
+batch leaves its cache unchanged so that the pose can be retried. A duration
+controls keyframe sampling; it does not change the engine's six-frame-per-second
+playback rate. This improves articulation and easing within the
 native frame cadence. There is no mesh skinning or inverse-kinematics solver.
 
 `mcp-rig` checks pivot geometry, inherited scale, shortest rotations, Euler

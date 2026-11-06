@@ -213,6 +213,82 @@ static JVal Tool_EditFrame(const JVal &args)
     return _WrapInfoAsContent(result);
 }
 
+static JVal Tool_SelectScene(const JVal &args)
+{
+    auto movie = AuthorMovie();
+    const auto value = args.Get("scene");
+    if (!movie || !value || !value->IsInt() || value->AsInt() < 1 || value->AsInt() > movie->Cscen())
+        return ContentError("An idle movie and an existing one-based scene are required");
+    if (!movie->FSwitchScen(long(value->AsInt()) - 1))
+        return ContentError("Cannot select that scene");
+    movie->InvalViewsAndScb();
+    movie->Pmcc()->UpdateScrollbars();
+    vpappb->UpdateMarked();
+    return ContentText("Scene selected.");
+}
+
+static JVal Tool_CreateTextBox(const JVal &args)
+{
+    auto movie = AuthorMovie();
+    const auto text = args.Get("text"), bounds = args.Get("bounds"), fontSize = args.Get("font_size");
+    const auto bold = args.Get("bold"), color = args.Get("color");
+    if (!movie || !movie->Pscen() || !text || !text->IsStr() || text->AsStr().empty() || text->AsStr().size() > 4096 ||
+        text->AsStr().find('\0') != std::string::npos || !bounds || !bounds->IsArr() || bounds->a->size() != 4 ||
+        (fontSize && (!fontSize->IsInt() || fontSize->AsInt() < 6 || fontSize->AsInt() > 120)) ||
+        (bold && bold->t != JT::Bool))
+        return ContentError("Supply text, bounds [left, top, right, bottom], and optional font_size 6..120/bold/color");
+    long coordinates[4];
+    for (int i = 0; i < 4; ++i)
+    {
+        const auto &v = (*bounds->a)[i];
+        if (!v.IsInt() || v.AsInt() < 0 || v.AsInt() > (i % 2 ? 306 : 544))
+            return ContentError("Text box bounds must lie in the 544 by 306 movie canvas");
+        coordinates[i] = long(v.AsInt());
+    }
+    if (coordinates[2] - coordinates[0] < 26 || coordinates[3] - coordinates[1] < 12)
+        return ContentError("Text box bounds are too small");
+    unsigned rgb = 0xffffff;
+    if (color)
+    {
+        if (!color->IsStr() || color->AsStr().size() != 7 || color->AsStr()[0] != '#')
+            return ContentError("color must be #RRGGBB");
+        rgb = 0;
+        for (char c : color->AsStr().substr(1))
+        {
+            if (!std::isxdigit(static_cast<unsigned char>(c)))
+                return ContentError("color must be #RRGGBB");
+            rgb = (rgb << 4) | (c <= '9' ? c - '0' : std::tolower(static_cast<unsigned char>(c)) - 'a' + 10);
+        }
+    }
+    std::vector<std::uint8_t> encoded;
+    if (!KauaiFonts::NameFromUtf8(text->AsStr(),
+                                  sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes,
+                                  encoded))
+        return ContentError("Text cannot be represented by the legacy movie format");
+    RC rectangle(coordinates[0], coordinates[1], coordinates[2], coordinates[3]);
+    auto caption = TextBox::PtboxNew(movie->Pscen(), &rectangle, true);
+    if (!caption)
+        return ContentError("Cannot create text box");
+    CHP chp;
+    caption->FetchChp(0, &chp);
+    chp.dypFont = fontSize ? long(fontSize->AsInt()) : 18;
+    chp.acrFore.Set(byte(rgb >> 16), byte(rgb >> 8), byte(rgb));
+    chp.acrBack = kacrClear;
+    chp.grfont = bold && bold->AsBool() ? fontBold : 0;
+    const bool added = movie->Pscen()->FAddTbox(caption);
+    const bool ok = added && caption->FReplaceRgch(encoded.data(), long(encoded.size() / sizeof(achar)), 0, 0, &chp);
+    if (added && !ok)
+    {
+        movie->Pscen()->FRemTboxCore(caption);
+        movie->ClearUndo();
+    }
+    ReleasePpo(&caption);
+    if (!ok)
+        return ContentError("Cannot insert text box");
+    AuthorRefresh(movie);
+    return ContentText("Native text box created at the current frame.");
+}
+
 static JVal Tool_CreateActor(const JVal &args)
 {
     auto movie = AuthorMovie();
@@ -262,7 +338,7 @@ static JVal Tool_CreateActor(const JVal &args)
     return _WrapInfoAsContent(AuthorActorInfo(actor));
 }
 
-static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb)
+static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
 {
     RC pixel(0, 0, 1, 1);
     Color colors[256];
@@ -289,7 +365,7 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb)
     // indexed renderer RGB alone does not choose the material's ramp.
     long base = nearest, range = 0;
     ChunkIdentification materialRoot{kctgMtth, cnoNil};
-    auto catalog = BrowserContentList::PbclNew(nullptr, &materialRoot, ctgNil, nullptr, true);
+    auto catalog = shaded ? BrowserContentList::PbclNew(nullptr, &materialRoot, ctgNil, nullptr, true) : nullptr;
     long rampDistance = INT32_MAX;
     for (long i = 0; catalog && i < catalog->IthdMac(); ++i)
     {
@@ -351,6 +427,9 @@ static JVal Tool_TransformActor(const JVal &args)
         return ContentError("Actor is not on stage at this frame");
     const auto position = args.Get("position"), offset = args.Get("offset"), rotation = args.Get("rotation");
     const auto scale = args.Get("scale"), stretch = args.Get("stretch"), color = args.Get("color");
+    const auto shaded = args.Get("shaded");
+    if (shaded && (shaded->t != JT::Bool || !color))
+        return ContentError("shaded requires a color and must be boolean");
     double pos[3], delta[3], angles[3], pulls[3];
     double factor = 1;
     unsigned rgb = 0;
@@ -432,7 +511,7 @@ static JVal Tool_TransformActor(const JVal &args)
                                          : saved.aevpull.rScaleZ);
     }
     if (ok && color)
-        ok = AuthorColor(movie, actor, rgb);
+        ok = AuthorColor(movie, actor, rgb, !shaded || shaded->AsBool());
     if (ok)
         ok = actor->FCreateUndo(before);
     if (!ok)
