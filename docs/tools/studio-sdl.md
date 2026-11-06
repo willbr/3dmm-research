@@ -3,6 +3,28 @@
 The port keeps Studio's original Kauai UI, resource scripts and editing tools.
 The archive inspector is a separate diagnostic application.
 
+## Debug validation
+
+Ordinary Debug builds retain assertions, range and null checks, debug symbols,
+allocation tracking and memory failure injection. Repeated recursive object
+validation and allocation header/footer checks are disabled by default: these
+checks can dominate frame stepping in movies with dense animation tracks.
+
+For a diagnostic Debug build with the original validation enabled, configure
+with `-DKAUAI_EXPENSIVE_CHECKS=ON`, then rebuild. For example:
+
+```sh
+cmake --preset x64:msvc:portable-sdl-debug -DKAUAI_EXPENSIVE_CHECKS=ON
+cmake --build build/studio-portable-x64 --target studio
+```
+
+Set the option back to `OFF` and rebuild to restore normal Debug validation.
+The option propagates through `kauai-core` to its consumers and only takes
+effect in Debug configurations. Release and RelWithDebInfo are unchanged.
+The existing `cactAV` control adjusts recursive object-validation depth only
+when expensive checks are compiled in. `debug-checks` verifies both policies
+using the selected build configuration.
+
 ## Run with the retail ISO
 
 The SDL executable can run with just the executable and an original ISO 9660

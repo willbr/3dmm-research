@@ -180,6 +180,7 @@ void AssertHq(HQ hq)
     }
 
     // verify the HQH
+#ifdef KAUAI_EXPENSIVE_CHECKS
     HQH *phqh = (HQH *)PvSubBv(hq, size(HQH));
     if (phqh->lwMagic != klwMagicMem)
     {
@@ -188,6 +189,7 @@ void AssertHq(HQ hq)
     }
     AssertIn(phqh->cactLock, 0, kcbMax);
     AssertPvAlloced(phqh, phqh->cb + size(HQH));
+#endif
 }
 
 /***************************************************************************

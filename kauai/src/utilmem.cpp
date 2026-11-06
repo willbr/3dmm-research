@@ -440,6 +440,7 @@ priv void _UnlinkMbh(MBH *pmbh, MBH *pmbhOld)
 ***************************************************************************/
 void _AssertMbh(MBH *pmbh)
 {
+#ifdef KAUAI_EXPENSIVE_CHECKS
     short sw;
 
     if (vcactSuspendCheckPointers != 0)
@@ -467,6 +468,7 @@ void _AssertMbh(MBH *pmbh)
     ((byte *)&sw)[1] = *(byte *)PvAddBv(pmbh, pmbh->cb - 1);
     Assert(sw == kswMagicMem, "bad tail magic number");
     vmutxMem.Leave();
+#endif
 }
 
 /***************************************************************************
@@ -475,6 +477,7 @@ void _AssertMbh(MBH *pmbh)
 ***************************************************************************/
 void AssertPvAlloced(void *pv, LegacyLong cb)
 {
+#ifdef KAUAI_EXPENSIVE_CHECKS
     if (vcactSuspendCheckPointers != 0)
         return;
 
@@ -483,6 +486,9 @@ void AssertPvAlloced(void *pv, LegacyLong cb)
     _AssertMbh(pmbh);
     if (cb != cvNil)
         Assert(pmbh->cb == cb + size(MBH) + size(MBF), "wrong cb");
+#else
+    Assert(pv != pvNil, "nil pv");
+#endif
 }
 
 /***************************************************************************

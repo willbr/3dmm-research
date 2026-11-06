@@ -114,6 +114,7 @@ inline void ResumeAssertValid(void)
         vcactAV = vcactAVSave;
 }
 
+#ifdef KAUAI_EXPENSIVE_CHECKS
 #define AssertPo(po, grf)                                                                                              \
     if ((po) != 0)                                                                                                     \
     {                                                                                                                  \
@@ -166,6 +167,15 @@ inline void ResumeAssertValid(void)
     }                                                                                                                  \
     else                                                                                                               \
         (void)0
+
+#else
+// Keep cheap preconditions without walking object graphs on every access.
+#define AssertPo(po, grf) Assert((po) != pvNil, "nil")
+#define AssertNilOrPo(po, grf) ((void)0)
+#define AssertBasePo(po, grf) Assert((po) != pvNil, "nil")
+#define AssertThis(grf) ((void)0)
+#define AssertBaseThis(grf) ((void)0)
+#endif
 
 #define MARKMEM                                                                                                        \
   public:                                                                                                              \

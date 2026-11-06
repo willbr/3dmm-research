@@ -78,6 +78,7 @@ option(BUILD_INSPECTOR "Build the SDL3 / Dear ImGui archive inspector" OFF)
 option(STUDIO_SDL3 "Use the portable SDL3 host for the existing Studio" OFF)
 option(STUDIO_PORTABLE_RUNTIME "Exercise the non-native Studio runtime, including on Windows" OFF)
 option(STUDIO_TEST_TOOLS "Enable opt-in MCP and batch playback tools, including in Release builds" OFF)
+option(KAUAI_EXPENSIVE_CHECKS "Enable recursive object and allocation validation in Debug builds" OFF)
 if(STUDIO_TEST_TOOLS)
   add_compile_definitions(STUDIO_TEST_TOOLS)
 endif()
@@ -574,6 +575,8 @@ target_link_libraries(video-api-check PRIVATE kauai-core)
 target_include_directories(portfolio-api-check PRIVATE "${PROJECT_SOURCE_DIR}/inc")
 target_link_libraries(portfolio-api-check PRIVATE kauai-core)
 target_link_libraries(legacy-math-test PRIVATE kauai-core)
+add_executable(debug-checks-test EXCLUDE_FROM_ALL tests/debug_checks_test.cpp)
+target_link_libraries(debug-checks-test PRIVATE kauai-core)
 if(STUDIO_NATIVE_WINDOWS)
   add_executable(midi-stream-host-test EXCLUDE_FROM_ALL tests/midi_stream_host_test.cpp)
   target_link_libraries(midi-stream-host-test PRIVATE kauai)
@@ -803,6 +806,7 @@ target_compile_definitions(kauai-core PUBLIC
   $<$<BOOL:${STUDIO_PORTABLE_RUNTIME}>:KAUAI_PORTABLE_RUNTIME>
   $<$<BOOL:${SOC_X86}>:IN_80386>
   $<$<CONFIG:Debug>:DEBUG>
+  $<$<AND:$<CONFIG:Debug>,$<BOOL:${KAUAI_EXPENSIVE_CHECKS}>>:KAUAI_EXPENSIVE_CHECKS>
 )
 
 target_compile_definitions(kauai-core PUBLIC
@@ -1363,6 +1367,7 @@ add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnosti
   text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)
 add_dependencies(core-checks picture-data-test dialog-resource-test dialog-api-check dialog-controller-api-check dialog-model-test legacy-math-test pixel-canvas-test font-services-test cursor-data-test)
 add_dependencies(core-checks resource-cache-test)
+add_dependencies(core-checks debug-checks-test)
 add_dependencies(core-checks kidspace-descriptor-test)
 add_dependencies(core-checks mcp-io-test)
 add_dependencies(core-checks script-name-test)
@@ -1505,6 +1510,7 @@ if(BUILD_TESTING)
     add_test(NAME font-host COMMAND font-host-test "${KAUAI_FONT_TEST_TTF}" "${KAUAI_FONT_TEST_FON}" "${PROJECT_BINARY_DIR}/font-host-fixture")
   endif()
   add_test(NAME legacy-math COMMAND legacy-math-test)
+  add_test(NAME debug-checks COMMAND debug-checks-test)
   add_test(NAME cursor-data COMMAND cursor-data-test)
   if(KAUAI_MIDI_SYNTH)
     add_test(NAME midi-synth COMMAND midi-synth-test "${KAUAI_MIDI_BANK_FILE}")
