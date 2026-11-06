@@ -248,6 +248,54 @@ static JVal Tool_SetFramePause(const JVal &args)
     return ContentText("Native frame pause set.");
 }
 
+static bool AuthorTextBytes(const std::string &text, std::vector<std::uint8_t> *encoded)
+{
+    std::string native;
+    for (std::size_t i = 0; i < text.size(); ++i)
+    {
+        if (text[i] == '\n' && i && text[i - 1] == '\r')
+            continue;
+        if (text[i] == '\n' || text[i] == '\r')
+        {
+            native.push_back('\r');
+#ifdef WIN
+            native.push_back('\n');
+#endif
+        }
+        else
+            native.push_back(text[i]);
+    }
+    return KauaiFonts::NameFromUtf8(
+        native, sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes, *encoded);
+}
+
+static JVal Tool_EditTextBox(const JVal &args)
+{
+    auto movie = AuthorMovie();
+    const auto index = args.Get("index"), text = args.Get("text"), align = args.Get("align");
+    if (!movie || !movie->Pscen() || !index || !index->IsInt() || index->AsInt() < 1 ||
+        index->AsInt() > movie->Pscen()->Ctbox() || !text || !text->IsStr() || text->AsStr().empty() ||
+        text->AsStr().size() > 4096 || text->AsStr().find('\0') != std::string::npos ||
+        (align &&
+         (!align->IsStr() || (align->AsStr() != "left" && align->AsStr() != "center" && align->AsStr() != "right"))))
+        return ContentError("Supply an existing one-based text-box index, text and optional left/center/right align");
+    std::vector<std::uint8_t> encoded;
+    if (!AuthorTextBytes(text->AsStr(), &encoded))
+        return ContentError("Text cannot be represented by the legacy movie format");
+    auto caption = movie->Pscen()->PtboxFromItbox(long(index->AsInt()) - 1);
+    CHP chp;
+    PAP pap;
+    caption->FetchChp(0, &chp);
+    caption->FetchPap(0, &pap);
+    if (align)
+        pap.jc = align->AsStr() == "center" ? jcCenter : align->AsStr() == "right" ? jcRight : jcLeft;
+    if (!caption->FReplaceRgch(encoded.data(), long(encoded.size() / sizeof(achar)), 0, caption->CpMac() - 1, &chp) ||
+        !caption->FApplyPap(0, caption->CpMac(), &pap, nullptr))
+        return ContentError("Cannot edit text box");
+    AuthorRefresh(movie);
+    return ContentText("Native text box edited; bounds, lifetime and first-character style retained.");
+}
+
 static JVal Tool_CreateTextBox(const JVal &args)
 {
     auto movie = AuthorMovie();
@@ -290,9 +338,7 @@ static JVal Tool_CreateTextBox(const JVal &args)
         }
     }
     std::vector<std::uint8_t> encoded;
-    if (!KauaiFonts::NameFromUtf8(text->AsStr(),
-                                  sizeof(achar) == 2 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes,
-                                  encoded))
+    if (!AuthorTextBytes(text->AsStr(), &encoded))
         return ContentError("Text cannot be represented by the legacy movie format");
     long fontIndex = -1;
     if (font)
@@ -325,6 +371,8 @@ static JVal Tool_CreateTextBox(const JVal &args)
         pap.jc = alignment->AsStr() == "center" ? jcCenter : alignment->AsStr() == "right" ? jcRight : jcLeft;
     const bool added = movie->Pscen()->FAddTbox(caption);
     bool ok = added && caption->FReplaceRgch(encoded.data(), long(encoded.size() / sizeof(achar)), 0, 0, &chp, &pap);
+    if (ok)
+        ok = caption->FApplyPap(0, caption->CpMac(), &pap, nullptr);
     if (ok && lastFrame)
     {
         ok = caption->FGotoFrame(movie->Pscen()->NfrmFirst() + long(lastFrame->AsInt()));

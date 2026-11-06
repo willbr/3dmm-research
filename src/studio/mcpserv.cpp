@@ -1479,11 +1479,18 @@ static JVal Tool_GetState(const JVal &args)
             item.Set("last_frame", JVal::MkInt(lastFrame - scene->NfrmFirst() + 1));
         }
         item.Set("visible", JVal::MkBool(caption->FIsVisible()));
+        PAP paragraph;
+        caption->FetchPap(0, &paragraph);
+        item.Set("align", JVal::MkStr(paragraph.jc == jcCenter  ? "center"
+                                      : paragraph.jc == jcRight ? "right"
+                                                                : "left"));
         for (const auto last : {false, true})
         {
             CHP properties;
             properties.Clear();
             caption->FetchChp(last ? std::max<long>(0, caption->CpMac() - 2) : 0, &properties);
+            if (!last)
+                item.Set("font_size", JVal::MkInt(properties.dypFont));
             String font;
             vntl.GetStn(properties.onn, &font);
             KauaiFonts::NameToUtf8({font.Prgch(), static_cast<std::size_t>(font.Cch()), encoding}, utf8);
@@ -2017,6 +2024,12 @@ static const ToolDef kTools[] = {
      "\"align\":{\"type\":\"string\",\"enum\":[\"left\",\"center\",\"right\"]},\"last_frame\":{\"type\":\"integer\"}},"
      "\"required\":[\"text\",\"bounds\"]}",
      &Tool_CreateTextBox, false},
+    {"edit_text_box",
+     "Replace a native text box's content using its first-character style, retaining bounds and lifetime.",
+     "{\"type\":\"object\",\"properties\":{\"index\":{\"type\":\"integer\",\"minimum\":1},\"text\":{\"type\":"
+     "\"string\"},"
+     "\"align\":{\"type\":\"string\",\"enum\":[\"left\",\"center\",\"right\"]}},\"required\":[\"index\",\"text\"]}",
+     &Tool_EditTextBox, false},
     {"create_actor", "Insert and commit a named actor or prop from its template tag, with native undo.",
      "{\"type\":\"object\",\"properties\":{\"template_cno\":{\"type\":\"integer\"},\"sid\":{\"type\":\"integer\"},"
      "\"name\":{\"type\":\"string\"}},\"required\":[\"template_cno\"]}",

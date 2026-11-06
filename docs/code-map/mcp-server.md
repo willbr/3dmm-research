@@ -118,6 +118,7 @@ operations, authored events, undo and the original movie writer.
 | `create_scene` | `background_cno`, optional `sid` (default 2); appends a scene and returns its camera matrix/FOV. Retail black background is 11. |
 | `select_scene` | Existing one-based `scene`; switches the idle movie for authoring without extending its timeline. |
 | `set_frame_pause` | Native pause at the current frame: `kind` is `none`, `sound`, `click` or `time`. `time` requires `ms` in 1–3600000. A scene's final `sound` pause lets its cue finish before the next scene. |
+| `edit_text_box` | One-based `index`, replacement `text`, optional `align`; preserves bounds, lifetime and first-character styling. LF, CRLF and CR inputs become native paragraph breaks. Creation also normalises line endings and applies paragraph alignment after insertion. |
 | `create_text_box` | `text`, `bounds: [left,top,right,bottom]` on the 544×306 movie canvas; optional `font_size` (6–120, default 18), `bold`, `color: #RRGGBB` (white), installed `font` name, and `align` (`left`, `center`, `right`). Inserts transparent story text from the current frame through optional inclusive `last_frame`, which must already exist in this scene; defaults to scene end. Uses the legacy text encoding. |
 | `create_actor` | `template_cno`, optional `sid` (2) and `name`; commits placement and returns `actor_id`, world position, size and model dimensions. Cube is 4130; Sphere is 4131. |
 | `inspect_actor` | `actor_id`; reads world position, rotation matrix, scale, stretch, name and model bounds. |

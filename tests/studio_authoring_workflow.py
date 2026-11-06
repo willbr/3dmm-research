@@ -172,8 +172,19 @@ def main():
             else:
                 raise AssertionError("Invalid text box accepted")
         assert studio.state()["scene_textbox_count"] == 0
-        call("create_text_box", text="Native title", bounds=[24, 24, 360, 100],
+        call("create_text_box", text="Draft title\nSecond line", bounds=[24, 24, 360, 130],
              font_size=28, bold=True, color="#175d36", align="center", last_frame=6)
+        draft = studio.state()["scene_textboxes"][0]
+        assert draft["align"] == "center" and "Draft title\r" in draft["text"], draft
+        for invalid in ({"index": 0, "text": "Bad index"}, {"index": 1, "text": "Bad align", "align": "diagonal"}):
+            try:
+                studio.call("edit_text_box", **invalid)
+            except AssertionError as error:
+                assert "isError" in str(error), error
+            else:
+                raise AssertionError("Invalid text edit accepted")
+            assert studio.state()["scene_textboxes"][0] == draft
+        call("edit_text_box", index=1, text="Native title\r\nSecond line", align="center")
         for invalid in ({"scene": 0}, {"scene": 2}):
             try:
                 studio.call("select_scene", **invalid)
@@ -212,6 +223,7 @@ def main():
         captions = studio.state()["scene_textboxes"]
         assert len(captions) == 1 and captions[0]["text"].startswith("Native title"), captions
         assert captions[0]["first_frame"] == 4 and captions[0]["last_frame"] == 6, captions
+        assert captions[0]["align"] == "center" and captions[0]["font_size"] == 28 and "Native title\r" in captions[0]["text"], captions
         assert studio.state()["scene_actor_count"] == 2
         assert studio.state()["scene_last_frame"] == 8
         for frame in (8, 1, 4):
