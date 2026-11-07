@@ -88,7 +88,8 @@ def fit_camera(spec, max_iterations=150):
     """
     focal = float(spec["focal"])
     width, height = _finite(spec["image_size"], 2)
-    marks = [m for m in spec["landmarks"] if m.get("visible", True) and m.get("world") is not None and m.get("reference") is not None]
+    frame = spec.get("fit_frame", spec.get("first_frame", 1))
+    marks = [m for m in spec["landmarks"] if m.get("visible", True) and m.get("world") is not None and m.get("reference") is not None and m.get("frame", frame) == frame]
     if len(marks) < 4:
         raise ValueError("At least four visible 3D-to-2D architectural landmarks required")
     points = [_finite(m["world"], 3) for m in marks]
@@ -103,7 +104,7 @@ def fit_camera(spec, max_iterations=150):
     lines = []
     axes = {"x": (1, 0, 0), "y": (0, 1, 0), "z": (0, 0, 1)}
     for line in spec.get("lines", []):
-        if line.get("surface", "reference") != "reference" or not line.get("enabled", True):
+        if line.get("surface", "reference") != "reference" or not line.get("enabled", True) or line.get("frame", frame) != frame:
             continue
         (x, y), (u, v) = [_finite(p, 2) for p in line["points"]]
         a, b, c = y - v, u - x, x * v - u * y
@@ -177,7 +178,7 @@ def fit_camera(spec, max_iterations=150):
                 max_error_px=max(m["error_px"] for m in fitted), landmarks=fitted)
 
 
-def sample_track(track, frame, max_gap=1):
+def sample_track(track, frame, max_gap=1, cuts=()):
     """Interpolate only between visible nearby samples; never fill occlusions."""
     keys = sorted(track["keys"], key=lambda k: k["frame"])
     for key in keys:
@@ -185,7 +186,7 @@ def sample_track(track, frame, max_gap=1):
             return copy.deepcopy(key) if key.get("visible", True) else None
     for a, b in zip(keys, keys[1:]):
         if a["frame"] < frame < b["frame"]:
-            if b["frame"] - a["frame"] > max_gap or not (a.get("visible", True) and b.get("visible", True)):
+            if b["frame"] - a["frame"] > max_gap or not (a.get("visible", True) and b.get("visible", True)) or any(a["frame"] < cut <= b["frame"] for cut in cuts):
                 return None
             t = (frame - a["frame"]) / (b["frame"] - a["frame"])
             result = dict(frame=frame, visible=True, interpolated=True)
@@ -205,7 +206,7 @@ def movement_report(spec):
     for track in spec["tracks"]:
         previous = None
         for frame in frames:
-            key = sample_track(track, frame, spec.get("max_gap", 1))
+            key = sample_track(track, frame, spec.get("max_gap", 1), spec.get("cuts", ()))
             if key is None or key.get("reference") is None:
                 previous = None
                 continue
@@ -219,7 +220,7 @@ def movement_report(spec):
             actual = _finite(actual, 2)
             item = dict(joint=track["name"], frame=frame, reference=expected, rendered=actual,
                         error_px=math.dist(expected, actual), contact=key.get("contact", False))
-            if previous and frame - previous[0] <= spec.get("max_gap", 1):
+            if previous and frame - previous[0] <= spec.get("max_gap", 1) and not any(previous[0] < cut <= frame for cut in spec.get("cuts", ())):
                 dt = (frame - previous[0]) / spec.get("fps", 6)
                 item["velocity_error_px_per_second"] = math.dist(
                     [(a - b) / dt for a, b in zip(expected, previous[1])],

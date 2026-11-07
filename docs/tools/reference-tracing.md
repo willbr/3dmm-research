@@ -18,6 +18,9 @@ frames in the HTML. For a sequence, provide `reference_pattern` and
 individual images and import or export project JSON. Its annotations remain
 local; export them to retain edits.
 
+Architectural points and lines can include a `frame`. `fit_frame` selects the
+frame for a camera fit (default: `first_frame`, or 1). Other frames are excluded.
+
 Camera input:
 
 ```json
@@ -75,6 +78,9 @@ only spans visible samples within `max_gap` frames. A key can contain a `world`
 point instead of `rendered`; provide `camera`, `focal` and `image_size` to project
 it. Use `inspect_actor.position` for saved actor world coordinates, not the
 route-relative `get_state.position`.
+
+List cut-start frame numbers in `cuts`. Interpolation and velocity comparisons
+never cross those boundaries, even when samples are adjacent in the file.
 
 Movement reports include joint displacement, velocity errors and screen motion
 during marked contact. Compare reference and output in the same camera; screen

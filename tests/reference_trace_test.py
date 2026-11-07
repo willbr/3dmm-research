@@ -65,6 +65,10 @@ class ReferenceTraceTest(unittest.TestCase):
         self.assertEqual(result['max_error_px'], 5)
         self.assertEqual(result['checks'][1]['rendered_contact_motion_px'], 5)
         self.assertEqual(result['checks'][1]['velocity_error_px_per_second'], 30)
+        spec['cuts'] = [2]
+        result = movement_report(spec)
+        self.assertNotIn('velocity_error_px_per_second', result['checks'][1])
+        self.assertIsNone(sample_track(dict(keys=[dict(frame=1, reference=[0, 0]), dict(frame=3, reference=[3, 3])]), 2, 3, cuts=[2]))
 
     def test_viewer_escapes_embedded_script_text(self):
         import tempfile
