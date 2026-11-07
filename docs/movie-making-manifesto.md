@@ -6,7 +6,7 @@ Reference exercises prioritise fidelity; original films should develop their own
 
 1. **Measure proportions first.** Compare full-body, profile and frontal views. Fix anatomy before fitting cameras around it.
 2. **Build a coherent set.** Place doors and windows on the correct walls. Leave room for entrances, exits and furniture.
-3. **Make camera choices deliberate.** Match reference position, perspective, crop, movement and cut timing from start to finish. For original work, motivate camera changes; static shots are valid.
+3. **Make camera choices deliberate.** Match reference position, perspective, crop, movement and cut timing from start to finish. Check both actor framing and background landmarks. For original work, motivate camera changes; static shots are valid.
 4. **Block for readability and depth.** Match facing directions and eyelines; keep important actors and gestures visible. Use depth and background reactions to guide attention.
 5. **Animate the whole action.** Move shoulders, elbows, wrists and fingers together. Include torso movement, weight shifts, head turns and reactions.
 6. **Keep contact believable.** Plant feet, attach ears, grip objects and check clearance around walls, furniture and foliage.

@@ -213,6 +213,11 @@ transforms after a cached or static pose was skipped. Forced poses reapply all
 transform components, including static props; material changes remain explicit.
 The default cache is appropriate for actors created by `baker.create()`.
 
+For world-coordinate comparisons, use `inspect_actor.position`, which reads the
+body's world position. `get_state.scene_actors[].position` is the evaluated route
+offset; it can be zero while the body is elsewhere. Its pose and position hashes
+can detect native changes, but the route offset is not a world-space landmark.
+
 `mcp-rig` checks pivot geometry, inherited scale, shortest rotations, Euler
 conversion, attachment continuity and cycle rejection without assets.
 `studio-rig-workflow` bakes a generic articulated assembly through actual MCP,
