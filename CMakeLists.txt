@@ -1448,6 +1448,9 @@ if(BUILD_TESTING)
     set_tests_properties(mcp-png PROPERTIES TIMEOUT 15)
     add_test(NAME mcp-rig COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/mcp_rig_test.py")
+    add_test(NAME reference-trace COMMAND "${Python3_EXECUTABLE}" -B
+      "${PROJECT_SOURCE_DIR}/tests/reference_trace_test.py")
+    set_tests_properties(reference-trace PROPERTIES TIMEOUT 15)
     set_tests_properties(mcp-rig PROPERTIES TIMEOUT 15
       ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
     if(BUILD_STUDIO)

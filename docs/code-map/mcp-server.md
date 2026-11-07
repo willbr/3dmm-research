@@ -153,6 +153,11 @@ and SDL test tools are available.
 
 ## Verification
 
+Reference camera and joint tracking tools are described in
+[`reference-tracing.md`](../tools/reference-tracing.md). They trace perspective,
+compare architectural landmarks, and measure projected joint movement before
+baking ordinary native poses with the tools below.
+
 ### Script-side groups and joints
 
 [`tools/mcp_rig.py`](../../tools/mcp_rig.py) provides a small, standard-library
