@@ -129,8 +129,7 @@ stay under the ignored `build` and `dist` directories.
 The canvas fits the available area while preserving its 4:3 aspect ratio.
 Open **Options** with **Control+Shift+I** and enable **Integer scaling** on the
 **Display** tab to restrict scaling to whole-number pixel multiples in windowed, maximized and
-fullscreen modes. **Make these the default settings** saves the scaling choice
-for future launches.
+fullscreen modes. **OK** saves the scaling choice for future launches.
 
 **Alt+Enter** toggles desktop fullscreen and restores the previous window size
 when returning to windowed mode. Holding the keys toggles only once per press.
@@ -169,8 +168,7 @@ presentation fits the movie itself to the window and adds the pause banner.
 The shared renderer retains the movie palette so both views preserve the original
 colors and transitions. The legacy palette-based scene transitions retain their
 native canvas resolution. Super sizes use full-quality buffers and require
-more CPU and memory. **Make these the default
-settings** persists the rendering resolution without changing movie files.
+more CPU and memory. **OK** saves the rendering resolution without changing movie files.
 
 Applying a resolution choice also sizes a windowed Studio to a whole-number
 multiple of its 640x480 canvas. Reduced and Original request 1x; 2x and 4x request
@@ -214,8 +212,8 @@ All switches start off, preserving the existing defaults:
 - Keep normal keyboard repeat: disable editing's slow-repeat mode and restore
   any repeat setting already in effect.
 
-**OK** applies session preferences; **Make these the default settings** also
-persists them, including startup choices for the next launch. **Cancel**, Escape
+**OK** applies and automatically saves all options, including startup choices
+for the next launch. **Cancel**, Escape
 and closing Options discard changes across every tab. These settings never
 become movie or asset data. `studio-options-workflow` covers dialog actions, defaults,
 independent startup sound, multiple instances, tab switching, cancellation of

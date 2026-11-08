@@ -3624,7 +3624,6 @@ enum
     iditWireframeInfo,
     iditNoTextureInfo,
     iditPoseReadoutInfo,
-    iditSaveChanges,
 #ifndef KAUAI_SDL3
     iditRenderModeInfo,
 #endif
@@ -3747,7 +3746,6 @@ bool Application::FCmdInfo(PCommand pcmd)
     bool fRunInWindowNew;
     String stn;
     String stnT;
-    bool fSaveChanges;
 
     pmvie = _Pmvie();
 
@@ -3849,12 +3847,10 @@ bool Application::FCmdInfo(PCommand pcmd)
         return fTrue;
     }
 
-    fSaveChanges = pdlg->FGetCheck(iditSaveChanges);
 #ifdef KAUAI_SDL3
     bool fIntegerScaling = FPure(pdlg->FGetCheck(iditIntegerScalingInfo));
     KauaiSDL::Main().SetIntegerScaling(fIntegerScaling);
-    if (fSaveChanges)
-        FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregSetKey | fregBinary);
+    FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregSetKey | fregBinary);
     const LegacyLong renderChoice = pdlg->LwGetRadio(iditRenderSizeInfo);
     const bool reduced = renderChoice == 3;
     LegacyLong renderScale = reduced ? 1 : 1L << renderChoice;
@@ -3871,8 +3867,7 @@ bool Application::FCmdInfo(PCommand pcmd)
         if (pmvie)
             pmvie->InvalViews();
     }
-    if (fSaveChanges)
-        FGetSetRegKey(kszRenderScaleValue, &renderScale, size(renderScale), fregSetKey | fregBinary);
+    FGetSetRegKey(kszRenderScaleValue, &renderScale, size(renderScale), fregSetKey | fregBinary);
 #else
     if (FPure(_fSlowCPU) != FPure(pdlg->LwGetRadio(iditRenderModeInfo)))
     {
@@ -3887,11 +3882,8 @@ bool Application::FCmdInfo(PCommand pcmd)
         }
     }
 #endif
-    if (fSaveChanges)
-    {
-        bool fSlowCPU = _fSlowCPU;
-        FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey | fregBinary);
-    }
+    bool fSlowCPU = _fSlowCPU;
+    FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey | fregBinary);
 
     {
         bool fWireframeNew = FPure(pdlg->FGetCheck(iditWireframeInfo));
@@ -3921,12 +3913,9 @@ bool Application::FCmdInfo(PCommand pcmd)
             pmvieT->Pbwld()->MarkDirty();
             pmvieT->InvalViews();
         }
-        if (fSaveChanges)
-        {
-            FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey | fregBinary);
-            FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey | fregBinary);
-            FGetSetRegKey(kszShowPoseReadoutValue, &fPoseReadoutNew, size(bool), fregSetKey | fregBinary);
-        }
+        FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey | fregBinary);
+        FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey | fregBinary);
+        FGetSetRegKey(kszShowPoseReadoutValue, &fPoseReadoutNew, size(bool), fregSetKey | fregBinary);
     }
 
     fRunInWindowNew = pdlg->LwGetRadio(iditWindowModeInfo);
@@ -3967,12 +3956,9 @@ bool Application::FCmdInfo(PCommand pcmd)
             }
         }
     }
-    if (fSaveChanges)
-    {
-        bool fSwitchRes = !_fRunInWindow;
+    bool fSwitchRes = !_fRunInWindow;
 
-        FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
-    }
+    FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
 
 #ifdef DEBUG
     {
@@ -3988,14 +3974,11 @@ bool Application::FCmdInfo(PCommand pcmd)
             else
             {
                 vcactAV = lwT;
-                if (fSaveChanges)
-                {
-                    DBINFO dbinfo;
+                DBINFO dbinfo;
 
-                    dbinfo.cactAV = vcactAV;
-                    AssertDo(FGetSetRegKey(PszLit("DebugSettings"), &dbinfo, size(DBINFO), fregSetKey | fregBinary),
-                             "Couldn't save current debug settings in registry");
-                }
+                dbinfo.cactAV = vcactAV;
+                AssertDo(FGetSetRegKey(PszLit("DebugSettings"), &dbinfo, size(DBINFO), fregSetKey | fregBinary),
+                         "Couldn't save current debug settings in registry");
             }
         }
     }
@@ -4004,16 +3987,13 @@ bool Application::FCmdInfo(PCommand pcmd)
     for (const auto &binding : kPreferences)
     {
         preferences.*binding.field = FPure(pdlg->FGetCheck(pdlg->IditFromSit(binding.control)));
-        if (fSaveChanges)
+        if (binding.field == &StudioPreferences::skipStartupScreens)
         {
-            if (binding.field == &StudioPreferences::skipStartupScreens)
-            {
-                LegacyLong skip = preferences.*binding.field;
-                FGetSetRegKey(binding.key, &skip, size(skip), fregSetKey);
-            }
-            else
-                FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregSetKey | fregBinary);
+            LegacyLong skip = preferences.*binding.field;
+            FGetSetRegKey(binding.key, &skip, size(skip), fregSetKey);
         }
+        else
+            FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregSetKey | fregBinary);
     }
     _ApplyPreferences();
     if (pmvie)

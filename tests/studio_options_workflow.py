@@ -69,7 +69,7 @@ def close_options(studio, current, control):
     return wait(studio, lambda state: not state['dialog']['present'], 'Options did not close')
 
 
-def set_options(studio, desired, save=False, capture=None):
+def set_options(studio, desired, capture=None):
     current = options(studio)
     for tab, names in TAB_CONTROLS.items():
         current = select_tab(studio, current, tab)
@@ -77,8 +77,6 @@ def set_options(studio, desired, save=False, capture=None):
         for name in names:
             if name in desired and bool(controls[CONTROLS[name]]['number']) != desired[name]:
                 click(studio, current, CONTROLS[name])
-    if save:
-        click(studio, current, 1010)
     if capture:
         for tab, name in ((1043, 'display'), (1044, 'playback'), (1045, 'startup'), (1046, 'about')):
             current = select_tab(studio, current, tab)
@@ -89,11 +87,9 @@ def set_options(studio, desired, save=False, capture=None):
     return state
 
 
-def resolution(studio, scale, save=False):
+def resolution(studio, scale):
     current = options(studio)
     click(studio, current, {0: 1033, 1: 1030, 2: 1031, 4: 1032}[scale])
-    if save:
-        click(studio, current, 1010)
     state = close_options(studio, current, 1)
     expected_width, expected_height = (272, 153) if scale == 0 else (544 * scale, 306 * scale)
     assert (state['render_width'], state['render_height']) == (expected_width, expected_height), state
@@ -156,6 +152,7 @@ def main():
             original = studio.state()
             original_pixels = studio.capture('original')
             current = options(studio)
+            assert not any(item['id'] == 1010 for item in current['controls'])
             for tab, names in TAB_CONTROLS.items():
                 current = select_tab(studio, current, tab)
                 for name in names:
@@ -169,7 +166,7 @@ def main():
             assert cancelled['sdl_integer_scaling'] == original['sdl_integer_scaling']
             report['cancel_preserves_preferences'] = True
             report['tabs_preserve_edits_and_hide_other_pages'] = True
-            enabled = set_options(studio, dict.fromkeys(CONTROLS, True), save=True,
+            enabled = set_options(studio, dict.fromkeys(CONTROLS, True),
                                   capture=output / 'options.bmp')
             assert signature(enabled) == signature(original), 'Options altered authored movie data'
             assert enabled['scene_transition'] == original['scene_transition']
@@ -186,7 +183,7 @@ def main():
             for scale in (2, 4):
                 resolution(studio, scale)
             report['super_resolution_fits_integer_window'] = True
-            resolution(studio, 0, save=True)
+            resolution(studio, 0)
             report['reduced_render_resolution'] = True
             # A second process must run independently when the option is saved.
             other = Studio(launch, movie, 'second-instance')
@@ -198,8 +195,12 @@ def main():
             finally:
                 other.close()
             report['multiple_instances_and_saved_preferences'] = True
-            resolution(studio, 1)  # An unsaved choice must not overwrite the Reduced default.
-            set_options(studio, {'normal_key_repeat': False})
+            current = options(studio)
+            click(studio, current, 1030)
+            current = select_tab(studio, current, 1044)
+            click(studio, current, CONTROLS['normal_key_repeat'])
+            cancelled = close_options(studio, current, 2)
+            assert cancelled['render_reduced'] and cancelled['preferences']['normal_key_repeat']
             studio.quit()
         finally:
             studio.close()
@@ -208,15 +209,16 @@ def main():
         studio = Studio(launch, saved, 'reopened')
         try:
             reopened = studio.state()
-            assert all(reopened['preferences'].values()), 'Unsaved session changes overwrote defaults'
+            assert all(reopened['preferences'].values()), 'Cancelled edits overwrote saved defaults'
             assert signature(reopened) == signature(original), 'Saving with options changed movie semantics'
             assert reopened['scene_transition'] == original['scene_transition']
             assert reopened['render_reduced'] and reopened['render_width'] == 272 and reopened['render_height'] == 153
             report['reduced_resolution_persists'] = True
-            resolution(studio, 1, save=True)
+            report['ok_saves_automatically_and_cancel_discards'] = True
+            resolution(studio, 1)
             report['movie_save_reopen_preserves_semantics'] = True
             # Screen skipping and startup sound are independent preferences.
-            set_options(studio, {**dict.fromkeys(CONTROLS, False), 'skip_startup_screens': True}, save=True)
+            set_options(studio, {**dict.fromkeys(CONTROLS, False), 'skip_startup_screens': True})
             studio.quit()
         finally:
             studio.close()

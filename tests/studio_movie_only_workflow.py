@@ -56,7 +56,7 @@ def play(studio, shifted=False):
     return wait(studio, lambda state: state['movie_playing'], 'Play did not start')
 
 
-def render_scale(studio, scale, save=False, capture=None):
+def render_scale(studio, scale, capture=None):
     studio.call('send_command', cid=40038)
     deadline = time.monotonic() + 10
     while True:
@@ -67,8 +67,6 @@ def render_scale(studio, scale, save=False, capture=None):
         time.sleep(.02)
     studio.call('sdl_dialog_action', generation=dialog['generation'], action='click',
                 control={1: 1030, 2: 1031, 4: 1032}[scale])
-    if save:
-        studio.call('sdl_dialog_action', generation=dialog['generation'], action='click', control=1010)
     if capture:
         studio.call('sdl_dialog_action', generation=dialog['generation'], action='screenshot', text=str(capture))
     studio.call('sdl_dialog_action', generation=dialog['generation'], action='click', control=1)
@@ -263,7 +261,7 @@ def main():
                     if scrolling:
                         assert original['render_scale'] == args.render_scale, 'Saved rendering size was not restored'
                     else:
-                        original = render_scale(studio, args.render_scale, save=True,
+                        original = render_scale(studio, args.render_scale,
                                                 capture=output / (label + '-info.bmp'))
                     if scrolling:
                         # In the idle editor, only the movie pixels may change.

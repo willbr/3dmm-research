@@ -15,6 +15,8 @@ import queue
 import subprocess
 import threading
 import time
+import uuid
+from studio_movie_only_workflow import remove_settings
 
 
 def studio_window(pid):
@@ -188,13 +190,16 @@ def main():
     if args.portfolio_files and not args.text:
         parser.error("--portfolio-files requires --text so the final save/discard check still has an edited movie")
     args.artifacts.mkdir(parents=True, exist_ok=True)
+    settings_run = str(uuid.uuid4())
+    environment = {**os.environ, "KAUAI_TEST_SETTINGS_RUN": settings_run,
+                   "XDG_CONFIG_HOME": str(args.artifacts.resolve() / "settings" / settings_run)}
     responses = queue.Queue()
     logs = []
     process = subprocess.Popen(
         [str(args.exe.resolve()), "--mcp-server"], cwd=args.content.resolve(),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8",
-        env={**os.environ, "KAUAI_TEST_FAIL_FAST": "1", **({"SDL_AUDIODRIVER": "dummy"} if args.sdl_recording else {})},
+        env={**environment, "KAUAI_TEST_FAIL_FAST": "1", **({"SDL_AUDIODRIVER": "dummy"} if args.sdl_recording else {})},
     )
 
     def read_responses():
@@ -416,8 +421,6 @@ def main():
                 def dialog_action(action, control=0, text=""):
                     call("sdl_dialog_action", generation=dialog["generation"], action=action, control=control, text=text)
                 controls = {item["id"]: item for item in dialog["controls"]}
-                if controls[1010]["number"]:
-                    dialog_action("click", 1010)  # Keep persistent defaults unchecked.
                 if bool(controls[1029]["number"]) != integer_scaling:
                     dialog_action("click", 1029)
                 dialog_action("click", 1015 if fullscreen else 1016)
@@ -425,7 +428,7 @@ def main():
                 while True:
                     observed = json.loads(call("get_sdl_dialog")["content"][0]["text"])
                     values = {item["id"]: item for item in observed["controls"]}
-                    if (values[1015]["number"] == expected and values[1010]["number"] == 0
+                    if (values[1015]["number"] == expected
                             and bool(values[1029]["number"]) == integer_scaling):
                         break
                     if time.monotonic() >= deadline:
@@ -871,6 +874,7 @@ def main():
         for reader in readers:
             reader.join(timeout=2)
         (args.artifacts / "studio.log").write_text("".join(logs), encoding="utf-8")
+        remove_settings(settings_run)
 
 
 if __name__ == "__main__":
