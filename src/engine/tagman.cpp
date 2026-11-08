@@ -456,7 +456,7 @@ bool TagManager::_FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChange
     the source named stn cannot be found.  Returns fTrue if the user wants
     to retry, else fFalse.
 ***************************************************************************/
-bool TagManager::_FRetry(LegacyLong sid)
+bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -469,7 +469,9 @@ bool TagManager::_FRetry(LegacyLong sid)
         Bug("_pgstSource has no string for this sid!");
         return fFalse;
     }
-    return _pfninscd(&stnLong);
+    String root;
+    _fniHDRoot.GetStnPath(&root);
+    return _pfninscd({sid, &stnLong, &stnShort, &root, asset});
 }
 
 /***************************************************************************
@@ -517,7 +519,7 @@ LFail:
     new one if there isn't one already.  It verifies that the CD is still
     in the drive, unless fDontHitCD is fTrue.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool fDontHitCD)
+PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool fDontHitCD, const TAG *asset)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -578,8 +580,16 @@ LSetupSfs:
         while (!_FFindFniCD(sid, &sfs.fniCD, &fFniChanged))
         {
             // Ask user to insert the CD
-            if (!_FRetry(sid))
+            if (!_FRetry(sid, asset))
                 return pvNil;
+            // A newly installed local source must invalidate the cached HD
+            // miss too. An already-open CD manager retains its original path.
+            if (sfs.pcrmSource == pvNil)
+            {
+                sfs.tContentOnHD = tMaybe;
+                sfs.fniHD.SetNil();
+                goto LSetupSfs;
+            }
         }
         if (fFniChanged)
         {
@@ -791,7 +801,7 @@ bool TagManager::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType 
         ptagChild->cno = kid.cki.cno;
         return fTrue;
     }
-    pcrmSource = _PcrmSourceGet(ptagPar->sid);
+    pcrmSource = _PcrmSourceGet(ptagPar->sid, false, ptagPar);
     if (pvNil == pcrmSource)
         return fFalse;
     pcrfSource = pcrmSource->PcrfFindChunk(ptagPar->ctg, ptagPar->cno);
@@ -895,7 +905,7 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseC
     }
     else
     {
-        pcrmSource = _PcrmSourceGet(ptag->sid, !fUseCD);
+        pcrmSource = _PcrmSourceGet(ptag->sid, !fUseCD, ptag);
         if (pcrmSource != pvNil)
             pbaco = pcrmSource->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
     }

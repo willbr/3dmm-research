@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "studio_content.h"
+#include "studio_missing_content.h"
 #ifdef _WINDOWS_
 #error Studio content API must not include the Windows SDK
 #endif
@@ -241,9 +242,34 @@ static bool Environment()
     return true;
 }
 #endif
+static bool MissingContentMessages()
+{
+    MissingContent content{"Expansions", "EXPANSIONS", "C:/content/Microsoft Kids", 5, true, 0x424b4744, 0x40003};
+    const auto message = MissingContentText(content);
+    Check(PackName(content) == "Frankie's 3dmm Expansion Pack 1");
+    Check(message.find("C:/content/Microsoft Kids/EXPANSIONS") != std::string::npos);
+    Check(message.find("BKGD:00040003") != std::string::npos && message.find("ID 5") != std::string::npos);
+    content.sourceId = 918; // Pack names must not depend on installation-specific IDs.
+    Check(PackName(content) == "Frankie's 3dmm Expansion Pack 1");
+    content.folder = "DORAEMON";
+    Check(PackName(content) == "Doraemon Expansion");
+    content.folder = "N3DMMExp";
+    Check(PackName(content) == "Nickelodeon Expansion");
+    content.folder = "3DMovie";
+    Check(PackName(content) == "3D Movie Maker");
+    content.folder = "EXPANSIONS";
+    content.assetNumber = 0xdeadbeef;
+    Check(PackName(content) == "Expansions (legacy add-ons)");
+    content.source = "My custom pack";
+    content.folder = "CUSTOM";
+    content.hasAsset = false;
+    Check(PackName(content) == "My custom pack");
+    Check(MissingContentText(content).find("Asset:") == std::string::npos);
+    return true;
+}
 int main()
 {
-    if (!Policy() || !Platform() || !Environment())
+    if (!Policy() || !Platform() || !Environment() || !MissingContentMessages())
         return 1;
     std::puts("Studio content checks passed");
     return 0;

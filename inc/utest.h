@@ -277,7 +277,7 @@ class Application : public Application_PAR
     bool FCmdExitStudio(PCommand pcmd);
     bool FCmdDeactivate(PCommand pcmd);
 
-    static bool FInsertCD(PString pstnTitle);
+    static bool FInsertCD(const MissingSourceRequest &request);
     void DisplayErrors(void);
     void SetPortfolioDoc(PFilename pfni)
     {

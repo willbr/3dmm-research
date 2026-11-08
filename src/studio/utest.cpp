@@ -22,6 +22,10 @@
 #ifdef KAUAI_SDL3
 #include "studio_iso.h"
 #include "studio_settings.h"
+#include "studio_missing_content.h"
+#include "sdl_dialog.h"
+#include "platform_text.h"
+#include "text_utf8.h"
 #include <SDL3/SDL_misc.h>
 #endif
 #include "launch_context.h"
@@ -4426,8 +4430,9 @@ tribool Application::TModal(PResourceCache prca, long tpc, PString pstnBackup, l
 /***************************************************************************
     Static function to prompt the user to insert the CD named pstnTitle
 ***************************************************************************/
-bool Application::FInsertCD(PString pstnTitle)
+bool Application::FInsertCD(const MissingSourceRequest &request)
 {
+    auto pstnTitle = request.title;
     AssertPo(pstnTitle, 0);
     if (BatchPlaybackTest())
     {
@@ -4437,11 +4442,66 @@ bool Application::FInsertCD(PString pstnTitle)
         BatchPlaybackExit(4);
     }
 
+    bool tRet = false;
+#ifdef KAUAI_SDL3
+    const auto utf8 = [](PString text) {
+        const auto bytes = text->Cch() * sizeof(achar);
+#ifdef UNICODE
+        const auto encoding = BigLittle(KauaiText::Encoding::Utf16BE, KauaiText::Encoding::Utf16LE);
+#else
+        const auto encoding = KauaiText::Encoding::WindowsAnsi;
+#endif
+        const auto count = KauaiText::ToUtf16(text->Psz(), bytes, encoding, nullptr, 0);
+        std::vector<std::uint16_t> units(count);
+        std::string result;
+        if ((!bytes || count) && (!count || KauaiText::ToUtf16(text->Psz(), bytes, encoding, units.data(), count)))
+            KauaiText::EncodeUtf8(units, result);
+        return result;
+    };
+    StudioContent::MissingContent content{utf8(request.title), utf8(request.folder), utf8(request.contentRoot),
+                                          request.sid};
+    if (request.asset)
+    {
+        content.hasAsset = true;
+        content.assetType = request.asset->ctg;
+        content.assetNumber = request.asset->cno;
+    }
+    KauaiDialogs::Session session;
+    if (session.InitAlert(StudioContent::MissingContentText(content), "Missing movie content",
+                          KauaiDialogs::AlertButtons::yesNoCancel))
+    {
+        for (auto &control : session.resource.controls)
+        {
+            if (control.id == 1)
+                control.title.text = u"&Retry";
+            if (control.id == 3)
+                control.title.text = u"&Downloads";
+        }
+        session.context = &session;
+        session.changed = [](void *context, std::int32_t &item) {
+            const auto &dialog = *static_cast<KauaiDialogs::Session *>(context);
+            if (item == dialog.Item(3))
+            {
+                SDL_OpenURL("https://3dmm.com/showthread.php?t=17038");
+                return false;
+            }
+            return item == dialog.Item(1) || item == dialog.Item(2);
+        };
+        auto &host = KauaiSDL::Main();
+        host.FlushInput(true, true);
+        host.SuspendFocusEvents(true);
+        tRet = KauaiSDL::RunDialog(session, host.WindowID(), [](void *) { KauaiSDL::Main().Present(); }) &&
+               session.AlertAnswer() == KauaiDialogs::AlertResult::yes;
+        if (!KauaiSDL::CurrentDialog().active)
+            host.ResumeAfterModal();
+        host.Present(true);
+    }
+#else
     String stnBackup;
-    bool tRet;
 
     stnBackup = PszLit("I can't find the CD '%s'  Please insert it.  Should I look again?");
     tRet = vpapp->TModal(vpapp->PcrmAll(), ktpcQueryCD, &stnBackup, bkYesNo, kstidQueryCD, pstnTitle);
+#endif
 
     /* Don't tell the user that they told us not to try again; they know
         that already */

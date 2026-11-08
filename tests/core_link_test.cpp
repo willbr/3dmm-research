@@ -13,6 +13,7 @@
 #include "cmd.h"
 #include "clok.h"
 #include "cmd_hooks.h"
+#include "platform_files.h"
 #if defined(TEST_ENGINE_CORE)
 #include "actor_frame_fixture.h"
 #include "studio_preferences.h"
@@ -336,9 +337,24 @@ static void Changed(void *context)
     ++static_cast<RenderHost *>(context)->changes;
 }
 static int missingSourcePrompts = 0;
-static bool MissingSource(PString)
+static PFilename retrySourceDirectory = nullptr, retrySourceFile = nullptr;
+static bool MissingSource(const MissingSourceRequest &request)
 {
+    Check(request.sid == 42 && request.title && request.folder && request.contentRoot);
+    Check(request.asset && request.asset->sid == 42 && request.asset->ctg == kctgTmpl && request.asset->cno == 1);
     ++missingSourcePrompts;
+    if (retrySourceDirectory && missingSourcePrompts == 1)
+    {
+        Check(retrySourceDirectory->FBuildFromPath(request.contentRoot, kftgDir));
+        Check(retrySourceDirectory->FDownDir(request.folder, ffniCreateDir | ffniMoveToDir));
+        String path;
+        retrySourceDirectory->GetStnPath(&path);
+        Check(path.FAppendSz(PszLit("retry.3cn")) && retrySourceFile->FBuildFromPath(&path));
+        auto file = ChunkyFile::PcflCreate(retrySourceFile, fcflWriteEnable);
+        Check(file && file->FSave(kctgMvie));
+        ReleasePpo(&file);
+        return true;
+    }
     return false;
 }
 
@@ -2613,8 +2629,21 @@ static void TestEngineServices()
     Check(missingSourcePrompts == 0);
     Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl, fTrue) == pvNil);
     Check(missingSourcePrompts == 1);
+    Filename retryDirectory, retryFile;
+    retrySourceDirectory = &retryDirectory;
+    retrySourceFile = &retryFile;
+    missingSourcePrompts = 0;
+    // Installing a local source while the prompt is open must invalidate the
+    // cached HD miss. The empty pack has no template, so fetch still misses;
+    // a second CD prompt would mean Retry never discovered the new folder.
+    Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl, fTrue) == pvNil);
+    Check(missingSourcePrompts == 1);
     manager->ClearCache();
     ReleasePpo(&manager);
+    String directoryPath;
+    retryDirectory.GetStnPath(&directoryPath);
+    Check(retryFile.FDelete() && KauaiFiles::DeleteDirectory(directoryPath.Psz()));
+    retrySourceDirectory = retrySourceFile = nullptr;
 
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);

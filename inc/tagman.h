@@ -105,10 +105,17 @@ inline void TagFromOnFile(TAG *ptag, const TAGOnFile &tof, PChunkyResourceFile p
 }
 
 // FNINSCD is a client-supplied callback function to alert the user to
-// insert the given CD.  The name of the source is passed to the callback.
+// locate the given content source. Its names, root and optional requesting
+// asset are borrowed for the callback so the frontend can explain the failure.
 // The function should return fTrue if the user wants to retry searching
 // for the chunk, or fFalse to cancel.
-typedef bool FNINSCD(PString pstnSourceTitle);
+struct MissingSourceRequest
+{
+    LegacyLong sid;
+    PString title, folder, contentRoot; // Borrowed for the duration of the callback.
+    const TAG *asset = nullptr;         // Null when the request was for a file/source directory.
+};
+typedef bool FNINSCD(const MissingSourceRequest &request);
 typedef FNINSCD *PFNINSCD;
 
 enum
@@ -149,7 +156,7 @@ class TagManager : public TagManager_PAR
     bool _FFindSid(LegacyLong sid, LegacyLong *pistn = pvNil);
     bool _FGetStnMergedOfSid(LegacyLong sid, PString pstn);
     bool _FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort);
-    bool _FRetry(LegacyLong sid);
+    bool _FRetry(LegacyLong sid, const TAG *asset = nullptr);
     bool _FEnsureFniCD(LegacyLong sid, PFilename pfniCD, PString pstn = pvNil);
     bool _FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChanged);
     bool _FDetermineIfSourceHD(LegacyLong sid, bool *pfSourceIsOnHD);
@@ -160,7 +167,7 @@ class TagManager : public TagManager_PAR
 
     bool _FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists);
     PChunkyResourceManager _PcrmSourceNew(LegacyLong sid, PFilename pfniInfo);
-    PChunkyResourceManager _PcrmSourceGet(LegacyLong sid, bool fDontHitCD = fFalse);
+    PChunkyResourceManager _PcrmSourceGet(LegacyLong sid, bool fDontHitCD = fFalse, const TAG *asset = nullptr);
     PChunkyFile _PcflFindTag(PTAG ptag);
 
   public:

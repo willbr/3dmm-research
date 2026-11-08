@@ -285,6 +285,32 @@ folder redirection on Windows. An explicitly supplied open directory still
 takes priority. Profile/settings data and existing movies stay where they are;
 the previous profile folder remains available if Documents cannot be used.
 
+Missing content in SDL Studio opens a **Missing movie content** dialog with
+the pack name, expected folder, source ID and requesting asset identity.
+**Downloads** opens the [community download thread](https://3dmm.com/showthread.php?t=17038);
+**Retry** searches again, including newly installed local source folders;
+**Cancel**, Escape and the close button cancel the lookup. The native Windows
+reference build keeps its original CD balloon. Batch playback still reports
+missing sources to stderr and exits without opening a prompt.
+
+Standard folder aliases identify the base game, Doraemon and Nickelodeon.
+The shared `Expansions` source is identified as Frankie's Expansion Pack 1
+only when its requested chunk matches the known scene, material, template or
+font identities. Other assets retain a generic legacy-add-on label, and custom
+source names are preserved. The IDs are matched within the named source;
+numeric source IDs alone never identify a pack. The named-source table can
+include unused entries, so it is not treated as a complete requirements list.
+Pamela's first missing lookup was source 5, `BKGD:00040003`, matching
+`SCENEPACK1.3CN`. Its other inspected expansion references matched the installed
+Frankie files; its movie references and the [author's requirements](https://3dmm.com/showthread.php?t=11756)
+also identify Doraemon. This does not establish complete Pamela playback.
+
+`studio-content` checks known/unknown classification and message details.
+`engine-core-link` checks requesting-asset propagation, cancellation and Retry
+after a local pack is created while the prompt is open. Windows native and SDL
+builds and these checks passed; the new prompt was also inspected using a
+private Pamela copy and SDL's dummy driver.
+
 Open and Save render inside Studio's existing SDL window. The 640x480
 portfolio follows the window's fitted or integer scaling, including fullscreen,
 with letterboxing where needed. Its input loop remains modal, so movie editing

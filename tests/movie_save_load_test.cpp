@@ -34,7 +34,7 @@ void __cdecl FrameMain(void) {}
 /* TagManager wants a callback for asking the user to insert a CD when
  * source content is on a missing volume. For a blank movie there is
  * no source content, so this callback is never actually invoked. */
-static bool FInsertCdStub(PString)
+static bool FInsertCdStub(const MissingSourceRequest &)
 {
     return fFalse;
 }
