@@ -78,3 +78,11 @@
     * keep or rename `KauaiFiles` only where it provides useful contracts; remove unnecessary legacy behavior and redundant wrappers
     * retain caching as an optional fallback for components that still require real filenames, such as font discovery
     * compare startup time, disk usage and runtime reads, and require both backends to pass the same movie and building workflow tests
+
+* open ZIP archives containing `.3mm` or `.vmm` movies
+    * include movies in subfolders; open a single movie automatically or show a chooser when there are several
+    * pass bundled `.vmm` movies through the existing expansion-loading path
+    * extract only the selected movie, keep it available while the document is open, and clean up when it closes
+    * use Save As to write an ordinary `.3mm` or `.vmm`; leave the source ZIP unchanged
+    * reuse miniz with extraction limits and CRC checks; avoid accumulating duplicate temporary files
+    * consider loose VXP packages alongside `.3mm` movies as a follow-up
