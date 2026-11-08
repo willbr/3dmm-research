@@ -21,6 +21,7 @@
 #include "studio_content.h"
 #ifdef KAUAI_SDL3
 #include "studio_iso.h"
+#include "studio_settings.h"
 #include <SDL3/SDL_misc.h>
 #endif
 #include "launch_context.h"
@@ -1773,7 +1774,9 @@ bool Application::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData
     if (request.write && request.type == KauaiSettings::Type::String)
         Assert(CchSz((PZString)pvData) < cbData, "Invalid string for reg key");
 
-#ifdef _WIN32
+#ifdef KAUAI_SDL3
+    const auto &backend = StudioSettings::IniBackend();
+#elif defined(_WIN32)
     const auto &backend = KauaiSettings::WindowsBackend();
 #else
     const auto &backend = KauaiSettings::PosixBackend();

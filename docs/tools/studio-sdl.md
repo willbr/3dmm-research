@@ -196,6 +196,26 @@ without Git metadata show **unavailable (source archive)**. The original
 Microsoft source, foone's 3DMMForever repository and this port's
 `willbr/3dmm-research` repository have browser buttons.
 
+All SDL Studio settings use **settings.ini** under
+`SDL_GetPrefPath("3DMMForever", "Studio")`. On Windows this is normally
+`%APPDATA%/3DMMForever/Studio/settings.ini`. This includes Options, startup,
+remembered folders and profile settings. The `[User]` and `[Machine]` sections
+both live in this per-user file; the latter retains the original namespace
+without needing administrator access. Numeric options are editable decimal
+values (checkboxes use 0/1); quoted strings use UTF-8 with escaped backslashes
+and quotes. Larger legacy profile blobs use hexadecimal. Matching `.Types`
+sections preserve the original types and sizes and should be retained.
+
+On Windows, creating the first INI imports existing values from the original
+32-bit HKCU/HKLM settings keys using read-only registry access. An existing
+INI is authoritative: missing or invalid entries do not fall back to registry
+values. Writes preserve comments and unrelated sections, hold a cross-process
+lock, and replace the file via a temporary sibling. Malformed input is left
+untouched. The native Windows reference build retains its registry backend.
+`settings-ini` checks import, round trips and malformed files;
+`studio-options-workflow` checks INI persistence, Cancel and the absence of
+registry writes. Headless test runs use private temporary INIs.
+
 **Playback & sound** also has independent movie frame-rate and compatibility
 modifier controls. **Original** (the default) retains the inherited clock
 cadence; **6**, **12** and **24 FPS** set explicit target rates, and **Uncapped**

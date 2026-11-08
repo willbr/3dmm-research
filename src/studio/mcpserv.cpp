@@ -44,6 +44,9 @@
 #include "platform_files.h"
 #include "launch_context.h"
 #include "studio_preferences.h"
+#ifdef KAUAI_SDL3
+#include "studio_settings.h"
+#endif
 #include "font_names.h"
 #ifdef KAUAI_SDL3
 #include "sdl_host.h"
@@ -1340,6 +1343,9 @@ static JVal Tool_GetState(const JVal &args)
     JVal o = JVal::MkObj();
     o.Set("alive", JVal::MkBool(true));
     o.Set("application_foreground", JVal::MkBool(vpappb && vpappb->FForeground()));
+#ifdef KAUAI_SDL3
+    o.Set("settings_file", JVal::MkStr(StudioSettings::IniPath()));
+#endif
     {
         const auto &preferences = CurrentStudioPreferences();
         JVal settings = JVal::MkObj();

@@ -15,12 +15,17 @@ import subprocess
 import tempfile
 import time
 import uuid
+import shutil
 from types import SimpleNamespace
 from mcp_png_test import decode_png
 from studio_movie_workflow import Studio
 
 
 def remove_settings(run):
+    assert run and len(run) <= 64 and all(ch in '0123456789abcdef-' for ch in run)
+    directory = pathlib.Path(tempfile.gettempdir()) / '3dmmforever-settings' / run
+    if directory.is_dir():
+        shutil.rmtree(directory)
     if os.name != 'nt':
         return
     import winreg

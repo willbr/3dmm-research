@@ -3,6 +3,7 @@ import sys
 sys.dont_write_bytecode = True
 import argparse
 import base64
+import configparser
 import hashlib
 import json
 import pathlib
@@ -201,8 +202,11 @@ def playback_timing(studio):
     studio.call('key', vk=27)
     wait(studio, lambda s: not s['movie_playing'], 'Uncapped movie did not stop')
     accepted = timing(studio, 2, 1)['playback_timing']
+    ini = pathlib.Path(studio.state()['settings_file'])
+    saved_bytes = ini.read_bytes()
     cancelled = timing(studio, 3, 2, accept=False)['playback_timing']
     assert cancelled == accepted, (accepted, cancelled)
+    assert ini.read_bytes() == saved_bytes, 'Cancel wrote settings.ini'
     return measurements
 
 
@@ -263,6 +267,24 @@ def main():
             report['tabs_preserve_edits_and_hide_other_pages'] = True
             enabled = set_options(studio, dict.fromkeys(CONTROLS, True),
                                   capture=output / 'options.bmp')
+            ini = pathlib.Path(enabled['settings_file'])
+            assert ini.name == 'settings.ini' and ini.parent.name == run, ini
+            config = configparser.ConfigParser(interpolation=None)
+            config.read(ini, encoding='utf-8')
+            assert config.getint('User', 'PlaybackRate') == 2
+            assert config.getint('User', 'PlaybackModifier') == 1
+            assert config.getint('User', 'AllowMultipleInstances') == 1
+            assert config.getint('User', 'MuteStudioSounds') == 1
+            if sys.platform == 'win32':
+                import winreg
+                try:
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                                        'Software\\3DMMForever\\RetailOracle\\SDL-' + run,
+                                        0, winreg.KEY_READ | winreg.KEY_WOW64_32KEY):
+                        raise AssertionError('SDL settings created a registry branch')
+                except FileNotFoundError:
+                    pass
+            report['ini_settings_without_registry_writes'] = True
             assert signature(enabled) == signature(original), 'Options altered authored movie data'
             assert enabled['scene_transition'] == original['scene_transition']
             flat_pixels = studio.capture('flat-shading')
