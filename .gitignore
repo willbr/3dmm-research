@@ -6,6 +6,8 @@ out/
 dist/
 dist-x64/
 /movies/
+# Local expansion installers, conversion fixups and generated copyrighted assets.
+/expansions/
 build/
 build-x64/
 .cache/

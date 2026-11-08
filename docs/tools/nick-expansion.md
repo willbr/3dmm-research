@@ -1,100 +1,143 @@
 # Reconstructing the Nickelodeon expansion
 
-`tools/recreate_nick_expansion.py` reconstructs the ten community Nickelodeon
-expansion archives from a Nickelodeon retail ISO and a local conversion profile.
-It uses Python 3.9+ and the standard library. It reads ISO 9660 directly; no
-mounting, original executable, Windows installer, registry access or 7-Zip is
-needed. The resulting `.3CN` and `.3TH` files are ordinary expansion assets.
+The importer uses Kauai/engine chunk libraries to recreate the community
+Nickelodeon expansion from the Nickelodeon retail ISO and the base 3DMM ISO.
+Reproducible changes are implemented as chunk transformations. A local fixup
+package supplies only the remaining differences in decoded image chunks.
 
-This is a **lossless reference-derived delta importer**, not an independently
-reverse-engineered palette conversion algorithm. A reference installation is
-needed once to generate the profile. Later reconstruction uses only the ISO and
-profile. The profile contains edited image/metadata data from that reference;
-it is generated locally and is not bundled with the project source. The ISO
-alone is insufficient for this implementation.
+The completed import preserves **every decoded image pixel**, image header,
+chunk ID, child link, name, flag and non-image payload of the reference pack.
+Physical file layout, compression and archive writer stamps can differ. This
+replaces the earlier whole-archive binary-patch implementation.
 
-## Generate the conversion profile once
+Only code, functional ID/colour rules and synthetic fixtures are checked in.
+Original images, palettes, models, dialogue, expansion archives and image-fixup
+packages are not bundled with the source. `/expansions/` and `/tmp/` are ignored.
+The fixups contain reference-derived image information and stay local.
 
-Use the directory containing the installed expansion's `NICK*.3CN` and
-`NICK*.3TH` files. The parent directories of the profile/output must exist.
+## Build
 
-```powershell
-python tools/recreate_nick_expansion.py build-profile `
-  --iso dist/NICK3DMM.ISO `
-  --reference "C:\Program Files (x86)\Microsoft Kids\N3DMM EXPANSION" `
-  --profile expansions/nickelodeon-conversion.profile.zip
+Python 3.9+ with its standard library and the C++ `nick-expansion` tool are used:
+
+```sh
+cmake --build build/studio-portable-x64 --target nick-expansion
 ```
 
-All ten reference files must be present. `Uninstall.exe` and other files are
-excluded. The profile records each source/output SHA-256 and size. Its ZIP
-members contain copy/add deltas built using content-defined blocks, allowing
-unchanged data to be reused even when archive offsets have changed. ZIP entry
-metadata and instruction ordering are deterministic. The builder reconstructs
-each file to check the delta before publishing the profile.
+The tool links `three-mm-expansion` and the existing `engine-core` / `kauai-core`
+libraries. It has no Studio window or device dependency. Windows builds need
+the usual MSVC developer environment. The core retains its native narrow path
+repertoire and 255-byte path limit.
 
-## Reconstruct from the ISO
+## Generate the local image fixups once
+
+Use a known reference directory containing the ten `NICK*.3CN` / `NICK*.3TH`
+archives. No reference executable or installer is run.
+
+```powershell
+python tools/recreate_nick_expansion.py build-fixups `
+  --iso dist/NICK3DMM.ISO `
+  --base-iso dist/3DMOVIE100.iso `
+  --reference "C:\Program Files (x86)\Microsoft Kids\N3DMM EXPANSION" `
+  --fixups expansions/nickelodeon-image-fixups.zip
+```
+
+For another build directory, supply `--converter PATH_TO_NICK_EXPANSION`.
+The parent directory of the fixup/output path must already exist. Existing
+fixup files and output directories are refused.
+
+The builder verifies that the transformed candidate's entire non-image state
+matches the reference. Differences in models, audio, IDs, names, flags, links
+or other metadata cannot be hidden in an image fixup. It exports decoded
+`MBMP`, `TMAP` and `GLCR` chunks through the libraries and records a SHA-256 for
+every image chunk, including those requiring no correction.
+
+For each differing image it stores the smaller compressed XOR or modular-add
+residual against the generated candidate. Different image lengths are supported
+by zero-padding/truncating the predictor. Corrections are addressed by archive
+index and chunk type/number, independent of physical offsets or compression.
+There are no geometry, sound or arbitrary file patch instructions. All residuals
+are round-tripped, then a saved candidate with the reference images is reopened
+and compared against the reference before the package is published.
+
+## Reconstruct the expansion
 
 ```powershell
 python tools/recreate_nick_expansion.py import `
   --iso dist/NICK3DMM.ISO `
-  --profile expansions/nickelodeon-conversion.profile.zip `
-  --output "expansions/recreated/N3DMM EXPANSION"
+  --base-iso dist/3DMOVIE100.iso `
+  --fixups expansions/nickelodeon-image-fixups.zip `
+  --output "expansions/recreated-chunks/N3DMM EXPANSION"
 ```
 
-The reference installation is not read during import. Source files, deltas and
-all ten outputs are verified before the staged directory is published. A disc
-with different asset bytes is refused; its filename or volume label is not a
-compatibility check. Invalid ISO extents, unsafe filenames, duplicate members,
-oversized data, invalid instructions and corrupted/mismatched profiles fail
-without publishing an output directory. Existing output/profile paths are
-refused. The original ISO and reference installation are opened read-only.
+This step needs no installed reference expansion. Both ISOs are read directly
+with the read-only ISO 9660 reader. No mounting, registry access, 7-Zip or original
+executable is required. Studio's active content root is not modified.
 
-`reconstruction.json` beside the generated files records the profile's source
-and output hashes. The importer does not install/register the expansion or
-modify the running Studio. The generated directory can be used wherever the
-existing `N3DMM EXPANSION` asset directory is expected; the active content root
-and source registration still need to point to it. Source IDs are not invented
-or changed by this tool.
+The wrapper verifies disc-file digests, rule version, canonical non-image state,
+baseline image hashes, residual hashes and every corrected image hash. It then
+reopens the saved archives through the core libraries and verifies the non-image
+state and all decoded image hashes again. The final directory is published only
+after these checks pass. A mismatch aborts without publishing an approximate
+pack. `reconstruction.json` records provenance and output archive hashes.
 
-## Why a palette lookup is insufficient
+## Implemented chunk rules
 
-Comparison of the supplied ISO and installed community pack found:
+- Preserve source content IDs, model geometry, animation data, sound and fonts.
+- Normalise the legacy sound labels' curly apostrophes.
+- Remove the historical material/prop browser entries, preserving shared children.
+- Renumber graphical-object chunks and update all incoming links.
+- Set the historical solid material colour ranges and generic colour labels.
+- Reproduce costume labels, the changed texture link and numeric texture labels.
+- Replace the common part of each background palette while retaining its scene
+  colours in slots 156–245.
+- Generate an indexed image candidate without altering transparency or row
+  padding. The historical editor palette's three special slots are derived from
+  disc colours rather than stored as a replacement palette.
 
-| Disc file | Expansion file | Differences |
-| --- | --- | --- |
-| `SNDS.3CN` | `NICKSNDS.3CN` | Byte-identical |
-| `TDFS.3CN` | `NICKTDFS.3CN` | Byte-identical |
-| `TMPLS.3CN` | `NICKTMPLS.3CN` | Same 6,546 chunk IDs; texture, material, name and child-link changes |
-| `BKGDS.3CN` | `NICKBKGDS.3CN` | Same 532 chunk IDs; palette and bitmap changes |
-| `MTRLS.3CN` | `NICKMTRLS.3CN` | Same 103 chunk IDs; texture, material and name changes |
-| `ACTOR.NTH` | `NICKACTOR.3TH` | Thumbnail changes |
-| `BKGDS.NTH` | `NICKBKGDS.3TH` | Thumbnail changes and graphical-object renumbering/link changes |
-| `MTRL.NTH` | `NICKMTRL.3TH` | 171 to 93 chunks; removed entries, changed thumbnails and links |
-| `PROP.NTH` | `NICKPROP.3TH` | 117 to 114 chunks; removed entry and changed thumbnails |
-| `SOUND.NTH` | `NICKSOUND.3TH` | 18 voice-label changes |
+The historical image conversion is not fully known. Some source textures are
+byte-identical but have different reference results; some reference textures
+also change dimensions/header fields. Nearest-colour conversion alone is not
+claimed to reproduce these. Local image residuals preserve their exact result.
+As further rules are established, fewer image chunks should need residuals.
 
-The material textures do not follow a single index-to-index lookup table. The
-original editing/dithering process has not been established. Replacing that
-process with a guessed colour conversion would change the reference assets.
-The conversion profile preserves the historical result, including its choices
-of entries, IDs, references, names, images and compression.
+The author's published [Pencil++ 2 source](https://github.com/frank-weindel/3dmm-pencil-2)
+documents that the image editor plugins were not included. It is useful context;
+no third-party plugin code or palette files were copied into this implementation.
 
-## Validation
+## Verification
 
-The supplied disc/reference produced a 19,584,423-byte profile and reconstructed
-83,047,383 bytes across ten archives. All ten files were independently compared
-byte for byte against the reference and matched. This establishes archive
-equivalence; it is not an end-to-end movie playback test.
+For the supplied disc/reference:
 
-Synthetic tests require no original assets:
+- Ten archives contain 11,082 chunks.
+- Of 1,015 image/palette chunks, 201 need no correction and 814 need local fixups.
+- The fixup package is 7,980,517 bytes, versus 19,584,423 bytes for the previous
+  whole-archive patch profile.
+- A fresh import using only the ISOs and fixups was independently compared with
+  the installed reference: **zero image/palette or other decoded differences**.
+
+This proves archive equivalence, including historical image bytes; it is not an
+end-to-end movie playback test or automatic installation of the expansion.
+
+```powershell
+build/studio-portable-x64/nick-expansion.exe compare `
+  "expansions/recreated-chunks/N3DMM EXPANSION" `
+  "C:\Program Files (x86)\Microsoft Kids\N3DMM EXPANSION"
+```
+
+Comparison ignores physical layout/compression and checks all IDs, names, flags,
+links and unpacked payload bytes. Exit 0 means equality; exit 3 means image-only
+differences; exit 1 means an error or non-image differences.
+
+Synthetic tests need no licensed assets:
 
 ```sh
+cmake --build build/studio-portable-x64 --target nick-expansion nick-expansion-test
 python -B tests/test_recreate_nick_expansion.py
 ctest --test-dir build/studio-portable-x64 -R '^nick-expansion-reconstruction$' --output-on-failure
 ```
 
-Tests cover deterministic profiles, exact reconstruction, import without a
-reference installation, shifted source-block reuse, preserving inputs/existing
-outputs, malformed ISO records, missing files, path traversal, damaged patches,
-wrong source/output hashes and delta bounds. Failed imports leave no published
-output or staging directory.
+Tests exercise actual library reading/writing, shared graph children, material
+and label rules, indexed transparency/padding, changed image dimensions, exact
+save/reopen comparison, deterministic image residuals, import without a reference,
+preserving inputs/existing outputs, invalid ISO records, wrong source/state/image
+digests, corrupted residuals and rejecting non-image chunk/path requests.

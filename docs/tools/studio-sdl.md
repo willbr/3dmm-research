@@ -68,9 +68,9 @@ original ISO and existing `Microsoft Kids` trees remain untouched. Expansion
 packs and user-authored content are separate from the base-game ISO.
 
 The [Nickelodeon expansion reconstruction tool](nick-expansion.md) can recreate
-the community expansion from its retail ISO and a locally generated conversion
-profile. It produces the original expansion archives; it does not change the
-base-game ISO loader or automatically register/install the pack.
+the community expansion from the Nickelodeon/base retail ISOs using chunk rules
+and local image fixups. It verifies all historical image bytes and non-image
+state; it does not change the base-game ISO loader or automatically install the pack.
 
 `studio-iso-cache` tests a synthetic disc, cache reuse/repair, fonts and samples,
 malformed input, supplemental files and concurrent extraction. With

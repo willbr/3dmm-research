@@ -439,6 +439,15 @@ target_sources(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/inspect_c
 target_include_directories(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/inc")
 target_link_libraries(inspect-chunks PRIVATE kauai-core)
 
+add_library(three-mm-expansion STATIC EXCLUDE_FROM_ALL libraries/expansion/src/nick_expansion.cpp)
+target_include_directories(three-mm-expansion PUBLIC "${PROJECT_SOURCE_DIR}/libraries/expansion/include")
+target_link_libraries(three-mm-expansion PRIVATE engine-core)
+target_compile_features(three-mm-expansion PUBLIC cxx_std_17)
+add_executable(nick-expansion EXCLUDE_FROM_ALL src/tools/nick_expansion.cpp)
+target_link_libraries(nick-expansion PRIVATE three-mm-expansion kauai-core)
+add_executable(nick-expansion-test EXCLUDE_FROM_ALL tests/nick_expansion_test.cpp)
+target_link_libraries(nick-expansion-test PRIVATE three-mm-expansion engine-core)
+
 # Read-only normalized archive dump, with bounded core record decoding.
 add_executable(three-mm EXCLUDE_FROM_ALL src/tools/three_mm.cpp)
 set_target_properties(three-mm PROPERTIES OUTPUT_NAME 3mm)
@@ -1374,6 +1383,7 @@ add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnosti
   preview-checks
   mbmp-pixels-test
   actor-render-test extract-bmdl inspect-chunks three-mm three-mm-fixture
+  nick-expansion nick-expansion-test
   platform-services-test file-services-test user-services-test settings-store-test filename-test text-services-test
   text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)
 add_dependencies(core-checks picture-data-test dialog-resource-test dialog-api-check dialog-controller-api-check dialog-model-test legacy-math-test pixel-canvas-test font-services-test cursor-data-test)
@@ -1458,7 +1468,8 @@ if(BUILD_TESTING)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
     add_test(NAME nick-expansion-reconstruction COMMAND "${Python3_EXECUTABLE}" -B
-      "${PROJECT_SOURCE_DIR}/tests/test_recreate_nick_expansion.py")
+      "${PROJECT_SOURCE_DIR}/tests/test_recreate_nick_expansion.py"
+      --converter "$<TARGET_FILE:nick-expansion>" --fixtures "$<TARGET_FILE:nick-expansion-test>")
     set_tests_properties(nick-expansion-reconstruction PROPERTIES TIMEOUT 30)
     add_test(NAME mcp-png COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/mcp_png_test.py" "$<TARGET_FILE:mcp-io-test>")

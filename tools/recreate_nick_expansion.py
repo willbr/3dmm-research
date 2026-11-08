@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
-"""Reconstruct the community Nickelodeon expansion using a read-only retail ISO.
+"""Convert Nickelodeon disc content into 3DMM expansion assets using core libraries.
 
-The historical pack contains edited images and metadata, not just a palette
-substitution. A local reference installation is used ONCE to build a lossless
-conversion profile. Subsequent imports need only that profile and the ISO.
-Profiles contain reference-derived data; they are not part of the source tree.
-No original executables, registry writes, external extractors or codecs are used.
+Import uses the Nickelodeon/base retail ISOs and local image fixups. A reference
+expansion is needed only to build those fixups. Code performs the reproducible
+chunk transformations; fixups supply the remaining historical image differences.
+No image data or fixups are bundled with source. No original executable,
+installer, whole-archive patch or external extractor is used.
 """
 
 import argparse
 import hashlib
-import io
 import json
 import os
 from pathlib import Path
 import struct
+import subprocess
+import re
+import zipfile
+import zlib
 import sys
 import tempfile
-import zipfile
-
 
 FILES = (
     ("ACTOR.NTH", "NICKACTOR.3TH"),
@@ -32,11 +33,8 @@ FILES = (
     ("TDFS.3CN", "NICKTDFS.3CN"),
     ("TMPLS.3CN", "NICKTMPLS.3CN"),
 )
-SCHEMA = "3dmm-nick-expansion-profile-1"
 MAX_FILE = 256 * 1024 * 1024
-MAX_PATCH = MAX_FILE + 1024 * 1024
 SECTOR = 2048
-GEAR = tuple(int.from_bytes(hashlib.sha256(bytes([i])).digest()[:4], "little") for i in range(256))
 
 
 def digest(data):
@@ -139,93 +137,86 @@ class Disc:
             result[name] = entry
         return result
 
-    def sources(self):
+    def files(self, directory, filenames):
         root = self.entries(self.root)
-        if "NICK3D" not in root:
-            raise ValueError("This ISO does not contain the Nickelodeon NICK3D directory")
-        entries = self.entries(root["NICK3D"])
+        if directory not in root:
+            raise ValueError(f"This ISO does not contain the {directory} directory")
+        entries = self.entries(root[directory])
         result = {}
-        for source, _ in FILES:
+        for source in filenames:
             entry = entries.get(source)
             if entry is None or entry[3] or not 0 < entry[2] <= MAX_FILE:
-                raise ValueError(f"Missing or invalid Nickelodeon disc file: {source}")
+                raise ValueError(f"Missing or invalid disc file: {source}")
             result[source] = self.read(entry[1], entry[2])
         return result
 
 
-def blocks(data):
-    """Content-defined blocks retain matches after archive offsets change."""
-    start = 0
-    rolling = 0
-    for index, value in enumerate(data, 1):
-        rolling = ((rolling << 1) + GEAR[value]) & 0xffffffff
-        length = index - start
-        if length >= 512 and (rolling & 4095 == 0 or length >= 16384):
-            yield start, index
-            start, rolling = index, 0
-    if start < len(data):
-        yield start, len(data)
+SCHEMA = "3dmm-nick-image-fixups-1"
+RULES = "nick-chunk-rules-1-pencil-palette"
+MAX_IMAGE = 128 * 1024 * 1024
+IMAGE_NAME = re.compile(r"[0-9]-(474c4352|4d424d50|544d4150)-[0-9a-f]{8}\.bin\Z")
 
 
-def make_patch(source, target):
-    """Copy/add delta. Literals are compressed by the enclosing ZIP file."""
-    if source == target:
-        return b"C" + struct.pack("<II", 0, len(source))
-    lookup = {}
-    for start, end in blocks(source):
-        lookup.setdefault(hashlib.sha256(source[start:end]).digest(), (start, end))
-    operations = []
-    for start, end in blocks(target):
-        chunk = target[start:end]
-        match = lookup.get(hashlib.sha256(chunk).digest())
-        if match is not None and source[match[0]:match[1]] == chunk:
-            if operations and operations[-1][0] == "C" and operations[-1][1] + operations[-1][2] == match[0]:
-                operations[-1][2] += end - start
-            else:
-                operations.append(["C", match[0], end - start])
-        elif operations and operations[-1][0] == "A":
-            operations[-1][1].extend(chunk)
-        else:
-            operations.append(["A", bytearray(chunk)])
-    patch = io.BytesIO()
-    for operation in operations:
-        if operation[0] == "C":
-            patch.write(b"C" + struct.pack("<II", operation[1], operation[2]))
-        else:
-            patch.write(b"A" + struct.pack("<I", len(operation[1])) + operation[1])
-    return patch.getvalue()
+def file_digest(path):
+    result = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            result.update(block)
+    return result.hexdigest()
 
 
-def apply_patch(source, patch, expected_size):
-    if not 0 < expected_size <= MAX_FILE:
-        raise ValueError("Invalid reconstructed file size")
-    result = bytearray()
-    offset = 0
-    while offset < len(patch):
-        opcode = patch[offset:offset + 1]
-        offset += 1
-        needed = 8 if opcode == b"C" else 4
-        if opcode not in (b"C", b"A") or len(patch) - offset < needed:
-            raise ValueError("Invalid conversion instruction")
-        if opcode == b"C":
-            start, size = struct.unpack_from("<II", patch, offset)
-            offset += 8
-            if start + size > len(source):
-                raise ValueError("Conversion copy extends beyond its source")
-            data = source[start:start + size]
-        else:
-            size = struct.unpack_from("<I", patch, offset)[0]
-            offset += 4
-            if size > len(patch) - offset:
-                raise ValueError("Truncated conversion literal")
-            data = patch[offset:offset + size]
-            offset += size
-        if not size or size > expected_size - len(result):
-            raise ValueError("Conversion exceeds its declared output size")
-        result.extend(data)
-    if len(result) != expected_size:
-        raise ValueError("Incomplete reconstructed file")
-    return bytes(result)
+def run(converter, *args):
+    subprocess.run([str(converter), *map(str, args)], check=True)
+
+
+def prepare(iso, base_iso, converter, root, expected_inputs=None):
+    with Disc(iso) as disc:
+        sources = disc.files("NICK3D", [source for source, _ in FILES] + ["NICK3D.CHK"])
+    with Disc(base_iso) as disc:
+        base = disc.files("3DMOVIE", ["3DMOVIE.CHK"])["3DMOVIE.CHK"]
+    inputs = {name: digest(data) for name, data in sources.items()}
+    inputs["BASE/3DMOVIE.CHK"] = digest(base)
+    if expected_inputs is not None and inputs != expected_inputs:
+        raise ValueError("ISO content does not match these image fixups")
+    source_dir, baseline = root / "source", root / "baseline"
+    source_dir.mkdir()
+    baseline.mkdir()
+    for name, data in sources.items():
+        (source_dir / name).write_bytes(data)
+    resources = root / "base.chk"
+    resources.write_bytes(base)
+    run(converter, "convert", "--nearest-palette", source_dir, resources, baseline)
+    return baseline, inputs
+
+
+def export_images(converter, directory, destination):
+    destination.mkdir()
+    run(converter, "export-images", directory, destination)
+    paths = {path.name: path for path in destination.iterdir()}
+    if not paths or any(not IMAGE_NAME.fullmatch(name) for name in paths):
+        raise ValueError("Unexpected exported image identity")
+    return paths
+
+
+def state_digest(converter, directory, destination):
+    run(converter, "non-image-state", directory, destination)
+    return file_digest(destination)
+
+
+def residual(source, target, mode):
+    padded = source[:len(target)] + bytes(max(0, len(target) - len(source)))
+    if mode == "xor":
+        return bytes(a ^ b for a, b in zip(padded, target))
+    return bytes((b - a) & 255 for a, b in zip(padded, target))
+
+
+def restore(source, delta, mode):
+    padded = source[:len(delta)] + bytes(max(0, len(delta) - len(source)))
+    if mode == "xor":
+        return bytes(a ^ b for a, b in zip(padded, delta))
+    if mode == "add":
+        return bytes((a + b) & 255 for a, b in zip(padded, delta))
+    raise ValueError("Unsupported image residual mode")
 
 
 def zip_write(archive, name, data):
@@ -235,121 +226,170 @@ def zip_write(archive, name, data):
     archive.writestr(info, data, compresslevel=9)
 
 
-def build_profile(iso, reference, destination):
-    reference, destination = Path(reference).resolve(), Path(destination).absolute()
-    if destination.exists():
-        raise ValueError(f"Profile already exists: {destination}")
-    with Disc(iso) as disc:
-        sources = disc.sources()
-    # Validate the whole reference before creating anything.
-    targets = {}
-    for _, name in FILES:
-        path = reference / name
-        if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= MAX_FILE:
-            raise ValueError(f"Missing or invalid reference expansion file: {path}")
-        targets[name] = path.read_bytes()
-    manifest = {"schema": SCHEMA, "files": []}
-    with tempfile.TemporaryDirectory(prefix=".nick-profile-", dir=destination.parent) as temp:
-        staged = Path(temp) / "profile.zip"
+def build_fixups(iso, base_iso, converter, reference, destination):
+    converter, reference = Path(converter).resolve(strict=True), Path(reference).resolve(strict=True)
+    destination = Path(destination).absolute()
+    if destination.exists() or destination.is_symlink():
+        raise ValueError(f"Fixup file already exists: {destination}")
+    with tempfile.TemporaryDirectory(prefix=".nick-fixups-", dir=destination.parent) as temp:
+        root = Path(temp)
+        baseline, inputs = prepare(iso, base_iso, converter, root)
+        state = state_digest(converter, baseline, root / "baseline.state")
+        if state != state_digest(converter, reference, root / "reference.state"):
+            raise ValueError("Reference differs in non-image data/metadata; image fixups cannot hide those differences")
+        originals = export_images(converter, baseline, root / "baseline-images")
+        targets = export_images(converter, reference, root / "reference-images")
+        if originals.keys() != targets.keys():
+            raise ValueError("Reference contains different image chunk identities")
+        manifest = {"schema": SCHEMA, "rules": RULES, "inputs": inputs,
+                    "non_image_state_sha256": state, "images": []}
+        changed = 0
+        staged = root / "fixups.zip"
         with zipfile.ZipFile(staged, "w") as archive:
-            for index, (source, name) in enumerate(FILES):
-                original, target = sources[source], targets[name]
-                patch = make_patch(original, target)
-                # Catch errors in the delta builder before publishing a profile.
-                if apply_patch(original, patch, len(target)) != target:
-                    raise ValueError(f"Cannot reproduce reference file: {name}")
-                member = f"delta/{index}.bin"
-                manifest["files"].append({"source": source, "name": name, "patch": member,
-                                          "source_size": len(original), "source_sha256": digest(original),
-                                          "size": len(target), "sha256": digest(target),
-                                          "patch_sha256": digest(patch)})
-                zip_write(archive, member, patch)
-                print(f"Profiled {name}", flush=True)
-            zip_write(archive, "manifest.json", json.dumps(manifest, indent=2).encode("utf-8") + b"\n")
-        # Linking a staged file publishes without replacing an existing path.
+            for name in sorted(originals):
+                source, target = originals[name].read_bytes(), targets[name].read_bytes()
+                if not 0 < len(target) <= MAX_IMAGE:
+                    raise ValueError(f"Invalid target image size: {name}")
+                row = {"name": name, "size": len(target), "sha256": digest(target)}
+                if source != target:
+                    candidates = [(mode, residual(source, target, mode)) for mode in ("xor", "add")]
+                    mode, delta = min(candidates, key=lambda pair: len(zlib.compress(pair[1], 9)))
+                    if restore(source, delta, mode) != target:
+                        raise ValueError(f"Cannot reconstruct image: {name}")
+                    row.update({"mode": mode, "source_sha256": digest(source),
+                                "delta_sha256": digest(delta)})
+                    zip_write(archive, "images/" + name, delta)
+                    changed += 1
+                manifest["images"].append(row)
+            zip_write(archive, "manifest.json", json.dumps(manifest, indent=2).encode() + b"\n")
+        # Verify core chunk replacement against the reference independently of
+        # the residual encoder. IDs, links and all decoded payloads must match.
+        checked = root / "checked"
+        checked.mkdir()
+        run(converter, "replace-images", baseline, root / "reference-images", checked)
+        run(converter, "compare", checked, reference)
         os.link(staged, destination)
-    print(f"Created {destination} ({destination.stat().st_size:,} bytes)")
+    print(f"Created {destination} ({destination.stat().st_size:,} bytes; {changed} corrected image chunks)")
+
+
+def valid_digest(value):
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
 def read_manifest(archive):
-    names = archive.namelist()
-    expected = {"manifest.json"} | {f"delta/{i}.bin" for i in range(len(FILES))}
-    if len(names) != len(expected) or set(names) != expected:
-        raise ValueError("Unexpected or duplicate conversion profile members")
-    if archive.getinfo("manifest.json").file_size > 1024 * 1024:
-        raise ValueError("Conversion manifest is too large")
+    if archive.getinfo("manifest.json").file_size > 8 * 1024 * 1024:
+        raise ValueError("Fixup manifest is too large")
     manifest = json.loads(archive.read("manifest.json"))
-    if not isinstance(manifest, dict) or manifest.get("schema") != SCHEMA:
-        raise ValueError("Unsupported conversion profile version")
-    rows = manifest.get("files")
-    if not isinstance(rows, list) or len(rows) != len(FILES):
-        raise ValueError("Incomplete conversion profile")
-    for index, ((source, name), row) in enumerate(zip(FILES, rows)):
-        if (not isinstance(row, dict) or row.get("source") != source
-                or row.get("name") != name or row.get("patch") != f"delta/{index}.bin"):
-            raise ValueError("Unexpected conversion filename")
-        for field in ("source_size", "size"):
-            if type(row.get(field)) is not int or not 0 < row[field] <= MAX_FILE:
-                raise ValueError("Invalid conversion file size")
-        for field in ("source_sha256", "sha256", "patch_sha256"):
-            value = row.get(field)
-            if not isinstance(value, str) or len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
-                raise ValueError("Invalid conversion digest")
-        if archive.getinfo(row["patch"]).file_size > MAX_PATCH:
-            raise ValueError("Conversion patch is too large")
+    if not isinstance(manifest, dict) or manifest.get("schema") != SCHEMA or manifest.get("rules") != RULES:
+        raise ValueError("Unsupported image fixups or chunk-rule version")
+    if not valid_digest(manifest.get("non_image_state_sha256")):
+        raise ValueError("Invalid non-image state digest")
+    inputs = manifest.get("inputs")
+    expected_inputs = {name for name, _ in FILES} | {"NICK3D.CHK", "BASE/3DMOVIE.CHK"}
+    if not isinstance(inputs, dict) or set(inputs) != expected_inputs or not all(map(valid_digest, inputs.values())):
+        raise ValueError("Invalid source digest table")
+    rows = manifest.get("images")
+    if not isinstance(rows, list) or not 0 < len(rows) <= 20000:
+        raise ValueError("Invalid image fixup table")
+    names, members, total = set(), {"manifest.json"}, 0
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid image entry")
+        name = row.get("name")
+        if not isinstance(name, str) or not IMAGE_NAME.fullmatch(name) or name in names:
+            raise ValueError("Invalid or duplicate image chunk identity")
+        names.add(name)
+        if type(row.get("size")) is not int or not 0 < row["size"] <= MAX_IMAGE or not valid_digest(row.get("sha256")):
+            raise ValueError("Invalid image size or digest")
+        if "mode" in row:
+            if (row["mode"] not in ("xor", "add") or not valid_digest(row.get("source_sha256"))
+                    or not valid_digest(row.get("delta_sha256"))):
+                raise ValueError("Invalid image residual")
+            member = "images/" + name
+            if archive.getinfo(member).file_size != row["size"]:
+                raise ValueError("Invalid image residual length")
+            members.add(member)
+            total += row["size"]
+    if total > 512 * 1024 * 1024 or len(archive.namelist()) != len(members) or set(archive.namelist()) != members:
+        raise ValueError("Unexpected, duplicate or oversized fixup members")
     return manifest
 
 
-def import_expansion(iso, profile, destination):
+def import_expansion(iso, base_iso, converter, fixups, destination):
+    converter = Path(converter).resolve(strict=True)
     destination = Path(destination).absolute()
     if destination.exists() or destination.is_symlink():
         raise ValueError(f"Output directory already exists: {destination}")
-    with Disc(iso) as disc:
-        sources = disc.sources()
-    with zipfile.ZipFile(profile) as archive:
+    with zipfile.ZipFile(fixups) as archive, tempfile.TemporaryDirectory(
+            prefix=".nick-import-", dir=destination.parent) as temp:
         manifest = read_manifest(archive)
-        # No files are published until every source and reconstructed file passes.
-        with tempfile.TemporaryDirectory(prefix=".nick-import-", dir=destination.parent) as temp:
-            staged = Path(temp) / "N3DMM EXPANSION"
-            staged.mkdir()
-            for row in manifest["files"]:
-                source = sources[row["source"]]
-                if len(source) != row["source_size"] or digest(source) != row["source_sha256"]:
-                    raise ValueError(f"ISO content does not match this profile: {row['source']}")
-                patch = archive.read(row["patch"])
-                if digest(patch) != row["patch_sha256"]:
-                    raise ValueError(f"Damaged conversion patch: {row['name']}")
-                data = apply_patch(source, patch, row["size"])
-                if digest(data) != row["sha256"]:
-                    raise ValueError(f"Reconstructed file failed verification: {row['name']}")
-                (staged / row["name"]).write_bytes(data)
-                print(f"Verified {row['name']}", flush=True)
-            # Retain provenance beside the assets; Studio ignores this JSON file.
-            (staged / "reconstruction.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-            if destination.exists() or destination.is_symlink():
-                raise ValueError(f"Output directory already exists: {destination}")
-            staged.rename(destination)
-    print(f"Reconstructed all {len(FILES)} expansion archives in {destination}")
+        root = Path(temp)
+        baseline, _ = prepare(iso, base_iso, converter, root, manifest["inputs"])
+        if state_digest(converter, baseline, root / "baseline.state") != manifest["non_image_state_sha256"]:
+            raise ValueError("Chunk rules produced different non-image data/metadata")
+        originals = export_images(converter, baseline, root / "baseline-images")
+        if set(originals) != {row["name"] for row in manifest["images"]}:
+            raise ValueError("Image chunk identities do not match the fixup manifest")
+        corrected = root / "corrections"
+        corrected.mkdir()
+        for row in manifest["images"]:
+            source = originals[row["name"]].read_bytes()
+            target = source
+            if "mode" in row:
+                if digest(source) != row["source_sha256"]:
+                    raise ValueError(f"Image baseline does not match: {row['name']}")
+                delta = archive.read("images/" + row["name"])
+                if digest(delta) != row["delta_sha256"]:
+                    raise ValueError(f"Damaged image correction: {row['name']}")
+                target = restore(source, delta, row["mode"])
+                (corrected / row["name"]).write_bytes(target)
+            if len(target) != row["size"] or digest(target) != row["sha256"]:
+                raise ValueError(f"Historical image verification failed: {row['name']}")
+        output = root / "output"
+        output.mkdir()
+        run(converter, "replace-images", baseline, corrected, output)
+        # Reopen the saved files: checking in-memory patches is insufficient.
+        if state_digest(converter, output, root / "output.state") != manifest["non_image_state_sha256"]:
+            raise ValueError("Saving changed non-image data/metadata")
+        saved = export_images(converter, output, root / "saved-images")
+        if set(saved) != set(originals):
+            raise ValueError("Saving changed image identities")
+        for row in manifest["images"]:
+            if file_digest(saved[row["name"]]) != row["sha256"]:
+                raise ValueError(f"Saved historical image verification failed: {row['name']}")
+        provenance = {"schema": SCHEMA, "rules": RULES, "image_fixups_sha256": file_digest(fixups),
+                      "non_image_state_sha256": manifest["non_image_state_sha256"],
+                      "historical_decoded_images_verified": True,
+                      "archives": {name: file_digest(output / name) for _, name in FILES}}
+        (output / "reconstruction.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
+        if destination.exists() or destination.is_symlink():
+            raise ValueError(f"Output directory already exists: {destination}")
+        output.rename(destination)
+    print(f"Created {destination}; all historical image chunks and non-image data verified.")
 
 
 def main(argv=None):
+    root = Path(__file__).resolve().parents[1]
+    default_converter = root / "build/studio-portable-x64" / ("nick-expansion.exe" if os.name == "nt" else "nick-expansion")
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    build = commands.add_parser("build-profile", help="One-time profile from a local reference expansion")
-    build.add_argument("--iso", type=Path, required=True)
-    build.add_argument("--reference", type=Path, required=True)
-    build.add_argument("--profile", type=Path, required=True)
-    convert = commands.add_parser("import", help="Recreate the expansion from the ISO and conversion profile")
-    convert.add_argument("--iso", type=Path, required=True)
-    convert.add_argument("--profile", type=Path, required=True)
-    convert.add_argument("--output", type=Path, required=True, help="New directory; existing paths are refused")
+    for command in ("build-fixups", "import"):
+        child = commands.add_parser(command)
+        child.add_argument("--iso", type=Path, required=True, help="Nickelodeon retail ISO")
+        child.add_argument("--base-iso", type=Path, required=True, help="Base 3DMM retail ISO (provides its palette)")
+        child.add_argument("--converter", type=Path, default=default_converter, help="Built nick-expansion executable")
+        child.add_argument("--fixups", type=Path, required=True, help="Local image-fixup ZIP; never bundled in source")
+        if command == "build-fixups":
+            child.add_argument("--reference", type=Path, required=True)
+        else:
+            child.add_argument("--output", type=Path, required=True, help="New directory; existing paths are refused")
     args = parser.parse_args(argv)
     try:
-        if args.command == "build-profile":
-            build_profile(args.iso, args.reference, args.profile)
+        if args.command == "build-fixups":
+            build_fixups(args.iso, args.base_iso, args.converter, args.reference, args.fixups)
         else:
-            import_expansion(args.iso, args.profile, args.output)
-    except (OSError, ValueError, KeyError, struct.error, zipfile.BadZipFile, RuntimeError) as error:
+            import_expansion(args.iso, args.base_iso, args.converter, args.fixups, args.output)
+    except (OSError, ValueError, KeyError, struct.error, zipfile.BadZipFile, RuntimeError, subprocess.SubprocessError) as error:
         print(f"nick-expansion: {error}", file=sys.stderr)
         return 1
     return 0
