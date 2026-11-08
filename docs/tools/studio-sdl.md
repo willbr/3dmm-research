@@ -179,6 +179,36 @@ changed regions through the normal object tree, retaining foreground panels
 and editing controls. Unchanged frames reuse the uploaded texture. Software
 AND/XOR cursors retain true-color compositing, including inverted colors.
 
+**Product Info > More options...** (also reached through Ctrl+Shift+I) exposes
+optional patch-style preferences. All switches start off, preserving the
+existing defaults:
+
+- Allow multiple instances: bypass Windows' existing single-instance check.
+  macOS/Linux already allow independent instances.
+- Skip startup screens and mute startup sound: independent controls for the
+  next launch. Existing `SkipSplashScreen` settings retain their silent startup
+  behaviour until the separate sound preference is saved.
+- Play movies in the background: keep playback audio active after focus loss.
+  Native Windows also skips the application's deactivation pause.
+- Mute studio interface sounds: suppress UI/kidspace sound classes while
+  preserving movie sounds (including looping WAVE), music and asset previews.
+- Use cuts instead of scene transitions: override presentation without changing
+  the transition stored in the movie.
+- Disable playback audio fades: suppress fade volume requests while retaining
+  logical fade progress and normal playback cleanup. SDL audio already changes
+  the application's stream volume rather than system volume.
+- Flat shading: render untextured materials without Gouraud shading. Original
+  material flags are restored immediately after both normal and export renders.
+- Keep normal keyboard repeat: disable editing's slow-repeat mode and restore
+  any repeat setting already in effect.
+
+**OK** applies session preferences; **Make these the default settings** also
+persists them, including startup choices for the next launch. **Cancel**, Escape
+and closing More Options discard its changes. These settings never become movie
+or asset data. `studio-options-workflow` covers dialog actions, defaults,
+independent startup sound, multiple instances, reversible rendering and movie
+save/reopen with the preferences enabled.
+
 In the Windows x64 Debug desktop benchmark (Rebirth scene 19, frames 15–34,
 three runs), median 4x Studio playback improved from 2.18 to 6.60 fps and 4x
 movie-only playback from 3.61 to 6.61 fps. Original stayed at 6.66 fps. These

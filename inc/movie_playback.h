@@ -28,6 +28,9 @@ struct MoviePlaybackState
     LegacyLong pauseTicks = 0;
     TRANS transition = transNil;
     LegacyLong fadeOriginalVolume = 0;
+    bool suppressAudioFades = false;
+    bool fadeChangedVolume = false;
+    LegacyLong fadeVolume = -1; // Logical progress while output volume is held constant.
     bool FShouldRender(bool tracking);
 };
 

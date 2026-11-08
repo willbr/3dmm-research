@@ -2253,6 +2253,24 @@ static void TestMoviePlaybackControl()
     fadeAlarmFailure.fail = MoviePlaybackCommandKind::SetAlarm;
     RunPlayback(state, fadeAlarmFailure);
     Check(fadeAlarmFailure.count == 4 && fadeAlarmFailure.commands[3].kind == MoviePlaybackCommandKind::Stop);
+
+    // Suppressing device fades must retain the fade's stop timing even though
+    // each host read continues to report the unchanged output volume.
+    state = MoviePlaybackState();
+    state.fadeOriginalVolume = 120;
+    state.suppressAudioFades = true;
+    for (LegacyLong tick = 0; tick < kPlaybackFadeSeconds * 4; ++tick)
+    {
+        PlaybackTrace heldVolume;
+        heldVolume.volume = 120;
+        RunPlayback(state, heldVolume);
+        Check(heldVolume.count == 2 && heldVolume.commands[0].kind == MoviePlaybackCommandKind::ReadVolume);
+        Check(heldVolume.commands[1].kind == (tick == kPlaybackFadeSeconds * 4 - 1
+                                                  ? MoviePlaybackCommandKind::Stop
+                                                  : MoviePlaybackCommandKind::SetAlarm));
+        Check(state.fadeVolume == 120 - (tick + 1) * 10 && !state.fadeChangedVolume);
+    }
+    Check(state.stopRequested);
 }
 
 struct PlayTrace

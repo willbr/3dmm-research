@@ -28,6 +28,7 @@ Actors, Text boxes, etc.
 
 #include <cstdio>
 #include "soc.h"
+#include "studio_preferences.h"
 ASSERTNAME
 
 #define krScaleMouseRecord BR_SCALAR(0.20)
@@ -462,7 +463,8 @@ Movie::~Movie(void)
         // if we were fading, then restore sound volume
         if (_playback.fadeOriginalVolume)
         {
-            vpsndm->SetVlm(_playback.fadeOriginalVolume);
+            if (_playback.fadeChangedVolume || !CurrentStudioPreferences().disableAudioFades)
+                vpsndm->SetVlm(_playback.fadeOriginalVolume);
             _playback.fadeOriginalVolume = 0;
         }
     }
@@ -4025,9 +4027,12 @@ void Movie::_StopRenderPlayback(PMovieView view)
     // if we were fading, then restore sound volume
     if (_playback.fadeOriginalVolume)
     {
-        vpsndm->SetVlm(_playback.fadeOriginalVolume);
+        if (_playback.fadeChangedVolume || !CurrentStudioPreferences().disableAudioFades)
+            vpsndm->SetVlm(_playback.fadeOriginalVolume);
         _playback.fadeOriginalVolume = 0;
     }
+    _playback.fadeVolume = -1;
+    _playback.fadeChangedVolume = false;
 }
 
 /***************************************************************************
@@ -4060,6 +4065,7 @@ bool Movie::FCmdRender(PCommand pcmd)
     ulong started = TsCurrent();
     PMovieView view = (PMovieView)PddgGet(0);
     AssertPo(view, 0);
+    _playback.suppressAudioFades = CurrentStudioPreferences().disableAudioFades;
     MoviePlaybackEvaluator evaluator(_playback, started);
     for (;;)
     {
@@ -5300,7 +5306,7 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
         CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(Color), pglclrBkgd->IvMac()));
     }
 
-    switch (_playback.unpaced ? transCut : _playback.transition)
+    switch (_playback.unpaced || CurrentStudioPreferences().cutTransitions ? transCut : _playback.transition)
     {
     case transBlack:
         pgnvDst->FillRc(prcDst, kacrBlack);
@@ -6265,6 +6271,8 @@ bool MovieView::_fShowPoseReadout = fFalse;
  **************************************************************************/
 void MovieView::SlowKeyboardRepeat(void)
 {
+    if (CurrentStudioPreferences().normalKeyRepeat)
+        return;
 #ifdef KAUAI_SDL3
     vpappb->SetSlowKeyRepeat(true);
 #else

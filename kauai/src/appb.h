@@ -87,6 +87,7 @@ class ApplicationBase : public ApplicationBase_PAR
     bool _fInAssert : 1;        // whether we're in an assert
     bool _fRefresh : 1;         // whether to refresh the entire display
 #endif                          // DEBUG
+    bool _fBackgroundPlayback = false;
     bool _fQuit : 1;            // whether we're in the process of quitting
     bool _fOffscreen : 1;       // whether to do offscreen updates by default
     bool _fFullScreen : 1;      // when maximized, we hide the caption, etc
@@ -241,6 +242,11 @@ class ApplicationBase : public ApplicationBase_PAR
     bool FQuitting(void)
     {
         return _fQuit;
+    }
+    void SetBackgroundPlayback(bool enabled);
+    bool BackgroundPlayback() const
+    {
+        return _fBackgroundPlayback;
     }
     bool FForeground(void)
     {

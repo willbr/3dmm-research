@@ -35,6 +35,7 @@
 #define acidGlobal 225
 #define dlidAbnormalExit 226
 #define dlidGenericErrorBox 227
+#define dlidMoreOptions 228
 #define IDC_CHECK1 1010
 #define IDC_RADIO1 1012
 #define IDC_RADIO2 1013
@@ -57,6 +58,16 @@
 #define IDC_RENDER_ORIGINAL 1030
 #define IDC_RENDER_2X 1031
 #define IDC_RENDER_4X 1032
+#define IDC_MORE_OPTIONS 1033
+#define IDC_ALLOW_MULTIPLE 1034
+#define IDC_BACKGROUND_PLAYBACK 1035
+#define IDC_FLAT_SHADING 1036
+#define IDC_SKIP_STARTUP 1037
+#define IDC_MUTE_STARTUP 1038
+#define IDC_MUTE_STUDIO 1039
+#define IDC_CUT_TRANSITIONS 1040
+#define IDC_NORMAL_KEY_REPEAT 1041
+#define IDC_DISABLE_AUDIO_FADES 1042
 #define cidInfo 40038
 #define cidWriteBmps 40039
 #define cidHelpBook 40040
@@ -71,7 +82,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE 226
 #define _APS_NEXT_COMMAND_VALUE 40046
-#define _APS_NEXT_CONTROL_VALUE 1033
+#define _APS_NEXT_CONTROL_VALUE 1043
 #define _APS_NEXT_SYMED_VALUE 128
 #endif
 #endif

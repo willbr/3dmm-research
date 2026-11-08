@@ -1757,6 +1757,12 @@ if(BUILD_TESTING)
         "${PROJECT_SOURCE_DIR}/tmp/movie-only-workflow")
       set_tests_properties(studio-movie-only-workflow PROPERTIES TIMEOUT 120
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+      add_test(NAME studio-options-workflow COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/studio_options_workflow.py" $<TARGET_FILE:studio>
+        $<TARGET_FILE:preview-scene-fixture> "${TEST_STUDIO_ISO}"
+        "${PROJECT_SOURCE_DIR}/tmp/studio-options-workflow")
+      set_tests_properties(studio-options-workflow PROPERTIES TIMEOUT 180
+        ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
       if(STUDIO_TEST_TOOLS AND CMAKE_BUILD_TYPE MATCHES "^(Release|RelWithDebInfo|MinSizeRel)$")
         add_dependencies(library-checks preview-scene-fixture)
         add_test(NAME studio-batch-workflow COMMAND "${Python3_EXECUTABLE}"

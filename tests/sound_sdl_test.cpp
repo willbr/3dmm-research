@@ -14,6 +14,10 @@ void FrameMain(void)
 class SoundApp : public ApplicationBase
 {
   public:
+    void Focus(bool active)
+    {
+        _Activate(active);
+    }
 #ifdef DEBUG
     bool FAssertProcApp(PSZS file, long line, PSZS message, void *, long) override
     {
@@ -81,6 +85,32 @@ int main()
     device->SetVlm(kvlmFull / 2);
     CHECK(device->VlmCur() == kvlmFull / 2);
     CHECK(KauaiAudio::StudioStats().decoded == 1 && KauaiAudio::StudioStats().started >= 2);
+
+    auto manager = SoundManager::PsndmNew();
+    CHECK(manager && manager->FAddDevice(kctgWave, device));
+    vpsndm = manager;
+    manager->SetSoundClassRange(0, 2);
+    manager->BeginSynch();
+    for (const auto soundClass : {-1, 0, 1, 2, 998, 10000})
+    {
+        const auto id = manager->SiiPlay(resources, kctgWave, number, 9, kvlmFull, 1, 0, 0, soundClass);
+        CHECK(manager->FPlaying(id) == (soundClass >= 0 && soundClass <= 2));
+    }
+    manager->EndSynch();
+    manager->StopAll();
+    manager->SetSoundClassRange(klwMin, klwMax);
+    const auto ui = manager->SiiPlay(resources, kctgWave, number, 9, kvlmFull, 0, 0, 0, 10000);
+    CHECK(manager->FPlaying(ui));
+    app->SetBackgroundPlayback(true);
+    app->Focus(false);
+    CHECK(!app->FForeground() && manager->FActive());
+    app->SetBackgroundPlayback(false);
+    CHECK(!manager->FActive());
+    app->Focus(true);
+    CHECK(app->FForeground() && manager->FActive());
+    manager->StopAll();
+    vpsndm = nullptr;
+    ReleasePpo(&manager);
     ReleasePpo(&device);
     CHECK(!KauaiAudio::StudioStats().active);
     ReleasePpo(&resources);

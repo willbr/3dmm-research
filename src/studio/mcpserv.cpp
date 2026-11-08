@@ -43,6 +43,8 @@
 #include "mcp_io.h"
 #include "platform_files.h"
 #include "launch_context.h"
+#include "studio_preferences.h"
+#include "font_names.h"
 #ifdef KAUAI_SDL3
 #include "sdl_host.h"
 #include "sdl_dialog.h"
@@ -52,7 +54,6 @@
 #include "sdl_recording.h"
 #include "pixel_buffer.h"
 #include "font_host.h"
-#include "font_names.h"
 #include "file_browser.h"
 #endif
 
@@ -1339,6 +1340,20 @@ static JVal Tool_GetState(const JVal &args)
     JVal o = JVal::MkObj();
     o.Set("alive", JVal::MkBool(true));
     o.Set("application_foreground", JVal::MkBool(vpappb && vpappb->FForeground()));
+    {
+        const auto &preferences = CurrentStudioPreferences();
+        JVal settings = JVal::MkObj();
+        settings.Set("allow_multiple_instances", JVal::MkBool(preferences.allowMultipleInstances));
+        settings.Set("background_playback", JVal::MkBool(preferences.backgroundPlayback));
+        settings.Set("flat_shading", JVal::MkBool(World::FlatShading()));
+        settings.Set("skip_startup_screens", JVal::MkBool(preferences.skipStartupScreens));
+        settings.Set("mute_startup_sound", JVal::MkBool(preferences.muteStartupSound));
+        settings.Set("mute_studio_sounds", JVal::MkBool(preferences.muteStudioSounds));
+        settings.Set("cut_transitions", JVal::MkBool(preferences.cutTransitions));
+        settings.Set("normal_key_repeat", JVal::MkBool(preferences.normalKeyRepeat));
+        settings.Set("disable_audio_fades", JVal::MkBool(preferences.disableAudioFades));
+        o.Set("preferences", std::move(settings));
+    }
 #ifdef KAUAI_SDL3
     o.Set("font_provider", JVal::MkStr(KauaiFonts::StudioFontProvider()));
 #if defined(KAUAI_PORTABLE_RUNTIME) || !defined(WIN)
@@ -1448,6 +1463,7 @@ static JVal Tool_GetState(const JVal &args)
     auto scene = movie ? movie->Pscen() : nullptr;
     o.Set("movie_scene", JVal::MkInt(movie ? movie->Iscen() : -1));
     o.Set("scene_camera", JVal::MkInt(scene && scene->Pbkgd() ? scene->Pbkgd()->Icam() : -1));
+    o.Set("scene_transition", JVal::MkInt(scene ? scene->Trans() : transNil));
     o.Set("scene_camera_count", JVal::MkInt(scene && scene->Pbkgd() ? scene->Pbkgd()->Ccam() : 0));
     if (const auto details = args.Get("movie_details"))
         if (details->AsBool())

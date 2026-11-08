@@ -85,6 +85,7 @@ class SoundManager : public SoundManager_PAR
     };
 
     PDynamicArray _pglsndmpe; // sound type to device mapper
+    LegacyLong _sclFirst = klwMin, _sclLast = klwMax;
 
     LegacyLong _cactSuspend;  // nesting level for suspending
     bool _fActive : 1;  // whether the app is active
@@ -101,6 +102,11 @@ class SoundManager : public SoundManager_PAR
     // new methods
     virtual bool FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv);
     virtual PSoundDevice PsndvFromCtg(ChunkTagOrType ctg);
+    void SetSoundClassRange(LegacyLong first, LegacyLong last)
+    {
+        _sclFirst = first;
+        _sclLast = last;
+    }
     virtual void RemoveSndv(ChunkTagOrType ctg);
 
     // inherited methods

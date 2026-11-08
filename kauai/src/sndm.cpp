@@ -327,6 +327,9 @@ LegacyLong SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkN
     AssertPo(prca, 0);
     SNDMPE sndmpe;
 
+    if (scl < _sclFirst || scl > _sclLast)
+        return _SiiAlloc();
+
     if (!_FFindCtg(ctg, &sndmpe))
         return _SiiAlloc();
 

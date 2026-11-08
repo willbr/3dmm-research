@@ -39,6 +39,7 @@
 #include "studio_shortcuts.h"
 #endif
 #include "studio.h"
+#include "studio_preferences.h"
 #include "studio_resources.h"
 #include "socres.h"
 #ifdef WIN
@@ -360,8 +361,8 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     long fFirstTimeUser;
     LegacyLong fSkipSplashScreen = fFalse;
 
-
-    FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
+    _LoadPreferences();
+    fSkipSplashScreen = CurrentStudioPreferences().skipStartupScreens;
 
     // Only allow one copy of 3DMM to run at a time:
     if (_FAppAlreadyRunning())
@@ -475,7 +476,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-
+    _ApplyPreferences();
     if (!_FDisplayHomeLogo(fSkipSplashScreen))
     {
         _FGenericError(PszLit("_FDisplayHomeLogo"));
@@ -543,7 +544,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     }
     tsSplashScreen = TsCurrent();
 
-    if (!fSkipSplashScreen)
+    if (!CurrentStudioPreferences().muteStartupSound)
     {
         if (!_FPlaySplashSound())
         {
@@ -717,11 +718,13 @@ bool Application::_FAppAlreadyRunning(void)
     stn.FAppendSz(PszLit("-SDL3"));
 #endif
     hsem = CreateSemaphore(NULL, 0, 1, stn.Psz());
-    if (hsem != NULL && GetLastError() == ERROR_ALREADY_EXISTS)
+    if (hsem != NULL && GetLastError() == ERROR_ALREADY_EXISTS && !CurrentStudioPreferences().allowMultipleInstances)
     {
         CloseHandle(hsem);
         return fTrue;
     }
+    // Retain an allowed instance's handle until process exit, so a later
+    // launch with multiple instances disabled can still detect this copy.
 #endif // WIN
 #ifdef MAC
     RawRtn();
@@ -2036,7 +2039,7 @@ bool Application::_FPlaySplashSound(void)
     pcrf = ChunkyResourceFile::PcrfNew(_pcfl, 0);
     if (pvNil == pcrf)
         return fFalse;
-    vpsndm->SiiPlay(pcrf, kctgMidi, kcnoMidiSplash);
+    vpsndm->SiiPlay(pcrf, kctgMidi, kcnoMidiSplash, ksqnNone, kvlmFull, 1, 0, 0, sclNonLoop);
     ReleasePpo(&pcrf);
 
     return fTrue;
@@ -2813,6 +2816,8 @@ void Application::_Activate(bool fActive)
     AssertBaseThis(0);
 
     Application_PAR::_Activate(fActive);
+    if (BackgroundPlayback())
+        return;
 #ifdef KAUAI_SDL3
     return; // SDL owns focus and window state on every platform.
 #endif
@@ -2908,6 +2913,9 @@ bool Application::FCmdDeactivate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
+
+    if (BackgroundPlayback())
+        return fTrue;
 
     GraphicsObjectBlock gcb;
     PWorldOfKidspace pwoksModal;
@@ -3617,8 +3625,108 @@ enum
     iditIntegerScalingInfo,
     iditRenderSizeInfo,
 #endif
+    iditMoreOptionsInfo,
     iditLimInfo
 };
+
+namespace
+{
+struct PreferenceBinding
+{
+    PZString key;
+    bool StudioPreferences::*field;
+};
+const PreferenceBinding kPreferences[] = {
+    {PszLit("AllowMultipleInstances"), &StudioPreferences::allowMultipleInstances},
+    {kszSkipSplashScreenValue, &StudioPreferences::skipStartupScreens},
+    {PszLit("MuteStartupSound"), &StudioPreferences::muteStartupSound},
+    {PszLit("MuteStudioSounds"), &StudioPreferences::muteStudioSounds},
+    {PszLit("BackgroundPlayback"), &StudioPreferences::backgroundPlayback},
+    {PszLit("CutTransitions"), &StudioPreferences::cutTransitions},
+    {PszLit("DisableAudioFades"), &StudioPreferences::disableAudioFades},
+    {PszLit("FlatShading"), &StudioPreferences::flatShading},
+    {PszLit("NormalKeyRepeat"), &StudioPreferences::normalKeyRepeat},
+};
+const LegacyLong kiditFirstPreference = 2;
+const LegacyLong kiditSavePreferences = kiditFirstPreference + size(kPreferences) / size(kPreferences[0]);
+} // namespace
+
+void Application::_LoadPreferences()
+{
+    auto &preferences = CurrentStudioPreferences();
+    for (const auto &binding : kPreferences)
+    {
+        if (binding.field == &StudioPreferences::skipStartupScreens)
+        {
+            // Preserve the original DWORD setting and its existing installations.
+            LegacyLong skip = false;
+            FGetSetRegKey(binding.key, &skip, size(skip), fregSetDefault);
+            preferences.*binding.field = skip != 0;
+            preferences.muteStartupSound = skip != 0;
+        }
+        else
+            FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregBinary);
+    }
+    SetBackgroundPlayback(preferences.backgroundPlayback);
+}
+
+void Application::_ApplyPreferences()
+{
+    const auto &preferences = CurrentStudioPreferences();
+    SetBackgroundPlayback(preferences.backgroundPlayback);
+    World::SetFlatShading(preferences.flatShading);
+    if (preferences.normalKeyRepeat)
+        MovieView::RestoreKeyboardRepeat();
+    if (vpsndm)
+    {
+        // Keep all three movie classes, including looping WAVE sounds; UI and
+        // kidspace script sounds use other classes. Asset previews use class 0.
+        vpsndm->SetSoundClassRange(preferences.muteStudioSounds ? sclNonLoop : klwMin,
+                                   preferences.muteStudioSounds ? sclLoopMidi : klwMax);
+        if (preferences.muteStudioSounds)
+        {
+            vpsndm->StopAll(sqnNil, ksclUISound);
+        }
+    }
+}
+
+void Application::_ShowMoreOptions()
+{
+    PDialog dialog = Dialog::PdlgNew(dlidMoreOptions);
+    if (!dialog)
+        return;
+    auto &preferences = CurrentStudioPreferences();
+    LegacyLong item = kiditFirstPreference;
+    for (const auto &binding : kPreferences)
+        dialog->PutCheck(item++, preferences.*binding.field);
+    // Cancel (including Escape/window close) leaves both runtime and defaults intact.
+    if (dialog->IditDo() == 0)
+    {
+        const bool save = dialog->FGetCheck(kiditSavePreferences);
+        item = kiditFirstPreference;
+        for (const auto &binding : kPreferences)
+        {
+            preferences.*binding.field = FPure(dialog->FGetCheck(item++));
+            if (save)
+            {
+                if (binding.field == &StudioPreferences::skipStartupScreens)
+                {
+                    LegacyLong skip = preferences.*binding.field;
+                    FGetSetRegKey(binding.key, &skip, size(skip), fregSetKey);
+                }
+                else
+                    FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregSetKey | fregBinary);
+            }
+        }
+        _ApplyPreferences();
+        if (auto movie = _Pmvie())
+        {
+            movie->Pbwld()->MarkDirty();
+            movie->InvalViews();
+        }
+    }
+    ReleasePpo(&dialog);
+}
 
 #ifdef WIN
 
@@ -3656,6 +3764,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     String stnT;
     bool fSaveChanges;
 
+LShowInfo:
     pmvie = _Pmvie();
 
     pdlg = Dialog::PdlgNew(dlidInfo, pvNil, pvNil);
@@ -3861,6 +3970,11 @@ bool Application::FCmdInfo(PCommand pcmd)
 
     ReleasePpo(&pdlg);
 
+    if (idit == iditMoreOptionsInfo)
+    {
+        _ShowMoreOptions();
+        goto LShowInfo;
+    }
     return fTrue;
 }
 

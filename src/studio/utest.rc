@@ -232,10 +232,43 @@ BEGIN
     CONTROL         "4x super size",IDC_RENDER_4X,"Button",BS_AUTORADIOBUTTON,
                     235,237 + INFO_SCALING_HEIGHT,75,10
 #endif
+    PUSHBUTTON      "More options...",IDC_MORE_OPTIONS,10,266 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT,95,14
 END
 
 #undef INFO_SCALING_HEIGHT
 #undef INFO_RENDER_HEIGHT
+
+dlidMoreOptions DIALOG DISCARDABLE  0, 0, 300, 254
+STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "More Options"
+FONT 8, "MS Sans Serif"
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,178,232,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,235,232,55,14
+    CONTROL         "Allow multiple instances",IDC_ALLOW_MULTIPLE,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,25,270,10
+    CONTROL         "Skip startup screens",IDC_SKIP_STARTUP,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,41,270,10
+    CONTROL         "Mute startup sound",IDC_MUTE_STARTUP,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,57,270,10
+    CONTROL         "Mute studio interface sounds",IDC_MUTE_STUDIO,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,100,270,10
+    CONTROL         "Play movies in the background",IDC_BACKGROUND_PLAYBACK,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,116,270,10
+    CONTROL         "Use cuts instead of scene transitions",IDC_CUT_TRANSITIONS,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,132,270,10
+    CONTROL         "Disable playback audio fades",IDC_DISABLE_AUDIO_FADES,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,148,270,10
+    CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,177,270,10
+    CONTROL         "Keep normal keyboard repeat",IDC_NORMAL_KEY_REPEAT,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,193,270,10
+    CONTROL         "Make these the default settings",IDC_CHECK1,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,216,280,10
+    GROUPBOX        "Startup (next launch)",IDC_STATIC,10,10,280,64
+    GROUPBOX        "Playback and sound",IDC_STATIC,10,85,280,78
+    GROUPBOX        "Rendering and editing",IDC_STATIC,10,166,280,40
+END
 
 dlidInitFailed DIALOG DISCARDABLE  0, 0, 187, 71
 STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU

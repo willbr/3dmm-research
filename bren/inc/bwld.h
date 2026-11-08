@@ -124,6 +124,15 @@ class World : public World_PAR
 
     // Rendering stuff
     static bool _fRenderWireframe;
+    static bool _fFlatShading;
+    static void SetFlatShading(bool enabled)
+    {
+        _fFlatShading = enabled;
+    }
+    static bool FlatShading()
+    {
+        return _fFlatShading;
+    }
     static bool RenderWireframe(void)
     {
         return _fRenderWireframe;

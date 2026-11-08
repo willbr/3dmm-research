@@ -94,6 +94,12 @@ MoviePlaybackCommand MoviePlaybackEvaluator::Next()
         case Phase::ReadVolume:
             return _Command(MoviePlaybackCommandKind::ReadVolume);
         case Phase::SetVolume:
+            if (_state.suppressAudioFades)
+            {
+                _state.fadeVolume = LwMax(0, _volume);
+                _phase = _volume <= 0 ? Phase::Stop : Phase::FadeAlarm;
+                break;
+            }
             return _Command(MoviePlaybackCommandKind::SetVolume, LwMax(0, _volume));
         case Phase::FadeAlarm:
             return _Command(MoviePlaybackCommandKind::SetAlarm, kPlaybackFadeTicks);
@@ -148,12 +154,15 @@ void MoviePlaybackEvaluator::Complete(const MoviePlaybackReply &reply)
         _phase = Phase::Done;
         break;
     case Phase::ReadVolume:
-        _volume = reply.number - _state.fadeOriginalVolume / (kPlaybackFadeSeconds * 4);
+        _volume = (_state.suppressAudioFades && _state.fadeVolume >= 0 ? _state.fadeVolume : reply.number) -
+                  _state.fadeOriginalVolume / (kPlaybackFadeSeconds * 4);
         if (_volume <= 0)
             _state.stopRequested = true;
         _phase = Phase::SetVolume;
         break;
     case Phase::SetVolume:
+        _state.fadeChangedVolume = true;
+        _state.fadeVolume = LwMax(0, _volume);
         _phase = _volume <= 0 ? Phase::Stop : Phase::FadeAlarm;
         break;
     case Phase::FadeAlarm:

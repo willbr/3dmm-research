@@ -17,8 +17,9 @@
     full view resolution.
 
 ***************************************************************************/
-#include "bren.h"
 #include <stdlib.h>
+#include <vector>
+#include "bren.h"
 
 // REVIEW *****: _pgptStretch is completely unused...remove it!
 
@@ -55,8 +56,50 @@ const long kcbPixelZ = 2;
 
 bool World::_fBRenderInited = fFalse;
 bool World::_fRenderWireframe = fFalse;
+bool World::_fFlatShading = fFalse;
 bool World::_fNoTexture = fFalse;
 long World::_defaultRenderScale = 1;
+
+// Change lighting only for the duration of a render. Newly loaded materials
+// participate immediately, and their original flags remain safe to save/free.
+class FlatShadingScope
+{
+    struct SavedMaterial
+    {
+        br_material *material;
+        br_uint_32 flags;
+    };
+    std::vector<SavedMaterial> saved;
+    static br_uint_32 BR_CALLBACK Apply(br_material *material, void *context)
+    {
+        if (!material->colour_map && (material->flags & BR_MATF_GOURAUD))
+        {
+            auto &scope = *static_cast<FlatShadingScope *>(context);
+            scope.saved.push_back({material, material->flags});
+            material->flags &= ~BR_MATF_GOURAUD;
+            BrMaterialUpdate(material, BR_MATU_ALL);
+        }
+        return 0;
+    }
+
+  public:
+    FlatShadingScope()
+    {
+        if (World::FlatShading())
+        {
+            saved.reserve(BrMaterialCount(pvNil));
+            BrMaterialEnum(pvNil, Apply, this);
+        }
+    }
+    ~FlatShadingScope()
+    {
+        for (const auto &entry : saved)
+        {
+            entry.material->flags = entry.flags;
+            BrMaterialUpdate(entry.material, BR_MATU_ALL);
+        }
+    }
+};
 
 /***************************************************************************
     No-texture mode: walk every BRender material, save its colour_map, and
@@ -687,7 +730,10 @@ void World::Render(void)
     _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
 
     // Render the scene.  This will add stuff to _pregnDirtyWorking
-    BrZbSceneRender(&_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
+    {
+        FlatShadingScope shading;
+        BrZbSceneRender(&_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
+    }
 
     for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
     {
@@ -1175,7 +1221,10 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     bpmpZ.pixels = pzbmpRender->Prgb();
 
     BrZbSetRenderBoundsCallback(nullptr);
-    BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
+    {
+        FlatShadingScope shading;
+        BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
+    }
     BrZbSetRenderBoundsCallback(_ActorRendered);
     GraphicsPort::Flush();
     pgptRender->Unlock();

@@ -839,8 +839,15 @@ void ApplicationBase::_Activate(bool fActive)
     AssertThis(0);
 
     if (pvNil != vpsndm)
-        vpsndm->Activate(fActive);
+        vpsndm->Activate(fActive || _fBackgroundPlayback);
     _fForeground = FPure(fActive);
+}
+
+void ApplicationBase::SetBackgroundPlayback(bool enabled)
+{
+    _fBackgroundPlayback = enabled;
+    if (vpsndm)
+        vpsndm->Activate(FForeground() || enabled);
 }
 
 /***************************************************************************
