@@ -46,6 +46,7 @@
 #include "studio_preferences.h"
 #ifdef KAUAI_SDL3
 #include "studio_settings.h"
+#include "studio_pack_runtime.h"
 #endif
 #include "font_names.h"
 #ifdef KAUAI_SDL3
@@ -77,6 +78,9 @@
 #include "studio.h"
 #include "mcpserv.h"
 #include "studio_iso.h"
+#ifdef KAUAI_SDL3
+#include "studio_pack_options.h"
+#endif
 
 // kauai/src/util.h defines `size(x)` as a function-like macro. Once studio.h
 // has been processed we no longer need it; undefine so our own code can call
@@ -1383,6 +1387,37 @@ static JVal Tool_GetState(const JVal &args)
     o.Set("iso_cache_reused", JVal::MkBool(iso.reused));
     o.Set("iso_source", JVal::MkStr(iso.image));
     o.Set("iso_cache_root", JVal::MkStr(iso.root));
+    JVal packs = JVal::MkArr();
+    const auto &activePacks = StudioPacks::ActivePreferences();
+    for (std::size_t i = 0; i < StudioPacks::Definitions().size(); ++i)
+    {
+        const auto &definition = StudioPacks::Definitions()[i];
+        std::string directory;
+        auto access = StudioPacks::Resolve(definition.sourceTitle, definition.sourceFolder, directory);
+        JVal pack = JVal::MkObj();
+        pack.Set("key", JVal::MkStr(definition.key));
+        pack.Set("enabled", JVal::MkBool(activePacks[i].enabled));
+        pack.Set("managed", JVal::MkBool(!activePacks[i].generation.empty()));
+        pack.Set("available", JVal::MkBool(access == StudioPacks::Access::Available));
+        pack.Set("path", JVal::MkStr(directory));
+        packs.a->push_back(std::move(pack));
+    }
+    o.Set("expansions", std::move(packs));
+    JVal thumbnails = JVal::MkArr();
+    ThumbnailFileEnumerator files;
+    Filename thumbnail;
+    long thumbnailSource;
+    if (files.FInit())
+        while (files.FNext(&thumbnail, &thumbnailSource))
+        {
+            String path;
+            thumbnail.GetStnPath(&path);
+            JVal item = JVal::MkObj();
+            item.Set("source_id", JVal::MkInt(thumbnailSource));
+            item.Set("path", JVal::MkStr(StudioPacks::UTF8(&path)));
+            thumbnails.a->push_back(std::move(item));
+        }
+    o.Set("thumbnail_files", std::move(thumbnails));
     o.Set("sdl_video_started", JVal::MkInt(static_cast<long long>(video.started)));
     o.Set("sdl_video_completed", JVal::MkInt(static_cast<long long>(video.completed)));
     o.Set("sdl_video_decoded", JVal::MkInt(static_cast<long long>(video.decoded)));

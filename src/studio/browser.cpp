@@ -1746,6 +1746,9 @@ bool BrowserContentListWithStrings::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrTyp
  ****************************************************/
 bool ThumbnailFileEnumerator::FInit(void)
 {
+    _managedIndex = 0;
+    _managedSid = 0;
+    _legacyDone = false;
     AssertThis(0);
 
     FileType ftgThd = kftgThumbDesc;
@@ -1797,9 +1800,15 @@ bool ThumbnailFileEnumerator::FNext(Filename *pfni, long *psid)
         _fInitMSKDir = fFalse;
     }
 
-    while (_fneDir.FNextFni(&_fniDir))
+    while (!_legacyDone && _fneDir.FNextFni(&_fniDir))
     {
+        _managedSid = 0;
         if (_fniDir.FSameDir(&_fniDirProduct)) // already enumerated
+            continue;
+        String name;
+        LegacyLong sid;
+        if (!_fniDir.FUpDir(&name, ffniNil) || !vptagm->FGetSid(&name, &sid) ||
+            vptagm->SourceDirectory(sid) != TagSourceAccess::Legacy)
             continue;
 
         if (!_fne.FInit(&_fniDir, &ftgThd, 1)) // Initialize the file enumeration
@@ -1808,6 +1817,18 @@ bool ThumbnailFileEnumerator::FNext(Filename *pfni, long *psid)
             return fTrue;
     }
 
+    _legacyDone = true;
+    auto sources = vptagm->PgstSource();
+    while (_managedIndex < sources->IvMac())
+    {
+        sources->GetExtra(_managedIndex++, &_managedSid);
+        if (vptagm->SourceDirectory(_managedSid, &_fniDir) != TagSourceAccess::Available)
+            continue;
+        if (!_fne.FInit(&_fniDir, &ftgThd, 1))
+            return fFalse;
+        if (_FNextFni(pfni, psid))
+            return fTrue;
+    }
     return fFalse; // all done
 }
 
@@ -1825,6 +1846,11 @@ bool ThumbnailFileEnumerator::_FNextFni(Filename *pfni, long *psid)
     Assert(_fniDir.Ftg() == kftgDir, "Logic error");
     if (pvNil != psid)
     {
+        if (_managedSid)
+        {
+            *psid = _managedSid;
+            return _fne.FNextFni(pfni);
+        }
         if (!_fniDir.FUpDir(&stnProduct, ffniNil))
             return fFalse;
         LegacyLong sid;

@@ -114,9 +114,18 @@ struct MissingSourceRequest
     LegacyLong sid;
     PString title, folder, contentRoot; // Borrowed for the duration of the callback.
     const TAG *asset = nullptr;         // Null when the request was for a file/source directory.
+    bool disabled = false;
 };
 typedef bool FNINSCD(const MissingSourceRequest &request);
 typedef FNINSCD *PFNINSCD;
+enum class TagSourceAccess
+{
+    Legacy,
+    Available,
+    Disabled,
+    Missing
+};
+using TagSourceResolver = TagSourceAccess (*)(PString, PString, PFilename);
 
 enum
 {
@@ -145,6 +154,7 @@ class TagManager : public TagManager_PAR
     PDynamicArray _pglsfs;        // DynamicArray of source file structs
     PStringTable_GST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
+    TagSourceResolver _sourceResolver = nullptr;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void (*_missingTagTest)(PTAG) = nullptr;
 #endif
@@ -173,6 +183,11 @@ class TagManager : public TagManager_PAR
   public:
     static PTagManager PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, LegacyLong cbCache);
     ~TagManager(void);
+    void SetSourceResolver(TagSourceResolver resolver)
+    {
+        _sourceResolver = resolver;
+    }
+    TagSourceAccess SourceDirectory(LegacyLong sid, PFilename path = nullptr);
 
     // GstSource stuff:
     PStringTable_GST PgstSource(void);

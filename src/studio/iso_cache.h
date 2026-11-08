@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <map>
 namespace StudioISO
 {
 struct Supplement
@@ -24,5 +25,8 @@ struct Cache
 // Throws std::exception with a diagnostic on unsupported/corrupt input or I/O.
 Cache Prepare(const std::filesystem::path &image, const std::filesystem::path &cacheDirectory,
               const std::vector<Supplement> &supplements = {});
+std::map<std::string, std::vector<unsigned char>> ReadFiles(const std::filesystem::path &image,
+                                                            const std::string &directory,
+                                                            const std::vector<std::string> &names);
 } // namespace StudioISO
 #endif

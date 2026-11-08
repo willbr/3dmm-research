@@ -841,6 +841,9 @@ class ThumbnailFileEnumerator : public ThumbnailFileEnumerator_PAR
     Filename _fniDir;
     Filename _fniDirProduct;
     bool _fInited;
+    LegacyLong _managedIndex = 0;
+    LegacyLong _managedSid = 0;
+    bool _legacyDone = false;
 
   protected:
     bool _FNextFni(Filename *pfni, long *psid);

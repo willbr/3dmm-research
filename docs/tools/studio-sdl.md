@@ -3,6 +3,8 @@
 The port keeps Studio's original Kauai UI, resource scripts and editing tools.
 The archive inspector is a separate diagnostic application.
 
+Manage optional content through [Options > Expansions](expansion-manager.md).
+
 ## Debug validation
 
 Ordinary Debug builds retain assertions, range and null checks, debug symbols,

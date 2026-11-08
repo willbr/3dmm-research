@@ -94,6 +94,7 @@ class Dialog : public Dialog_PAR
     static PDialog PdlgNew(LegacyLong rid, PFNDLG pfn = pvNil, void *pv = pvNil);
     ~Dialog();
     bool FSetTabs(const KauaiDialogs::TabLayout &layout);
+    bool FEnableControl(LegacyLong sit, bool enabled);
 
     LegacyLong IditDo(LegacyLong iditFocus = ivNil);
 

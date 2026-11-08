@@ -21,6 +21,7 @@
 #include "studio_content.h"
 #ifdef KAUAI_SDL3
 #include "studio_iso.h"
+#include "studio_pack_runtime.h"
 #include "studio_settings.h"
 #include "studio_missing_content.h"
 #include "sdl_dialog.h"
@@ -46,6 +47,9 @@
 #include "studio_shortcuts.h"
 #endif
 #include "studio.h"
+#ifdef KAUAI_SDL3
+#include "studio_pack_options.h"
+#endif
 #if defined(WIN) && !defined(KAUAI_SDL3)
 #include <shellapi.h>
 #endif
@@ -1837,6 +1841,19 @@ bool Application::_FInitProductNames(void)
 
     PStringTable_GST pgst;
     DataBlock blck;
+#ifdef KAUAI_SDL3
+    try
+    {
+        String root;
+        _fniMsKidsDir.GetStnPath(&root);
+        StudioPacks::Initialize(root.Psz());
+    }
+    catch (const std::exception &error)
+    {
+        _FGenericError(const_cast<char *>(error.what()));
+        return fFalse;
+    }
+#endif
 
     // Use kcbCacheTagm of cache per source, don't cache on CD
 
@@ -1846,6 +1863,9 @@ bool Application::_FInitProductNames(void)
         _FGenericError(PszLit("_FInitProductNames: TagManager::PtagmNew"));
         return fFalse;
     }
+#ifdef KAUAI_SDL3
+    vptagm->SetSourceResolver(StudioPacks::ResolveSource);
+#endif
 
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     if (BatchPlaybackTest())
@@ -1893,7 +1913,20 @@ bool Application::_FReadProductTitles(PStringTable_GST *ppgst)
     *ppgst = pvNil;
     String root;
     _fniMsKidsDir.GetStnPath(&root);
-    const auto products = StudioContent::ReadProducts(root.Psz());
+    StudioContent::Products products;
+#ifdef KAUAI_SDL3
+    try
+    {
+        products = StudioPacks::Products();
+    }
+    catch (const std::exception &error)
+    {
+        _FGenericError(const_cast<char *>(error.what()));
+        return fFalse;
+    }
+#else
+    products = StudioContent::ReadProducts(root.Psz());
+#endif
     if (products.status != StudioContent::Status::Ready)
     {
         char detail[160];
@@ -3646,6 +3679,9 @@ namespace
 {
 struct OptionsEdits
 {
+#ifdef KAUAI_SDL3
+    std::unique_ptr<StudioPacks::Options> packs;
+#endif
     PMovie movie = nullptr;
     LegacyLong renderItem = ivNil;
     bool renderRequested = false;
@@ -3714,6 +3750,15 @@ struct OptionsEdits
 bool OptionsChanged(PDialog dialog, LegacyLong *item, void *context)
 {
     auto &edits = *static_cast<OptionsEdits *>(context);
+#ifdef KAUAI_SDL3
+    if (edits.packs)
+    {
+        bool handled;
+        auto close = edits.packs->Handle(dialog, *item, handled);
+        if (handled)
+            return close;
+    }
+#endif
     if (*item < 0)
     {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -3918,6 +3963,29 @@ bool Application::FCmdInfo(PCommand pcmd)
          {IDC_EDIT4, IDC_EDIT2, IDC_INFO_COPYRIGHT, IDC_INFO_ORIGINAL_LABEL, IDC_INFO_FOREVER_LABEL,
           IDC_INFO_ORIGINAL_REPO, IDC_INFO_FOREVER_REPO, IDC_INFO_RESEARCH_LABEL, IDC_INFO_RESEARCH_REPO}},
     };
+#ifdef KAUAI_SDL3
+    tabs.pages.insert(
+        tabs.pages.end() - 1,
+        {IDC_TAB_EXPANSIONS, u"Expansions", {IDC_PACK_NICK,          IDC_PACK_DORA,         IDC_PACK_FRANKIE,
+                                             IDC_PACK_STATUS_NICK,   IDC_PACK_STATUS_DORA,  IDC_PACK_STATUS_FRANKIE,
+                                             IDC_PACK_INSTALL_NICK,  IDC_PACK_INSTALL_DORA, IDC_PACK_INSTALL_FRANKIE,
+                                             IDC_PACK_REMOVE_NICK,   IDC_PACK_REMOVE_DORA,  IDC_PACK_REMOVE_FRANKIE,
+                                             IDC_PACK_SOURCE,        IDC_PACK_FOLDER,       IDC_PACK_ISO,
+                                             IDC_PACK_BASE,          IDC_PACK_BASE_BROWSE,  IDC_PACK_FIXUPS,
+                                             IDC_PACK_FIXUPS_BROWSE, IDC_PACK_NOTICE,       IDC_PACK_SOURCE_LABEL,
+                                             IDC_PACK_BASE_LABEL,    IDC_PACK_FIXUPS_LABEL}});
+    try
+    {
+        edits.packs.reset(new StudioPacks::Options);
+        edits.packs->Initialize(pdlg);
+    }
+    catch (const std::exception &error)
+    {
+        _FGenericError(const_cast<char *>(error.what()));
+        ReleasePpo(&pdlg);
+        return fTrue;
+    }
+#endif
     if (!pdlg->FSetTabs(tabs))
     {
         ReleasePpo(&pdlg);
@@ -4460,6 +4528,15 @@ bool Application::FInsertCD(const MissingSourceRequest &request)
     };
     StudioContent::MissingContent content{utf8(request.title), utf8(request.folder), utf8(request.contentRoot),
                                           request.sid};
+    if (request.disabled)
+    {
+        KauaiDialogs::Session disabled;
+        if (disabled.InitAlert(content.source +
+                                   " is disabled. Enable it in Options > Expansions, then restart 3DMMForever.",
+                               "Expansion disabled", KauaiDialogs::AlertButtons::ok))
+            KauaiSDL::RunDialog(disabled);
+        return fFalse;
+    }
     if (request.asset)
     {
         content.hasAsset = true;

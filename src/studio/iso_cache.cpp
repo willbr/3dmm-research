@@ -213,6 +213,30 @@ bool Complete(const fs::path &root, const std::string &manifest, const std::map<
     return true;
 }
 } // namespace
+std::map<std::string, std::vector<unsigned char>> ReadFiles(const fs::path &image, const std::string &directory,
+                                                            const std::vector<std::string> &names)
+{
+    Disc disc(image);
+    std::map<std::string, Entry> entries;
+    for (const auto &folder : disc.Root())
+        if (folder.directory && Lower(folder.name) == Lower(directory))
+            for (const auto &entry : disc.List(folder))
+                entries.emplace(Lower(entry.name), entry);
+    std::map<std::string, std::vector<unsigned char>> result;
+    for (const auto &name : names)
+    {
+        if (!Leaf(name))
+            Fail("Invalid requested ISO filename");
+        auto found = entries.find(Lower(name));
+        if (found == entries.end() || found->second.directory || !found->second.bytes ||
+            found->second.bytes > 256 * 1024 * 1024)
+            Fail("Missing or invalid ISO file: " + name);
+        auto &data = result[name];
+        data.resize(std::size_t(found->second.bytes));
+        disc.Read(found->second.offset, data.data(), data.size());
+    }
+    return result;
+}
 Cache Prepare(const fs::path &image, const fs::path &cacheDirectory, const std::vector<Supplement> &supplements)
 {
     const auto source = fs::canonical(image);

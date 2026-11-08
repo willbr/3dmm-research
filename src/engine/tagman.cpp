@@ -306,6 +306,17 @@ bool TagManager::_FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString ps
     - If we find the fniHD, put it in *pfniHD, set *pfExists to fTrue,
       and return fTrue
 ***************************************************************************/
+TagSourceAccess TagManager::SourceDirectory(LegacyLong sid, PFilename path)
+{
+    if (!_sourceResolver)
+        return TagSourceAccess::Legacy;
+    String longName, shortName;
+    Filename unused;
+    if (!_FGetStnSplitOfSid(sid, &longName, &shortName))
+        return TagSourceAccess::Legacy;
+    return _sourceResolver(&longName, &shortName, path ? path : &unused);
+}
+
 bool TagManager::_FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists)
 {
     AssertThis(0);
@@ -318,6 +329,12 @@ bool TagManager::_FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists)
     Filename fni;
 
     *pfExists = fFalse;
+    const auto access = SourceDirectory(sid, pfniHD);
+    if (access != TagSourceAccess::Legacy)
+    {
+        *pfExists = access == TagSourceAccess::Available;
+        return fTrue;
+    }
     if (!_FGetStnSplitOfSid(sid, &stnLong, &stnShort))
     {
         return fFalse; // can't even determine if fniHD exists or not
@@ -397,6 +414,12 @@ bool TagManager::_FEnsureFniCD(LegacyLong sid, Filename *pfniCD, PString pstn)
 ***************************************************************************/
 bool TagManager::_FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChanged)
 {
+    const auto access = SourceDirectory(sid, pfniCD);
+    if (access != TagSourceAccess::Legacy)
+    {
+        *pfFniChanged = access == TagSourceAccess::Available;
+        return access == TagSourceAccess::Available;
+    }
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
     AssertPo(pfniCD, ffniEmpty | ffniDir); // could be a blank Filename
@@ -471,7 +494,7 @@ bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
     }
     String root;
     _fniHDRoot.GetStnPath(&root);
-    return _pfninscd({sid, &stnLong, &stnShort, &root, asset});
+    return _pfninscd({sid, &stnLong, &stnShort, &root, asset, SourceDirectory(sid) == TagSourceAccess::Disabled});
 }
 
 /***************************************************************************
@@ -521,6 +544,13 @@ LFail:
 ***************************************************************************/
 PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool fDontHitCD, const TAG *asset)
 {
+    const auto access = SourceDirectory(sid);
+    if (access == TagSourceAccess::Disabled || access == TagSourceAccess::Missing)
+    {
+        if (!fDontHitCD)
+            _FRetry(sid, asset);
+        return pvNil;
+    }
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
 
@@ -672,6 +702,9 @@ LSetupSfs:
 ***************************************************************************/
 bool TagManager::_FGetFniHD(LegacyLong sid, PFilename pfniHD)
 {
+    const auto access = SourceDirectory(sid, pfniHD);
+    if (access != TagSourceAccess::Legacy)
+        return access == TagSourceAccess::Available;
     AssertThis(0);
     AssertVarMem(pfniHD);
 
@@ -706,6 +739,13 @@ LSetupSFS:
 ***************************************************************************/
 bool TagManager::_FGetFniCD(LegacyLong sid, PFilename pfniCD, bool fAskForCD)
 {
+    const auto access = SourceDirectory(sid, pfniCD);
+    if (access != TagSourceAccess::Legacy)
+    {
+        if (access != TagSourceAccess::Available && fAskForCD)
+            _FRetry(sid);
+        return access == TagSourceAccess::Available;
+    }
     AssertThis(0);
     AssertVarMem(pfniCD);
 

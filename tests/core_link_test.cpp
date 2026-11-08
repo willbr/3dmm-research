@@ -337,12 +337,16 @@ static void Changed(void *context)
     ++static_cast<RenderHost *>(context)->changes;
 }
 static int missingSourcePrompts = 0;
+static bool disabledSourcePrompt = false;
 static PFilename retrySourceDirectory = nullptr, retrySourceFile = nullptr;
 static bool MissingSource(const MissingSourceRequest &request)
 {
+    Check(request.disabled == disabledSourcePrompt);
     Check(request.sid == 42 && request.title && request.folder && request.contentRoot);
     Check(request.asset && request.asset->sid == 42 && request.asset->ctg == kctgTmpl && request.asset->cno == 1);
     ++missingSourcePrompts;
+    if (request.disabled)
+        return false;
     if (retrySourceDirectory && missingSourcePrompts == 1)
     {
         Check(retrySourceDirectory->FBuildFromPath(request.contentRoot, kftgDir));
@@ -2639,6 +2643,28 @@ static void TestEngineServices()
     Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl, fTrue) == pvNil);
     Check(missingSourcePrompts == 1);
     manager->ClearCache();
+    // Host policy is checked before cached resource managers and path/CD
+    // lookup. Movie source-table merges cannot bypass this resolver.
+    manager->SetSourceResolver([](PString, PString, PFilename) { return TagSourceAccess::Disabled; });
+    disabledSourcePrompt = true;
+    Check(manager->SourceDirectory(42) == TagSourceAccess::Disabled);
+    auto merged = StringTable_GST::PgstNew(sizeof(LegacyLong));
+    LegacyLong sourceId = 42;
+    Check(merged && merged->FAddStn(&missingName, &sourceId));
+    Check(manager->FMergeGstSource(merged, kboCur, koskCur));
+    ReleasePpo(&merged);
+    missingSourcePrompts = 0;
+    Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl) == pvNil && missingSourcePrompts == 0);
+    Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl, fTrue) == pvNil && missingSourcePrompts == 1);
+    String leaf(PszLit("retry.3cn"));
+    Filename denied;
+    Check(!manager->FFindFile(42, &leaf, &denied, false));
+    disabledSourcePrompt = false;
+    manager->SetSourceResolver([](PString, PString, PFilename path) {
+        *path = *retrySourceDirectory;
+        return TagSourceAccess::Available;
+    });
+    Check(manager->FFindFile(42, &leaf, &denied, false));
     ReleasePpo(&manager);
     String directoryPath;
     retryDirectory.GetStnPath(&directoryPath);

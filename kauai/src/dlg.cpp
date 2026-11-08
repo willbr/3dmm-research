@@ -36,6 +36,22 @@ Dialog::~Dialog()
     delete _tabs;
 }
 
+bool Dialog::FEnableControl(LegacyLong sit, bool enabled)
+{
+    if (!_session)
+        return false;
+    for (auto &control : _session->resource.controls)
+        if (control.id == static_cast<std::uint32_t>(sit))
+        {
+            if (enabled)
+                control.style &= ~0x08000000u;
+            else
+                control.style |= 0x08000000u;
+            return true;
+        }
+    return false;
+}
+
 bool Dialog::FSetTabs(const KauaiDialogs::TabLayout &layout)
 {
     auto tabs = new (std::nothrow) KauaiDialogs::TabLayout;
