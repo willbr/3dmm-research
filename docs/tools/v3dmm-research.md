@@ -42,8 +42,10 @@ the shipped XML patches, readable Python, and real package bytes.
 
 This establishes the main loading/saving architecture and v1 container layout.
 It does **not** establish frame-perfect playback, every malformed-input result,
-or every collision/ordering rule. No retail-v3dmm differential playback was
-performed. The remaining oracle work is an explicit first milestone below.
+or every collision/ordering rule. At static-investigation time no retail-v3dmm
+differential playback had been performed. The subsequent
+[original-runtime oracle](v3dmm-oracle.md) now compares frames, state, sound
+requests and captured PCM; exact audiovisual parity is not established.
 
 ## What 7gen does
 

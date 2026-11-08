@@ -15,6 +15,11 @@ if(MSVC)
 endif()
 add_executable(retail-oracle-launch launch.cpp)
 target_link_libraries(retail-oracle-launch PRIVATE advapi32)
+add_executable(oracle-audio-capture audio_capture.cpp)
+target_compile_definitions(oracle-audio-capture PRIVATE NTDDI_VERSION=0x0A00000A)
+target_link_libraries(oracle-audio-capture PRIVATE mmdevapi ole32 uuid)
+add_executable(oracle-audio-probe EXCLUDE_FROM_ALL audio_probe.cpp)
+target_link_libraries(oracle-audio-probe PRIVATE winmm)
 
 option(RETAIL_ORACLE_INTEGRATION_TESTS "Enable tests which launch retail on the interactive Windows desktop" OFF)
 if(RETAIL_ORACLE_INTEGRATION_TESTS)
@@ -39,4 +44,36 @@ if(RETAIL_ORACLE_INTEGRATION_TESTS)
     --bridge "$<TARGET_FILE_DIR:retail-oracle>" --fixture "${RETAIL_ORACLE_FIXTURE}"
     --output "${repo}/tmp/retail-oracle-workflow")
   set_tests_properties(retail-oracle-workflow PROPERTIES TIMEOUT 180 ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
+endif()
+
+option(V3DMM_ORACLE_INTEGRATION_TESTS "Enable original v3dmm, process audio and SDL integration tests" OFF)
+if(V3DMM_ORACLE_INTEGRATION_TESTS)
+  enable_testing()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  execute_process(COMMAND "${Python3_EXECUTABLE}" -c "import PIL, numpy"
+    RESULT_VARIABLE audio_python_status OUTPUT_QUIET ERROR_QUIET)
+  if(NOT audio_python_status EQUAL 0)
+    message(FATAL_ERROR "Pillow and NumPy are required for v3dmm/audio integration tests")
+  endif()
+  set(RETAIL_ORACLE_ISO "" CACHE FILEPATH "Original 3D Movie Maker ISO")
+  set(RETAIL_ORACLE_SDL "" CACHE FILEPATH "SDL executable built with STUDIO_TEST_TOOLS=ON")
+  set(V3DMM_ORACLE_DISTRIBUTION "" CACHE PATH "Extracted original Virtual3DMM directory")
+  set(V3DMM_ORACLE_BLANK "" CACHE FILEPATH "Local original blank VMM")
+  set(V3DMM_ORACLE_VXP "" CACHE FILEPATH "Local Portable prop or actor VXP")
+  foreach(path RETAIL_ORACLE_ISO RETAIL_ORACLE_SDL V3DMM_ORACLE_DISTRIBUTION V3DMM_ORACLE_BLANK V3DMM_ORACLE_VXP)
+    if(NOT EXISTS "${${path}}")
+      message(FATAL_ERROR "Set ${path} to an existing reference input")
+    endif()
+  endforeach()
+  get_filename_component(repo "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+  set_target_properties(oracle-audio-probe PROPERTIES EXCLUDE_FROM_ALL FALSE)
+  add_test(NAME oracle-audio-metrics COMMAND "${Python3_EXECUTABLE}" "${repo}/tests/oracle_audio_metrics_test.py")
+  add_test(NAME oracle-audio-calibration COMMAND "${Python3_EXECUTABLE}" "${repo}/tests/oracle_audio_workflow.py"
+    --bridge "$<TARGET_FILE_DIR:retail-oracle>" --output "${repo}/tmp/v3dmm-oracle/audio-calibration")
+  add_test(NAME v3dmm-oracle-workflow COMMAND "${Python3_EXECUTABLE}" "${repo}/tests/v3dmm_oracle_workflow.py"
+    --sdl "${RETAIL_ORACLE_SDL}" --iso "${RETAIL_ORACLE_ISO}" --bridge "$<TARGET_FILE_DIR:retail-oracle>"
+    --v3dmm "${V3DMM_ORACLE_DISTRIBUTION}" --blank "${V3DMM_ORACLE_BLANK}" --vxp "${V3DMM_ORACLE_VXP}"
+    --output "${repo}/tmp/v3dmm-oracle/workflow")
+  set_tests_properties(oracle-audio-metrics oracle-audio-calibration v3dmm-oracle-workflow
+    PROPERTIES TIMEOUT 180 RUN_SERIAL TRUE ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 endif()

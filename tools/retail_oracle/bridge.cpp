@@ -36,10 +36,47 @@ using OpenFileFunction = HANDLE(WINAPI *)(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRI
 using CreateKeyFunction = LSTATUS(WINAPI *)(HKEY, LPCSTR, DWORD, LPSTR, DWORD, REGSAM, LPSECURITY_ATTRIBUTES, PHKEY,
                                             LPDWORD);
 using FindFileFunction = HANDLE(WINAPI *)(LPCSTR, LPWIN32_FIND_DATAA);
+using SemaphoreFunction = HANDLE(WINAPI *)(LPSECURITY_ATTRIBUTES, LONG, LONG, LPCSTR);
+SemaphoreFunction realSemaphore;
+HANDLE WINAPI CreatePrivateSemaphore(LPSECURITY_ATTRIBUTES security, LONG initial, LONG maximum, LPCSTR name)
+{
+    if (!name)
+        return realSemaphore(security, initial, maximum, nullptr);
+    HANDLE handle;
+    DWORD error;
+    {
+        auto isolated = "3DMMForever-Oracle-" + std::to_string(GetCurrentProcessId()) + '-' + name;
+        handle = realSemaphore(security, initial, maximum, isolated.c_str());
+        error = GetLastError();
+    }
+    SetLastError(error);
+    return handle;
+}
 RegQuery realRegQuery;
 OpenFileFunction realOpenFile;
 CreateKeyFunction realCreateKey;
+CreateKeyFunction shimCreateKey;
 FindFileFunction realFindFile;
+struct FrameObservation
+{
+    int scene, frame, first, last;
+    std::uint64_t nanoseconds;
+};
+std::vector<FrameObservation> frameTrace;
+bool traceOverflow = false;
+DWORD *traceSlot = nullptr;
+using TimelineUpdate = void(__thiscall *)(void *);
+TimelineUpdate realTimelineUpdate;
+struct SoundObservation
+{
+    DWORD type, number, start;
+    int queue, volume, plays, priority, category, scene, frame;
+};
+std::vector<SoundObservation> soundTrace;
+DWORD *soundSlot = nullptr;
+void *soundCache = nullptr;
+using PlaySound = int(__thiscall *)(void *, void *, DWORD, DWORD, int, int, int, DWORD, int, int);
+PlaySound realPlaySound;
 std::string Quote(const std::string &text)
 {
     std::ostringstream out;
@@ -196,13 +233,17 @@ std::string StateJSON()
     using ErrorCount = int(__thiscall *)(void *);
     const auto countErrors = reinterpret_cast<ErrorCount>(Read<DWORD>(Pointer(errors, 0), 8 * 4))(errors);
     void *background = Pointer(scene, 0x130);
-    out << "{\"backend\":\"retail-iso\",\"ui_thread\":" << GetCurrentThreadId()
-        << ",\"movie_scene_count\":" << Read<int>(movie, 0x14c) << ",\"movie_scene\":" << Read<int>(movie, 0x150)
-        << ",\"scene_number\":" << Read<int>(movie, 0x150) + 1 << ",\"scene_frame\":" << frame
-        << ",\"scene_first_frame\":" << first << ",\"scene_last_frame\":" << Read<int>(scene, 0xc)
-        << ",\"frame_number\":" << frame - first + 1
+    auto sound = FindObject(SoundManagerVtable, soundCache);
+    using Playing = int(__thiscall *)(void *, int, int);
+    auto playing = reinterpret_cast<Playing>(Read<DWORD>(Pointer(sound, 0), 18 * 4));
+    bool soundPlaying = playing(sound, -1, 0) || playing(sound, -1, 1) || playing(sound, -1, 2);
+    out << "{\"backend\":\"" << (config.profile ? "v3dmm-014-us" : "retail-iso")
+        << "\",\"ui_thread\":" << GetCurrentThreadId() << ",\"movie_scene_count\":" << Read<int>(movie, 0x14c)
+        << ",\"movie_scene\":" << Read<int>(movie, 0x150) << ",\"scene_number\":" << Read<int>(movie, 0x150) + 1
+        << ",\"scene_frame\":" << frame << ",\"scene_first_frame\":" << first
+        << ",\"scene_last_frame\":" << Read<int>(scene, 0xc) << ",\"frame_number\":" << frame - first + 1
         << ",\"movie_playing\":" << ((Read<DWORD>(movie, 0x154) & 4) ? "true" : "false")
-        << ",\"error_stack_depth\":" << countErrors
+        << ",\"error_stack_depth\":" << countErrors << ",\"movie_sound_playing\":" << (soundPlaying ? "true" : "false")
         << ",\"scene_camera\":" << (background ? Read<int>(background, 0x30) : -1)
         << ",\"scene_camera_count\":" << (background ? Read<int>(background, 0x2c) : 0)
         << ",\"scene_actor_count\":" << Count(Pointer(scene, 0x120))
@@ -215,6 +256,11 @@ LSTATUS WINAPI QueryRegistry(HKEY key, LPCSTR value, LPDWORD reserved, LPDWORD t
 {
     if (value && (!_stricmp(value, "InstallDirectory") || !_stricmp(value, "HomeDirectory")))
     {
+        if (config.profile)
+        {
+            ++registryRedirects;
+            return realRegQuery(key, value, reserved, type, data, bytes);
+        }
         if (!bytes)
             return ERROR_INVALID_PARAMETER;
         const char *text = !_stricmp(value, "HomeDirectory") ? homePath : rootPath;
@@ -241,8 +287,9 @@ LSTATUS WINAPI QueryRegistry(HKEY key, LPCSTR value, LPDWORD reserved, LPDWORD t
 LSTATUS WINAPI CreateUserKey(HKEY key, LPCSTR subkey, DWORD reserved, LPSTR cls, DWORD options, REGSAM access,
                              LPSECURITY_ATTRIBUTES security, PHKEY result, LPDWORD disposition)
 {
-    return realCreateKey(key == HKEY_CURRENT_USER ? privateUserRoot : key, subkey, reserved, cls, options, access,
-                         security, result, disposition);
+    return (shimCreateKey ? shimCreateKey : realCreateKey)(key == HKEY_CURRENT_USER ? privateUserRoot : key, subkey,
+                                                           reserved, cls, options, access, security, result,
+                                                           disposition);
 }
 HANDLE WINAPI FindFileTracked(LPCSTR path, LPWIN32_FIND_DATAA data)
 {
@@ -368,8 +415,132 @@ void Refresh(void *movie, bool render)
     InvalidateRect(MainWindow(), nullptr, FALSE);
     UpdateWindow(MainWindow());
 }
+void __fastcall ObserveTimeline(void *mcc, void *)
+{
+    // Same commit point as SDL's DisplayFrame: immediately before the original
+    // timeline callback, followed by the movie's queued sound dispatch.
+    try
+    {
+        auto movie = Movie();
+        auto scene = Scene(movie);
+        const int index = Read<int>(movie, 0x150), frame = Read<int>(scene, 8);
+        if ((Read<DWORD>(movie, 0x154) & 4) &&
+            (frameTrace.empty() || frameTrace.back().scene != index || frameTrace.back().frame != frame))
+        {
+            LARGE_INTEGER now, frequency;
+            QueryPerformanceCounter(&now);
+            QueryPerformanceFrequency(&frequency);
+            if (frameTrace.size() == 100000)
+                traceOverflow = true;
+            else
+                frameTrace.push_back(
+                    {index, frame, Read<int>(scene, 0x10), Read<int>(scene, 0xc),
+                     std::uint64_t(now.QuadPart / frequency.QuadPart) * 1000000000 +
+                         std::uint64_t(now.QuadPart % frequency.QuadPart) * 1000000000 / frequency.QuadPart});
+        }
+    }
+    catch (...)
+    {
+        traceOverflow = true;
+    }
+    realTimelineUpdate(mcc);
+}
+int __fastcall ObserveSound(void *device, void *, void *resource, DWORD type, DWORD number, int queue, int volume,
+                            int plays, DWORD start, int priority, int category)
+{
+    try
+    {
+        auto movie = Movie();
+        auto scene = Scene(movie);
+        if (soundTrace.size() == 10000)
+            traceOverflow = true;
+        else
+            soundTrace.push_back({type, number, start, queue, volume, plays, priority, category,
+                                  Read<int>(movie, 0x150), Read<int>(scene, 8)});
+    }
+    catch (...)
+    {
+        traceOverflow = true;
+    }
+    return realPlaySound(device, resource, type, number, queue, volume, plays, start, priority, category);
+}
+void TraceHook(bool enable)
+{
+    if (enable && traceSlot)
+        throw std::runtime_error("trace_already_active");
+    if (enable)
+    {
+        auto sound = FindObject(SoundManagerVtable, soundCache);
+        using StopAll = void(__thiscall *)(void *, int, int);
+        reinterpret_cast<StopAll>(Read<DWORD>(Pointer(sound, 0), 12 * 4))(sound, -1, -1);
+        auto mcc = Pointer(Movie(), 0x194);
+        traceSlot = static_cast<DWORD *>(Pointer(mcc, 0)) + 11;
+        realTimelineUpdate = reinterpret_cast<TimelineUpdate>(*traceSlot);
+        frameTrace.clear();
+        frameTrace.reserve(100000);
+        traceOverflow = false;
+        soundSlot = static_cast<DWORD *>(Pointer(sound, 0)) + 10;
+        realPlaySound = reinterpret_cast<PlaySound>(*soundSlot);
+        soundTrace.clear();
+        soundTrace.reserve(10000);
+    }
+    if (traceSlot)
+    {
+        DWORD protection;
+        if (!VirtualProtect(traceSlot, 4, PAGE_READWRITE, &protection))
+            throw std::runtime_error("cannot_set_trace_observer");
+        *traceSlot = enable ? reinterpret_cast<DWORD>(&ObserveTimeline) : reinterpret_cast<DWORD>(realTimelineUpdate);
+        VirtualProtect(traceSlot, 4, protection, &protection);
+        if (!enable)
+            traceSlot = nullptr;
+    }
+    if (soundSlot)
+    {
+        DWORD protection;
+        if (!VirtualProtect(soundSlot, 4, PAGE_READWRITE, &protection))
+            throw std::runtime_error("cannot_set_sound_observer");
+        *soundSlot = enable ? reinterpret_cast<DWORD>(&ObserveSound) : reinterpret_cast<DWORD>(realPlaySound);
+        VirtualProtect(soundSlot, 4, protection, &protection);
+        if (!enable)
+            soundSlot = nullptr;
+    }
+}
 std::string Process(const Request &job)
 {
+    if (job.operation == TraceBegin)
+    {
+        if (Read<DWORD>(Movie(), 0x154) & 4)
+            throw std::runtime_error("cannot_arm_trace_during_playback");
+        TraceHook(true);
+        return "{\"armed\":true}";
+    }
+    if (job.operation == TraceEnd)
+    {
+        TraceHook(false);
+        std::ostringstream out;
+        out << "{\"overflow\":" << (traceOverflow ? "true" : "false") << ",\"frames\":[";
+        for (unsigned i = 0; i < frameTrace.size(); ++i)
+        {
+            if (i)
+                out << ',';
+            const auto &frame = frameTrace[i];
+            out << "{\"scene\":" << frame.scene << ",\"frame\":" << frame.frame << ",\"first\":" << frame.first
+                << ",\"last\":" << frame.last << ",\"monotonic_ns\":" << frame.nanoseconds << '}';
+        }
+        out << "],\"sounds\":[";
+        for (unsigned i = 0; i < soundTrace.size(); ++i)
+        {
+            if (i)
+                out << ',';
+            const auto &sound = soundTrace[i];
+            out << "{\"type\":" << sound.type << ",\"number\":" << sound.number << ",\"queue\":" << sound.queue
+                << ",\"volume\":" << sound.volume << ",\"plays\":" << sound.plays << ",\"start\":" << sound.start
+                << ",\"priority\":" << sound.priority << ",\"category\":" << sound.category
+                << ",\"scene\":" << sound.scene << ",\"frame\":" << sound.frame << '}';
+        }
+        out << "]}";
+        return out.str();
+    }
     if (job.operation == State)
         return StateJSON();
     if (job.operation == Capture)
@@ -465,7 +636,8 @@ std::string HelloJSON()
 {
     std::ostringstream out;
     out << "{\"ok\":true,\"result\":{\"protocol\":1,\"pid\":" << GetCurrentProcessId() << ",\"exe_sha256\":\""
-        << ExeSHA256 << "\",\"content_root\":" << Quote(AnsiUtf8(rootPath))
+        << (config.profile ? V3dmmSHA256 : ExeSHA256) << "\",\"backend\":\""
+        << (config.profile ? "v3dmm-014-us" : "retail-iso") << "\",\"content_root\":" << Quote(AnsiUtf8(rootPath))
         << ",\"render_policy\":\"windowed, better quality, textures, no wireframe\""
         << ",\"registry_redirects\":" << registryRedirects.load() << ",\"opened_assets\":[";
     EnterCriticalSection(&filesLock);
@@ -489,7 +661,39 @@ std::string HelloJSON()
         out << Quote(AnsiUtf8(path));
     }
     LeaveCriticalSection(&filesLock);
-    out << "]}}";
+    out << "],\"search_paths\":[";
+    if (config.profile)
+    {
+        using Paths = char **(__cdecl *)();
+        using Free = void(__cdecl *)(void *);
+        const auto physics = GetModuleHandleW(L"physfs.dll");
+        auto paths = reinterpret_cast<Paths>(GetProcAddress(physics, "PHYSFS_getSearchPath"))();
+        for (unsigned i = 0; paths && paths[i]; ++i)
+        {
+            if (i)
+                out << ',';
+            out << Quote(AnsiUtf8(paths[i]));
+        }
+        reinterpret_cast<Free>(GetProcAddress(physics, "PHYSFS_freeList"))(paths);
+    }
+    out << "],\"runtime_modules\":{";
+    if (config.profile)
+    {
+        bool first = true;
+        for (const wchar_t *name :
+             {L"VFS.dll", L"physfs.dll", L"msvcr71.dll", L"zlib1.dll", L"libpng13.dll", L"libcurl.dll"})
+        {
+            wchar_t path[MAX_PATH]{};
+            auto loaded = GetModuleHandleW(name);
+            if (loaded)
+                GetModuleFileNameW(loaded, path, MAX_PATH);
+            if (!first)
+                out << ',';
+            first = false;
+            out << Quote(Utf8(name)) << ':' << (loaded ? Quote(Utf8(path)) : "null");
+        }
+    }
+    out << "}}}";
     return out.str();
 }
 DWORD WINAPI PipeThread(void *)
@@ -550,8 +754,9 @@ extern "C" __declspec(dllexport) DWORD WINAPI OracleStart(void *argument)
     base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
     const auto dos = reinterpret_cast<IMAGE_DOS_HEADER *>(base);
     const auto pe = reinterpret_cast<IMAGE_NT_HEADERS32 *>(base + dos->e_lfanew);
-    if (config.magic != Magic || config.version != Version || pe->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 ||
-        pe->FileHeader.TimeDateStamp != ExeTimestamp || *reinterpret_cast<BYTE *>(base + GotoFrame) != 0x83)
+    if (config.magic != Magic || config.version != ConfigVersion || config.profile > 1 ||
+        pe->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 || pe->FileHeader.TimeDateStamp != ExeTimestamp ||
+        *reinterpret_cast<BYTE *>(base + GotoFrame) != 0x83)
         return 11;
     InitializeCriticalSection(&filesLock);
     BOOL substituted = FALSE;
@@ -565,6 +770,21 @@ extern "C" __declspec(dllexport) DWORD WINAPI OracleStart(void *argument)
         reinterpret_cast<CreateKeyFunction>(GetProcAddress(GetModuleHandleW(L"advapi32.dll"), "RegCreateKeyExA"));
     realFindFile =
         reinterpret_cast<FindFileFunction>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "FindFirstFileA"));
+    realSemaphore =
+        reinterpret_cast<SemaphoreFunction>(GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "CreateSemaphoreA"));
+    if (config.profile)
+    {
+        const auto vfs = GetModuleHandleW(L"VFS.dll");
+        if (!vfs || !GetModuleHandleW(L"physfs.dll"))
+            return 19;
+        realRegQuery = reinterpret_cast<RegQuery>(GetProcAddress(vfs, "VegQueryValueExA"));
+        realOpenFile = reinterpret_cast<OpenFileFunction>(GetProcAddress(vfs, "ZreateFileA"));
+        realFindFile = reinterpret_cast<FindFileFunction>(GetProcAddress(vfs, "ZindFirstFileA"));
+        shimCreateKey = reinterpret_cast<CreateKeyFunction>(GetProcAddress(vfs, "VegCreateKeyExA"));
+        realSemaphore = reinterpret_cast<SemaphoreFunction>(GetProcAddress(vfs, "ZreateSemaphoreA"));
+        if (!realRegQuery || !realOpenFile || !realFindFile || !shimCreateKey)
+            return 20;
+    }
     char privateKey[160];
     sprintf_s(privateKey, "Software\\3DMMForever\\RetailOracle\\Run-%lu", GetCurrentProcessId());
     if (realCreateKey(HKEY_CURRENT_USER, privateKey, 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &privateUserRoot,
@@ -594,8 +814,10 @@ extern "C" __declspec(dllexport) DWORD WINAPI OracleStart(void *argument)
     CreateDirectoryA(homePath, nullptr);
     if (!PatchImport(reinterpret_cast<void *>(realRegQuery), reinterpret_cast<void *>(&QueryRegistry)) ||
         !PatchImport(reinterpret_cast<void *>(realOpenFile), reinterpret_cast<void *>(&CreateFileTracked)) ||
-        !PatchImport(reinterpret_cast<void *>(realCreateKey), reinterpret_cast<void *>(&CreateUserKey)) ||
-        !PatchImport(reinterpret_cast<void *>(realFindFile), reinterpret_cast<void *>(&FindFileTracked)))
+        !PatchImport(reinterpret_cast<void *>(shimCreateKey ? shimCreateKey : realCreateKey),
+                     reinterpret_cast<void *>(&CreateUserKey)) ||
+        !PatchImport(reinterpret_cast<void *>(realFindFile), reinterpret_cast<void *>(&FindFileTracked)) ||
+        !PatchImport(reinterpret_cast<void *>(realSemaphore), reinterpret_cast<void *>(&CreatePrivateSemaphore)))
         return 13;
     done = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!done)

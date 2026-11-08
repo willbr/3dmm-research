@@ -3121,6 +3121,10 @@ the ordinary-speed movie workflow's camera, actor, texture and save/reopen check
 
 ### Original ISO retail regression oracle
 
+The same bridge now supports an [original v3dmm profile and audio comparison
+passes](v3dmm-oracle.md), including sound-request traces and per-process
+wave/MIDI recordings. Stock retail comparisons remain the default.
+
 `tools/retail_oracle` is a separate Windows x86 test bridge for the original
 `3DMOVIE.EXE` extracted from the retail ISO. It rejects any EXE whose SHA256 is
 not `cc7c05cd4b63c0d1f2a0cee6fed86d85bd9f54e35952818f412f128425b2bca5`.
@@ -3204,8 +3208,10 @@ Supported tools are `get_state`, `seek_movie`, `screenshot`, `wait_ms` and
 `send_command`. The latter queues an untargeted original Kauai command with
 `cid` and `lw0` through `lw3`; tests must observe the resulting state to prove it
 executed. Targeted HID dispatch, direct textbox/material inspection, dialog
-automation, save/reopen and audio sample comparison are not yet implemented in
-the retail profile. Scrolling-caption timing, recording and authoring therefore
+automation and save/reopen are not yet implemented in the MCP frontend.
+The CLI now provides [normal-playback sound/PCM comparison](v3dmm-oracle.md)
+with `--audio required`, including for the stock retail profile.
+Scrolling-caption timing, recording and authoring therefore
 need additional scenarios; this bridge is the foundation for those comparisons,
 not evidence that all original workflows have already passed.
 

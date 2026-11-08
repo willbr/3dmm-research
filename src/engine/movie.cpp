@@ -4231,6 +4231,10 @@ bool Movie::FCmdRender(PCommand pcmd)
             break;
         case MoviePlaybackCommandKind::DisplayFrame:
             MarkViews();
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+            if (_playbackFrameObserver)
+                _playbackFrameObserver(this);
+#endif
             _pmcc->UpdateScrollbars();
             if (FSoundsEnabled())
                 _pmsq->PlayMsq();

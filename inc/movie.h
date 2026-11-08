@@ -599,6 +599,7 @@ class Movie : public Movie_PAR
     LegacyUlong _timUserPause = 0;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     MoviePlaybackTestProgress _playbackTest;
+    void (*_playbackFrameObserver)(Movie *) = nullptr;
     void _RecordPlaybackTestFrame();
     void _FinishPlaybackTest();
 #endif
@@ -838,6 +839,12 @@ class Movie : public Movie_PAR
     {
         return _container && _container->Commit();
     }
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    void ObservePlaybackFrames(void (*observer)(Movie *))
+    {
+        _playbackFrameObserver = observer;
+    }
+#endif
     PDocumentMDIWindow PdmdNew(void);                       // Do not use!
     bool FGetFniSave(Filename *pfni);              // For saving via the portfolio.
 

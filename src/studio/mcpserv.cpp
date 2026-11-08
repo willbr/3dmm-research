@@ -1541,6 +1541,9 @@ static JVal Tool_GetState(const JVal &args)
     o.Set("scene_frame", JVal::MkInt(scene ? scene->Nfrm() : 0));
     o.Set("scene_first_frame", JVal::MkInt(scene ? scene->NfrmFirst() : 0));
     o.Set("scene_last_frame", JVal::MkInt(scene ? scene->NfrmLast() : 0));
+    o.Set("movie_sound_playing",
+          JVal::MkBool(vpsndm && (vpsndm->FPlayingAll(sqnNil, 0) || vpsndm->FPlayingAll(sqnNil, 1) ||
+                                  vpsndm->FPlayingAll(sqnNil, 2))));
     JVal captions = JVal::MkArr();
     for (long index = 0; scene && index < scene->Ctbox(); ++index)
     {
@@ -1738,6 +1741,120 @@ static JVal Tool_GetState(const JVal &args)
 
 // --- wait_ms -------------------------------------------------------------
 
+struct ObservedPlaybackFrame
+{
+    long scene, frame, first, last;
+    std::uint64_t nanoseconds;
+};
+static std::vector<ObservedPlaybackFrame> playbackFrames;
+static bool playbackTraceOverflow = false;
+static Movie *observedMovie = nullptr;
+struct ObservedSound
+{
+    ChunkTagOrType type;
+    ChunkNumber number;
+    LegacyLong queue, volume, plays;
+    LegacyUlong start;
+    LegacyLong priority, category;
+    long scene, frame;
+};
+static std::vector<ObservedSound> playbackSounds;
+static void ObserveSoundPlay(ChunkTagOrType type, ChunkNumber number, LegacyLong queue, LegacyLong volume,
+                             LegacyLong plays, LegacyUlong start, LegacyLong priority, LegacyLong category)
+{
+    auto studio = vpapp ? vpapp->Pstdio() : nullptr;
+    if (!observedMovie || !studio || studio->Pmvie() != observedMovie || !observedMovie->Pscen())
+    {
+        playbackTraceOverflow = true;
+        return;
+    }
+    if (playbackSounds.size() == 10000)
+    {
+        playbackTraceOverflow = true;
+        return;
+    }
+    playbackSounds.push_back({type, number, queue, volume, plays, start, priority, category, observedMovie->Iscen(),
+                              observedMovie->Pscen()->Nfrm()});
+}
+static void ObservePlaybackFrame(Movie *movie)
+{
+    auto scene = movie->Pscen();
+    if (!scene || !movie->FPlaying())
+        return;
+    if (!playbackFrames.empty() && playbackFrames.back().scene == movie->Iscen() &&
+        playbackFrames.back().frame == scene->Nfrm())
+        return;
+    if (playbackFrames.size() == 100000)
+    {
+        playbackTraceOverflow = true;
+        return;
+    }
+    auto now = std::chrono::steady_clock::now().time_since_epoch();
+    playbackFrames.push_back({movie->Iscen(), scene->Nfrm(), scene->NfrmFirst(), scene->NfrmLast(),
+                              std::uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count())});
+}
+static JVal Tool_PlaybackTrace(const JVal &args)
+{
+    auto enabled = std::getenv("THREEDMM_BATCH_TEST");
+    if (!enabled || std::strcmp(enabled, "1"))
+        return ContentError("Requires THREEDMM_BATCH_TEST=1");
+    auto studio = vpapp->Pstdio();
+    auto movie = studio ? studio->Pmvie() : nullptr;
+    if (!movie)
+        return ContentError("No movie is open");
+    auto action = args.Get("action");
+    if (!action || (action->AsStr() != "begin" && action->AsStr() != "end"))
+        return ContentError("action must be begin or end");
+    if (action->AsStr() == "begin")
+    {
+        if (movie->FPlaying())
+            return ContentError("Cannot arm trace during playback");
+        vpsndm->StopAll(); // Remove pre-existing previews/UI voices before the playback pass.
+        playbackFrames.clear();
+        playbackFrames.reserve(100000);
+        playbackTraceOverflow = false;
+        playbackSounds.clear();
+        playbackSounds.reserve(10000);
+        observedMovie = movie;
+        vpsndm->ObservePlays(ObserveSoundPlay);
+        movie->ObservePlaybackFrames(ObservePlaybackFrame);
+        return ContentText("armed");
+    }
+    movie->ObservePlaybackFrames(nullptr);
+    vpsndm->ObservePlays(nullptr);
+    observedMovie = nullptr;
+    JVal result = JVal::MkObj(), frames = JVal::MkArr();
+    result.Set("overflow", JVal::MkBool(playbackTraceOverflow));
+    for (const auto &frame : playbackFrames)
+    {
+        JVal entry = JVal::MkObj();
+        entry.Set("scene", JVal::MkInt(frame.scene));
+        entry.Set("frame", JVal::MkInt(frame.frame));
+        entry.Set("first", JVal::MkInt(frame.first));
+        entry.Set("last", JVal::MkInt(frame.last));
+        entry.Set("monotonic_ns", JVal::MkInt(frame.nanoseconds));
+        frames.a->push_back(std::move(entry));
+    }
+    result.Set("frames", std::move(frames));
+    JVal sounds = JVal::MkArr();
+    for (const auto &sound : playbackSounds)
+    {
+        JVal entry = JVal::MkObj();
+        entry.Set("type", JVal::MkInt(sound.type));
+        entry.Set("number", JVal::MkInt(sound.number));
+        entry.Set("queue", JVal::MkInt(sound.queue));
+        entry.Set("volume", JVal::MkInt(sound.volume));
+        entry.Set("plays", JVal::MkInt(sound.plays));
+        entry.Set("start", JVal::MkInt(sound.start));
+        entry.Set("priority", JVal::MkInt(sound.priority));
+        entry.Set("category", JVal::MkInt(sound.category));
+        entry.Set("scene", JVal::MkInt(sound.scene));
+        entry.Set("frame", JVal::MkInt(sound.frame));
+        sounds.a->push_back(std::move(entry));
+    }
+    result.Set("sounds", std::move(sounds));
+    return _WrapInfoAsContent(result);
+}
 static JVal Tool_SeekMovie(const JVal &args)
 {
     const auto enabled = std::getenv("THREEDMM_BATCH_TEST");
@@ -2247,6 +2364,10 @@ static const ToolDef kTools[] = {
      "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\"},\"max_frames\":{\"type\":\"integer\"},"
      "\"max_ms\":{\"type\":\"integer\"}},\"additionalProperties\":false}",
      &Tool_TestMoviePlayback, false},
+    {"playback_trace", "Observe normal playback frame commits and monotonic timestamps; isolated test processes only.",
+     "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"begin\",\"end\"]}},\"required\":"
+     "[\"action\"]}",
+     &Tool_PlaybackTrace, false},
     {"seek_movie", "Seek using one-based scene/frame UI numbers and return the engine's actual success status.",
      "{\"type\":\"object\",\"properties\":{\"scene\":{\"type\":\"integer\"},\"frame\":{\"type\":\"integer\"}},"
      "\"required\":[\"scene\",\"frame\"],\"additionalProperties\":false}",

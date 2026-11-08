@@ -323,6 +323,10 @@ LegacyLong SoundManager::VlmCur(void)
 ***************************************************************************/
 LegacyLong SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
 {
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    if (_playObserver)
+        _playObserver(ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
+#endif
     AssertThis(0);
     AssertPo(prca, 0);
     SNDMPE sndmpe;

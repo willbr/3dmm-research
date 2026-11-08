@@ -78,6 +78,10 @@ class SoundManager : public SoundManager_PAR
     MARKMEM
 
   protected:
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    void (*_playObserver)(ChunkTagOrType, ChunkNumber, LegacyLong, LegacyLong, LegacyLong, LegacyUlong, LegacyLong,
+                          LegacyLong) = nullptr;
+#endif
     struct SNDMPE
     {
         ChunkTagOrType ctg;
@@ -96,6 +100,13 @@ class SoundManager : public SoundManager_PAR
     bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe = pvNil);
 
   public:
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+    void ObservePlays(void (*observer)(ChunkTagOrType, ChunkNumber, LegacyLong, LegacyLong, LegacyLong, LegacyUlong,
+                                       LegacyLong, LegacyLong))
+    {
+        _playObserver = observer;
+    }
+#endif
     static PSoundManager PsndmNew(void);
     ~SoundManager(void);
 

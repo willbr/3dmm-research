@@ -154,9 +154,11 @@ int wmain(int argc, wchar_t **argv)
     PROCESS_INFORMATION child = {};
     try
     {
-        if (argc != 5)
-            throw std::runtime_error("Usage: retail-oracle-launch EXE DLL CONTENT_ROOT MOVIE");
-        Check(Hash(argv[1]) == ExeSHA256, "Unsupported EXE: expected the original ISO's SHA256");
+        if (argc != 5 && argc != 6)
+            throw std::runtime_error("Usage: retail-oracle-launch EXE DLL CONTENT_ROOT MOVIE [V3DMM_ENVIRONMENT]");
+        const bool v3dmm = argc == 6;
+        const char *expectedHash = v3dmm ? V3dmmSHA256 : ExeSHA256;
+        Check(Hash(argv[1]) == expectedHash, "Unsupported EXE hash for the selected oracle profile");
         const auto native = [](const wchar_t *path) {
             return std::filesystem::absolute(path).make_preferred().wstring();
         };
@@ -174,6 +176,13 @@ int wmain(int argc, wchar_t **argv)
         // Retail splits the document path at the final backslash itself.
         // Forward slashes otherwise accepted by Windows lose the directory.
         std::wstring command = L"\"" + executable + L"\" -m \"" + movie + L"\"";
+        if (v3dmm)
+        {
+            const auto environment = native(argv[5]);
+            Check(std::filesystem::is_regular_file(environment), "Missing v3dmm environment");
+            // Exact historical handoff expected by the unmodified VFS.dll.
+            command = L"\"" + executable + L"\" JONSPROWISGAY \"" + environment + L"\"";
+        }
         STARTUPINFOW startup = {};
         startup.cb = sizeof(startup);
         Check(CreateProcessW(executable.c_str(), &command[0], nullptr, nullptr, FALSE, DEBUG_ONLY_THIS_PROCESS, nullptr,
@@ -206,6 +215,7 @@ int wmain(int argc, wchar_t **argv)
         FreeLibrary(local);
         Config config;
         config.uiThread = child.dwThreadId;
+        config.profile = v3dmm ? 1 : 0;
         Check(root.size() < 260, "Content root is too long");
         wcscpy_s(config.contentRoot, root.c_str());
         Check(WriteProcessMemory(child.hProcess, memory, &config, sizeof(config), nullptr) != 0,
@@ -219,7 +229,8 @@ int wmain(int argc, wchar_t **argv)
         Check(GetProcessTimes(child.hProcess, &created, &exited, &kernel, &user) != 0, "Read process identity");
         std::cout << "{\"pid\":" << child.dwProcessId << ",\"thread\":" << child.dwThreadId
                   << ",\"created\":" << ((std::uint64_t(created.dwHighDateTime) << 32) | created.dwLowDateTime)
-                  << ",\"exe_sha256\":\"" << ExeSHA256 << "\"}" << std::endl;
+                  << ",\"exe_sha256\":\"" << expectedHash << "\",\"profile\":\""
+                  << (v3dmm ? "v3dmm-014-us" : "retail-iso") << "\"}" << std::endl;
         CloseHandle(child.hThread);
         CloseHandle(child.hProcess);
         return 0;

@@ -7,6 +7,7 @@ import time
 
 MAGIC = 0x314f5233
 EXE_SHA256 = 'cc7c05cd4b63c0d1f2a0cee6fed86d85bd9f54e35952818f412f128425b2bca5'
+V3DMM_SHA256 = 'bd1b7e6d81c23bfec5050887617e6cb4e85b375aa762c599b57fe0bec36af39f'
 
 
 class OracleError(RuntimeError):
@@ -14,7 +15,7 @@ class OracleError(RuntimeError):
 
 
 class RetailOracle:
-    def __init__(self, pid, timeout=20):
+    def __init__(self, pid, timeout=20, expected_hash=EXE_SHA256):
         self.pid, self.sequence = pid, 0
         pipe = r'\\.\pipe\3dmm-retail-oracle-' + str(pid)
         deadline = time.monotonic() + timeout
@@ -27,7 +28,7 @@ class RetailOracle:
                     raise OracleError('Retail pipe did not become available')
                 time.sleep(.1)
         self.identity = self.request(0)
-        if self.identity['pid'] != pid or self.identity['exe_sha256'] != EXE_SHA256:
+        if self.identity['pid'] != pid or self.identity['exe_sha256'] != expected_hash:
             self.close()
             raise OracleError('Retail bridge identity mismatch')
 

@@ -71,7 +71,8 @@ def delete_registry_tree(name):
 
 
 class RetailSession:
-    def __init__(self, build, product, source, artifacts, timeout=30):
+    def __init__(self, build, product, source, artifacts, timeout=30, *, executable=None, environment=None,
+                 expected_hash=EXE_SHA256):
         self.build, self.product = pathlib.Path(build).resolve(), pathlib.Path(product).resolve()
         self.source, self.artifacts = pathlib.Path(source).resolve(), pathlib.Path(artifacts).resolve()
         self.artifacts.mkdir(parents=True, exist_ok=True)
@@ -91,8 +92,11 @@ class RetailSession:
         self.k.WaitForSingleObject.argtypes = [w.HANDLE, w.DWORD]
         self.k.GetProcessTimes.argtypes = [w.HANDLE] + [ctypes.POINTER(w.FILETIME)] * 4
         try:
-            launch = subprocess.run([str(self.build / 'retail-oracle-launch.exe'), str(self.product / '3DMOVIE.EXE'),
-                str(self.build / 'retail-oracle.dll'), str(self.product.parent), str(self.movie)],
+            command = [str(self.build / 'retail-oracle-launch.exe'), str(executable or self.product / '3DMOVIE.EXE'),
+                str(self.build / 'retail-oracle.dll'), str(self.product.parent), str(self.movie)]
+            if environment:
+                command.append(str(environment))
+            launch = subprocess.run(command,
                 capture_output=True, text=True, timeout=50, creationflags=subprocess.CREATE_NO_WINDOW)
             (self.artifacts / 'bootstrap.log').write_text(launch.stderr, encoding='utf-8')
             if launch.returncode:
@@ -109,13 +113,18 @@ class RetailSession:
             if created != self.identity['created']:
                 raise OracleError('Retail process identity changed')
             self.verified = True
-            self.oracle = RetailOracle(self.identity['pid'], timeout)
+            self.oracle = RetailOracle(self.identity['pid'], timeout, expected_hash)
             deadline = time.monotonic() + timeout
             while True:
                 try:
                     self.oracle.state()
                     break
                 except OracleError as error:
+                    try:
+                        (self.artifacts / 'startup-provenance.json').write_text(
+                            json.dumps(self.oracle.hello(), indent=2), encoding='utf-8')
+                    except (OSError, OracleError):
+                        pass
                     if str(error) not in ('native_object_not_ready', 'scene_not_ready') or time.monotonic() > deadline:
                         raise
                     time.sleep(.1)
@@ -126,6 +135,8 @@ class RetailSession:
 
     def validate_assets(self):
         identity = self.oracle.hello()
+        if identity.get('backend') == 'v3dmm-014-us':
+            return identity # The v3dmm subclass validates virtual mounts and physical provenance.
         expected = self.product.parent
         if not identity['registry_redirects']:
             raise OracleError('Retail resource-path redirection was not exercised')

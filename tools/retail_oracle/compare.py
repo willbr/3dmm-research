@@ -8,6 +8,7 @@ import io
 import json
 import math
 import pathlib
+import platform
 import tempfile
 import time
 import uuid
@@ -21,14 +22,21 @@ from studio_movie_workflow import Studio
 
 
 class SDLSession:
-    def __init__(self, executable, iso, movie, output, cache):
+    def __init__(self, executable, iso, movie, output, cache, *, packs=None, pack_settings=None, audio=False):
         output.mkdir(parents=True, exist_ok=True)
         self.settings_run = uuid.uuid4().hex
+        settings = pathlib.Path(tempfile.gettempdir()) / '3dmmforever-settings' / self.settings_run
+        settings.mkdir(parents=True)
+        preferences = pack_settings or {key: {'generation': '', 'enabled': False, 'remove': False, 'source': sid}
+                                       for key, sid in (('nickelodeon', 3), ('doraemon', 4), ('frankie', 5))}
+        (settings / 'settings.ini').write_text('[User]\nExpansionPacks=' + json.dumps(json.dumps(preferences)) +
+            '\nSkipSplashScreen=1\n[User.Types]\nExpansionPacks=string\nSkipSplashScreen=number\n', encoding='utf-8')
         args = SimpleNamespace(exe=executable, content=output, artifacts=output,
             launch_arguments=['--iso', str(iso.resolve())], environment={
                 'THREEDMM_CONTENT_ROOT': None, 'THREEDMM_ISO': None, 'KAUAI_TEST_FAIL_FAST': None,
                 'THREEDMM_BATCH_TEST': '1', 'THREEDMM_CACHE_DIR': str(cache.resolve()),
-                'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'dummy', 'SDL_RENDER_DRIVER': 'software',
+                'SDL_VIDEODRIVER': 'dummy', 'SDL_AUDIODRIVER': 'wasapi' if audio else 'dummy', 'SDL_RENDER_DRIVER': 'software',
+                'THREEDMM_PACK_DIR': str((packs or output / 'packs').resolve()),
                 'KAUAI_TEST_SETTINGS_RUN': self.settings_run, 'KAUAI_SOUNDFONT': '', 'KAUAI_FONT_PATH': ''})
         self.studio = Studio(args, movie, 'runtime')
         self.output = output
@@ -109,12 +117,24 @@ def run(args):
               'max_different_pixels': args.max_different_pixels,
               'state_contract': 'scene facts, actor identity/visibility/template, visible action/cel/frame/event cursor/position',
               'position_tolerance': {'relative': 1e-6, 'absolute': 1e-4}, 'frames': []}
+    report['host'] = {'windows': platform.version(), 'machine': platform.machine(), 'python': platform.python_version()}
+    report['coverage'] = {'visual_mode': 'absolute seeks', 'requested_scenes': args.scenes, 'requested_frames': args.frames,
+                          'audio_mode': getattr(args, 'audio', 'skip')}
     retail, port = None, None
     started = time.monotonic()
+    frame_log = (output / 'frames.jsonl').open('x', encoding='utf-8')
+    checkpoint = started
     try:
-        retail = RetailSession(args.bridge, product, args.movie, output / 'retail')
+        if getattr(args, 'v3dmm', None):
+            from v3dmm import V3dmmSession
+            retail = V3dmmSession(args.bridge, product, args.movie, output / 'reference', args.v3dmm,
+                                  getattr(args, 'libraries', {}))
+            report['v3dmm'] = retail.manifest
+        else:
+            retail = RetailSession(args.bridge, product, args.movie, output / 'retail')
         report['retail_identity'] = retail.identity
-        port = SDLSession(args.sdl, args.iso, retail.movie, output / 'sdl', args.output / 'sdl-cache')
+        port = SDLSession(args.sdl, args.iso, getattr(retail, 'bundle', retail.movie), output / 'sdl', args.output / 'sdl-cache',
+                          packs=getattr(retail, 'pack_root', None), pack_settings=getattr(retail, 'pack_settings', None))
         initial = retail.state()
         scenes = range(1, initial['movie_scene_count'] + 1) if args.scenes == 'all' else [int(x) for x in args.scenes.split(',')]
         for scene in scenes:
@@ -149,18 +169,33 @@ def run(args):
                     item['status'] = 'different' if (item['pixels'].get('error') or
                         item['pixels']['different_pixels'] > args.max_different_pixels) else 'matched'
                 report['frames'].append(item)
+                frame_log.write(json.dumps(item) + '\n')
+                frame_log.flush()
                 report['counts'] = dict(Counter(frame['status'] for frame in report['frames']))
-                (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+                if time.monotonic() - checkpoint >= 2:
+                    (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+                    checkpoint = time.monotonic()
                 print('%s %s (%s pixels, %d state differences)' % (label, item['status'],
                       item['pixels'].get('different_pixels', 'unknown') if item['pixels']['comparable'] else 'not comparable',
                       len(item['state_differences'])), flush=True)
         report['retail_provenance'] = retail.validate_assets()
         report['status'] = ('different' if report['counts'].get('different') else
                             'shared_failure' if report['counts'].get('shared_failure') else 'matched')
+        report['audio'] = {'status': 'not_run'}
+        if getattr(args, 'audio', 'skip') == 'required':
+            from audio_compare import compare_playback
+            port.close(); port = None
+            reference = retail
+            retail.close(); retail = None
+            report['audio'] = compare_playback(args, reference, output / 'audio')
+            if hasattr(reference, 'validate_frozen'): reference.validate_frozen()
+            if report['audio']['status'] != 'matched':
+                report['status'] = 'error' if report['audio']['status'] == 'error' else 'different'
     except Exception as error:
         report['status'] = 'error'
         report['error'] = str(error)
     finally:
+        frame_log.close()
         for session in (port, retail):
             if session:
                 try:
@@ -192,7 +227,26 @@ def main():
     parser.add_argument('--frames', default='all', help='Inclusive UI frame range START:END, or all')
     parser.add_argument('--viewport', type=int, nargs=4, default=[45, 99, 594, 407])
     parser.add_argument('--max-different-pixels', type=int, default=0, help='Explicit pixel tolerance; state and native results must still match')
+    parser.add_argument('--v3dmm', type=pathlib.Path, help='Extracted original Virtual3DMM directory; select its hash-pinned reference profile')
+    parser.add_argument('--library', action='append', default=[], metavar='NAME=FOLDER', help='Prepared external library folder (copied privately for both engines)')
+    parser.add_argument('--audio', choices=('required', 'skip'), help='Defaults to required for v3dmm; capture normal playback in separate owned processes')
+    parser.add_argument('--audio-max-seconds', type=int, default=300, help='Maximum duration of each complete audio playback pass')
+    parser.add_argument('--audio-alignment-ms', type=float, default=0, help='Explicit allowance for one global PCM shift; no per-cue shifts or time warping')
+    parser.add_argument('--audio-sample-tolerance', type=int, default=0, help='Explicit signed-16-bit sample error allowance; default exact')
+    parser.add_argument('--frame-time-tolerance-ms', type=float, default=25, help='Continuous frame commit timing allowance relative to the first commit')
+    parser.add_argument('--audio-repeat-reference', action='store_true', help='Capture a second reference run to measure native repeatability before attributing PCM differences')
     args = parser.parse_args()
+    if not math.isfinite(args.frame_time_tolerance_ms) or not math.isfinite(args.audio_alignment_ms):
+        parser.error('Audio timing tolerances must be finite')
+    if args.audio is None: args.audio = 'required' if args.v3dmm else 'skip'
+    if not 1 <= args.audio_max_seconds <= 3595 or not 0 <= args.audio_alignment_ms <= 500 or not 0 <= args.audio_sample_tolerance <= 32767 or args.frame_time_tolerance_ms < 0:
+        parser.error('Invalid audio limit/tolerance')
+    args.libraries = {}
+    for library in args.library:
+        if '=' not in library:
+            parser.error('--library needs NAME=FOLDER')
+        name, path = library.split('=', 1)
+        args.libraries[name.lower()] = pathlib.Path(path)
     if args.max_different_pixels < 0:
         parser.error('Pixel tolerance cannot be negative')
     if not (0 <= args.viewport[0] < args.viewport[2] and 0 <= args.viewport[1] < args.viewport[3]):

@@ -94,8 +94,11 @@ prop authoring and Batman's 18 embedded packages. Actor state and viewport
 pixels match at the start of all 15 Batman scenes after native save/reopen.
 Native metadata inspection also covers CHASE's 595 dependencies, including
 591 embedded archives.
-Native macOS/Linux execution and differential playback against patched retail
-v3dmm remain to be validated. A Debug assertion (`utilint.cpp`, "long too big")
+The [original v3dmm oracle](v3dmm-oracle.md) now supplies Windows frame/state,
+sound-request and mixed-PCM comparisons. Its first complete Batman seek pass
+matched compared engine state on all 1,362 frames, with remaining pixel
+differences. Native macOS/Linux execution and complete audiovisual parity
+remain to be validated. A Debug assertion (`utilint.cpp`, "long too big")
 blocks the Batman first-scene end-frame seek, including when opening its inner
 chunky movie directly, so complete playback is not claimed. Crash recovery of
 bundled documents is not yet validated; private chunky autosaves are working
