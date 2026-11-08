@@ -425,6 +425,7 @@ struct View
             ImGui::EndPopup();
         }
 
+        const bool directoryChanged = listedDirectory != browser.directory;
         const bool changed = Dates();
         std::string navigate;
         pos(10, 55);
@@ -432,6 +433,8 @@ struct View
         ImGui::PushStyleColor(ImGuiCol_TableHeaderBg, ImVec4(1, 1, 1, 1));
         ImGui::PushStyleColor(ImGuiCol_TableBorderLight, ImVec4(.9f, .93f, 1, 1));
         ImGui::PushStyleColor(ImGuiCol_Header, ImGui::ColorConvertU32ToFloat4(ClassicDialog::Navy));
+        if (directoryChanged)
+            ImGui::SetNextWindowScroll(ImVec2(0, 0));
         if (ImGui::BeginTable("##files", details ? 2 : 1,
                               ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable | ImGuiTableFlags_BordersInnerV |
