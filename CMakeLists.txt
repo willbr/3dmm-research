@@ -1110,6 +1110,7 @@ add_custom_target(studio_build_stamp ALL
     BYPRODUCTS "${STUDIO_BUILD_STAMP_SRC}"
     COMMAND ${CMAKE_COMMAND}
         -DOUT=${STUDIO_BUILD_STAMP_SRC}
+        -DSOURCE_DIR=${PROJECT_SOURCE_DIR}
         -P ${PROJECT_SOURCE_DIR}/cmake/WriteBuildStamp.cmake
     COMMENT "Generating studio build stamp"
     VERBATIM

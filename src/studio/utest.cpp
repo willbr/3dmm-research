@@ -21,6 +21,7 @@
 #include "studio_content.h"
 #ifdef KAUAI_SDL3
 #include "studio_iso.h"
+#include <SDL3/SDL_misc.h>
 #endif
 #include "launch_context.h"
 #include "studio_product_names.h"
@@ -40,6 +41,9 @@
 #include "studio_shortcuts.h"
 #endif
 #include "studio.h"
+#if defined(WIN) && !defined(KAUAI_SDL3)
+#include <shellapi.h>
+#endif
 #include "studio_preferences.h"
 #include "studio_resources.h"
 #include "socres.h"
@@ -3615,11 +3619,8 @@ PMovie Application::_Pmvie(void)
 enum
 {
     iditOkInfo,
-    iditProductId,
+    iditBuildInfo,
     iditWindowModeInfo,
-#ifdef DEBUG
-    iditCactAV,
-#endif // DEBUG
     iditProductNameInfo,
     iditWireframeInfo,
     iditNoTextureInfo,
@@ -3636,7 +3637,6 @@ enum
 
 namespace
 {
-#ifdef KAUAI_SDL3
 struct OptionsEdits
 {
     LegacyLong renderItem = ivNil;
@@ -3649,11 +3649,25 @@ bool OptionsChanged(PDialog dialog, LegacyLong *item, void *context)
         edits.renderRequested = true;
     if (*item < 0)
         return false;
+    const char *url = nullptr;
+    if (*item == dialog->IditFromSit(IDC_INFO_ORIGINAL_REPO))
+        url = "https://github.com/microsoft/Microsoft-3D-Movie-Maker";
+    else if (*item == dialog->IditFromSit(IDC_INFO_FOREVER_REPO))
+        url = "https://github.com/foone/3DMMForever";
+    if (url)
+    {
+#ifdef KAUAI_SDL3
+        SDL_OpenURL(url);
+#elif defined(WIN)
+        // win_headers.h retains the original SDK declarations without CONST.
+        ShellExecuteA(vwig.hwndApp, "open", const_cast<char *>(url), nullptr, nullptr, SW_SHOWNORMAL);
+#endif
+        return false;
+    }
     DialogItem control;
     dialog->GetDit(*item, &control);
     return control.ditk == ditkButton;
 }
-#endif
 struct PreferenceBinding
 {
     PZString key;
@@ -3712,28 +3726,6 @@ void Application::_ApplyPreferences()
     }
 }
 
-#ifdef WIN
-
-/***************************************************************************
-    Useful function
-***************************************************************************/
-char *LoadGenResource(HINSTANCE hInst, LPCSTR lpResource, LPCSTR lpType)
-{
-    HRSRC hResource;
-    HGLOBAL hGbl;
-
-    hResource = FindResource(hInst, lpResource, lpType);
-
-    if (hResource == NULL)
-        return (NULL);
-
-    hGbl = LoadResource(hInst, hResource);
-
-    return (char *)LockResource(hGbl);
-}
-
-#endif
-
 /***************************************************************************
     Put up info dialog
 ***************************************************************************/
@@ -3749,12 +3741,8 @@ bool Application::FCmdInfo(PCommand pcmd)
 
     pmvie = _Pmvie();
 
-#ifdef KAUAI_SDL3
     OptionsEdits edits;
     pdlg = Dialog::PdlgNew(dlidInfo, OptionsChanged, &edits);
-#else
-    pdlg = Dialog::PdlgNew(dlidInfo, pvNil, pvNil);
-#endif
     if (pvNil == pdlg)
         return fTrue;
     KauaiDialogs::TabLayout tabs;
@@ -3774,7 +3762,8 @@ bool Application::FCmdInfo(PCommand pcmd)
          {IDC_ALLOW_MULTIPLE, IDC_SKIP_STARTUP, IDC_MUTE_STARTUP, IDC_STARTUP_GROUP, IDC_STARTUP_NOTICE}},
         {IDC_TAB_ABOUT,
          u"About",
-         {IDC_EDIT4, IDC_EDIT2, IDC_EDIT3, IDC_INFO_COPYRIGHT, IDC_INFO_PRODUCT_LABEL, IDC_INFO_DEBUG_LABEL}},
+         {IDC_EDIT4, IDC_EDIT2, IDC_INFO_COPYRIGHT, IDC_INFO_ORIGINAL_LABEL, IDC_INFO_FOREVER_LABEL,
+          IDC_INFO_ORIGINAL_REPO, IDC_INFO_FOREVER_REPO}},
     };
     if (!pdlg->FSetTabs(tabs))
     {
@@ -3787,7 +3776,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     edits.renderItem = iditRenderSizeInfo;
 #endif
 
-    GetStnAppName(&stn);
+    stn.SetSz(PszLit("3DMMForever"));
 #ifdef DEBUG
     stn.FAppendSz(PszLit(" (Debug)"));
 #endif // DEBUG
@@ -3795,36 +3784,13 @@ bool Application::FCmdInfo(PCommand pcmd)
     // an x64 build from an x86 build at a glance.
     achar architecture64[] = PszLit(" (64-bit)"), architecture32[] = PszLit(" (32-bit)");
     stn.FAppendSz(sizeof(void *) == 8 ? architecture64 : architecture32);
-    extern const char kszBuildStamp[]; // generated each build (cmake/WriteBuildStamp.cmake)
-    stnT.FFormatSz(PszLit(" %d.%d.%04d  built %z"), rmj, rmm, rup, kszBuildStamp);
+    extern const char kszBuildStamp[], kszGitCommit[]; // generated each build (cmake/WriteBuildStamp.cmake)
+    stnT.FFormatSz(PszLit("\r\nVersion %d.%d.%04d  built %z"), rmj, rmm, rup, kszBuildStamp);
     stn.FAppendStn(&stnT);
     pdlg->FPutStn(iditProductNameInfo, &stn);
 
-#ifdef WIN
-    LPSTR lpszPid;
-    char rgchPid[kcchMaxStn + 1];
-
-    lpszPid = (LPSTR)LoadGenResource(vwig.hinst, MAKEINTRESOURCE(RC_PID_NUMBER), RT_RCDATA);
-
-    if (lpszPid != pvNil)
-    {
-
-#define PID_RPC 128
-#define PID_SITE (PID_RPC + 5)
-#define PID_SERIAL (PID_SITE + 3)
-#define PID_RANDOM (PID_SERIAL + 7)
-
-        wsprintf(rgchPid, "%5.5s-%3.3s-%7.7s-%5.5s", lpszPid + PID_RPC, lpszPid + PID_SITE, lpszPid + PID_SERIAL,
-                 lpszPid + PID_RANDOM);
-
-        stn.SetSz(rgchPid);
-        pdlg->FPutStn(iditProductId, &stn);
-    }
-#endif
-
-#ifdef DEBUG
-    pdlg->FPutLwInEdit(iditCactAV, vcactAV);
-#endif // DEBUG
+    stn.FFormatSz(PszLit("Git commit: %z"), kszGitCommit);
+    pdlg->FPutStn(iditBuildInfo, &stn);
     pdlg->PutRadio(iditWindowModeInfo, _fRunInWindow ? 1 : 0);
     pdlg->PutCheck(iditWireframeInfo, World::RenderWireframe());
     pdlg->PutCheck(iditNoTextureInfo, World::NoTexture());
@@ -3959,30 +3925,6 @@ bool Application::FCmdInfo(PCommand pcmd)
     bool fSwitchRes = !_fRunInWindow;
 
     FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
-
-#ifdef DEBUG
-    {
-        bool fEmpty;
-        LegacyLong lwT;
-
-        if (pdlg->FGetLwFromEdit(iditCactAV, &lwT, &fEmpty) && !fEmpty)
-        {
-            if (lwT < 0)
-            {
-                Debugger();
-            }
-            else
-            {
-                vcactAV = lwT;
-                DBINFO dbinfo;
-
-                dbinfo.cactAV = vcactAV;
-                AssertDo(FGetSetRegKey(PszLit("DebugSettings"), &dbinfo, size(DBINFO), fregSetKey | fregBinary),
-                         "Couldn't save current debug settings in registry");
-            }
-        }
-    }
-#endif // DEBUG
 
     for (const auto &binding : kPreferences)
     {

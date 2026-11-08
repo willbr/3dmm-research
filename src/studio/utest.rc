@@ -179,15 +179,11 @@ CAPTION "Options"
 FONT 8, "MS Sans Serif"
 BEGIN
     DEFPUSHBUTTON   "OK",IDOK,232,237,50,14
-    EDITTEXT        IDC_EDIT4,25,125,300,12,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER
+    EDITTEXT        IDC_EDIT4,25,86,300,12,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER
     CONTROL         "Fullscreen",IDC_RADIO4,"Button",BS_AUTORADIOBUTTON | WS_GROUP,25,50,290,10
     CONTROL         "Run in Window",IDC_RADIO5,"Button",BS_AUTORADIOBUTTON,25,65,290,10
-#ifdef DEBUG
-    LTEXT           "cactAV:",IDC_INFO_DEBUG_LABEL,25,170,40,10
-    EDITTEXT        IDC_EDIT3,70,169,45,12,ES_AUTOHSCROLL
-#endif
-    LTEXT           "(c) and (p) 1995 Microsoft Corporation. All rights reserved.",IDC_INFO_COPYRIGHT,25,90,300,16
-    EDITTEXT        IDC_EDIT2,25,50,300,26,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
+    LTEXT           "Based on Microsoft 3D Movie Maker.\n(c) and (p) 1995 Microsoft Corporation. All rights reserved.\nSource code licensed under the MIT License.",IDC_INFO_COPYRIGHT,25,108,300,32
+    EDITTEXT        IDC_EDIT2,25,43,300,34,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
 #ifndef KAUAI_SDL3
     CONTROL         "Wireframe rendering",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,145,290,10
     CONTROL         "No textures",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,175,290,10
@@ -234,7 +230,10 @@ BEGIN
     GROUPBOX        "Editing",IDC_EDITING_GROUP,20,155,310,42
     GROUPBOX        "Startup",IDC_STARTUP_GROUP,20,38,310,80
     LTEXT           "Startup changes apply on your next launch.",IDC_STARTUP_NOTICE,25,130,290,20
-    LTEXT           "Product Identification Number:",IDC_INFO_PRODUCT_LABEL,25,110,290,10
+    LTEXT           "Original Microsoft source:",IDC_INFO_ORIGINAL_LABEL,25,150,300,10
+    PUSHBUTTON      "https://github.com/microsoft/Microsoft-3D-Movie-Maker",IDC_INFO_ORIGINAL_REPO,25,163,300,14
+    LTEXT           "3DMMForever repository:",IDC_INFO_FOREVER_LABEL,25,187,300,10
+    PUSHBUTTON      "https://github.com/foone/3DMMForever",IDC_INFO_FOREVER_REPO,25,200,300,14
 END
 
 dlidInitFailed DIALOG DISCARDABLE  0, 0, 187, 71

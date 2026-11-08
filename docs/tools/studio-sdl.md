@@ -190,8 +190,13 @@ AND/XOR cursors retain true-color compositing, including inverted colors.
 
 **Options** (Ctrl+Shift+I) keeps all settings in one window with **Display**,
 **Playback & sound**, **Startup** and **About** tabs. Switching tabs preserves
-pending edits. The optional patch-style preferences are grouped by purpose.
-All switches start off, preserving the existing defaults:
+pending edits. **About** identifies 3DMMForever, its version, build date and 12-character Git
+commit ID. Builds with tracked changes append **(modified)**; source archives
+without Git metadata show **unavailable (source archive)**. The original
+Microsoft source and foone's 3DMMForever repository have browser buttons.
+
+The optional patch-style preferences are grouped by purpose. All switches
+start off, preserving the existing defaults:
 
 - Allow multiple instances: bypass Windows' existing single-instance check.
   macOS/Linux already allow independent instances.
