@@ -3,6 +3,41 @@
 #include "soc_core.h"
 ASSERTNAME
 
+void MovieFramePacer::Reset(double rate)
+{
+    fps = rate;
+    fraction = 0;
+    pending = false;
+}
+
+void MovieFramePacer::Schedule(LegacyUlong frameStart)
+{
+    const double milliseconds = (fps > 0 ? 1000.0 / fps : 0) + fraction;
+    const auto delay = static_cast<LegacyUlong>(milliseconds);
+    fraction = milliseconds - delay;
+    due = frameStart + delay;
+    pending = true;
+}
+
+bool MovieFramePacer::TakeDue(LegacyUlong now)
+{
+    if (!pending || static_cast<std::int32_t>(now - due) < 0)
+        return false;
+    pending = false;
+    return true;
+}
+
+void MovieFramePacer::Pause(LegacyUlong now)
+{
+    pausedAt = now;
+}
+
+void MovieFramePacer::Resume(LegacyUlong now)
+{
+    if (pending)
+        due += now - pausedAt;
+}
+
 bool MoviePlaybackState::FShouldRender(bool tracking)
 {
     if (!idleSeen && !tracking)

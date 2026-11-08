@@ -196,6 +196,22 @@ without Git metadata show **unavailable (source archive)**. The original
 Microsoft source, foone's 3DMMForever repository and this port's
 `willbr/3dmm-research` repository have browser buttons.
 
+**Playback & sound** also has independent movie frame-rate and compatibility
+modifier controls. **Original** (the default) retains the inherited clock
+cadence; **6**, **12** and **24 FPS** set explicit target rates, and **Uncapped**
+removes the movie-frame delay. The documented 3dmmFPS conversions **Win98 -> XP
+(1.35805x)** and **XP -> Win98 (0.918485x)** multiply the chosen rate, with
+**Normal (1x)** as default. Original with a modifier uses the nominal 6 FPS
+base. Uncapped ignores the multiplier. These are historical conversion presets,
+not measured OS emulation; Win7+ still needs calibration in a VM or another PC.
+Choices save on OK, Cancel discards them, and take effect on the next playback.
+They change how quickly authored movie frames advance, without interpolation
+or changing audio pitch/rate. Sound synchronization can therefore change.
+Authored click/sound/timed pauses, scrolling and fades keep their ordinary
+timing, and Space pause retains the remaining movie-frame delay. Explicit rates
+use millisecond deadlines with fractional carry rather than the 60 Hz alarm's
+integer ticks; actual throughput remains limited by rendering and the event loop.
+
 The optional patch-style preferences are grouped by purpose. All switches
 start off, preserving the existing defaults:
 
@@ -226,7 +242,11 @@ and closing Options discard changes across every tab. These settings never
 become movie or asset data. `studio-options-workflow` covers dialog actions, defaults,
 independent startup sound, multiple instances, tab switching, cancellation of
 display and playback edits, reversible rendering and movie save/reopen with the
-preferences enabled.
+preferences enabled. It also exercises all explicit FPS choices, both speed
+modifiers, uncapped progress, Space pause/resume, Stop, saved timing choices and
+Cancel. Windows native and SDL builds and the headless workflow passed; timing
+arithmetic, timestamp wrap and preservation of authored pauses are covered by
+`engine-core-link`. No desktop window was opened or manipulated for these checks.
 
 Rendering controls preview immediately while Options is open: wireframe, flat
 shading, textures, actor pose and rendering resolution redraw the current scene.

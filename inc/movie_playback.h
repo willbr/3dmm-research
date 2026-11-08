@@ -11,8 +11,23 @@ const LegacyLong kPlaybackScrollTicks = 5;
 const LegacyLong kPlaybackFadeSeconds = 3;
 const LegacyLong kPlaybackFadeTicks = kdtimSecond / 4;
 
+// Movie-frame pacing only. Other alarms retain their authored timing. Negative
+// FPS selects the original clock; zero removes the frame delay, not pauses.
+struct MovieFramePacer
+{
+    double fps = -1, fraction = 0;
+    LegacyUlong due = 0, pausedAt = 0;
+    bool pending = false;
+    void Reset(double rate);
+    void Schedule(LegacyUlong frameStart);
+    bool TakeDue(LegacyUlong now);
+    void Pause(LegacyUlong now);
+    void Resume(LegacyUlong now);
+};
+
 struct MoviePlaybackState
 {
+    MovieFramePacer framePacer;
     bool unpaced = false; // Enabled only by the opt-in batch-test host.
     LegacyLong skippedClickPauses = 0, skippedTimedPauses = 0, skippedSoundPauses = 0;
     bool playing = false;

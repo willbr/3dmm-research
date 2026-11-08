@@ -3812,6 +3812,7 @@ void Movie::Play()
             reply.timestamp = TsCurrent();
             break;
         case MoviePlayCommandKind::StartClock:
+            _playback.framePacer.Reset(CurrentStudioPreferences().PlaybackFps());
             if (!_playback.unpaced)
                 _clok.Start(0);
             SetFPlaying(true);
@@ -3888,6 +3889,7 @@ void Movie::SetUserPaused(bool paused)
     _fUserPaused = paused;
     if (paused)
     {
+        _playback.framePacer.Pause(TsCurrent());
         _timUserPause = _clok.TimCur();
         _clok.Stop(); // Registered alarms keep their remaining movie-clock time.
         if (vpsndm)
@@ -3895,6 +3897,7 @@ void Movie::SetUserPaused(bool paused)
     }
     else
     {
+        _playback.framePacer.Resume(TsCurrent());
         if (vpsndm)
             vpsndm->ResumeAll();
         if (FPlaying())
@@ -3908,6 +3911,17 @@ void Movie::SetUserPaused(bool paused)
     }
     InvalViews();
 }
+void Movie::SetFIdleSeen(bool fIdle)
+{
+    _playback.idleSeen = fIdle;
+    if (fIdle && FPlaying() && !_fUserPaused && _playback.framePacer.TakeDue(TsCurrent()))
+    {
+        Command alarm = {};
+        alarm.cid = cidAlarm;
+        FCmdAlarm(&alarm); // Queue through the same fair handoff as clock alarms.
+    }
+}
+
 bool Movie::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
@@ -3988,6 +4002,7 @@ void Movie::_StopRenderPlayback(PMovieView view)
     Pmcc()->EnableAccel();
     _clok.Stop();
     _clok.RemoveCmh(this);
+    _playback.framePacer.pending = false;
     _playback.pausing = fFalse;
     _playback.scrolling = fFalse;
     _playback.wait = witNil;
@@ -4149,7 +4164,10 @@ bool Movie::FCmdRender(PCommand pcmd)
             reply.timestamp = TsCurrent();
             break;
         case MoviePlaybackCommandKind::SetAlarm:
-            reply.success = _playback.unpaced || _clok.FSetAlarm(command.value, this, 0, command.flag);
+            if (!_playback.unpaced && command.flag && _playback.framePacer.fps >= 0)
+                _playback.framePacer.Schedule(started);
+            else
+                reply.success = _playback.unpaced || _clok.FSetAlarm(command.value, this, 0, command.flag);
             break;
         case MoviePlaybackCommandKind::ReadPosition:
             Pscen()->Disable(fscenTboxes);

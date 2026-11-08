@@ -976,10 +976,7 @@ class Movie : public Movie_PAR
     {
         return &_clok;
     } // For getting the clock for playing
-    void SetFIdleSeen(bool fIdle)
-    {
-        _playback.idleSeen = fIdle;
-    }
+    void SetFIdleSeen(bool fIdle);
     bool FIdleSeen(void)
     {
         return _playback.idleSeen;

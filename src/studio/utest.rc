@@ -209,15 +209,23 @@ BEGIN
     CONTROL         "Skip startup screens",IDC_SKIP_STARTUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,76,290,10
     CONTROL         "Mute startup sound",IDC_MUTE_STARTUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,100,290,10
     CONTROL         "Mute studio interface sounds",IDC_MUTE_STUDIO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,52,290,10
-    CONTROL         "Play movies in the background",IDC_BACKGROUND_PLAYBACK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,76,290,10
-    CONTROL         "Use cuts instead of scene transitions",IDC_CUT_TRANSITIONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,100,290,10
-    CONTROL         "Disable playback audio fades",IDC_DISABLE_AUDIO_FADES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,124,290,10
+    CONTROL         "Play movies in the background",IDC_BACKGROUND_PLAYBACK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,68,290,10
+    CONTROL         "Use cuts instead of scene transitions",IDC_CUT_TRANSITIONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,84,290,10
+    CONTROL         "Disable playback audio fades",IDC_DISABLE_AUDIO_FADES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,100,290,10
+    CONTROL         "Original",IDC_PLAYBACK_ORIGINAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,25,135,60,10
+    CONTROL         "6 FPS",IDC_PLAYBACK_6,"Button",BS_AUTORADIOBUTTON,90,135,45,10
+    CONTROL         "12 FPS",IDC_PLAYBACK_12,"Button",BS_AUTORADIOBUTTON,140,135,45,10
+    CONTROL         "24 FPS",IDC_PLAYBACK_24,"Button",BS_AUTORADIOBUTTON,190,135,45,10
+    CONTROL         "Uncapped",IDC_PLAYBACK_UNCAPPED,"Button",BS_AUTORADIOBUTTON,245,135,75,10
+    CONTROL         "Normal (1x)",IDC_SPEED_NORMAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,25,151,290,10
+    CONTROL         "Win98 -> XP (1.35805x)",IDC_SPEED_98_TO_XP,"Button",BS_AUTORADIOBUTTON,25,167,290,10
+    CONTROL         "XP -> Win98 (0.918485x)",IDC_SPEED_XP_TO_98,"Button",BS_AUTORADIOBUTTON,25,183,290,10
 #ifdef KAUAI_SDL3
     CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,130,290,10
 #else
     CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,160,290,10
 #endif
-    CONTROL         "Keep normal keyboard repeat",IDC_NORMAL_KEY_REPEAT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,171,290,10
+    CONTROL         "Keep normal keyboard repeat",IDC_NORMAL_KEY_REPEAT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,209,290,10
     PUSHBUTTON      "Cancel",IDCANCEL,290,237,50,14
     GROUPBOX        "Display",IDC_DISPLAY_GROUP,20,37,310,58
 #ifdef KAUAI_SDL3
@@ -226,8 +234,9 @@ BEGIN
     GROUPBOX        "Performance",IDC_PERFORMANCE_GROUP,20,100,310,28
     GROUPBOX        "Rendering",IDC_RENDERING_GROUP,20,133,310,88
 #endif
-    GROUPBOX        "Playback and sound",IDC_PLAYBACK_GROUP,20,38,310,105
-    GROUPBOX        "Editing",IDC_EDITING_GROUP,20,155,310,42
+    GROUPBOX        "Playback and sound",IDC_PLAYBACK_GROUP,20,38,310,72
+    GROUPBOX        "Movie frame rate and compatibility modifier",IDC_TIMING_GROUP,20,116,310,82
+    GROUPBOX        "Editing",IDC_EDITING_GROUP,20,201,310,20
     GROUPBOX        "Startup",IDC_STARTUP_GROUP,20,38,310,80
     LTEXT           "Startup changes apply on your next launch.",IDC_STARTUP_NOTICE,25,130,290,20
     LTEXT           "Original Microsoft source:",IDC_INFO_ORIGINAL_LABEL,25,136,300,10

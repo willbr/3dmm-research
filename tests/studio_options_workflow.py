@@ -12,7 +12,7 @@ import time
 import uuid
 from types import SimpleNamespace
 from studio_movie_workflow import Studio, signature
-from studio_movie_only_workflow import remove_settings, wait
+from studio_movie_only_workflow import remove_settings, wait, play
 from mcp_png_test import decode_png
 
 
@@ -160,6 +160,52 @@ def check_save_directory(studio):
     close_options(studio, current, 2)
 
 
+def timing(studio, rate, modifier, accept=True):
+    current = select_tab(studio, options(studio), 1044)
+    click(studio, current, 1062 + rate)
+    click(studio, current, 1067 + modifier)
+    return close_options(studio, current, 1 if accept else 2)
+
+
+def playback_timing(studio):
+    measurements = {}
+    for choice, fps in ((1, 6), (2, 12), (3, 24), (2, 12 * 1.35805), (2, 12 * .918485)):
+        modifier = 0 if fps in (6, 12, 24) else 1 if fps > 12 else 2
+        state = timing(studio, choice, modifier)
+        assert abs(state['playback_timing']['target_fps'] - fps) < .0001, state['playback_timing']
+        studio.call('seek_movie', scene=1, frame=1)
+        play(studio, True)
+        first = wait(studio, lambda s: s['scene_frame'] >= 2, 'Paced movie did not advance')
+        started = time.monotonic()
+        if fps == 6:
+            studio.call('key', vk=32)
+            frozen = wait(studio, lambda s: s['movie_paused'], 'Paced movie did not pause')
+            time.sleep(.2)
+            assert studio.state()['scene_frame'] == frozen['scene_frame'], 'Pacer advanced during Space pause'
+            studio.call('key', vk=32)
+            wait(studio, lambda s: not s['movie_paused'], 'Paced movie did not resume')
+            started = time.monotonic()
+            first = studio.state()
+        last = wait(studio, lambda s: s['scene_frame'] >= 8, 'Paced movie stalled')
+        elapsed = time.monotonic() - started
+        expected = (last['scene_frame'] - first['scene_frame']) / fps
+        assert expected * .65 < elapsed < expected * 1.6 + .10, (fps, elapsed, expected)
+        measurements[str(fps)] = elapsed
+        studio.call('key', vk=27)
+        wait(studio, lambda s: not s['movie_playing'], 'Paced movie did not stop')
+    state = timing(studio, 4, 2)
+    assert state['playback_timing']['target_fps'] == 0
+    studio.call('seek_movie', scene=1, frame=1)
+    play(studio, True)
+    wait(studio, lambda s: s['scene_frame'] > 1 or not s['movie_playing'], 'Uncapped movie stalled')
+    studio.call('key', vk=27)
+    wait(studio, lambda s: not s['movie_playing'], 'Uncapped movie did not stop')
+    accepted = timing(studio, 2, 1)['playback_timing']
+    cancelled = timing(studio, 3, 2, accept=False)['playback_timing']
+    assert cancelled == accepted, (accepted, cancelled)
+    return measurements
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('exe', 'fixture', 'iso', 'artifacts'):
@@ -194,6 +240,10 @@ def main():
         try:
             original = studio.state()
             original_pixels = studio.capture('original')
+            report['playback_timing_seconds'] = playback_timing(studio)
+            studio.call('seek_movie', scene=1, frame=1)
+            original = studio.state()
+            original_pixels = studio.capture('original-after-playback')
             live_rendering(studio, original, original_pixels)
             report['rendering_previews_live_and_cancel_restores'] = True
             current = options(studio)
@@ -242,6 +292,7 @@ def main():
             other = Studio(launch, movie, 'second-instance')
             try:
                 reopened = other.state()
+                assert reopened['playback_timing'] == enabled['playback_timing'], 'Playback timing was not saved'
                 assert all(reopened['preferences'].values()), 'Saved options did not reach the second instance'
                 assert reopened['render_reduced'] and reopened['render_width'] == 272 and reopened['render_height'] == 153
                 other.quit()

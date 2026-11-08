@@ -44,6 +44,7 @@
         * videos (scene, movie with transactions)
 
 
+* measure original 3DMM playback FPS in VMs or on another PC running Win9x, XP and Win7+ to calibrate compatibility speed modifiers
 * render to video to test x86 vs x64
 * write a full text plan that covers all features
 * find an open source font to use

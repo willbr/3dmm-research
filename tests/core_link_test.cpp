@@ -15,6 +15,7 @@
 #include "cmd_hooks.h"
 #if defined(TEST_ENGINE_CORE)
 #include "actor_frame_fixture.h"
+#include "studio_preferences.h"
 #endif
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error Public core headers must not import Windows SDK headers
@@ -2076,8 +2077,56 @@ static void RunPlayback(MoviePlaybackState &state, PlaybackTrace &trace)
 
 static void TestMoviePlaybackControl()
 {
+    StudioPreferences preferences;
+    Check(preferences.PlaybackFps() < 0);
+    for (int choice = 1; choice <= 3; ++choice)
+    {
+        preferences.playbackRate = choice;
+        const auto fps = preferences.PlaybackFps();
+        Check(fps == (choice == 1 ? 6 : choice == 2 ? 12 : 24));
+        MovieFramePacer pacer;
+        pacer.Reset(fps);
+        LegacyUlong now = 0;
+        for (int frame = 0; frame < static_cast<int>(fps); ++frame)
+        {
+            pacer.Schedule(now);
+            Check(!pacer.TakeDue(pacer.due - 1));
+            now = pacer.due;
+            Check(pacer.TakeDue(now) && !pacer.TakeDue(now));
+        }
+        Check(now >= 999 && now <= 1000); // Fractional milliseconds do not accumulate drift.
+    }
+    preferences.playbackRate = 2;
+    preferences.playbackModifier = 1;
+    Check(preferences.PlaybackFps() > 16.29 && preferences.PlaybackFps() < 16.30);
+    preferences.playbackModifier = 2;
+    Check(preferences.PlaybackFps() > 11.02 && preferences.PlaybackFps() < 11.03);
+    preferences.playbackRate = 4;
+    Check(preferences.PlaybackFps() == 0);
+    MovieFramePacer pacer;
+    pacer.Reset(0);
+    pacer.Schedule(1234);
+    Check(pacer.TakeDue(1234));
+    pacer.Reset(24);
+    pacer.Schedule(0xfffffff0U);
+    Check(!pacer.TakeDue(0xfffffff1U) && pacer.TakeDue(25));
+    pacer.Schedule(1000);
+    pacer.Pause(1010);
+    pacer.Resume(2010);
+    Check(!pacer.TakeDue(2040) && pacer.TakeDue(2042));
+    pacer.Schedule(2100);
+    pacer.Reset(12);
+    Check(!pacer.TakeDue(10000));
     for (const auto reason : {witUntilClick, witForTime, witUntilSnd})
     {
+        MoviePlaybackState uncapped;
+        uncapped.framePacer.Reset(0);
+        PlaybackTrace paused;
+        paused.pauseOnPresent = reason;
+        paused.soundPlaying = true;
+        RunPlayback(uncapped, paused);
+        Check(uncapped.pausing && uncapped.renderedFrames == 0 && !uncapped.skippedClickPauses &&
+              !uncapped.skippedTimedPauses && !uncapped.skippedSoundPauses);
         MoviePlaybackState accelerated;
         accelerated.unpaced = true;
         PlaybackTrace trace;

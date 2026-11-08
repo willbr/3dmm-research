@@ -3832,6 +3832,13 @@ void Application::_LoadPreferences()
         else
             FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregBinary);
     }
+    FGetSetRegKey(PszLit("PlaybackRate"), &preferences.playbackRate, size(preferences.playbackRate), fregBinary);
+    FGetSetRegKey(PszLit("PlaybackModifier"), &preferences.playbackModifier, size(preferences.playbackModifier),
+                  fregBinary);
+    if (preferences.playbackRate < 0 || preferences.playbackRate > 4)
+        preferences.playbackRate = 0;
+    if (preferences.playbackModifier < 0 || preferences.playbackModifier > 2)
+        preferences.playbackModifier = 0;
     SetBackgroundPlayback(preferences.backgroundPlayback);
 }
 
@@ -3893,7 +3900,9 @@ bool Application::FCmdInfo(PCommand pcmd)
         {IDC_TAB_PLAYBACK,
          u"Playback & sound",
          {IDC_MUTE_STUDIO, IDC_BACKGROUND_PLAYBACK, IDC_CUT_TRANSITIONS, IDC_DISABLE_AUDIO_FADES, IDC_NORMAL_KEY_REPEAT,
-          IDC_PLAYBACK_GROUP, IDC_EDITING_GROUP}},
+          IDC_PLAYBACK_GROUP, IDC_EDITING_GROUP, IDC_PLAYBACK_ORIGINAL, IDC_PLAYBACK_6, IDC_PLAYBACK_12,
+          IDC_PLAYBACK_24, IDC_PLAYBACK_UNCAPPED, IDC_SPEED_NORMAL, IDC_SPEED_98_TO_XP, IDC_SPEED_XP_TO_98,
+          IDC_TIMING_GROUP}},
         {IDC_TAB_STARTUP,
          u"Startup",
          {IDC_ALLOW_MULTIPLE, IDC_SKIP_STARTUP, IDC_MUTE_STARTUP, IDC_STARTUP_GROUP, IDC_STARTUP_NOTICE}},
@@ -3949,6 +3958,8 @@ bool Application::FCmdInfo(PCommand pcmd)
 #endif
 
     auto &preferences = CurrentStudioPreferences();
+    pdlg->PutRadio(pdlg->IditFromSit(IDC_PLAYBACK_ORIGINAL), preferences.playbackRate);
+    pdlg->PutRadio(pdlg->IditFromSit(IDC_SPEED_NORMAL), preferences.playbackModifier);
     for (const auto &binding : kPreferences)
         pdlg->PutCheck(pdlg->IditFromSit(binding.control), preferences.*binding.field);
     idit = pdlg->IditDo();
@@ -4090,6 +4101,12 @@ bool Application::FCmdInfo(PCommand pcmd)
         else
             FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregSetKey | fregBinary);
     }
+    preferences.playbackRate = static_cast<int>(pdlg->LwGetRadio(pdlg->IditFromSit(IDC_PLAYBACK_ORIGINAL)));
+    preferences.playbackModifier = static_cast<int>(pdlg->LwGetRadio(pdlg->IditFromSit(IDC_SPEED_NORMAL)));
+    FGetSetRegKey(PszLit("PlaybackRate"), &preferences.playbackRate, size(preferences.playbackRate),
+                  fregSetKey | fregBinary);
+    FGetSetRegKey(PszLit("PlaybackModifier"), &preferences.playbackModifier, size(preferences.playbackModifier),
+                  fregSetKey | fregBinary);
     _ApplyPreferences();
     if (pmvie)
     {

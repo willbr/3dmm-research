@@ -1353,6 +1353,11 @@ static JVal Tool_GetState(const JVal &args)
         settings.Set("normal_key_repeat", JVal::MkBool(preferences.normalKeyRepeat));
         settings.Set("disable_audio_fades", JVal::MkBool(preferences.disableAudioFades));
         o.Set("preferences", std::move(settings));
+        JVal timing = JVal::MkObj();
+        timing.Set("rate_choice", JVal::MkInt(preferences.playbackRate));
+        timing.Set("modifier_choice", JVal::MkInt(preferences.playbackModifier));
+        timing.Set("target_fps", JVal::MkDbl(preferences.PlaybackFps()));
+        o.Set("playback_timing", std::move(timing));
     }
 #ifdef KAUAI_SDL3
     o.Set("font_provider", JVal::MkStr(KauaiFonts::StudioFontProvider()));
