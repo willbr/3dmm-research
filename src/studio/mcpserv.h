@@ -28,7 +28,9 @@ bool FInit(void);
 // Drain queued requests, dispatch each to the appropriate tool handler on the
 // current (main GUI) thread, write JSON responses back. Designed to be called
 // from `ApplicationBase::TopOfLoop`. No-op if not in mcp mode.
-void Drain(void);
+// Options' modal loop may service only state, screenshots and gob queries.
+// Mutating requests remain queued until the main application loop resumes.
+void Drain(bool readOnly = false);
 
 // Stop and join the reader, including when the host keeps stdin open.
 // Inherited stdio handles/descriptors remain owned by the process.

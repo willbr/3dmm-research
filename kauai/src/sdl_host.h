@@ -103,7 +103,7 @@ class Host
     bool SetIndexedPresentationPixels(const void *pixels, int width, int height, int pitch, const Color *palette,
                                       bool nearest = false, std::uint64_t serial = 0);
     bool CopyPresentationPixels(std::vector<std::uint32_t> &pixels, int &width, int &height) const;
-    bool SetMaximized(bool maximized);
+    bool SetMaximized(bool maximized, bool synchronize = false);
     // Actual window-manager state; requests may take effect asynchronously.
     // Leaves status unchanged when no window exists.
     bool WindowState(WindowStatus &status) const;
@@ -117,6 +117,8 @@ class Host
     bool FitWindowScale(int requested);
     // Client size in window units, independent of canvas size/display density.
     bool WindowSize(int &width, int &height) const;
+    bool WindowPosition(int &x, int &y) const;
+    bool SetWindowPosition(int x, int y);
     bool SetTitle(const std::string &utf8);
     bool Title(std::string &utf8) const;
     bool Raise();

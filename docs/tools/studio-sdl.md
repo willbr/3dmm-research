@@ -226,6 +226,12 @@ independent startup sound, multiple instances, tab switching, cancellation of
 display and playback edits, reversible rendering and movie save/reopen with the
 preferences enabled.
 
+Rendering controls preview immediately while Options is open: wireframe, flat
+shading, textures, actor pose and rendering resolution redraw the current scene.
+Resolution choices also fit the window immediately. **Cancel**, Escape and X
+restore the original rendering settings and window size; only **OK** saves them.
+The preview remembers settings and redraws the scene rather than saving an image.
+
 The SDL portfolio's **My movies** shortcut and default save folder use
 `Documents/3DMMForever`, resolved with `SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS)`.
 This follows the operating system's Documents location, including OneDrive or

@@ -678,14 +678,15 @@ bool Host::SetIndexedPresentationPixels(const void *pixels, int width, int heigh
 {
     return palette && impl->BorrowPresentation(pixels, width, height, pitch, palette, nearest, serial);
 }
-bool Host::SetMaximized(bool maximized)
+bool Host::SetMaximized(bool maximized, bool synchronize)
 {
     if (!impl->window)
         return false;
     const auto flags = SDL_GetWindowFlags(impl->window);
     if (maximized && (flags & SDL_WINDOW_MAXIMIZED) && !(flags & SDL_WINDOW_MINIMIZED))
         return true;
-    return maximized ? SDL_MaximizeWindow(impl->window) : SDL_RestoreWindow(impl->window);
+    const bool changed = maximized ? SDL_MaximizeWindow(impl->window) : SDL_RestoreWindow(impl->window);
+    return changed && (!synchronize || SDL_SyncWindow(impl->window));
 }
 bool Host::WindowState(WindowStatus &status) const
 {
@@ -765,6 +766,14 @@ int Host::Width() const
 bool Host::WindowSize(int &width, int &height) const
 {
     return impl->window && SDL_GetWindowSize(impl->window, &width, &height);
+}
+bool Host::WindowPosition(int &x, int &y) const
+{
+    return impl->window && SDL_GetWindowPosition(impl->window, &x, &y);
+}
+bool Host::SetWindowPosition(int x, int y)
+{
+    return impl->window && SDL_SetWindowPosition(impl->window, x, y);
 }
 int Host::Height() const
 {

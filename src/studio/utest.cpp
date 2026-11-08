@@ -3639,16 +3639,81 @@ namespace
 {
 struct OptionsEdits
 {
+    PMovie movie = nullptr;
     LegacyLong renderItem = ivNil;
     bool renderRequested = false;
+    bool previewed = false;
+    bool wireframe = World::RenderWireframe();
+    bool noTexture = World::NoTexture();
+    bool flatShading = World::FlatShading();
+    bool flatPreference = CurrentStudioPreferences().flatShading;
+    bool showPose = MovieView::FShowPoseReadout();
+    LegacyLong renderScale = World::DefaultRenderScale();
+    LegacyLong originalChoice = 0, currentChoice = 0;
+    void (*redraw)() = nullptr;
+#ifdef KAUAI_SDL3
+    int windowWidth = 0, windowHeight = 0, windowX = 0, windowY = 0;
+    bool windowPositionKnown = false;
+    KauaiSDL::WindowStatus windowState;
+#endif
+
+    void Redraw()
+    {
+        if (movie)
+        {
+            movie->Pbwld()->MarkDirty();
+            movie->InvalViews();
+        }
+        redraw();
+    }
+
+    bool Restore()
+    {
+        if (!previewed)
+            return true;
+        bool restored = true;
+        World::SetRenderWireframe(wireframe);
+        World::SetNoTexture(noTexture);
+        World::SetFlatShading(flatShading);
+        CurrentStudioPreferences().flatShading = flatPreference;
+        MovieView::SetShowPoseReadout(showPose);
+        if (renderRequested)
+        {
+#ifdef KAUAI_SDL3
+            restored = !movie || movie->Pbwld()->FSetRenderResolution(renderScale, originalChoice == 3);
+            if (restored)
+                World::SetDefaultRenderScale(renderScale);
+            auto &host = KauaiSDL::Main();
+            if (!windowState.fullscreen && windowWidth > 0 && windowHeight > 0)
+            {
+                host.SetMaximized(false, true);
+                host.SetWindowSize(windowWidth, windowHeight);
+                if (windowPositionKnown)
+                    host.SetWindowPosition(windowX, windowY);
+                if (windowState.maximized)
+                    host.SetMaximized(true, true);
+            }
+#else
+            restored = !movie || movie->Pbwld()->FSetHalfMode(false, originalChoice != 0);
+#endif
+            if (!restored)
+                vpapp->TGiveAlertSz(PszLit("There is not enough memory to restore the previous rendering size."), bkOk,
+                                    cokExclamation);
+        }
+        Redraw();
+        return restored;
+    }
 };
 bool OptionsChanged(PDialog dialog, LegacyLong *item, void *context)
 {
     auto &edits = *static_cast<OptionsEdits *>(context);
-    if (*item == edits.renderItem)
-        edits.renderRequested = true;
     if (*item < 0)
+    {
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+        mcp::Drain(true);
+#endif
         return false;
+    }
     const char *url = nullptr;
     if (*item == dialog->IditFromSit(IDC_INFO_ORIGINAL_REPO))
         url = "https://github.com/microsoft/Microsoft-3D-Movie-Maker";
@@ -3668,6 +3733,68 @@ bool OptionsChanged(PDialog dialog, LegacyLong *item, void *context)
     }
     DialogItem control;
     dialog->GetDit(*item, &control);
+    const bool resolution = *item == edits.renderItem;
+    if (resolution || control.sitMin == IDC_CHECK2 || control.sitMin == IDC_CHECK3 || control.sitMin == IDC_CHECK4 ||
+        control.sitMin == IDC_FLAT_SHADING)
+    {
+        if (!dialog->FGetValues(*item, *item + 1))
+            return false;
+        if (resolution)
+        {
+            const auto choice = dialog->LwGetRadio(*item);
+#ifdef KAUAI_SDL3
+            const LegacyLong scale = choice == 3 ? 1 : 1L << choice;
+            const bool applied = !edits.movie || edits.movie->Pbwld()->FSetRenderResolution(scale, choice == 3);
+#else
+            const bool applied = !edits.movie || edits.movie->Pbwld()->FSetHalfMode(false, choice != 0);
+#endif
+            if (!applied)
+            {
+                dialog->PutRadio(*item, edits.currentChoice);
+                dialog->SetValues(*item, *item + 1);
+                vpapp->TGiveAlertSz(PszLit("There is not enough memory for this rendering size."), bkOk,
+                                    cokExclamation);
+                return false;
+            }
+            edits.currentChoice = choice;
+#ifdef KAUAI_SDL3
+            auto &host = KauaiSDL::Main();
+            if (!edits.renderRequested && edits.windowState.maximized)
+            {
+                // Remember the normal bounds too, so cancelling a preview
+                // preserves where Restore will put an originally maximized window.
+                host.SetMaximized(false, true);
+                host.WindowSize(edits.windowWidth, edits.windowHeight);
+                edits.windowPositionKnown = host.WindowPosition(edits.windowX, edits.windowY);
+            }
+            World::SetDefaultRenderScale(scale);
+            host.FitWindowScale(static_cast<int>(scale));
+#endif
+            edits.renderRequested = true;
+        }
+        else
+        {
+            const bool checked = FPure(dialog->FGetCheck(*item));
+            switch (control.sitMin)
+            {
+            case IDC_CHECK2:
+                World::SetRenderWireframe(checked);
+                break;
+            case IDC_CHECK3:
+                World::SetNoTexture(checked);
+                break;
+            case IDC_CHECK4:
+                MovieView::SetShowPoseReadout(checked);
+                break;
+            case IDC_FLAT_SHADING:
+                CurrentStudioPreferences().flatShading = checked;
+                World::SetFlatShading(checked);
+                break;
+            }
+        }
+        edits.previewed = true;
+        edits.Redraw();
+    }
     return control.ditk == ditkButton;
 }
 struct PreferenceBinding
@@ -3744,6 +3871,14 @@ bool Application::FCmdInfo(PCommand pcmd)
     pmvie = _Pmvie();
 
     OptionsEdits edits;
+    edits.movie = pmvie;
+    edits.redraw = [] {
+        vpapp->UpdateMarked();
+#ifdef KAUAI_SDL3
+        vpapp->_DrawStudioPresentation();
+        KauaiSDL::Main().Present(true);
+#endif
+    };
     pdlg = Dialog::PdlgNew(dlidInfo, OptionsChanged, &edits);
     if (pvNil == pdlg)
         return fTrue;
@@ -3773,10 +3908,21 @@ bool Application::FCmdInfo(PCommand pcmd)
         return fTrue;
     }
 #ifndef KAUAI_SDL3
-    pdlg->PutRadio(iditRenderModeInfo, _fSlowCPU ? 1 : 0);
+    edits.renderItem = iditRenderModeInfo;
+    edits.originalChoice = _fSlowCPU ? 1 : 0;
+    pdlg->PutRadio(iditRenderModeInfo, edits.originalChoice);
 #else
     edits.renderItem = iditRenderSizeInfo;
+    edits.originalChoice = World::DefaultRenderScale() == 4 ? 2
+                           : World::DefaultRenderScale() == 2 ? 1
+                           : _fSlowCPU ? 3
+                                       : 0;
+    auto &host = KauaiSDL::Main();
+    host.WindowSize(edits.windowWidth, edits.windowHeight);
+    host.WindowState(edits.windowState);
+    edits.windowPositionKnown = host.WindowPosition(edits.windowX, edits.windowY);
 #endif
+    edits.currentChoice = edits.originalChoice;
 
     stn.SetSz(PszLit("3DMMForever"));
 #ifdef DEBUG
@@ -3799,10 +3945,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     pdlg->PutCheck(iditPoseReadoutInfo, MovieView::FShowPoseReadout());
 #ifdef KAUAI_SDL3
     pdlg->PutCheck(iditIntegerScalingInfo, KauaiSDL::Main().IntegerScaling());
-    pdlg->PutRadio(iditRenderSizeInfo, World::DefaultRenderScale() == 4   ? 2
-                                       : World::DefaultRenderScale() == 2 ? 1
-                                       : _fSlowCPU                        ? 3
-                                                                          : 0);
+    pdlg->PutRadio(iditRenderSizeInfo, edits.originalChoice);
 #endif
 
     auto &preferences = CurrentStudioPreferences();
@@ -3811,6 +3954,14 @@ bool Application::FCmdInfo(PCommand pcmd)
     idit = pdlg->IditDo();
     if (idit != iditOkInfo)
     {
+        if (!edits.Restore())
+        {
+#ifdef KAUAI_SDL3
+            _fSlowCPU = edits.currentChoice == 3;
+#else
+            _fSlowCPU = edits.currentChoice != 0;
+#endif
+        }
         ReleasePpo(&pdlg);
         return fTrue;
     }

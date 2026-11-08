@@ -2,6 +2,7 @@
 import sys
 sys.dont_write_bytecode = True
 import argparse
+import base64
 import hashlib
 import json
 import pathlib
@@ -12,6 +13,7 @@ import uuid
 from types import SimpleNamespace
 from studio_movie_workflow import Studio, signature
 from studio_movie_only_workflow import remove_settings, wait
+from mcp_png_test import decode_png
 
 
 CONTROLS = {
@@ -101,6 +103,48 @@ def resolution(studio, scale):
     return state
 
 
+def live_rendering(studio, original, original_pixels):
+    controls = {1026: 'wireframe', 1036: 'flat_shading', 1027: 'no_textures', 1028: 'show_actor_pose'}
+    current = options(studio)
+    for control, name in controls.items():
+        click(studio, current, control)
+        wait(studio, lambda state: state['rendering'][name], 'Rendering did not preview: ' + name)
+        pixels = studio.capture('live-' + name)
+        if name in ('wireframe', 'flat_shading'):
+            assert pixels != original_pixels, 'The scene did not redraw while Options was open: ' + name
+        click(studio, current, control)
+        wait(studio, lambda state: not state['rendering'][name], 'Rendering did not toggle back: ' + name)
+        assert studio.capture('live-restored-' + name) == original_pixels, name
+    for escape, choice in ((False, 1031), (True, 1033)):
+        for control in controls:
+            click(studio, current, control)
+        click(studio, current, choice)
+        preview = wait(studio, lambda state: all(state['rendering'].values()) and
+                       state['render_width'] == (272 if escape else 1088), 'Resolution did not preview')
+        assert preview['dialog']['present'], preview['dialog']
+        # No-textures temporarily removes runtime material maps. Check authored
+        # movie details after rollback, when their texture hashes are restored.
+        assert (preview['movie_scene'], preview['scene_frame'], preview['scene_camera']) == (
+            original['movie_scene'], original['scene_frame'], original['scene_camera'])
+        picture = base64.b64decode(studio.call('screenshot', presentation=True)['content'][0]['data'])
+        dimensions, _ = decode_png(picture)
+        assert dimensions == ((640, 480) if escape else (1280, 960)), dimensions
+        if escape:
+            studio.call('sdl_dialog_action', generation=current['generation'], action='escape')
+            cancelled = wait(studio, lambda state: not state['dialog']['present'], 'Escape did not close Options')
+        else:
+            cancelled = close_options(studio, current, 2)
+        assert cancelled['rendering'] == original['rendering']
+        assert signature(cancelled) == signature(original)
+        assert cancelled['preferences'] == original['preferences']
+        assert cancelled['render_width'] == original['render_width']
+        assert cancelled['render_height'] == original['render_height']
+        assert cancelled['client_size'] == original['client_size']
+        assert studio.capture('live-cancelled-' + str(escape)) == original_pixels
+        if not escape:
+            current = options(studio)
+
+
 def check_save_directory(studio):
     studio.call('send_command', cid=104)
     deadline = time.monotonic() + 10
@@ -151,6 +195,8 @@ def main():
         try:
             original = studio.state()
             original_pixels = studio.capture('original')
+            live_rendering(studio, original, original_pixels)
+            report['rendering_previews_live_and_cancel_restores'] = True
             current = options(studio)
             assert not any(item['id'] == 1010 for item in current['controls'])
             for tab, names in TAB_CONTROLS.items():

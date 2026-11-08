@@ -1450,6 +1450,12 @@ static JVal Tool_GetState(const JVal &args)
     o.Set("movie_only", JVal::MkBool(vpapp->FMovieOnlyPlayback()));
     o.Set("movie_paused", JVal::MkBool(movie && movie->FUserPaused()));
     o.Set("render_scale", JVal::MkInt(World::DefaultRenderScale()));
+    JVal rendering = JVal::MkObj();
+    rendering.Set("wireframe", JVal::MkBool(World::RenderWireframe()));
+    rendering.Set("flat_shading", JVal::MkBool(World::FlatShading()));
+    rendering.Set("no_textures", JVal::MkBool(World::NoTexture()));
+    rendering.Set("show_actor_pose", JVal::MkBool(MovieView::FShowPoseReadout()));
+    o.Set("rendering", std::move(rendering));
     o.Set("render_reduced", JVal::MkBool(movie && movie->Pbwld()->RenderScale() == 1 && movie->Pbwld()->FHalfX() &&
                                          movie->Pbwld()->FHalfY()));
     if (movie)
@@ -2383,7 +2389,7 @@ void Shutdown()
     _queue.clear();
 }
 
-void Drain()
+void Drain(bool readOnly)
 {
     if (!_initialized.load()) return;
 
@@ -2391,7 +2397,22 @@ void Drain()
     std::deque<Request> reqs;
     {
         std::lock_guard<std::mutex> lk(_qMutex);
-        reqs.swap(_queue);
+        if (!readOnly)
+            reqs.swap(_queue);
+        else
+            for (auto request = _queue.begin(); request != _queue.end();)
+            {
+                const auto name = request->params.Get("name");
+                const auto tool = name ? name->AsStr() : std::string();
+                if (request->method == "tools/call" &&
+                    (tool == "get_state" || tool == "screenshot" || tool == "find_gob"))
+                {
+                    reqs.push_back(std::move(*request));
+                    request = _queue.erase(request);
+                }
+                else
+                    ++request;
+            }
     }
     for (auto &req : reqs)
     {
@@ -2428,7 +2449,7 @@ void Drain()
             WriteMessage(MakeError(req.id, -32601, std::string("method not found: ") + req.method));
         }
     }
-    if (_shouldExit.load() && !_quitPosted && vpcex)
+    if (!readOnly && _shouldExit.load() && !_quitPosted && vpcex)
     {
         // EOF may have arrived after our snapshot, with more requests queued
         // behind it. Let the next Drain answer those before scheduling quit.
