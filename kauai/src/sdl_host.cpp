@@ -714,6 +714,42 @@ bool Host::SetWindowSize(int width, int height)
 {
     return impl->window && SDL_SetWindowSize(impl->window, width, height);
 }
+int Host::WindowScaleToFit(int requested, int width, int height, int availableWidth, int availableHeight)
+{
+    if (requested < 1 || width < 1 || height < 1 || availableWidth < width || availableHeight < height)
+        return 0;
+    return std::min(requested, std::min(availableWidth / width, availableHeight / height));
+}
+bool Host::FitWindowScale(int requested)
+{
+    if (!impl->window)
+        return false;
+    if (SDL_GetWindowFlags(impl->window) & SDL_WINDOW_FULLSCREEN)
+        return true;
+    SDL_Rect usable;
+    if (!SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(impl->window), &usable))
+        return false;
+    if (SDL_GetWindowFlags(impl->window) & (SDL_WINDOW_MAXIMIZED | SDL_WINDOW_MINIMIZED))
+        if (!SDL_RestoreWindow(impl->window) || !SDL_SyncWindow(impl->window))
+            return false;
+    int top = 0, left = 0, bottom = 0, right = 0;
+    SDL_GetWindowBordersSize(impl->window, &top, &left, &bottom, &right);
+    const int multiple =
+        WindowScaleToFit(requested, impl->width, impl->height, usable.w - left - right, usable.h - top - bottom);
+    if (!multiple)
+        return false;
+    const int width = impl->width * multiple, height = impl->height * multiple;
+    if (!SDL_SetWindowSize(impl->window, width, height) || !SDL_SyncWindow(impl->window))
+        return false;
+    int x = usable.x + left, y = usable.y + top;
+    SDL_GetWindowPosition(impl->window, &x, &y);
+    x = std::max(usable.x + left, std::min(x, usable.x + usable.w - right - width));
+    y = std::max(usable.y + top, std::min(y, usable.y + usable.h - bottom - height));
+    // Some window managers (notably Wayland) choose placement themselves.
+    SDL_SetWindowPosition(impl->window, x, y);
+    impl->damage.Invalidate();
+    return true;
+}
 bool Host::Active() const
 {
     return impl->renderer != nullptr;

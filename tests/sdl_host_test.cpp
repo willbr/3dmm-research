@@ -124,6 +124,12 @@ int main(int argc, char **argv)
     if (argc != 2 && !scalingOnly && !indexedOnly)
         return 2;
     KauaiSDL::Host host;
+    if (KauaiSDL::Host::WindowScaleToFit(2, 640, 480, 1904, 993) != 2 ||
+        KauaiSDL::Host::WindowScaleToFit(4, 640, 480, 1904, 993) != 2 ||
+        KauaiSDL::Host::WindowScaleToFit(4, 640, 480, 2560, 1920) != 4 ||
+        KauaiSDL::Host::WindowScaleToFit(4, 640, 480, 2559, 1919) != 3 ||
+        KauaiSDL::Host::WindowScaleToFit(4, 640, 480, 639, 480) != 0)
+        return Fail(__LINE__, host);
     if (!host.Create("Kauai SDL host check", 320, 240, true))
     {
         std::fprintf(stderr, "%s\n", host.Error());
@@ -497,6 +503,18 @@ int main(int argc, char **argv)
     host.PushKey(66, true);
     host.FlushInput(true, false);
     if (!Next(host, KauaiSDL::EventKind::keyDown, event) || event.key != 66)
+        return Fail(__LINE__, host);
+    // Exercise the actual resize request as well as the desktop-limit policy.
+    int fittedWidth, fittedHeight, top = 0, left = 0, bottom = 0, right = 0;
+    SDL_Rect usable;
+    auto fittedWindow = SDL_GetWindowFromID(host.WindowID());
+    if (!host.FitWindowScale(4) || !host.WindowSize(fittedWidth, fittedHeight) ||
+        !SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(fittedWindow), &usable))
+        return Fail(__LINE__, host);
+    SDL_GetWindowBordersSize(fittedWindow, &top, &left, &bottom, &right);
+    const int fittedScale = KauaiSDL::Host::WindowScaleToFit(4, host.Width(), host.Height(), usable.w - left - right,
+                                                             usable.h - top - bottom);
+    if (fittedWidth != host.Width() * fittedScale || fittedHeight != host.Height() * fittedScale)
         return Fail(__LINE__, host);
     host.UnbindPixels(pixels.data());
     if (host.Present(true))

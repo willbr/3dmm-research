@@ -89,6 +89,22 @@ def set_options(studio, desired, save=False, capture=None):
     return state
 
 
+def resolution(studio, scale, save=False):
+    current = options(studio)
+    click(studio, current, {0: 1033, 1: 1030, 2: 1031, 4: 1032}[scale])
+    if save:
+        click(studio, current, 1010)
+    state = close_options(studio, current, 1)
+    expected_width, expected_height = (272, 153) if scale == 0 else (544 * scale, 306 * scale)
+    assert (state['render_width'], state['render_height']) == (expected_width, expected_height), state
+    assert state['render_reduced'] == (scale == 0), state
+    if scale > 1:
+        width, height = state['client_size']['w'], state['client_size']['h']
+        assert width % 640 == 0 and height % 480 == 0 and width // 640 == height // 480, state
+        assert 1 <= width // 640 <= scale, state
+    return state
+
+
 def check_save_directory(studio):
     studio.call('send_command', cid=104)
     deadline = time.monotonic() + 10
@@ -166,15 +182,23 @@ def main():
             set_options(studio, {'flat_shading': False})
             assert studio.capture('restored-shading') == original_pixels, 'Original shading was not restored'
             report['flat_shading_is_reversible'] = True
+            set_options(studio, {'flat_shading': True})
+            for scale in (2, 4):
+                resolution(studio, scale)
+            report['super_resolution_fits_integer_window'] = True
+            resolution(studio, 0, save=True)
+            report['reduced_render_resolution'] = True
             # A second process must run independently when the option is saved.
             other = Studio(launch, movie, 'second-instance')
             try:
                 reopened = other.state()
                 assert all(reopened['preferences'].values()), 'Saved options did not reach the second instance'
+                assert reopened['render_reduced'] and reopened['render_width'] == 272 and reopened['render_height'] == 153
                 other.quit()
             finally:
                 other.close()
             report['multiple_instances_and_saved_preferences'] = True
+            resolution(studio, 1)  # An unsaved choice must not overwrite the Reduced default.
             set_options(studio, {'normal_key_repeat': False})
             studio.quit()
         finally:
@@ -187,6 +211,9 @@ def main():
             assert all(reopened['preferences'].values()), 'Unsaved session changes overwrote defaults'
             assert signature(reopened) == signature(original), 'Saving with options changed movie semantics'
             assert reopened['scene_transition'] == original['scene_transition']
+            assert reopened['render_reduced'] and reopened['render_width'] == 272 and reopened['render_height'] == 153
+            report['reduced_resolution_persists'] = True
+            resolution(studio, 1, save=True)
             report['movie_save_reopen_preserves_semantics'] = True
             # Screen skipping and startup sound are independent preferences.
             set_options(studio, {**dict.fromkeys(CONTROLS, False), 'skip_startup_screens': True}, save=True)

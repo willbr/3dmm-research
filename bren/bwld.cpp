@@ -375,6 +375,13 @@ bool World::FSetRenderScale(long scale)
     return _FSetBufferMode(_fHalfX, _fHalfY, scale);
 }
 
+bool World::FSetRenderResolution(long scale, bool reduced)
+{
+    if ((scale != 1 && scale != 2 && scale != 4) || (reduced && scale != 1))
+        return false;
+    return _FSetBufferMode(reduced, reduced, scale);
+}
+
 bool World::_FSetBufferMode(bool fHalfX, bool fHalfY, long scale)
 {
     AssertThis(0);

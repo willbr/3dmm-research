@@ -634,6 +634,10 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     // }
 
     EnsureInteractive();
+#ifdef KAUAI_SDL3
+    if (World::DefaultRenderScale() > 1)
+        KauaiSDL::Main().FitWindowScale(static_cast<int>(World::DefaultRenderScale()));
+#endif
 
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     // Bring up the embedded MCP server if `--mcp-server` was passed. No-op
@@ -3621,7 +3625,9 @@ enum
     iditNoTextureInfo,
     iditPoseReadoutInfo,
     iditSaveChanges,
+#ifndef KAUAI_SDL3
     iditRenderModeInfo,
+#endif
 #ifdef KAUAI_SDL3
     iditIntegerScalingInfo,
     iditRenderSizeInfo,
@@ -3631,6 +3637,24 @@ enum
 
 namespace
 {
+#ifdef KAUAI_SDL3
+struct OptionsEdits
+{
+    LegacyLong renderItem = ivNil;
+    bool renderRequested = false;
+};
+bool OptionsChanged(PDialog dialog, LegacyLong *item, void *context)
+{
+    auto &edits = *static_cast<OptionsEdits *>(context);
+    if (*item == edits.renderItem)
+        edits.renderRequested = true;
+    if (*item < 0)
+        return false;
+    DialogItem control;
+    dialog->GetDit(*item, &control);
+    return control.ditk == ditkButton;
+}
+#endif
 struct PreferenceBinding
 {
     PZString key;
@@ -3727,7 +3751,12 @@ bool Application::FCmdInfo(PCommand pcmd)
 
     pmvie = _Pmvie();
 
+#ifdef KAUAI_SDL3
+    OptionsEdits edits;
+    pdlg = Dialog::PdlgNew(dlidInfo, OptionsChanged, &edits);
+#else
     pdlg = Dialog::PdlgNew(dlidInfo, pvNil, pvNil);
+#endif
     if (pvNil == pdlg)
         return fTrue;
     KauaiDialogs::TabLayout tabs;
@@ -3736,8 +3765,8 @@ bool Application::FCmdInfo(PCommand pcmd)
         {IDC_TAB_DISPLAY,
          u"Display",
          {IDC_RADIO4, IDC_RADIO5, IDC_CHECK2, IDC_CHECK3, IDC_CHECK4, IDC_RADIO1, IDC_RADIO2, IDC_CHECK5,
-          IDC_RENDER_ORIGINAL, IDC_RENDER_2X, IDC_RENDER_4X, IDC_FLAT_SHADING, IDC_DISPLAY_GROUP, IDC_PERFORMANCE_GROUP,
-          IDC_RENDERING_GROUP, IDC_INFO_RENDER_LABEL}},
+          IDC_RENDER_ORIGINAL, IDC_RENDER_2X, IDC_RENDER_4X, IDC_RENDER_REDUCED, IDC_FLAT_SHADING, IDC_DISPLAY_GROUP,
+          IDC_PERFORMANCE_GROUP, IDC_RENDERING_GROUP, IDC_INFO_RENDER_LABEL}},
         {IDC_TAB_PLAYBACK,
          u"Playback & sound",
          {IDC_MUTE_STUDIO, IDC_BACKGROUND_PLAYBACK, IDC_CUT_TRANSITIONS, IDC_DISABLE_AUDIO_FADES, IDC_NORMAL_KEY_REPEAT,
@@ -3754,7 +3783,11 @@ bool Application::FCmdInfo(PCommand pcmd)
         ReleasePpo(&pdlg);
         return fTrue;
     }
+#ifndef KAUAI_SDL3
     pdlg->PutRadio(iditRenderModeInfo, _fSlowCPU ? 1 : 0);
+#else
+    edits.renderItem = iditRenderSizeInfo;
+#endif
 
     GetStnAppName(&stn);
 #ifdef DEBUG
@@ -3800,7 +3833,10 @@ bool Application::FCmdInfo(PCommand pcmd)
     pdlg->PutCheck(iditPoseReadoutInfo, MovieView::FShowPoseReadout());
 #ifdef KAUAI_SDL3
     pdlg->PutCheck(iditIntegerScalingInfo, KauaiSDL::Main().IntegerScaling());
-    pdlg->PutRadio(iditRenderSizeInfo, World::DefaultRenderScale() == 4 ? 2 : World::DefaultRenderScale() == 2 ? 1 : 0);
+    pdlg->PutRadio(iditRenderSizeInfo, World::DefaultRenderScale() == 4   ? 2
+                                       : World::DefaultRenderScale() == 2 ? 1
+                                       : _fSlowCPU                        ? 3
+                                                                          : 0);
 #endif
 
     auto &preferences = CurrentStudioPreferences();
@@ -3819,8 +3855,11 @@ bool Application::FCmdInfo(PCommand pcmd)
     KauaiSDL::Main().SetIntegerScaling(fIntegerScaling);
     if (fSaveChanges)
         FGetSetRegKey(kszIntegerScalingValue, &fIntegerScaling, size(bool), fregSetKey | fregBinary);
-    LegacyLong renderScale = 1L << pdlg->LwGetRadio(iditRenderSizeInfo);
-    if (pmvie && !pmvie->Pbwld()->FSetRenderScale(renderScale))
+    const LegacyLong renderChoice = pdlg->LwGetRadio(iditRenderSizeInfo);
+    const bool reduced = renderChoice == 3;
+    LegacyLong renderScale = reduced ? 1 : 1L << renderChoice;
+    bool renderApplied = !pmvie || pmvie->Pbwld()->FSetRenderResolution(renderScale, reduced);
+    if (!renderApplied)
     {
         TGiveAlertSz(PszLit("There is not enough memory for this rendering size."), bkOk, cokExclamation);
         renderScale = World::DefaultRenderScale();
@@ -3828,12 +3867,13 @@ bool Application::FCmdInfo(PCommand pcmd)
     else
     {
         World::SetDefaultRenderScale(renderScale);
+        _fSlowCPU = reduced;
         if (pmvie)
             pmvie->InvalViews();
     }
     if (fSaveChanges)
         FGetSetRegKey(kszRenderScaleValue, &renderScale, size(renderScale), fregSetKey | fregBinary);
-#endif
+#else
     if (FPure(_fSlowCPU) != FPure(pdlg->LwGetRadio(iditRenderModeInfo)))
     {
         PMovie pmvie;
@@ -3846,6 +3886,7 @@ bool Application::FCmdInfo(PCommand pcmd)
             pmvie->InvalViews();
         }
     }
+#endif
     if (fSaveChanges)
     {
         bool fSlowCPU = _fSlowCPU;
@@ -3980,6 +4021,10 @@ bool Application::FCmdInfo(PCommand pcmd)
         pmvie->Pbwld()->MarkDirty();
         pmvie->InvalViews();
     }
+#ifdef KAUAI_SDL3
+    if (edits.renderRequested && renderApplied)
+        KauaiSDL::Main().FitWindowScale(static_cast<int>(renderScale));
+#endif
     ReleasePpo(&pdlg);
     return fTrue;
 }

@@ -188,22 +188,27 @@ BEGIN
 #endif
     LTEXT           "(c) and (p) 1995 Microsoft Corporation. All rights reserved.",IDC_INFO_COPYRIGHT,25,90,300,16
     EDITTEXT        IDC_EDIT2,25,50,300,26,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
+#ifndef KAUAI_SDL3
     CONTROL         "Wireframe rendering",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,145,290,10
     CONTROL         "No textures",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,175,290,10
     CONTROL         "Show actor pose",IDC_CHECK4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,190,290,10
-    CONTROL         "Make these the default settings",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,237,330,10
-    CONTROL         "Better Quality",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,25,112,120,10
-#ifdef KAUAI_SDL3
-    CONTROL         "Better Speed (Original size)",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,160,112,165,10
 #else
+    CONTROL         "Wireframe rendering",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,115,290,10
+    CONTROL         "No textures",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,145,290,10
+    CONTROL         "Show actor pose",IDC_CHECK4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,160,290,10
+#endif
+    CONTROL         "Make these the default settings",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,237,330,10
+#ifndef KAUAI_SDL3
+    CONTROL         "Better Quality",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,25,112,120,10
     CONTROL         "Better Speed",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,160,112,165,10
 #endif
 #ifdef KAUAI_SDL3
     CONTROL         "Integer scaling",IDC_CHECK5,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,80,290,10
-    CONTROL         "Original",IDC_RENDER_ORIGINAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,90,212,60,10
-    CONTROL         "2x super size",IDC_RENDER_2X,"Button",BS_AUTORADIOBUTTON,160,212,75,10
-    CONTROL         "4x super size",IDC_RENDER_4X,"Button",BS_AUTORADIOBUTTON,245,212,75,10
-    LTEXT           "Render size:",IDC_INFO_RENDER_LABEL,25,212,60,10
+    CONTROL         "Original",IDC_RENDER_ORIGINAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,100,201,65,10
+    CONTROL         "2x",IDC_RENDER_2X,"Button",BS_AUTORADIOBUTTON,175,201,65,10
+    CONTROL         "4x",IDC_RENDER_4X,"Button",BS_AUTORADIOBUTTON,250,201,65,10
+    CONTROL         "Reduced",IDC_RENDER_REDUCED,"Button",BS_AUTORADIOBUTTON,25,201,65,10
+    LTEXT           "Render resolution:",IDC_INFO_RENDER_LABEL,25,184,120,10
 #endif
     CONTROL         "Allow multiple instances",IDC_ALLOW_MULTIPLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,52,290,10
     CONTROL         "Skip startup screens",IDC_SKIP_STARTUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,76,290,10
@@ -212,12 +217,20 @@ BEGIN
     CONTROL         "Play movies in the background",IDC_BACKGROUND_PLAYBACK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,76,290,10
     CONTROL         "Use cuts instead of scene transitions",IDC_CUT_TRANSITIONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,100,290,10
     CONTROL         "Disable playback audio fades",IDC_DISABLE_AUDIO_FADES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,124,290,10
+#ifdef KAUAI_SDL3
+    CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,130,290,10
+#else
     CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,160,290,10
+#endif
     CONTROL         "Keep normal keyboard repeat",IDC_NORMAL_KEY_REPEAT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,171,290,10
     PUSHBUTTON      "Cancel",IDCANCEL,290,252,50,14
     GROUPBOX        "Display",IDC_DISPLAY_GROUP,20,37,310,58
+#ifdef KAUAI_SDL3
+    GROUPBOX        "Rendering",IDC_RENDERING_GROUP,20,102,310,119
+#else
     GROUPBOX        "Performance",IDC_PERFORMANCE_GROUP,20,100,310,28
-    GROUPBOX        "Rendering",IDC_RENDERING_GROUP,20,133,310,95
+    GROUPBOX        "Rendering",IDC_RENDERING_GROUP,20,133,310,88
+#endif
     GROUPBOX        "Playback and sound",IDC_PLAYBACK_GROUP,20,38,310,105
     GROUPBOX        "Editing",IDC_EDITING_GROUP,20,155,310,42
     GROUPBOX        "Startup",IDC_STARTUP_GROUP,20,38,310,80

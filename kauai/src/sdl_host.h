@@ -111,6 +111,10 @@ class Host
     // maximized window must retain its size when opening a Studio dialog.
     bool EnsureInteractive();
     bool SetWindowSize(int width, int height);
+    // Largest requested whole-canvas multiple inside the usable desktop,
+    // including window decorations. Fullscreen keeps its selected mode.
+    static int WindowScaleToFit(int requested, int width, int height, int availableWidth, int availableHeight);
+    bool FitWindowScale(int requested);
     // Client size in window units, independent of canvas size/display density.
     bool WindowSize(int &width, int &height) const;
     bool SetTitle(const std::string &utf8);

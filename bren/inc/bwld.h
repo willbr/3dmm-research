@@ -150,6 +150,7 @@ class World : public World_PAR
     bool FSetHalfMode(bool fHalfX, bool fHalfY);
     // Runtime preference only; camera and movie-file coordinates stay native.
     bool FSetRenderScale(long scale);
+    bool FSetRenderResolution(long scale, bool reduced);
     long RenderScale() const
     {
         return _renderScale;

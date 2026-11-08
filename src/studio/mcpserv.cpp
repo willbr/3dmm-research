@@ -1450,6 +1450,8 @@ static JVal Tool_GetState(const JVal &args)
     o.Set("movie_only", JVal::MkBool(vpapp->FMovieOnlyPlayback()));
     o.Set("movie_paused", JVal::MkBool(movie && movie->FUserPaused()));
     o.Set("render_scale", JVal::MkInt(World::DefaultRenderScale()));
+    o.Set("render_reduced", JVal::MkBool(movie && movie->Pbwld()->RenderScale() == 1 && movie->Pbwld()->FHalfX() &&
+                                         movie->Pbwld()->FHalfY()));
     if (movie)
     {
         long width, height;

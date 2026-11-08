@@ -150,8 +150,11 @@ pause. **Escape** stops playback and restores Studio in the current window;
 natural completion also restores the editor. Ordinary Play
 and the original movie data remain unchanged.
 
-Options' **Display** tab offers **Render size**, selecting **Original (544x306)**,
-**2x super size (1088x612)** or **4x super size (2176x1224)**. Original is the default. Super sizes
+Options' **Display** tab offers one **Render resolution** control: **Reduced
+(272x153)**, **Original (544x306)**, **2x (1088x612)** or **4x (2176x1224)**.
+Original is the default. Reduced renders at half width and half height, then
+enlarges the movie into the normal viewport. It replaces the separate Better
+Quality/Better Speed choice and retains the existing BetterSpeed preference. Super sizes
 rerasterize actors, props and 3D text with the same camera framing; they do not
 add detail to the original background artwork. Background colors and depths are
 replicated to preserve the authored occlusion. Both Studio and movie-only playback
@@ -165,9 +168,17 @@ the movie, and custom cursor masks scale with the presented image. Movie-only
 presentation fits the movie itself to the window and adds the pause banner.
 The shared renderer retains the movie palette so both views preserve the original
 colors and transitions. The legacy palette-based scene transitions retain their
-native canvas resolution. **Better Speed** applies to Original size; super sizes use
-full-quality buffers and require more CPU and memory. **Make these the default
-settings** persists the rendering size without changing movie files.
+native canvas resolution. Super sizes use full-quality buffers and require
+more CPU and memory. **Make these the default
+settings** persists the rendering resolution without changing movie files.
+
+Applying a resolution choice also sizes a windowed Studio to a whole-number
+multiple of its 640x480 canvas. Reduced and Original request 1x; 2x and 4x request
+that window scale, capped at the largest integer that fits the current monitor's
+usable desktop after allowing for its title bar and borders. A 4x render can
+therefore appear in a 2x window. A maximized window restores before fitting;
+fullscreen keeps its selected mode. Saved super-size choices fit the window on
+startup as well.
 
 Equal-size indexed and true-color transfers use SDL surface blits. Unsupported
 legacy formats, palette remapping, overlapping buffers and legacy scaling keep
