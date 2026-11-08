@@ -54,6 +54,7 @@ void BR_ASM_CALL PointRender_Null(struct temp_vertex_fixed *v0);
 #define IDENT(x) NULL
 #endif
 
+// clang-format off
 STATIC struct zb_material_type mat_types_index_8[] = {
 
 //	/*
@@ -265,15 +266,15 @@ STATIC struct zb_material_type mat_types_index_8[] = {
 		0, 0, 0,
 		// Same fix as above: this is the catch-all (mask=0, match=0) and
 		// must use the non-textured renderers to avoid colour_map deref.
-		// Note: TriangleRenderPIZ2 (the proper flat-shading variant) is
-		// `if 0`'d out in ti8_piz.asm in this 1.1.2 snapshot, so we use the
-		// smooth-capable PIZ2I -- it handles flat as a degenerate case.
-		ZbRenderFaceGroup, TriangleRenderPIZ2I, LineRenderPIZ2I, PointRenderPIZ2,
+		// PIZ2I interpolates vertex intensities. Supply the face's constant
+		// intensity at all three vertices, including the clipping path.
+		ZbRenderFaceGroup_FaceIV, TriangleRenderPIZ2I, LineRenderPIZ2I, PointRenderPIZ2,
 //		ZbRenderFaceGroup_FaceIV, TriangleRenderPIZ2TIA, LineRenderPIZ2TI, PointRenderPIZ2TI,
 //		ZbRenderFaceGroup, TriangleRender_Null, LineRender_Null, PointRender_Null,
-		CM_COORDS, 0,
+		CM_COORDS | CM_I, CM_I,
 	},
 };
+// clang-format on
 
 /*
  * Material types for RGB_555, DEPTH_16

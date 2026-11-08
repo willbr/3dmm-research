@@ -60,102 +60,68 @@ bool World::_fFlatShading = fFalse;
 bool World::_fNoTexture = fFalse;
 long World::_defaultRenderScale = 1;
 
-// Change lighting only for the duration of a render. Newly loaded materials
-// participate immediately, and their original flags remain safe to save/free.
-class FlatShadingScope
+// Overrides exist only during a render. Cached/newly loaded materials and
+// movie saves always retain their original textures, palette ranges and flags.
+class RenderMaterialScope
 {
     struct SavedMaterial
     {
         br_material *material;
         br_uint_32 flags;
+        br_pixelmap *texture;
+        br_uint_8 indexBase, indexRange;
     };
     std::vector<SavedMaterial> saved;
     static br_uint_32 BR_CALLBACK Apply(br_material *material, void *context)
     {
-        if (!material->colour_map && (material->flags & BR_MATF_GOURAUD))
+        const bool removeTexture = World::NoTexture() && material->colour_map;
+        const bool flatten =
+            World::FlatShading() && (!material->colour_map || removeTexture) && (material->flags & BR_MATF_GOURAUD);
+        if (removeTexture || flatten)
         {
-            auto &scope = *static_cast<FlatShadingScope *>(context);
-            scope.saved.push_back({material, material->flags});
-            material->flags &= ~BR_MATF_GOURAUD;
+            auto &scope = *static_cast<RenderMaterialScope *>(context);
+            scope.saved.push_back(
+                {material, material->flags, material->colour_map, material->index_base, material->index_range});
+            if (removeTexture)
+            {
+                material->colour_map = nullptr;
+                // Texture lighting rows are not palette indices. Use the
+                // retail default solid material's grey ramp (entries 15-30).
+                material->index_base = 15;
+                material->index_range = 15;
+            }
+            if (flatten)
+                material->flags &= ~BR_MATF_GOURAUD;
             BrMaterialUpdate(material, BR_MATU_ALL);
         }
         return 0;
     }
 
   public:
-    FlatShadingScope()
+    RenderMaterialScope()
     {
-        if (World::FlatShading())
+        if (World::FlatShading() || World::NoTexture())
         {
             saved.reserve(BrMaterialCount(pvNil));
             BrMaterialEnum(pvNil, Apply, this);
         }
     }
-    ~FlatShadingScope()
+    ~RenderMaterialScope()
     {
         for (const auto &entry : saved)
         {
             entry.material->flags = entry.flags;
+            entry.material->colour_map = entry.texture;
+            entry.material->index_base = entry.indexBase;
+            entry.material->index_range = entry.indexRange;
             BrMaterialUpdate(entry.material, BR_MATU_ALL);
         }
     }
 };
 
-/***************************************************************************
-    No-texture mode: walk every BRender material, save its colour_map, and
-    clear it (so models render in their flat base color).  Restoring requires
-    remembering the original pixmap pointer per material -- we keep that in
-    a side-table that is rebuilt on every enable.
-***************************************************************************/
-struct _STexBackup
-{
-    BMTL *pbmtl;
-    BPMP *pbpmp;
-};
-static _STexBackup *_prgtexbk = pvNil;
-static long _ctexbk = 0;
-
-static br_uint_32 BR_CALLBACK _ClearTextureCb(br_material *pbmtl, void *)
-{
-    if (pvNil == pbmtl->colour_map)
-        return 0;
-    _prgtexbk[_ctexbk].pbmtl = pbmtl;
-    _prgtexbk[_ctexbk].pbpmp = pbmtl->colour_map;
-    _ctexbk++;
-    pbmtl->colour_map = pvNil;
-    BrMaterialUpdate(pbmtl, BR_MATU_COLOURMAP);
-    return 0;
-}
-
 void World::SetNoTexture(bool fOn)
 {
-    if (_fNoTexture == fOn)
-        return;
     _fNoTexture = fOn;
-    if (fOn)
-    {
-        long cmtl = BrMaterialCount(pvNil);
-        if (cmtl <= 0)
-            return;
-        if (pvNil != _prgtexbk)
-            FreePpv((void **)&_prgtexbk);
-        _ctexbk = 0;
-        if (!FAllocPv((void **)&_prgtexbk, LwMul(cmtl, size(_STexBackup)), fmemNil, mprNormal))
-            return;
-        BrMaterialEnum(pvNil, _ClearTextureCb, pvNil);
-    }
-    else
-    {
-        long i;
-        for (i = 0; i < _ctexbk; i++)
-        {
-            _prgtexbk[i].pbmtl->colour_map = _prgtexbk[i].pbpmp;
-            BrMaterialUpdate(_prgtexbk[i].pbmtl, BR_MATU_COLOURMAP);
-        }
-        _ctexbk = 0;
-        if (pvNil != _prgtexbk)
-            FreePpv((void **)&_prgtexbk);
-    }
 }
 
 /***************************************************************************
@@ -480,9 +446,6 @@ void World::CloseBRender(void)
 #endif
         _fBRenderInited = fFalse;
     }
-    if (pvNil != _prgtexbk)
-        FreePpv((void **)&_prgtexbk);
-    _ctexbk = 0;
 }
 
 /***************************************************************************
@@ -738,7 +701,7 @@ void World::Render(void)
 
     // Render the scene.  This will add stuff to _pregnDirtyWorking
     {
-        FlatShadingScope shading;
+        RenderMaterialScope materials;
         BrZbSceneRender(&_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
     }
 
@@ -1036,8 +999,6 @@ void World::MarkMem(void)
     MarkMemObj(_pregnDirtyScreen);
     MarkMemObj(_pcrf);
     MarkMemObj(_pgptStretch);
-    if (pvNil != _prgtexbk)
-        MarkPv(_prgtexbk);
 }
 
 /******************************************************************************
@@ -1229,7 +1190,7 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
 
     BrZbSetRenderBoundsCallback(nullptr);
     {
-        FlatShadingScope shading;
+        RenderMaterialScope materials;
         BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
     }
     BrZbSetRenderBoundsCallback(_ActorRendered);

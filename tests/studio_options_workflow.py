@@ -122,10 +122,7 @@ def live_rendering(studio, original, original_pixels):
         preview = wait(studio, lambda state: all(state['rendering'].values()) and
                        state['render_width'] == (272 if escape else 1088), 'Resolution did not preview')
         assert preview['dialog']['present'], preview['dialog']
-        # No-textures temporarily removes runtime material maps. Check authored
-        # movie details after rollback, when their texture hashes are restored.
-        assert (preview['movie_scene'], preview['scene_frame'], preview['scene_camera']) == (
-            original['movie_scene'], original['scene_frame'], original['scene_camera'])
+        assert signature(preview) == signature(original), 'Preview changed cached authored materials'
         picture = base64.b64decode(studio.call('screenshot', presentation=True)['content'][0]['data'])
         dimensions, _ = decode_png(picture)
         assert dimensions == ((640, 480) if escape else (1280, 960)), dimensions
@@ -219,9 +216,17 @@ def main():
             flat_pixels = studio.capture('flat-shading')
             assert flat_pixels != original_pixels, 'Flat shading did not change the rendered scene'
             saved = output / 'saved-with-options.3mm'
+            current = options(studio)
+            click(studio, current, 1027)
+            untextured = close_options(studio, current, 1)
+            assert signature(untextured) == signature(original), 'No-textures changed authored materials'
             check_save_directory(studio)
             report['documents_save_directory'] = True
             studio.save(saved)
+            current = options(studio)
+            click(studio, current, 1027)
+            close_options(studio, current, 1)
+            report['saving_with_no_textures_preserves_materials'] = True
             set_options(studio, {'flat_shading': False})
             assert studio.capture('restored-shading') == original_pixels, 'Original shading was not restored'
             report['flat_shading_is_reversible'] = True

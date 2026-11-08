@@ -177,6 +177,70 @@ static void mkv_uv(struct temp_vertex_fixed *v, int x, int y, br_fixed_ls z, int
     v->comp[C_V] = vc;
 }
 
+/* The material dispatcher must pass each face's lit colour to the triangle
+ * renderer. Shared vertices deliberately contain unrelated old intensities:
+ * interpolating those produces colour bands instead of flat-shaded faces. */
+static int test_flat_face_shading()
+{
+    BrBegin();
+    BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
+    auto material = BrMaterialAllocate((char *)"flat-face-test");
+    material->flags = BR_MATF_LIGHT;
+    material->index_base = 15;
+    material->index_range = 15;
+    BrMaterialAdd(material);
+    auto type = static_cast<zb_material_type *>(material->rptr);
+    init_buffers();
+    install_zb();
+    temp_vertex vertices[4] = {};
+    const int xy[4][2] = {{80, 80}, {480, 80}, {80, 480}, {480, 480}};
+    for (int i = 0; i < 4; ++i)
+    {
+        vertices[i].v[0] = BrIntToFixed(xy[i][0]);
+        vertices[i].v[1] = BrIntToFixed(xy[i][1]);
+        vertices[i].v[2] = BrIntToFixed(100);
+        vertices[i].comp[C_I] = BrIntToScalar(i * 71);
+    }
+    br_face faces[2] = {};
+    faces[0].vertices[0] = 0;
+    faces[0].vertices[1] = 1;
+    faces[0].vertices[2] = 2;
+    faces[1].vertices[0] = 1;
+    faces[1].vertices[1] = 3;
+    faces[1].vertices[2] = 2;
+    br_face_group group = {};
+    group.faces = faces;
+    group.nfaces = 2;
+    temp_face surfaces[2] = {};
+    surfaces[0].flag = surfaces[1].flag = TFF_VISIBLE;
+    surfaces[0].surface = 18;
+    surfaces[1].surface = 29;
+    zb.material = material;
+    zb.temp_vertices = vertices;
+    zb.triangle_render = type->triangle;
+    zb.clip_mask = type->clip_mask;
+    zb.convert_mask = type->convert_mask;
+    type->face_group(&group, surfaces);
+    int wrong = 0, painted[2] = {};
+    for (int i = 0; i < WIDTH * HEIGHT; ++i)
+        if (g_depth[i] != 0xffff)
+        {
+            if (g_colour[i] == 18)
+                ++painted[0];
+            else if (g_colour[i] == 29)
+                ++painted[1];
+            else
+                ++wrong;
+        }
+    const bool failed = wrong || painted[0] < 1000 || painted[1] < 1000 || g_colour[120 * WIDTH + 120] != 18 ||
+                        g_colour[440 * WIDTH + 440] != 29;
+    if (failed)
+        fprintf(stderr, "Flat faces: %d incorrect pixels, %d/%d correctly shaded\n", wrong, painted[0], painted[1]);
+    BrZbEnd();
+    BrEnd();
+    return failed;
+}
+
 /* Replay the rounded triangle that corrupted Litterbug scene 41's movie
  * index at frame 6, then exercise every viewport edge and both span directions.
  * A larger translated render supplies the expected clipped colour AND depth,
@@ -1956,6 +2020,8 @@ int main(int argc, char **argv)
         return run_fmac_unit(argv[2]);
     if (strcmp(argv[1], "clipped-edges") == 0)
         return test_clipped_edges() || test_clipped_edges(2176, 1224);
+    if (strcmp(argv[1], "flat-faces") == 0)
+        return test_flat_face_shading();
 
     /* actor-* modes go through the full BrZbScene pipeline. They need
      * their own buffers (allocated by BrPixelmapAllocate), not our

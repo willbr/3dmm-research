@@ -215,6 +215,8 @@ start off, preserving the existing defaults:
   the application's stream volume rather than system volume.
 - Flat shading: render untextured materials without Gouraud shading. Original
   material flags are restored immediately after both normal and export renders.
+  Each face uses one lighting value, producing a faceted surface; existing
+  texture artwork is unchanged.
 - Keep normal keyboard repeat: disable editing's slow-repeat mode and restore
   any repeat setting already in effect.
 
@@ -231,6 +233,10 @@ shading, textures, actor pose and rendering resolution redraw the current scene.
 Resolution choices also fit the window immediately. **Cancel**, Escape and X
 restore the original rendering settings and window size; only **OK** saves them.
 The preview remembers settings and redraws the scene rather than saving an image.
+**No textures** renders textured surfaces with the standard grey shading ramp;
+existing solid-colour materials keep their colours. Combined with flat shading,
+the formerly textured surfaces are faceted too. Both overrides are limited to
+the render, so cached materials and saved movies retain their original textures.
 
 The SDL portfolio's **My movies** shortcut and default save folder use
 `Documents/3DMMForever`, resolved with `SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS)`.
