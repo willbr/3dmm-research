@@ -245,6 +245,12 @@ folder redirection on Windows. An explicitly supplied open directory still
 takes priority. Profile/settings data and existing movies stay where they are;
 the previous profile folder remains available if Documents cannot be used.
 
+Open and Save render inside Studio's existing SDL window. The 640x480
+portfolio follows the window's fitted or integer scaling, including fullscreen,
+with letterboxing where needed. Its input loop remains modal, so movie editing
+waits until the chooser closes. Navigation, previews and filename input use the
+same browser controls; closing it restores Studio's renderer and view.
+
 In the Windows x64 Debug desktop benchmark (Rebirth scene 19, frames 15–34,
 three runs), median 4x Studio playback improved from 2.18 to 6.60 fps and 4x
 movie-only playback from 3.61 to 6.61 fps. Original stayed at 6.66 fps. These

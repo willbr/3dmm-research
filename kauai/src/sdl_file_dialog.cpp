@@ -80,6 +80,7 @@ struct View
     SDL_Texture *acceptPressed = nullptr, *cancelPressed = nullptr, *homePressed = nullptr;
     SDL_Texture *documentIcon = nullptr;
     ImFont *titleFont = nullptr;
+    SDL_FRect backdropBounds{};
     bool initialized = false, firstFrame = true, details = true, popupWasOpen = false;
     std::string path, previewed, listedDirectory;
     std::vector<std::string> history;
@@ -99,6 +100,13 @@ struct View
         for (auto texture :
              {artwork, accept, cancel, home, preview, acceptPressed, cancelPressed, homePressed, documentIcon})
             SDL_DestroyTexture(texture);
+    }
+    void Background(SDL_Renderer *renderer)
+    {
+        // SDL's software triangle rasterizer can overflow for large ImGui
+        // images. Its image blitter handles the full-size backdrop directly.
+        if (artwork)
+            SDL_RenderTexture(renderer, artwork, nullptr, &backdropBounds);
     }
     bool Navigate(const std::string &directory, bool remember = true)
     {
@@ -212,12 +220,16 @@ struct View
                 preview = Texture(renderer, image);
         }
         const auto viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(viewport->Pos);
-        ImGui::SetNextWindowSize(viewport->Size);
+        const ImVec2 size = state.embedded ? ImVec2(640 * scale, 480 * scale) : viewport->Size;
+        ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + (viewport->Size.x - size.x) / 2,
+                                       viewport->Pos.y + (viewport->Size.y - size.y) / 2));
+        ImGui::SetNextWindowSize(size);
         ImGui::Begin("##portfolio", nullptr,
                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                         ImGuiWindowFlags_HorizontalScrollbar);
+                         (artwork ? ImGuiWindowFlags_NoBackground : 0) |
+                         (state.embedded ? ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
+                                         : ImGuiWindowFlags_HorizontalScrollbar));
         const auto window = ImGui::GetWindowPos();
         const ImVec2 origin(window.x - ImGui::GetScrollX(), window.y - ImGui::GetScrollY());
         const auto point = [&](float x, float y) { return ImVec2(origin.x + x * scale, origin.y + y * scale); };
@@ -227,7 +239,7 @@ struct View
             if (texture)
                 draw->AddImage(ImageID(texture), point(x, y), point(x + w, y + h));
         };
-        image(artwork, 0, 0, 640, 480);
+        backdropBounds = {origin.x, origin.y, 640 * scale, 480 * scale};
         DialogControl backdrop;
         backdrop.id = 20;
         backdrop.label = "Portfolio artwork";
@@ -243,8 +255,8 @@ struct View
             control.label = label;
             control.text = text;
             auto low = ImGui::GetItemRectMin(), high = ImGui::GetItemRectMax();
-            control.x = low.x - window.x;
-            control.y = low.y - window.y;
+            control.x = low.x - viewport->Pos.x;
+            control.y = low.y - viewport->Pos.y;
             control.width = high.x - low.x;
             control.height = high.y - low.y;
             state.controls.push_back(std::move(control));
@@ -607,7 +619,9 @@ bool RunFileDialog(FileDialog &dialog, std::uint32_t parent, void (*idle)(void *
                     [](void *context, KauaiDialogs::Session &session, float scale, DialogState &state,
                        SDL_Renderer *renderer) { static_cast<View *>(context)->Draw(session, scale, state, renderer); },
                     [](void *context) { static_cast<View *>(context)->Release(); },
-                    [](void *context) { static_cast<View *>(context)->Fonts(); }};
+                    [](void *context) { static_cast<View *>(context)->Fonts(); },
+                    parent != 0,
+                    [](void *context, SDL_Renderer *renderer) { static_cast<View *>(context)->Background(renderer); }};
     return RunModal(session, parent, idle, context, &modal);
 }
 } // namespace KauaiSDL

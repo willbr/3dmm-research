@@ -3,6 +3,7 @@
 #include "sdl_dialog.h"
 #include "platform_files.h"
 #include <SDL3/SDL.h>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +13,7 @@ struct Test
     FileDialog *dialog;
     std::string root, screenshot;
     int stage = 0;
+    SDL_Window *parent = nullptr;
     bool failed = false;
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     bool Send(DialogActionKind action, unsigned control = 0, const std::string &text = {})
@@ -43,6 +45,10 @@ struct Test
         const auto state = CurrentDialog();
         if (!state.ready)
             return;
+        test.failed |= !state.embedded || state.window != SDL_GetWindowID(test.parent);
+        int windows = 0;
+        SDL_free(SDL_GetWindows(&windows));
+        test.failed |= windows != 1;
         const auto control = [&](unsigned id) -> DialogControl {
             for (const auto &item : state.controls)
                 if (item.id == id)
@@ -50,6 +56,11 @@ struct Test
             return {};
         };
         auto &browser = test.dialog->browser;
+        if (control(20).number != 1)
+        {
+            std::fprintf(stderr, "Portfolio artwork missing: %s\n", SDL_GetError());
+            test.failed = true;
+        }
         switch (test.stage)
         {
         case 0:
@@ -111,14 +122,15 @@ struct Test
         }
     }
 };
-static void Check(bool value)
+static void CheckAt(bool value, int line)
 {
     if (!value)
     {
-        std::fputs("SDL file dialog check failed.\n", stderr);
+        std::fprintf(stderr, "SDL file dialog check failed at line %d.\n", line);
         std::exit(1);
     }
 }
+#define Check(value) CheckAt(bool(value), __LINE__)
 int main(int argc, char **argv)
 {
     if (argc != 3)
@@ -132,30 +144,80 @@ int main(int argc, char **argv)
     auto file = KauaiFiles::Open((root + "/fixture.3mm").c_str(), options);
     Check(file);
     KauaiFiles::Close(file);
-    FileDialog dialog;
-    dialog.title = "SDL portfolio test";
-    dialog.browser.filters = {{"Movies", "*.3mm"}};
-    Check(dialog.browser.Navigate(root));
-    dialog.browser.home = dialog.browser.directory;
-    dialog.artwork.width = 640;
-    dialog.artwork.height = 480;
-    dialog.artwork.pixels.assign(640 * 480, 0xFF102030);
-    dialog.preview = Test::Preview;
-    Test test{&dialog, root, argv[2]};
     Check(SDL_InitSubSystem(SDL_INIT_VIDEO));
     auto parent = SDL_CreateWindow("Portfolio parent", 640, 480, SDL_WINDOW_HIDDEN);
     Check(parent);
-    Check(RunFileDialog(dialog, SDL_GetWindowID(parent), Test::Idle, &test) && dialog.accepted && test.stage == 9 &&
-          !test.failed && dialog.browser.selection.find("fixture.3mm") != std::string::npos && !CurrentDialog().active);
+    auto renderer = SDL_CreateRenderer(parent, nullptr);
+    Check(renderer);
+    for (int variant = 0; variant < 3; ++variant)
+    {
+        const int width = variant == 0 ? 640 : variant == 1 ? 1500 : 1000;
+        const int height = variant == 0 ? 480 : variant == 1 ? 1000 : 700;
+        const auto mode = variant == 1 ? SDL_LOGICAL_PRESENTATION_INTEGER_SCALE : SDL_LOGICAL_PRESENTATION_LETTERBOX;
+        Check(SDL_SetWindowSize(parent, width, height));
+        Check(SDL_SetRenderLogicalPresentation(renderer, 640, 480, mode));
+        Check(SDL_SetRenderScale(renderer, 1.25f, 1.25f));
+        SDL_Rect clip{3, 5, 90, 70};
+        Check(SDL_SetRenderClipRect(renderer, &clip));
+        const bool textActive = variant == 1;
+        if (textActive)
+        {
+            Check(SDL_StartTextInput(parent));
+            SDL_Rect area{17, 19, 40, 20};
+            Check(SDL_SetTextInputArea(parent, &area, 7));
+        }
+        else
+            Check(SDL_StopTextInput(parent));
+        FileDialog dialog;
+        dialog.title = "SDL portfolio test";
+        dialog.browser.filters = {{"Movies", "*.3mm"}};
+        Check(dialog.browser.Navigate(root));
+        dialog.browser.home = dialog.browser.directory;
+        dialog.artwork.width = 640;
+        dialog.artwork.height = 480;
+        dialog.artwork.pixels.assign(640 * 480, 0xFF102030);
+        dialog.preview = Test::Preview;
+        Test test{&dialog, root, variant == 0 ? argv[2] : std::string(argv[2]) + std::to_string(variant) + ".bmp"};
+        test.parent = parent;
+        Check(RunFileDialog(dialog, SDL_GetWindowID(parent), Test::Idle, &test) && dialog.accepted && test.stage == 9 &&
+              !test.failed && dialog.browser.selection.find("fixture.3mm") != std::string::npos &&
+              !CurrentDialog().active);
+        Check(SDL_GetWindowFromID(SDL_GetWindowID(parent)) == parent && SDL_GetRenderer(parent) == renderer);
+        Check(SDL_TextInputActive(parent) == textActive);
+        if (textActive)
+        {
+            SDL_Rect area;
+            int cursor;
+            Check(SDL_GetTextInputArea(parent, &area, &cursor) && area.x == 17 && area.y == 19 && area.w == 40 &&
+                  area.h == 20 && cursor == 7);
+        }
+        int logicalWidth = 0, logicalHeight = 0;
+        SDL_RendererLogicalPresentation restored;
+        Check(SDL_GetRenderLogicalPresentation(renderer, &logicalWidth, &logicalHeight, &restored) &&
+              logicalWidth == 640 && logicalHeight == 480 && restored == mode);
+        float scaleX = 0, scaleY = 0;
+        Check(SDL_GetRenderScale(renderer, &scaleX, &scaleY) && scaleX == 1.25f && scaleY == 1.25f);
+        SDL_Rect restoredClip;
+        Check(SDL_RenderClipEnabled(renderer) && SDL_GetRenderClipRect(renderer, &restoredClip) &&
+              restoredClip.x == clip.x && restoredClip.y == clip.y && restoredClip.w == clip.w &&
+              restoredClip.h == clip.h);
+        auto image = SDL_LoadBMP(test.screenshot.c_str());
+        Check(image && image->w == width && image->h == height);
+        const float scale = variant == 1 ? 2.f : std::min(width / 640.f, height / 480.f);
+        const int x = int((width - 640 * scale) / 2), y = int((height - 480 * scale) / 2);
+        Uint8 r, g, b, a;
+        Check(SDL_ReadSurfacePixel(image, x + int(600 * scale), y + int(300 * scale), &r, &g, &b, &a) && r == 16 &&
+              g == 32 && b == 48);
+        Check(SDL_ReadSurfacePixel(image, x + int(100 * scale), y + int(280 * scale), &r, &g, &b, &a) && r == 32 &&
+              g == 64 && b == 128);
+        if (x > 0)
+            Check(SDL_ReadSurfacePixel(image, 0, height / 2, &r, &g, &b, &a) && r == 0 && g == 0 && b == 0);
+        SDL_DestroySurface(image);
+    }
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(parent);
-    auto image = SDL_LoadBMP(argv[2]);
-    Check(image);
-    Uint8 r, g, b, a;
-    Check(SDL_ReadSurfacePixel(image, 600, 300, &r, &g, &b, &a) && r == 16 && g == 32 && b == 48);
-    Check(SDL_ReadSurfacePixel(image, 100, 280, &r, &g, &b, &a) && r == 32 && g == 64 && b == 128);
-    SDL_DestroySurface(image);
     Check(KauaiFiles::Delete((root + "/fixture.3mm").c_str()));
     Check(KauaiFiles::DeleteDirectory((root + "/sub").c_str()) && KauaiFiles::DeleteDirectory(root.c_str()));
-    std::puts("SDL portfolio: actual folder text/Enter, Up navigation, file selection, rendered artwork/preview "
-              "pixels, acceptance and cleanup passed.");
+    std::puts("SDL portfolio: shared parent window/renderer, fitted and integer scaling, folder navigation, "
+              "selection, artwork/preview pixels and renderer state restoration passed.");
 }

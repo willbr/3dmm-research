@@ -16,6 +16,7 @@
 #include <list>
 #include <mutex>
 #include <cstring>
+#include <cmath>
 
 namespace KauaiSDL
 {
@@ -26,6 +27,46 @@ DialogState published;
 std::deque<DialogAction> actions;
 std::uint64_t nextGeneration = 0;
 
+struct RendererState
+{
+    SDL_Renderer *renderer = nullptr;
+    SDL_Texture *target = nullptr;
+    int width = 0, height = 0;
+    SDL_RendererLogicalPresentation presentation = SDL_LOGICAL_PRESENTATION_DISABLED;
+    SDL_Rect viewport{}, clip{};
+    bool viewportSet = false, clipSet = false;
+    float scaleX = 1, scaleY = 1;
+    float red = 0, green = 0, blue = 0, alpha = 1;
+    SDL_BlendMode blend = SDL_BLENDMODE_NONE;
+    bool Capture(SDL_Renderer *value)
+    {
+        if (!SDL_GetRenderLogicalPresentation(value, &width, &height, &presentation))
+            return false;
+        renderer = value;
+        target = SDL_GetRenderTarget(renderer);
+        viewportSet = SDL_RenderViewportSet(renderer);
+        clipSet = SDL_RenderClipEnabled(renderer);
+        SDL_GetRenderViewport(renderer, &viewport);
+        SDL_GetRenderClipRect(renderer, &clip);
+        SDL_GetRenderScale(renderer, &scaleX, &scaleY);
+        SDL_GetRenderDrawColorFloat(renderer, &red, &green, &blue, &alpha);
+        SDL_GetRenderDrawBlendMode(renderer, &blend);
+        return true;
+    }
+    void Restore()
+    {
+        if (!renderer)
+            return;
+        SDL_SetRenderTarget(renderer, target);
+        SDL_SetRenderLogicalPresentation(renderer, width, height, presentation);
+        SDL_SetRenderScale(renderer, scaleX, scaleY);
+        SDL_SetRenderViewport(renderer, viewportSet ? &viewport : nullptr);
+        SDL_SetRenderClipRect(renderer, clipSet ? &clip : nullptr);
+        SDL_SetRenderDrawColorFloat(renderer, red, green, blue, alpha);
+        SDL_SetRenderDrawBlendMode(renderer, blend);
+    }
+};
+
 struct Window
 {
     SDL_Window *window = nullptr, *parent = nullptr;
@@ -34,6 +75,11 @@ struct Window
     SDL_Cursor *cursor = SDL_GetCursor();
     bool cursorVisible = SDL_CursorVisible(), initialized = false, platform = false, drawing = false, modal = false;
     bool clipboardChanged = false, quitRequested = false;
+    bool embedded = false, ownsRenderer = true, textInputWasActive = false;
+    bool mouseWasCaptured = false, textAreaKnown = false;
+    SDL_Rect textArea{};
+    int textCursor = 0;
+    RendererState rendererState;
     std::list<std::string> textEvents;
     std::string fontFamily;
     ImVec2 units = ImVec2(2, 2);
@@ -54,14 +100,27 @@ struct Window
         if (imgui)
             ImGui::DestroyContext(imgui);
         ImGui::SetCurrentContext(previous);
-        SDL_DestroyRenderer(renderer);
+        rendererState.Restore();
+        if (embedded && window)
+        {
+            SDL_CaptureMouse(mouseWasCaptured);
+            if (textAreaKnown)
+                SDL_SetTextInputArea(window, &textArea, textCursor);
+            if (textInputWasActive)
+                SDL_StartTextInput(window);
+            else
+                SDL_StopTextInput(window);
+        }
+        if (ownsRenderer)
+            SDL_DestroyRenderer(renderer);
         if (modal)
             SDL_SetWindowModal(window, false);
-        SDL_DestroyWindow(window);
+        if (!embedded)
+            SDL_DestroyWindow(window);
         if (cursor)
             SDL_SetCursor(cursor);
         cursorVisible ? SDL_ShowCursor() : SDL_HideCursor();
-        if (parent && focused)
+        if (!embedded && parent && focused)
             SDL_RaiseWindow(parent);
         if (previous)
         {
@@ -582,60 +641,87 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
         scope.parent = parentID ? SDL_GetWindowFromID(parentID) : nullptr;
         if (parentID && !scope.parent)
             return false;
-        const float scale =
-            std::max(1.f, SDL_GetDisplayContentScale(scope.parent ? SDL_GetDisplayForWindow(scope.parent)
-                                                                  : SDL_GetPrimaryDisplay()));
+        float scale = std::max(1.f, SDL_GetDisplayContentScale(scope.parent ? SDL_GetDisplayForWindow(scope.parent)
+                                                                            : SDL_GetPrimaryDisplay()));
         scope.scale = scale;
         SelectDialogFont(scope);
         if (view)
             scope.units = ImVec2(2, 2); // Portfolio artwork retains its 640x480 canvas.
         const auto title = KauaiDialogs::Caption(session.resource.title);
-        scope.window = SDL_CreateWindow(
-            view && scope.parent ? SDL_GetWindowTitle(scope.parent) : title.c_str(),
-            static_cast<int>((session.resource.bounds.width * scope.units.x + (view ? 0 : 2 * ClassicDialog::Border)) *
-                             scale),
-            static_cast<int>((session.resource.bounds.height * scope.units.y +
-                              (view ? 0 : ClassicDialog::ContentTop + ClassicDialog::Border)) *
-                             scale),
-            SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | (view ? 0 : SDL_WINDOW_BORDERLESS));
-        if (!scope.window)
-            return false;
-        if (!view)
-            SDL_SetWindowHitTest(scope.window, CaptionHit, &scope);
-        if (scope.parent)
+        scope.embedded = view && view->inParent && scope.parent;
+        if (scope.embedded)
+            scope.window = scope.parent;
+        else
         {
-            // The dummy driver has no window manager. Run the same modal
-            // session/event loop without requesting native window modality.
-            const auto driver = SDL_GetCurrentVideoDriver();
-            if (!driver || SDL_strcmp(driver, "dummy") != 0)
+            scope.window = SDL_CreateWindow(
+                view && scope.parent ? SDL_GetWindowTitle(scope.parent) : title.c_str(),
+                static_cast<int>(
+                    (session.resource.bounds.width * scope.units.x + (view ? 0 : 2 * ClassicDialog::Border)) * scale),
+                static_cast<int>((session.resource.bounds.height * scope.units.y +
+                                  (view ? 0 : ClassicDialog::ContentTop + ClassicDialog::Border)) *
+                                 scale),
+                SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_HIDDEN | (view ? 0 : SDL_WINDOW_BORDERLESS));
+            if (!scope.window)
+                return false;
+            if (!view)
+                SDL_SetWindowHitTest(scope.window, CaptionHit, &scope);
+            if (scope.parent)
             {
-                if (!SDL_SetWindowParent(scope.window, scope.parent) || !SDL_SetWindowModal(scope.window, true))
-                    return false;
-                scope.modal = true;
+                // The dummy driver has no window manager. Run the same modal
+                // session/event loop without requesting native window modality.
+                const auto driver = SDL_GetCurrentVideoDriver();
+                if (!driver || SDL_strcmp(driver, "dummy") != 0)
+                {
+                    if (!SDL_SetWindowParent(scope.window, scope.parent) || !SDL_SetWindowModal(scope.window, true))
+                        return false;
+                    scope.modal = true;
+                }
+                int x = 0, y = 0, w = 0, h = 0, dw = 0, dh = 0;
+                if (SDL_GetWindowPosition(scope.parent, &x, &y) && SDL_GetWindowSize(scope.parent, &w, &h) &&
+                    SDL_GetWindowSize(scope.window, &dw, &dh))
+                    SDL_SetWindowPosition(scope.window, x + (w - dw) / 2, y + (h - dh) / 2);
             }
-            int x = 0, y = 0, w = 0, h = 0, dw = 0, dh = 0;
-            if (SDL_GetWindowPosition(scope.parent, &x, &y) && SDL_GetWindowSize(scope.parent, &w, &h) &&
-                SDL_GetWindowSize(scope.window, &dw, &dh))
-                SDL_SetWindowPosition(scope.window, x + (w - dw) / 2, y + (h - dh) / 2);
+            SDL_Rect usable;
+            if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(scope.window), &usable))
+            {
+                int top = 0, left = 0, bottom = 0, right = 0;
+                SDL_GetWindowBordersSize(scope.window, &top, &left, &bottom, &right);
+                int x, y, width, height;
+                SDL_GetWindowPosition(scope.window, &x, &y);
+                SDL_GetWindowSize(scope.window, &width, &height);
+                width = std::min(width, std::max(1, usable.w - left - right));
+                height = std::min(height, std::max(1, usable.h - top - bottom));
+                SDL_SetWindowSize(scope.window, width, height);
+                x = std::max(usable.x + left, std::min(x, usable.x + usable.w - right - width));
+                y = std::max(usable.y + top, std::min(y, usable.y + usable.h - bottom - height));
+                SDL_SetWindowPosition(scope.window, x, y);
+            }
         }
-        SDL_Rect usable;
-        if (SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(scope.window), &usable))
+        scope.textInputWasActive = SDL_TextInputActive(scope.window);
+        if (scope.embedded)
         {
-            int top = 0, left = 0, bottom = 0, right = 0;
-            SDL_GetWindowBordersSize(scope.window, &top, &left, &bottom, &right);
-            int x, y, width, height;
-            SDL_GetWindowPosition(scope.window, &x, &y);
-            SDL_GetWindowSize(scope.window, &width, &height);
-            width = std::min(width, std::max(1, usable.w - left - right));
-            height = std::min(height, std::max(1, usable.h - top - bottom));
-            SDL_SetWindowSize(scope.window, width, height);
-            x = std::max(usable.x + left, std::min(x, usable.x + usable.w - right - width));
-            y = std::max(usable.y + top, std::min(y, usable.y + usable.h - bottom - height));
-            SDL_SetWindowPosition(scope.window, x, y);
+            scope.mouseWasCaptured = (SDL_GetWindowFlags(scope.window) & SDL_WINDOW_MOUSE_CAPTURE) != 0;
+            scope.textAreaKnown = SDL_GetTextInputArea(scope.window, &scope.textArea, &scope.textCursor);
         }
-        scope.renderer = SDL_CreateRenderer(scope.window, nullptr);
+        scope.renderer = scope.embedded ? SDL_GetRenderer(scope.window) : nullptr;
+        scope.ownsRenderer = !scope.renderer;
+        if (scope.renderer && !scope.rendererState.Capture(scope.renderer))
+            return false;
+        if (!scope.renderer)
+            scope.renderer = SDL_CreateRenderer(scope.window, nullptr);
         if (!scope.renderer)
             return false;
+        if (scope.embedded)
+        {
+            // ImGui uses window coordinates. Render the fitted portfolio in
+            // those coordinates, restoring Studio's logical presentation later.
+            if (!SDL_SetRenderTarget(scope.renderer, nullptr) ||
+                !SDL_SetRenderLogicalPresentation(scope.renderer, 0, 0, SDL_LOGICAL_PRESENTATION_DISABLED))
+                return false;
+            SDL_SetRenderViewport(scope.renderer, nullptr);
+            SDL_SetRenderClipRect(scope.renderer, nullptr);
+            SDL_SetRenderScale(scope.renderer, 1, 1);
+        }
         scope.imgui = ImGui::CreateContext();
         auto &io = ImGui::GetIO();
         io.IniFilename = nullptr;
@@ -648,7 +734,7 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
         if (!scope.platform)
             return false;
         scope.drawing = ImGui_ImplSDLRenderer3_Init(scope.renderer);
-        if (!scope.drawing || !SDL_ShowWindow(scope.window))
+        if (!scope.drawing || (!scope.embedded && !SDL_ShowWindow(scope.window)))
             return false;
         SDL_StartTextInput(scope.window);
         shown = true;
@@ -687,12 +773,34 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
                 break;
             ImGui_ImplSDLRenderer3_NewFrame();
             ImGui_ImplSDL3_NewFrame();
+            if (scope.embedded)
+            {
+                int width = 0, height = 0;
+                if (SDL_GetRenderOutputSize(scope.renderer, &width, &height) && width > 0 && height > 0)
+                {
+                    float pixels = std::min(width / 640.f, height / 480.f);
+                    if (scope.rendererState.presentation == SDL_LOGICAL_PRESENTATION_INTEGER_SCALE && pixels >= 1)
+                        pixels = std::floor(pixels);
+                    scale = std::max(.05f, pixels / std::max(.01f, io.DisplayFramebufferScale.x));
+                }
+                else
+                    scale = scope.scale; // A minimized window may temporarily have no drawable area.
+                if (scale != scope.scale)
+                {
+                    // ScaleAllSizes multiplies the existing style. Start from
+                    // its base sizes whenever the window's fitted scale changes.
+                    ImGui::GetStyle() = ImGuiStyle();
+                    ClassicDialog::Style(scale);
+                    scope.scale = scale;
+                }
+            }
             ImGui::NewFrame();
             const bool focusing = session.focus >= 0;
             DialogState snapshot;
             if (view)
             {
                 snapshot.active = snapshot.ready = true;
+                snapshot.embedded = scope.embedded;
                 snapshot.window = id;
                 snapshot.generation = publication.generation;
                 snapshot.title = title;
@@ -712,13 +820,16 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
             snapshot.ready = focusSettling == 0;
             ImGui::Render();
             SDL_SetRenderScale(scope.renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
-            SDL_SetRenderDrawColor(scope.renderer, 28, 28, 28, 255);
+            const Uint8 background = scope.embedded ? 0 : 28;
+            SDL_SetRenderDrawColor(scope.renderer, background, background, background, 255);
             if (!SDL_RenderClear(scope.renderer))
             {
                 session.closed = true;
                 session.result = -1;
                 break;
             }
+            if (view && view->background)
+                view->background(view->context, scope.renderer);
             ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), scope.renderer);
             std::deque<DialogAction> pending;
             {

@@ -1577,6 +1577,7 @@ static JVal Tool_GetState(const JVal &args)
         o.Set("hwnd_visible", JVal::MkBool(state.shown));
         o.Set("hwnd_iconic", JVal::MkBool(state.minimized));
         o.Set("sdl_fullscreen", JVal::MkBool(state.fullscreen));
+        o.Set("sdl_window_id", JVal::MkInt(KauaiSDL::Main().WindowID()));
         o.Set("sdl_integer_scaling", JVal::MkBool(KauaiSDL::Main().IntegerScaling()));
         o.Set("foreground", JVal::MkBool(state.keyboardFocus));
         std::string title;
@@ -1966,6 +1967,7 @@ static JVal Tool_GetSDLDialog(const JVal &)
     JVal result = JVal::MkObj();
     result.Set("active", JVal::MkBool(state.active));
     result.Set("ready", JVal::MkBool(state.ready));
+    result.Set("embedded", JVal::MkBool(state.embedded));
     result.Set("generation", JVal::MkInt(static_cast<long long>(state.generation)));
     result.Set("window_id", JVal::MkInt(state.window));
     result.Set("title", JVal::MkStr(state.title));

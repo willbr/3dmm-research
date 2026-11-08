@@ -15,7 +15,7 @@ struct DialogControl
 };
 struct DialogState
 {
-    bool active = false, ready = false;
+    bool active = false, ready = false, embedded = false;
     std::uint64_t generation = 0;
     std::uint32_t window = 0;
     std::string title;

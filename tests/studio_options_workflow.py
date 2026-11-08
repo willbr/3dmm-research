@@ -143,6 +143,7 @@ def live_rendering(studio, original, original_pixels):
 
 
 def check_save_directory(studio):
+    main_window = studio.state()['sdl_window_id']
     studio.call('send_command', cid=104)
     deadline = time.monotonic() + 10
     while True:
@@ -152,6 +153,7 @@ def check_save_directory(studio):
         assert time.monotonic() < deadline, 'Save portfolio did not open'
         time.sleep(.02)
     controls = {item['id']: item for item in current['controls']}
+    assert current['embedded'] and current['window_id'] == main_window, 'Portfolio opened another window'
     documents = next((item['text'] for item in current['controls'] if item['label'] == 'Documents'), None)
     if documents:
         assert pathlib.Path(controls[10]['text']) == pathlib.Path(documents) / '3DMMForever', controls[10]

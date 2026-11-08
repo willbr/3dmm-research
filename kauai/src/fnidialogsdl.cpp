@@ -33,7 +33,10 @@ bool Choose(Filename *selection, achar *filters, CoreNative::WindowHandle owner,
         ~ResumeInput()
         {
             if (!KauaiSDL::CurrentDialog().active)
+            {
                 KauaiSDL::Main().ResumeAfterModal();
+                KauaiSDL::Main().Present(true);
+            }
         }
     } resume;
     try
@@ -64,8 +67,7 @@ bool Choose(Filename *selection, achar *filters, CoreNative::WindowHandle owner,
         const auto parent = host.IsWindow(owner) ? host.WindowID() : 0;
         for (;;)
         {
-            if (!KauaiSDL::RunFileDialog(dialog, parent, [](void *) { KauaiSDL::Main().Present(); }) ||
-                !dialog.accepted)
+            if (!KauaiSDL::RunFileDialog(dialog, parent) || !dialog.accepted)
                 return false;
             String path;
             std::basic_string<KauaiFiles::PathChar> native;
@@ -82,6 +84,7 @@ bool Choose(Filename *selection, achar *filters, CoreNative::WindowHandle owner,
                     return false;
                 if (exists == tYes)
                 {
+                    host.Present(true);
                     KauaiDialogs::Session confirm;
                     if (!confirm.InitAlert("Replace the existing file?", "Save As",
                                            KauaiDialogs::AlertButtons::yesNo) ||

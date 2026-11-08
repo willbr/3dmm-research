@@ -12,6 +12,8 @@ struct ModalView
     void (*draw)(void *, KauaiDialogs::Session &, float, DialogState &, SDL_Renderer *);
     void (*release)(void *);
     void (*initialize)(void *) = nullptr;
+    bool inParent = false;
+    void (*background)(void *, SDL_Renderer *) = nullptr;
 };
 bool RunModal(KauaiDialogs::Session &, std::uint32_t, void (*)(void *), void *, ModalView *);
 } // namespace KauaiSDL

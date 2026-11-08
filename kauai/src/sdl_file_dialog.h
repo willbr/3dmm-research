@@ -23,6 +23,7 @@ struct FileDialog
 };
 // True once shown; accepted/selection distinguish selection from cancellation.
 // A successful selection never opens or writes the chosen file.
+// With a parent, draw inside that window and preserve its renderer state.
 bool RunFileDialog(FileDialog &, std::uint32_t parent = 0, void (*idle)(void *) = nullptr, void *context = nullptr);
 } // namespace KauaiSDL
 #endif

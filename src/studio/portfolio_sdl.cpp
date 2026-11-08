@@ -188,10 +188,12 @@ bool Choose(Filename *selection, const Request &request)
             }
             host.FlushInput(true, true);
             host.SuspendFocusEvents(true);
-            const bool shown =
-                KauaiSDL::RunFileDialog(dialog, host.WindowID(), [](void *) { KauaiSDL::Main().Present(); });
+            const bool shown = KauaiSDL::RunFileDialog(dialog, host.WindowID());
             if (!KauaiSDL::CurrentDialog().active)
+            {
                 host.ResumeAfterModal();
+                host.Present(true);
+            }
             if (!shown)
                 PushErc(ercSocPortfolioFailed);
             if (!shown || !dialog.accepted)
