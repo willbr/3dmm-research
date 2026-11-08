@@ -130,9 +130,12 @@ struct View
         add("Desktop", SDL_GetUserFolder(SDL_FOLDER_DESKTOP));
         add("Documents", SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS));
         add("Downloads", SDL_GetUserFolder(SDL_FOLDER_DOWNLOADS));
-        add("Pictures", SDL_GetUserFolder(SDL_FOLDER_PICTURES));
-        add("Music", SDL_GetUserFolder(SDL_FOLDER_MUSIC));
-        add("Videos", SDL_GetUserFolder(SDL_FOLDER_VIDEOS));
+        if (dialog.mediaPlaces)
+        {
+            add("Pictures", SDL_GetUserFolder(SDL_FOLDER_PICTURES));
+            add("Music", SDL_GetUserFolder(SDL_FOLDER_MUSIC));
+            add("Videos", SDL_GetUserFolder(SDL_FOLDER_VIDEOS));
+        }
         add("My movies", dialog.browser.home.c_str());
         places.push_back({"This computer", {}});
         std::vector<fs::path> ancestors;
@@ -349,6 +352,50 @@ struct View
         ImGui::PushStyleColor(ImGuiCol_Header, ImGui::ColorConvertU32ToFloat4(ClassicDialog::Navy));
         if (ImGui::BeginPopup("##locations"))
         {
+            if (dialog.saveFavorites)
+            {
+                auto current = fs::u8path(browser.directory).lexically_normal();
+                const auto favorite =
+                    std::find_if(dialog.favorites.begin(), dialog.favorites.end(), [&](const std::string &path) {
+                        return fs::u8path(path).lexically_normal() == current;
+                    });
+                const bool saved = favorite != dialog.favorites.end();
+                const char *label =
+                    saved ? "Remove current folder from favourites" : "Add current folder to favourites";
+                if (ImGui::Selectable(label))
+                {
+                    auto favorites = dialog.favorites;
+                    if (saved)
+                        favorites.erase(favorites.begin() + (favorite - dialog.favorites.begin()));
+                    else
+                        favorites.push_back(browser.directory);
+                    if (dialog.saveFavorites(dialog.context, favorites))
+                    {
+                        dialog.favorites = std::move(favorites);
+                        browser.error.clear();
+                    }
+                    else
+                        browser.error = "Could not save favourite folders.";
+                }
+                describe(14, label);
+                if (!dialog.favorites.empty())
+                {
+                    ImGui::Separator();
+                    ImGui::TextDisabled("Favourites");
+                    for (std::size_t n = 0; n < dialog.favorites.size(); ++n)
+                    {
+                        const auto &path = dialog.favorites[n];
+                        ImGui::PushID(int(n));
+                        if (ImGui::Selectable(Leaf(path).c_str(), fs::u8path(path).lexically_normal() == current))
+                            Navigate(path);
+                        describe(0x200000 + unsigned(n), Leaf(path), KauaiDialogs::ItemKind::button, path);
+                        if (ImGui::IsItemHovered())
+                            ImGui::SetTooltip("%s", path.c_str());
+                        ImGui::PopID();
+                    }
+                }
+                ImGui::Separator();
+            }
             for (std::size_t n = 0; n < places.size(); ++n)
             {
                 const auto &place = places[n];

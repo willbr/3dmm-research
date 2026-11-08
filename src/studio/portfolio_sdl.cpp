@@ -8,6 +8,7 @@
 #include "text_utf8.h"
 #include <SDL3/SDL_filesystem.h>
 #include <exception>
+#include <algorithm>
 #include "studio.h"
 #include "portfolio_host.h"
 #include "portfolio_data.h"
@@ -16,6 +17,52 @@ namespace StudioPortfolio
 {
 namespace
 {
+// NUL-separated UTF-8 paths stored as binary avoid the legacy ANSI string
+// conversion. The INI backend retains all other settings and writes atomically.
+constexpr std::size_t FavoritesCapacity = 65536;
+std::vector<std::string> StoredFolders(PZString setting)
+{
+    std::vector<char> data(FavoritesCapacity);
+    bool missing = false;
+    if (!vapp.FGetSetRegKey(setting, data.data(), long((data.size)()), fregBinary, &missing) || missing)
+        return {};
+    std::vector<std::string> result;
+    for (std::size_t start = 0; start < (data.size)() && data[start];)
+    {
+        const auto end = std::find(data.begin() + start, data.end(), '\0');
+        if (end == data.end() || (result.size)() == 64)
+            return {};
+        std::string path(data.begin() + start, end);
+        std::vector<std::uint16_t> units;
+        if (!KauaiText::DecodeUtf8(path, units))
+            return {};
+        result.push_back(std::move(path));
+        start = std::size_t(end - data.begin()) + 1;
+    }
+    return result;
+}
+bool SaveFolders(PZString setting, const std::vector<std::string> &folders)
+{
+    if ((folders.size)() > 64)
+        return false;
+    std::vector<char> data;
+    for (const auto &folder : folders)
+    {
+        if (folder.empty() || folder.find('\0') != std::string::npos ||
+            (folder.size)() >= FavoritesCapacity - (data.size)())
+            return false;
+        data.insert(data.end(), folder.begin(), folder.end());
+        data.push_back(0);
+    }
+    if ((data.size)() == FavoritesCapacity)
+        return false;
+    data.push_back(0);
+    return vapp.FGetSetRegKey(setting, data.data(), long((data.size)()), fregSetKey | fregBinary);
+}
+bool SaveFavoriteFolders(void *, const std::vector<std::string> &folders)
+{
+    return SaveFolders(PszLit("FavoriteFolders"), folders);
+}
 std::string Utf8(const achar *text)
 {
     if (!text)
@@ -130,6 +177,8 @@ bool Choose(Filename *selection, const Request &request)
         auto &browser = dialog.browser;
         browser.open = request.open;
         browser.defaultExtension = Utf8(request.defaultExtension);
+        const bool moviePortfolio = (request.previews & fpfPortPrevMovie) != 0;
+        dialog.mediaPlaces = !moviePortfolio;
         dialog.title = Utf8(request.title);
         Filename userDirectory;
         String path;
@@ -142,7 +191,13 @@ bool Choose(Filename *selection, const Request &request)
             request.initialDirectory->GetStnPath(&path);
             initial = Utf8(path.Psz());
         }
-        if (!browser.Navigate(initial) && !browser.Navigate(browser.home))
+        if (request.open && moviePortfolio)
+        {
+            const auto previous = StoredFolders(PszLit("LastMovieFolder"));
+            if (!previous.empty())
+                browser.Navigate(previous.front());
+        }
+        if (browser.directory.empty() && !browser.Navigate(initial) && !browser.Navigate(browser.home))
             return false;
         if (!request.open && request.defaultName)
             browser.name = Utf8(request.defaultName->Psz());
@@ -156,6 +211,8 @@ bool Choose(Filename *selection, const Request &request)
             browser.filters.push_back({std::move(label), std::move(pattern)});
         }
         browser.Refresh();
+        dialog.favorites = StoredFolders(PszLit("FavoriteFolders"));
+        dialog.saveFavorites = SaveFavoriteFolders;
         Preview preview{request.previews};
         auto palette = GraphicsPort::PglclrGetPalette();
         if (palette)
@@ -189,6 +246,8 @@ bool Choose(Filename *selection, const Request &request)
             host.FlushInput(true, true);
             host.SuspendFocusEvents(true);
             const bool shown = KauaiSDL::RunFileDialog(dialog, host.WindowID());
+            if (shown && request.open && moviePortfolio && !SaveFolders(PszLit("LastMovieFolder"), {browser.directory}))
+                std::fprintf(stderr, "Could not remember the last movie folder.\n");
             if (!KauaiSDL::CurrentDialog().active)
             {
                 host.ResumeAfterModal();

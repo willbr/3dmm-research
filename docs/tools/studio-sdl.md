@@ -2986,6 +2986,14 @@ navigation and movie/bitmap previews. `file_browser.h/.cpp` owns SDK-free UTF-8
 navigation, sorting and wildcard filters over `platform_files`; it never changes
 the process directory or creates/writes the selected file. Unrepresentable
 Windows ANSI paths are rejected rather than silently choosing another file.
+The folder menu provides **Add current folder to favourites** and
+**Remove current folder from favourites**, with saved folders above the standard
+locations. Hover a favourite to see its full path. Favourites save immediately
+in `settings.ini`, including when the picker is cancelled. Movie open/save
+pickers omit Pictures, Music and Videos; media import pickers retain them.
+**Open a movie** remembers its last browsed folder across cancellation and
+restarts, falling back to the usual initial/home folder if it is unavailable.
+Entering another folder resets both file-list scroll axes to the top left.
 The Studio controller converts legacy strings at the boundary, plays the original
 invocation sounds, preserves open/save cancellation behavior, and leaves actual
 movie loading/writing to Studio's existing commands. Overwrite confirmation still
@@ -3013,6 +3021,9 @@ types enter the public portfolio request or core browser APIs.
 `file-browser-test` checks navigation, filters, suffixes and read-only selection.
 `file-dialog-sdl-test` sends actual SDL text, Enter and pointer events, then checks
 rendered artwork and preview pixels in its screenshot.
+`tests/studio_portfolio_workflow.py --exe <studio> --iso <base.iso>
+--fixture <private.3mm> --artifacts <output>` checks favourite add/remove and
+navigation, UTF-8 paths, cancellation, restart persistence and movie locations.
 
 Add `--portfolio` to the Studio smoke check to open and cancel the original
 open/save portfolios through Studio commands, requiring SDL controls and the

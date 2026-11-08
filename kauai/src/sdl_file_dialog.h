@@ -17,6 +17,10 @@ struct FileDialog
     DialogImage artwork, acceptButton, cancelButton, homeButton;
     DialogImage acceptPressed, cancelPressed, homePressed;
     DialogImage documentIcon;
+    bool mediaPlaces = true;
+    std::vector<std::string> favorites;
+    // The host owns persistence; successful changes are saved immediately.
+    bool (*saveFavorites)(void *, const std::vector<std::string> &) = nullptr;
     void *context = nullptr;
     bool (*preview)(void *, const std::string &, DialogImage &) = nullptr;
     bool accepted = false;
