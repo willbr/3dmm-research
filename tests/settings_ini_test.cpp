@@ -56,6 +56,12 @@ int main()
     request.write = true;
 #ifdef _WIN32
     CHECK(Access(WindowsBackend(), key.c_str(), option.c_str(), &enabled, sizeof(enabled), request));
+    // Retail setup leaves an unnamed string marker beside the named settings.
+    auto unnamed = Name("");
+    NameChar marker[] = {0};
+    request.type = Type::String;
+    CHECK(Access(WindowsBackend(), key.c_str(), unnamed.c_str(), marker, sizeof(marker), request));
+    request.type = Type::Binary;
 #endif
     request.write = false;
     request.setDefault = true;
@@ -158,6 +164,8 @@ int main()
 #endif
     const auto directory = std::filesystem::u8path(StudioSettings::IniPath()).parent_path();
     CHECK(directory.filename() == run && directory.parent_path().filename() == "3dmmforever-settings");
+    CHECK(std::filesystem::weakly_canonical(directory).parent_path() ==
+          std::filesystem::weakly_canonical(std::filesystem::temp_directory_path() / "3dmmforever-settings"));
     std::filesystem::remove_all(directory);
     std::puts("INI: migration, editable options, machine settings, exact blobs, strings, comments and malformed files "
               "passed.");

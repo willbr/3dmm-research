@@ -206,7 +206,7 @@ values (checkboxes use 0/1); quoted strings use UTF-8 with escaped backslashes
 and quotes. Larger legacy profile blobs use hexadecimal. Matching `.Types`
 sections preserve the original types and sizes and should be retained.
 
-On Windows, creating the first INI imports existing values from the original
+On Windows, creating the first INI imports existing named values from the original
 32-bit HKCU/HKLM settings keys using read-only registry access. An existing
 INI is authoritative: missing or invalid entries do not fall back to registry
 values. Writes preserve comments and unrelated sections, hold a cross-process

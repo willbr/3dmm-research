@@ -133,7 +133,8 @@ bool KauaiSettings::ReadWindowsValues(const NameChar *key, bool machine, std::ve
                           : type == REG_SZ     ? Type::String
                           : type == REG_BINARY ? Type::Binary
                                                : Type::Unknown;
-        if (kind != Type::Unknown)
+        // Setup's unnamed default is a key marker, not an application setting.
+        if (kind != Type::Unknown && count != 0)
             values.push_back({std::basic_string<NameChar>(reinterpret_cast<NameChar *>(name.data()), count), kind,
                               std::vector<unsigned char>(bytes.begin(), bytes.begin() + length)});
     }

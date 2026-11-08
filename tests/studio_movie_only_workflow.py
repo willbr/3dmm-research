@@ -23,7 +23,9 @@ from studio_movie_workflow import Studio
 
 def remove_settings(run):
     assert run and len(run) <= 64 and all(ch in '0123456789abcdef-' for ch in run)
-    directory = pathlib.Path(tempfile.gettempdir()) / '3dmmforever-settings' / run
+    root = (pathlib.Path(tempfile.gettempdir()) / '3dmmforever-settings').resolve()
+    directory = (root / run).resolve()
+    assert directory.parent == root
     if directory.is_dir():
         shutil.rmtree(directory)
     if os.name != 'nt':
