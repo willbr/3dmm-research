@@ -26,6 +26,7 @@ glossary of old Hungarian-style class names.
 
 ## See also
 
+- [7gen / v3dmm research and integration plan](tools/v3dmm-research.md): Ghidra findings, VXP/VMM layouts, and staged native support.
 - [Movie-making manifesto](movie-making-manifesto.md): practical rules for modelling, staging, animation and reference review.
 - [`../README.md`](../README.md) — top-level project README (build,
   status, architecture overview).

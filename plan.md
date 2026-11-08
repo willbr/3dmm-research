@@ -16,7 +16,7 @@ This plan does NOT cover:
 - Modernizing the kidspace scripting language or `chomp` chunked-source pipeline (the bytecode VM ships in 1995 3DMM and matches its behavior; replacing it adds regression risk on the user-facing kidspace flow without helping the `.3MM` compat mission).
 - Replacing or removing BRender (kept as-is; only ported, not rewritten).
 - Replacing the 3D pipeline with Vulkan / OpenGL / Metal — see *Future / 3DMMPlus* note below.
-- v3dmm content support, the SoftImage-DKIT-dependent SITOBREN tool, or new file format design (those go to 3DMMPlus).
+- The SoftImage-DKIT-dependent SITOBREN tool or new file format design (those go to 3DMMPlus).
 - macOS/Linux Mac toolbox compatibility — kauai's `*mac.cpp` files are not the SDL backend.
 
 ## Future / 3DMMPlus
@@ -43,6 +43,16 @@ Not worth doing.
 If specific files annoy you, do targeted modernization. The rename pass (Project 0) is the right level of investment.
 
 ---
+
+## Follow-on: native 7gen / v3dmm compatibility
+
+The November 2026 request adds existing `.vxp` expansion and `.vmm` movie
+compatibility to the port's planned scope. See the
+[Ghidra findings and implementation sequence](docs/tools/v3dmm-research.md).
+Support the existing containers and resource identities natively, using the
+current chunk loaders and expansion store. Preserve the hard constraints above:
+ordinary `.3MM` output remains retail-compatible, and mod-dependent bundled
+documents use a separate `.vmm` save path. Implementation has not started.
 
 ## Project 0: rename modernization
 
