@@ -173,101 +173,56 @@ BEGIN
                     IDC_STATIC,9,10,165,37
 END
 
-#ifdef KAUAI_SDL3
-#define INFO_SCALING_HEIGHT 16
-#define INFO_RENDER_HEIGHT 24
-#else
-#define INFO_SCALING_HEIGHT 0
-#define INFO_RENDER_HEIGHT 0
-#endif
-
-dlidInfo DIALOG DISCARDABLE  0, 0, 320, 282 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT
+dlidInfo DIALOG DISCARDABLE  0, 0, 350, 270
 STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
-CAPTION "Product Info"
+CAPTION "Options"
 FONT 8, "MS Sans Serif"
 BEGIN
-    DEFPUSHBUTTON   "OK",IDCANCEL,135,266 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT,50,14
-    LTEXT           "Product Identification Number:",IDC_STATIC,10,40,280,8
-    EDITTEXT        IDC_EDIT4,10,54,300,12,ES_AUTOHSCROLL | ES_READONLY |
-                    NOT WS_BORDER
-    CONTROL         "Fullscreen",IDC_RADIO4,"Button",BS_AUTORADIOBUTTON |
-                    WS_GROUP,15,87,290,10
-    CONTROL         "Run in Window",IDC_RADIO5,"Button",BS_AUTORADIOBUTTON,
-                    15,103,290,10
+    DEFPUSHBUTTON   "OK",IDOK,232,252,50,14
+    EDITTEXT        IDC_EDIT4,25,125,300,12,ES_AUTOHSCROLL | ES_READONLY | NOT WS_BORDER
+    CONTROL         "Fullscreen",IDC_RADIO4,"Button",BS_AUTORADIOBUTTON | WS_GROUP,25,50,290,10
+    CONTROL         "Run in Window",IDC_RADIO5,"Button",BS_AUTORADIOBUTTON,25,65,290,10
 #ifdef DEBUG
-    LTEXT           "cactAV:",IDC_STATIC,243,267 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT,27,10
-    EDITTEXT        IDC_EDIT3,272,267 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT,35,12,ES_AUTOHSCROLL
+    LTEXT           "cactAV:",IDC_INFO_DEBUG_LABEL,25,170,40,10
+    EDITTEXT        IDC_EDIT3,70,169,45,12,ES_AUTOHSCROLL
 #endif
-    LTEXT           "(c) and (p) 1995 Microsoft Corporation.  All rights reserved.",
-                    IDC_STATIC,10,27,300,8
-    EDITTEXT        IDC_EDIT2,11,6,300,13,ES_AUTOHSCROLL | ES_READONLY | NOT
-                    WS_BORDER
-    GROUPBOX        "Display Options",IDC_STATIC,10,74,300,49 + INFO_SCALING_HEIGHT
-    CONTROL         "Wireframe rendering",IDC_CHECK2,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,193 + INFO_SCALING_HEIGHT,290,10
-    CONTROL         "No textures",IDC_CHECK3,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,207 + INFO_SCALING_HEIGHT,290,10
-    CONTROL         "Show actor pose",IDC_CHECK4,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,221 + INFO_SCALING_HEIGHT,290,10
-    CONTROL         "Make these the default settings",IDC_CHECK1,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,10,247 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT,300,10
-    GROUPBOX        "Performance Options",IDC_STATIC,10,129 + INFO_SCALING_HEIGHT,300,50
-    GROUPBOX        "Rendering Options",IDC_STATIC,10,183 + INFO_SCALING_HEIGHT,300,52 + INFO_RENDER_HEIGHT
-    CONTROL         "Better Quality",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON |
-                    WS_GROUP,15,145 + INFO_SCALING_HEIGHT,290,10
+    LTEXT           "(c) and (p) 1995 Microsoft Corporation. All rights reserved.",IDC_INFO_COPYRIGHT,25,90,300,16
+    EDITTEXT        IDC_EDIT2,25,50,300,26,ES_MULTILINE | ES_READONLY | NOT WS_BORDER
+    CONTROL         "Wireframe rendering",IDC_CHECK2,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,145,290,10
+    CONTROL         "No textures",IDC_CHECK3,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,175,290,10
+    CONTROL         "Show actor pose",IDC_CHECK4,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,190,290,10
+    CONTROL         "Make these the default settings",IDC_CHECK1,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,10,237,330,10
+    CONTROL         "Better Quality",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON | WS_GROUP,25,112,120,10
 #ifdef KAUAI_SDL3
-    CONTROL         "Better Speed (Original size)",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,15,
+    CONTROL         "Better Speed (Original size)",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,160,112,165,10
 #else
-    CONTROL         "Better Speed",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,15,
+    CONTROL         "Better Speed",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,160,112,165,10
 #endif
-                    161 + INFO_SCALING_HEIGHT,290,10
 #ifdef KAUAI_SDL3
-    CONTROL         "Integer scaling",IDC_CHECK5,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,119,290,10
-    LTEXT           "Render size:",IDC_STATIC,15,238 + INFO_SCALING_HEIGHT,60,10
-    CONTROL         "Original",IDC_RENDER_ORIGINAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,
-                    80,237 + INFO_SCALING_HEIGHT,65,10
-    CONTROL         "2x super size",IDC_RENDER_2X,"Button",BS_AUTORADIOBUTTON,
-                    155,237 + INFO_SCALING_HEIGHT,75,10
-    CONTROL         "4x super size",IDC_RENDER_4X,"Button",BS_AUTORADIOBUTTON,
-                    235,237 + INFO_SCALING_HEIGHT,75,10
+    CONTROL         "Integer scaling",IDC_CHECK5,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,80,290,10
+    CONTROL         "Original",IDC_RENDER_ORIGINAL,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,90,212,60,10
+    CONTROL         "2x super size",IDC_RENDER_2X,"Button",BS_AUTORADIOBUTTON,160,212,75,10
+    CONTROL         "4x super size",IDC_RENDER_4X,"Button",BS_AUTORADIOBUTTON,245,212,75,10
+    LTEXT           "Render size:",IDC_INFO_RENDER_LABEL,25,212,60,10
 #endif
-    PUSHBUTTON      "More options...",IDC_MORE_OPTIONS,10,266 + INFO_SCALING_HEIGHT + INFO_RENDER_HEIGHT,95,14
-END
-
-#undef INFO_SCALING_HEIGHT
-#undef INFO_RENDER_HEIGHT
-
-dlidMoreOptions DIALOG DISCARDABLE  0, 0, 300, 254
-STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
-CAPTION "More Options"
-FONT 8, "MS Sans Serif"
-BEGIN
-    DEFPUSHBUTTON   "OK",IDOK,178,232,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,235,232,55,14
-    CONTROL         "Allow multiple instances",IDC_ALLOW_MULTIPLE,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,25,270,10
-    CONTROL         "Skip startup screens",IDC_SKIP_STARTUP,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,41,270,10
-    CONTROL         "Mute startup sound",IDC_MUTE_STARTUP,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,57,270,10
-    CONTROL         "Mute studio interface sounds",IDC_MUTE_STUDIO,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,100,270,10
-    CONTROL         "Play movies in the background",IDC_BACKGROUND_PLAYBACK,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,116,270,10
-    CONTROL         "Use cuts instead of scene transitions",IDC_CUT_TRANSITIONS,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,132,270,10
-    CONTROL         "Disable playback audio fades",IDC_DISABLE_AUDIO_FADES,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,148,270,10
-    CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,177,270,10
-    CONTROL         "Keep normal keyboard repeat",IDC_NORMAL_KEY_REPEAT,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,15,193,270,10
-    CONTROL         "Make these the default settings",IDC_CHECK1,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,10,216,280,10
-    GROUPBOX        "Startup (next launch)",IDC_STATIC,10,10,280,64
-    GROUPBOX        "Playback and sound",IDC_STATIC,10,85,280,78
-    GROUPBOX        "Rendering and editing",IDC_STATIC,10,166,280,40
+    CONTROL         "Allow multiple instances",IDC_ALLOW_MULTIPLE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,52,290,10
+    CONTROL         "Skip startup screens",IDC_SKIP_STARTUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,76,290,10
+    CONTROL         "Mute startup sound",IDC_MUTE_STARTUP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,100,290,10
+    CONTROL         "Mute studio interface sounds",IDC_MUTE_STUDIO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,52,290,10
+    CONTROL         "Play movies in the background",IDC_BACKGROUND_PLAYBACK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,76,290,10
+    CONTROL         "Use cuts instead of scene transitions",IDC_CUT_TRANSITIONS,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,100,290,10
+    CONTROL         "Disable playback audio fades",IDC_DISABLE_AUDIO_FADES,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,124,290,10
+    CONTROL         "Flat shading (untextured objects)",IDC_FLAT_SHADING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,160,290,10
+    CONTROL         "Keep normal keyboard repeat",IDC_NORMAL_KEY_REPEAT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,25,171,290,10
+    PUSHBUTTON      "Cancel",IDCANCEL,290,252,50,14
+    GROUPBOX        "Display",IDC_DISPLAY_GROUP,20,37,310,58
+    GROUPBOX        "Performance",IDC_PERFORMANCE_GROUP,20,100,310,28
+    GROUPBOX        "Rendering",IDC_RENDERING_GROUP,20,133,310,95
+    GROUPBOX        "Playback and sound",IDC_PLAYBACK_GROUP,20,38,310,105
+    GROUPBOX        "Editing",IDC_EDITING_GROUP,20,155,310,42
+    GROUPBOX        "Startup",IDC_STARTUP_GROUP,20,38,310,80
+    LTEXT           "Startup changes apply on your next launch.",IDC_STARTUP_NOTICE,25,130,290,20
+    LTEXT           "Product Identification Number:",IDC_INFO_PRODUCT_LABEL,25,110,290,10
 END
 
 dlidInitFailed DIALOG DISCARDABLE  0, 0, 187, 71

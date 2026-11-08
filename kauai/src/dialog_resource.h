@@ -35,6 +35,18 @@ struct Control
     // following bytes, verified against User32 with a subsequent control.
     std::vector<std::uint8_t> creationData;
 };
+struct TabPage
+{
+    std::uint32_t id = 0;
+    std::u16string title;
+    std::vector<std::uint32_t> controls;
+};
+struct TabLayout
+{
+    Bounds bounds;
+    std::vector<TabPage> pages;
+    bool Visible(std::uint32_t control, std::size_t selected) const;
+};
 struct Resource
 {
     bool extended = false;
@@ -44,6 +56,7 @@ struct Resource
     std::u16string title;
     Font font;
     std::vector<Control> controls;
+    TabLayout tabs; // Runtime presentation metadata; not part of the binary template.
 };
 // Reads standard or version-1 extended dialog templates. Offsets are relative
 // to the byte span, so unaligned input is supported. Failure leaves output

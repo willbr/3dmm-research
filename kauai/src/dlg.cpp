@@ -10,6 +10,7 @@
     Standard dialogs.
 
 ***************************************************************************/
+#include <new>
 #include "dialog_resource.h"
 #include "dialog_session.h"
 #include "platform_text.h"
@@ -28,6 +29,30 @@ Dialog::Dialog(LegacyLong rid) : GeneralGroup(sizeof(DialogItem))
 {
     _rid = rid;
     _session = nullptr;
+}
+
+Dialog::~Dialog()
+{
+    delete _tabs;
+}
+
+bool Dialog::FSetTabs(const KauaiDialogs::TabLayout &layout)
+{
+    auto tabs = new (std::nothrow) KauaiDialogs::TabLayout;
+    if (!tabs)
+        return false;
+    try
+    {
+        *tabs = layout;
+    }
+    catch (...)
+    {
+        delete tabs;
+        return false;
+    }
+    delete _tabs;
+    _tabs = tabs;
+    return true;
 }
 
 bool Dialog::_FInitItems(const KauaiDialogs::Resource &resource)

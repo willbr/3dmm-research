@@ -37,6 +37,7 @@ struct Session
     std::vector<Binding> bindings;
     std::vector<Value> values;
     std::int32_t focus = -1, result = -1;
+    std::size_t selectedTab = 0;
     bool closed = false, quitRequested = false;
     // Zero disables Escape/window-close cancellation (e.g. a Yes/No alert).
     std::uint32_t cancelControl = 2;

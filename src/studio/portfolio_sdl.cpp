@@ -6,6 +6,7 @@
 #include "pixel_canvas.h"
 #include "platform_text.h"
 #include "text_utf8.h"
+#include <SDL3/SDL_filesystem.h>
 #include <exception>
 #include "studio.h"
 #include "portfolio_host.h"
@@ -53,6 +54,21 @@ bool Legacy(const std::string &text, String &result)
     result.SetRgch(bytes.data(), static_cast<LegacyLong>(count));
 #endif
     return true;
+}
+std::string MovieDirectory(const std::string &profile)
+{
+    // Resolve the OS's Documents folder, including redirection/OneDrive on
+    // Windows. Profile data and bundled samples keep their existing locations.
+    const auto documents = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS);
+    if (!documents)
+        return profile;
+    const std::string directory = std::string(documents) + "3DMMForever";
+    String legacy;
+    std::basic_string<KauaiFiles::PathChar> native;
+    if (!Legacy(directory, legacy) || Utf8(legacy.Psz()) != directory ||
+        !KauaiFiles::NativePathFromUtf8(directory, native) || !KauaiFiles::MakeDirectories(native.c_str()))
+        return profile;
+    return directory;
 }
 struct Preview
 {
@@ -119,12 +135,14 @@ bool Choose(Filename *selection, const Request &request)
         String path;
         vapp.GetFniUser(&userDirectory);
         userDirectory.GetStnPath(&path);
-        browser.home = Utf8(path.Psz());
+        browser.home = MovieDirectory(Utf8(path.Psz()));
+        std::string initial = browser.home;
         if (request.open && request.initialDirectory)
+        {
             request.initialDirectory->GetStnPath(&path);
-        else if (request.open)
-            path.SetSz(PszLit("."));
-        if (!browser.Navigate(Utf8(path.Psz())) && !browser.Navigate(browser.home))
+            initial = Utf8(path.Psz());
+        }
+        if (!browser.Navigate(initial) && !browser.Navigate(browser.home))
             return false;
         if (!request.open && request.defaultName)
             browser.name = Utf8(request.defaultName->Psz());

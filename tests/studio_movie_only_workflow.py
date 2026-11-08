@@ -71,7 +71,7 @@ def render_scale(studio, scale, save=False, capture=None):
         studio.call('sdl_dialog_action', generation=dialog['generation'], action='click', control=1010)
     if capture:
         studio.call('sdl_dialog_action', generation=dialog['generation'], action='screenshot', text=str(capture))
-    studio.call('sdl_dialog_action', generation=dialog['generation'], action='click', control=2)
+    studio.call('sdl_dialog_action', generation=dialog['generation'], action='click', control=1)
     return wait(studio, lambda s: s['render_scale'] == scale and s.get('render_width') == 544 * scale and
                 s.get('render_height') == 306 * scale and s['application_foreground'],
                 'Render size or foreground activation did not apply')
@@ -163,7 +163,7 @@ def fullscreen(studio):
             break
         assert time.monotonic() < deadline, 'Product Info did not open'
         time.sleep(.02)
-    for control in (1015, 2):
+    for control in (1015, 1):
         studio.call('sdl_dialog_action', generation=dialog['generation'], action='click', control=control)
     return wait(studio, lambda s: s['sdl_fullscreen'] and s['client_size'] != previous['client_size'],
                 'Product Info did not select fullscreen')

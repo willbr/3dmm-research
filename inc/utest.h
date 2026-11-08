@@ -164,7 +164,6 @@ class Application : public Application_PAR
     bool _FAppAlreadyRunning(void);
     void _LoadPreferences();
     void _ApplyPreferences();
-    void _ShowMoreOptions();
     void _TryToActivateWindow(void);
     bool _FEnsureOS(void);
     bool _FEnsureAudio(void);

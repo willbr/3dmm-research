@@ -408,7 +408,7 @@ def main():
                 deadline = time.monotonic() + 10
                 while True:
                     dialog = json.loads(call("get_sdl_dialog")["content"][0]["text"])
-                    if dialog["active"] and dialog["ready"] and dialog["title"] == "Product Info":
+                    if dialog["active"] and dialog["ready"] and dialog["title"] == "Options":
                         break
                     if time.monotonic() >= deadline:
                         raise AssertionError("Original Product Info did not open through SDL/ImGui")
@@ -442,7 +442,7 @@ def main():
                     if time.monotonic() >= deadline:
                         raise AssertionError("SDL dialog screenshot was not saved")
                     time.sleep(0.03)
-                dialog_action("click", 2)  # The original OK control has IDCANCEL.
+                dialog_action("click", 1)  # Apply settings from all tabs.
                 while json.loads(call("get_sdl_dialog")["content"][0]["text"])["active"]:
                     if time.monotonic() >= deadline:
                         raise AssertionError("SDL Product Info did not close")
@@ -483,7 +483,7 @@ def main():
                         controls = {item["id"]: item for item in dialog["controls"]}
                         if bool(controls[1015]["number"]) != (not hotkey_fullscreen):
                             raise AssertionError("Product Info window mode disagrees with Alt+Enter")
-                        call("sdl_dialog_action", generation=dialog["generation"], action="click", control=2)
+                        call("sdl_dialog_action", generation=dialog["generation"], action="click", control=1)
                         settle()
                         if json.loads(call("get_state")["content"][0]["text"])["sdl_fullscreen"] != hotkey_fullscreen:
                             raise AssertionError("Product Info undid the Alt+Enter window mode")

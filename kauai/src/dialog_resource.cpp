@@ -7,6 +7,14 @@
 
 namespace KauaiDialogs
 {
+bool TabLayout::Visible(std::uint32_t control, std::size_t selected) const
+{
+    for (std::size_t page = 0; page < pages.size(); ++page)
+        for (const auto member : pages[page].controls)
+            if (member == control)
+                return page == selected;
+    return true;
+}
 namespace
 {
 class Reader

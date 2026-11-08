@@ -10,6 +10,8 @@
     Standard dialogs.
 
 ***************************************************************************/
+#include <windows.h>
+#include <commctrl.h>
 #include "dialog_resource.h"
 #ifdef KAUAI_SDL3
 #include "dialog_session.h"
@@ -29,8 +31,50 @@ struct DLGI
 class NativeDialogAdapter
 {
   public:
+    static bool CreateTabs(PDialog dialog, HWND window);
+    static void SelectTab(PDialog dialog, HWND window, std::size_t selected);
     static INT_PTR CALLBACK Dispatch(HWND hdlg, UINT msg, WPARAM w, LPARAM lw);
 };
+
+void NativeDialogAdapter::SelectTab(PDialog dialog, HWND window, std::size_t selected)
+{
+    for (const auto &page : dialog->_tabs->pages)
+        for (const auto control : page.controls)
+            if (auto child = GetDlgItem(window, control))
+                ShowWindow(child, dialog->_tabs->Visible(control, selected) ? SW_SHOW : SW_HIDE);
+    InvalidateRect(window, nullptr, true);
+}
+
+bool NativeDialogAdapter::CreateTabs(PDialog dialog, HWND window)
+{
+    if (!dialog->_tabs || dialog->_tabs->pages.empty())
+        return true;
+    INITCOMMONCONTROLSEX common = {sizeof(common), ICC_TAB_CLASSES};
+    if (!InitCommonControlsEx(&common))
+        return false;
+    const auto &bounds = dialog->_tabs->bounds;
+    RECT rectangle = {bounds.x, bounds.y, bounds.x + bounds.width, bounds.y + bounds.height};
+    MapDialogRect(window, &rectangle);
+    auto tabs =
+        CreateWindowExW(0, WC_TABCONTROLW, L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_CLIPSIBLINGS, rectangle.left,
+                        rectangle.top, rectangle.right - rectangle.left, rectangle.bottom - rectangle.top, window,
+                        reinterpret_cast<HMENU>(0x7f00), vwig.hinst, nullptr);
+    if (!tabs)
+        return false;
+    SendMessage(tabs, WM_SETFONT, SendMessage(window, WM_GETFONT, 0, 0), false);
+    for (std::size_t index = 0; index < (dialog->_tabs->pages.size)(); ++index)
+    {
+        TCITEMW item = {};
+        item.mask = TCIF_TEXT;
+        item.pszText =
+            const_cast<wchar_t *>(reinterpret_cast<const wchar_t *>(dialog->_tabs->pages[index].title.c_str()));
+        if (SendMessageW(tabs, TCM_INSERTITEMW, index, reinterpret_cast<LPARAM>(&item)) == -1)
+            return false;
+    }
+    SetWindowPos(tabs, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    SelectTab(dialog, window, 0);
+    return true;
+}
 
 achar _szDlgProp[] = PszLit("Dialog");
 
@@ -116,6 +160,8 @@ INT_PTR CALLBACK NativeDialogAdapter::Dispatch(HWND hdlg, UINT msg, WPARAM w, LP
 
         // set the dialog values
         pdlg->SetValues(0, pdlg->IvMac());
+        if (!CreateTabs(pdlg, hdlg))
+            goto LFail;
         if (ivNil != pdlgi->iditFocus)
             pdlg->SelectDit(pdlgi->iditFocus);
 
@@ -138,6 +184,17 @@ INT_PTR CALLBACK NativeDialogAdapter::Dispatch(HWND hdlg, UINT msg, WPARAM w, LP
         MoveWindow(hdlg, rcDlg.xpLeft, rcDlg.ypTop, rcDlg.Dxp(), rcDlg.Dyp(), fFalse);
 
         return ivNil == pdlgi->iditFocus;
+
+    case WM_NOTIFY:
+        if (pdlg && pdlg->_tabs && reinterpret_cast<NMHDR *>(lw)->idFrom == 0x7f00 &&
+            reinterpret_cast<NMHDR *>(lw)->code == TCN_SELCHANGE)
+        {
+            const auto selected = SendDlgItemMessage(hdlg, 0x7f00, TCM_GETCURSEL, 0, 0);
+            if (selected >= 0)
+                SelectTab(pdlg, hdlg, static_cast<std::size_t>(selected));
+            return true;
+        }
+        break;
 
     case WM_TIMER:
         if (pvNil == pdlg)

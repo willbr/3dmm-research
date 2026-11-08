@@ -41,32 +41,68 @@ def click(studio, current, control):
     studio.call('sdl_dialog_action', generation=current['generation'], action='click', control=control)
 
 
-def more_options(studio):
+TAB_CONTROLS = {
+    1043: ('flat_shading',),
+    1044: ('mute_studio_sounds', 'background_playback', 'cut_transitions', 'disable_audio_fades', 'normal_key_repeat'),
+    1045: ('allow_multiple_instances', 'skip_startup_screens', 'mute_startup_sound'),
+}
+
+
+def options(studio):
     studio.call('send_command', cid=40038)
-    click(studio, dialog(studio, 'Product Info'), 1033)
-    return dialog(studio, 'More Options')
+    return dialog(studio, 'Options')
+
+
+def select_tab(studio, current, control):
+    click(studio, current, control)
+    deadline = time.monotonic() + 10
+    while True:
+        current = dialog(studio, 'Options')
+        if any(item['id'] == control and item['number'] for item in current['controls']):
+            return current
+        assert time.monotonic() < deadline, ('Tab did not activate', control, current)
+        time.sleep(.02)
 
 
 def close_options(studio, current, control):
     click(studio, current, control)
-    click(studio, dialog(studio, 'Product Info'), 2)
     return wait(studio, lambda state: not state['dialog']['present'], 'Options did not close')
 
 
 def set_options(studio, desired, save=False, capture=None):
-    current = more_options(studio)
-    controls = {item['id']: item for item in current['controls']}
-    assert all(control in controls for control in CONTROLS.values()), current
-    for name, value in desired.items():
-        if bool(controls[CONTROLS[name]]['number']) != value:
-            click(studio, current, CONTROLS[name])
+    current = options(studio)
+    for tab, names in TAB_CONTROLS.items():
+        current = select_tab(studio, current, tab)
+        controls = {item['id']: item for item in current['controls']}
+        for name in names:
+            if name in desired and bool(controls[CONTROLS[name]]['number']) != desired[name]:
+                click(studio, current, CONTROLS[name])
     if save:
         click(studio, current, 1010)
     if capture:
-        studio.call('sdl_dialog_action', generation=current['generation'], action='screenshot', text=str(capture))
+        for tab, name in ((1043, 'display'), (1044, 'playback'), (1045, 'startup'), (1046, 'about')):
+            current = select_tab(studio, current, tab)
+            studio.call('sdl_dialog_action', generation=current['generation'], action='screenshot',
+                        text=str(capture.with_stem(capture.stem + '-' + name)))
     state = close_options(studio, current, 1)
     assert all(state['preferences'][name] == value for name, value in desired.items()), state
     return state
+
+
+def check_save_directory(studio):
+    studio.call('send_command', cid=104)
+    deadline = time.monotonic() + 10
+    while True:
+        current = json.loads(studio.call('get_sdl_dialog')['content'][0]['text'])
+        if current['active'] and current['ready'] and any(item['id'] == 10 for item in current['controls']):
+            break
+        assert time.monotonic() < deadline, 'Save portfolio did not open'
+        time.sleep(.02)
+    controls = {item['id']: item for item in current['controls']}
+    documents = next((item['text'] for item in current['controls'] if item['label'] == 'Documents'), None)
+    if documents:
+        assert pathlib.Path(controls[10]['text']) == pathlib.Path(documents) / '3DMMForever', controls[10]
+    close_options(studio, current, 2)
 
 
 def main():
@@ -103,19 +139,29 @@ def main():
         try:
             original = studio.state()
             original_pixels = studio.capture('original')
-            current = more_options(studio)
-            for control in CONTROLS.values():
-                click(studio, current, control)
+            current = options(studio)
+            for tab, names in TAB_CONTROLS.items():
+                current = select_tab(studio, current, tab)
+                for name in names:
+                    click(studio, current, CONTROLS[name])
+            current = select_tab(studio, current, 1043)
+            assert next(item['number'] for item in current['controls'] if item['id'] == 1036) == 1
+            assert not any(item['id'] == 1039 for item in current['controls']), 'Hidden page remained interactive'
+            click(studio, current, 1029)  # Cancel also rolls back the existing display controls.
             cancelled = close_options(studio, current, 2)
             assert cancelled['preferences'] == original['preferences'], cancelled
+            assert cancelled['sdl_integer_scaling'] == original['sdl_integer_scaling']
             report['cancel_preserves_preferences'] = True
+            report['tabs_preserve_edits_and_hide_other_pages'] = True
             enabled = set_options(studio, dict.fromkeys(CONTROLS, True), save=True,
-                                  capture=output / 'more-options.bmp')
+                                  capture=output / 'options.bmp')
             assert signature(enabled) == signature(original), 'Options altered authored movie data'
             assert enabled['scene_transition'] == original['scene_transition']
             flat_pixels = studio.capture('flat-shading')
             assert flat_pixels != original_pixels, 'Flat shading did not change the rendered scene'
             saved = output / 'saved-with-options.3mm'
+            check_save_directory(studio)
+            report['documents_save_directory'] = True
             studio.save(saved)
             set_options(studio, {'flat_shading': False})
             assert studio.capture('restored-shading') == original_pixels, 'Original shading was not restored'

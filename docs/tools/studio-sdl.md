@@ -127,14 +127,14 @@ precedence over the original overlay. Build artifacts and extracted content
 stay under the ignored `build` and `dist` directories.
 
 The canvas fits the available area while preserving its 4:3 aspect ratio.
-Open **Product Info** with **Control+Shift+I** and enable **Integer scaling** to
-restrict scaling to whole-number pixel multiples in windowed, maximized and
+Open **Options** with **Control+Shift+I** and enable **Integer scaling** on the
+**Display** tab to restrict scaling to whole-number pixel multiples in windowed, maximized and
 fullscreen modes. **Make these the default settings** saves the scaling choice
 for future launches.
 
 **Alt+Enter** toggles desktop fullscreen and restores the previous window size
 when returning to windowed mode. Holding the keys toggles only once per press.
-The shortcut preserves the scaling choice, updates Product Info's window-mode
+The shortcut preserves the scaling choice, updates Options' window-mode
 selection, and remains available while placing an actor or prop. The Windows
 `--fullscreen --actor` smoke workflow checks these paths with desktop key input.
 
@@ -150,8 +150,8 @@ pause. **Escape** stops playback and restores Studio in the current window;
 natural completion also restores the editor. Ordinary Play
 and the original movie data remain unchanged.
 
-Product Info's **Render size** selects **Original (544x306)**, **2x super size
-(1088x612)** or **4x super size (2176x1224)**. Original is the default. Super sizes
+Options' **Display** tab offers **Render size**, selecting **Original (544x306)**,
+**2x super size (1088x612)** or **4x super size (2176x1224)**. Original is the default. Super sizes
 rerasterize actors, props and 3D text with the same camera framing; they do not
 add detail to the original background artwork. Background colors and depths are
 replicated to preserve the authored occlusion. Both Studio and movie-only playback
@@ -179,9 +179,10 @@ changed regions through the normal object tree, retaining foreground panels
 and editing controls. Unchanged frames reuse the uploaded texture. Software
 AND/XOR cursors retain true-color compositing, including inverted colors.
 
-**Product Info > More options...** (also reached through Ctrl+Shift+I) exposes
-optional patch-style preferences. All switches start off, preserving the
-existing defaults:
+**Options** (Ctrl+Shift+I) keeps all settings in one window with **Display**,
+**Playback & sound**, **Startup** and **About** tabs. Switching tabs preserves
+pending edits. The optional patch-style preferences are grouped by purpose.
+All switches start off, preserving the existing defaults:
 
 - Allow multiple instances: bypass Windows' existing single-instance check.
   macOS/Linux already allow independent instances.
@@ -204,10 +205,18 @@ existing defaults:
 
 **OK** applies session preferences; **Make these the default settings** also
 persists them, including startup choices for the next launch. **Cancel**, Escape
-and closing More Options discard its changes. These settings never become movie
-or asset data. `studio-options-workflow` covers dialog actions, defaults,
-independent startup sound, multiple instances, reversible rendering and movie
-save/reopen with the preferences enabled.
+and closing Options discard changes across every tab. These settings never
+become movie or asset data. `studio-options-workflow` covers dialog actions, defaults,
+independent startup sound, multiple instances, tab switching, cancellation of
+display and playback edits, reversible rendering and movie save/reopen with the
+preferences enabled.
+
+The SDL portfolio's **My movies** shortcut and default save folder use
+`Documents/3DMMForever`, resolved with `SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS)`.
+This follows the operating system's Documents location, including OneDrive or
+folder redirection on Windows. An explicitly supplied open directory still
+takes priority. Profile/settings data and existing movies stay where they are;
+the previous profile folder remains available if Documents cannot be used.
 
 In the Windows x64 Debug desktop benchmark (Rebirth scene 19, frames 15–34,
 three runs), median 4x Studio playback improved from 2.18 to 6.60 fps and 4x

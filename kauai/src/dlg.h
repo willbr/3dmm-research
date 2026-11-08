@@ -17,7 +17,12 @@
 #define DLG_H
 #include "kauai_core.h"
 
-namespace KauaiDialogs { struct Resource; struct Session; }
+namespace KauaiDialogs
+{
+struct Resource;
+struct Session;
+struct TabLayout;
+} // namespace KauaiDialogs
 
 using Group::GeneralGroup;
 
@@ -63,6 +68,7 @@ class Dialog : public Dialog_PAR
     LegacyLong _rid;
     PFNDLG _pfn;
     void *_pv;
+    KauaiDialogs::TabLayout *_tabs = nullptr;
 
     friend class NativeDialogAdapter;
 
@@ -86,6 +92,8 @@ class Dialog : public Dialog_PAR
 
   public:
     static PDialog PdlgNew(LegacyLong rid, PFNDLG pfn = pvNil, void *pv = pvNil);
+    ~Dialog();
+    bool FSetTabs(const KauaiDialogs::TabLayout &layout);
 
     LegacyLong IditDo(LegacyLong iditFocus = ivNil);
 

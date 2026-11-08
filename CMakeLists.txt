@@ -925,6 +925,7 @@ target_link_libraries(kauai
     kauai-core
     $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:Vfw32>
     $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:Winmm>
+    $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:comctl32>
     $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:mpr>)
 if(NOT STUDIO_SDL3)
   target_sources(kauai PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/sndam.cpp")

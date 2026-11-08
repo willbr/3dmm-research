@@ -46,8 +46,11 @@ bool Dialog::_FDoSDL(LegacyLong focus, LegacyLong &result)
     result = ivNil;
     KauaiDialogs::Resource resource;
     KauaiDialogs::Session session;
-    if (!_FReadResource(resource) || !session.Init(resource) ||
-        static_cast<LegacyLong>((session.bindings.size)()) != IvMac())
+    if (!_FReadResource(resource))
+        return false;
+    if (_tabs)
+        resource.tabs = *_tabs;
+    if (!session.Init(resource) || static_cast<LegacyLong>((session.bindings.size)()) != IvMac())
         return false;
     auto &host = KauaiSDL::Main();
     bool shown = false;

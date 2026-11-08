@@ -243,11 +243,70 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
     const auto contentPosition = ImGui::GetWindowPos();
     const ImVec2 origin(contentPosition.x - ImGui::GetScrollX(), contentPosition.y - ImGui::GetScrollY());
     const auto savedFocus = session.focus;
+    const auto &tabs = session.resource.tabs;
+    if (!tabs.pages.empty())
+    {
+        const auto &bounds = tabs.bounds;
+        const float header = 18 * units.y * scale;
+        const ImVec2 low(origin.x + bounds.x * units.x * scale, origin.y + bounds.y * units.y * scale);
+        const ImVec2 high(low.x + bounds.width * units.x * scale, low.y + bounds.height * units.y * scale);
+        auto draw = ImGui::GetWindowDrawList();
+        ClassicDialog::Bevel(draw, ImVec2(low.x, low.y + header), high, false, scale);
+        if (ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Tab, false))
+            session.selectedTab = ImGui::GetIO().KeyShift
+                                      ? (session.selectedTab + tabs.pages.size() - 1) % tabs.pages.size()
+                                      : (session.selectedTab + 1) % tabs.pages.size();
+        const float width = (high.x - low.x) / tabs.pages.size();
+        for (std::size_t index = 0; index < tabs.pages.size(); ++index)
+        {
+            const auto &page = tabs.pages[index];
+            const ImVec2 tabLow(low.x + index * width, low.y + 2 * scale);
+            const ImVec2 tabHigh(tabLow.x + width, low.y + header + 2 * scale);
+            ImGui::SetCursorScreenPos(tabLow);
+            ImGui::PushID(static_cast<int>(page.id));
+            if (ImGui::InvisibleButton("##tab", ImVec2(width, header)))
+                session.selectedTab = index;
+            if (ImGui::IsItemFocused())
+            {
+                if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
+                    session.selectedTab = (session.selectedTab + tabs.pages.size() - 1) % tabs.pages.size();
+                if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
+                    session.selectedTab = (session.selectedTab + 1) % tabs.pages.size();
+            }
+            const bool selected = session.selectedTab == index;
+            draw->AddRectFilled(tabLow, tabHigh, ClassicDialog::Face);
+            ClassicDialog::Bevel(draw, tabLow, tabHigh, false, scale);
+            if (selected)
+                draw->AddRectFilled(ImVec2(tabLow.x + 2 * scale, tabHigh.y - 4 * scale),
+                                    ImVec2(tabHigh.x - 2 * scale, tabHigh.y), ClassicDialog::Face);
+            const auto label = KauaiDialogs::Caption(page.title);
+            const auto text = ImGui::CalcTextSize(label.c_str());
+            draw->AddText(ImVec2(tabLow.x + (width - text.x) / 2, tabLow.y + (header - text.y) / 2),
+                          ClassicDialog::Black, label.c_str());
+            if (ImGui::IsItemFocused())
+                ClassicDialog::Focus(draw, ImVec2(tabLow.x + 4 * scale, tabLow.y + 4 * scale),
+                                     ImVec2(tabHigh.x - 4 * scale, tabHigh.y - 4 * scale), scale);
+            DialogControl control;
+            control.id = page.id;
+            control.item = static_cast<std::int32_t>(page.id);
+            control.label = label;
+            control.number = selected;
+            control.kind = ItemKind::radioGroup;
+            control.x = tabLow.x - viewport->Pos.x;
+            control.y = tabLow.y - viewport->Pos.y;
+            control.width = width;
+            control.height = header;
+            state.controls.push_back(std::move(control));
+            ImGui::PopID();
+        }
+    }
     std::int32_t defaultButton = -1;
     bool multilineActive = false;
     for (std::size_t index = 0; index < session.resource.controls.size() && !session.closed; ++index)
     {
         const auto &control = session.resource.controls[index];
+        if (!tabs.Visible(control.id, session.selectedTab))
+            continue;
         if (!(control.style & 0x10000000))
             continue;
         const auto descriptor = Describe(control, session);

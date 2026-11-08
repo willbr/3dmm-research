@@ -16,6 +16,7 @@
     It also is used to display a splash screen, and to find AVIs on the CD.
 
 ***************************************************************************/
+#include "dialog_resource.h"
 #include "studio_startup.h"
 #include "studio_content.h"
 #ifdef KAUAI_SDL3
@@ -3625,7 +3626,6 @@ enum
     iditIntegerScalingInfo,
     iditRenderSizeInfo,
 #endif
-    iditMoreOptionsInfo,
     iditLimInfo
 };
 
@@ -3635,20 +3635,19 @@ struct PreferenceBinding
 {
     PZString key;
     bool StudioPreferences::*field;
+    LegacyLong control;
 };
 const PreferenceBinding kPreferences[] = {
-    {PszLit("AllowMultipleInstances"), &StudioPreferences::allowMultipleInstances},
-    {kszSkipSplashScreenValue, &StudioPreferences::skipStartupScreens},
-    {PszLit("MuteStartupSound"), &StudioPreferences::muteStartupSound},
-    {PszLit("MuteStudioSounds"), &StudioPreferences::muteStudioSounds},
-    {PszLit("BackgroundPlayback"), &StudioPreferences::backgroundPlayback},
-    {PszLit("CutTransitions"), &StudioPreferences::cutTransitions},
-    {PszLit("DisableAudioFades"), &StudioPreferences::disableAudioFades},
-    {PszLit("FlatShading"), &StudioPreferences::flatShading},
-    {PszLit("NormalKeyRepeat"), &StudioPreferences::normalKeyRepeat},
+    {PszLit("AllowMultipleInstances"), &StudioPreferences::allowMultipleInstances, IDC_ALLOW_MULTIPLE},
+    {kszSkipSplashScreenValue, &StudioPreferences::skipStartupScreens, IDC_SKIP_STARTUP},
+    {PszLit("MuteStartupSound"), &StudioPreferences::muteStartupSound, IDC_MUTE_STARTUP},
+    {PszLit("MuteStudioSounds"), &StudioPreferences::muteStudioSounds, IDC_MUTE_STUDIO},
+    {PszLit("BackgroundPlayback"), &StudioPreferences::backgroundPlayback, IDC_BACKGROUND_PLAYBACK},
+    {PszLit("CutTransitions"), &StudioPreferences::cutTransitions, IDC_CUT_TRANSITIONS},
+    {PszLit("DisableAudioFades"), &StudioPreferences::disableAudioFades, IDC_DISABLE_AUDIO_FADES},
+    {PszLit("FlatShading"), &StudioPreferences::flatShading, IDC_FLAT_SHADING},
+    {PszLit("NormalKeyRepeat"), &StudioPreferences::normalKeyRepeat, IDC_NORMAL_KEY_REPEAT},
 };
-const LegacyLong kiditFirstPreference = 2;
-const LegacyLong kiditSavePreferences = kiditFirstPreference + size(kPreferences) / size(kPreferences[0]);
 } // namespace
 
 void Application::_LoadPreferences()
@@ -3690,44 +3689,6 @@ void Application::_ApplyPreferences()
     }
 }
 
-void Application::_ShowMoreOptions()
-{
-    PDialog dialog = Dialog::PdlgNew(dlidMoreOptions);
-    if (!dialog)
-        return;
-    auto &preferences = CurrentStudioPreferences();
-    LegacyLong item = kiditFirstPreference;
-    for (const auto &binding : kPreferences)
-        dialog->PutCheck(item++, preferences.*binding.field);
-    // Cancel (including Escape/window close) leaves both runtime and defaults intact.
-    if (dialog->IditDo() == 0)
-    {
-        const bool save = dialog->FGetCheck(kiditSavePreferences);
-        item = kiditFirstPreference;
-        for (const auto &binding : kPreferences)
-        {
-            preferences.*binding.field = FPure(dialog->FGetCheck(item++));
-            if (save)
-            {
-                if (binding.field == &StudioPreferences::skipStartupScreens)
-                {
-                    LegacyLong skip = preferences.*binding.field;
-                    FGetSetRegKey(binding.key, &skip, size(skip), fregSetKey);
-                }
-                else
-                    FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregSetKey | fregBinary);
-            }
-        }
-        _ApplyPreferences();
-        if (auto movie = _Pmvie())
-        {
-            movie->Pbwld()->MarkDirty();
-            movie->InvalViews();
-        }
-    }
-    ReleasePpo(&dialog);
-}
-
 #ifdef WIN
 
 /***************************************************************************
@@ -3764,12 +3725,35 @@ bool Application::FCmdInfo(PCommand pcmd)
     String stnT;
     bool fSaveChanges;
 
-LShowInfo:
     pmvie = _Pmvie();
 
     pdlg = Dialog::PdlgNew(dlidInfo, pvNil, pvNil);
     if (pvNil == pdlg)
         return fTrue;
+    KauaiDialogs::TabLayout tabs;
+    tabs.bounds = {10, 8, 330, 223};
+    tabs.pages = {
+        {IDC_TAB_DISPLAY,
+         u"Display",
+         {IDC_RADIO4, IDC_RADIO5, IDC_CHECK2, IDC_CHECK3, IDC_CHECK4, IDC_RADIO1, IDC_RADIO2, IDC_CHECK5,
+          IDC_RENDER_ORIGINAL, IDC_RENDER_2X, IDC_RENDER_4X, IDC_FLAT_SHADING, IDC_DISPLAY_GROUP, IDC_PERFORMANCE_GROUP,
+          IDC_RENDERING_GROUP, IDC_INFO_RENDER_LABEL}},
+        {IDC_TAB_PLAYBACK,
+         u"Playback & sound",
+         {IDC_MUTE_STUDIO, IDC_BACKGROUND_PLAYBACK, IDC_CUT_TRANSITIONS, IDC_DISABLE_AUDIO_FADES, IDC_NORMAL_KEY_REPEAT,
+          IDC_PLAYBACK_GROUP, IDC_EDITING_GROUP}},
+        {IDC_TAB_STARTUP,
+         u"Startup",
+         {IDC_ALLOW_MULTIPLE, IDC_SKIP_STARTUP, IDC_MUTE_STARTUP, IDC_STARTUP_GROUP, IDC_STARTUP_NOTICE}},
+        {IDC_TAB_ABOUT,
+         u"About",
+         {IDC_EDIT4, IDC_EDIT2, IDC_EDIT3, IDC_INFO_COPYRIGHT, IDC_INFO_PRODUCT_LABEL, IDC_INFO_DEBUG_LABEL}},
+    };
+    if (!pdlg->FSetTabs(tabs))
+    {
+        ReleasePpo(&pdlg);
+        return fTrue;
+    }
     pdlg->PutRadio(iditRenderModeInfo, _fSlowCPU ? 1 : 0);
 
     GetStnAppName(&stn);
@@ -3819,7 +3803,15 @@ LShowInfo:
     pdlg->PutRadio(iditRenderSizeInfo, World::DefaultRenderScale() == 4 ? 2 : World::DefaultRenderScale() == 2 ? 1 : 0);
 #endif
 
+    auto &preferences = CurrentStudioPreferences();
+    for (const auto &binding : kPreferences)
+        pdlg->PutCheck(pdlg->IditFromSit(binding.control), preferences.*binding.field);
     idit = pdlg->IditDo();
+    if (idit != iditOkInfo)
+    {
+        ReleasePpo(&pdlg);
+        return fTrue;
+    }
 
     fSaveChanges = pdlg->FGetCheck(iditSaveChanges);
 #ifdef KAUAI_SDL3
@@ -3968,13 +3960,27 @@ LShowInfo:
     }
 #endif // DEBUG
 
-    ReleasePpo(&pdlg);
-
-    if (idit == iditMoreOptionsInfo)
+    for (const auto &binding : kPreferences)
     {
-        _ShowMoreOptions();
-        goto LShowInfo;
+        preferences.*binding.field = FPure(pdlg->FGetCheck(pdlg->IditFromSit(binding.control)));
+        if (fSaveChanges)
+        {
+            if (binding.field == &StudioPreferences::skipStartupScreens)
+            {
+                LegacyLong skip = preferences.*binding.field;
+                FGetSetRegKey(binding.key, &skip, size(skip), fregSetKey);
+            }
+            else
+                FGetSetRegKey(binding.key, &(preferences.*binding.field), size(bool), fregSetKey | fregBinary);
+        }
     }
+    _ApplyPreferences();
+    if (pmvie)
+    {
+        pmvie->Pbwld()->MarkDirty();
+        pmvie->InvalViews();
+    }
+    ReleasePpo(&pdlg);
     return fTrue;
 }
 
