@@ -3654,6 +3654,8 @@ bool OptionsChanged(PDialog dialog, LegacyLong *item, void *context)
         url = "https://github.com/microsoft/Microsoft-3D-Movie-Maker";
     else if (*item == dialog->IditFromSit(IDC_INFO_FOREVER_REPO))
         url = "https://github.com/foone/3DMMForever";
+    else if (*item == dialog->IditFromSit(IDC_INFO_RESEARCH_REPO))
+        url = "https://github.com/willbr/3dmm-research";
     if (url)
     {
 #ifdef KAUAI_SDL3
@@ -3763,7 +3765,7 @@ bool Application::FCmdInfo(PCommand pcmd)
         {IDC_TAB_ABOUT,
          u"About",
          {IDC_EDIT4, IDC_EDIT2, IDC_INFO_COPYRIGHT, IDC_INFO_ORIGINAL_LABEL, IDC_INFO_FOREVER_LABEL,
-          IDC_INFO_ORIGINAL_REPO, IDC_INFO_FOREVER_REPO}},
+          IDC_INFO_ORIGINAL_REPO, IDC_INFO_FOREVER_REPO, IDC_INFO_RESEARCH_LABEL, IDC_INFO_RESEARCH_REPO}},
     };
     if (!pdlg->FSetTabs(tabs))
     {

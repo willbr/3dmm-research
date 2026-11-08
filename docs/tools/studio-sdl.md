@@ -193,7 +193,8 @@ AND/XOR cursors retain true-color compositing, including inverted colors.
 pending edits. **About** identifies 3DMMForever, its version, build date and 12-character Git
 commit ID. Builds with tracked changes append **(modified)**; source archives
 without Git metadata show **unavailable (source archive)**. The original
-Microsoft source and foone's 3DMMForever repository have browser buttons.
+Microsoft source, foone's 3DMMForever repository and this port's
+`willbr/3dmm-research` repository have browser buttons.
 
 The optional patch-style preferences are grouped by purpose. All switches
 start off, preserving the existing defaults:
