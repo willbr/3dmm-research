@@ -222,17 +222,12 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
     frame->AddText(ImVec2(titleLow.x + 3 * scale, titleLow.y + 2 * scale), ClassicDialog::White, state.title.c_str());
     frame->PopClipRect();
     ImGui::PopFont();
-    const ImVec2 closeLow(titleHigh.x - 16 * scale, titleLow.y + 2 * scale);
-    const ImVec2 closeHigh(closeLow.x + 14 * scale, closeLow.y + 14 * scale);
+    const ImVec2 closeLow(titleHigh.x - 18 * scale, titleLow.y + 2 * scale);
     ImGui::SetCursorScreenPos(closeLow);
     ImGui::BeginDisabled(!session.cancelControl);
-    if (ImGui::InvisibleButton("##caption-close", ImVec2(14 * scale, 14 * scale)))
+    if (ImGui::InvisibleButton("##caption-close", ImVec2(16 * scale, 14 * scale)))
         session.Cancel();
-    ClassicDialog::Button(frame, closeLow, closeHigh, ImGui::IsItemActive(), false, false, scale);
-    frame->AddLine(ImVec2(closeLow.x + 4 * scale, closeLow.y + 4 * scale),
-                   ImVec2(closeHigh.x - 4 * scale, closeHigh.y - 4 * scale), ClassicDialog::Black, 1.5f * scale);
-    frame->AddLine(ImVec2(closeHigh.x - 4 * scale, closeLow.y + 4 * scale),
-                   ImVec2(closeLow.x + 4 * scale, closeHigh.y - 4 * scale), ClassicDialog::Black, 1.5f * scale);
+    ClassicDialog::CloseButton(frame, closeLow, ImGui::IsItemActive(), session.cancelControl != 0, scale);
     ImGui::EndDisabled();
     ImGui::SetCursorScreenPos(ImVec2(titleLow.x, viewport->Pos.y + ClassicDialog::ContentTop * scale));
     ImGui::BeginChild(
@@ -247,7 +242,7 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
     if (!tabs.pages.empty())
     {
         const auto &bounds = tabs.bounds;
-        const float header = 18 * units.y * scale;
+        const float header = ImGui::GetTextLineHeight() + 8 * scale;
         const ImVec2 low(origin.x + bounds.x * units.x * scale, origin.y + bounds.y * units.y * scale);
         const ImVec2 high(low.x + bounds.width * units.x * scale, low.y + bounds.height * units.y * scale);
         auto draw = ImGui::GetWindowDrawList();
@@ -256,16 +251,36 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
             session.selectedTab = ImGui::GetIO().KeyShift
                                       ? (session.selectedTab + tabs.pages.size() - 1) % tabs.pages.size()
                                       : (session.selectedTab + 1) % tabs.pages.size();
-        const float width = (high.x - low.x) / tabs.pages.size();
+        struct TabVisual
+        {
+            ImVec2 low, high;
+            std::string label;
+            bool focused;
+        };
+        std::vector<TabVisual> visuals;
+        float total = 0;
+        for (const auto &page : tabs.pages)
+        {
+            auto label = KauaiDialogs::Caption(page.title);
+            const float width = ImGui::CalcTextSize(label.c_str()).x + 14 * scale;
+            visuals.push_back({{}, {width, 0}, std::move(label), false});
+            total += width;
+        }
+        const float fit = std::min(1.f, (high.x - low.x - 4 * scale) / total);
+        float left = low.x + 2 * scale;
         for (std::size_t index = 0; index < tabs.pages.size(); ++index)
         {
             const auto &page = tabs.pages[index];
-            const ImVec2 tabLow(low.x + index * width, low.y + 2 * scale);
-            const ImVec2 tabHigh(tabLow.x + width, low.y + header + 2 * scale);
-            ImGui::SetCursorScreenPos(tabLow);
+            auto &visual = visuals[index];
+            const float width = visual.high.x * fit;
+            visual.low = ImVec2(left, low.y + 2 * scale);
+            visual.high = ImVec2(left + width, low.y + header);
+            left += width;
+            ImGui::SetCursorScreenPos(visual.low);
             ImGui::PushID(static_cast<int>(page.id));
-            if (ImGui::InvisibleButton("##tab", ImVec2(width, header)))
+            if (ImGui::InvisibleButton("##tab", ImVec2(width, header - 2 * scale)))
                 session.selectedTab = index;
+            visual.focused = ImGui::IsItemFocused() && ImGui::GetIO().NavVisible;
             if (ImGui::IsItemFocused())
             {
                 if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow, false))
@@ -273,33 +288,43 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
                 if (ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
                     session.selectedTab = (session.selectedTab + 1) % tabs.pages.size();
             }
-            const bool selected = session.selectedTab == index;
-            draw->AddRectFilled(tabLow, tabHigh, ClassicDialog::Face);
-            ClassicDialog::Bevel(draw, tabLow, tabHigh, false, scale);
-            if (selected)
-                draw->AddRectFilled(ImVec2(tabLow.x + 2 * scale, tabHigh.y - 4 * scale),
-                                    ImVec2(tabHigh.x - 2 * scale, tabHigh.y), ClassicDialog::Face);
-            const auto label = KauaiDialogs::Caption(page.title);
-            const auto text = ImGui::CalcTextSize(label.c_str());
-            draw->AddText(ImVec2(tabLow.x + (width - text.x) / 2, tabLow.y + (header - text.y) / 2),
-                          ClassicDialog::Black, label.c_str());
-            if (ImGui::IsItemFocused())
-                ClassicDialog::Focus(draw, ImVec2(tabLow.x + 4 * scale, tabLow.y + 4 * scale),
-                                     ImVec2(tabHigh.x - 4 * scale, tabHigh.y - 4 * scale), scale);
             DialogControl control;
             control.id = page.id;
             control.item = static_cast<std::int32_t>(page.id);
-            control.label = label;
-            control.number = selected;
+            control.label = visual.label;
             control.kind = ItemKind::radioGroup;
-            control.x = tabLow.x - viewport->Pos.x;
-            control.y = tabLow.y - viewport->Pos.y;
+            control.x = visual.low.x - viewport->Pos.x;
+            control.y = visual.low.y - viewport->Pos.y;
             control.width = width;
-            control.height = header;
+            control.height = header - 2 * scale;
             state.controls.push_back(std::move(control));
             ImGui::PopID();
         }
+        const auto paint = [&](std::size_t index) {
+            const auto &visual = visuals[index];
+            const bool selected = session.selectedTab == index;
+            const ImVec2 tabLow(visual.low.x - (selected ? 2 * scale : 0), visual.low.y - (selected ? 2 * scale : 0));
+            const ImVec2 tabHigh(visual.high.x + (selected ? 2 * scale : 0),
+                                 visual.high.y + (selected ? 2 * scale : 0));
+            ClassicDialog::Tab(draw, tabLow, tabHigh, selected, scale);
+            const auto text = ImGui::CalcTextSize(visual.label.c_str());
+            const ImVec2 label(visual.low.x + (visual.high.x - visual.low.x - text.x) / 2,
+                               visual.low.y + (header - 2 * scale - text.y) / 2);
+            draw->PushClipRect(ImVec2(tabLow.x + 3 * scale, tabLow.y), ImVec2(tabHigh.x - 3 * scale, tabHigh.y), true);
+            draw->AddText(label, ClassicDialog::Black, visual.label.c_str());
+            if (visual.focused)
+                ClassicDialog::Focus(draw, ImVec2(label.x - 3 * scale, label.y - scale),
+                                     ImVec2(label.x + text.x + 3 * scale, label.y + text.y + scale), scale);
+            draw->PopClipRect();
+        };
+        for (std::size_t index = 0; index < visuals.size(); ++index)
+            if (index != session.selectedTab)
+                paint(index);
+        paint(session.selectedTab);
+        for (std::size_t index = 0; index < tabs.pages.size(); ++index)
+            state.controls[index].number = index == session.selectedTab;
     }
+
     std::int32_t defaultButton = -1;
     bool multilineActive = false;
     for (std::size_t index = 0; index < session.resource.controls.size() && !session.closed; ++index)

@@ -95,6 +95,38 @@ inline void Button(ImDrawList *draw, ImVec2 low, ImVec2 high, bool pressed, bool
         Focus(draw, ImVec2(low.x + 4 * scale, low.y + 4 * scale), ImVec2(high.x - 4 * scale, high.y - 4 * scale),
               scale);
 }
+inline void Tab(ImDrawList *draw, ImVec2 low, ImVec2 high, bool selected, float scale)
+{
+    // Classic tabs have clipped top corners and no lower edge on the selected
+    // page. The selected tab is painted last, over the page's upper border.
+    draw->AddRectFilled(ImVec2(low.x + 2 * scale, low.y), ImVec2(high.x - 2 * scale, high.y), Face);
+    draw->AddRectFilled(ImVec2(low.x, low.y + 2 * scale), high, Face);
+    draw->AddRectFilled(ImVec2(low.x + 2 * scale, low.y), ImVec2(high.x - 2 * scale, low.y + scale), White);
+    draw->AddRectFilled(ImVec2(low.x + scale, low.y + scale), ImVec2(low.x + 2 * scale, low.y + 2 * scale), White);
+    draw->AddRectFilled(ImVec2(low.x, low.y + 2 * scale), ImVec2(low.x + scale, high.y), White);
+    draw->AddRectFilled(ImVec2(high.x - 2 * scale, low.y + scale), ImVec2(high.x - scale, low.y + 2 * scale), Black);
+    draw->AddRectFilled(ImVec2(high.x - scale, low.y + 2 * scale), high, Black);
+    draw->AddRectFilled(ImVec2(high.x - 2 * scale, low.y + 2 * scale), ImVec2(high.x - scale, high.y), Shadow);
+    if (!selected)
+        draw->AddRectFilled(ImVec2(low.x + scale, high.y - scale), ImVec2(high.x - scale, high.y), Shadow);
+}
+inline void CloseButton(ImDrawList *draw, ImVec2 low, bool pressed, bool enabled, float scale)
+{
+    const ImVec2 high(low.x + 16 * scale, low.y + 14 * scale);
+    draw->AddRectFilled(low, high, Face);
+    Edge(draw, low, high, pressed ? Black : White, pressed ? White : Black, scale);
+    Edge(draw, ImVec2(low.x + scale, low.y + scale), ImVec2(high.x - scale, high.y - scale), pressed ? Shadow : Face,
+         pressed ? Face : Shadow, scale);
+    // The 8x7 caption glyph uses whole pixels, including its two-pixel strokes.
+    constexpr unsigned char glyph[] = {0xc3, 0x66, 0x3c, 0x18, 0x3c, 0x66, 0xc3};
+    const ImVec2 origin(low.x + (pressed ? 5 : 4) * scale, low.y + (pressed ? 4 : 3) * scale);
+    for (int row = 0; row < 7; ++row)
+        for (int column = 0; column < 8; ++column)
+            if (glyph[row] & (0x80 >> column))
+                draw->AddRectFilled(ImVec2(origin.x + column * scale, origin.y + row * scale),
+                                    ImVec2(origin.x + (column + 1) * scale, origin.y + (row + 1) * scale),
+                                    enabled ? Black : Shadow);
+}
 inline void Check(ImDrawList *draw, ImVec2 low, bool checked, bool enabled, bool radio, float scale)
 {
     const float side = ImGui::GetFrameHeight();
