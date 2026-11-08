@@ -1457,6 +1457,9 @@ if(BUILD_TESTING)
   set_tests_properties(mcp-io PROPERTIES TIMEOUT 10)
   find_package(Python3 COMPONENTS Interpreter QUIET)
   if(Python3_Interpreter_FOUND)
+    add_test(NAME nick-expansion-reconstruction COMMAND "${Python3_EXECUTABLE}" -B
+      "${PROJECT_SOURCE_DIR}/tests/test_recreate_nick_expansion.py")
+    set_tests_properties(nick-expansion-reconstruction PROPERTIES TIMEOUT 30)
     add_test(NAME mcp-png COMMAND "${Python3_EXECUTABLE}"
       "${PROJECT_SOURCE_DIR}/tests/mcp_png_test.py" "$<TARGET_FILE:mcp-io-test>")
     set_tests_properties(mcp-png PROPERTIES TIMEOUT 15)
