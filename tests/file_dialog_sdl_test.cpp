@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 using namespace KauaiSDL;
@@ -149,6 +150,7 @@ int main(int argc, char **argv)
     Check(parent);
     auto renderer = SDL_CreateRenderer(parent, nullptr);
     Check(renderer);
+    float titleWidth = 0;
     for (int variant = 0; variant < 3; ++variant)
     {
         const int width = variant == 0 ? 640 : variant == 1 ? 1500 : 1000;
@@ -212,6 +214,26 @@ int main(int argc, char **argv)
               g == 64 && b == 128);
         if (x > 0)
             Check(SDL_ReadSurfacePixel(image, 0, height / 2, &r, &g, &b, &a) && r == 0 && g == 0 && b == 0);
+        // The title must fit entirely above the white file pane and scale with
+        // it. An explicit scaled PushFont size would apply DPI twice at 2x.
+        int left = width, right = -1, bottom = -1;
+        for (int row = y; row < y + int(24 * scale); ++row)
+            for (int column = x; column < x + int(640 * scale); ++column)
+            {
+                Check(SDL_ReadSurfacePixel(image, column, row, &r, &g, &b, &a));
+                if (r == 0 && g == 0 && b == 0)
+                {
+                    left = std::min(left, column);
+                    right = std::max(right, column);
+                    bottom = std::max(bottom, row);
+                }
+            }
+        Check(right >= left && bottom < y + int(22 * scale));
+        const float logicalTitleWidth = (right - left + 1) / scale;
+        if (variant == 0)
+            titleWidth = logicalTitleWidth;
+        else
+            Check(std::abs(logicalTitleWidth - titleWidth) <= std::max(3.f, titleWidth * .05f));
         SDL_DestroySurface(image);
     }
     SDL_DestroyRenderer(renderer);

@@ -290,6 +290,9 @@ portfolio follows the window's fitted or integer scaling, including fullscreen,
 with letterboxing where needed. Its input loop remains modal, so movie editing
 waits until the chooser closes. Navigation, previews and filename input use the
 same browser controls; closing it restores Studio's renderer and view.
+The portfolio title retains the original Windows **System** face and scales
+once with the rest of the chooser. `file-dialog-sdl` checks that its ink stays
+above the file pane and its width tracks normal, 2x integer and fractional scales.
 
 In the Windows x64 Debug desktop benchmark (Rebirth scene 19, frames 15–34,
 three runs), median 4x Studio playback improved from 2.18 to 6.60 fps and 4x

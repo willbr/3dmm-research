@@ -295,7 +295,8 @@ struct View
             return clicked;
         };
         pos(12, 2);
-        ImGui::PushFont(titleFont, 16 * scale);
+        // ClassicDialog::Style already applies the fitted scale to fonts.
+        ImGui::PushFont(titleFont);
         ImGui::TextUnformatted(dialog.title.c_str());
         ImGui::PopFont();
 
