@@ -95,7 +95,7 @@ struct SceneSoundEvent
 {
     int32_t vlm;
     int32_t sty; // sound type
-    bool fLoop;
+    int32_t fLoop; // Retail's on-disk boolean occupies all four bytes.
     int32_t ctagc;
     //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SceneSoundEvent
 
