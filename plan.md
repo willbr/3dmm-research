@@ -52,7 +52,10 @@ compatibility to the port's planned scope. See the
 Support the existing containers and resource identities natively, using the
 current chunk loaders and expansion store. Preserve the hard constraints above:
 ordinary `.3MM` output remains retail-compatible, and mod-dependent bundled
-documents use a separate `.vmm` save path. Implementation has not started.
+documents use a separate `.vmm` save path. Initial native SDL support now covers
+Portable VXP installation, source-6 browsers and resources, and VMM open/save.
+See [native V3DMM support](docs/tools/v3dmm.md) for usage, tests and remaining
+compatibility validation.
 
 ## Project 0: rename modernization
 

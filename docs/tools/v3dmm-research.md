@@ -1,7 +1,10 @@
 # 7gen / v3dmm research and port integration plan
 
-Research date: 8 November 2026. Status: static analysis and local format checks
-complete; native integration is planned, not implemented.
+Research date: 8 November 2026. Static analysis and local format checks are
+complete. An initial native SDL integration now supports Portable VXPs and v1
+VMM open/save; see [usage, implementation and validation limits](v3dmm.md).
+The milestones below retain the original plan, including remaining oracle,
+recovery, package-removal and native macOS/Linux validation work.
 
 **The DLL hypothesis is close: v3dmm patches retail 3DMM to import a filesystem
 and registry shim. The manager installs and selects content before launching
@@ -16,7 +19,9 @@ Inputs are the repository's [7gen archive](../../v3dmm/7gen03b.zip) and
 [v3dmm archive](../../v3dmm/v3dmm.zip). The former is an outer distribution ZIP
 containing another `7gen03b.zip`, Python 2.3.4 and pygame installers. The latter
 contains `v3dmm_014.exe`, an NSIS installer. Both layers were unpacked as data;
-none of their installers, executables or DLLs was run.
+no shipped code was executed for the static investigation below. The extracted
+manager was subsequently launched at the user's request; that launch supplies
+no additional compatibility or playback evidence.
 
 Ghidra **12.1.2**, Java 21, `x86:LE:32:default:windows` was used to analyze
 `v3dmmManager.exe`, `VFS.dll` and 7gen's `decompress3dmm.pyd`. Addresses below

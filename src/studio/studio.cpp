@@ -414,6 +414,8 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
 
     if (fRet)
     {
+        if (pmvie->CommitContainer())
+            ReleaseBrcn();
         PKidspaceGraphicObject pgok;
 
         pgok = (PKidspaceGraphicObject)((Application *)vpappb)->Pkwa()->PgobFromHid(kidBackground);

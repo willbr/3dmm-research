@@ -58,6 +58,13 @@ bool FPortDisplayWithIds(Filename *pfni, bool fOpen, LegacyLong lFilterLabel, Le
         return fFalse;
     if (!vapp.FGetStnApp(lFilterExt, &stnFilterExt))
         return fFalse;
+#ifdef KAUAI_SDL3
+    if (lFilterExt == idsPortfMovieFilterExt)
+    {
+        stnFilterLabel.SetSz(PszLit("3DMM movies (*.3mm, *.vmm)"));
+        stnFilterExt.SetSz(PszLit("*.3mm;*.vmm"));
+    }
+#endif
 
     // Kauai does not like internal null chars in an String. So build
     // up the final final string as an ZString.

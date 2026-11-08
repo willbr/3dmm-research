@@ -1746,6 +1746,7 @@ bool BrowserContentListWithStrings::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrTyp
  ****************************************************/
 bool ThumbnailFileEnumerator::FInit(void)
 {
+    _archiveIndex = 0;
     _managedIndex = 0;
     _managedSid = 0;
     _legacyDone = false;
@@ -1824,6 +1825,13 @@ bool ThumbnailFileEnumerator::FNext(Filename *pfni, long *psid)
         sources->GetExtra(_managedIndex++, &_managedSid);
         if (vptagm->SourceDirectory(_managedSid, &_fniDir) != TagSourceAccess::Available)
             continue;
+        _archiveIndex = 0;
+        if (vptagm->HasArchiveSource(_managedSid))
+        {
+            if (_FNextFni(pfni, psid))
+                return true;
+            continue;
+        }
         if (!_fne.FInit(&_fniDir, &ftgThd, 1))
             return fFalse;
         if (_FNextFni(pfni, psid))
@@ -1842,6 +1850,13 @@ bool ThumbnailFileEnumerator::_FNextFni(Filename *pfni, long *psid)
 {
     AssertThis(0);
     String stnProduct;
+
+    if (_managedSid && vptagm->HasArchiveSource(_managedSid))
+    {
+        if (psid)
+            *psid = _managedSid;
+        return vptagm->SourceArchive(_managedSid, kftgThumbDesc, _archiveIndex++, pfni);
+    }
 
     Assert(_fniDir.Ftg() == kftgDir, "Logic error");
     if (pvNil != psid)

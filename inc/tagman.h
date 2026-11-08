@@ -126,6 +126,8 @@ enum class TagSourceAccess
     Missing
 };
 using TagSourceResolver = TagSourceAccess (*)(PString, PString, PFilename);
+// index -1 queries whether a source supplies an explicit, ordered archive set.
+using TagArchiveResolver = bool (*)(LegacyLong, FileType, LegacyLong, PFilename);
 
 enum
 {
@@ -155,6 +157,7 @@ class TagManager : public TagManager_PAR
     PStringTable_GST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
     TagSourceResolver _sourceResolver = nullptr;
+    TagArchiveResolver _archiveResolver = nullptr;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void (*_missingTagTest)(PTAG) = nullptr;
 #endif
@@ -188,6 +191,19 @@ class TagManager : public TagManager_PAR
         _sourceResolver = resolver;
     }
     TagSourceAccess SourceDirectory(LegacyLong sid, PFilename path = nullptr);
+    void SetArchiveResolver(TagArchiveResolver resolver)
+    {
+        _archiveResolver = resolver;
+    }
+    bool HasArchiveSource(LegacyLong sid) const
+    {
+        return _archiveResolver && _archiveResolver(sid, 0, -1, nullptr);
+    }
+    bool SourceArchive(LegacyLong sid, FileType type, LegacyLong index, PFilename path) const
+    {
+        return _archiveResolver && _archiveResolver(sid, type, index, path);
+    }
+    void InvalidateSource(LegacyLong sid);
 
     // GstSource stuff:
     PStringTable_GST PgstSource(void);

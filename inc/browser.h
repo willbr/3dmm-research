@@ -843,6 +843,7 @@ class ThumbnailFileEnumerator : public ThumbnailFileEnumerator_PAR
     bool _fInited;
     LegacyLong _managedIndex = 0;
     LegacyLong _managedSid = 0;
+    LegacyLong _archiveIndex = 0;
     bool _legacyDone = false;
 
   protected:

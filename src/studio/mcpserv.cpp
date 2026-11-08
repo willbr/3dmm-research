@@ -47,6 +47,7 @@
 #ifdef KAUAI_SDL3
 #include "studio_settings.h"
 #include "studio_pack_runtime.h"
+#include "studio_vxp_store.h"
 #endif
 #include "font_names.h"
 #ifdef KAUAI_SDL3
@@ -80,6 +81,7 @@
 #include "studio_iso.h"
 #ifdef KAUAI_SDL3
 #include "studio_pack_options.h"
+#include "studio_v3dmm.h"
 #endif
 
 // kauai/src/util.h defines `size(x)` as a function-like macro. Once studio.h
@@ -1403,6 +1405,16 @@ static JVal Tool_GetState(const JVal &args)
         packs.a->push_back(std::move(pack));
     }
     o.Set("expansions", std::move(packs));
+    JVal vxps = JVal::MkArr();
+    for (const auto &entry : StudioV3dmm::Packages().Entries())
+    {
+        JVal package = JVal::MkObj();
+        package.Set("name", JVal::MkStr(StudioV3dmm::Display(entry.name)));
+        package.Set("sha256", JVal::MkStr(entry.hash));
+        package.Set("enabled", JVal::MkBool(entry.enabled));
+        vxps.a->push_back(std::move(package));
+    }
+    o.Set("v3dmm_packages", std::move(vxps));
     JVal thumbnails = JVal::MkArr();
     ThumbnailFileEnumerator files;
     Filename thumbnail;

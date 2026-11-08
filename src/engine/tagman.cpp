@@ -159,6 +159,19 @@ PStringTable_GST TagManager::PgstSource(void)
     return _pgstSource;
 }
 
+void TagManager::InvalidateSource(LegacyLong sid)
+{
+    for (LegacyLong i = _pglsfs->IvMac(); i-- > 0;)
+    {
+        SourceFileStructure source;
+        _pglsfs->Get(i, &source);
+        if (source.sid != sid)
+            continue;
+        ReleasePpo(&source.pcrmSource);
+        _pglsfs->Delete(i);
+    }
+}
+
 /***************************************************************************
     If there is an stn for the given sid in _pgstSource, return the
     location of the stn.
@@ -518,6 +531,17 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename pfni
     if (pvNil == pcrmSource)
         goto LFail;
 
+    if (HasArchiveSource(sid))
+    {
+        for (LegacyLong index = 0; SourceArchive(sid, ftgChk, index, &fni); ++index)
+        {
+            pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
+            if (!pcfl || !pcrmSource->FAddCfl(pcfl, _cbCache))
+                goto LFail;
+            ReleasePpo(&pcfl);
+        }
+        return pcrmSource;
+    }
     // Add all chunky files in content directory to pcrmSource
     if (!fne.FInit(pfniDir, &ftgChk, 1))
         goto LFail;
@@ -584,7 +608,9 @@ LSetupSfs:
         }
         if (sfs.tContentOnHD == tMaybe)
         {
-            if (!_FDetermineIfContentOnFni(&sfs.fniHD, &fContentOnFni))
+            if (HasArchiveSource(sid))
+                fContentOnFni = true;
+            else if (!_FDetermineIfContentOnFni(&sfs.fniHD, &fContentOnFni))
                 return pvNil;
             sfs.tContentOnHD = (fContentOnFni ? tYes : tNo);
             _pglsfs->Put(isfs, &sfs);
@@ -687,7 +713,9 @@ LSetupSfs:
         }
         if (sfs.tContentOnHD == tMaybe)
         {
-            if (!_FDetermineIfContentOnFni(&sfs.fniHD, &fContentOnFni))
+            if (HasArchiveSource(sid))
+                fContentOnFni = true;
+            else if (!_FDetermineIfContentOnFni(&sfs.fniHD, &fContentOnFni))
                 return fFalse;
             sfs.tContentOnHD = (fContentOnFni ? tYes : tNo);
             _pglsfs->Put(isfs, &sfs);

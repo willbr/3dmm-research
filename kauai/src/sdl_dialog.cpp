@@ -723,6 +723,7 @@ bool RunModal(KauaiDialogs::Session &session, std::uint32_t parentID, void (*idl
             SDL_SetRenderScale(scope.renderer, 1, 1);
         }
         scope.imgui = ImGui::CreateContext();
+        ImGui::SetCurrentContext(scope.imgui);
         auto &io = ImGui::GetIO();
         io.IniFilename = nullptr;
         io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;

@@ -24,6 +24,7 @@
 #ifndef MOVIE_H
 #define MOVIE_H
 #include "movie_playback.h"
+#include "movie_container.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -601,9 +602,13 @@ class Movie : public Movie_PAR
     void _RecordPlaybackTestFrame();
     void _FinishPlaybackTest();
 #endif
+    std::shared_ptr<MovieContainer::Document> _container; // Outlives the working archive.
     MovieData _data;              // Archive state and roll-call ownership, independent of views.
 
     PFileObject _pfilSave;     // User's document
+    Filename _containerName;
+    bool _containerNamed = false;
+    bool _FNeedsContainer();
 
     PScene _pscenOpen;           // Index of current open scene.
     long _iscen;                 // Number of scene open in the movie.
@@ -829,6 +834,10 @@ class Movie : public Movie_PAR
     bool FGetFni(Filename *pfni);                  // For saving to a file
     bool FSave(long cid);                     // For saving to a file, (calls FGetFni and FSaveToFni)
     bool FSaveToFni(Filename *pfni, bool fSetFni); // For doing a Save As or Save
+    bool CommitContainer()
+    {
+        return _container && _container->Commit();
+    }
     PDocumentMDIWindow PdmdNew(void);                       // Do not use!
     bool FGetFniSave(Filename *pfni);              // For saving via the portfolio.
 

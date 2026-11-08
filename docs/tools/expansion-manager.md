@@ -49,6 +49,12 @@ retained.
 
 ## Storage
 
+Portable `.vxp` packages and bundled `.vmm` movies have a separate
+**V3DMM packages...** window on this tab. Its installation and enable changes
+are saved immediately and apply on the next launch. See
+[native V3DMM support](v3dmm.md) for automatic movie dependency installation,
+bundled saves and the supported package forms.
+
 The store is `content/packs` beside `settings.ini`, separate from the disposable
 ISO cache. On Windows this is normally:
 

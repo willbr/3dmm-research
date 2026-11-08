@@ -449,12 +449,20 @@ add_executable(nick-expansion-test EXCLUDE_FROM_ALL tests/nick_expansion_test.cp
 target_link_libraries(nick-expansion-test PRIVATE three-mm-expansion engine-core)
 
 include(PackDependencies)
+add_library(three-mm-v3dmm STATIC libraries/v3dmm/src/v3dmm.cpp libraries/v3dmm/src/publish.cpp)
+target_compile_features(three-mm-v3dmm PUBLIC cxx_std_17)
+target_include_directories(three-mm-v3dmm PUBLIC "${PROJECT_SOURCE_DIR}/libraries/v3dmm/include")
+target_link_libraries(three-mm-v3dmm PRIVATE miniz)
 add_library(studio-pack-store STATIC src/studio/pack_store.cpp src/studio/pack_import.cpp src/studio/pack_hash.cpp)
+target_sources(studio-pack-store PRIVATE src/studio/vxp_store.cpp)
+target_link_libraries(studio-pack-store PUBLIC three-mm-v3dmm)
 target_compile_features(studio-pack-store PUBLIC cxx_std_17)
 target_include_directories(studio-pack-store PUBLIC "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/src/studio")
 target_link_libraries(studio-pack-store PRIVATE ThreeMM::Archive three-mm-expansion studio-iso-cache miniz nlohmann_json::nlohmann_json)
 add_executable(studio-packs-test EXCLUDE_FROM_ALL tests/studio_packs_test.cpp)
 target_link_libraries(studio-packs-test PRIVATE studio-pack-store three-mm-expansion engine-core studio-iso-cache)
+add_executable(v3dmm-test EXCLUDE_FROM_ALL tests/v3dmm_test.cpp)
+target_link_libraries(v3dmm-test PRIVATE studio-pack-store engine-core miniz)
 
 # Read-only normalized archive dump, with bounded core record decoding.
 add_executable(three-mm EXCLUDE_FROM_ALL src/tools/three_mm.cpp)
@@ -1048,6 +1056,10 @@ target_compile_definitions(studio-runtime-compile-check PRIVATE KAUAI_SDL3)
 target_include_directories(studio-runtime-compile-check PRIVATE "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/studio")
 target_link_libraries(studio-runtime-compile-check PRIVATE engine-core studio-content)
 target_link_libraries(studio-runtime-compile-check PRIVATE studio-mcp-io)
+target_link_libraries(studio-runtime-compile-check PRIVATE three-mm-v3dmm)
+if(TARGET SDL3::SDL3-static)
+  target_link_libraries(studio-runtime-compile-check PRIVATE SDL3::SDL3-static)
+endif()
 add_executable(studio-layout-test EXCLUDE_FROM_ALL tests/studio_layout_test.cpp)
 target_compile_definitions(studio-layout-test PRIVATE KAUAI_SDL3)
 target_include_directories(studio-layout-test PRIVATE "${PROJECT_SOURCE_DIR}/src/studio")
@@ -1109,6 +1121,7 @@ target_sources(engine
     "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/movie_container.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tbox.cpp"
 )
@@ -1195,7 +1208,7 @@ target_link_libraries(studio PRIVATE engine studio-content studio-mcp-io)
 if(STUDIO_SDL3)
   target_sources(studio PRIVATE src/studio/iso_bootstrap.cpp src/studio/embedded_midi.cpp)
   target_link_libraries(studio PRIVATE studio-iso-cache SDL3::SDL3-static kauai-compressed-wave)
-  target_sources(studio PRIVATE src/studio/pack_runtime.cpp src/studio/pack_options.cpp)
+  target_sources(studio PRIVATE src/studio/pack_runtime.cpp src/studio/pack_options.cpp src/studio/v3dmm_runtime.cpp)
   target_link_libraries(studio PRIVATE studio-settings studio-pack-store)
   include(StudioBundledMIDI)
   studio_bundle_midi(studio)
@@ -1584,6 +1597,8 @@ if(BUILD_TESTING)
   add_test(NAME studio-iso-cache COMMAND studio-iso-cache-test "${PROJECT_SOURCE_DIR}/tmp/iso-cache-unit")
   add_test(NAME studio-packs COMMAND studio-packs-test "${PROJECT_SOURCE_DIR}/tmp/packs-unit")
   add_dependencies(core-checks studio-packs-test)
+  add_test(NAME v3dmm COMMAND v3dmm-test "${PROJECT_SOURCE_DIR}/tmp/v3dmm-unit")
+  add_dependencies(core-checks v3dmm-test)
   add_dependencies(core-checks studio-iso-cache-test)
   add_test(NAME studio-layout COMMAND studio-layout-test)
   add_test(NAME studio-resources COMMAND studio-resources-test)

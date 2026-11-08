@@ -202,6 +202,19 @@ StudioContent::Products Products()
             auto title = std::string(Definitions()[i].sourceTitle) + '/' + Definitions()[i].sourceFolder;
             result.entries.push_back({{id.begin(), id.end()}, {title.begin(), title.end()}});
         }
+    bool portable = false;
+    for (const auto &product : result.entries)
+        if (Narrow(product.sourceId) == "6")
+        {
+            if (Narrow(product.title) != "Virtual3dmm/v3dmm")
+                throw std::runtime_error("Source ID 6 is already assigned to a different product");
+            portable = true;
+        }
+    if (!portable)
+    {
+        std::string title = "Virtual3dmm/v3dmm";
+        result.entries.push_back({StudioContent::Text{'6'}, {title.begin(), title.end()}});
+    }
     return result;
 }
 Access Resolve(const std::string &longName, const std::string &shortName, std::string &path)

@@ -209,6 +209,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     short bo;
     short osk;
     PStringTable_GST pgstSource;
+    Filename containerWorking;
 
     //
     // Create the movie object
@@ -216,6 +217,22 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     pmvie = NewObj Movie;
     if (pmvie == pvNil)
     {
+        goto LFail;
+    }
+    if (MovieContainer::prepare)
+    {
+        if (!MovieContainer::prepare(pfni, &containerWorking, pmvie->_container))
+            goto LFail;
+        if (MovieContainer::IsVmm(pfni))
+        {
+            pmvie->_containerName = *pfni;
+            pmvie->_containerNamed = true;
+            pfni = &containerWorking;
+        }
+    }
+    else if (MovieContainer::IsVmm(pfni))
+    {
+        PushErc(ercSocBadFile);
         goto LFail;
     }
 
@@ -329,7 +346,14 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Set the movie title
     //
-    pmvie->_SetTitle(pfni);
+    pmvie->_SetTitle(pmvie->_containerNamed ? &pmvie->_containerName : pfni);
+    if (pmvie->_containerNamed)
+    {
+        String path;
+        pmvie->_containerName.GetStnPath(&path);
+        KauaiFiles::PathInfo info;
+        pmvie->_fReadOnly = KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
+    }
 
     fSuccess = fTrue;
 
@@ -2266,6 +2290,8 @@ bool Movie::_FMakeCrfValid(void)
  ****************************************************/
 bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
 {
+    if (_container && MovieContainer::IsVmm(pfni))
+        return FSaveToFni(pfni, false);
     AssertThis(0);
     AssertNilOrPo(_data.resources, 0);
     AssertNilOrPo(pfni, ffniFile);
@@ -2678,6 +2704,12 @@ bool Movie::FGetFni(Filename *pfni)
     AssertThis(0);
     AssertPo(pfni, 0);
 
+    if (_containerNamed)
+    {
+        *pfni = _containerName;
+        return _fFniSaveValid;
+    }
+
     if (_pfilSave != pvNil)
     {
         _pfilSave->GetFni(pfni);
@@ -2738,6 +2770,47 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
 
     pcfl = _data.resources->Pcfl();
 
+    if (MovieContainer::IsVmm(pfni) && !_container)
+    {
+        PushErc(ercSocBadFile);
+        return false;
+    }
+    if (_container && (MovieContainer::IsVmm(pfni) || _FNeedsContainer()))
+    {
+        if (!MovieContainer::IsVmm(pfni))
+        {
+            // The host explains why an expansion movie needs the VMM extension.
+            return _container->Save(nullptr, pfni);
+        }
+        Filename working;
+        if (!working.FGetTemp() || !FAutoSave(&working, true))
+            return false;
+        AssertDo(pcfl->FGetCkiCtg(kctgMvie, 0, &cki), "Missing saved movie root");
+        _data.movieNumber = cki.cno;
+        // The chunky document remains a private working file; its public name
+        // and the outer VMM are committed only after packaging succeeds.
+        pcfl->SetTemp(true);
+        if (!_container->Save(&working, pfni))
+        {
+            _SetTitle(_containerNamed ? &_containerName : nullptr);
+            return false;
+        }
+        ClearUndo();
+        if (fSetFni)
+        {
+            _FSetPfilSave(&working);
+            _containerName = *pfni;
+            _containerNamed = true;
+            String path;
+            pfni->GetStnPath(&path);
+            KauaiFiles::PathInfo info;
+            _fReadOnly = KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
+        }
+        _SetTitle(pfni);
+        _fDirty = false;
+        return true;
+    }
+
     //
     // Update the file
     //
@@ -2786,8 +2859,37 @@ bool Movie::FGetFniSave(Filename *pfni)
     AssertThis(0);
     AssertVarMem(pfni);
 
-    return (_pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle, ksz3mm,
-                              &_data.title));
+    return (_pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
+                              _FNeedsContainer() ? PszLit("vmm") : ksz3mm, &_data.title));
+}
+
+bool Movie::_FNeedsContainer()
+{
+    if (!_container)
+        return false;
+    if (_containerNamed || _container->Bundled())
+        return true;
+    Filename portableArchive;
+    if (!vptagm || !vptagm->SourceArchive(6, kftgContent, 0, &portableArchive))
+        return false;
+    if (!_data.resources)
+        return false;
+    // The current scene may have new source references absent from its stored
+    // tag list. Flush it before choosing the public save format.
+    if (!FAutoSave(nullptr, false))
+        return true;
+    auto tags = _PtaglFetch();
+    if (!tags)
+        return true;
+    bool portable = false;
+    for (LegacyLong i = 0; i < tags->Ctag(); ++i)
+    {
+        TAG tag;
+        tags->GetTag(i, &tag);
+        portable |= tag.sid == 6;
+    }
+    ReleasePpo(&tags);
+    return portable;
 }
 
 /****************************************************

@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "studio_pack_runtime.h"
+#include "studio_vxp_store.h"
 #include "studio_iso.h"
 #include "utestres.h"
 #include "platform_text.h"
@@ -12,6 +13,10 @@
 #include <stdexcept>
 #include "studio.h"
 #include "studio_pack_options.h"
+#include "studio_v3dmm.h"
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+#include "mcpserv.h"
+#endif
 #undef size
 namespace StudioPacks
 {
@@ -65,6 +70,8 @@ bool SetText(PString text, const std::string &utf8)
 }
 TagSourceAccess ResolveSource(PString longName, PString shortName, PFilename path)
 {
+    if (UTF8(shortName) == "v3dmm" || UTF8(longName) == "Virtual3dmm")
+        return StudioV3dmm::Resolve(longName, shortName, path) ? TagSourceAccess::Available : TagSourceAccess::Missing;
     std::string directory;
     auto access = Resolve(UTF8(longName), UTF8(shortName), directory);
     switch (access)
@@ -118,6 +125,108 @@ struct Selection
     bool waiting = false, ready = false;
     LegacyLong control = 0;
     std::string path, error;
+};
+std::string MetadataText(const std::string &bytes)
+{
+    return StudioV3dmm::Display(bytes);
+}
+struct VxpManager
+{
+    std::string selected;
+    bool initialized = false;
+    void Refresh(PDialog dialog)
+    {
+        const auto &entries = StudioV3dmm::Packages().Entries();
+        if (selected.empty() && !entries.empty())
+            selected = entries.front().hash;
+        auto list = dialog->IditFromSit(IDC_VXP_LIST);
+        dialog->ClearList(list);
+        const StudioV3dmm::Installation *current = nullptr;
+        for (const auto &entry : entries)
+        {
+            String name;
+            if (SetText(&name, MetadataText(entry.name)))
+                dialog->FAddToList(list, &name);
+            if (entry.hash == selected)
+            {
+                current = &entry;
+                dialog->FPutStn(list, &name);
+            }
+        }
+        dialog->SetValues(list, list + 1);
+        auto enabled = dialog->IditFromSit(IDC_VXP_ENABLED);
+        dialog->PutCheck(enabled, current && current->enabled);
+        dialog->SetValues(enabled, enabled + 1);
+        dialog->FEnableControl(IDC_VXP_ENABLED, current != nullptr);
+        Put(dialog, IDC_VXP_STATUS,
+            current ? "Author: " + MetadataText(current->author) : "No portable expansions installed");
+    }
+    static bool Changed(PDialog dialog, LegacyLong *item, void *context)
+    {
+        auto &self = *static_cast<VxpManager *>(context);
+        if (*item < 0)
+        {
+            if (!self.initialized)
+            {
+                self.Refresh(dialog);
+                self.initialized = true;
+            }
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+            mcp::Drain(true);
+#endif
+            return false;
+        }
+        DialogItem binding;
+        dialog->GetDit(*item, &binding);
+        try
+        {
+            if (binding.sitMin == 1 || binding.sitMin == 2)
+                return true;
+            if (binding.sitMin == IDC_VXP_IMPORT)
+            {
+                Filename filename;
+                if (FPortGetFniOpen(&filename, PszLit("V3DMM expansions\0*.vxp\0\0"),
+                                    PszLit("Install a V3DMM expansion"), nullptr, 0, 0))
+                {
+                    String path;
+                    filename.GetStnPath(&path);
+                    auto entry = StudioV3dmm::Packages().Install(
+                        ThreeMM::V3dmm::WholeFile(std::filesystem::u8path(UTF8(&path))));
+                    self.selected = entry.hash;
+                    self.Refresh(dialog);
+                }
+            }
+            else if (binding.sitMin == IDC_VXP_LIST && dialog->FGetValues(*item, *item + 1))
+            {
+                String text;
+                dialog->GetStn(*item, &text);
+                for (const auto &entry : StudioV3dmm::Packages().Entries())
+                    if (MetadataText(entry.name) == UTF8(&text))
+                        self.selected = entry.hash;
+                self.Refresh(dialog);
+            }
+            else if (binding.sitMin == IDC_VXP_ENABLED && dialog->FGetValues(*item, *item + 1))
+            {
+                StudioV3dmm::Packages().SetEnabled(self.selected, dialog->FGetCheck(*item));
+                self.Refresh(dialog);
+            }
+        }
+        catch (const std::exception &error)
+        {
+            Alert(error.what());
+        }
+        return false;
+    }
+    static void Show()
+    {
+        VxpManager state;
+        auto dialog = Dialog::PdlgNew(dlidV3dmmPackages, Changed, &state);
+        if (dialog)
+        {
+            dialog->IditDo();
+            ReleasePpo(&dialog);
+        }
+    }
 };
 void SDLCALL Chosen(void *context, const char *const *files, int)
 {
@@ -231,7 +340,12 @@ bool Options::Handle(PDialog dialog, LegacyLong item, bool &handled)
         DialogItem binding;
         dialog->GetDit(item, &binding);
         auto control = binding.sitMin;
-        if (control == 1)
+        if (control == IDC_VXP_MANAGE)
+        {
+            handled = true;
+            VxpManager::Show();
+        }
+        else if (control == 1)
         {
             handled = true;
             impl->edits.Commit();

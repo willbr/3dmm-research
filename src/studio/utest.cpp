@@ -49,6 +49,7 @@
 #include "studio.h"
 #ifdef KAUAI_SDL3
 #include "studio_pack_options.h"
+#include "studio_v3dmm.h"
 #endif
 #if defined(WIN) && !defined(KAUAI_SDL3)
 #include <shellapi.h>
@@ -1847,6 +1848,7 @@ bool Application::_FInitProductNames(void)
         String root;
         _fniMsKidsDir.GetStnPath(&root);
         StudioPacks::Initialize(root.Psz());
+        StudioV3dmm::Initialize();
     }
     catch (const std::exception &error)
     {
@@ -1865,6 +1867,7 @@ bool Application::_FInitProductNames(void)
     }
 #ifdef KAUAI_SDL3
     vptagm->SetSourceResolver(StudioPacks::ResolveSource);
+    vptagm->SetArchiveResolver(StudioV3dmm::Archive);
 #endif
 
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -3973,7 +3976,7 @@ bool Application::FCmdInfo(PCommand pcmd)
                                              IDC_PACK_SOURCE,        IDC_PACK_FOLDER,       IDC_PACK_ISO,
                                              IDC_PACK_BASE,          IDC_PACK_BASE_BROWSE,  IDC_PACK_FIXUPS,
                                              IDC_PACK_FIXUPS_BROWSE, IDC_PACK_NOTICE,       IDC_PACK_SOURCE_LABEL,
-                                             IDC_PACK_BASE_LABEL,    IDC_PACK_FIXUPS_LABEL}});
+                                             IDC_PACK_BASE_LABEL,    IDC_PACK_FIXUPS_LABEL, IDC_VXP_MANAGE}});
     try
     {
         edits.packs.reset(new StudioPacks::Options);
