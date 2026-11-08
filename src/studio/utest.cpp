@@ -5273,6 +5273,25 @@ void Application::_DrawStudioPresentation()
     }
     _pgptStudioSnapshot->Unlock();
     root->Pgpt()->Unlock();
+    // A scaled font's ink can extend past the changed pixels of its 1x
+    // counterpart. Repaint complete counter cells rather than clipping larger
+    // digits to the small canvas's ink bounds.
+    for (auto hid : {kidFrameText, kidSceneText})
+        if (auto counter = _pkwa->PgobFromHid(hid))
+        {
+            RC bounds;
+            counter->GetRc(&bounds, cooHwnd);
+            for (int i = 0; i < 4; ++i)
+            {
+                RC changed = dirty[i];
+                if (changed.FIntersect(&bounds))
+                {
+                    RC repaint = bounds;
+                    if (repaint.FIntersect(&bands[i]))
+                        dirty[i].Union(&repaint);
+                }
+            }
+        }
     if (!dirty[4].FEmpty() && _studioMovieSerial == view->SuperSizeFrameSerial())
         view->PgptSuperSizeFrame(true, true); // Direct editing/caret changes.
     if (_studioMovieSerial != view->SuperSizeFrameSerial())

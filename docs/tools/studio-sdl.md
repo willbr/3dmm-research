@@ -194,6 +194,11 @@ renderer support and conversion. Studio caches its composed image and redraws
 changed regions through the normal object tree, retaining foreground panels
 and editing controls. Unchanged frames reuse the uploaded texture. Software
 AND/XOR cursors retain true-color compositing, including inverted colors.
+Frame and scene counter changes repaint their complete boxes: scaled glyphs
+can extend beyond the changed pixels of the native-size digit. The regression
+`tests/studio_counter_workflow.py --exe <studio> --iso <base.iso>
+--fixture <private.3mm> --artifacts <output>` checks incremental digits against
+complete redraws at 2x and 4x, including long scenes with stationary thumbs.
 
 **Options** (Ctrl+Shift+I) keeps all settings in one window with **Display**,
 **Playback & sound**, **Startup** and **About** tabs. Switching tabs preserves
