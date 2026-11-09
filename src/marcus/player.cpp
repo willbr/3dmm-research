@@ -2,6 +2,7 @@
 #include "content.h"
 #include "movie_input.h"
 #include "playback.h"
+#include "gpu_renderer.h"
 #include "three_mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -45,6 +46,8 @@ struct MarcusPlayer
     // Destroy the renderer before deleting any private VMM working files.
     std::unique_ptr<MarcusContent> content;
     ThreeMM::Preview preview;
+    std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizer;
+    int renderer = MARCUS_RENDERER_BRENDER;
     ThreeMM::PreviewImage image;
     MarcusPlayback playback;
     std::vector<ThreeMM::Id> scenes;
@@ -71,6 +74,7 @@ MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
 {
     auto options = view;
+    options.rasterizer = player->rasterizer.get();
     options.includeDepth = !view.authoredCamera || view.freeCamera;
     if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
         return false;
@@ -178,6 +182,33 @@ extern "C"
     void marcus_destroy(MarcusPlayer *player)
     {
         delete player;
+    }
+
+    int marcus_get_renderer(const MarcusPlayer *player)
+    {
+        return player ? player->renderer : -1;
+    }
+
+    int marcus_set_renderer(MarcusPlayer *player, int renderer)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (renderer < 0 || renderer >= MARCUS_RENDERER_COUNT)
+            {
+                error.code = ThreeMM::ErrorCode::invalid_argument;
+                error.message = "Unknown movie renderer.";
+                return false;
+            }
+            if (renderer == player->renderer) return true;
+            std::unique_ptr<ThreeMM::PreviewRasterizer> replacement;
+            if (renderer != MARCUS_RENDERER_BRENDER)
+            {
+                replacement = MarcusCreateGPURenderer(renderer == MARCUS_RENDERER_BRENDER_COMPUTE, error);
+                if (!replacement) return false;
+            }
+            player->rasterizer = std::move(replacement);
+            player->renderer = renderer;
+            return true;
+        });
     }
     const char *marcus_error(const MarcusPlayer *player)
     {

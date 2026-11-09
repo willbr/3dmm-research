@@ -7,9 +7,60 @@
  * Mesh rendering to produce faces
  */
 #include "zb.h"
+#include "../../inc/zb_capture.h"
 #include "shortcut.h"
 #include "blockops.h"
 #include "brassert.h"
+
+static BrTriangleSink triangle_sink;
+static void *triangle_sink_context;
+
+void BrZbSetTriangleSink(BrTriangleSink sink, void *context)
+{
+    triangle_sink = sink;
+    triangle_sink_context = context;
+}
+
+static BrRasterMap RasterMap(const br_pixelmap *map)
+{
+    BrRasterMap result = {0};
+    if (map && map->pixels && map->type == BR_PMT_INDEX_8) {
+        result.pixels = (const unsigned char *)map->pixels + map->base_y * map->row_bytes + map->base_x;
+        result.width = map->width;
+        result.height = map->height;
+        result.stride = map->row_bytes;
+    }
+    return result;
+}
+
+static void BR_ASM_CALL DispatchTriangle(struct temp_vertex_fixed *a, struct temp_vertex_fixed *b,
+                                        struct temp_vertex_fixed *c)
+{
+    struct temp_vertex_fixed *vertices[3] = {a, b, c};
+    BrRasterTriangle triangle;
+    int i;
+    if (!triangle_sink) {
+        zb.triangle_render(a, b, c);
+        return;
+    }
+    triangle.texture = RasterMap(zb.material->colour_map);
+    triangle.shade = RasterMap(zb.material->index_shade);
+    triangle.flags = zb.material->flags;
+    triangle.index_base = zb.material->index_base;
+    triangle.index_range = zb.material->index_range;
+    for (i = 0; i < 3; ++i) {
+        BrRasterVertex *out = &triangle.vertices[i];
+        out->x = vertices[i]->v[0] / 65536.0f;
+        out->y = vertices[i]->v[1] / 65536.0f;
+        out->z = (br_uint_32)vertices[i]->v[2] / 65536.0f;
+        out->w = (triangle.flags & BR_MATF_PERSPECTIVE) ? vertices[i]->comp[C_W] / 65536.0f : 1;
+        out->u = triangle.texture.pixels ? vertices[i]->comp[C_U] / 65536.0f : 0;
+        out->v = triangle.texture.pixels ? vertices[i]->comp[C_V] / 65536.0f : 0;
+        out->intensity = !triangle.texture.pixels || (triangle.flags & (BR_MATF_LIGHT | BR_MATF_PRELIT))
+            ? vertices[i]->comp[C_I] / 65536.0f : 0;
+    }
+    triangle_sink(triangle_sink_context, &triangle);
+}
 
 static char rscid[] = "$Id: zbmesh.c 1.67 1995/08/31 16:47:54 sam Exp $";
 
@@ -378,7 +429,7 @@ STATIC void ZbFaceRender(struct clip_vertex *cp_in, int n)
 		tvp2->comp[C_B] = cp_in->comp[C_B];
 #endif
 
-		zb.triangle_render((struct temp_vertex_fixed *)tv,
+		DispatchTriangle((struct temp_vertex_fixed *)tv,
 						   (struct temp_vertex_fixed *)tvp1,
 						   (struct temp_vertex_fixed *)tvp2);
 
@@ -496,7 +547,7 @@ void BR_ASM_CALL ZbRenderFaceGroup(br_face_group *gp,struct temp_face *tfp)
 #endif
 				}
 
-				zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+				DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 								   (struct temp_vertex_fixed *)tv+1,
 								   (struct temp_vertex_fixed *)tv+2);
 
@@ -521,11 +572,11 @@ void BR_ASM_CALL ZbRenderFaceGroup(br_face_group *gp,struct temp_face *tfp)
 
 				ZbConvertComponents((br_fixed_ls *)tv[i].comp,tvp->comp,zb.convert_mask);
 			}
-			zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+			DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 							   (struct temp_vertex_fixed *)tv+1,
 							   (struct temp_vertex_fixed *)tv+2);
 #else
-			zb.triangle_render((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
+			DispatchTriangle((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[1],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[2]);
 #endif
@@ -629,7 +680,7 @@ void BR_ASM_CALL ZbRenderFaceGroup_FaceI(br_face_group *gp, struct temp_face *tf
 #endif
 				}
 
-				zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+				DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 								   (struct temp_vertex_fixed *)tv+1,
 								   (struct temp_vertex_fixed *)tv+2);
 
@@ -656,11 +707,11 @@ void BR_ASM_CALL ZbRenderFaceGroup_FaceI(br_face_group *gp, struct temp_face *tf
 
 				ZbConvertComponents((br_fixed_ls *)tv[i].comp,tvp->comp,zb.convert_mask);
 			}
-			zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+			DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 							   (struct temp_vertex_fixed *)tv+1,
 							   (struct temp_vertex_fixed *)tv+2);
 #else
-			zb.triangle_render((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
+			DispatchTriangle((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[1],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[2]);
 #endif
@@ -769,7 +820,7 @@ void BR_ASM_CALL ZbRenderFaceGroup_FaceIV(br_face_group *gp, struct temp_face *t
 #endif
 				}
 
-				zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+				DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 								   (struct temp_vertex_fixed *)tv+1,
 								   (struct temp_vertex_fixed *)tv+2);
 
@@ -800,11 +851,11 @@ void BR_ASM_CALL ZbRenderFaceGroup_FaceIV(br_face_group *gp, struct temp_face *t
 
 				ZbConvertComponents((br_fixed_ls *)tv[i].comp,tvp->comp,zb.convert_mask);
 			}
-			zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+			DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 							   (struct temp_vertex_fixed *)tv+1,
 							   (struct temp_vertex_fixed *)tv+2);
 #else
-			zb.triangle_render((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
+			DispatchTriangle((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[1],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[2]);
 #endif
@@ -916,7 +967,7 @@ void BR_ASM_CALL ZbRenderFaceGroup_FaceRGB(br_face_group *gp, struct temp_face *
 #endif
 				}
 
-				zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+				DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 								   (struct temp_vertex_fixed *)tv+1,
 								   (struct temp_vertex_fixed *)tv+2);
 
@@ -946,11 +997,11 @@ void BR_ASM_CALL ZbRenderFaceGroup_FaceRGB(br_face_group *gp, struct temp_face *
 
 				ZbConvertComponents((br_fixed_ls *)tv[i].comp,tvp->comp,zb.convert_mask);
 			}
-			zb.triangle_render((struct temp_vertex_fixed *)tv+0,
+			DispatchTriangle((struct temp_vertex_fixed *)tv+0,
 							   (struct temp_vertex_fixed *)tv+1,
 							   (struct temp_vertex_fixed *)tv+2);
 #else
-			zb.triangle_render((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
+			DispatchTriangle((struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[0],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[1],
 							   (struct temp_vertex_fixed *)zb.temp_vertices+fp->vertices[2]);
 #endif

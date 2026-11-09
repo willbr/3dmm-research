@@ -1,5 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/preview.h"
+#include "three_mm/preview_rasterizer.h"
+#include "zb_capture.h"
 #include "preview_background_mesh.h"
 #include "diagnostics.h"
 #include <algorithm>
@@ -953,9 +955,26 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         }
         if (mesh && !mesh->AddToScene(frame.world))
             return Fail(error, ErrorCode::out_of_memory, "Cannot prepare background scenery models.");
+        // Keep the process-wide sink scoped to this call, including failures.
+        struct RasterScope
+        {
+            ~RasterScope() { BrZbSetTriangleSink(nullptr, nullptr); }
+        } rasterScope;
+        if (view.rasterizer)
+        {
+            if (!view.rasterizer->Begin(width, height, error))
+                return false;
+            BrZbSetTriangleSink([](void *context, const BrRasterTriangle *triangle) {
+                static_cast<PreviewRasterizer *>(context)->Triangle(*triangle);
+            }, view.rasterizer);
+        }
         BrZbSceneRender(frame.world, cam, frame.colour, frame.depth);
+        BrZbSetTriangleSink(nullptr, nullptr);
         if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::decode_failed, "The renderer rejected this asset.");
+        if (view.rasterizer && !view.rasterizer->End(static_cast<unsigned char *>(frame.colour->pixels),
+                frame.colour->row_bytes, static_cast<unsigned char *>(frame.depth->pixels), frame.depth->row_bytes, error))
+            return false;
         PreviewImage rendered;
         rendered.width = view.width;
         rendered.height = view.height;

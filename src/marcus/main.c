@@ -469,6 +469,19 @@ static void cancel_settings(App *app)
 }
 static void apply_settings(App *app)
 {
+    int renderer_changed;
+    renderer_changed = marcus_get_renderer(app->player) != app->edited_shortcuts.renderer;
+    if (!marcus_set_renderer(app->player, app->edited_shortcuts.renderer))
+    {
+        SDL_strlcpy(app->settings_message, marcus_error(app->player), sizeof(app->settings_message));
+        return;
+    }
+    app->shortcuts.renderer = app->edited_shortcuts.renderer;
+    if (renderer_changed)
+    {
+        app->dirty = 1;
+        app->error[0] = 0;
+    }
     if (!shortcuts_save(app->settings_path, &app->edited_shortcuts, app->settings_message,
                         sizeof(app->settings_message)))
         return;
@@ -490,6 +503,12 @@ static void settings_click(App *app, float x, float y)
     else if (ui_inside(x, y, left + 24, top + 472, 610, 28))
     {
         app->edited_shortcuts.pause_on_focus_loss = !app->edited_shortcuts.pause_on_focus_loss;
+        app->binding_capture = -1;
+        app->settings_message[0] = 0;
+    }
+    else if (ui_inside(x, y, left + 430, top + 508, 204, 28))
+    {
+        app->edited_shortcuts.renderer = (app->edited_shortcuts.renderer + 1) % MARCUS_RENDERER_COUNT;
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
@@ -1365,8 +1384,9 @@ static void draw_settings(App *app)
     ui_text(&app->ui, x + 28, y + 477, "Pause playback on focus loss", TEXT);
     ui_button(&app->ui, x + 430, y + 472, 204, app->edited_shortcuts.pause_on_focus_loss ? "On" : "Off",
               app->edited_shortcuts.pause_on_focus_loss, 1);
-    ui_label(&app->ui, x + 24, y + 508, 610, app->settings_message, 0xf2ae9b);
-    ui_text(&app->ui, x + 24, y + 534, "Flight movement keeps WASD while the right mouse button is held.", MUTED);
+    ui_text(&app->ui, x + 28, y + 513, "Movie renderer", TEXT);
+    ui_button(&app->ui, x + 430, y + 508, 204, marcus_renderer_name(app->edited_shortcuts.renderer), 0, 1);
+    ui_label(&app->ui, x + 24, y + 538, 610, app->settings_message, 0xf2ae9b);
     ui_button(&app->ui, x + 24, y + 560, 148, "Restore defaults", 0, 1);
     ui_button(&app->ui, x + 438, y + 560, 88, "Cancel", 0, 1);
     ui_button(&app->ui, x + 538, y + 560, 96, "Apply", 1, 1);
@@ -1507,6 +1527,7 @@ static void usage(void)
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings]\n"
          "              [--settings-file shortcuts.cfg] [--zip-movie N]\n"
+         "              [--renderer brender|brender-compute|sdl-gpu]\n"
          "Scenes and scene-relative frames start at 1; object indices start at 0.");
 }
 static int number(const char *text, long *output)
@@ -1525,6 +1546,7 @@ int main(int argc, char **argv)
     SDL_Event event;
     const char *input, *font, *capture;
     int i, result, frames, requested_scene, requested_object, requested_zip, have_frame, show_settings;
+    int requested_renderer;
     long requested_frame, parsed;
     double now, previous_tick;
     memset(&app, 0, sizeof(app));
@@ -1534,6 +1556,7 @@ int main(int argc, char **argv)
     requested_object = 0;
     requested_zip = 0;
     requested_frame = 0;
+    requested_renderer = -1;
     app.running = app.authored = app.dirty = 1;
     app.selected = -1;
     app.pixels_per_frame = 12;
@@ -1550,6 +1573,15 @@ int main(int argc, char **argv)
             show_settings = 1;
         else if (!strcmp(argv[i], "--settings-file") && i + 1 < argc)
             SDL_strlcpy(app.settings_path, argv[++i], sizeof(app.settings_path));
+        else if (!strcmp(argv[i], "--renderer") && i + 1 < argc)
+        {
+            requested_renderer = marcus_renderer_from_id(argv[++i]);
+            if (requested_renderer < 0)
+            {
+                usage();
+                return 2;
+            }
+        }
         else if (!strcmp(argv[i], "--orbit"))
             app.authored = 0;
         else if (!strcmp(argv[i], "--fly"))
@@ -1617,6 +1649,21 @@ int main(int argc, char **argv)
     {
         result = 1;
         goto cleanup;
+    }
+    if (requested_renderer >= 0)
+        app.shortcuts.renderer = requested_renderer;
+    if (!marcus_set_renderer(app.player, app.shortcuts.renderer))
+    {
+        if (requested_renderer >= 0)
+        {
+            SDL_strlcpy(app.error, marcus_error(app.player), sizeof(app.error));
+            fprintf(stderr, "Marcus: %s\n", app.error);
+            result = 1;
+            goto cleanup;
+        }
+        SDL_snprintf(app.settings_message, sizeof(app.settings_message), "%s Using BRender CPU.",
+                     marcus_error(app.player));
+        app.shortcuts.renderer = MARCUS_RENDERER_BRENDER;
     }
     SDL_SetWindowResizable(app.window, 1);
     SDL_SetWindowMinimumSize(app.window, 1080, 820);

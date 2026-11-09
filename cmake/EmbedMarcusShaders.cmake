@@ -1,0 +1,13 @@
+# Bundle compiled shaders into the player: no runtime compiler or asset lookup.
+set(marcus_shader_header "${CMAKE_CURRENT_BINARY_DIR}/gpu_shaders.h")
+set(marcus_shader_code "// Generated from src/marcus/shaders; regenerate binaries with tools/compile_marcus_shaders.py.\n")
+foreach(stage compute vertex fragment)
+  foreach(format dxil spv)
+    set(shader "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${stage}.${format}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${shader}")
+    file(READ "${shader}" bytes HEX)
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," bytes "${bytes}")
+    string(APPEND marcus_shader_code "alignas(4) static const unsigned char ${stage}_${format}[] = {${bytes}};\n")
+  endforeach()
+endforeach()
+file(CONFIGURE OUTPUT "${marcus_shader_header}" CONTENT "${marcus_shader_code}" @ONLY)

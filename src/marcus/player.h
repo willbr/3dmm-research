@@ -75,6 +75,19 @@ extern "C"
     } MarcusAudioStats;
 
     MarcusPlayer *marcus_create(void);
+    enum MarcusRenderer
+    {
+        MARCUS_RENDERER_BRENDER,
+        MARCUS_RENDERER_BRENDER_COMPUTE,
+        MARCUS_RENDERER_SDL_GPU,
+        MARCUS_RENDERER_COUNT
+    };
+    const char *marcus_renderer_name(int renderer);
+    const char *marcus_renderer_id(int renderer);
+    int marcus_renderer_from_id(const char *id);
+    int marcus_get_renderer(const MarcusPlayer *player);
+    /* A failed switch retains the current renderer and loaded movie. */
+    int marcus_set_renderer(MarcusPlayer *player, int renderer);
     void marcus_destroy(MarcusPlayer *player);
     const char *marcus_error(const MarcusPlayer *player);
     /* resources is 3dmovie.chk (a built utest.chk also works). content_directory

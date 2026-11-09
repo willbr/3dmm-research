@@ -5,6 +5,7 @@
 
 namespace ThreeMM
 {
+class PreviewRasterizer;
 struct PreviewAction
 {
     std::string name;
@@ -31,6 +32,7 @@ struct PreviewView
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
+    PreviewRasterizer *rasterizer = nullptr; // Borrowed for this Render call; null uses BRender CPU.
 };
 struct PreviewCamera
 {

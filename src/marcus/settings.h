@@ -1,6 +1,9 @@
 #ifndef MARCUS_SETTINGS_H
 #define MARCUS_SETTINGS_H
 #include <SDL3/SDL.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MARCUS_MOD_SHIFT 1
 #define MARCUS_MOD_CTRL 2
@@ -32,6 +35,7 @@ typedef struct MarcusShortcuts
 {
     MarcusShortcut binding[MARCUS_ACTION_COUNT];
     int pause_on_focus_loss;
+    int renderer;
 } MarcusShortcuts;
 
 void shortcuts_defaults(MarcusShortcuts *shortcuts);
@@ -47,4 +51,7 @@ int shortcuts_assign(MarcusShortcuts *shortcuts, int action, SDL_Keycode key, un
  * Saves replace the file atomically via a sibling temporary file. */
 int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, size_t capacity);
 int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *message, size_t capacity);
+#ifdef __cplusplus
+}
+#endif
 #endif

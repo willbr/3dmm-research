@@ -119,6 +119,45 @@ Each first/previous/next/last action can be bound separately. Reset View default
 to R because F is now Next Frame. Arrow/Home/End/Page Up/Page Down remain fallback
 navigation keys. Flight keeps physical WASD/QE movement while right mouse is held.
 
+The **Movie renderer** button in Settings cycles between **BRender (CPU)**,
+**BRender (compute)** and **SDL GPU**. Apply switches the loaded movie immediately
+and saves the choice with the other settings. Switching preserves the current
+scene, frame, camera and inspection framing. Cancel discards the edited choice;
+Restore defaults selects BRender CPU. Existing settings files without a renderer
+entry continue to use CPU rendering.
+
+You can override the saved renderer for a launch:
+
+```console
+marcus movie.3mm --renderer brender-compute
+marcus movie.3mm --renderer sdl-gpu
+marcus movie.3mm --renderer brender
+```
+
+BRender CPU remains the default. The two GPU backends use SDL3's GPU API, with
+bundled SPIR-V and DXIL shaders for Vulkan and Direct3D 12. BRender still evaluates
+models, transforms, lighting and clipping. **BRender (compute)** rasterizes the
+resulting triangles in a compute shader, using 16-by-16 pixel tiles and ordered
+depth comparisons. **SDL GPU** sends those triangles through the GPU graphics
+pipeline. Both retain indexed textures, shade tables, authored background depth
+and perspective scenery, then feed the common caption/transition compositor.
+The SDL interface renderer is independent of this movie-renderer setting.
+
+These are initial GPU implementations: floating-point interpolation and triangle
+edge coverage can differ from the CPU renderer. Completed frames are downloaded
+for the existing caption compositor and RGBA player API; performance improvements
+have not been established. Metal shader binaries are not supplied. Unsupported
+GPU initialization keeps the previous renderer when switching in Settings. A
+saved GPU choice that cannot initialize at startup falls back to CPU with a
+message in Settings; an explicitly requested `--renderer` fails with a diagnostic.
+
+Shader sources live in `src/marcus/shaders/raster.hlsl`. Regenerate their bundled
+binaries after shader changes with `python tools/compile_marcus_shaders.py`
+using DXC (`--dxc path/to/dxc` selects the compiler). Building/running Marcus does
+not require a shader compiler. SDL GPU resource binding conventions are described
+in the [compute pipeline](https://wiki.libsdl.org/SDL3/SDL_CreateGPUComputePipeline)
+and [graphics shader](https://wiki.libsdl.org/SDL3/SDL_CreateGPUShader) documentation.
+
 Settings persist in `shortcuts.cfg` in SDL's Marcus preferences directory
 (`%APPDATA%/3DMMForever/Marcus/` on Windows). The file is replaced through a sibling
 temporary file when applying changes. Invalid configuration keeps defaults and
@@ -329,7 +368,7 @@ of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
 FreeType headers are system headers during C89 checking. The backend is C++.
 
 ```console
-cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test marcus-zip-test marcus-caption-quad-test preview-scene-fixture
+cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test marcus-zip-test marcus-caption-quad-test marcus-renderer-test preview-scene-fixture
 ctest --test-dir build/marcus -R "^marcus-" --output-on-failure
 ```
 
@@ -363,6 +402,22 @@ faces, missing depth, discontinuities, clipping and padded buffer strides withou
 a window. These checks run through BRender's scene pipeline, including a
 1024-by-1024 depth fixture whose 131,072 triangles require multiple cached models;
 rebuilding the mesh releases its model, material and map registrations.
+`marcus-renderer` checks both GPU pipelines without creating an application
+window: flat shading, indexed/pitched textures, shade tables, perspective UVs,
+zero transparency, opaque palette index zero, authored depth, equal-depth
+submission order, frame clearing, padded output rows and settings compatibility.
+It reports a CTest skip if neither GPU backend can initialize. To also exercise
+loaded-movie switching and Camera/Orbit/Fly rendering, pass a movie, resources
+and content directory directly to `marcus-renderer-test`. The generated
+`src/marcus/test-data/marcus.3mm` from `marcus-player` is a suitable fixture.
+These checks do not drive the Marcus UI.
+
+Both GPU backends have passed these native checks on Windows x64 through
+Direct3D 12 and Vulkan, including loaded-movie switching and retaining the CPU
+renderer/movie after an unavailable-driver error. Headless captures of the diner
+in `I Know compilation 1`, scene 1/frame 49, were also compared in Camera and
+Orbit views; actor/counter occlusion and reconstructed scenery remain visible.
+This is selected-frame evidence, not pixel equality or a full movie parity audit.
 The diner at scene 1/frame 49 of `iknow1.zip` was also inspected in
 Orbit and moved Fly views; local captures are in `tmp/iknow-depth-check/mesh-*.png`.
 

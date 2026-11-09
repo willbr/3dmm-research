@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "player.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -115,7 +116,8 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     char *data, *line, *cursor, id[64], extra;
     unsigned long key;
     unsigned int modifiers, seen;
-    int i, j, valid, pause_seen;
+    int i, j, valid, pause_seen, renderer_seen;
+    char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
         return 1;
     if (info.type != SDL_PATHTYPE_FILE || info.size > 8192)
@@ -132,10 +134,22 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     loaded = *shortcuts;
     seen = 0;
     pause_seen = 0;
+    renderer_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
     {
+        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "renderer"))
+        {
+            if (renderer_seen || SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2 ||
+                (loaded.renderer = marcus_renderer_from_id(renderer_id)) < 0)
+            {
+                valid = 0;
+                break;
+            }
+            renderer_seen = 1;
+            continue;
+        }
         if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "pause_on_focus_loss"))
         {
             if (pause_seen || SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > 1)
@@ -192,8 +206,8 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         SDL_strlcpy(message, "The settings location is unavailable.", capacity);
         return 0;
     }
-    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\n",
-                 shortcuts->pause_on_focus_loss != 0);
+    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\nrenderer %s\n",
+                 shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer));
     length = strlen(data);
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         length += SDL_snprintf(data + length, sizeof(data) - length, "%s %lu %u\n", action_ids[i],
