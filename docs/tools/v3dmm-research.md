@@ -328,6 +328,16 @@ checks passed Lethal (2,036 frames), JDR (17,088) and, with Nickelodeon also in
 the base folder, Big Movie II (14,509). The original-runtime checks are selected
 native seeks, not complete playback or visual/audio comparisons.
 
+The remaining native movie, `The selected battle person`, was checked in the
+same pinned original runtime using an unchanged inner movie and a research-only
+VMM wrapper with the base, Doraemon, Nickelodeon and Frankie library names.
+Scene 10/frame 1 succeeds; scene 10/frame 32 returns native failure. Opening
+scene 16 at its first frame (stored frame 69) also returns failure, while scene
+17/frame 1 succeeds. These are the same two points where Marcus reports missing
+`TDF /00000005` from SID 2. The source hash remained unchanged. Artifacts from
+this local run are under `tmp/selected-font-oracle/run-yh99b_zb/`; this check
+does not establish complete original playback or identify the absent font pack.
+
 The [existing expansion manager](expansion-manager.md) already provides staged
 imports, ownership manifests, hashes, rollback, enable/disable state and
 ownership-preserving uninstall. Its public API is currently fixed to three

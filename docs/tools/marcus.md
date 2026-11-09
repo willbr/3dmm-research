@@ -204,6 +204,14 @@ movies across the tested configurations. This does not claim audiovisual or
 image parity. The remaining native movie needs `TDF /00000005`; the other
 unsupported input is a WebM video.
 
+Excluding the WebM, this is 148/149 native movies across the tested content
+configurations. Original v3dmm 0.14 was also checked on `The selected battle
+person` with the unchanged movie and the base plus three separate libraries.
+Native seeks succeed at scene 10/frame 1 and scene 17/frame 1, but fail at
+scene 10/frame 32 and scene 16/frame 1 (stored frame 69), matching Marcus's two
+missing-font fault points. This is selected-seek evidence, not full playback;
+the additional `TDF /00000005` font is still unavailable in the checked content.
+
 ## C89 boundary and checks
 
 `src/marcus/main.c` and `ui.c` implement the application and drawing in C89.
