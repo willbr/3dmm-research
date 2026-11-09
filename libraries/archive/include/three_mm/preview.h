@@ -29,7 +29,7 @@ struct PreviewView
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
-    bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until selection or ResetOrbitFraming().
+    bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
 };
 struct PreviewCamera
 {
@@ -85,7 +85,8 @@ class Preview
     void Close();
     // BMDL models, TMPL actors/props/text, ACTR instances, SCEN scenes and
     // BKGD backgrounds. Failed selection clears the old asset.
-    bool Select(Id asset, Error &error);
+    // Playback can preserve the inspection view across scene changes.
+    bool Select(Id asset, Error &error, bool preserveFraming = false);
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);

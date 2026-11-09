@@ -65,10 +65,12 @@ extern "C"
     int marcus_open(MarcusPlayer *player, const char *movie, const char *resources, const char *content_directory);
     int marcus_scene(const MarcusPlayer *player, int index, MarcusScene *scene);
     int marcus_select_scene(MarcusPlayer *player, int index);
+    /* Playback scene changes keep Orbit framing and Fly's clipping reference. */
+    int marcus_select_scene_keep_view(MarcusPlayer *player, int index);
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
     int marcus_seek(MarcusPlayer *player, long frame);
-    /* Refit Orbit on its next render, preserving the scene's guide lengths. */
+    /* Refit Orbit on its next render. */
     void marcus_reset_framing(MarcusPlayer *player);
     int marcus_render(MarcusPlayer *player, int width, int height, int authored_camera, float yaw, float pitch,
                       float zoom, MarcusImage *image);

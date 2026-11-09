@@ -136,9 +136,12 @@ static void reset_view(App *app)
 }
 static int select_scene(App *app, int index)
 {
+    int keep_view, selected;
     if (!app->loaded || index < 0 || index >= app->info.scene_count)
         return 0;
-    if (!marcus_select_scene(app->player, index))
+    keep_view = app->playing;
+    selected = keep_view ? marcus_select_scene_keep_view(app->player, index) : marcus_select_scene(app->player, index);
+    if (!selected)
     {
         fail(app, marcus_error(app->player));
         refresh(app);
@@ -146,8 +149,11 @@ static int select_scene(App *app, int index)
         return 0;
     }
     refresh(app);
-    release_fly(app);
-    app->fly_ready = app->camera_ready = 0;
+    if (!keep_view)
+    {
+        release_fly(app);
+        app->fly_ready = app->camera_ready = 0;
+    }
     app->selected = app->info.object_count ? 0 : -1;
     app->row_scroll = app->object_scroll = 0;
     fit_timeline(app);

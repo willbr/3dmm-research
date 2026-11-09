@@ -93,26 +93,28 @@ The timeline follows the playhead during playback.
 Fly starts from the currently displayed camera or orbit view. Movement follows
 the look direction, with upright strafing and world-space vertical movement.
 It has no collision or gravity. Movement uses elapsed time, and diagonal input
-is normalized. The flight position stays fixed when scrubbing or playing within
-a scene; scene changes and Reset reframe the geometry. Focus loss releases the
-mouse and clears movement keys. `--fly` opens directly in flight mode.
+is normalized. The flight position stays fixed when scrubbing or playing,
+including automatic scene changes. Manual scene selection and Reset reframe the
+geometry. Focus loss releases the mouse and clears movement keys. `--fly` opens
+directly in flight mode.
 
 Orbit and Fly show an amber wireframe guide for the active authored camera,
 labelled with its camera number. It uses the original camera-to-world transform,
 vertical field of view, background image aspect and near plane, including roll.
-The outline's display depth is capped at a useful distance toward the scene;
+The outline uses a fixed display depth of 100 world units, clamped between four
+times the near plane and the far plane. Actor positions never set its length;
 it is a viewport guide rather than a drawing of the complete far clipping range.
 The guide follows authored camera cuts when scrubbing or playing and is hidden
 in the authored Camera view. It draws above the scene geometry, with segments
 clipped against the viewing camera's near/far planes and viewport edges.
 Orbit fits the camera guide together with visible actors where the renderer's
 coordinate limits permit, once on first entering a scene's Orbit view. That
-center and size remain fixed during playback, scrubbing and camera cuts; dragging
-and zooming keep using the same center. Reset explicitly fits the current frame.
-Each authored camera's guide length is fixed on first display for that scene
-and reused when returning to that camera. Fly retains its explicit position
-and uses the same fixed scene reference for its clipping range; actor movement
-does not change that range while the flight camera is stationary.
+center and size remain fixed during playback, scrubbing and camera cuts, including
+automatic scene changes and looping; dragging and zooming keep using the same
+center. Manual scene selection and Reset explicitly fit the current frame.
+Fly retains its explicit position and uses the same fixed scene reference for
+its clipping range; actor movement does not change that range while the flight
+camera is stationary.
 
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.

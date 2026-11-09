@@ -106,7 +106,6 @@ struct Preview::Impl
     bool running = false, ready = false;
     bool orbitFramed = false, orbitIncludesCamera = false;
     float orbitCenter[3] = {}, orbitRadius = 1;
-    std::vector<float> guideDepths;
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
     std::string resolveError;
@@ -137,7 +136,6 @@ struct Preview::Impl
         if (!loaded->Load(source, number, palette))
             return false;
         info.cameraCount = static_cast<std::uint32_t>(loaded->cameras.size());
-        guideDepths.assign(info.cameraCount, 0);
         background.swap(loaded);
         return true;
     }
@@ -184,13 +182,13 @@ struct Preview::Impl
             info.triangles = model->Pbmdl()->nprepared_faces;
         }
     }
-    void ClearAsset()
+    void ClearAsset(bool preserveFraming = false)
     {
         actors.clear();
         background.reset();
         cameraChanges.clear();
-        guideDepths.clear();
-        orbitFramed = false;
+        if (!preserveFraming)
+            orbitFramed = false;
         initialCamera = 0;
         resolveError.clear();
         ReleasePpo(&body);
@@ -319,12 +317,12 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to load content archive.");
 }
-bool Preview::Select(Id asset, Error &error)
+bool Preview::Select(Id asset, Error &error, bool preserveFraming)
 try
 {
     error = {};
     Internal::ClearDiagnostic();
-    _impl->ClearAsset();
+    _impl->ClearAsset(preserveFraming);
     if (!_impl->cache)
         return Fail(error, ErrorCode::invalid_argument, "Open preview resources first.");
     bool ok = false;
@@ -661,23 +659,9 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             const auto &source = *_impl->background;
             sceneCamera = Projection(source.camera.bmat34Cam, source.camera.aFov, float(source.width) / source.height,
                                      source.camera.zrHither, source.camera.zrYon);
-            auto &guideDepth = _impl->guideDepths[_impl->info.currentCamera];
-            if (guideDepth == 0)
-            {
-                float focus = 0, focusSquared = 0;
-                for (int axis = 0; axis < 3; ++axis)
-                {
-                    const float delta = (low[axis] + high[axis]) * .5f - sceneCamera.transform[9 + axis];
-                    focus -= delta * sceneCamera.transform[6 + axis];
-                    focusSquared += delta * delta;
-                }
-                if (bodies.empty() && !_impl->model)
-                    focus = 100;
-                else
-                    focus = std::max(focus, std::sqrt(focusSquared) * .25f);
-                guideDepth = std::min(sceneCamera.farClip, std::max(sceneCamera.nearClip * 4, focus));
-            }
-            sceneCamera.displayDepth = guideDepth;
+            // Use one world-space guide length for every camera, independent of
+            // actor bounds, playback frame and the order cameras are visited.
+            sceneCamera.displayDepth = std::min(sceneCamera.farClip, std::max(sceneCamera.nearClip * 4, 100.f));
             if (view.frameSceneCamera && (!view.freeCamera || view.stableOrbit) && !bg && sceneCamera.verticalFov > 0 &&
                 sceneCamera.verticalFov < 179)
             {

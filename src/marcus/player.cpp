@@ -97,6 +97,20 @@ template <typename F> int Guard(MarcusPlayer *player, F operation)
     }
     return 0;
 }
+int SelectScene(MarcusPlayer *player, int index, bool preserveFraming)
+{
+    return Guard(player, [&](ThreeMM::Error &error) {
+        if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
+            return false;
+        player->selected = -1;
+        player->objects.clear();
+        if (!player->preview.Select(player->scenes[index], error, preserveFraming))
+            return false;
+        player->objects = player->preview.Objects();
+        player->selected = index;
+        return true;
+    });
+}
 std::size_t Find(const ThreeMM::Archive &archive, ThreeMM::Id id)
 {
     const auto &chunks = archive.Chunks();
@@ -264,17 +278,11 @@ extern "C"
     }
     int marcus_select_scene(MarcusPlayer *player, int index)
     {
-        return Guard(player, [&](ThreeMM::Error &error) {
-            if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
-                return false;
-            player->selected = -1;
-            player->objects.clear();
-            if (!player->preview.Select(player->scenes[index], error))
-                return false;
-            player->objects = player->preview.Objects();
-            player->selected = index;
-            return true;
-        });
+        return SelectScene(player, index, false);
+    }
+    int marcus_select_scene_keep_view(MarcusPlayer *player, int index)
+    {
+        return SelectScene(player, index, true);
     }
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info)
     {
