@@ -25,7 +25,7 @@ struct PreviewView
 {
     std::uint32_t width = 480, height = 360;
     float yaw = 0, pitch = 0, zoom = 1; // Degrees; zoom 1 frames the entire asset.
-    bool authoredCamera = true;         // Scenes/backgrounds use their original view and depth.
+    bool authoredCamera = true;         // Original image/depth; other views reconstruct a background mesh.
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.

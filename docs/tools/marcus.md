@@ -204,6 +204,21 @@ Fly retains its explicit position and uses the same fixed scene reference for
 its clipping range; actor movement does not change that range while the flight
 camera is stationary.
 
+Orbit and Fly reconstruct the active camera's background as textured scenery
+from its colour image and ZBMP depth, placed using the authored camera transform.
+Orbit's initial fit includes this scenery. The mesh shares the actors' depth
+buffer, so counters, floors and walls can occlude actors, props and caption quads.
+Texture mapping preserves perspective and the background palette, without
+relighting the original artwork. Both sides of the reconstructed surface are
+visible. Camera mode continues to use the original image and depth directly.
+
+This is a reconstruction of one view, not the original environment model.
+Depth edges are split down to individual pixels and triangles across jumps are
+omitted; missing depth and surfaces hidden from the authored camera stay as
+gaps. Moving far from that camera exposes those gaps. Camera cuts replace the
+scenery with the new camera's reconstruction; views are not stitched together.
+The two most recently inspected camera meshes are cached per loaded background.
+
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.
 Actors with no entrance remain listed without a bar. Lifetime properties use the
@@ -226,9 +241,9 @@ viewport geometry picking is not yet implemented.
 - Captions are limited to 65,536 UTF-16 units and 4,096-pixel bounds per box;
   cached glyph masks have a 128 MiB scene budget. Decoded audio has a 256 MiB
   cache budget; active voices retain their clips until stopped or completed.
-- Orbit and Fly display actor geometry. Backgrounds are prerendered images,
-  rather than explorable 3D scenery. Orbit automatically frames visible bodies;
-  Fly uses an explicit world-space camera position.
+- Orbit and Fly display actor geometry and scenery reconstructed from the
+  active background camera's image/depth. Hidden surfaces and absent depth
+  remain gaps; cameras are not combined into a complete environment.
 - Base content, enabled Nickelodeon/Doraemon/Frankie libraries and portable VXP
   content share the C89 content VFS used by Studio. Movie source IDs are mapped
   by recorded product names, rather than assuming the installed numeric IDs.
@@ -333,6 +348,14 @@ occlusion, camera roll, back faces and near/far clipping without a window. The
 preview scene regression checks optional camera-forward depth and rewind identity.
 The background regression also requests depth without actors and requires finite
 authored distances, catching a missing ZBMP copy independently of actor rendering.
+It renders all 188 shipped cameras in Orbit and Fly, verifies unchanged authored
+images and deterministic reconstruction after cache eviction. All 184 cameras
+with finite depth produce visible scenery in both inspection modes.
+`preview-background-mesh` checks reconstruction, analytic perspective texture
+mapping, camera transforms/parallax, palette index zero, depth ordering, back
+faces, missing depth, discontinuities, clipping and padded buffer strides without
+a window. The diner at scene 1/frame 49 of `iknow1.zip` was also inspected in
+Orbit and moved Fly views; local captures are in `tmp/iknow-depth-check/mesh-*.png`.
 
 On 9 November 2026, `iknow1.zip` / `I Know compilation 1.3mm`, scene 1,
 frame 49 was checked in the unchanged retail US executable using the retail

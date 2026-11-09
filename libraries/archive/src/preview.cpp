@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/preview.h"
+#include "preview_background_mesh.h"
 #include "diagnostics.h"
 #include <algorithm>
 #include <cmath>
@@ -713,6 +714,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
     {
         Frame frame;
         const auto bg = view.authoredCamera && !view.freeCamera ? _impl->background.get() : nullptr;
+        const auto mesh = !bg && _impl->background ? &_impl->background->Mesh() : nullptr;
         const auto width = bg ? bg->width : view.width, height = bg ? bg->height : view.height;
         frame.colour = BrPixelmapAllocate(BR_PMT_INDEX_8, width, height, nullptr, BR_PMAF_NORMAL);
         frame.depth = frame.colour ? BrPixelmapMatch(frame.colour, BR_PMMATCH_DEPTH_16) : nullptr;
@@ -753,6 +755,15 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 low[axis] = BrScalarToFloat(_impl->model->Pbmdl()->bounds.min.v[axis]);
                 high[axis] = BrScalarToFloat(_impl->model->Pbmdl()->bounds.max.v[axis]);
             }
+        if (mesh && !mesh->Empty())
+        {
+            for (unsigned axis = 0; axis < 3; ++axis)
+            {
+                low[axis] = first && !_impl->model ? mesh->low[axis] : std::min(low[axis], mesh->low[axis]);
+                high[axis] = first && !_impl->model ? mesh->high[axis] : std::max(high[axis], mesh->high[axis]);
+            }
+            first = false;
+        }
         PreviewProjection sceneCamera;
         if (_impl->background)
         {
@@ -940,6 +951,20 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 actor->t.t.mat = composed;
             }
         }
+        if (mesh && !mesh->Empty())
+        {
+            br_matrix34 inverse;
+            BrMatrix34Inverse(&inverse, &cam->t.t.mat);
+            br_matrix4 projection;
+            BrMatrix4Perspective(&projection, camera.field_of_view, camera.aspect, -camera.hither_z, -camera.yon_z);
+            BrMatrix4Pre34(&projection, &inverse);
+            Internal::BackgroundMatrix worldToClip;
+            for (unsigned row = 0; row < 4; ++row)
+                for (unsigned axis = 0; axis < 4; ++axis)
+                    worldToClip[row * 4 + axis] = BrScalarToFloat(projection.m[row][axis]);
+            mesh->Render(worldToClip, width, height, static_cast<byte *>(frame.colour->pixels), frame.colour->row_bytes,
+                         static_cast<byte *>(frame.depth->pixels), frame.depth->row_bytes);
+        }
         BrZbSceneRender(frame.world, cam, frame.colour, frame.depth);
         if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::decode_failed, "The renderer rejected this asset.");
@@ -990,7 +1015,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             {
                 const auto sourceX = std::min(width - 1, static_cast<std::uint32_t>(x / scale));
                 auto out = &rendered.rgba[(std::size_t(y + top) * view.width + x + left) * 4];
-                const auto &colour = (bg ? bg->palette : _impl->palette)[row[sourceX]];
+                const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[row[sourceX]];
                 out[0] = colour.bRed;
                 out[1] = colour.bGreen;
                 out[2] = colour.bBlue;

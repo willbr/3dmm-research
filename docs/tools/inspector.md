@@ -58,8 +58,10 @@ cameras and an **Authored camera and background** checkbox. Embedded 3D text
 resolves its font through the same explicit content sources.
 
 The authored scene view uses its camera, palette, lighting and background depth
-for actor occlusion. Orbiting switches to the actor/prop geometry: background
-images were prerendered and cannot supply arbitrary views of a background mesh.
+for actor occlusion. Orbiting includes the actor/prop geometry and a textured
+background mesh reconstructed from the active camera's image and depth. Moving
+away from the authored camera exposes gaps where depth is missing or surfaces
+were hidden; the reconstruction does not combine multiple cameras.
 Background chunks support their stored camera views. This is a static frame
 inspector; it does not play sound, draw captions or perform movie transitions.
 

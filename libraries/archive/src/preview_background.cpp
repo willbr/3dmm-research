@@ -113,7 +113,35 @@ bool PreviewBackground::SetCamera(std::uint32_t slot)
     depthClip.Set(0, 0, width, height);
     depth->Draw(reinterpret_cast<byte *>(depths.data()), width * 2, height, 0, 0, &depthClip);
     ReleasePpo(&depth);
+    activeCamera = slot;
     return true;
+}
+PreviewBackgroundMesh &PreviewBackground::Mesh()
+{
+    for (std::size_t i = 0; i < meshes.size(); ++i)
+        if (meshes[i].camera == activeCamera)
+        {
+            auto cached = std::move(meshes[i]);
+            meshes.erase(meshes.begin() + i);
+            meshes.push_back(std::move(cached));
+            return *meshes.back().mesh;
+        }
+    std::unique_ptr<PreviewBackgroundMesh> mesh(new PreviewBackgroundMesh);
+    BackgroundMatrix transform = {}, projection = {};
+    transform[15] = 1;
+    for (unsigned row = 0; row < 4; ++row)
+        for (unsigned axis = 0; axis < 3; ++axis)
+            transform[row * 4 + axis] = BrScalarToFloat(camera.bmat34Cam.m[row][axis]);
+    br_matrix4 matrix;
+    BrMatrix4Perspective(&matrix, camera.aFov, BrFloatToScalar(float(width) / height), -camera.zrHither, -camera.zrYon);
+    for (unsigned row = 0; row < 4; ++row)
+        for (unsigned axis = 0; axis < 4; ++axis)
+            projection[row * 4 + axis] = BrScalarToFloat(matrix.m[row][axis]);
+    mesh->Build(width, height, colours, depths, transform, projection);
+    if (meshes.size() == 2)
+        meshes.erase(meshes.begin());
+    meshes.push_back({activeCamera, std::move(mesh)});
+    return *meshes.back().mesh;
 }
 } // namespace Internal
 } // namespace ThreeMM

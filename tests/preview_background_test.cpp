@@ -17,7 +17,7 @@ int main(int argc, char **argv)
     };
     if (!check(archive.Open(argv[2], error)) || !check(preview.Open(argv[2], argv[1], error)))
         return 1;
-    unsigned backgrounds = 0, cameras = 0, depthCameras = 0;
+    unsigned backgrounds = 0, cameras = 0, depthCameras = 0, meshCameras = 0;
     ThreeMM::PreviewView view;
     view.width = 256;
     view.height = 192;
@@ -33,6 +33,7 @@ int main(int argc, char **argv)
             return 1;
         ++backgrounds;
         const auto count = preview.Info().cameraCount;
+        ThreeMM::PreviewImage firstOrbit;
         for (unsigned camera = 0; camera < count; ++camera)
         {
             if (!check(preview.SetCamera(camera, error)) || !check(preview.Render(view, image, error)) ||
@@ -50,23 +51,55 @@ int main(int argc, char **argv)
             // the authored ZBMP. Colour-only backgrounds cannot pass this check.
             if (image.depth.size() != std::size_t(view.width) * view.height)
                 return 1;
+            bool hasDepth = false;
             for (const auto distance : image.depth)
                 if (std::isfinite(distance) && distance > 0)
                 {
                     ++depthCameras;
+                    hasDepth = true;
                     break;
                 }
+            const auto authored = image.rgba;
+            auto orbit = view;
+            orbit.authoredCamera = false;
+            orbit.frameSceneCamera = true;
+            orbit.yaw = 20;
+            orbit.pitch = 15;
+            if (!check(preview.Render(orbit, image, error)) || bool(image.coveredPixels) != hasDepth)
+                return 1;
+            if (image.coveredPixels)
+                ++meshCameras;
+            if (!camera)
+                firstOrbit = image;
+            auto fly = orbit;
+            fly.freeCamera = true;
+            fly.cameraX = image.camera.x;
+            fly.cameraY = image.camera.y;
+            fly.cameraZ = image.camera.z;
+            if (!check(preview.Render(fly, image, error)) || bool(image.coveredPixels) != hasDepth ||
+                !check(preview.Render(view, image, error)) || image.rgba != authored)
+                return 1;
             ++cameras;
         }
+        // Revisit the first camera after cache eviction. Reconstruction must
+        // be deterministic, and inspection must not alter authored images.
+        auto orbit = view;
+        orbit.authoredCamera = false;
+        orbit.frameSceneCamera = true;
+        orbit.yaw = 20;
+        orbit.pitch = 15;
+        if (!check(preview.SetCamera(0, error)) || !check(preview.Render(orbit, image, error)) ||
+            image.rgba != firstOrbit.rgba || image.depth != firstOrbit.depth)
+            return 1;
         if (preview.SetCamera(count, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
             return 1;
     }
-    if (!backgrounds || !cameras || !depthCameras)
+    if (!backgrounds || !cameras || !depthCameras || !meshCameras)
     {
         std::fprintf(stderr, "Background cameras must supply authored depth.\n");
         return 1;
     }
-    std::printf("Background preview: %u backgrounds, %u cameras with palette, %u with finite depth.\n", backgrounds,
-                cameras, depthCameras);
+    std::printf("Background preview: %u backgrounds, %u cameras with palette, %u with finite depth, %u with meshes.\n",
+                backgrounds, cameras, depthCameras, meshCameras);
     return 0;
 }
