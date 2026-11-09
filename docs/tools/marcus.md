@@ -195,3 +195,27 @@ marcus movie.3mm --scene 2 --frame 10 --object 1 --orbit --screenshot marcus.bmp
 
 `--screenshot` exits after capturing the window and returns a failure status on
 load or render errors.
+
+For a directory-wide playback audit, explicitly build the headless C89 tool in
+a Release configuration and run the Python wrapper:
+
+```console
+cmake -S . -B build/marcus-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_MARCUS=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
+cmake --build build/marcus-release --target marcus-playback
+python tools/check_marcus_movies.py movies --exe build/marcus-release/src/marcus/marcus-playback.exe --resources /path/to/3dmovie.chk --content-dir content-files --output tmp/marcus-playback
+```
+
+The wrapper includes movies inside ZIP/RAR archives, tests identical bytes once,
+and runs read-only copies in isolated processes. RAR and older ZIP compression
+methods require 7-Zip. Every frame is evaluated and rendered in the authored
+camera at 480 x 360, without playback pacing or UI input simulation. A failed
+scene is recorded and the tool continues with subsequent scenes. This does not
+check image correctness or the unimplemented audio/caption/transition features.
+VMM bundles remain unsupported; the audit does not install expansion content.
+
+`summary.txt` lists completed, incomplete and unsupported movies. `report.json`
+contains exact errors, frame coverage and source aliases; per-movie journals
+retain the last scene/frame before a crash or stall. Original file hashes are
+checked after the run. `--workers` controls parallel processes. `--resume` reuses
+completed results in that output directory; add `--retry-failures` to retry
+failed inputs. Use a new output directory to repeat the entire audit.

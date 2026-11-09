@@ -753,13 +753,14 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         }
         const float aspect = float(width) / height;
         const float distance = radius * 2.8f / std::min(1.f, aspect) / view.zoom;
-        if (!view.freeCamera && distance + radius * 4 > 30000)
+        if (!bg && !view.freeCamera && distance + radius * 4 > 30000)
             return Fail(error, ErrorCode::unsupported_format, "Asset exceeds the fixed-point preview camera range.");
         br_camera camera = {};
         camera.type = BR_CAMERA_PERSPECTIVE_FOV;
         camera.field_of_view = BR_ANGLE_DEG(45);
-        camera.hither_z = BrFloatToScalar(view.freeCamera ? .1f : std::max(.01f, distance / 1000));
-        camera.yon_z = BrFloatToScalar(view.freeCamera ? 30000.f : distance + radius * 4 + 1);
+        camera.hither_z = bg ? bg->camera.zrHither
+                            : BrFloatToScalar(view.freeCamera ? .1f : std::max(.01f, distance / 1000));
+        camera.yon_z = bg ? bg->camera.zrYon : BrFloatToScalar(view.freeCamera ? 30000.f : distance + radius * 4 + 1);
         if (view.freeCamera)
         {
             const float dx = view.cameraX - center[0], dy = view.cameraY - center[1], dz = view.cameraZ - center[2];
@@ -769,8 +770,6 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         camera.aspect = BrFloatToScalar(aspect);
         if (bg)
         {
-            camera.hither_z = bg->camera.zrHither;
-            camera.yon_z = bg->camera.zrYon;
             camera.field_of_view = bg->camera.aFov;
         }
         auto cam = BrActorAllocate(BR_ACTOR_CAMERA, &camera);

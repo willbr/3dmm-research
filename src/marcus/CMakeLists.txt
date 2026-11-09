@@ -5,6 +5,11 @@ add_library(marcus-player STATIC player.cpp)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(marcus-player PRIVATE ThreeMM::Preview)
 
+# Explicitly built, headless playback diagnostic; no UI input simulation.
+add_executable(marcus-playback EXCLUDE_FROM_ALL ../../tools/marcus_playback.c)
+set_target_properties(marcus-playback PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_link_libraries(marcus-playback PRIVATE marcus-player)
+
 add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

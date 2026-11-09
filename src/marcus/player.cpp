@@ -35,6 +35,15 @@ std::int32_t Word(const std::vector<std::uint8_t> &bytes, bool big)
     std::memcpy(&result, &value, sizeof(result));
     return result;
 }
+bool OriginalSource(std::string name)
+{
+    // Localized display names retain the /3DMovie product identifier. Source
+    // strings are not required to use the English spelling or upper-case path.
+    for (auto &letter : name)
+        if (letter >= 'a' && letter <= 'z')
+            letter -= 'a' - 'A';
+    return name.find("3D MOVIE MAKER") != std::string::npos || name.find("3DMOVIE") != std::string::npos;
+}
 } // namespace
 struct MarcusPlayer
 {
@@ -206,9 +215,7 @@ extern "C"
                     for (const auto &entry : entries)
                         if (child.slot == 0 && entry.extra.size() == 28)
                             names[Word(entry.extra, big)] = entry.text;
-                        else if (child.slot == 1 && entry.extra.size() == 4 &&
-                                 (entry.text.find("3D Movie Maker") != std::string::npos ||
-                                  entry.text.find("3DMOVIE") != std::string::npos))
+                        else if (child.slot == 1 && entry.extra.size() == 4 && OriginalSource(entry.text))
                             sources.push_back(Word(entry.extra, big));
                 }
                 // Source 2 is the original retail content when older movies omit a table.
