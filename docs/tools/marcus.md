@@ -107,7 +107,13 @@ The guide follows authored camera cuts when scrubbing or playing and is hidden
 in the authored Camera view. It draws above the scene geometry, with segments
 clipped against the viewing camera's near/far planes and viewport edges.
 Orbit fits the camera guide together with visible actors where the renderer's
-coordinate limits permit. Fly retains its explicit position.
+coordinate limits permit, once on first entering a scene's Orbit view. That
+center and size remain fixed during playback, scrubbing and camera cuts; dragging
+and zooming keep using the same center. Reset explicitly fits the current frame.
+Each authored camera's guide length is fixed on first display for that scene
+and reused when returning to that camera. Fly retains its explicit position
+and uses the same fixed scene reference for its clipping range; actor movement
+does not change that range while the flight camera is stationary.
 
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.

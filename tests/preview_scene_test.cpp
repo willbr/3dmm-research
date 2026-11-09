@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/preview.h"
 #include <cstdio>
+#include <cstring>
 int main(int argc, char **argv)
 {
     if (argc != 6)
@@ -38,6 +39,18 @@ int main(int argc, char **argv)
         preview.Info().currentCamera != 0)
         return 1;
     if (preview.SetFrame(11, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
+        return 1;
+    view.stableOrbit = true;
+    if (!check(preview.Select({0x5343454e, 0}, error)) || !check(preview.Render(view, first, error)) ||
+        !check(preview.SetFrame(5, error)) || !check(preview.Render(view, later, error)) ||
+        std::memcmp(first.projection.transform, later.projection.transform, sizeof(first.projection.transform)))
+        return 1;
+    preview.ResetOrbitFraming();
+    if (!check(preview.Render(view, repeated, error)) ||
+        !std::memcmp(first.projection.transform, repeated.projection.transform, sizeof(first.projection.transform)))
+        return 1;
+    if (!check(preview.SetFrame(1, error)) || !check(preview.Render(view, later, error)) ||
+        std::memcmp(repeated.projection.transform, later.projection.transform, sizeof(later.projection.transform)))
         return 1;
     if (!check(preview.Select({0x41435452, 1}, error)) || preview.Info().firstFrame != 1 ||
         preview.Info().lastFrame <= 10 || !check(preview.Render(view, repeated, error)) || !repeated.coveredPixels)

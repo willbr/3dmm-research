@@ -334,6 +334,11 @@ extern "C"
             return true;
         });
     }
+    void marcus_reset_framing(MarcusPlayer *player)
+    {
+        if (player)
+            player->preview.ResetOrbitFraming();
+    }
     int marcus_render(MarcusPlayer *player, int width, int height, int authored, float yaw, float pitch, float zoom,
                       MarcusImage *image)
     {
@@ -347,6 +352,7 @@ extern "C"
             view.height = height;
             view.authoredCamera = authored != 0;
             view.frameSceneCamera = !view.authoredCamera;
+            view.stableOrbit = !view.authoredCamera;
             view.yaw = yaw;
             view.pitch = pitch;
             view.zoom = zoom;
@@ -367,6 +373,8 @@ extern "C"
             view.height = height;
             view.authoredCamera = false;
             view.freeCamera = true;
+            view.frameSceneCamera = true;
+            view.stableOrbit = true;
             view.cameraX = pose.x;
             view.cameraY = pose.y;
             view.cameraZ = pose.z;

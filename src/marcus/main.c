@@ -127,6 +127,7 @@ static void fit_timeline(App *app)
 }
 static void reset_view(App *app)
 {
+    marcus_reset_framing(app->player);
     app->yaw = -18;
     app->pitch = 12;
     app->zoom = 1;

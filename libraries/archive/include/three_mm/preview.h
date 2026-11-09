@@ -29,6 +29,7 @@ struct PreviewView
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
+    bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until selection or ResetOrbitFraming().
 };
 struct PreviewCamera
 {
@@ -90,6 +91,7 @@ class Preview
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);
     bool SetFrame(std::int32_t frame, Error &error);
     bool SetCamera(std::uint32_t camera, Error &error);
+    void ResetOrbitFraming();
     // Dimensions 64..1024, finite camera values, pitch -85..85, zoom .1..10.
     // Free camera coordinates are limited to +/-32700 world units and take
     // precedence over authoredCamera. Returned images include the rendered pose.

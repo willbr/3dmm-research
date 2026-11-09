@@ -68,6 +68,8 @@ extern "C"
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
     int marcus_seek(MarcusPlayer *player, long frame);
+    /* Refit Orbit on its next render, preserving the scene's guide lengths. */
+    void marcus_reset_framing(MarcusPlayer *player);
     int marcus_render(MarcusPlayer *player, int width, int height, int authored_camera, float yaw, float pitch,
                       float zoom, MarcusImage *image);
     /* Explicit camera position in original world units, independent of frame

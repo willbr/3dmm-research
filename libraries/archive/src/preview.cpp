@@ -104,6 +104,9 @@ struct Preview::Impl
     PreviewInfo info;
     Color palette[256] = {};
     bool running = false, ready = false;
+    bool orbitFramed = false, orbitIncludesCamera = false;
+    float orbitCenter[3] = {}, orbitRadius = 1;
+    std::vector<float> guideDepths;
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
     std::string resolveError;
@@ -134,6 +137,7 @@ struct Preview::Impl
         if (!loaded->Load(source, number, palette))
             return false;
         info.cameraCount = static_cast<std::uint32_t>(loaded->cameras.size());
+        guideDepths.assign(info.cameraCount, 0);
         background.swap(loaded);
         return true;
     }
@@ -185,6 +189,8 @@ struct Preview::Impl
         actors.clear();
         background.reset();
         cameraChanges.clear();
+        guideDepths.clear();
+        orbitFramed = false;
         initialCamera = 0;
         resolveError.clear();
         ReleasePpo(&body);
@@ -219,6 +225,10 @@ void Preview::Close()
 const PreviewInfo &Preview::Info() const
 {
     return _impl->info;
+}
+void Preview::ResetOrbitFraming()
+{
+    _impl->orbitFramed = false;
 }
 std::vector<PreviewObject> Preview::Objects() const
 {
@@ -651,19 +661,24 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             const auto &source = *_impl->background;
             sceneCamera = Projection(source.camera.bmat34Cam, source.camera.aFov, float(source.width) / source.height,
                                      source.camera.zrHither, source.camera.zrYon);
-            float focus = 0, focusSquared = 0;
-            for (int axis = 0; axis < 3; ++axis)
+            auto &guideDepth = _impl->guideDepths[_impl->info.currentCamera];
+            if (guideDepth == 0)
             {
-                const float delta = (low[axis] + high[axis]) * .5f - sceneCamera.transform[9 + axis];
-                focus -= delta * sceneCamera.transform[6 + axis];
-                focusSquared += delta * delta;
+                float focus = 0, focusSquared = 0;
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    const float delta = (low[axis] + high[axis]) * .5f - sceneCamera.transform[9 + axis];
+                    focus -= delta * sceneCamera.transform[6 + axis];
+                    focusSquared += delta * delta;
+                }
+                if (bodies.empty() && !_impl->model)
+                    focus = 100;
+                else
+                    focus = std::max(focus, std::sqrt(focusSquared) * .25f);
+                guideDepth = std::min(sceneCamera.farClip, std::max(sceneCamera.nearClip * 4, focus));
             }
-            if (bodies.empty() && !_impl->model)
-                focus = 100;
-            else
-                focus = std::max(focus, std::sqrt(focusSquared) * .25f);
-            sceneCamera.displayDepth = std::min(sceneCamera.farClip, std::max(sceneCamera.nearClip * 4, focus));
-            if (view.frameSceneCamera && !view.freeCamera && !bg && sceneCamera.verticalFov > 0 &&
+            sceneCamera.displayDepth = guideDepth;
+            if (view.frameSceneCamera && (!view.freeCamera || view.stableOrbit) && !bg && sceneCamera.verticalFov > 0 &&
                 sceneCamera.verticalFov < 179)
             {
                 float guideLow[3], guideHigh[3];
@@ -709,7 +724,22 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             center[axis] = (low[axis] + high[axis]) * .5f;
             squared += (high[axis] - low[axis]) * (high[axis] - low[axis]) * .25f;
         }
-        const float radius = std::max(.1f, std::sqrt(squared));
+        float radius = std::max(.1f, std::sqrt(squared));
+        if (view.stableOrbit && !bg)
+        {
+            if (_impl->orbitFramed && _impl->orbitIncludesCamera == view.frameSceneCamera)
+            {
+                std::copy(_impl->orbitCenter, _impl->orbitCenter + 3, center);
+                radius = _impl->orbitRadius;
+            }
+            else
+            {
+                std::copy(center, center + 3, _impl->orbitCenter);
+                _impl->orbitRadius = radius;
+                _impl->orbitFramed = true;
+                _impl->orbitIncludesCamera = view.frameSceneCamera;
+            }
+        }
         const float aspect = float(width) / height;
         const float distance = radius * 2.8f / std::min(1.f, aspect) / view.zoom;
         if (!view.freeCamera && distance + radius * 4 > 30000)

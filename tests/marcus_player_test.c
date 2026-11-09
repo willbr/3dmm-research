@@ -22,7 +22,9 @@ int main(int argc, char **argv)
     MarcusObject first, later, prop, inactive;
     MarcusImage image;
     MarcusCamera camera, moved;
-    MarcusProjection authored;
+    MarcusProjection authored, orbit, manual, flight;
+    float guide_depth[2];
+    const long frames[] = {1, 5, 10, 16, 25, 30, 1};
     unsigned char *pixels;
     size_t bytes;
     int index, scene_count;
@@ -51,6 +53,7 @@ int main(int argc, char **argv)
     CHECK(image.scene_camera.far_clip > image.scene_camera.near_clip &&
           image.scene_camera.display_depth <= image.scene_camera.far_clip);
     authored = image.scene_camera;
+    guide_depth[0] = authored.display_depth;
     bytes = (size_t)image.pitch * image.height;
     pixels = (unsigned char *)malloc(bytes);
     CHECK(pixels);
@@ -58,6 +61,7 @@ int main(int argc, char **argv)
     CHECK(marcus_seek(player, 10) && marcus_object(player, 0, &later));
     CHECK(later.x != first.x || later.y != first.y || later.z != first.z || later.cel != first.cel);
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    CHECK(image.scene_camera.display_depth == guide_depth[0]);
     CHECK(memcmp(pixels, image.rgba, bytes));
     CHECK(marcus_seek(player, 1));
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
@@ -68,12 +72,30 @@ int main(int argc, char **argv)
     CHECK(image.scene_camera.valid &&
           (memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)) ||
            authored.vertical_fov != image.scene_camera.vertical_fov));
+    guide_depth[1] = image.scene_camera.display_depth;
     CHECK(marcus_seek(player, 1));
     CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+    orbit = image.projection;
+    for (index = 0; index < (int)(sizeof(frames) / sizeof(frames[0])); ++index)
+    {
+        CHECK(marcus_seek(player, frames[index]));
+        CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+        CHECK(!memcmp(orbit.transform, image.projection.transform, sizeof(orbit.transform)));
+        CHECK(orbit.near_clip == image.projection.near_clip && orbit.far_clip == image.projection.far_clip);
+        CHECK(marcus_info(player, &info));
+        CHECK(image.scene_camera.display_depth == guide_depth[info.camera]);
+    }
+    CHECK(marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
+    manual = image.projection;
+    CHECK(memcmp(orbit.transform, manual.transform, sizeof(orbit.transform)));
+    CHECK(marcus_seek(player, 10) && marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
+    CHECK(!memcmp(manual.transform, image.projection.transform, sizeof(manual.transform)));
+    CHECK(marcus_seek(player, 1) && marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
     camera = image.camera;
     CHECK(camera.move_speed > 0);
     CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
     CHECK(fabs(image.camera.x - camera.x) < 0.001 && fabs(image.camera.z - camera.z) < 0.001);
+    flight = image.projection;
     memcpy(pixels, image.rgba, bytes);
     moved = camera;
     moved.x += camera.move_speed * 0.5f;
@@ -90,6 +112,11 @@ int main(int argc, char **argv)
     CHECK(marcus_seek(player, 10));
     CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
     CHECK(fabs(image.camera.x - camera.x) < 0.001 && fabs(image.camera.z - camera.z) < 0.001);
+    CHECK(flight.near_clip == image.projection.near_clip && flight.far_clip == image.projection.far_clip);
+    CHECK(image.scene_camera.display_depth == guide_depth[0]);
+    CHECK(marcus_seek(player, 20) && marcus_render_fly(player, 480, 360, &camera, &image));
+    CHECK(flight.near_clip == image.projection.near_clip && flight.far_clip == image.projection.far_clip);
+    CHECK(image.scene_camera.display_depth == guide_depth[1]);
     CHECK(marcus_seek(player, 1));
     moved = camera;
     moved.x = 40000;
