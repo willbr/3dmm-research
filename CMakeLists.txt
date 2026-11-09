@@ -75,6 +75,7 @@ endif()
 option(BUILD_PACKAGES "Build packages for 3DMM" ON)
 option(BUILD_STUDIO "Build the Studio application and content" ON)
 option(BUILD_INSPECTOR "Build the SDL3 / Dear ImGui archive inspector" OFF)
+option(BUILD_MARCUS "Build the read-only C89 Marcus movie player" OFF)
 option(STUDIO_SDL3 "Use the portable SDL3 host for the existing Studio" OFF)
 option(STUDIO_PORTABLE_RUNTIME "Exercise the non-native Studio runtime, including on Windows" OFF)
 option(STUDIO_TEST_TOOLS "Enable opt-in MCP and batch playback tools, including in Release builds" OFF)
@@ -1107,6 +1108,9 @@ target_include_directories(inspector-data PUBLIC "${PROJECT_SOURCE_DIR}/src/insp
 target_link_libraries(inspector-data PUBLIC ThreeMM::Archive)
 if(BUILD_INSPECTOR)
   add_subdirectory(src/inspector)
+endif()
+if(BUILD_MARCUS)
+  add_subdirectory(src/marcus)
 endif()
 
 # --- engine: full playback runtime, transitively re-exports core ---

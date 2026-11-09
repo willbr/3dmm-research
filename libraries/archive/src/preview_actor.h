@@ -2,6 +2,7 @@
 #ifndef THREE_MM_PREVIEW_ACTOR_H
 #define THREE_MM_PREVIEW_ACTOR_H
 #include <functional>
+#include "three_mm/preview.h"
 #include "soc_core.h"
 
 namespace ThreeMM
@@ -23,12 +24,14 @@ class PreviewActor
     ActorStepSource Steps() const;
 
   public:
+    ChunkNumber number = 0;
     PBody body = nullptr;
     ~PreviewActor();
     bool Load(PChunkyResourceFile file, ChunkNumber number,
               std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
               std::function<void(PTemplate)> bindTemplate);
     bool Seek(LegacyLong frame);
+    PreviewObject Snapshot() const;
     bool Visible() const
     {
         return state.onStage;

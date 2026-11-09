@@ -207,6 +207,14 @@ const PreviewInfo &Preview::Info() const
 {
     return _impl->info;
 }
+std::vector<PreviewObject> Preview::Objects() const
+{
+    std::vector<PreviewObject> result;
+    if (_impl->ready)
+        for (const auto &actor : _impl->actors)
+            result.push_back(actor->Snapshot());
+    return result;
+}
 bool Preview::Open(const std::string &archivePath, const std::string &resourcesPath, Error &error)
 try
 {
@@ -575,12 +583,15 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         return Fail(error, ErrorCode::invalid_argument, "Select an asset to render.");
     if (view.width < 64 || view.height < 64 || view.width > 1024 || view.height > 1024 || !std::isfinite(view.yaw) ||
         !std::isfinite(view.pitch) || !std::isfinite(view.zoom) || view.pitch < -85 || view.pitch > 85 ||
-        view.zoom < .1f || view.zoom > 10)
+        view.zoom < .1f || view.zoom > 10 ||
+        (view.freeCamera && (!std::isfinite(view.cameraX) || !std::isfinite(view.cameraY) ||
+                             !std::isfinite(view.cameraZ) || std::abs(view.cameraX) > 32700 ||
+                             std::abs(view.cameraY) > 32700 || std::abs(view.cameraZ) > 32700)))
         return Fail(error, ErrorCode::invalid_argument, "Preview dimensions or camera values are out of range.");
     try
     {
         Frame frame;
-        const auto bg = view.authoredCamera ? _impl->background.get() : nullptr;
+        const auto bg = view.authoredCamera && !view.freeCamera ? _impl->background.get() : nullptr;
         const auto width = bg ? bg->width : view.width, height = bg ? bg->height : view.height;
         frame.colour = BrPixelmapAllocate(BR_PMT_INDEX_8, width, height, nullptr, BR_PMAF_NORMAL);
         frame.depth = frame.colour ? BrPixelmapMatch(frame.colour, BR_PMMATCH_DEPTH_16) : nullptr;
@@ -630,13 +641,19 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         const float radius = std::max(.1f, std::sqrt(squared));
         const float aspect = float(width) / height;
         const float distance = radius * 2.8f / std::min(1.f, aspect) / view.zoom;
-        if (distance + radius * 4 > 30000)
+        if (!view.freeCamera && distance + radius * 4 > 30000)
             return Fail(error, ErrorCode::unsupported_format, "Asset exceeds the fixed-point preview camera range.");
         br_camera camera = {};
         camera.type = BR_CAMERA_PERSPECTIVE_FOV;
         camera.field_of_view = BR_ANGLE_DEG(45);
-        camera.hither_z = BrFloatToScalar(std::max(.01f, distance / 1000));
-        camera.yon_z = BrFloatToScalar(distance + radius * 4 + 1);
+        camera.hither_z = BrFloatToScalar(view.freeCamera ? .1f : std::max(.01f, distance / 1000));
+        camera.yon_z = BrFloatToScalar(view.freeCamera ? 30000.f : distance + radius * 4 + 1);
+        if (view.freeCamera)
+        {
+            const float dx = view.cameraX - center[0], dy = view.cameraY - center[1], dz = view.cameraZ - center[2];
+            camera.hither_z = BR_SCALAR(.1);
+            camera.yon_z = BrFloatToScalar(std::min(30000.f, std::sqrt(dx * dx + dy * dy + dz * dz) + radius * 4 + 1));
+        }
         camera.aspect = BrFloatToScalar(aspect);
         if (bg)
         {
@@ -657,7 +674,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 cam->t.t.mat.m[i][j] = BrFloatToScalar(basis[i][j]);
         for (int axis = 0; axis < 3; ++axis)
         {
-            const float position = center[axis] + basis[2][axis] * distance;
+            const float explicitPosition[3] = {view.cameraX, view.cameraY, view.cameraZ};
+            const float position = view.freeCamera ? explicitPosition[axis] : center[axis] + basis[2][axis] * distance;
             if (!bg && (position < -32767.f || position > 32767.f))
                 return Fail(error, ErrorCode::unsupported_format,
                             "Camera position exceeds the fixed-point renderer range.");
@@ -728,6 +746,22 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         PreviewImage rendered;
         rendered.width = view.width;
         rendered.height = view.height;
+        rendered.camera.x = BrScalarToFloat(cam->t.t.mat.m[3][0]);
+        rendered.camera.y = BrScalarToFloat(cam->t.t.mat.m[3][1]);
+        rendered.camera.z = BrScalarToFloat(cam->t.t.mat.m[3][2]);
+        rendered.camera.yaw = std::atan2(BrScalarToFloat(cam->t.t.mat.m[2][0]),
+                                       BrScalarToFloat(cam->t.t.mat.m[2][2])) * 57.2957795f;
+        rendered.camera.pitch = std::max(-85.f, std::min(85.f,
+            std::asin(std::max(-1.f, std::min(1.f, BrScalarToFloat(cam->t.t.mat.m[2][1])))) * 57.2957795f));
+        if (!bg)
+        {
+            // Keep the requested angles when round-tripping an explicit pose.
+            // Re-extracting them from the fixed-point matrix would accumulate
+            // quantization drift when a host reuses the returned camera.
+            rendered.camera.yaw = std::fmod(view.yaw, 360.f);
+            rendered.camera.pitch = view.pitch;
+        }
+        rendered.camera.moveSpeed = std::max(1.f, std::min(1000.f, radius));
         rendered.rgba.resize(std::size_t(view.width) * view.height * 4);
         // Fit the completed authored view into the requested image, preserving
         // its aspect ratio and background/actor depth relationship.

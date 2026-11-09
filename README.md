@@ -162,6 +162,19 @@ then build and install `build/studio-sdl`. Linux's native compiler produces the
 same eight resource archives as the Windows tool. macOS requires Apple's SDK and
 passes the native arm64 editing workflow. See [build and content/font setup](docs/tools/studio-sdl.md#maclinux-studio-build-4-november-2026).
 
+### Marcus movie player
+
+Marcus is a separate, read-only visual player with a C89 frontend: a camera/orbit
+viewport, object timeline, scene navigation and live actor/prop properties.
+The existing C++ preview backend remains behind a C API. This first version has
+no sound or editing; 2D captions, scene transitions and authored pause events
+are not yet presented. See [Marcus build, controls and limitations](docs/tools/marcus.md).
+
+```console
+cmake -S . -B build/marcus -DBUILD_MARCUS=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
+cmake --build build/marcus --target marcus
+```
+
 ## Contributing
 
 3DMMForever (and eventually 3DMMPlus) depend on an enthusiastic open source

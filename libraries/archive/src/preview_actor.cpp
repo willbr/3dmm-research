@@ -25,6 +25,7 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
                         std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
                         std::function<void(PTemplate)> bindTemplate)
 {
+    this->number = number;
     resolve = resolver;
     auto chunky = file->Pcfl();
     DataBlock block;
@@ -73,6 +74,26 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
         return false;
     state.RewindRoute(track);
     return true;
+}
+PreviewObject PreviewActor::Snapshot() const
+{
+    PreviewObject object;
+    object.asset = {kctgActr, number};
+    object.templateAsset = {header.tagTmpl.ctg, header.tagTmpl.cno};
+    object.actorId = header.arid;
+    object.sourceId = header.tagTmpl.sid;
+    object.hasLifetime = !inactive;
+    object.firstFrame = inactive ? 0 : header.nfrmFirst;
+    object.lastFrame = inactive ? 0 : header.nfrmLast;
+    object.prop = tmpl && tmpl->FIsProp();
+    object.text = tmpl && tmpl->FIsTdt();
+    object.visible = !inactive && state.onStage;
+    object.action = state.action;
+    object.cel = state.cel;
+    object.x = BrScalarToFloat(BrsAdd(state.routeTranslation.dxr, state.position.dxr));
+    object.y = BrScalarToFloat(BrsAdd(state.routeTranslation.dyr, state.position.dyr));
+    object.z = BrScalarToFloat(BrsAdd(state.routeTranslation.dzr, state.position.dzr));
+    return object;
 }
 bool PreviewActor::Apply(LegacyLong index)
 {
