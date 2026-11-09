@@ -88,7 +88,10 @@ Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
 in the status bar on hover. Buttons at the first/last boundary are disabled.
 It stops at the final frame unless Loop is enabled. Focus loss pauses playback.
-The timeline follows the playhead during playback.
+The timeline follows the playhead during playback. Frame counters and ruler
+labels start at 1 in each scene, even when the movie stores negative frame
+numbers. Playback and scrubbing retain the movie's original frame coordinates
+internally.
 
 Fly starts from the currently displayed camera or orbit view. Movement follows
 the look direction, with upright strafing and world-space vertical movement.
@@ -118,7 +121,9 @@ camera is stationary.
 
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.
-Actors with no entrance remain listed without a bar. Negative frames are retained.
+Actors with no entrance remain listed without a bar. Lifetime properties use the
+same scene-relative numbering, clipped to the scene; objects with no overlap show
+"Outside scene".
 
 Properties show roll-call name, actor/prop/3D-text kind, on-stage state, evaluated
 world XYZ, actor ID, current action/cel indices, lifetime and template source/chunk.
@@ -176,6 +181,8 @@ For a manual capture, scenes start at 1 and object indices at 0:
 ```console
 marcus movie.3mm --scene 2 --frame 10 --object 1 --orbit --screenshot marcus.bmp
 ```
+
+`--frame` uses the same numbering as the player: 1 is the scene's first frame.
 
 `--screenshot` exits after capturing the window and returns a failure status on
 load or render errors.

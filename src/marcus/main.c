@@ -92,6 +92,10 @@ static double minimum(double a, double b)
 {
     return a < b ? a : b;
 }
+static double display_frame(const App *app, double frame)
+{
+    return frame - (double)app->info.first_frame + 1;
+}
 
 static void fail(App *app, const char *message)
 {
@@ -925,11 +929,11 @@ static void draw_view(App *app)
         ui_line(ui, app->sidebar / 2, destination.y + destination.h / 2 - 6, app->sidebar / 2,
                 destination.y + destination.h / 2 + 6, ACCENT);
     }
-    SDL_snprintf(label, sizeof(label), "%s %02lu    |    FRAME %ld    |    6 FPS",
+    SDL_snprintf(label, sizeof(label), "%s %02lu    |    FRAME %.0f    |    6 FPS",
                  app->authored == 2 ? "FLY"
                  : app->authored    ? "CAMERA"
                                     : "ORBIT",
-                 app->info.camera + 1, app->info.frame);
+                 app->info.camera + 1, display_frame(app, app->info.frame));
     ui_text(ui, 20, app->viewport_bottom - 25, label, MUTED);
     if (!app->authored)
         ui_label(ui, app->sidebar - 415, app->viewport_bottom - 25, 395,
@@ -1008,7 +1012,12 @@ static void draw_sidebar(App *app)
     property(app, 614, "Actor ID", label);
     SDL_snprintf(label, sizeof(label), "%ld / %ld", object.action, object.cel);
     property(app, 640, "Action / cel", object.has_lifetime ? label : "--");
-    SDL_snprintf(label, sizeof(label), "%ld - %ld", object.first_frame, object.last_frame);
+    if (object.last_frame < app->info.first_frame || object.first_frame > app->info.last_frame)
+        SDL_strlcpy(label, "Outside scene", sizeof(label));
+    else
+        SDL_snprintf(label, sizeof(label), "%.0f - %.0f",
+                     display_frame(app, maximum(object.first_frame, app->info.first_frame)),
+                     display_frame(app, minimum(object.last_frame, app->info.last_frame)));
     property(app, 666, "Lifetime", object.has_lifetime ? label : "No entrance");
     SDL_snprintf(label, sizeof(label), "%ld : %08lX", object.source_id, object.template_chunk);
     property(app, 692, "Template", label);
@@ -1046,7 +1055,8 @@ static void draw_timeline(App *app)
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Last scene");
     if (app->loaded)
     {
-        SDL_snprintf(label, sizeof(label), "Frame %ld / %ld", app->info.frame, app->info.last_frame);
+        SDL_snprintf(label, sizeof(label), "Frame %.0f / %.0f", display_frame(app, app->info.frame),
+                     display_frame(app, app->info.last_frame));
         ui_label(ui, 286, y + 14, 134, label, TEXT);
         if (marcus_scene(app->player, app->info.scene, &scene))
         {
@@ -1088,13 +1098,14 @@ static void draw_timeline(App *app)
         while (tick * app->pixels_per_frame < 55)
             tick *= 2;
         end = app->timeline_start + app->grid_width / app->pixels_per_frame;
-        for (frame = floor(app->timeline_start / tick) * tick; frame <= end; frame += tick)
+        for (frame = app->info.first_frame + floor((app->timeline_start - app->info.first_frame) / tick) * tick;
+             frame <= end; frame += tick)
         {
             x = frame_x(app, frame);
             ui_line(ui, x, y + 48, x, (float)app->height - 32, LINE);
             if (frame >= app->info.first_frame && frame <= app->info.last_frame)
             {
-                SDL_snprintf(label, sizeof(label), "%.0f", frame);
+                SDL_snprintf(label, sizeof(label), "%.0f", display_frame(app, frame));
                 ui_text(ui, x + 5, y + 56, label, MUTED);
             }
         }
@@ -1287,7 +1298,7 @@ static void usage(void)
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings]\n"
          "              [--settings-file shortcuts.cfg]\n"
-         "Scenes start at 1; object indices start at 0. Sound is not yet supported.");
+         "Scenes and scene-relative frames start at 1; object indices start at 0. Sound is not yet supported.");
 }
 static int number(const char *text, long *output)
 {
@@ -1408,10 +1419,10 @@ int main(int argc, char **argv)
             fail(&app, "Requested scene does not exist.");
         if (app.loaded && have_frame)
         {
-            if (requested_frame < app.info.first_frame || requested_frame > app.info.last_frame)
+            if (requested_frame < 1 || requested_frame > display_frame(&app, app.info.last_frame))
                 fail(&app, "Requested frame is outside this scene.");
             else
-                seek(&app, requested_frame);
+                seek(&app, (long)((double)app.info.first_frame + requested_frame - 1));
         }
         if (app.loaded)
         {
