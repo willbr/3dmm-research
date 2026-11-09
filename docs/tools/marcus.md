@@ -230,3 +230,11 @@ retain the last scene/frame before a crash or stall. Original file hashes are
 checked after the run. `--workers` controls parallel processes. `--resume` reuses
 completed results in that output directory; add `--retry-failures` to retry
 failed inputs. Use a new output directory to repeat the entire audit.
+
+On 9 November 2026, the VFS audit completed 141 of 150 unique movies. Matching
+the original PhysicsFS duplicate-ZIP lookup then unblocked `Derelict.vmm`,
+`magic2.vmm` and `The Sniper @ The 3DMM BB.vmm`: targeted headless retests
+rendered all 20,040, 9,008 and 5,269 frames respectively. Together with the
+unchanged earlier results, this raises visual completion to 144/150. Five
+movies still have missing assets and one input is a WebM. This is frame
+coverage evidence, subject to the presentation limits above.

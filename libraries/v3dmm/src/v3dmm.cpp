@@ -1,5 +1,6 @@
 // Licensed under the MIT License.
 #include "three_mm/v3dmm.h"
+#include "physfs_zip_order.h"
 #include <miniz.h>
 #include <algorithm>
 #include <array>
@@ -103,7 +104,7 @@ struct Zip
     {
         auto count = mz_zip_reader_get_num_files(&zip);
         Require(count && count <= limits.members, "Too many or no VXP members");
-        std::set<std::string> names;
+        std::map<std::string, std::string> names;
         std::vector<Member> result;
         std::uint64_t total = 0;
         for (mz_uint i = 0; i < count; ++i)
@@ -115,16 +116,19 @@ struct Zip
             std::string name(length, '\0');
             Require(mz_zip_reader_get_filename(&zip, i, name.data(), length) == length, "Cannot read VXP member name");
             name.pop_back();
-            Require(SafeName(name) && !stat.m_is_directory && !stat.m_is_encrypted && stat.m_is_supported &&
-                        names.insert(Fold(name)).second,
+            Require(SafeName(name) && !stat.m_is_directory && !stat.m_is_encrypted && stat.m_is_supported,
                     "Unsupported, unsafe or ambiguous VXP member: " + name);
+            const auto prior = names.emplace(Fold(name), name);
+            Require(prior.second || prior.first->second == name, "Ambiguous VXP filename casing: " + name);
             Require(stat.m_uncomp_size <= limits.memberBytes && total <= limits.expandedBytes &&
                         stat.m_uncomp_size <= limits.expandedBytes - total,
                     "VXP exceeds its extraction budget");
             total += stat.m_uncomp_size;
             result.push_back({name, stat.m_uncomp_size, i});
         }
-        return result;
+        // PhysicsFS accepts repeated exact names, including different bytes.
+        // Select its lookup winner once for both CFG parsing and extraction.
+        return Detail::SelectZipMembers(result);
     }
     std::string Text(const Member &member)
     {

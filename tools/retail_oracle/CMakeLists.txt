@@ -20,6 +20,7 @@ target_compile_definitions(oracle-audio-capture PRIVATE NTDDI_VERSION=0x0A00000A
 target_link_libraries(oracle-audio-capture PRIVATE mmdevapi ole32 uuid)
 add_executable(oracle-audio-probe EXCLUDE_FROM_ALL audio_probe.cpp)
 target_link_libraries(oracle-audio-probe PRIVATE winmm)
+add_executable(physfs-zip-probe EXCLUDE_FROM_ALL physfs_zip_probe.cpp)
 
 option(RETAIL_ORACLE_INTEGRATION_TESTS "Enable tests which launch retail on the interactive Windows desktop" OFF)
 if(RETAIL_ORACLE_INTEGRATION_TESTS)

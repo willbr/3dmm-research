@@ -59,6 +59,13 @@ Installed package names satisfy VMM dependencies, as in the legacy manager.
 A different standalone VXP with an already installed name is rejected. Exact
 duplicate content filenames use the first applied mount; the virtual filename
 list is sorted. Ambiguous filename casing across packages is rejected.
+Repeated exact filenames inside a VXP are accepted, including differing bytes.
+The reader reproduces the sort and binary lookup of v3dmm 0.14's PhysicsFS
+1.0.60 DLL to select one record per name, including the configuration. This is
+neither a first-entry nor a last-entry rule. Extraction and installed manifests
+use the selected original ZIP index. All records still count toward budgets;
+selected content retains CRC validation. Case-distinct colliding filenames
+remain outside the shared VFS's supported subset.
 Chunk collisions retain the existing resource manager's first-match behavior.
 Each movie activates its own selection; failed opens restore the previous
 active source lists. Installations are persistent even if the inner movie
@@ -107,6 +114,15 @@ range parsing, byte-preserving round trips, materialization, malformed/truncated
 inputs, unsafe names, extraction budgets, persistent preferences and failed
 publication. `v3dmm-test --inspect <movie.vmm>` inspects dependencies and package
 metadata without installation.
+
+Duplicate selection has frozen regression cases in `v3dmm-test`. For a direct
+comparison, build the x86 `physfs-zip-probe` target in `tools/retail_oracle`, then
+run `tests/v3dmm_zip_oracle_test.py --probe <probe.exe> --dll <original-physfs.dll>
+--native <v3dmm-test.exe> --output <artifact-directory>`. The script pins the
+original DLL hash and compares 60 generated packages, with conflicting content,
+duplicate CFGs, shuffled entries and unrelated padding. No UI is driven.
+The adapted sorting implementation retains the upstream PhysicsFS license;
+its source is in the [official 1.1.0 archive](https://icculus.org/physfs/downloads/physfs-1.1.0.tar.gz).
 
 `tests/studio_v3dmm_workflow.py` takes the Studio executable, a base ISO, a blank
 movie, a local prop/actor VXP and an artifact directory. It uses private settings

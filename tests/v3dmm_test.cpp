@@ -81,8 +81,52 @@ void Zip(const fs::path &path, const fs::path &content, const std::string &extra
     mz_free(bytes);
     mz_zip_writer_end(&zip);
 }
+void DuplicateTests(const fs::path &root)
+{
+    // Frozen answers from v3dmm 0.14's PhysicsFS 1.0.60 DLL. Winners vary
+    // between members in the same ZIP; neither first nor last entry wins.
+    struct Expected
+    {
+        unsigned count, cfg, content, thumbnail;
+    };
+    for (const auto &expected :
+         {Expected{2, 1, 0, 0}, Expected{3, 2, 0, 2}, Expected{6, 5, 4, 2}, Expected{8, 7, 0, 3}})
+    {
+        mz_zip_archive zip{};
+        Check(mz_zip_writer_init_heap(&zip, 0, 0) != 0);
+        for (unsigned i = 0; i < expected.count; ++i)
+        {
+            const auto suffix = std::to_string(i);
+            for (const auto &entry : std::vector<std::pair<std::string, std::string>>{
+                     {"fixture.cfg", "Name=Choice " + suffix + "\nAuthor=Oracle\nType=Portable\n"},
+                     {"fixture.3cn", "content-" + suffix},
+                     {"fixture.3th", "thumbnail-" + suffix}})
+                Check(mz_zip_writer_add_mem(&zip, entry.first.c_str(), entry.second.data(), entry.second.size(),
+                                            MZ_BEST_COMPRESSION) != 0);
+        }
+        void *bytes = nullptr;
+        std::size_t length = 0;
+        Check(mz_zip_writer_finalize_heap_archive(&zip, &bytes, &length) != 0);
+        const auto archive = root / ("duplicates-" + std::to_string(expected.count) + ".vxp");
+        Write(archive, std::string(static_cast<char *>(bytes), length));
+        mz_free(bytes);
+        mz_zip_writer_end(&zip);
+        const auto package = V::ReadPackage(V::WholeFile(archive));
+        Check(package.members.size() == 3 && package.name == "Choice " + std::to_string(expected.cfg));
+        const auto output = root / ("duplicates-" + std::to_string(expected.count));
+        fs::create_directory(output);
+        const auto files = V::Materialize(V::WholeFile(archive), output);
+        Check(files.size() == 2 && Read(files.at("fixture.3cn")) == "content-" + std::to_string(expected.content));
+        Check(Read(files.at("fixture.3th")) == "thumbnail-" + std::to_string(expected.thumbnail));
+        // Budgets still count all central-directory records, including losers.
+        V::Limits small;
+        small.expandedBytes = 100;
+        Reject([&] { V::ReadPackage(V::WholeFile(archive), small); });
+    }
+}
 void Tests(const fs::path &root)
 {
+    DuplicateTests(root);
     Fixture(root / "fixture.3mm");
     Zip(root / "fixture.vxp", root / "fixture.3mm");
     auto package = V::ReadPackage(V::WholeFile(root / "fixture.vxp"));
@@ -113,6 +157,12 @@ void Tests(const fs::path &root)
     Check(!fs::exists(root / "escaped.3cn"));
     Zip(root / "duplicate.vxp", root / "fixture.3mm", "FIXTURE.3CN");
     Reject([&] { V::ReadPackage(V::WholeFile(root / "duplicate.vxp")); });
+    Zip(root / "identical.vxp", root / "fixture.3mm", "fixture.3cn");
+    Check(V::ReadPackage(V::WholeFile(root / "identical.vxp")).members.size() == 3);
+    StudioV3dmm::Store duplicateStore(root / "duplicate-store");
+    duplicateStore.Install(V::WholeFile(root / "identical.vxp"));
+    StudioV3dmm::Store duplicateReopened(root / "duplicate-store");
+    Check(duplicateReopened.Entries().size() == 1 && duplicateReopened.Entries().front().members.size() == 2);
     Zip(root / "override.vxp", root / "fixture.3mm", {}, "RegID=27\r\n");
     Reject([&] { V::ReadPackage(V::WholeFile(root / "override.vxp")); });
     Zip(root / "legacy.vxp", root / "fixture.3mm", "caf\xe9.3cn");
@@ -166,6 +216,15 @@ int main(int argc, char **argv)
                 }
             std::cout << "dependencies=" << bundle.dependencies.size() << " embedded=" << embedded
                       << " movie_offset=" << bundle.movie.offset << " movie_bytes=" << bundle.movie.length << '\n';
+            return 0;
+        }
+        if (argc == 4 && std::string(argv[1]) == "--materialize")
+        {
+            fs::create_directories(fs::u8path(argv[3]));
+            auto files = V::Materialize(V::WholeFile(fs::u8path(argv[2])), fs::u8path(argv[3]));
+            std::cout << "Name\t" << V::ReadPackage(V::WholeFile(fs::u8path(argv[2]))).name << '\n';
+            for (const auto &file : files)
+                std::cout << file.first << '\t' << file.second.u8string() << '\n';
             return 0;
         }
         auto parent = fs::absolute(argc > 1 ? argv[1] : "tmp/v3dmm-unit");

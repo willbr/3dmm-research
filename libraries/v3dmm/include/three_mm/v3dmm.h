@@ -33,6 +33,8 @@ struct Package
 {
     std::string name, author, shortName;
     std::map<std::string, std::string> metadata;
+    // One record per exact filename, selected by original PhysicsFS ZIP lookup.
+    // index remains the original central-directory index for extraction/storage.
     std::vector<Member> members;
 };
 struct Limits
