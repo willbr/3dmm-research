@@ -41,7 +41,7 @@ struct PreviewProjection
     bool valid = false;
     float transform[12] = {}; // Camera-to-world: right, up, backward, position rows.
     float verticalFov = 0, aspect = 0, nearClip = 0, farClip = 0;
-    float displayDepth = 0; // Visible guide extent; actual clip distances are retained above.
+    float displayDepth = 0; // Camera marker length, independent of the clip distances above.
 };
 struct PreviewImage
 {

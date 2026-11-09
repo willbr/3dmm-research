@@ -45,7 +45,8 @@ extern "C"
     {
         int valid;
         float transform[12]; /* Camera-to-world right/up/backward/position rows. */
-        float vertical_fov, aspect, near_clip, far_clip, display_depth;
+        float vertical_fov, aspect, near_clip, far_clip;
+        float display_depth; /* Camera marker length, independent of clip planes. */
     } MarcusProjection;
 
     typedef struct MarcusImage

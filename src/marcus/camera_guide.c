@@ -139,29 +139,24 @@ static void add_line(const GuideView *view, const double world_a[3], const doubl
 void camera_guide_build(const MarcusProjection *projection, const MarcusProjection *camera, MarcusCameraGuide *guide)
 {
     GuideView view;
-    double points[8][3], origin[3], top[3][3], point[3], depth, half_height, half_width;
-    int i, layer, corner, next, plane, inside;
+    double points[4][3], origin[3], top[3][3], point[3], depth, half_height, half_width;
+    int i, corner, next, plane, inside;
     memset(guide, 0, sizeof(*guide));
     if (!valid_projection(projection) || !valid_projection(camera) || !finite_value(camera->display_depth) ||
-        camera->display_depth <= camera->near_clip || !make_view(projection, &view))
+        camera->display_depth <= 0 || !make_view(projection, &view))
         return;
-    depth = camera->display_depth < camera->far_clip ? camera->display_depth : camera->far_clip;
-    for (layer = 0; layer < 2; ++layer)
-    {
-        half_height = tan(camera->vertical_fov * 0.008726646259971648) * (layer ? depth : camera->near_clip);
-        half_width = half_height * camera->aspect;
-        for (corner = 0; corner < 4; ++corner)
-            world_point(camera, (corner == 1 || corner == 2) ? half_width : -half_width,
-                        corner >= 2 ? half_height : -half_height, layer ? depth : camera->near_clip,
-                        points[layer * 4 + corner]);
-    }
+    depth = camera->display_depth;
+    half_height = tan(camera->vertical_fov * 0.008726646259971648) * depth;
+    half_width = half_height * camera->aspect;
+    for (corner = 0; corner < 4; ++corner)
+        world_point(camera, (corner == 1 || corner == 2) ? half_width : -half_width,
+                    corner >= 2 ? half_height : -half_height, depth, points[corner]);
     world_point(camera, 0, 0, 0, origin);
     for (corner = 0; corner < 4; ++corner)
     {
         next = (corner + 1) % 4;
         add_line(&view, points[corner], points[next], guide);
-        add_line(&view, points[4 + corner], points[4 + next], guide);
-        add_line(&view, origin, points[4 + corner], guide);
+        add_line(&view, origin, points[corner], guide);
     }
     /* An upright marker makes camera roll and the top of its image clear. */
     world_point(camera, -half_width * 0.25, half_height, depth, top[0]);

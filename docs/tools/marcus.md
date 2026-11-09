@@ -107,15 +107,15 @@ including automatic scene changes. Manual scene selection and Reset reframe the
 geometry. Focus loss releases the mouse and clears movement keys. `--fly` opens
 directly in flight mode.
 
-Orbit and Fly show an amber wireframe guide for the active authored camera,
-labelled with its camera number. It uses the original camera-to-world transform,
-vertical field of view, background image aspect and near plane, including roll.
-The outline uses a fixed display depth of 100 world units, clamped between four
-times the near plane and the far plane. Actor positions never set its length;
-it is a viewport guide rather than a drawing of the complete far clipping range.
-The guide follows authored camera cuts when scrubbing or playing and is hidden
-in the authored Camera view. It draws above the scene geometry, with segments
-clipped against the viewing camera's near/far planes and viewport edges.
+Orbit and Fly show a compact amber camera marker for the active authored camera,
+labelled with its camera number. A single rectangular frame connects back to the
+camera position, with a triangle marking the top of the image. It preserves the
+original camera-to-world transform, vertical field of view and background image
+aspect, including roll. Its display length is fixed at 10 world units,
+independent of the movie's near/far clipping planes and actor positions. No
+clipping planes are drawn. The marker follows authored camera cuts when
+scrubbing or playing and is hidden in the authored Camera view. It draws above
+the scene geometry, with segments clipped to the viewing camera and viewport.
 Orbit fits the camera guide together with visible actors where the renderer's
 coordinate limits permit, once on first entering a scene's Orbit view. That
 center and size remain fixed during playback, scrubbing and camera cuts, including

@@ -691,9 +691,9 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             const auto &source = *_impl->background;
             sceneCamera = Projection(source.camera.bmat34Cam, source.camera.aFov, float(source.width) / source.height,
                                      source.camera.zrHither, source.camera.zrYon);
-            // Use one world-space guide length for every camera, independent of
-            // actor bounds, playback frame and the order cameras are visited.
-            sceneCamera.displayDepth = std::min(sceneCamera.farClip, std::max(sceneCamera.nearClip * 4, 100.f));
+            // A compact camera marker, independent of clip planes, actor bounds
+            // and playback. This display frame is not a clipping plane.
+            sceneCamera.displayDepth = 10.f;
             if (view.frameSceneCamera && (!view.freeCamera || view.stableOrbit) && !bg && sceneCamera.verticalFov > 0 &&
                 sceneCamera.verticalFov < 179)
             {

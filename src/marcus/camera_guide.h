@@ -14,8 +14,10 @@ typedef struct MarcusCameraGuide
     MarcusGuideLine lines[MARCUS_GUIDE_MAX_LINES];
 } MarcusCameraGuide;
 
-/* Build viewport-clipped lines in normalized image coordinates. Invalid or
- * absent cameras produce an empty guide. The display depth caps the outline,
- * preserving the camera's actual field of view, aspect, orientation and near plane. */
+/* Build a compact camera marker in normalized image coordinates: one frame,
+ * lines to the camera origin, and an upright marker. Display depth sets its
+ * length independently of the camera's clipping planes. The original field of
+ * view, aspect and orientation are preserved. Lines are clipped to the viewer;
+ * invalid or absent cameras produce an empty guide. */
 void camera_guide_build(const MarcusProjection *view, const MarcusProjection *camera, MarcusCameraGuide *guide);
 #endif

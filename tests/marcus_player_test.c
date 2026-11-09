@@ -50,8 +50,7 @@ int main(int argc, char **argv)
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(image.width == 480 && image.height == 360 && image.pitch == 480 * 4 && image.rgba);
     CHECK(image.projection.valid && image.scene_camera.valid && image.scene_camera.vertical_fov > 0);
-    CHECK(image.scene_camera.far_clip > image.scene_camera.near_clip &&
-          image.scene_camera.display_depth <= image.scene_camera.far_clip);
+    CHECK(image.scene_camera.far_clip > image.scene_camera.near_clip && image.scene_camera.display_depth > 0);
     authored = image.scene_camera;
     guide_depth[0] = authored.display_depth;
     bytes = (size_t)image.pitch * image.height;
