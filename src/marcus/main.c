@@ -384,6 +384,12 @@ static void settings_click(App *app, float x, float y)
         app->binding_capture = (int)((y - top - 100) / 30);
         app->settings_message[0] = 0;
     }
+    else if (ui_inside(x, y, left + 24, top + 472, 610, 28))
+    {
+        app->edited_shortcuts.pause_on_focus_loss = !app->edited_shortcuts.pause_on_focus_loss;
+        app->binding_capture = -1;
+        app->settings_message[0] = 0;
+    }
     else if (ui_inside(x, y, left + 24, top + 560, 148, 28))
     {
         shortcuts_defaults(&app->edited_shortcuts);
@@ -780,7 +786,8 @@ static void handle_event(App *app, const SDL_Event *event)
     {
         release_fly(app);
         app->dragging = app->orbiting = 0;
-        app->playing = 0;
+        if (app->shortcuts.pause_on_focus_loss)
+            app->playing = 0;
     }
 }
 static void draw_header(App *app)
@@ -1182,7 +1189,10 @@ static void draw_settings(App *app)
     ui_text(&app->ui, x + 24, y + 20, "Settings", TEXT);
     ui_button(&app->ui, x + 618, y + 16, 28, "x", 0, 1);
     ui_text(&app->ui, x + 24, y + 53, "KEYBOARD SHORTCUTS", ACCENT);
-    ui_text(&app->ui, x + 24, y + 76, "Click a binding, then press the key combination you want.", MUTED);
+    ui_text(&app->ui, x + 24, y + 76,
+            app->binding_capture >= 0 ? "Press a key. Escape cancels capture. Backspace clears the binding."
+                                      : "Click a binding, then press the key combination you want.",
+            MUTED);
     for (row = 0; row < MARCUS_ACTION_COUNT; ++row)
     {
         row_y = y + 100 + row * 30;
@@ -1193,10 +1203,9 @@ static void draw_settings(App *app)
         ui_button(&app->ui, x + 430, row_y, 204, row == app->binding_capture ? "Press a key..." : label,
                   row == app->binding_capture, 1);
     }
-    ui_text(&app->ui, x + 24, y + 480,
-            app->binding_capture >= 0 ? "Escape cancels capture. Backspace clears the binding."
-                                      : "Changes take effect when you click Apply.",
-            MUTED);
+    ui_text(&app->ui, x + 28, y + 477, "Pause playback on focus loss", TEXT);
+    ui_button(&app->ui, x + 430, y + 472, 204, app->edited_shortcuts.pause_on_focus_loss ? "On" : "Off",
+              app->edited_shortcuts.pause_on_focus_loss, 1);
     ui_label(&app->ui, x + 24, y + 508, 610, app->settings_message, 0xf2ae9b);
     ui_text(&app->ui, x + 24, y + 534, "Flight movement keeps WASD while the right mouse button is held.", MUTED);
     ui_button(&app->ui, x + 24, y + 560, 148, "Restore defaults", 0, 1);

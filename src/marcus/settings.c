@@ -115,26 +115,38 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     char *data, *line, *cursor, id[64], extra;
     unsigned long key;
     unsigned int modifiers, seen;
-    int i, j, valid;
+    int i, j, valid, pause_seen;
     if (!path[0] || !SDL_GetPathInfo(path, &info))
         return 1;
     if (info.type != SDL_PATHTYPE_FILE || info.size > 8192)
     {
-        SDL_strlcpy(message, "The shortcut settings file is invalid. Default bindings are in use.", capacity);
+        SDL_strlcpy(message, "The settings file is invalid. Default settings are in use.", capacity);
         return 0;
     }
     data = (char *)SDL_LoadFile(path, NULL);
     if (!data)
     {
-        SDL_strlcpy(message, "Could not read saved shortcuts. Default bindings are in use.", capacity);
+        SDL_strlcpy(message, "Could not read saved settings. Default settings are in use.", capacity);
         return 0;
     }
     loaded = *shortcuts;
     seen = 0;
+    pause_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
     {
+        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "pause_on_focus_loss"))
+        {
+            if (pause_seen || SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > 1)
+            {
+                valid = 0;
+                break;
+            }
+            loaded.pause_on_focus_loss = (int)key;
+            pause_seen = 1;
+            continue;
+        }
         if (SDL_sscanf(line, "%63s %lu %u %c", id, &key, &modifiers, &extra) != 3 || key > 0xffffffffUL ||
             modifiers > 15)
         {
@@ -162,7 +174,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     SDL_free(data);
     if (!valid)
     {
-        SDL_strlcpy(message, "The shortcut settings file is invalid. Default bindings are in use.", capacity);
+        SDL_strlcpy(message, "The settings file is invalid. Default settings are in use.", capacity);
         return 0;
     }
     *shortcuts = loaded;
@@ -180,14 +192,15 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         SDL_strlcpy(message, "The settings location is unavailable.", capacity);
         return 0;
     }
-    SDL_strlcpy(data, "marcus-shortcuts 1\n", sizeof(data));
+    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\n",
+                 shortcuts->pause_on_focus_loss != 0);
     length = strlen(data);
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         length += SDL_snprintf(data + length, sizeof(data) - length, "%s %lu %u\n", action_ids[i],
                                (unsigned long)shortcuts->binding[i].key, shortcuts->binding[i].modifiers);
     if (!SDL_SaveFile(temporary, data, length) || !SDL_RenamePath(temporary, path))
     {
-        SDL_strlcpy(message, "Could not save shortcuts. Check that your settings folder is writable.", capacity);
+        SDL_strlcpy(message, "Could not save settings. Check that your settings folder is writable.", capacity);
         SDL_RemovePath(temporary);
         return 0;
     }

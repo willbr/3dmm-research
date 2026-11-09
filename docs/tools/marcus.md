@@ -65,20 +65,24 @@ Resources or Content reloads that movie.
 | Release right mouse / Escape | Release mouse capture and stop flying |
 | Reset / R | Reframe visible geometry; R also fits the timeline |
 | Loop | Repeat the movie after the final scene |
-| Settings / Ctrl+, | Open keyboard shortcut settings |
+| Settings / Ctrl+, | Open playback and keyboard shortcut settings |
 
 Click a binding in Settings and press a key combination to replace it. Shift,
 Ctrl, Alt and Command modifiers are supported. Escape cancels capture; Backspace
 clears a binding. Duplicate combinations are rejected with the conflicting
 action's name. Escape and Ctrl/Command+comma are reserved for the UI.
 
-**Apply** activates and saves the edited bindings; **Cancel** discards edits.
-**Restore defaults** resets the editable list, which still needs Apply to save.
+**Pause playback on focus loss** defaults to **Off**, so switching to another
+window keeps the movie playing. Turn it on to pause when Marcus loses focus.
+Focus loss always releases flight controls and stops mouse drags.
+
+**Apply** activates and saves the edited settings; **Cancel** discards edits.
+**Restore defaults** resets all settings, which still needs Apply to save.
 Each first/previous/next/last action can be bound separately. Reset View defaults
 to R because F is now Next Frame. Arrow/Home/End/Page Up/Page Down remain fallback
 navigation keys. Flight keeps physical WASD/QE movement while right mouse is held.
 
-Bindings persist in `shortcuts.cfg` in SDL's Marcus preferences directory
+Settings persist in `shortcuts.cfg` in SDL's Marcus preferences directory
 (`%APPDATA%/3DMMForever/Marcus/` on Windows). The file is replaced through a sibling
 temporary file when applying changes. Invalid configuration keeps defaults and
 shows a message in Settings. `--settings-file path` allows an explicit profile;
@@ -87,7 +91,8 @@ shows a message in Settings. `--settings-file path` allows an explicit profile;
 Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
 in the status bar on hover. Buttons at the first/last boundary are disabled.
-It stops at the final frame unless Loop is enabled. Focus loss pauses playback.
+It stops at the final frame unless Loop is enabled. Focus loss pauses playback
+only when enabled in Settings.
 The timeline follows the playhead during playback. Frame counters and ruler
 labels start at 1 in each scene, even when the movie stores negative frame
 numbers. Playback and scrubbing retain the movie's original frame coordinates

@@ -31,6 +31,7 @@ typedef struct MarcusShortcut
 typedef struct MarcusShortcuts
 {
     MarcusShortcut binding[MARCUS_ACTION_COUNT];
+    int pause_on_focus_loss;
 } MarcusShortcuts;
 
 void shortcuts_defaults(MarcusShortcuts *shortcuts);
