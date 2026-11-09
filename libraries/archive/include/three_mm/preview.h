@@ -28,11 +28,19 @@ struct PreviewView
     bool authoredCamera = true;         // Scenes/backgrounds use their original view and depth.
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
+    bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
 };
 struct PreviewCamera
 {
     float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
     float moveSpeed = 1; // Suggested world units/second based on the visible geometry.
+};
+struct PreviewProjection
+{
+    bool valid = false;
+    float transform[12] = {}; // Camera-to-world: right, up, backward, position rows.
+    float verticalFov = 0, aspect = 0, nearClip = 0, farClip = 0;
+    float displayDepth = 0; // Visible guide extent; actual clip distances are retained above.
 };
 struct PreviewImage
 {
@@ -42,6 +50,7 @@ struct PreviewImage
     std::vector<std::uint8_t> rgba;
     std::uint32_t coveredPixels = 0;
     PreviewCamera camera; // Actual rendered pose; useful when entering first-person navigation.
+    PreviewProjection projection, sceneCamera;
 };
 // Evaluated values for an actor instance in the selected scene. Position is in
 // the original movie's world coordinates; inactive actors have no pose.

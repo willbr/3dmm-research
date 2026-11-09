@@ -98,6 +98,17 @@ is normalized. The flight position stays fixed when scrubbing or playing within
 a scene; scene changes and Reset reframe the geometry. Focus loss releases the
 mouse and clears movement keys. `--fly` opens directly in flight mode.
 
+Orbit and Fly show an amber wireframe guide for the active authored camera,
+labelled with its camera number. It uses the original camera-to-world transform,
+vertical field of view, background image aspect and near plane, including roll.
+The outline's display depth is capped at a useful distance toward the scene;
+it is a viewport guide rather than a drawing of the complete far clipping range.
+The guide follows authored camera cuts when scrubbing or playing and is hidden
+in the authored Camera view. It draws above the scene geometry, with segments
+clipped against the viewing camera's near/far planes and viewport edges.
+Orbit fits the camera guide together with visible actors where the renderer's
+coordinate limits permit. Fly retains its explicit position.
+
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.
 Actors with no entrance remain listed without a bar. Negative frames are retained.
@@ -141,7 +152,7 @@ of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
 FreeType headers are system headers during C89 checking. The backend is C++.
 
 ```console
-cmake --build build/marcus --target marcus marcus-player-test marcus-settings-test preview-scene-fixture
+cmake --build build/marcus --target marcus marcus-player-test marcus-settings-test marcus-camera-guide-test preview-scene-fixture
 ctest --test-dir build/marcus -R "^marcus-" --output-on-failure
 ```
 
@@ -150,6 +161,8 @@ using `-std=c89 -pedantic-errors` and rejects mixed declarations/statements.
 `marcus-shortcuts` checks defaults, modifiers, rebinding, conflicts, atomic file
 replacement, reload and invalid settings. UI smoke checks cover capture,
 Apply/Cancel/defaults and the D/F/S/G shortcuts with Shift boundary jumps.
+`marcus-camera-guide` checks guide projection, roll, image aspect, clipping and
+missing/invalid cameras. Player integration verifies camera metadata and cuts.
 `marcus-empty` starts the UI with SDL's dummy driver. With original content and
 `marcus_resources` pointing at a valid `.chk`, `marcus-player` generates fixtures
 and checks real metadata, motion, scene switching, rewind image identity,

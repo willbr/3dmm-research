@@ -43,6 +43,19 @@ struct Frame
             BrPixelmapFree(colour);
     }
 };
+PreviewProjection Projection(const br_matrix34 &transform, br_angle fov, float aspect, BRS nearClip, BRS farClip)
+{
+    PreviewProjection result;
+    result.valid = true;
+    for (int row = 0; row < 4; ++row)
+        for (int axis = 0; axis < 3; ++axis)
+            result.transform[row * 3 + axis] = BrScalarToFloat(transform.m[row][axis]);
+    result.verticalFov = float(fov) * (360.f / 65536.f);
+    result.aspect = aspect;
+    result.nearClip = BrScalarToFloat(nearClip);
+    result.farClip = BrScalarToFloat(farClip);
+    return result;
+}
 bool WithinBudget(const Archive &archive, PChunkyFile file, Error &error)
 {
     std::uint64_t total = 0;
@@ -632,6 +645,64 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 low[axis] = BrScalarToFloat(_impl->model->Pbmdl()->bounds.min.v[axis]);
                 high[axis] = BrScalarToFloat(_impl->model->Pbmdl()->bounds.max.v[axis]);
             }
+        PreviewProjection sceneCamera;
+        if (_impl->background)
+        {
+            const auto &source = *_impl->background;
+            sceneCamera = Projection(source.camera.bmat34Cam, source.camera.aFov, float(source.width) / source.height,
+                                     source.camera.zrHither, source.camera.zrYon);
+            float focus = 0, focusSquared = 0;
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                const float delta = (low[axis] + high[axis]) * .5f - sceneCamera.transform[9 + axis];
+                focus -= delta * sceneCamera.transform[6 + axis];
+                focusSquared += delta * delta;
+            }
+            if (bodies.empty() && !_impl->model)
+                focus = 100;
+            else
+                focus = std::max(focus, std::sqrt(focusSquared) * .25f);
+            sceneCamera.displayDepth = std::min(sceneCamera.farClip, std::max(sceneCamera.nearClip * 4, focus));
+            if (view.frameSceneCamera && !view.freeCamera && !bg && sceneCamera.verticalFov > 0 &&
+                sceneCamera.verticalFov < 179)
+            {
+                float guideLow[3], guideHigh[3];
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    guideLow[axis] = first && !_impl->model ? sceneCamera.transform[9 + axis] : low[axis];
+                    guideHigh[axis] = first && !_impl->model ? sceneCamera.transform[9 + axis] : high[axis];
+                }
+                const float halfHeight = std::tan(sceneCamera.verticalFov * .00872664626f) * sceneCamera.displayDepth;
+                for (int corner = 0; corner < 5; ++corner)
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        float coordinate = sceneCamera.transform[9 + axis];
+                        if (corner < 4)
+                            coordinate += sceneCamera.transform[axis] * halfHeight * sceneCamera.aspect *
+                                              ((corner & 1) ? 1 : -1) +
+                                          sceneCamera.transform[3 + axis] * halfHeight * ((corner & 2) ? 1 : -1) -
+                                          sceneCamera.transform[6 + axis] * sceneCamera.displayDepth;
+                        guideLow[axis] = std::min(guideLow[axis], coordinate);
+                        guideHigh[axis] = std::max(guideHigh[axis], coordinate);
+                    }
+                float guideSquared = 0;
+                for (int axis = 0; axis < 3; ++axis)
+                    guideSquared += (guideHigh[axis] - guideLow[axis]) * (guideHigh[axis] - guideLow[axis]) * .25f;
+                const float guideRadius = std::max(.1f, std::sqrt(guideSquared));
+                const float guideDistance = guideRadius * 2.8f / std::min(1.f, float(width) / height) / view.zoom;
+                bool fits = guideDistance + guideRadius * 4 <= 30000;
+                for (int axis = 0; axis < 3; ++axis)
+                    fits = fits && std::abs((guideLow[axis] + guideHigh[axis]) * .5f) + guideDistance <= 32700;
+                // Keep the existing actor framing if fitting the guide would
+                // exceed BRender's fixed-point camera limits.
+                if (fits)
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        low[axis] = guideLow[axis];
+                        high[axis] = guideHigh[axis];
+                    }
+            }
+        }
         float center[3], squared = 0;
         for (int axis = 0; axis < 3; ++axis)
         {
@@ -762,6 +833,9 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             rendered.camera.pitch = view.pitch;
         }
         rendered.camera.moveSpeed = std::max(1.f, std::min(1000.f, radius));
+        rendered.projection = Projection(cam->t.t.mat, camera.field_of_view, BrScalarToFloat(camera.aspect),
+                                         camera.hither_z, camera.yon_z);
+        rendered.sceneCamera = sceneCamera;
         rendered.rgba.resize(std::size_t(view.width) * view.height * 4);
         // Fit the completed authored view into the requested image, preserving
         // its aspect ratio and background/actor depth relationship.

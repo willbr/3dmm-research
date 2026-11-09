@@ -1,6 +1,7 @@
 #include "player.h"
 #include "ui.h"
 #include "settings.h"
+#include "camera_guide.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -48,6 +49,8 @@ typedef struct App
     MarcusPlayer *player;
     MarcusInfo info;
     MarcusCamera camera, flight;
+    MarcusProjection projection, scene_camera;
+    MarcusCameraGuide camera_guide;
     MarcusShortcuts shortcuts, edited_shortcuts;
     char settings_path[1024], settings_message[256];
     int settings_open, binding_capture, settings_memory;
@@ -842,6 +845,8 @@ static void draw_view(App *app)
         if (rendered)
         {
             app->camera = image.camera;
+            app->projection = image.projection;
+            app->scene_camera = image.scene_camera;
             app->camera_ready = 1;
             if (!app->picture)
             {
@@ -875,6 +880,37 @@ static void draw_view(App *app)
     ui_fill(ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->picture)
         SDL_RenderTexture(app->renderer, app->picture, NULL, &destination);
+    memset(&app->camera_guide, 0, sizeof(app->camera_guide));
+    if (app->authored != 1 && app->picture)
+    {
+        SDL_Rect clip;
+        int line;
+        float x, y;
+        const MarcusGuideLine *segment;
+        camera_guide_build(&app->projection, &app->scene_camera, &app->camera_guide);
+        clip.x = (int)destination.x;
+        clip.y = (int)destination.y;
+        clip.w = (int)destination.w;
+        clip.h = (int)destination.h;
+        SDL_SetRenderClipRect(app->renderer, &clip);
+        for (line = 0; line < app->camera_guide.line_count; ++line)
+        {
+            segment = &app->camera_guide.lines[line];
+            ui_line(ui, destination.x + segment->x1 * destination.w, destination.y + segment->y1 * destination.h,
+                    destination.x + segment->x2 * destination.w, destination.y + segment->y2 * destination.h, 0xefbd78);
+        }
+        if (app->camera_guide.has_label)
+        {
+            x = destination.x + app->camera_guide.label_x * destination.w;
+            y = destination.y + app->camera_guide.label_y * destination.h;
+            ui_fill(ui, x - 2, y - 2, 5, 5, 0xefbd78);
+            SDL_snprintf(label, sizeof(label), "Camera %02lu", app->info.camera + 1);
+            ui_text(ui, (float)maximum(destination.x + 4, minimum(x + 8, destination.x + destination.w - 100)),
+                    (float)maximum(destination.y + 4, minimum(y - 22, destination.y + destination.h - 20)), label,
+                    0xefbd78);
+        }
+        SDL_SetRenderClipRect(app->renderer, NULL);
+    }
     if (app->flying)
     {
         ui_line(ui, app->sidebar / 2 - 6, destination.y + destination.h / 2, app->sidebar / 2 + 6,

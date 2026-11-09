@@ -41,11 +41,19 @@ extern "C"
         float x, y, z, yaw, pitch, move_speed;
     } MarcusCamera;
 
+    typedef struct MarcusProjection
+    {
+        int valid;
+        float transform[12]; /* Camera-to-world right/up/backward/position rows. */
+        float vertical_fov, aspect, near_clip, far_clip, display_depth;
+    } MarcusProjection;
+
     typedef struct MarcusImage
     {
         int width, height, pitch;
         const unsigned char *rgba;
         MarcusCamera camera;
+        MarcusProjection projection, scene_camera;
     } MarcusImage;
 
     MarcusPlayer *marcus_create(void);

@@ -49,6 +49,18 @@ struct MarcusPlayer
 };
 namespace
 {
+MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
+{
+    MarcusProjection result = {};
+    result.valid = source.valid;
+    std::memcpy(result.transform, source.transform, sizeof(result.transform));
+    result.vertical_fov = source.verticalFov;
+    result.aspect = source.aspect;
+    result.near_clip = source.nearClip;
+    result.far_clip = source.farClip;
+    result.display_depth = source.displayDepth;
+    return result;
+}
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
 {
     if (!image || player->selected < 0 || !player->preview.Render(view, player->image, error))
@@ -59,6 +71,8 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
     image->rgba = player->image.rgba.data();
     const auto &camera = player->image.camera;
     image->camera = {camera.x, camera.y, camera.z, camera.yaw, camera.pitch, camera.moveSpeed};
+    image->projection = CopyProjection(player->image.projection);
+    image->scene_camera = CopyProjection(player->image.sceneCamera);
     return true;
 }
 template <typename F> int Guard(MarcusPlayer *player, F operation)
@@ -332,6 +346,7 @@ extern "C"
             view.width = width;
             view.height = height;
             view.authoredCamera = authored != 0;
+            view.frameSceneCamera = !view.authoredCamera;
             view.yaw = yaw;
             view.pitch = pitch;
             view.zoom = zoom;

@@ -22,6 +22,7 @@ int main(int argc, char **argv)
     MarcusObject first, later, prop, inactive;
     MarcusImage image;
     MarcusCamera camera, moved;
+    MarcusProjection authored;
     unsigned char *pixels;
     size_t bytes;
     int index, scene_count;
@@ -46,6 +47,10 @@ int main(int argc, char **argv)
     CHECK(!marcus_object(player, 4, &later));
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(image.width == 480 && image.height == 360 && image.pitch == 480 * 4 && image.rgba);
+    CHECK(image.projection.valid && image.scene_camera.valid && image.scene_camera.vertical_fov > 0);
+    CHECK(image.scene_camera.far_clip > image.scene_camera.near_clip &&
+          image.scene_camera.display_depth <= image.scene_camera.far_clip);
+    authored = image.scene_camera;
     bytes = (size_t)image.pitch * image.height;
     pixels = (unsigned char *)malloc(bytes);
     CHECK(pixels);
@@ -57,6 +62,13 @@ int main(int argc, char **argv)
     CHECK(marcus_seek(player, 1));
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(!memcmp(pixels, image.rgba, bytes));
+    CHECK(!memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)));
+    CHECK(marcus_seek(player, 16) && marcus_info(player, &info) && info.camera == 1);
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    CHECK(image.scene_camera.valid &&
+          (memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)) ||
+           authored.vertical_fov != image.scene_camera.vertical_fov));
+    CHECK(marcus_seek(player, 1));
     CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
     camera = image.camera;
     CHECK(camera.move_speed > 0);
