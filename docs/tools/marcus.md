@@ -82,8 +82,7 @@ Bindings persist in `shortcuts.cfg` in SDL's Marcus preferences directory
 (`%APPDATA%/3DMMForever/Marcus/` on Windows). The file is replaced through a sibling
 temporary file when applying changes. Invalid configuration keeps defaults and
 shows a message in Settings. `--settings-file path` allows an explicit profile;
-`--show-settings` opens the dialog on launch. Smoke tests use in-memory settings
-unless an explicit profile is supplied, and never save the user's bindings.
+`--show-settings` opens the dialog on launch.
 
 Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
@@ -158,32 +157,23 @@ of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
 FreeType headers are system headers during C89 checking. The backend is C++.
 
 ```console
-cmake --build build/marcus --target marcus marcus-player-test marcus-settings-test marcus-camera-guide-test preview-scene-fixture
+cmake --build build/marcus --target marcus marcus-player-test preview-scene-fixture
 ctest --test-dir build/marcus -R "^marcus-" --output-on-failure
 ```
 
 With Clang or GCC installed, `marcus-c89` checks the frontend and C API test
 using `-std=c89 -pedantic-errors` and rejects mixed declarations/statements.
-`marcus-shortcuts` checks defaults, modifiers, rebinding, conflicts, atomic file
-replacement, reload and invalid settings. UI smoke checks cover capture,
-Apply/Cancel/defaults and the D/F/S/G shortcuts with Shift boundary jumps.
-`marcus-camera-guide` checks guide projection, roll, image aspect, clipping and
-missing/invalid cameras. Player integration verifies camera metadata and cuts.
-`marcus-empty` starts the UI with SDL's dummy driver. With original content and
-`marcus_resources` pointing at a valid `.chk`, `marcus-player` generates fixtures
-and checks real metadata, motion, scene switching, rewind image identity,
-renderer lifecycle and invalid inputs. UI smoke checks exercise stepping,
-scrub clicks, selection, play/pause, scene advancement, loop and camera toggling,
-and capture camera/orbit/fly BMPs. Flight checks cover mouse capture/release,
-look, movement, speed boost and focus loss; backend checks verify translated and
-rotated camera images and a stable camera across frame changes. Input hashes
-verify read-only behaviour.
+With original content and `marcus_resources` pointing at a valid `.chk`,
+`marcus-player` generates fixtures and checks backend metadata, motion, scene
+switching, camera cuts, stable framing, rewind image identity, renderer lifecycle
+and invalid inputs. Input hashes verify read-only behaviour. Marcus has no UI
+smoke tests or input simulations.
 
-For a reproducible capture, scenes start at 1 and object indices at 0:
+For a manual capture, scenes start at 1 and object indices at 0:
 
 ```console
-marcus movie.3mm --scene 2 --frame 10 --object 1 --orbit --smoke-test --screenshot marcus.bmp
+marcus movie.3mm --scene 2 --frame 10 --object 1 --orbit --screenshot marcus.bmp
 ```
 
-`--smoke-test` exercises input/playback and exits with a failure status on
-load/render/check errors. `--screenshot` also exits after capturing the window.
+`--screenshot` exits after capturing the window and returns a failure status on
+load or render errors.

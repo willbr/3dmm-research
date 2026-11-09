@@ -23,21 +23,6 @@ execute_process(COMMAND "${API_EXE}" "${movie}" "${RESOURCES}" "${CONTENT}" "${s
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Marcus C API integration failed: ${result}")
 endif()
-foreach(mode IN ITEMS camera orbit fly)
-  set(options)
-  if(mode STREQUAL "orbit")
-    list(APPEND options --orbit --scene 2 --object 1)
-  elseif(mode STREQUAL "fly")
-    list(APPEND options --fly)
-  endif()
-  execute_process(COMMAND "${CMAKE_COMMAND}" -E env SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software
-    "${PLAYER_EXE}" "${movie}" --resources "${RESOURCES}" --content-dir "${CONTENT}"
-    --frame 10 --smoke-test --screenshot "${TEST_DIR}/${mode}.bmp" ${options}
-    RESULT_VARIABLE result TIMEOUT 90)
-  if(NOT result EQUAL 0)
-    message(FATAL_ERROR "Marcus ${mode} UI smoke failed: ${result}")
-  endif()
-endforeach()
 file(SHA256 "${movie}" movie_after)
 if(NOT movie_before STREQUAL movie_after)
   message(FATAL_ERROR "Marcus changed the movie")

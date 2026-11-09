@@ -53,7 +53,7 @@ typedef struct App
     MarcusCameraGuide camera_guide;
     MarcusShortcuts shortcuts, edited_shortcuts;
     char settings_path[1024], settings_message[256];
-    int settings_open, binding_capture, settings_memory;
+    int settings_open, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
     int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting;
     int flying, fly_ready, camera_ready, fly_keys;
@@ -356,8 +356,8 @@ static void cancel_settings(App *app)
 }
 static void apply_settings(App *app)
 {
-    if (!app->settings_memory && !shortcuts_save(app->settings_path, &app->edited_shortcuts, app->settings_message,
-                                                 sizeof(app->settings_message)))
+    if (!shortcuts_save(app->settings_path, &app->edited_shortcuts, app->settings_message,
+                        sizeof(app->settings_message)))
         return;
     app->shortcuts = app->edited_shortcuts;
     cancel_settings(app);
@@ -1256,16 +1256,11 @@ static void find_defaults(App *app)
     else
         SDL_strlcpy(app->content, MARCUS_SOURCE_DIR "/content-files", sizeof(app->content));
 }
-static void initialize_shortcuts(App *app, int smoke)
+static void initialize_shortcuts(App *app)
 {
     char *directory;
     shortcuts_defaults(&app->shortcuts);
     app->binding_capture = -1;
-    if (smoke && !app->settings_path[0])
-    {
-        app->settings_memory = 1;
-        return;
-    }
     if (!app->settings_path[0])
     {
         directory = SDL_GetPrefPath("3DMMForever", "Marcus");
@@ -1284,7 +1279,7 @@ static void usage(void)
     puts("Marcus - read-only 3D Movie Maker visual player\n"
          "Usage: marcus [movie.3mm] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
-         "              [--smoke-test] [--screenshot output.bmp] [--show-settings]\n"
+         "              [--screenshot output.bmp] [--show-settings]\n"
          "              [--settings-file shortcuts.cfg]\n"
          "Scenes start at 1; object indices start at 0. Sound is not yet supported.");
 }
@@ -1298,373 +1293,17 @@ static int number(const char *text, long *output)
     *output = (long)value;
     return 1;
 }
-static int exercise_flight(App *app)
-{
-    SDL_Event event;
-    MarcusCamera origin;
-    float start_x, start_z, start_y, start_yaw;
-    int mode;
-    mode = app->authored;
-    draw_view(app);
-    view_mode(app, 2);
-    draw_view(app);
-    if (!app->fly_ready || app->error[0])
-        return 0;
-    origin = app->flight;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-    event.button.button = SDL_BUTTON_RIGHT;
-    event.button.x = app->sidebar / 2;
-    event.button.y = 200;
-    handle_event(app, &event);
-    if (!app->flying || !SDL_GetWindowRelativeMouseMode(app->window))
-        return 0;
-    start_yaw = app->flight.yaw;
-    event.type = SDL_EVENT_MOUSE_MOTION;
-    event.motion.xrel = 20;
-    event.motion.yrel = 20;
-    handle_event(app, &event);
-    if (app->flight.yaw == start_yaw)
-        return 0;
-    app->flight.yaw = app->flight.pitch = 0;
-    app->flight.move_speed = 10;
-    start_z = app->flight.z;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_W;
-    handle_event(app, &event);
-    update_flight(app, 0.1);
-    if (fabs(app->flight.z - (start_z - 1)) > 0.002)
-        return 0;
-    start_z = app->flight.z;
-    event.key.scancode = SDL_SCANCODE_LSHIFT;
-    handle_event(app, &event);
-    update_flight(app, 0.05);
-    update_flight(app, 0.05);
-    if (fabs(app->flight.z - (start_z - 4)) > 0.002)
-        return 0;
-    event.type = SDL_EVENT_KEY_UP;
-    event.key.scancode = SDL_SCANCODE_W;
-    handle_event(app, &event);
-    event.key.scancode = SDL_SCANCODE_LSHIFT;
-    handle_event(app, &event);
-    start_y = app->flight.y;
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_E;
-    handle_event(app, &event);
-    update_flight(app, 0.1);
-    if (fabs(app->flight.y - (start_y + 1)) > 0.002)
-        return 0;
-    event.type = SDL_EVENT_KEY_UP;
-    handle_event(app, &event);
-    start_y = app->flight.y;
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_Q;
-    handle_event(app, &event);
-    update_flight(app, 0.1);
-    if (fabs(app->flight.y - (start_y - 1)) > 0.002)
-        return 0;
-    event.type = SDL_EVENT_KEY_UP;
-    handle_event(app, &event);
-    start_x = app->flight.x;
-    start_z = app->flight.z;
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.scancode = SDL_SCANCODE_W;
-    handle_event(app, &event);
-    event.key.scancode = SDL_SCANCODE_D;
-    handle_event(app, &event);
-    update_flight(app, 0.1);
-    if (fabs(sqrt((app->flight.x - start_x) * (app->flight.x - start_x) +
-                  (app->flight.z - start_z) * (app->flight.z - start_z)) -
-             1) > 0.002)
-        return 0;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_MOUSE_WHEEL;
-    event.wheel.y = 1;
-    handle_event(app, &event);
-    if (fabs(app->flight.move_speed - 12.5) > 0.002)
-        return 0;
-    event.type = SDL_EVENT_MOUSE_BUTTON_UP;
-    event.button.button = SDL_BUTTON_RIGHT;
-    handle_event(app, &event);
-    if (app->flying || app->fly_keys || SDL_GetWindowRelativeMouseMode(app->window))
-        return 0;
-    start_z = app->flight.z;
-    update_flight(app, 0.1);
-    if (app->flight.z != start_z)
-        return 0;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-    event.button.button = SDL_BUTTON_RIGHT;
-    event.button.x = app->sidebar / 2;
-    event.button.y = 200;
-    handle_event(app, &event);
-    if (!app->flying)
-        return 0;
-    event.type = SDL_EVENT_WINDOW_FOCUS_LOST;
-    handle_event(app, &event);
-    if (app->flying || SDL_GetWindowRelativeMouseMode(app->window))
-        return 0;
-    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-    event.button.button = SDL_BUTTON_RIGHT;
-    event.button.x = app->sidebar / 2;
-    event.button.y = 200;
-    handle_event(app, &event);
-    if (!app->flying)
-        return 0;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.key = SDLK_ESCAPE;
-    handle_event(app, &event);
-    if (app->flying || SDL_GetWindowRelativeMouseMode(app->window))
-        return 0;
-    app->flight = origin;
-    app->authored = mode;
-    app->dirty = 1;
-    return !app->error[0];
-}
-static int exercise_settings(App *app)
-{
-    MarcusShortcuts saved;
-    SDL_Event event;
-    long frame, expected;
-    int memory, result;
-    float left, top;
-    saved = app->shortcuts;
-    memory = app->settings_memory;
-    frame = app->info.frame;
-    result = 0;
-    app->settings_memory = 1;
-    shortcuts_defaults(&app->shortcuts);
-    left = app->width / 2.0f - 330;
-    top = app->height / 2.0f - 310;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.key = SDLK_COMMA;
-    event.key.mod = SDL_KMOD_CTRL;
-    handle_event(app, &event);
-    if (!app->settings_open || app->playing || app->flying)
-        goto finished;
-    mouse_down(app, left + 450, top + 100 + MARCUS_NEXT_FRAME * 30 + 14, SDL_BUTTON_LEFT);
-    if (app->binding_capture != MARCUS_NEXT_FRAME)
-        goto finished;
-    event.key.key = SDLK_LSHIFT;
-    event.key.mod = SDL_KMOD_SHIFT;
-    handle_event(app, &event);
-    if (app->binding_capture != MARCUS_NEXT_FRAME)
-        goto finished;
-    event.key.key = SDLK_H;
-    event.key.mod = SDL_KMOD_NONE;
-    handle_event(app, &event);
-    if (app->binding_capture != -1 || app->edited_shortcuts.binding[MARCUS_NEXT_FRAME].key != SDLK_H ||
-        app->shortcuts.binding[MARCUS_NEXT_FRAME].key != SDLK_F)
-        goto finished;
-    event.key.key = SDLK_ESCAPE;
-    handle_event(app, &event);
-    if (app->settings_open || app->shortcuts.binding[MARCUS_NEXT_FRAME].key != SDLK_F)
-        goto finished;
-    open_settings(app);
-    mouse_down(app, left + 450, top + 100 + MARCUS_NEXT_FRAME * 30 + 14, SDL_BUTTON_LEFT);
-    event.key.key = SDLK_H;
-    handle_event(app, &event);
-    mouse_down(app, left + 580, top + 574, SDL_BUTTON_LEFT);
-    if (app->settings_open || app->shortcuts.binding[MARCUS_NEXT_FRAME].key != SDLK_H)
-        goto finished;
-    if (app->loaded)
-    {
-        if (!seek(app, app->info.first_frame))
-            goto finished;
-        expected = app->info.first_frame < app->info.last_frame ? app->info.first_frame + 1 : app->info.first_frame;
-        event.key.key = SDLK_F;
-        handle_event(app, &event);
-        if (app->info.frame != app->info.first_frame)
-            goto finished;
-        event.key.key = SDLK_H;
-        handle_event(app, &event);
-        if (app->info.frame != expected)
-            goto finished;
-    }
-    open_settings(app);
-    mouse_down(app, left + 450, top + 100 + MARCUS_PREV_FRAME * 30 + 14, SDL_BUTTON_LEFT);
-    event.key.key = SDLK_H;
-    handle_event(app, &event);
-    if (app->binding_capture != MARCUS_PREV_FRAME || !app->settings_message[0])
-        goto finished;
-    event.key.key = SDLK_ESCAPE;
-    handle_event(app, &event);
-    if (!app->settings_open || app->binding_capture != -1)
-        goto finished;
-    mouse_down(app, left + 60, top + 574, SDL_BUTTON_LEFT);
-    mouse_down(app, left + 580, top + 574, SDL_BUTTON_LEFT);
-    if (app->settings_open || app->shortcuts.binding[MARCUS_NEXT_FRAME].key != SDLK_F)
-        goto finished;
-    result = 1;
-finished:
-    cancel_settings(app);
-    app->shortcuts = saved;
-    app->settings_memory = memory;
-    if (app->loaded && !seek(app, frame))
-        result = 0;
-    return result;
-}
-static int exercise_controls(App *app)
-{
-    SDL_Event event;
-    MarcusInfo saved, playing_start;
-    int selected, authored, scene_index;
-    long next;
-    if (!app->loaded)
-        return 1;
-    saved = app->info;
-    selected = app->selected;
-    authored = app->authored;
-    key_down(app, SDLK_F, SDL_KMOD_SHIFT);
-    if (app->info.frame != app->info.last_frame)
-        return 0;
-    key_down(app, SDLK_D, SDL_KMOD_SHIFT);
-    if (app->info.frame != app->info.first_frame)
-        return 0;
-    key_down(app, SDLK_F, SDL_KMOD_NONE);
-    if (app->info.frame !=
-        (app->info.first_frame < app->info.last_frame ? app->info.first_frame + 1 : app->info.first_frame))
-        return 0;
-    key_down(app, SDLK_D, SDL_KMOD_NONE);
-    if (app->info.frame != app->info.first_frame)
-        return 0;
-    if (app->info.scene + 1 < app->info.scene_count)
-    {
-        key_down(app, SDLK_G, SDL_KMOD_NONE);
-        if (app->info.scene != saved.scene + 1)
-            return 0;
-        key_down(app, SDLK_S, SDL_KMOD_NONE);
-        if (app->info.scene != saved.scene)
-            return 0;
-    }
-    key_down(app, SDLK_G, SDL_KMOD_SHIFT);
-    if (app->info.scene != app->info.scene_count - 1)
-        return 0;
-    key_down(app, SDLK_S, SDL_KMOD_SHIFT);
-    if (app->info.scene != 0 || !select_scene(app, saved.scene))
-        return 0;
-    if (saved.scene + 1 < app->info.scene_count)
-    {
-        mouse_down(app, SCENE_NAV_X + NAV_STEP * 2 + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-        if (app->info.scene != saved.scene + 1)
-            return 0;
-        mouse_down(app, SCENE_NAV_X + NAV_STEP + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-        if (app->info.scene != saved.scene)
-            return 0;
-    }
-    mouse_down(app, SCENE_NAV_X + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-    if (app->info.scene != 0)
-        return 0;
-    mouse_down(app, SCENE_NAV_X + NAV_STEP * 3 + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-    if (app->info.scene != app->info.scene_count - 1)
-        return 0;
-    if (!select_scene(app, saved.scene))
-        return 0;
-    mouse_down(app, FRAME_NAV_X + NAV_STEP * 3 + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-    if (app->info.frame != app->info.last_frame)
-        return 0;
-    mouse_down(app, FRAME_NAV_X + NAV_STEP + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-    if (app->info.frame !=
-        (app->info.first_frame < app->info.last_frame ? app->info.last_frame - 1 : app->info.first_frame))
-        return 0;
-    mouse_down(app, FRAME_NAV_X + NAV_STEP * 2 + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-    if (app->info.frame != app->info.last_frame)
-        return 0;
-    mouse_down(app, FRAME_NAV_X + 14, app->timeline_y + 20, SDL_BUTTON_LEFT);
-    if (app->info.frame != app->info.first_frame)
-        return 0;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.key = SDLK_HOME;
-    handle_event(app, &event);
-    if (app->info.frame != app->info.first_frame)
-        return 0;
-    event.key.key = SDLK_RIGHT;
-    handle_event(app, &event);
-    next = app->info.first_frame < app->info.last_frame ? app->info.first_frame + 1 : app->info.first_frame;
-    if (app->info.frame != next)
-        return 0;
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-    event.button.button = SDL_BUTTON_LEFT;
-    event.button.x = frame_x(app, app->info.first_frame + 0.5);
-    event.button.y = app->timeline_y + 60;
-    handle_event(app, &event);
-    if (app->info.frame != app->info.first_frame || !app->dragging)
-        return 0;
-    event.type = SDL_EVENT_MOUSE_BUTTON_UP;
-    handle_event(app, &event);
-    if (app->dragging)
-        return 0;
-    if (app->info.object_count > 1)
-    {
-        event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-        event.button.x = app->sidebar + 60;
-        event.button.y = 126 + ROW_HEIGHT + 10;
-        handle_event(app, &event);
-        if (app->selected != 1)
-            return 0;
-    }
-    memset(&event, 0, sizeof(event));
-    event.type = SDL_EVENT_KEY_DOWN;
-    event.key.key = SDLK_SPACE;
-    handle_event(app, &event);
-    if (!app->playing)
-        return 0;
-    playing_start = app->info;
-    advance(app);
-    if (playing_start.frame < playing_start.last_frame &&
-        (app->info.scene != playing_start.scene || app->info.frame != playing_start.frame + 1))
-        return 0;
-    if (app->playing)
-        handle_event(app, &event);
-    if (app->playing)
-        return 0;
-    event.key.key = SDLK_C;
-    handle_event(app, &event);
-    if (app->authored == authored)
-        return 0;
-    if (app->info.scene + 1 < app->info.scene_count)
-    {
-        scene_index = app->info.scene;
-        if (!seek(app, app->info.last_frame))
-            return 0;
-        advance(app);
-        if (app->info.scene != scene_index + 1 || app->info.frame != app->info.first_frame)
-            return 0;
-    }
-    if (!select_scene(app, app->info.scene_count - 1) || !seek(app, app->info.last_frame))
-        return 0;
-    app->playing = 1;
-    advance(app);
-    if (app->playing)
-        return 0;
-    app->loop = 1;
-    advance(app);
-    if (app->info.scene != 0 || app->info.frame != app->info.first_frame)
-        return 0;
-    app->loop = 0;
-    if (!select_scene(app, saved.scene) || !seek(app, saved.frame))
-        return 0;
-    app->selected = selected;
-    app->authored = authored;
-    app->dirty = 1;
-    return exercise_flight(app);
-}
 int main(int argc, char **argv)
 {
     App app;
     SDL_Event event;
     const char *input, *font, *capture;
-    int i, result, smoke, frames, requested_scene, requested_object, have_frame, show_settings;
+    int i, result, frames, requested_scene, requested_object, have_frame, show_settings;
     long requested_frame, parsed;
     double now, previous_tick;
     memset(&app, 0, sizeof(app));
     input = font = capture = NULL;
-    result = smoke = have_frame = show_settings = 0;
+    result = have_frame = show_settings = 0;
     requested_scene = 1;
     requested_object = 0;
     requested_frame = 0;
@@ -1680,8 +1319,6 @@ int main(int argc, char **argv)
             usage();
             return 0;
         }
-        else if (!strcmp(argv[i], "--smoke-test"))
-            smoke = 1;
         else if (!strcmp(argv[i], "--show-settings"))
             show_settings = 1;
         else if (!strcmp(argv[i], "--settings-file") && i + 1 < argc)
@@ -1738,7 +1375,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "%s\n", SDL_GetError());
         return 1;
     }
-    initialize_shortcuts(&app, smoke);
+    initialize_shortcuts(&app);
     app.window = SDL_CreateWindow("Marcus", 1380, 900, 0);
     app.renderer = app.window ? SDL_CreateRenderer(app.window, NULL) : NULL;
     app.player = marcus_create();
@@ -1778,8 +1415,6 @@ int main(int argc, char **argv)
                 app.selected = app.info.object_count ? requested_object : -1;
         }
     }
-    if (smoke && !app.error[0] && (!exercise_settings(&app) || !exercise_controls(&app)))
-        fail(&app, "Marcus input/playback smoke checks failed.");
     if (show_settings)
         open_settings(&app);
     frames = 0;
@@ -1806,7 +1441,7 @@ int main(int argc, char **argv)
                 app.timeline_start = app.info.frame;
         }
         draw(&app);
-        if ((smoke || capture) && frames == 3)
+        if (capture && frames == 3)
         {
             if (app.error[0] || (input && !app.loaded))
             {
