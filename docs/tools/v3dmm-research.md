@@ -213,6 +213,19 @@ when not already installed. This is a persistent manager installation step,
 followed by activation and launch, rather than movie code installing mods
 while the engine plays frames.
 
+A subsequent repeated-name investigation distinguished display names from
+internal shortnames. The installer calls `0x004130b0` with the parsed shortname
+and builds `<shortname>.vxp`; this helper compares installed shortnames at
+record offset `0x20`, whereas dependency-availability helper `0x004131d0`
+compares display names at offset `0x04`. They are separate identities.
+`A nightmare at freddys.vmm` contains two `Stage` and two `Camera` declarations
+with different CFG basenames. The later `Stage.3cn` contains the otherwise
+missing `TMPL/af216bae`. Marcus now retains each embedded declaration and
+requires matching CFG basenames when reusing installed content for a repeated
+display name. This preserves distinct packages while retaining name-only reuse
+for unambiguous declarations. The manager's automatic activation of ambiguous
+display names has not been dynamically validated by this investigation.
+
 Inside the running application, `ZreateFileA` detects `.vmm` and calls
 `0x10009920`. That function skips the wrapper and payload blocks, rebases the
 file object to the movie start, and verifies that required expansion names

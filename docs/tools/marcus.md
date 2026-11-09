@@ -158,7 +158,10 @@ viewport geometry picking is not yet implemented.
   `THREEDMM_PACK_DIR` selects the same optional store override. It also recognizes
   prepared expansion folders beside the selected base content.
 - Supported v1 `.vmm` bundles use their declared package selection. Installed
-  packages are reused by name; remaining embedded packages and the inner movie
+  packages are reused by name; repeated embedded names also require a matching
+  internal shortname (the CFG basename). Each declaration is retained in bundle
+  order, so two distinct packages named `Stage` can both contribute content.
+  Remaining embedded packages and the inner movie
   are materialized privately for that session. Ordinary `.3mm` movies use the
   installed portable defaults when they reference Virtual3dmm. Marcus does not
   install packages, edit Studio preferences or write back to movie inputs.
@@ -238,3 +241,11 @@ rendered all 20,040, 9,008 and 5,269 frames respectively. Together with the
 unchanged earlier results, this raises visual completion to 144/150. Five
 movies still have missing assets and one input is a WebM. This is frame
 coverage evidence, subject to the presentation limits above.
+
+Preserving repeated package names subsequently completed all 53 scenes and
+4,899 frames of `A nightmare at freddys.vmm`, bringing combined coverage to
+145/150. Its later `Stage` package contains `TMPL/af216bae`, which was previously
+skipped because an earlier, different package has the same display name.
+`marcus-content` is a native adapter regression for same-name packages with
+different CFG basenames, installed-package reuse, ordered filename collisions,
+invalid metadata, cleanup and unchanged inputs/settings. It does not drive UI.

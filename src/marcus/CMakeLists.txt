@@ -26,6 +26,11 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(marcus PRIVATE -pedantic-errors -Werror=declaration-after-statement)
 endif()
 if(BUILD_TESTING)
+  # Native content adapter regression; no UI input or application window.
+  add_executable(marcus-content-test EXCLUDE_FROM_ALL ../../tests/marcus_content_test.cpp)
+  target_link_libraries(marcus-content-test PRIVATE marcus-player studio-pack-store studio-settings engine-core miniz SDL3::SDL3-static)
+  add_test(NAME marcus-content COMMAND marcus-content-test "${PROJECT_SOURCE_DIR}/tmp/marcus-content")
+  set_tests_properties(marcus-content PROPERTIES TIMEOUT 30)
   find_program(MARCUS_C89_COMPILER NAMES clang gcc)
   if(MARCUS_C89_COMPILER)
     add_test(NAME marcus-c89 COMMAND ${CMAKE_COMMAND}
