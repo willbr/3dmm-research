@@ -57,6 +57,17 @@ void BR_ASM_CALL PointRender_Null(struct temp_vertex_fixed *v0);
 // clang-format off
 STATIC struct zb_material_type mat_types_index_8[] = {
 
+    /* Opt-in opaque perspective maps. Existing movie material selection is
+     * unchanged; reconstructed scenery explicitly requests this path. */
+    {
+        IDENT("Texture mapped (perspective) opaque AW"),
+        MT_MASK_TP | BR_MATF_LIGHT | BR_MATF_PRELIT | BR_MATF_MAP_OPAQUE,
+        ZB_MATF_HAS_MAP | BR_MATF_PERSPECTIVE | BR_MATF_MAP_OPAQUE,
+        BR_PMT_INDEX_8, 0, 0,
+        ZbRenderFaceGroup, TriangleRenderPIZ2TPA, LineRenderPIZ2T, PointRenderPIZ2T,
+        CM_COORDS | CM_U | CM_V, CM_W | CM_U | CM_V,
+    },
+
 //	/*
 //	 * Perspective texture mapping
 //	 */

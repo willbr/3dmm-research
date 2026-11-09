@@ -2,7 +2,10 @@
 #define THREE_MM_PREVIEW_BACKGROUND_MESH_H
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <vector>
+
+struct br_actor;
 
 namespace ThreeMM
 {
@@ -12,6 +15,8 @@ namespace Internal
 using BackgroundMatrix = std::array<double, 16>;
 class PreviewBackgroundMesh
 {
+    struct Native;
+    std::unique_ptr<Native> native;
     struct Vertex
     {
         double x, y, z, u, v;
@@ -22,6 +27,8 @@ class PreviewBackgroundMesh
     unsigned textureWidth = 0, textureHeight = 0;
 
   public:
+    PreviewBackgroundMesh();
+    ~PreviewBackgroundMesh();
     std::array<float, 3> low = {}, high = {};
     // Missing depth stays missing. Coarse cells subdivide at depth edges;
     // triangles crossing a discontinuity are discarded even at pixel scale.
@@ -36,10 +43,9 @@ class PreviewBackgroundMesh
     {
         return triangles.size();
     }
-    // Seed native INDEX8/DEPTH16 buffers before actors render. All palette
-    // indices are opaque, including zero. Geometry is visible from both sides.
-    void Render(const BackgroundMatrix &worldToClip, unsigned width, unsigned height, std::uint8_t *colour,
-                unsigned colourStride, std::uint8_t *depth, unsigned depthStride) const;
+    // Cached BRender models/material; the frame owns only the attached actors.
+    // All scenery goes through the same scene renderer as movie actors.
+    bool AddToScene(br_actor *world);
 };
 } // namespace Internal
 } // namespace ThreeMM

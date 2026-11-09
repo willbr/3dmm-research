@@ -1107,8 +1107,9 @@ target_link_libraries(preview-scene-test PRIVATE ThreeMM::Preview)
 add_executable(preview-background-test EXCLUDE_FROM_ALL tests/preview_background_test.cpp)
 target_link_libraries(preview-background-test PRIVATE ThreeMM::Preview)
 add_executable(preview-background-mesh-test EXCLUDE_FROM_ALL tests/preview_background_mesh_test.cpp)
-target_include_directories(preview-background-mesh-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src")
-target_link_libraries(preview-background-mesh-test PRIVATE ThreeMM::Preview)
+target_include_directories(preview-background-mesh-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src"
+  "${PROJECT_SOURCE_DIR}/bren/lib/zb" "${PROJECT_SOURCE_DIR}/bren/lib/fw")
+target_link_libraries(preview-background-mesh-test PRIVATE ThreeMM::Preview engine-core)
 add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-background-test
   preview-background-mesh-test preview-scene-fixture)
 add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)

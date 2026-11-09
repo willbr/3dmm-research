@@ -173,6 +173,7 @@ set(BRENDER_ZB_C
   zb/l_piz.c
   zb/p_piz.c
   zb/perspz.c
+  zb/piz2tpa.c
   zb/zbclip.c
   zb/zbmatl.c
   zb/zbmesh.c

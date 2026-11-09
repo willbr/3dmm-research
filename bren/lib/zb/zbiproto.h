@@ -14,6 +14,10 @@
 extern "C" {
 #endif
 
+/* Arbitrary-size, opaque, unlit indexed perspective texture mapping. */
+void BR_ASM_CALL TriangleRenderPIZ2TPA(struct temp_vertex_fixed *a,
+    struct temp_vertex_fixed *b, struct temp_vertex_fixed *c);
+
 /*
  * ti8_piz.asm
  */

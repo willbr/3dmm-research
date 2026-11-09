@@ -64,7 +64,7 @@ void ZbMaterialUpdate(br_material *mat, br_uint_16 update_flags)
 		/*
 		 * Does the image have any 0 pixels?
 		 */
-		if(PixelmapHasZeros(cm))
+		if(!(mat->flags & BR_MATF_MAP_OPAQUE) && PixelmapHasZeros(cm))
 			flags |= ZB_MATF_MAP_TRANSPARENT;
 //#endif
 	}

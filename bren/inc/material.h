@@ -95,7 +95,8 @@ extern "C"
 
         BR_MATF_FORCE_Z_0 = 0x00002000,
 
-        BR_MATF_DITHER = 0x00004000
+        BR_MATF_DITHER = 0x00004000,
+        BR_MATF_MAP_OPAQUE = 0x00010000 // Opaque indexed maps, including palette index zero.
 #if 0
 	BR_MATF_CUSTOM			= 0x00008000
 #endif

@@ -62,6 +62,8 @@ for actor occlusion. Orbiting includes the actor/prop geometry and a textured
 background mesh reconstructed from the active camera's image and depth. Moving
 away from the authored camera exposes gaps where depth is missing or surfaces
 were hidden; the reconstruction does not combine multiple cameras.
+The scenery is cached as BRender models with opaque, perspective-correct
+textures and rendered in the same scene/depth buffer as actors and props.
 Background chunks support their stored camera views. This is a static frame
 inspector; it does not play sound, draw captions or perform movie transitions.
 

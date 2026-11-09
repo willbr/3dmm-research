@@ -206,7 +206,8 @@ camera is stationary.
 
 Orbit and Fly reconstruct the active camera's background as textured scenery
 from its colour image and ZBMP depth, placed using the authored camera transform.
-Orbit's initial fit includes this scenery. The mesh shares the actors' depth
+Orbit's initial fit includes this scenery. Cached BRender models and materials
+place it in the same scene render as the actors, sharing clipping and the depth
 buffer, so counters, floors and walls can occlude actors, props and caption quads.
 Texture mapping preserves perspective and the background palette, without
 relighting the original artwork. Both sides of the reconstructed surface are
@@ -218,6 +219,11 @@ omitted; missing depth and surfaces hidden from the authored camera stay as
 gaps. Moving far from that camera exposes those gaps. Camera cuts replace the
 scenery with the new camera's reconstruction; views are not stitched together.
 The two most recently inspected camera meshes are cached per loaded background.
+Models are split into chunks of at most 4,096 faces to stay within BRender's
+vertex/edge index limits. An opt-in opaque, unlit perspective texture material
+supports arbitrary background sizes and palette index zero. Existing movie
+materials keep their previous rendering paths. There is no separate scenery
+rasterization pass in the preview adapter.
 
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.
@@ -354,8 +360,20 @@ with finite depth produce visible scenery in both inspection modes.
 `preview-background-mesh` checks reconstruction, analytic perspective texture
 mapping, camera transforms/parallax, palette index zero, depth ordering, back
 faces, missing depth, discontinuities, clipping and padded buffer strides without
-a window. The diner at scene 1/frame 49 of `iknow1.zip` was also inspected in
+a window. These checks run through BRender's scene pipeline, including a
+1024-by-1024 depth fixture whose 131,072 triangles require multiple cached models;
+rebuilding the mesh releases its model, material and map registrations.
+The diner at scene 1/frame 49 of `iknow1.zip` was also inspected in
 Orbit and moved Fly views; local captures are in `tmp/iknow-depth-check/mesh-*.png`.
+
+On 9 November 2026 moving-camera headless benchmarks of that diner at 960-by-720
+compared the previous separate rasterizer with the shared BRender scene path.
+Across 30 changing poses per mode in the same x64 Debug build, mean Orbit render
+time fell from 70.0 to 34.0 ms (14.3 to 29.4 frames/second), and Fly from 93.9 to
+51.1 ms (10.6 to 19.6 frames/second). These are native render timings, excluding
+UI/presentation overhead, and are not a general performance guarantee. Local
+benchmark source, raw timings and before/after captures are under
+`tmp/brender-scenery/`.
 
 On 9 November 2026, `iknow1.zip` / `I Know compilation 1.3mm`, scene 1,
 frame 49 was checked in the unchanged retail US executable using the retail

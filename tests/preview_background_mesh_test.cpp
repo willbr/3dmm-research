@@ -3,6 +3,12 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include "soc_core.h"
+#pragma pack(push, 4)
+#include "zb.h"
+#pragma pack(pop)
+#undef size
+ASSERTNAME
 
 using namespace ThreeMM::Internal;
 void Check(bool value, int line)
@@ -36,10 +42,33 @@ struct Target
     Target() : colour(stride * height, 199), depth(stride * height, 0xffff)
     {
     }
-    void Render(const PreviewBackgroundMesh &mesh, const BackgroundMatrix &projection)
+    void Render(PreviewBackgroundMesh &mesh, const BackgroundMatrix &projection)
     {
-        mesh.Render(projection, width, height, colour.data(), stride, reinterpret_cast<std::uint8_t *>(depth.data()),
-                    stride * 2);
+        auto colours = BrPixelmapAllocate(BR_PMT_INDEX_8, width, height, colour.data(), BR_PMAF_NORMAL);
+        auto depths = BrPixelmapAllocate(BR_PMT_DEPTH_16, stride, height, depth.data(), BR_PMAF_NORMAL);
+        depths->width = width;
+        auto world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
+        br_camera camera = {};
+        camera.type = BR_CAMERA_PERSPECTIVE_FOV;
+        camera.field_of_view = BR_ANGLE_DEG(90);
+        camera.aspect = BR_SCALAR(1);
+        camera.hither_z = BR_SCALAR(1);
+        camera.yon_z = BR_SCALAR(1000);
+        auto eye = BrActorAllocate(BR_ACTOR_CAMERA, &camera);
+        BrActorAdd(world, eye);
+        CHECK(mesh.AddToScene(world));
+        BrZbSceneRenderBegin(world, eye, colours, depths);
+        // Supply an exact synthetic clip transform to BRender. Its normal
+        // model/face culling, clipping, texturing and depth testing still run.
+        for (unsigned row = 0; row < 4; ++row)
+            for (unsigned column = 0; column < 4; ++column)
+                fw.view_to_screen.m[row][column] = fw.model_to_screen.m[row][column] =
+                    BrFloatToScalar(projection[row * 4 + column]);
+        BrZbSceneRenderAdd(world);
+        BrZbSceneRenderEnd();
+        BrActorFree(world);
+        BrPixelmapFree(depths);
+        BrPixelmapFree(colours);
         for (unsigned y = 0; y < height; ++y)
             for (unsigned x = width; x < stride; ++x)
             {
@@ -55,6 +84,11 @@ struct Target
 };
 int main()
 {
+    BrBegin();
+    BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
+    const auto initialModels = BrModelCount(nullptr);
+    const auto initialMaps = BrMapCount(nullptr);
+    const auto initialMaterials = BrMaterialCount(nullptr);
     std::vector<std::uint8_t> colours(Target::width * Target::height);
     std::vector<std::uint16_t> depths(colours.size(), 26214); // About ten units forward.
     for (unsigned i = 0; i < colours.size(); ++i)
@@ -213,12 +247,31 @@ int main()
     clipped.Render(mesh, enlarged);
     CHECK(clipped.Covered());
 
+    // A maximum-size depth image exceeds BRender's 16-bit model indices.
+    // Its cached chunks must all render safely, then leave no registrations
+    // behind when a different camera replaces the mesh.
+    std::vector<std::uint8_t> largeColours(1024 * 1024, 42);
+    std::vector<std::uint16_t> largeDepths(largeColours.size(), 26214);
+    mesh.Build(1024, 1024, largeColours, largeDepths, Identity(), Projection());
+    CHECK(mesh.TriangleCount() > 65535);
+    Target large;
+    large.Render(mesh, Projection());
+    CHECK(large.Covered() > 100 && large.colour[6 * Target::stride + 8] == 42);
+    CHECK(BrModelCount(nullptr) > initialModels + 1);
+    Target cached;
+    cached.Render(mesh, Projection());
+    CHECK(cached.colour == large.colour && cached.depth == large.depth);
+
     // Empty / malformed inputs clear an earlier cached result safely.
     std::fill(depths.begin(), depths.end(), 0xffff);
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
     CHECK(mesh.Empty());
+    CHECK(BrModelCount(nullptr) == initialModels && BrMapCount(nullptr) == initialMaps &&
+          BrMaterialCount(nullptr) == initialMaterials);
     mesh.Build(1025, 2, colours, depths, Identity(), Projection());
     CHECK(mesh.Empty());
+    BrZbEnd();
+    BrEnd();
     std::puts("Background mesh: reconstruction, parallax, transforms, depth, texture, gaps and clipping passed.");
     return 0;
 }

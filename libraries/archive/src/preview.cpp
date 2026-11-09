@@ -951,20 +951,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 actor->t.t.mat = composed;
             }
         }
-        if (mesh && !mesh->Empty())
-        {
-            br_matrix34 inverse;
-            BrMatrix34Inverse(&inverse, &cam->t.t.mat);
-            br_matrix4 projection;
-            BrMatrix4Perspective(&projection, camera.field_of_view, camera.aspect, -camera.hither_z, -camera.yon_z);
-            BrMatrix4Pre34(&projection, &inverse);
-            Internal::BackgroundMatrix worldToClip;
-            for (unsigned row = 0; row < 4; ++row)
-                for (unsigned axis = 0; axis < 4; ++axis)
-                    worldToClip[row * 4 + axis] = BrScalarToFloat(projection.m[row][axis]);
-            mesh->Render(worldToClip, width, height, static_cast<byte *>(frame.colour->pixels), frame.colour->row_bytes,
-                         static_cast<byte *>(frame.depth->pixels), frame.depth->row_bytes);
-        }
+        if (mesh && !mesh->AddToScene(frame.world))
+            return Fail(error, ErrorCode::out_of_memory, "Cannot prepare background scenery models.");
         BrZbSceneRender(frame.world, cam, frame.colour, frame.depth);
         if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::decode_failed, "The renderer rejected this asset.");

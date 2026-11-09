@@ -3,6 +3,10 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <cstring>
+#include "soc_core.h"
+#undef size
+ASSERTNAME
 
 namespace ThreeMM
 {
@@ -14,48 +18,30 @@ bool Continuous(double near, double far)
 {
     return std::isfinite(far) && near > 0 && far - near <= std::max(.02, near * .08);
 }
-struct ClipVertex
-{
-    double x, y, z, w, u, v;
-};
-double Plane(const ClipVertex &v, unsigned plane)
-{
-    switch (plane)
-    {
-    case 0:
-        return v.w + v.x;
-    case 1:
-        return v.w - v.x;
-    case 2:
-        return v.w + v.y;
-    case 3:
-        return v.w - v.y;
-    // BRender clips to -W <= Z <= 0, rather than a symmetric Z range.
-    case 4:
-        return -v.z;
-    default:
-        return v.w + v.z;
-    }
-}
-ClipVertex Mix(const ClipVertex &a, const ClipVertex &b, double t)
-{
-    return {a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t,
-            a.w + (b.w - a.w) * t, a.u + (b.u - a.u) * t, a.v + (b.v - a.v) * t};
-}
-struct ScreenVertex
-{
-    double x, y, z, reciprocalW, u, v;
-};
-double Edge(const ScreenVertex &a, const ScreenVertex &b, double x, double y)
-{
-    return (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
-}
 } // namespace
 
+struct PreviewBackgroundMesh::Native
+{
+    br_pixelmap *map = nullptr;
+    br_material *material = nullptr;
+    std::vector<br_model *> models;
+    ~Native()
+    {
+        for (auto model : models)
+            BrModelFree(BrModelRemove(model));
+        if (material)
+            BrMaterialFree(BrMaterialRemove(material));
+        if (map)
+            BrPixelmapFree(BrMapRemove(map));
+    }
+};
+PreviewBackgroundMesh::PreviewBackgroundMesh() = default;
+PreviewBackgroundMesh::~PreviewBackgroundMesh() = default;
 void PreviewBackgroundMesh::Build(unsigned width, unsigned height, const std::vector<std::uint8_t> &colours,
                                   const std::vector<std::uint16_t> &depths, const BackgroundMatrix &cameraToWorld,
                                   const BackgroundMatrix &projection)
 {
+    native.reset();
     vertices.clear();
     triangles.clear();
     texture.clear();
@@ -146,105 +132,83 @@ void PreviewBackgroundMesh::Build(unsigned width, unsigned height, const std::ve
             cell(x, y, std::min(width - 1, x + 4), std::min(height - 1, y + 4));
 }
 
-void PreviewBackgroundMesh::Render(const BackgroundMatrix &matrix, unsigned width, unsigned height,
-                                   std::uint8_t *colour, unsigned colourStride, std::uint8_t *depth,
-                                   unsigned depthStride) const
+bool PreviewBackgroundMesh::AddToScene(br_actor *world)
 {
-    if (Empty() || !width || !height || !colour || !depth)
-        return;
-    std::vector<ClipVertex> transformed;
-    transformed.reserve(vertices.size());
-    for (const auto &v : vertices)
-        transformed.push_back({v.x * matrix[0] + v.y * matrix[4] + v.z * matrix[8] + matrix[12],
-                               v.x * matrix[1] + v.y * matrix[5] + v.z * matrix[9] + matrix[13],
-                               v.x * matrix[2] + v.y * matrix[6] + v.z * matrix[10] + matrix[14],
-                               v.x * matrix[3] + v.y * matrix[7] + v.z * matrix[11] + matrix[15], v.u, v.v});
-    const auto rasterize = [&](const ClipVertex &a, const ClipVertex &b, const ClipVertex &c) {
-        ScreenVertex screen[3];
-        const ClipVertex input[] = {a, b, c};
-        for (unsigned i = 0; i < 3; ++i)
-        {
-            const auto &v = input[i];
-            if (v.w <= 0 || !std::isfinite(v.w))
-                return;
-            const auto reciprocal = 1 / v.w;
-            screen[i] = {width / 2 + .5 + width / 2 * v.x * reciprocal,
-                         height / 2 + .5 - height / 2 * v.y * reciprocal,
-                         -v.z * reciprocal * 32768,
-                         reciprocal,
-                         v.u * reciprocal,
-                         v.v * reciprocal};
-        }
-        auto &p = screen[0];
-        auto &q = screen[1];
-        auto &r = screen[2];
-        auto area = Edge(p, q, r.x, r.y);
-        if (!std::isfinite(area) || std::abs(area) < 1e-9)
-            return;
-        if (area < 0)
-        {
-            std::swap(q, r);
-            area = -area;
-        }
-        const auto left = std::max(0, int(std::ceil(std::min(p.x, std::min(q.x, r.x)) - .5)));
-        const auto right = std::min(int(width) - 1, int(std::floor(std::max(p.x, std::max(q.x, r.x)) - .5)));
-        const auto top = std::max(0, int(std::ceil(std::min(p.y, std::min(q.y, r.y)) - .5)));
-        const auto bottom = std::min(int(height) - 1, int(std::floor(std::max(p.y, std::max(q.y, r.y)) - .5)));
-        const auto inverseArea = 1 / area;
-        for (int y = top; y <= bottom; ++y)
-        {
-            auto pixels = colour + std::size_t(y) * colourStride;
-            auto depths = reinterpret_cast<std::uint16_t *>(depth + std::size_t(y) * depthStride);
-            for (int x = left; x <= right; ++x)
-            {
-                const auto wa = Edge(q, r, x + .5, y + .5) * inverseArea;
-                const auto wb = Edge(r, p, x + .5, y + .5) * inverseArea;
-                const auto wc = 1 - wa - wb;
-                if (wa < -1e-9 || wb < -1e-9 || wc < -1e-9)
-                    continue;
-                const auto z = static_cast<std::uint16_t>(
-                    std::max(0., std::min(32767., std::floor(wa * p.z + wb * q.z + wc * r.z))));
-                if (z >= depths[x])
-                    continue;
-                const auto reciprocal = wa * p.reciprocalW + wb * q.reciprocalW + wc * r.reciprocalW;
-                const auto u = (wa * p.u + wb * q.u + wc * r.u) / reciprocal;
-                const auto v = (wa * p.v + wb * q.v + wc * r.v) / reciprocal;
-                const auto tx = std::max(0, std::min(int(textureWidth) - 1, int(std::floor(u))));
-                const auto ty = std::max(0, std::min(int(textureHeight) - 1, int(std::floor(v))));
-                pixels[x] = texture[std::size_t(ty) * textureWidth + tx];
-                depths[x] = z;
-            }
-        }
-    };
-    for (const auto &triangle : triangles)
+    if (Empty())
+        return true;
+    if (!native)
     {
-        // Six convex clip planes can grow a triangle to at most nine vertices.
-        std::array<ClipVertex, 12> polygon, clipped;
-        unsigned count = 3;
-        for (unsigned i = 0; i < 3; ++i)
-            polygon[i] = transformed[triangle[i]];
-        for (unsigned plane = 0; plane < 6 && count; ++plane)
+        std::unique_ptr<Native> prepared(new Native);
+        prepared->map = BrPixelmapAllocate(BR_PMT_INDEX_8, textureWidth, textureHeight, nullptr, BR_PMAF_NORMAL);
+        if (!prepared->map)
+            return false;
+        for (unsigned y = 0; y < textureHeight; ++y)
+            std::memcpy(static_cast<byte *>(prepared->map->pixels) + y * prepared->map->row_bytes,
+                        texture.data() + std::size_t(y) * textureWidth, textureWidth);
+        BrMapAdd(prepared->map);
+        prepared->material = BrMaterialAllocate(nullptr);
+        if (!prepared->material)
+            return false;
+        prepared->material->flags = BR_MATF_TWO_SIDED | BR_MATF_PERSPECTIVE | BR_MATF_MAP_OPAQUE;
+        prepared->material->colour_map = prepared->map;
+        BrMaterialAdd(prepared->material);
+        // BRender's prepared vertex and edge indices include signed 16-bit
+        // intermediates. Bound even a completely disconnected chunk safely.
+        const std::size_t facesPerModel = 4096;
+        prepared->models.reserve((triangles.size() + facesPerModel - 1) / facesPerModel);
+        std::vector<std::int32_t> indices(vertices.size());
+        std::vector<std::uint32_t> selected;
+        selected.reserve(facesPerModel * 3);
+        for (std::size_t first = 0; first < triangles.size(); first += facesPerModel)
         {
-            unsigned next = 0;
-            auto previous = polygon[count - 1];
-            auto previousDistance = Plane(previous, plane);
-            for (unsigned i = 0; i < count; ++i)
+            std::fill(indices.begin(), indices.end(), -1);
+            selected.clear();
+            const auto count = std::min(facesPerModel, triangles.size() - first);
+            for (std::size_t face = first; face < first + count; ++face)
+                for (const auto vertex : triangles[face])
+                    if (indices[vertex] < 0)
+                    {
+                        indices[vertex] = static_cast<std::int32_t>(selected.size());
+                        selected.push_back(vertex);
+                    }
+            auto model =
+                BrModelAllocate(nullptr, static_cast<br_uint_16>(selected.size()), static_cast<br_uint_16>(count));
+            if (!model)
+                return false;
+            model->flags = BR_MODF_QUICK_UPDATE;
+            for (std::size_t i = 0; i < selected.size(); ++i)
             {
-                const auto current = polygon[i];
-                const auto distance = Plane(current, plane);
-                if ((distance >= 0) != (previousDistance >= 0))
-                    clipped[next++] = Mix(previous, current, previousDistance / (previousDistance - distance));
-                if (distance >= 0)
-                    clipped[next++] = current;
-                previous = current;
-                previousDistance = distance;
+                const auto &source = vertices[selected[i]];
+                auto &target = model->vertices[i];
+                target.p.v[0] = BrFloatToScalar(source.x);
+                target.p.v[1] = BrFloatToScalar(source.y);
+                target.p.v[2] = BrFloatToScalar(source.z);
+                target.map.v[0] = BrFloatToScalar(source.u / textureWidth);
+                target.map.v[1] = BrFloatToScalar(source.v / textureHeight);
             }
-            polygon.swap(clipped);
-            count = next;
+            for (std::size_t i = 0; i < count; ++i)
+            {
+                auto &target = model->faces[i];
+                target.material = prepared->material;
+                for (unsigned corner = 0; corner < 3; ++corner)
+                    target.vertices[corner] = static_cast<br_uint_16>(indices[triangles[first + i][corner]]);
+            }
+            BrModelAdd(model);
+            prepared->models.push_back(model);
         }
-        for (unsigned i = 1; i + 1 < count; ++i)
-            rasterize(polygon[0], polygon[i], polygon[i + 1]);
+        native.swap(prepared);
     }
+    for (auto model : native->models)
+    {
+        auto actor = BrActorAllocate(BR_ACTOR_MODEL, nullptr);
+        if (!actor)
+            return false;
+        actor->model = model;
+        actor->material = native->material;
+        actor->t.type = BR_TRANSFORM_IDENTITY;
+        BrActorAdd(world, actor);
+    }
+    return true;
 }
 } // namespace Internal
 } // namespace ThreeMM
