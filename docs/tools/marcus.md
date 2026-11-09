@@ -331,6 +331,19 @@ inspection camera, title-only scenes, lifetime and authored camera cuts.
 `marcus-caption-quad` checks perspective mapping, alpha blending, actor-depth
 occlusion, camera roll, back faces and near/far clipping without a window. The
 preview scene regression checks optional camera-forward depth and rewind identity.
+The background regression also requests depth without actors and requires finite
+authored distances, catching a missing ZBMP copy independently of actor rendering.
+
+On 9 November 2026, `iknow1.zip` / `I Know compilation 1.3mm`, scene 1,
+frame 49 was checked in the unchanged retail US executable using the retail
+oracle (successful seek, no engine errors). Retail correctly hides Gustave behind
+the diner counter. Marcus had passed no clip rectangle to `ZBMP::Draw`, which
+returns without copying when both clip arguments are absent. Supplying the full
+viewport clip restores that occlusion in the same frame. The new background
+regression fails before this fix and passes afterward: 184 of the 188 shipped
+cameras return finite camera-forward distances in the background-only check.
+Local captures are under `tmp/iknow-depth-check/`. This is a visual occlusion
+comparison, not a claim of pixel equality across the two renderers.
 
 `marcus-zip` checks nested and duplicate movie entries, explicit selection, cached
 extraction leases, CRC and size rejection, cleanup, zipped VMM content and unchanged

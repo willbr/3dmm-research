@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/preview.h"
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 int main(int argc, char **argv)
@@ -16,10 +17,11 @@ int main(int argc, char **argv)
     };
     if (!check(archive.Open(argv[2], error)) || !check(preview.Open(argv[2], argv[1], error)))
         return 1;
-    unsigned backgrounds = 0, cameras = 0;
+    unsigned backgrounds = 0, cameras = 0, depthCameras = 0;
     ThreeMM::PreviewView view;
     view.width = 256;
     view.height = 192;
+    view.includeDepth = true;
     ThreeMM::PreviewImage image;
     for (const auto &chunk : archive.Chunks())
     {
@@ -44,13 +46,27 @@ int main(int argc, char **argv)
                     ++different;
             if (different < 1024)
                 return 1;
+            // No actors are selected, so every finite distance must come from
+            // the authored ZBMP. Colour-only backgrounds cannot pass this check.
+            if (image.depth.size() != std::size_t(view.width) * view.height)
+                return 1;
+            for (const auto distance : image.depth)
+                if (std::isfinite(distance) && distance > 0)
+                {
+                    ++depthCameras;
+                    break;
+                }
             ++cameras;
         }
         if (preview.SetCamera(count, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
             return 1;
     }
-    if (!backgrounds || !cameras)
+    if (!backgrounds || !cameras || !depthCameras)
+    {
+        std::fprintf(stderr, "Background cameras must supply authored depth.\n");
         return 1;
-    std::printf("Background preview: %u backgrounds, %u cameras with palette and depth.\n", backgrounds, cameras);
+    }
+    std::printf("Background preview: %u backgrounds, %u cameras with palette, %u with finite depth.\n", backgrounds,
+                cameras, depthCameras);
     return 0;
 }

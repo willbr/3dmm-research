@@ -107,7 +107,11 @@ bool PreviewBackground::SetCamera(std::uint32_t slot)
     if (!depth)
         return false;
     depths.assign(std::size_t(width) * height, 0xffff);
-    depth->Draw(reinterpret_cast<byte *>(depths.data()), width * 2, height, 0, 0);
+    // ZBMP::Draw requires a clip rectangle or region; both omitted means no
+    // pixels are copied, leaving the background unable to occlude actors.
+    RC depthClip;
+    depthClip.Set(0, 0, width, height);
+    depth->Draw(reinterpret_cast<byte *>(depths.data()), width * 2, height, 0, 0, &depthClip);
     ReleasePpo(&depth);
     return true;
 }
