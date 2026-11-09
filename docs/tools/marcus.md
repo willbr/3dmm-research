@@ -173,6 +173,37 @@ viewport geometry picking is not yet implemented.
   The initial glyph atlas supports Latin-1; other characters display as `?`.
   SDL bitmap text is a fallback if no font can be opened.
 
+## Older movies with expansion assets in source 2
+
+Some older movies reference Doraemon or Nickelodeon assets as part of
+`3D Movie Maker/3DMovie` (source 2). These require additional archives in the
+base content folder. Installing the same library under its separate source
+does not satisfy those references. Original v3dmm also fails with that layout;
+there is no general automatic search across sources.
+
+Prepare a separate content folder from local base/expansion files:
+
+```console
+python tools/prepare_legacy_content.py content-files tmp/legacy-content --overlay /path/to/doraemon --overlay /path/to/nickelodeon
+marcus movie.3mm --resources /path/to/3dmovie.chk --content-dir tmp/legacy-content
+```
+
+Use the prepared, palette-compatible Nickelodeon expansion rather than its raw
+standalone-game files. Select only the libraries needed for the older setup.
+The tool copies `.3cn` and `.3th` files, records SHA-256 source identities in
+`legacy-content.json`, and requires a new output folder. It rejects colliding
+filenames before copying. Movies, installed libraries and source directories
+are unchanged. Resources remain a separate `--resources` argument.
+
+On 9 November 2026, a base-plus-Doraemon folder completed all 2,036 frames of
+`Lethal Intention 2` and 17,088 frames of `JDR Revival`. A folder with both
+Doraemon and Nickelodeon also completed those movies and all 14,509 frames of
+`THE BIG MOVIE II`. With the earlier 145 complete results under the usual
+content configuration, this establishes visual completion for 148/150 unique
+movies across the tested configurations. This does not claim audiovisual or
+image parity. The remaining native movie needs `TDF /00000005`; the other
+unsupported input is a WebM video.
+
 ## C89 boundary and checks
 
 `src/marcus/main.c` and `ui.c` implement the application and drawing in C89.

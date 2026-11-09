@@ -300,6 +300,34 @@ These are container/chunk-read checks, not evidence of successful full playback.
 
 ## Native port design
 
+### Legacy expansion archives in the base source
+
+Follow-up checks on 9 November 2026 found that `Lethal Intention 2` and
+`JDR Revival` request Doraemon templates (`TMPL/00022000`, `00022001`,
+`00021000`, `00021003`) under SID 2. Their recorded product is still
+`3D Movie Maker/3DMovie`. `THE BIG MOVIE II` similarly requests Nickelodeon's
+`TMPL/00011035` under SID 2 even though it also declares the separate library.
+The installed archives contain the templates; their separate product mounts
+do not expose them in the base namespace.
+
+An unchanged JDR movie was placed in a research-only VMM wrapper declaring
+the base and three external libraries. The pinned original v3dmm runtime
+failed native seeks to UI scenes 2 and 3 with the ordinary ISO base and
+separate expansion mounts. With Doraemon's original archives added to a
+private base folder, the same original scene-3 seek succeeded with 91 actors,
+including `TMPL/00021003` still at SID 2. The source movie bytes were unchanged.
+For Big Movie II, the original UI scene-279 seek failed with separate mounts
+and succeeded after placing Nickelodeon's archives in the private base folder;
+the loaded actor retained SID 2 and `TMPL/00011035`, with a 240-frame scene.
+This establishes a content-layout dependency for this case, rather than
+evidence for remapping tags to a different product or searching every source.
+
+`tools/prepare_legacy_content.py` reproduces this explicit layout from local
+archives without modifying the resolver or installed content. Marcus full-frame
+checks passed Lethal (2,036 frames), JDR (17,088) and, with Nickelodeon also in
+the base folder, Big Movie II (14,509). The original-runtime checks are selected
+native seeks, not complete playback or visual/audio comparisons.
+
 The [existing expansion manager](expansion-manager.md) already provides staged
 imports, ownership manifests, hashes, rollback, enable/disable state and
 ownership-preserving uninstall. Its public API is currently fixed to three
