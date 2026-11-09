@@ -141,7 +141,13 @@ Text is decoded from the stored Windows, Mac or UTF-16 encoding. Missing font
 families fall back to the system font. Scrolling credits hold their first frame
 and move one original pixel every five 60 Hz ticks until the overflow is visible,
 then playback continues. Scrubbing resets their scroll position. Orbit and Fly
-remain geometry inspection views.
+render the same captions onto a transparent quad at the authored camera's amber
+display frame, 10 world units in front of that camera. The quad preserves its
+field of view, aspect, roll and camera cuts. It stays with the movie camera while
+the inspection camera moves, and nearer actor geometry can occlude it. Both sides
+are visible; text viewed from behind is mirrored. Caption lifetimes and scrolling
+apply in all three views. Scenes without a background/camera use a stable default
+caption plane at world Z=0, which Orbit includes when fitting the scene.
 
 Scene and actor sound events use the movie's mapped content sources, including
 embedded sounds referenced by scene child IDs. Sampled clips share Studio's
@@ -302,7 +308,7 @@ of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
 FreeType headers are system headers during C89 checking. The backend is C++.
 
 ```console
-cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test marcus-zip-test preview-scene-fixture
+cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test marcus-zip-test marcus-caption-quad-test preview-scene-fixture
 ctest --test-dir build/marcus -R "^marcus-" --output-on-failure
 ```
 
@@ -319,6 +325,12 @@ title-only and actor scenes. It checks Unicode captions, lifetime/rewind, scroll
 click/time/sound waits, pausing/resuming, queued sampled clips, audible MIDI/WAVE
 output with SDL's dummy audio device, motion-match precedence, mute, outgoing
 transitions and looping. It also verifies unchanged movie/resource bytes.
+Its caption checks also cover Orbit/Fly visibility, movement relative to the
+inspection camera, title-only scenes, lifetime and authored camera cuts.
+
+`marcus-caption-quad` checks perspective mapping, alpha blending, actor-depth
+occlusion, camera roll, back faces and near/far clipping without a window. The
+preview scene regression checks optional camera-forward depth and rewind identity.
 
 `marcus-zip` checks nested and duplicate movie entries, explicit selection, cached
 extraction leases, CRC and size rejection, cleanup, zipped VMM content and unchanged
@@ -332,7 +344,7 @@ On 9 November 2026 the native ZIP input extracted all 103 movie entries from the
 remained unchanged, and temporary directories were removed. Two other ZIPs had
 no `.3mm`/`.vmm` entries. This verifies extraction, not playback of every movie.
 
-On 9 November 2026 these four Marcus checks passed, along with the headless
+On 9 November 2026 all six Marcus checks passed, along with the headless
 preview regressions for 45 actors, 21 props, 12 backgrounds and 188 cameras.
 An additional full visual pass of `TheSnowman` rendered all 3,383 frames in 145
 scenes. Sampling the first five frames of every scene in `TheSnowman`, `Trenches`,

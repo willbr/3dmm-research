@@ -76,6 +76,11 @@ image. Set `view.authoredCamera = false` for a free orbit around the evaluated
 actor/prop geometry. Backgrounds are prerendered images with depth, so moving
 the camera cannot reveal an arbitrary view of background geometry. Empty pixels
 and letterboxing are transparent; authored background pixels are opaque.
+Set `view.includeDepth = true` to also return camera-forward distances in
+`image.depth`, with positive infinity for empty pixels. This lets hosts compose
+transparent world-space surfaces against actor geometry without engine types.
+With `frameSceneCamera`, a scene lacking a background receives a stable default
+camera/display plane so its captions can still be inspected in 3D.
 
 `Open` takes the original `3dmovie.chk` shading/palette resources and retains
 the previous session on failure. `AddContent` explicitly associates each archive

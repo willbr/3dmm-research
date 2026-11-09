@@ -95,7 +95,7 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling)
     TextBoxData box;
     box.bounds.Set(20, 20, 460, scrolling ? 55 : 110);
     box.firstFrame = scrolling ? 0 : -2;
-    box.maxFrame = scrolling ? 5 : 0;
+    box.maxFrame = scrolling ? 5 : -1;
     box.story = !scrolling;
     ChunkNumber number;
     CHECK(file->FAdd(0, kctgTbox, &number) && box.FWrite(file, number));
@@ -198,7 +198,12 @@ void Fixture(const char *path)
         auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
         CHECK(starts && frames);
         if (index == 4)
+        {
             Actor(file, number, wave, starts);
+            SceneEvent background = {-2, sevtSetBkgd};
+            TAGOnFile tag = {2, 0, kctgBkgd, 0};
+            CHECK(starts->FInsert(starts->IvMac(), sizeof(tag), &tag, &background));
+        }
         for (unsigned slot = 0; slot < 2; ++slot)
         {
             SceneEvent event = {-2, sevtAddTbox};
@@ -209,6 +214,12 @@ void Fixture(const char *path)
         SceneEventPause pause = {witUntilClick, 0};
         CHECK(frames->FInsert(frames->IvMac(), sizeof(pause), &pause, &event));
         SceneSound(frames, 0, midi, 8, true, true);
+        if (index == 4)
+        {
+            SceneEvent change = {1, sevtChngCamera};
+            std::uint32_t camera = 1;
+            CHECK(frames->FInsert(frames->IvMac(), sizeof(camera), &camera, &change));
+        }
         event.nfrm = 1;
         pause = {witForTime, 400};
         CHECK(frames->FInsert(frames->IvMac(), sizeof(pause), &pause, &event));
@@ -240,6 +251,13 @@ std::vector<byte> Image(int authored = 1, int width = 480, int height = 360)
     MarcusImage image;
     CHECK(marcus_render(player, width, height, authored, 0, 0, 1, &image));
     return {image.rgba, image.rgba + std::size_t(image.pitch) * image.height};
+}
+std::size_t Visible(const std::vector<byte> &pixels)
+{
+    std::size_t count = 0;
+    for (std::size_t i = 3; i < pixels.size(); i += 4)
+        count += pixels[i] != 0;
+    return count;
 }
 } // namespace
 int main(int argc, char **argv)
@@ -276,7 +294,25 @@ int main(int argc, char **argv)
     CHECK(Info().first_frame == -2 && Info().object_count == 0);
     const auto title = Image();
     CHECK(std::count(title.begin(), title.end(), byte(255)) > 1000);
-    CHECK(title != Image(0)); // Captions belong to the authored movie plane.
+    const auto orbitTitle = Image(0);
+    CHECK(title != orbitTitle && Visible(orbitTitle) > 100);
+    MarcusImage inspection;
+    CHECK(marcus_render(player, 480, 360, 0, 0, 0, 1, &inspection));
+    CHECK(inspection.scene_camera.valid && inspection.scene_camera.display_depth == 10);
+    auto camera = inspection.camera;
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &inspection));
+    auto flyTitle = std::vector<byte>(inspection.rgba, inspection.rgba + 480 * 360 * 4);
+    CHECK(flyTitle == orbitTitle);
+    camera.x += 5;
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &inspection));
+    flyTitle.assign(inspection.rgba, inspection.rgba + 480 * 360 * 4);
+    CHECK(flyTitle != orbitTitle && Visible(flyTitle) > 100);
+    camera.yaw += 180;
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &inspection));
+    flyTitle.assign(inspection.rgba, inspection.rgba + 480 * 360 * 4);
+    CHECK(Visible(flyTitle) == 0); // The authored plane is behind the flight camera.
+    CHECK(marcus_seek(player, -1) && Visible(Image(0)) == 0);
+    CHECK(marcus_seek(player, -2) && Image(0) == orbitTitle);
     CHECK(marcus_seek(player, 0));
     const auto credits = Image();
     CHECK(credits != title);
@@ -368,6 +404,15 @@ int main(int argc, char **argv)
     marcus_set_muted(player, 0);
     SDL_Delay(100);
     CHECK(marcus_audio_stats(player, &stats) && stats.audible_frames > audibleBefore);
+    CHECK(marcus_seek(player, -2));
+    CHECK(marcus_render(player, 480, 360, 0, 0, 0, 1, &inspection));
+    const auto firstCamera = inspection.scene_camera;
+    const auto orbitProjection = inspection.projection;
+    CHECK(firstCamera.valid && firstCamera.display_depth == 10);
+    CHECK(marcus_seek(player, 1));
+    CHECK(marcus_render(player, 480, 360, 0, 0, 0, 1, &inspection));
+    CHECK(std::memcmp(firstCamera.transform, inspection.scene_camera.transform, sizeof(firstCamera.transform)));
+    CHECK(!std::memcmp(orbitProjection.transform, inspection.projection.transform, sizeof(orbitProjection.transform)));
     CHECK(marcus_select_scene(player, 4) && marcus_seek(player, 4));
     Tick(0);
     CHECK(!Tick(170).playing && Info().scene == 4 && Info().frame == 4);

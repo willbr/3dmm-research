@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include "soc_core.h"
 #include "preview_actor.h"
 #include "preview_background.h"
@@ -761,6 +762,22 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             // A compact camera marker, independent of clip planes, actor bounds
             // and playback. This display frame is not a clipping plane.
             sceneCamera.displayDepth = 10.f;
+        }
+        else if (_impl->info.scene && view.frameSceneCamera)
+        {
+            // Title-only scenes need a stable inspection plane even when the
+            // document has no background/camera. Its image plane is at Z=0.
+            sceneCamera.valid = true;
+            sceneCamera.transform[0] = sceneCamera.transform[4] = sceneCamera.transform[8] = 1;
+            sceneCamera.transform[11] = 10;
+            sceneCamera.verticalFov = 45;
+            sceneCamera.aspect = 4.f / 3;
+            sceneCamera.nearClip = .1f;
+            sceneCamera.farClip = 30000;
+            sceneCamera.displayDepth = 10;
+        }
+        if (sceneCamera.valid)
+        {
             if (view.frameSceneCamera && (!view.freeCamera || view.stableOrbit) && !bg && sceneCamera.verticalFov > 0 &&
                 sceneCamera.verticalFov < 179)
             {
@@ -949,6 +966,14 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                                          camera.hither_z, camera.yon_z);
         rendered.sceneCamera = sceneCamera;
         rendered.rgba.resize(std::size_t(view.width) * view.height * 4);
+        br_matrix4 depthProjection = {};
+        if (view.includeDepth)
+        {
+            rendered.depth.assign(std::size_t(view.width) * view.height, std::numeric_limits<float>::infinity());
+            BrMatrix4Perspective(&depthProjection, camera.field_of_view, camera.aspect, -camera.hither_z, -camera.yon_z);
+        }
+        const double depthScale = BrScalarToFloat(depthProjection.m[2][2]);
+        const double depthOffset = BrScalarToFloat(depthProjection.m[3][2]);
         // Fit the completed authored view into the requested image, preserving
         // its aspect ratio and background/actor depth relationship.
         const float scale = std::min(float(view.width) / width, float(view.height) / height);
@@ -972,6 +997,16 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 out[3] = !bg && depths[sourceX] == 0xffff ? 0 : 255;
                 if (out[3])
                     ++rendered.coveredPixels;
+                if (view.includeDepth && depths[sourceX] != 0xffff)
+                {
+                    // BRender's fixed renderer stores the high word of a 1.31
+                    // projected Z fraction. Invert the same fixed-point camera
+                    // matrix instead of approximating its near/far coefficients.
+                    const double denominator = depthScale - static_cast<std::int16_t>(depths[sourceX]) / 32768.0;
+                    const double distance = depthOffset / denominator;
+                    if (std::isfinite(distance) && distance > 0)
+                        rendered.depth[std::size_t(y + top) * view.width + x + left] = static_cast<float>(distance);
+                }
             }
         }
         image = std::move(rendered);

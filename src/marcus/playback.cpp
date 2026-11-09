@@ -1,4 +1,5 @@
 #include "playback.h"
+#include "caption_quad.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
 #include "font_host.h"
@@ -749,23 +750,40 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
                                ThreeMM::Error &error)
 {
     const auto frame = preview.Info().currentFrame;
-    if (authored)
+    if (!authored && !std::any_of(impl->captions.begin(), impl->captions.end(), [&](const CaptionImage &caption) {
+            return frame >= caption.data.firstFrame && frame < caption.data.endFrame;
+        }))
+        return true;
+    if (authored || image.sceneCamera.valid)
     {
-        const float aspect = image.sceneCamera.valid ? image.sceneCamera.aspect : 4.f / 3;
-        const auto width = std::min(int(image.width), int(image.height * aspect));
-        const auto height = std::min(int(image.height), int(image.width / aspect));
-        const auto left = (int(image.width) - width) / 2, top = (int(image.height) - height) / 2;
+        ThreeMM::PreviewImage layer;
+        auto canvas = &image;
+        if (!authored)
+        {
+            layer.width = 480;
+            layer.height = 360;
+            layer.rgba.assign(480 * 360 * 4, 0);
+            canvas = &layer;
+        }
+        const float aspect = authored && image.sceneCamera.valid ? image.sceneCamera.aspect : 4.f / 3;
+        const auto width = std::min(int(canvas->width), int(canvas->height * aspect));
+        const auto height = std::min(int(canvas->height), int(canvas->width / aspect));
+        const auto left = (int(canvas->width) - width) / 2, top = (int(canvas->height) - height) / 2;
         auto paint = [&](int x, int y, std::uint32_t colour, int alpha) {
             if (x < left || x >= left + width || y < top || y >= top + height || colour == 0xffffffff)
                 return;
-            auto pixel = &image.rgba[(std::size_t(y) * image.width + x) * 4];
+            auto pixel = &canvas->rgba[(std::size_t(y) * canvas->width + x) * 4];
             colour = preview.PresentationColour(colour);
+            const auto coverage = alpha * 255 + pixel[3] * (255 - alpha);
+            if (!coverage)
+                return;
             for (int channel = 0; channel < 3; ++channel)
             {
                 const auto value = colour == 0xff000000 ? 255 - pixel[channel] : (colour >> (16 - channel * 8)) & 255;
-                pixel[channel] = static_cast<std::uint8_t>((pixel[channel] * (255 - alpha) + value * alpha) / 255);
+                pixel[channel] = static_cast<std::uint8_t>(
+                    (pixel[channel] * pixel[3] * (255 - alpha) + value * alpha * 255) / coverage);
             }
-            pixel[3] = static_cast<std::uint8_t>(alpha + pixel[3] * (255 - alpha) / 255);
+            pixel[3] = static_cast<std::uint8_t>(coverage / 255);
         };
         // Caption coordinates are authored in the original 480x360 movie plane.
         for (auto &caption : impl->captions)
@@ -802,6 +820,8 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
                     }
             }
         }
+        if (!authored)
+            marcus_caption_quad(layer, image.sceneCamera, image);
     }
     if (authored && impl->transition && impl->previous.rgba.size() == image.rgba.size())
     {

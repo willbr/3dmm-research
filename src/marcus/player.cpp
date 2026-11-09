@@ -70,7 +70,9 @@ MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
 }
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
 {
-    if (!image || player->selected < 0 || !player->preview.Render(view, player->image, error))
+    auto options = view;
+    options.includeDepth = !view.authoredCamera || view.freeCamera;
+    if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
         return false;
     if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error))
         return false;

@@ -30,6 +30,7 @@ struct PreviewView
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
+    bool includeDepth = false;     // Return camera-forward distances for host composition.
 };
 struct PreviewCamera
 {
@@ -49,6 +50,9 @@ struct PreviewImage
     // Top-down, tightly packed RGBA8. Empty pixels/letterboxing have alpha zero;
     // authored backgrounds are opaque.
     std::vector<std::uint8_t> rgba;
+    // Optional top-down camera-forward distances, one per pixel. Empty pixels
+    // and letterboxing have positive infinity. Requested with includeDepth.
+    std::vector<float> depth;
     std::uint32_t coveredPixels = 0;
     PreviewCamera camera; // Actual rendered pose; useful when entering first-person navigation.
     PreviewProjection projection, sceneCamera;

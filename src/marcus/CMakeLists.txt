@@ -1,7 +1,7 @@
 include(SDL3Dependency)
 include(FreeTypeDependency)
 
-add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp)
+add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp caption_quad.cpp)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(marcus-player PRIVATE ThreeMM::Preview studio-pack-store studio-settings SDL3::SDL3-static
   kauai-sdl-audio kauai-midi-synth kauai-font-host miniz)
@@ -38,6 +38,9 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(marcus PRIVATE -pedantic-errors -Werror=declaration-after-statement)
 endif()
 if(BUILD_TESTING)
+  add_executable(marcus-caption-quad-test EXCLUDE_FROM_ALL ../../tests/marcus_caption_quad_test.cpp)
+  target_link_libraries(marcus-caption-quad-test PRIVATE marcus-player ThreeMM::Preview)
+  add_test(NAME marcus-caption-quad COMMAND marcus-caption-quad-test)
   add_executable(marcus-zip-test EXCLUDE_FROM_ALL ../../tests/marcus_zip_test.cpp)
   target_link_libraries(marcus-zip-test PRIVATE marcus-player miniz studio-pack-store)
   add_test(NAME marcus-zip COMMAND marcus-zip-test "${PROJECT_SOURCE_DIR}/tmp/marcus-zip")
