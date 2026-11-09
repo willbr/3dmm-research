@@ -9,14 +9,12 @@
 #include "sdl_dialog.h"
 #include <SDL3/SDL_dialog.h>
 #include <SDL3/SDL_video.h>
+#include <algorithm>
 #include <mutex>
 #include <stdexcept>
 #include "studio.h"
 #include "studio_pack_options.h"
 #include "studio_v3dmm.h"
-#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-#include "mcpserv.h"
-#endif
 #undef size
 namespace StudioPacks
 {
@@ -91,10 +89,10 @@ TagSourceAccess ResolveSource(PString longName, PString shortName, PFilename pat
 }
 namespace
 {
-void Alert(const std::string &message)
+void Alert(const std::string &message, const char *title = "Expansions")
 {
     KauaiDialogs::Session session;
-    if (session.InitAlert(message, "Expansions", KauaiDialogs::AlertButtons::ok))
+    if (session.InitAlert(message, title, KauaiDialogs::AlertButtons::ok))
         KauaiSDL::RunDialog(session);
 }
 void Put(PDialog dialog, LegacyLong control, const std::string &text)
@@ -132,56 +130,70 @@ std::string MetadataText(const std::string &bytes)
 }
 struct VxpManager
 {
-    std::string selected;
+    std::string selected, appliedSelection;
+    bool rightSelected = false;
     bool initialized = false;
+    static PMovie Movie()
+    {
+        auto studio = vpapp->Pstdio();
+        return studio ? studio->Pmvie() : nullptr;
+    }
     void Refresh(PDialog dialog)
     {
         const auto &entries = StudioV3dmm::Packages().Entries();
-        if (selected.empty() && !entries.empty())
+        const auto applied = StudioV3dmm::AppliedPackages(Movie());
+        const auto find = [&](const std::string &hash) -> const StudioV3dmm::Installation * {
+            for (const auto &entry : entries)
+                if (entry.hash == hash)
+                    return &entry;
+            return nullptr;
+        };
+        if (!find(selected) && !entries.empty())
             selected = entries.front().hash;
-        auto list = dialog->IditFromSit(IDC_VXP_LIST);
-        dialog->ClearList(list);
-        const StudioV3dmm::Installation *current = nullptr;
+        if (std::find(applied.begin(), applied.end(), appliedSelection) == applied.end())
+            appliedSelection = applied.empty() ? std::string() : applied.front();
+        const auto fill = [&](LegacyLong control, const std::vector<std::string> &hashes,
+                              const std::string &selection) {
+            auto list = dialog->IditFromSit(control);
+            dialog->ClearList(list);
+            String blank;
+            dialog->FPutStn(list, &blank);
+            for (const auto &hash : hashes)
+            {
+                if (auto entry = find(hash))
+                {
+                    String name;
+                    if (SetText(&name, MetadataText(entry->name)))
+                        dialog->FAddToList(list, &name);
+                    if (hash == selection)
+                        dialog->FPutStn(list, &name);
+                }
+            }
+            dialog->SetValues(list, list + 1);
+        };
+        std::vector<std::string> installed;
         for (const auto &entry : entries)
-        {
-            String name;
-            if (SetText(&name, MetadataText(entry.name)))
-                dialog->FAddToList(list, &name);
-            if (entry.hash == selected)
-            {
-                current = &entry;
-                dialog->FPutStn(list, &name);
-            }
-        }
-        dialog->SetValues(list, list + 1);
-        auto enabled = dialog->IditFromSit(IDC_VXP_ENABLED);
-        dialog->PutCheck(enabled, current && current->enabled);
-        dialog->SetValues(enabled, enabled + 1);
-        dialog->FEnableControl(IDC_VXP_ENABLED, current != nullptr);
+            installed.push_back(entry.hash);
+        fill(IDC_VXP_LIST, installed, selected);
+        fill(IDC_VXP_APPLIED, applied, appliedSelection);
+        auto movie = Movie();
+        const bool editable = movie && !movie->FPlaying();
+        dialog->FEnableControl(IDC_VXP_APPLY, editable && find(selected) &&
+                                                  std::find(applied.begin(), applied.end(), selected) == applied.end());
+        dialog->FEnableControl(IDC_VXP_UNAPPLY, editable && !appliedSelection.empty());
+        dialog->FEnableControl(IDC_VXP_APPLY_ALL, editable && applied.size() < entries.size());
+        dialog->FEnableControl(IDC_VXP_UNAPPLY_ALL, editable && !applied.empty());
+        const auto current = find(rightSelected ? appliedSelection : selected);
         Put(dialog, IDC_VXP_STATUS,
-            current ? "Author: " + MetadataText(current->author) : "No portable expansions installed");
+            current ? "Author: " + MetadataText(current->author) : "No portable packages selected");
+        initialized = true;
     }
-    static bool Changed(PDialog dialog, LegacyLong *item, void *context)
+    void Changed(PDialog dialog, LegacyLong item)
     {
-        auto &self = *static_cast<VxpManager *>(context);
-        if (*item < 0)
-        {
-            if (!self.initialized)
-            {
-                self.Refresh(dialog);
-                self.initialized = true;
-            }
-#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-            mcp::Drain(true);
-#endif
-            return false;
-        }
         DialogItem binding;
-        dialog->GetDit(*item, &binding);
+        dialog->GetDit(item, &binding);
         try
         {
-            if (binding.sitMin == 1 || binding.sitMin == 2)
-                return true;
             if (binding.sitMin == IDC_VXP_IMPORT)
             {
                 Filename filename;
@@ -192,39 +204,45 @@ struct VxpManager
                     filename.GetStnPath(&path);
                     auto entry = StudioV3dmm::Packages().Install(
                         ThreeMM::V3dmm::WholeFile(std::filesystem::u8path(UTF8(&path))));
-                    self.selected = entry.hash;
-                    self.Refresh(dialog);
+                    selected = entry.hash;
+                    rightSelected = false;
                 }
             }
-            else if (binding.sitMin == IDC_VXP_LIST && dialog->FGetValues(*item, *item + 1))
+            else if ((binding.sitMin == IDC_VXP_LIST || binding.sitMin == IDC_VXP_APPLIED) &&
+                     dialog->FGetValues(item, item + 1))
             {
                 String text;
-                dialog->GetStn(*item, &text);
+                dialog->GetStn(item, &text);
+                rightSelected = binding.sitMin == IDC_VXP_APPLIED;
                 for (const auto &entry : StudioV3dmm::Packages().Entries())
                     if (MetadataText(entry.name) == UTF8(&text))
-                        self.selected = entry.hash;
-                self.Refresh(dialog);
+                        (rightSelected ? appliedSelection : selected) = entry.hash;
             }
-            else if (binding.sitMin == IDC_VXP_ENABLED && dialog->FGetValues(*item, *item + 1))
+            else
             {
-                StudioV3dmm::Packages().SetEnabled(self.selected, dialog->FGetCheck(*item));
-                self.Refresh(dialog);
+                auto applied = StudioV3dmm::AppliedPackages(Movie());
+                if (binding.sitMin == IDC_VXP_APPLY)
+                {
+                    applied.push_back(selected);
+                    appliedSelection = selected;
+                }
+                else if (binding.sitMin == IDC_VXP_UNAPPLY)
+                    applied.erase(std::remove(applied.begin(), applied.end(), appliedSelection), applied.end());
+                else if (binding.sitMin == IDC_VXP_APPLY_ALL)
+                {
+                    for (const auto &entry : StudioV3dmm::Packages().Entries())
+                        if (std::find(applied.begin(), applied.end(), entry.hash) == applied.end())
+                            applied.push_back(entry.hash);
+                }
+                else if (binding.sitMin == IDC_VXP_UNAPPLY_ALL)
+                    applied.clear();
+                StudioV3dmm::SetAppliedPackages(Movie(), applied);
             }
+            Refresh(dialog);
         }
         catch (const std::exception &error)
         {
-            Alert(error.what());
-        }
-        return false;
-    }
-    static void Show()
-    {
-        VxpManager state;
-        auto dialog = Dialog::PdlgNew(dlidV3dmmPackages, Changed, &state);
-        if (dialog)
-        {
-            dialog->IditDo();
-            ReleasePpo(&dialog);
+            Alert(error.what(), "V3DMM");
         }
     }
 };
@@ -244,6 +262,7 @@ void SDLCALL Chosen(void *context, const char *const *files, int)
 struct Options::Impl
 {
     Edits edits;
+    VxpManager packages;
     std::shared_ptr<Selection> selection = std::make_shared<Selection>();
     bool refreshed = false;
     void Refresh(PDialog dialog)
@@ -319,6 +338,8 @@ bool Options::Handle(PDialog dialog, LegacyLong item, bool &handled)
         {
             if (!impl->refreshed)
                 impl->Refresh(dialog);
+            if (!impl->packages.initialized)
+                impl->packages.Refresh(dialog);
             std::string path, error;
             LegacyLong control = 0;
             {
@@ -340,10 +361,13 @@ bool Options::Handle(PDialog dialog, LegacyLong item, bool &handled)
         DialogItem binding;
         dialog->GetDit(item, &binding);
         auto control = binding.sitMin;
-        if (control == IDC_VXP_MANAGE)
+        if (control == IDC_VXP_LIST || control == IDC_VXP_APPLIED || control == IDC_VXP_APPLY ||
+            control == IDC_VXP_UNAPPLY || control == IDC_VXP_APPLY_ALL || control == IDC_VXP_UNAPPLY_ALL ||
+            control == IDC_VXP_IMPORT)
         {
             handled = true;
-            VxpManager::Show();
+            impl->packages.Changed(dialog, item);
+            return false;
         }
         else if (control == 1)
         {

@@ -45,7 +45,7 @@ bool Session::Init(const Resource &source)
                     return false;
                 break;
             case 0x85:
-                if ((control.style & 3) < 2 || (control.style & (0x10 | 0x20 | 0x100)))
+                if ((control.style & 3) == 0 || (control.style & (0x10 | 0x20 | 0x100)))
                     return false;
                 break;
             case 0x82:

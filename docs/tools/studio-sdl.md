@@ -201,8 +201,9 @@ can extend beyond the changed pixels of the native-size digit. The regression
 complete redraws at 2x and 4x, including long scenes with stationary thumbs.
 
 **Options** (Ctrl+Shift+I) keeps all settings in one window with **Display**,
-**Playback & sound**, **Startup** and **About** tabs. Switching tabs preserves
-pending edits. **About** identifies 3DMMForever, its version, build date and 12-character Git
+**Playback & sound**, **Startup**, **Expansions**, **V3DMM** and **About** tabs.
+Switching tabs preserves pending edits. **About** identifies 3DMMForever, its
+version, build date and 12-character Git
 commit ID. Builds with tracked changes append **(modified)**; source archives
 without Git metadata show **unavailable (source archive)**. The original
 Microsoft source, foone's 3DMMForever repository and this port's
@@ -270,8 +271,10 @@ start off, preserving the existing defaults:
 
 **OK** applies and automatically saves all options, including startup choices
 for the next launch. **Cancel**, Escape
-and closing Options discard changes across every tab. These settings never
-become movie or asset data. `studio-options-workflow` covers dialog actions, defaults,
+and closing Options discard preference changes. The **V3DMM** tab applies
+package changes immediately; save the movie to retain its package selection.
+Other settings never become movie or asset data. `studio-options-workflow`
+covers dialog actions, defaults,
 independent startup sound, multiple instances, tab switching, cancellation of
 display and playback edits, reversible rendering and movie save/reopen with the
 preferences enabled. It also exercises all explicit FPS choices, both speed

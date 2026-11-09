@@ -1406,12 +1406,16 @@ static JVal Tool_GetState(const JVal &args)
     }
     o.Set("expansions", std::move(packs));
     JVal vxps = JVal::MkArr();
+    auto packageStudio = vpapp->Pstdio();
+    const auto appliedPackages = StudioV3dmm::AppliedPackages(packageStudio ? packageStudio->Pmvie() : nullptr);
     for (const auto &entry : StudioV3dmm::Packages().Entries())
     {
         JVal package = JVal::MkObj();
         package.Set("name", JVal::MkStr(StudioV3dmm::Display(entry.name)));
         package.Set("sha256", JVal::MkStr(entry.hash));
         package.Set("enabled", JVal::MkBool(entry.enabled));
+        package.Set("applied", JVal::MkBool(std::find(appliedPackages.begin(), appliedPackages.end(), entry.hash) !=
+                                            appliedPackages.end()));
         vxps.a->push_back(std::move(package));
     }
     o.Set("v3dmm_packages", std::move(vxps));

@@ -243,7 +243,7 @@ DialogControl Describe(const KauaiDialogs::Control &control, const KauaiDialogs:
     result.label = KauaiDialogs::Caption(control.title.text, true);
     result.enabled = !(control.style & 0x08000000); // WS_DISABLED.
     result.readOnly = (control.windowClass.number == 0x81 && (control.style & 0x800)) ||
-                      (control.windowClass.number == 0x85 && (control.style & 3) == 3);
+                      (control.windowClass.number == 0x85 && (control.style & 3) != 2);
     if (result.item >= 0)
     {
         result.kind = session.bindings[result.item].kind;
@@ -498,6 +498,55 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
                     changed = ImGui::InputText("##value", &value.text, flags);
                 ImGui::PopStyleColor();
             }
+            else if (kind == ItemKind::combo && (control.style & 3) == 1)
+            {
+                // A simple combo supplies the legacy list model without a
+                // popup. Use its full resource bounds for a visible list pane.
+                ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(1, 1, 1, 1));
+                ImGui::PushStyleColor(ImGuiCol_Header, ImGui::ColorConvertU32ToFloat4(ClassicDialog::Navy));
+                if (ImGui::BeginListBox("##list", dimensions))
+                {
+                    ImGuiListClipper clip;
+                    clip.Begin(int(value.choices.size()));
+                    while (clip.Step())
+                        for (int row = clip.DisplayStart; row < clip.DisplayEnd; ++row)
+                        {
+                            const auto &choice = value.choices[row];
+                            ImGui::PushID(row);
+                            const bool selected = value.text == choice;
+                            if (selected)
+                                ImGui::PushStyleColor(ImGuiCol_Text,
+                                                      ImGui::ColorConvertU32ToFloat4(ClassicDialog::White));
+                            if (ImGui::Selectable(choice.c_str(), selected))
+                            {
+                                value.text = choice;
+                                changed = true;
+                            }
+                            if (selected)
+                                ImGui::PopStyleColor();
+                            if (ImGui::IsItemHovered())
+                                ImGui::SetTooltip("%s", choice.c_str());
+                            if (ImGui::IsItemVisible())
+                            {
+                                DialogControl entry;
+                                entry.id = 0x10000000u + (control.id << 16) + unsigned(row);
+                                entry.item = item;
+                                entry.label = entry.text = choice;
+                                entry.number = selected;
+                                entry.enabled = descriptor.enabled;
+                                const auto low = ImGui::GetItemRectMin(), high = ImGui::GetItemRectMax();
+                                entry.x = low.x - windowPosition.x;
+                                entry.y = low.y - windowPosition.y;
+                                entry.width = high.x - low.x;
+                                entry.height = high.y - low.y;
+                                state.controls.push_back(std::move(entry));
+                            }
+                            ImGui::PopID();
+                        }
+                    ImGui::EndListBox();
+                }
+                ImGui::PopStyleColor(2);
+            }
             else if (kind == ItemKind::combo)
             {
                 const bool editable = (control.style & 3) != 3;
@@ -548,7 +597,7 @@ DialogState Draw(KauaiDialogs::Session &session, float scale, std::uint32_t wind
             geometry.y = low.y - windowPosition.y;
             geometry.width = high.x - low.x;
             geometry.height = high.y - low.y;
-            if (kind == ItemKind::combo)
+            if (kind == ItemKind::combo && (control.style & 3) != 1)
             {
                 geometry.x = position.x - windowPosition.x;
                 geometry.y = position.y - windowPosition.y;

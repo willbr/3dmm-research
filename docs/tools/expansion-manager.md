@@ -50,8 +50,9 @@ retained.
 ## Storage
 
 Portable `.vxp` packages and bundled `.vmm` movies have a separate
-**V3DMM packages...** window on this tab. Its installation and enable changes
-are saved immediately and apply on the next launch. See
+**Options > V3DMM** tab, with installed packages on the left and packages applied
+to the current movie on the right. Its package changes take effect immediately,
+even if Options is cancelled; save the movie to retain its applied set. See
 [native V3DMM support](v3dmm.md) for automatic movie dependency installation,
 bundled saves and the supported package forms.
 

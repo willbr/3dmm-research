@@ -93,6 +93,12 @@ void Activate(const std::vector<Installation> &selection)
     if (vptagm)
         vptagm->InvalidateSource(6);
 }
+bool SameSelection(const std::vector<Installation> &left, const std::vector<Installation> &right)
+{
+    return left.size() == right.size() &&
+           std::equal(left.begin(), left.end(), right.begin(),
+                      [](const Installation &a, const Installation &b) { return a.hash == b.hash; });
+}
 bool LibraryAvailable(const std::string &name)
 {
     auto lower = V::Fold(name);
@@ -109,7 +115,7 @@ bool LibraryAvailable(const std::string &name)
 }
 struct Document : MovieContainer::Document
 {
-    bool bundled = false, committed = false, changed = false;
+    bool bundled = false, committed = false, changed = false, explicitSelection = false;
     std::uint64_t activatedRevision = 0;
     std::vector<Installation> previous, selection;
     std::vector<fs::path> previousContent, previousThumbnails;
@@ -134,7 +140,7 @@ struct Document : MovieContainer::Document
     }
     bool Bundled() const override
     {
-        return bundled;
+        return bundled || (explicitSelection && !selection.empty());
     }
     bool Commit() override
     {
@@ -185,7 +191,9 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
         document->previous = active;
         document->previousContent = contentFiles;
         document->previousThumbnails = thumbnailFiles;
-        document->selection = active;
+        for (const auto &entry : store->Entries())
+            if (entry.enabled)
+                document->selection.push_back(entry);
         // Preserve legacy library dependencies, even when a movie does not use
         // every enabled pack. Portable exports must never embed these packs.
         const char *libraryNames[] = {"Nickelodeon", "Doraemon", "3DMM Expansion Pack"};
@@ -195,6 +203,9 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
         if (MovieContainer::IsVmm(original))
         {
             document->bundled = true;
+            // A VMM records its own applied set. Installed/default packages
+            // from another movie must not silently reappear in this document.
+            document->selection.clear();
             auto bundle = V::ReadBundle(Path(original));
             for (const auto &dependency : bundle.dependencies)
                 if (!dependency.archive.length && !LibraryAvailable(dependency.name))
@@ -214,9 +225,6 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
                 Installation package;
                 if (installed != store->Entries().end())
                 {
-                    if (!installed->enabled)
-                        throw std::runtime_error("Required VXP is disabled: " + installed->name +
-                                                 ". Enable it and restart.");
                     package = *installed;
                 }
                 else
@@ -240,12 +248,12 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
             V::Copy(bundle.movie, document->working);
             if (!FilenameOf(document->working, working))
                 throw std::runtime_error("VMM working path cannot be represented by the movie engine");
-            if (document->selection.size() != active.size())
-            {
-                Activate(document->selection);
-                document->activatedRevision = revision;
-                document->changed = true;
-            }
+        }
+        if (!SameSelection(document->selection, active))
+        {
+            Activate(document->selection);
+            document->activatedRevision = revision;
+            document->changed = true;
         }
         result = std::move(document);
         return true;
@@ -273,6 +281,44 @@ void Initialize()
 Store &Packages()
 {
     return *store;
+}
+std::vector<std::string> AppliedPackages(PMovie movie)
+{
+    auto document = movie ? dynamic_cast<Document *>(movie->ContainerDocument()) : nullptr;
+    std::vector<std::string> result;
+    if (document)
+        for (const auto &entry : document->selection)
+            result.push_back(entry.hash);
+    return result;
+}
+void SetAppliedPackages(PMovie movie, const std::vector<std::string> &hashes)
+{
+    auto document = movie ? dynamic_cast<Document *>(movie->ContainerDocument()) : nullptr;
+    if (!document)
+        throw std::runtime_error("Open a movie before applying packages.");
+    if (movie->FPlaying())
+        throw std::runtime_error("Stop playback before changing the movie's packages.");
+    std::vector<Installation> selection;
+    std::set<std::string> seen;
+    for (const auto &hash : hashes)
+    {
+        const auto &entries = store->Entries();
+        const auto installed =
+            std::find_if(entries.begin(), entries.end(), [&](const Installation &entry) { return entry.hash == hash; });
+        if (installed == entries.end() || !seen.insert(hash).second)
+            throw std::runtime_error("An applied package is missing or selected more than once.");
+        selection.push_back(*installed);
+    }
+    if (SameSelection(selection, document->selection))
+        return;
+    Activate(selection); // Validate the complete new source list before changing the document.
+    document->selection = std::move(selection);
+    document->explicitSelection = true;
+    document->changed = document->committed = true;
+    document->activatedRevision = revision;
+    movie->SetDirty();
+    if (auto studio = vpapp->Pstdio())
+        studio->ReleaseBrcn();
 }
 std::string Display(const std::string &bytes)
 {

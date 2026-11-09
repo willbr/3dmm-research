@@ -839,6 +839,10 @@ class Movie : public Movie_PAR
     {
         return _container && _container->Commit();
     }
+    MovieContainer::Document *ContainerDocument() const
+    {
+        return _container.get();
+    }
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void ObservePlaybackFrames(void (*observer)(Movie *))
     {

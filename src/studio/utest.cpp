@@ -3976,7 +3976,12 @@ bool Application::FCmdInfo(PCommand pcmd)
                                              IDC_PACK_SOURCE,        IDC_PACK_FOLDER,       IDC_PACK_ISO,
                                              IDC_PACK_BASE,          IDC_PACK_BASE_BROWSE,  IDC_PACK_FIXUPS,
                                              IDC_PACK_FIXUPS_BROWSE, IDC_PACK_NOTICE,       IDC_PACK_SOURCE_LABEL,
-                                             IDC_PACK_BASE_LABEL,    IDC_PACK_FIXUPS_LABEL, IDC_VXP_MANAGE}});
+                                             IDC_PACK_BASE_LABEL,    IDC_PACK_FIXUPS_LABEL}});
+    tabs.pages.insert(tabs.pages.end() - 1, {IDC_TAB_V3DMM,
+                                             u"V3DMM",
+                                             {IDC_VXP_LIST, IDC_VXP_APPLIED, IDC_VXP_APPLY, IDC_VXP_UNAPPLY,
+                                              IDC_VXP_APPLY_ALL, IDC_VXP_UNAPPLY_ALL, IDC_VXP_IMPORT, IDC_VXP_STATUS,
+                                              IDC_VXP_INSTALLED_LABEL, IDC_VXP_APPLIED_LABEL, IDC_VXP_NOTICE}});
     try
     {
         edits.packs.reset(new StudioPacks::Options);
