@@ -347,6 +347,18 @@ extern "C"
         if (player)
             player->preview.ResetOrbitFraming();
     }
+    int marcus_pan_orbit(MarcusPlayer *player, float right, float up, float yaw, float pitch, float zoom)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            ThreeMM::PreviewView view;
+            view.width = player->image.width;
+            view.height = player->image.height;
+            view.yaw = yaw;
+            view.pitch = pitch;
+            view.zoom = zoom;
+            return player->preview.PanOrbit(view, right, up, error);
+        });
+    }
     int marcus_render(MarcusPlayer *player, int width, int height, int authored, float yaw, float pitch, float zoom,
                       MarcusImage *image)
     {

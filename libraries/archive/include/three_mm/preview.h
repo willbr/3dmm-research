@@ -93,6 +93,9 @@ class Preview
     bool SetFrame(std::int32_t frame, Error &error);
     bool SetCamera(std::uint32_t camera, Error &error);
     void ResetOrbitFraming();
+    // Translate the cached orbit center in its view plane. Offsets are fractions
+    // of the viewport width/right and height/up; zoom and angles set the scale.
+    bool PanOrbit(const PreviewView &view, float right, float up, Error &error);
     // Dimensions 64..1024, finite camera values, pitch -85..85, zoom .1..10.
     // Free camera coordinates are limited to +/-32700 world units and take
     // precedence over authoredCamera. Returned images include the rendered pose.

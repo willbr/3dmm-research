@@ -56,7 +56,8 @@ Resources or Content reloads that movie.
 | Shift+wheel, horizontal wheel, or wheel over ruler | Pan frames |
 | Ctrl+wheel over timeline | Zoom around the pointer |
 | Camera / Orbit / Fly, or C | Switch authored camera / orbit / first-person flight |
-| Drag in orbit view / wheel | Orbit / zoom |
+| Left drag in Orbit / wheel | Orbit / zoom |
+| Right drag in Orbit | Pan the view |
 | Hold right mouse in Fly | Capture the mouse for first-person look and movement |
 | WASD while holding right mouse | Fly forward/backward and strafe left/right |
 | Q / E while holding right mouse | Move down / up in world space |
@@ -118,8 +119,11 @@ clipped against the viewing camera's near/far planes and viewport edges.
 Orbit fits the camera guide together with visible actors where the renderer's
 coordinate limits permit, once on first entering a scene's Orbit view. That
 center and size remain fixed during playback, scrubbing and camera cuts, including
-automatic scene changes and looping; dragging and zooming keep using the same
-center. Manual scene selection and Reset explicitly fit the current frame.
+automatic scene changes and looping; rotating and zooming keep using the same
+center. Right drag pans that center in the screen plane, with speed following
+zoom and viewport size. The scene follows the drag; subsequent rotation and zoom
+use the panned center. Manual scene selection and Reset explicitly fit the
+current frame.
 Fly retains its explicit position and uses the same fixed scene reference for
 its clipping range; actor movement does not change that range while the flight
 camera is stationary.

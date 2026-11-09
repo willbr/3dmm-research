@@ -22,7 +22,7 @@ int main(int argc, char **argv)
     MarcusObject first, later, prop, inactive;
     MarcusImage image;
     MarcusCamera camera, moved;
-    MarcusProjection authored, orbit, manual, flight;
+    MarcusProjection authored, orbit, manual, flight, panned;
     float guide_depth[2];
     const long frames[] = {1, 5, 10, 16, 25, 30, 1};
     unsigned char *pixels;
@@ -90,6 +90,19 @@ int main(int argc, char **argv)
     CHECK(memcmp(orbit.transform, manual.transform, sizeof(orbit.transform)));
     CHECK(marcus_seek(player, 10) && marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
     CHECK(!memcmp(manual.transform, image.projection.transform, sizeof(manual.transform)));
+    CHECK(marcus_pan_orbit(player, -0.1f, 0.15f, 65, 5, 1.5f));
+    CHECK(marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
+    panned = image.projection;
+    CHECK(!memcmp(manual.transform, panned.transform, 9 * sizeof(float)));
+    CHECK(memcmp(manual.transform + 9, panned.transform + 9, 3 * sizeof(float)));
+    CHECK(manual.near_clip == panned.near_clip && manual.far_clip == panned.far_clip);
+    CHECK(marcus_seek(player, 25) && marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
+    CHECK(!memcmp(panned.transform, image.projection.transform, sizeof(panned.transform)));
+    CHECK(marcus_seek(player, 1));
+    marcus_reset_framing(player);
+    CHECK(!marcus_pan_orbit(player, 0.1f, 0, 25, 12, 1));
+    CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+    CHECK(!memcmp(orbit.transform, image.projection.transform, sizeof(orbit.transform)));
     CHECK(marcus_seek(player, 1) && marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
     camera = image.camera;
     CHECK(camera.move_speed > 0);

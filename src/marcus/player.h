@@ -72,6 +72,9 @@ extern "C"
     int marcus_seek(MarcusPlayer *player, long frame);
     /* Refit Orbit on its next render. */
     void marcus_reset_framing(MarcusPlayer *player);
+    /* Pan the cached orbit center by fractions of viewport width/right and
+     * height/up. Angles and zoom match the current orbit render. */
+    int marcus_pan_orbit(MarcusPlayer *player, float right, float up, float yaw, float pitch, float zoom);
     int marcus_render(MarcusPlayer *player, int width, int height, int authored_camera, float yaw, float pitch,
                       float zoom, MarcusImage *image);
     /* Explicit camera position in original world units, independent of frame

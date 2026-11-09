@@ -228,6 +228,38 @@ void Preview::ResetOrbitFraming()
 {
     _impl->orbitFramed = false;
 }
+bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &error)
+{
+    error = {};
+    if (!_impl->ready || !_impl->orbitFramed || view.width < 64 || view.height < 64 || view.width > 1024 ||
+        view.height > 1024 || !std::isfinite(right) || !std::isfinite(up) || !std::isfinite(view.yaw) ||
+        !std::isfinite(view.pitch) || !std::isfinite(view.zoom) || view.pitch < -85 || view.pitch > 85 ||
+        view.zoom < .1f || view.zoom > 10)
+        return Fail(error, ErrorCode::invalid_argument,
+                    "Render an orbit view with valid camera values before panning.");
+    const float aspect = float(view.width) / view.height;
+    const float distance = _impl->orbitRadius * 2.8f / std::min(1.f, aspect) / view.zoom;
+    const float height = 2 * distance * std::tan(.3926990817f);
+    const float yaw = std::fmod(view.yaw, 360.f) * .01745329252f, pitch = view.pitch * .01745329252f;
+    const float sy = std::sin(yaw), cy = std::cos(yaw), sp = std::sin(pitch), cp = std::cos(pitch);
+    const float backward[3] = {sy * cp, sp, cy * cp};
+    const float delta[3] = {height * (right * aspect * cy - up * sy * sp), height * up * cp,
+                            height * (-right * aspect * sy - up * cy * sp)};
+    float fraction = 1;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        if (!std::isfinite(delta[axis]))
+            return Fail(error, ErrorCode::invalid_argument, "Orbit pan exceeds the camera range.");
+        const float position = _impl->orbitCenter[axis] + backward[axis] * distance;
+        if (delta[axis] > 0)
+            fraction = std::min(fraction, (32700 - position) / delta[axis]);
+        else if (delta[axis] < 0)
+            fraction = std::min(fraction, (-32700 - position) / delta[axis]);
+    }
+    for (int axis = 0; axis < 3; ++axis)
+        _impl->orbitCenter[axis] += delta[axis] * std::max(0.f, fraction);
+    return true;
+}
 std::vector<PreviewObject> Preview::Objects() const
 {
     std::vector<PreviewObject> result;

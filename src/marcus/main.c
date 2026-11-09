@@ -55,7 +55,7 @@ typedef struct App
     char settings_path[1024], settings_message[256];
     int settings_open, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
-    int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting;
+    int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
     int flying, fly_ready, camera_ready, fly_keys;
     int row_scroll, object_scroll, width, height;
     float sidebar, viewport_bottom, timeline_y, grid_x, grid_width;
@@ -80,7 +80,8 @@ static void view_mode(App *app, int mode)
         app->fly_ready = app->camera_ready;
     }
     app->authored = mode;
-    app->orbiting = app->dragging = 0;
+    app->camera_ready = 0;
+    app->orbiting = app->dragging = app->panning = 0;
     app->dirty = 1;
 }
 
@@ -96,11 +97,16 @@ static double display_frame(const App *app, double frame)
 {
     return frame - (double)app->info.first_frame + 1;
 }
+static float viewport_scale(const App *app)
+{
+    return (float)minimum((app->sidebar - 32) / 960, (app->viewport_bottom - 172) / 720);
+}
 
 static void fail(App *app, const char *message)
 {
     SDL_strlcpy(app->error, message, sizeof(app->error));
     app->playing = 0;
+    app->dragging = app->orbiting = app->panning = 0;
     release_fly(app);
 }
 static void refresh(App *app)
@@ -135,7 +141,8 @@ static void reset_view(App *app)
     app->yaw = -18;
     app->pitch = 12;
     app->zoom = 1;
-    app->fly_ready = 0;
+    app->fly_ready = app->camera_ready = 0;
+    app->dragging = app->orbiting = app->panning = 0;
     app->dirty = 1;
 }
 static int select_scene(App *app, int index)
@@ -156,6 +163,7 @@ static int select_scene(App *app, int index)
     if (!keep_view)
     {
         release_fly(app);
+        app->dragging = app->orbiting = app->panning = 0;
         app->fly_ready = app->camera_ready = 0;
     }
     app->selected = app->info.object_count ? 0 : -1;
@@ -353,7 +361,7 @@ static void zoom_timeline(App *app, float factor, float anchor)
 static void open_settings(App *app)
 {
     release_fly(app);
-    app->playing = app->dragging = app->orbiting = 0;
+    app->playing = app->dragging = app->orbiting = app->panning = 0;
     app->edited_shortcuts = app->shortcuts;
     app->binding_capture = -1;
     app->settings_open = 1;
@@ -436,6 +444,13 @@ static void mouse_down(App *app, float x, float y, int button)
     {
         if (button == SDL_BUTTON_LEFT)
             settings_click(app, x, y);
+        return;
+    }
+    if (button == SDL_BUTTON_RIGHT && app->loaded && !app->authored && app->camera_ready &&
+        ui_inside(x, y, 12, 132, app->sidebar - 24, app->viewport_bottom - 144))
+    {
+        app->panning = 1;
+        app->orbiting = app->dragging = 0;
         return;
     }
     if (button == SDL_BUTTON_RIGHT && app->loaded && app->authored == 2 && app->fly_ready &&
@@ -536,7 +551,10 @@ static void mouse_down(App *app, float x, float y, int button)
         seek(app, frame_at(app, x));
     }
     else if (!app->authored && ui_inside(x, y, 12, 132, app->sidebar - 24, app->viewport_bottom - 144))
+    {
         app->orbiting = 1;
+        app->panning = 0;
+    }
 }
 static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
@@ -716,15 +734,25 @@ static void handle_event(App *app, const SDL_Event *event)
                 app->pitch = -85;
             app->dirty = 1;
         }
+        if (app->panning)
+        {
+            if (!marcus_pan_orbit(app->player, -event->motion.xrel / (960 * viewport_scale(app)),
+                                  event->motion.yrel / (720 * viewport_scale(app)), app->yaw, app->pitch, app->zoom))
+                fail(app, marcus_error(app->player));
+            app->dirty = 1;
+        }
     }
     else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN)
         mouse_down(app, event->button.x, event->button.y, event->button.button);
     else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP)
     {
         if (event->button.button == SDL_BUTTON_RIGHT)
+        {
             release_fly(app);
-        app->dragging = 0;
-        app->orbiting = 0;
+            app->panning = 0;
+        }
+        if (event->button.button == SDL_BUTTON_LEFT)
+            app->dragging = app->orbiting = 0;
     }
     else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->loaded && !app->error[0] && !app->settings_open)
     {
@@ -785,7 +813,7 @@ static void handle_event(App *app, const SDL_Event *event)
     else if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
     {
         release_fly(app);
-        app->dragging = app->orbiting = 0;
+        app->dragging = app->orbiting = app->panning = 0;
         if (app->shortcuts.pause_on_focus_loss)
             app->playing = 0;
     }
@@ -821,7 +849,7 @@ static void draw_view(App *app)
     SDL_FRect destination;
     char label[256];
     int rendered;
-    float area_width, area_height, scale;
+    float area_height, scale;
     MarcusUI *ui;
     ui = &app->ui;
     ui_fill(ui, 0, 89, app->sidebar, app->viewport_bottom - 89, BG);
@@ -886,11 +914,8 @@ static void draw_view(App *app)
             fail(app, marcus_error(app->player));
         }
     }
-    area_width = app->sidebar - 32;
     area_height = app->viewport_bottom - 172;
-    scale = area_width / 960;
-    if (720 * scale > area_height)
-        scale = area_height / 720;
+    scale = viewport_scale(app);
     destination.w = 960 * scale;
     destination.h = 720 * scale;
     destination.x = (app->sidebar - destination.w) / 2;
@@ -943,8 +968,8 @@ static void draw_view(App *app)
                  app->info.camera + 1, display_frame(app, app->info.frame));
     ui_text(ui, 20, app->viewport_bottom - 25, label, MUTED);
     if (!app->authored)
-        ui_label(ui, app->sidebar - 415, app->viewport_bottom - 25, 395,
-                 "Drag to orbit / scroll to zoom / C for camera", MUTED);
+        ui_label(ui, app->sidebar - 415, app->viewport_bottom - 25, 395, "LMB orbit / RMB pan / scroll zoom / C camera",
+                 MUTED);
     else if (app->authored == 2)
     {
         SDL_snprintf(label, sizeof(label), "Hold RMB + WASD / Q E / Shift    Speed: %.1f",
