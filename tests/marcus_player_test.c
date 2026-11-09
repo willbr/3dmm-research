@@ -17,6 +17,7 @@
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
+    MarcusMovieInput *input;
     MarcusInfo info;
     MarcusScene scene;
     MarcusObject first, later, prop, inactive;
@@ -28,10 +29,11 @@ int main(int argc, char **argv)
     unsigned char *pixels;
     size_t bytes;
     int index, scene_count;
-    if (argc != 5)
+    if (argc != 7)
         return 2;
     player = marcus_create();
     other = NULL;
+    input = NULL;
     pixels = NULL;
     CHECK(player);
     CHECK(!marcus_info(player, &info));
@@ -154,6 +156,18 @@ int main(int argc, char **argv)
     marcus_destroy(player);
     player = marcus_create();
     CHECK(marcus_open(player, argv[1], argv[2], argv[3]));
+    CHECK(marcus_open(player, argv[5], argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == 2 && info.object_count == 4);
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    input = marcus_input_create();
+    CHECK(input && marcus_input_open(input, argv[6]) && marcus_input_count(input) == 2);
+    CHECK(!marcus_open(player, argv[6], argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.object_count == 4);
+    CHECK(marcus_open_input(player, input, 1, argv[2], argv[3]));
+    marcus_input_destroy(input);
+    input = NULL;
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    CHECK(marcus_info(player, &info) && info.object_count == 5);
     CHECK(marcus_open(player, argv[4], argv[2], argv[3]));
     CHECK(marcus_object(player, 4, &inactive) && !inactive.visible && !inactive.has_lifetime);
     CHECK(marcus_object(player, 1, &prop) && prop.last_frame > 10);
@@ -163,6 +177,7 @@ int main(int argc, char **argv)
          "lifecycle passed.");
     return 0;
 failed:
+    marcus_input_destroy(input);
     free(pixels);
     marcus_destroy(other);
     marcus_destroy(player);

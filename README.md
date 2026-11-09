@@ -166,6 +166,7 @@ passes the native arm64 editing workflow. See [build and content/font setup](doc
 
 Marcus is a separate, read-only movie player with a C89 frontend: a camera/orbit
 viewport, object timeline, scene navigation and live actor/prop properties.
+Open `.3MM`/`.VMM` movies directly or from ZIPs; ZIPs with several movies show a chooser.
 The C++ backend remains behind a C API. Playback includes sampled audio, MIDI,
 2D captions and scrolling credits, scene transitions, and authored click/time/sound
 pauses. Editing and saving remain future work.

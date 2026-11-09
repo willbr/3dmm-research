@@ -46,6 +46,9 @@ typedef struct App
     SDL_Texture *picture;
     MarcusUI ui;
     MarcusPlayer *player;
+    MarcusMovieInput *movie_input, *zip_input;
+    int movie_entry, zip_selected, zip_scroll;
+    char zip_path[1024];
     MarcusInfo info;
     MarcusPlaybackState playback;
     MarcusCamera camera, flight;
@@ -191,21 +194,30 @@ static int seek(App *app, long frame)
     app->dirty = 1;
     return 1;
 }
-static void open_movie(App *app, const char *path)
+static int open_input(App *app, MarcusMovieInput *input, int entry, const char *path)
 {
-    char title[1200];
+    char title[2200];
+    MarcusMovieEntry member;
     app->playing = 0;
     release_fly(app);
     app->error[0] = 0;
-    if (!marcus_open(app->player, path, app->resources, app->content))
+    if (!marcus_open_input(app->player, input, entry, app->resources, app->content))
     {
         fail(app, marcus_error(app->player));
         refresh(app);
         app->dirty = 1;
-        return;
+        return 0;
     }
-    SDL_strlcpy(app->movie, path, sizeof(app->movie));
-    SDL_snprintf(title, sizeof(title), "Marcus - %s", path);
+    if (input != app->movie_input)
+        marcus_input_destroy(app->movie_input);
+    app->movie_input = input;
+    app->movie_entry = entry;
+    if (path != app->movie)
+        SDL_strlcpy(app->movie, path, sizeof(app->movie));
+    if (marcus_input_entry(input, entry, &member) && member.zipped)
+        SDL_snprintf(title, sizeof(title), "Marcus - %s :: %s", path, member.name);
+    else
+        SDL_snprintf(title, sizeof(title), "Marcus - %s", path);
     SDL_SetWindowTitle(app->window, title);
     refresh(app);
     app->selected = app->info.object_count ? 0 : -1;
@@ -213,6 +225,94 @@ static void open_movie(App *app, const char *path)
     app->row_scroll = app->object_scroll = 0;
     fit_timeline(app);
     reset_view(app);
+    return 1;
+}
+static void cancel_zip(App *app)
+{
+    marcus_input_destroy(app->zip_input);
+    app->zip_input = NULL;
+}
+static void confirm_zip(App *app)
+{
+    if (app->zip_input && open_input(app, app->zip_input, app->zip_selected, app->zip_path))
+        app->zip_input = NULL;
+}
+static void open_movie(App *app, const char *path)
+{
+    MarcusMovieInput *input;
+    app->playing = 0;
+    release_fly(app);
+    app->dragging = app->orbiting = app->panning = 0;
+    input = marcus_input_create();
+    if (!input || !marcus_input_open(input, path))
+    {
+        fail(app, marcus_input_error(input));
+        marcus_input_destroy(input);
+        return;
+    }
+    cancel_zip(app);
+    if (marcus_input_count(input) == 1)
+    {
+        if (!open_input(app, input, 0, path))
+            marcus_input_destroy(input);
+    }
+    else
+    {
+        app->error[0] = 0;
+        app->zip_input = input;
+        app->zip_selected = app->zip_scroll = 0;
+        SDL_strlcpy(app->zip_path, path, sizeof(app->zip_path));
+    }
+}
+static void zip_select(App *app, int index)
+{
+    int count;
+    count = marcus_input_count(app->zip_input);
+    if (index < 0)
+        index = 0;
+    if (index >= count)
+        index = count - 1;
+    app->zip_selected = index;
+    if (index < app->zip_scroll)
+        app->zip_scroll = index;
+    if (index >= app->zip_scroll + 10)
+        app->zip_scroll = index - 9;
+}
+static void zip_key(App *app, SDL_Keycode key)
+{
+    if (key == SDLK_ESCAPE)
+        cancel_zip(app);
+    else if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
+        confirm_zip(app);
+    else if (key == SDLK_UP)
+        zip_select(app, app->zip_selected - 1);
+    else if (key == SDLK_DOWN)
+        zip_select(app, app->zip_selected + 1);
+    else if (key == SDLK_PAGEUP)
+        zip_select(app, app->zip_selected - 10);
+    else if (key == SDLK_PAGEDOWN)
+        zip_select(app, app->zip_selected + 10);
+    else if (key == SDLK_HOME)
+        zip_select(app, 0);
+    else if (key == SDLK_END)
+        zip_select(app, marcus_input_count(app->zip_input) - 1);
+}
+static void zip_click(App *app, float x, float y)
+{
+    float left, top;
+    int row;
+    left = app->width / 2.0f - 400;
+    top = app->height / 2.0f - 240;
+    if (ui_inside(x, y, left + 24, top + 92, 752, 280))
+    {
+        row = (int)((y - top - 92) / 28) + app->zip_scroll;
+        if (row < marcus_input_count(app->zip_input))
+            zip_select(app, row);
+    }
+    else if (ui_inside(x, y, left + 568, top + 432, 96, 28))
+        cancel_zip(app);
+    else if (ui_inside(x, y, left + 680, top + 432, 96, 28))
+        confirm_zip(app);
 }
 static void SDLCALL dialog_callback(void *userdata, const char *const *files, int filter)
 {
@@ -244,7 +344,7 @@ static void SDLCALL dialog_callback(void *userdata, const char *const *files, in
 static void choose_file(App *app, int kind)
 {
     DialogRequest *request;
-    static const SDL_DialogFileFilter movies[] = {{"3D Movie Maker movies", "3mm;vmm"}, {"All files", "*"}};
+    static const SDL_DialogFileFilter movies[] = {{"3D Movie Maker movies and ZIPs", "3mm;vmm;zip"}, {"All files", "*"}};
     static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
     release_fly(app);
     request = (DialogRequest *)SDL_calloc(1, sizeof(*request));
@@ -435,6 +535,12 @@ static void mouse_down(App *app, float x, float y, int button)
             app->error[0] = 0;
         return;
     }
+    if (app->zip_input)
+    {
+        if (button == SDL_BUTTON_LEFT)
+            zip_click(app, x, y);
+        return;
+    }
     if (app->settings_open)
     {
         if (button == SDL_BUTTON_LEFT)
@@ -572,6 +678,11 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
             app->error[0] = 0;
         return;
     }
+    if (app->zip_input)
+    {
+        zip_key(app, key);
+        return;
+    }
     if (app->settings_open)
     {
         settings_key(app, key, modifiers);
@@ -699,7 +810,7 @@ static void handle_event(App *app, const SDL_Event *event)
             else
                 SDL_strlcpy(app->content, request->path, sizeof(app->content));
             if (app->movie[0])
-                open_movie(app, app->movie);
+                open_input(app, app->movie_input, app->movie_entry, app->movie);
         }
         SDL_free(request->path);
         SDL_free(request);
@@ -759,6 +870,20 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         if (event->button.button == SDL_BUTTON_LEFT)
             app->dragging = app->orbiting = 0;
+    }
+    else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->zip_input && !app->error[0])
+    {
+        delta = event->wheel.y;
+        if (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+            delta = -delta;
+        app->zip_scroll -= (int)delta;
+        maximum_scroll = marcus_input_count(app->zip_input) - 10;
+        if (maximum_scroll < 0)
+            maximum_scroll = 0;
+        if (app->zip_scroll < 0)
+            app->zip_scroll = 0;
+        if (app->zip_scroll > maximum_scroll)
+            app->zip_scroll = maximum_scroll;
     }
     else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->loaded && !app->error[0] && !app->settings_open)
     {
@@ -847,7 +972,7 @@ static void draw_header(App *app)
     ui_button(ui, 248, 52, 104, "Content...", 0, 1);
     ui_button(ui, 360, 52, 96, "Settings", app->settings_open, 1);
     ui_button(ui, 464, 52, 72, app->muted ? "Unmute" : "Mute", app->muted, 1);
-    ui_label(ui, 552, 58, app->sidebar - 568, "Drop a .3MM or .VMM movie here", MUTED);
+    ui_label(ui, 552, 58, app->sidebar - 568, "Drop a movie or ZIP here", MUTED);
     ui_line(ui, 0, 88, (float)app->width, 88, LINE);
 }
 static void draw_view(App *app)
@@ -1246,6 +1371,39 @@ static void draw_settings(App *app)
     ui_button(&app->ui, x + 438, y + 560, 88, "Cancel", 0, 1);
     ui_button(&app->ui, x + 538, y + 560, 96, "Apply", 1, 1);
 }
+static void draw_zip(App *app)
+{
+    float x, y, row_y;
+    int row, index, count;
+    char label[1100];
+    MarcusMovieEntry member;
+    x = app->width / 2.0f - 400;
+    y = app->height / 2.0f - 240;
+    count = marcus_input_count(app->zip_input);
+    ui_fill(&app->ui, x - 1, y - 1, 802, 482, 0x606670);
+    ui_fill(&app->ui, x, y, 800, 480, PANEL);
+    ui_text(&app->ui, x + 24, y + 20, "Choose a movie from this ZIP", TEXT);
+    ui_label(&app->ui, x + 24, y + 50, 752, app->zip_path, MUTED);
+    for (row = 0; row < 10; ++row)
+    {
+        index = app->zip_scroll + row;
+        if (!marcus_input_entry(app->zip_input, index, &member))
+            break;
+        row_y = y + 92 + row * 28;
+        if (index == app->zip_selected)
+            ui_fill(&app->ui, x + 24, row_y, 752, 28, 0x34464c);
+        SDL_snprintf(label, sizeof(label), "%d. %s", index + 1, member.name);
+        ui_label(&app->ui, x + 32, row_y + 5, 736, label, index == app->zip_selected ? ACCENT : TEXT);
+    }
+    if (marcus_input_entry(app->zip_input, app->zip_selected, &member))
+    {
+        SDL_snprintf(label, sizeof(label), "%d of %d movies   /   %.1f MiB   /   Up/Down or scroll to browse",
+                     app->zip_selected + 1, count, member.bytes / (1024 * 1024));
+        ui_text(&app->ui, x + 24, y + 390, label, MUTED);
+    }
+    ui_button(&app->ui, x + 568, y + 432, 96, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 680, y + 432, 96, "Open", 1, 1);
+}
 static void draw(App *app)
 {
     char previous[64], next[64], previous_scene[64], next_scene[64], play[64], view[64], hint[512];
@@ -1280,6 +1438,8 @@ static void draw(App *app)
             : "READ ONLY", ACCENT);
     if (app->settings_open)
         draw_settings(app);
+    if (app->zip_input)
+        draw_zip(app);
     if (app->error[0])
         draw_error(app);
 }
@@ -1342,11 +1502,11 @@ static void initialize_shortcuts(App *app)
 }
 static void usage(void)
 {
-    puts("Marcus - read-only 3D Movie Maker visual player\n"
-         "Usage: marcus [movie.3mm|movie.vmm] [--resources 3dmovie.chk] [--content-dir folder]\n"
+    puts("Marcus - read-only 3D Movie Maker player\n"
+         "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings]\n"
-         "              [--settings-file shortcuts.cfg]\n"
+         "              [--settings-file shortcuts.cfg] [--zip-movie N]\n"
          "Scenes and scene-relative frames start at 1; object indices start at 0.");
 }
 static int number(const char *text, long *output)
@@ -1364,7 +1524,7 @@ int main(int argc, char **argv)
     App app;
     SDL_Event event;
     const char *input, *font, *capture;
-    int i, result, frames, requested_scene, requested_object, have_frame, show_settings;
+    int i, result, frames, requested_scene, requested_object, requested_zip, have_frame, show_settings;
     long requested_frame, parsed;
     double now, previous_tick;
     memset(&app, 0, sizeof(app));
@@ -1372,6 +1532,7 @@ int main(int argc, char **argv)
     result = have_frame = show_settings = 0;
     requested_scene = 1;
     requested_object = 0;
+    requested_zip = 0;
     requested_frame = 0;
     app.running = app.authored = app.dirty = 1;
     app.selected = -1;
@@ -1401,7 +1562,8 @@ int main(int argc, char **argv)
             font = argv[++i];
         else if (!strcmp(argv[i], "--screenshot") && i + 1 < argc)
             capture = argv[++i];
-        else if ((!strcmp(argv[i], "--scene") || !strcmp(argv[i], "--frame") || !strcmp(argv[i], "--object")) &&
+        else if ((!strcmp(argv[i], "--scene") || !strcmp(argv[i], "--frame") || !strcmp(argv[i], "--object") ||
+                  !strcmp(argv[i], "--zip-movie")) &&
                  i + 1 < argc)
         {
             if (!number(argv[i + 1], &parsed))
@@ -1409,7 +1571,13 @@ int main(int argc, char **argv)
                 usage();
                 return 2;
             }
-            if (!strcmp(argv[i], "--scene"))
+            if (!strcmp(argv[i], "--zip-movie"))
+            {
+                if (parsed < 1 || parsed > INT_MAX)
+                    return 2;
+                requested_zip = (int)parsed;
+            }
+            else if (!strcmp(argv[i], "--scene"))
             {
                 if (parsed < 1 || parsed > INT_MAX)
                     return 2;
@@ -1464,6 +1632,20 @@ int main(int argc, char **argv)
     if (input)
     {
         open_movie(&app, input);
+        if (app.zip_input && requested_zip)
+        {
+            if (requested_zip > marcus_input_count(app.zip_input))
+                fail(&app, "Requested ZIP movie does not exist.");
+            else
+            {
+                app.zip_selected = requested_zip - 1;
+                confirm_zip(&app);
+            }
+        }
+        else if (requested_zip > 1)
+            fail(&app, "Requested ZIP movie does not exist.");
+        if (capture && app.zip_input && !app.error[0])
+            fail(&app, "Use --zip-movie N to select a movie before capturing a multi-movie ZIP.");
         if (app.loaded && requested_scene != 1 && !select_scene(&app, requested_scene - 1))
             fail(&app, "Requested scene does not exist.");
         if (app.loaded && have_frame)
@@ -1481,7 +1663,7 @@ int main(int argc, char **argv)
                 app.selected = app.info.object_count ? requested_object : -1;
         }
     }
-    if (show_settings)
+    if (show_settings && !app.zip_input)
         open_settings(&app);
     frames = 0;
     previous_tick = (double)SDL_GetTicks();
@@ -1548,6 +1730,8 @@ cleanup:
     ui_destroy(&app.ui);
     SDL_DestroyTexture(app.picture);
     marcus_destroy(app.player);
+    marcus_input_destroy(app.movie_input);
+    marcus_input_destroy(app.zip_input);
     SDL_DestroyRenderer(app.renderer);
     SDL_DestroyWindow(app.window);
     SDL_Quit();

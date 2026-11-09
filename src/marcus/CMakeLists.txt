@@ -1,10 +1,10 @@
 include(SDL3Dependency)
 include(FreeTypeDependency)
 
-add_library(marcus-player STATIC player.cpp content.cpp playback.cpp)
+add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(marcus-player PRIVATE ThreeMM::Preview studio-pack-store studio-settings SDL3::SDL3-static
-  kauai-sdl-audio kauai-midi-synth kauai-font-host)
+  kauai-sdl-audio kauai-midi-synth kauai-font-host miniz)
 target_compile_definitions(marcus-player PRIVATE MARCUS_MIDI_BANK="${KAUAI_MIDI_BANK_FILE}")
 
 # Explicitly built, headless playback diagnostic; no UI input simulation.
@@ -38,6 +38,10 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(marcus PRIVATE -pedantic-errors -Werror=declaration-after-statement)
 endif()
 if(BUILD_TESTING)
+  add_executable(marcus-zip-test EXCLUDE_FROM_ALL ../../tests/marcus_zip_test.cpp)
+  target_link_libraries(marcus-zip-test PRIVATE marcus-player miniz studio-pack-store)
+  add_test(NAME marcus-zip COMMAND marcus-zip-test "${PROJECT_SOURCE_DIR}/tmp/marcus-zip")
+  set_tests_properties(marcus-zip PROPERTIES TIMEOUT 30)
   add_executable(marcus-playback-test EXCLUDE_FROM_ALL ../../tests/marcus_playback_test.cpp)
   target_link_libraries(marcus-playback-test PRIVATE marcus-player engine-core SDL3::SDL3-static)
   kauai_copy_midi_assets(marcus-playback-test)

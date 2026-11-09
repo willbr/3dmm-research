@@ -11,6 +11,13 @@ extern "C"
 #endif
 
     typedef struct MarcusPlayer MarcusPlayer;
+    typedef struct MarcusMovieInput MarcusMovieInput;
+    typedef struct MarcusMovieEntry
+    {
+        char name[1024];
+        double bytes;
+        int zipped;
+    } MarcusMovieEntry;
 
     typedef struct MarcusScene
     {
@@ -74,6 +81,17 @@ extern "C"
      * supplies the four original .3cn archives. Unknown expansion sources report
      * their missing source ID, rather than silently replacing original content. */
     int marcus_open(MarcusPlayer *player, const char *movie, const char *resources, const char *content_directory);
+    /* Listing never extracts a movie. A single entry opens automatically via
+     * marcus_open; multi-movie ZIPs require an explicit zero-based selection.
+     * The loaded player retains the extracted file after input is destroyed. */
+    MarcusMovieInput *marcus_input_create(void);
+    void marcus_input_destroy(MarcusMovieInput *input);
+    int marcus_input_open(MarcusMovieInput *input, const char *path);
+    const char *marcus_input_error(const MarcusMovieInput *input);
+    int marcus_input_count(const MarcusMovieInput *input);
+    int marcus_input_entry(const MarcusMovieInput *input, int index, MarcusMovieEntry *entry);
+    int marcus_open_input(MarcusPlayer *player, MarcusMovieInput *input, int index, const char *resources,
+                          const char *content_directory);
     int marcus_scene(const MarcusPlayer *player, int index, MarcusScene *scene);
     int marcus_select_scene(MarcusPlayer *player, int index);
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */

@@ -1,5 +1,6 @@
 #include "player.h"
 #include "content.h"
+#include "movie_input.h"
 #include "playback.h"
 #include "three_mm/preview.h"
 #include <algorithm>
@@ -182,12 +183,33 @@ extern "C"
     }
     int marcus_open(MarcusPlayer *player, const char *movie, const char *resources, const char *directory)
     {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!movie)
+                return false;
+            MarcusMovieInput input;
+            input.Open(movie);
+            if (input.Count() != 1)
+            {
+                error.message = "This ZIP contains several movies. Select one from the movie list.";
+                return false;
+            }
+            if (!marcus_open_input(player, &input, 0, resources, directory))
+            {
+                error.message = player->error;
+                return false;
+            }
+            return true;
+        });
+    }
+    int marcus_open_input(MarcusPlayer *player, MarcusMovieInput *input, int index, const char *resources,
+                          const char *directory)
+    {
         if (player)
             player->playback.Stop();
         return Guard(player, [&](ThreeMM::Error &error) {
-            if (!movie || !resources || !directory)
+            if (!input || !resources || !directory)
                 return false;
-            auto content = std::make_unique<MarcusContent>(movie, directory);
+            auto content = std::make_unique<MarcusContent>(input->Materialize(index), directory);
             const auto document = content->movie.u8string();
             // Validate the graph and ordered scene list before replacing the live renderer.
             ThreeMM::Archive archive;

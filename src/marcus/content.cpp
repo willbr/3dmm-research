@@ -1,4 +1,5 @@
 #include "content.h"
+#include "movie_input.h"
 #include "studio_packs.h"
 #include "studio_settings.h"
 #include "studio_vxp_store.h"
@@ -14,6 +15,7 @@ namespace V = ThreeMM::V3dmm;
 namespace C = ThreeMM::Content;
 struct MarcusContent::Impl
 {
+    std::shared_ptr<MarcusMovieFile> input;
     fs::path root, work;
     std::vector<fs::path> ownedFiles, ownedDirectories;
     std::unique_ptr<StudioV3dmm::Store> packages;
@@ -114,8 +116,13 @@ struct MarcusContent::Impl
                 true,          dependency.archive.file, V::Materialize(dependency.archive, directory)};
     }
 };
-MarcusContent::MarcusContent(const std::string &input, const std::string &baseDirectory) : impl(new Impl)
+MarcusContent::MarcusContent(const std::string &input, const std::string &baseDirectory)
+    : MarcusContent(std::make_shared<MarcusMovieFile>(fs::u8path(input)), baseDirectory)
 {
+}
+MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::string &baseDirectory) : impl(new Impl)
+{
+    impl->input = std::move(input);
     const auto base = baseDirectory.empty() ? fs::path{} : fs::absolute(fs::u8path(baseDirectory));
     if (!base.empty() && fs::is_directory(base))
         files.MountDirectory("3dmovie", base);
@@ -156,7 +163,7 @@ MarcusContent::MarcusContent(const std::string &input, const std::string &baseDi
                 break;
         }
     }
-    movie = fs::u8path(input);
+    movie = impl->input->path;
     std::ifstream header(movie, std::ios::binary);
     char signature[6] = {};
     header.read(signature, sizeof(signature));

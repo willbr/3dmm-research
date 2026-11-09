@@ -37,6 +37,38 @@ paths. Original content is not bundled or downloaded by Marcus.
 Open a movie with **Open movie**, **Ctrl+O**, or drag and drop. Selecting
 Resources or Content reloads that movie.
 
+ZIP files can be opened through the same controls or passed on the command line.
+Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring
+extension case. A single movie opens automatically. Multiple movies appear in a
+chooser in archive order: select a row and click Open, or use Up/Down, Page
+Up/Page Down, Home/End and Enter. The wheel scrolls the list; Escape cancels and
+keeps the previous movie paused. The window title identifies the ZIP and selected
+member. Resources/Content reloads retain that selection.
+
+```console
+marcus movies.zip --zip-movie 2 --resources /path/to/3dmovie.chk --content-dir /path/to/content-files
+```
+
+`--zip-movie` is a one-based movie-list index. Use it when combining a multi-movie
+ZIP with command-line scene/frame selection or screenshot capture. The C API
+provides a separate listing/selection interface; ordinary `marcus_open` opens
+single-movie ZIPs and reports that an explicit selection is needed for multiples.
+
+Listing extracts nothing. Opening extracts only the selected movie into a private
+directory, verifies its declared size and CRC, and retains it while the player
+needs it. Reloading an already selected entry reuses that extraction. Closing or
+replacing the movie removes its private file, after renderer/content teardown.
+Zipped `.vmm` files then follow the existing bundle/package loading path. Original
+ZIPs remain unchanged, and extraction failures remove partial output. Entries with
+unsafe names, encryption, or movie sizes above 512 MiB are rejected. A ZIP may
+contain at most 100,000 members and 10,000 movie candidates.
+
+Stored/deflated entries use the existing miniz dependency. Legacy compression
+uses an installed `7z`/`7zz` executable, with standard Windows 7-Zip locations as
+fallbacks. The helper runs without a console, extracts the exact selected name to
+a bounded pipe, and has a 60-second timeout; Marcus still verifies size and CRC.
+No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
+
 ## Controls
 
 | Control | Behaviour |
@@ -270,7 +302,7 @@ of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
 FreeType headers are system headers during C89 checking. The backend is C++.
 
 ```console
-cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test preview-scene-fixture
+cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test marcus-zip-test preview-scene-fixture
 ctest --test-dir build/marcus -R "^marcus-" --output-on-failure
 ```
 
@@ -287,6 +319,18 @@ title-only and actor scenes. It checks Unicode captions, lifetime/rewind, scroll
 click/time/sound waits, pausing/resuming, queued sampled clips, audible MIDI/WAVE
 output with SDL's dummy audio device, motion-match precedence, mute, outgoing
 transitions and looping. It also verifies unchanged movie/resource bytes.
+
+`marcus-zip` checks nested and duplicate movie entries, explicit selection, cached
+extraction leases, CRC and size rejection, cleanup, zipped VMM content and unchanged
+inputs. The C API player regression also opens generated single/multi-movie ZIPs,
+renders after the input-list object is destroyed, and verifies original ZIP hashes.
+These checks are headless; they do not drive the chooser or other UI controls.
+
+On 9 November 2026 the native ZIP input extracted all 103 movie entries from the
+87 ZIPs containing native movies in `movies`, including the Shrink-compressed
+`aacw01.zip`. All selected entries passed size/CRC checks, original ZIP bytes
+remained unchanged, and temporary directories were removed. Two other ZIPs had
+no `.3mm`/`.vmm` entries. This verifies extraction, not playback of every movie.
 
 On 9 November 2026 these four Marcus checks passed, along with the headless
 preview regressions for 45 actors, 21 props, 12 backgrounds and 188 cameras.
