@@ -191,7 +191,7 @@ def summary(report, output):
              'Method: optimized Marcus C API, authored-camera rendering at 480 x 360,',
              'without UI automation or playback pacing. Every frame is evaluated and',
              'rendered until a scene fails; remaining scenes are still attempted.',
-             'This checks visual playback, not audio, captions, transitions or image correctness.', '',
+             'Visible captions are rendered at each seek; audio, scrolling/transition timing and image correctness are not checked.', '',
              'FAILED / INCOMPLETE MOVIES', '']
     for result in sorted(report['results'], key=lambda r: r['sources'][0].lower()):
         if result['status'] in ('passed', 'unsupported'):

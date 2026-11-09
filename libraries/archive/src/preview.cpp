@@ -8,6 +8,7 @@
 #include "soc_core.h"
 #include "preview_actor.h"
 #include "preview_background.h"
+#include "preview_presentation.h"
 #undef size
 ASSERTNAME
 
@@ -267,6 +268,77 @@ std::vector<PreviewObject> Preview::Objects() const
         for (const auto &actor : _impl->actors)
             result.push_back(actor->Snapshot());
     return result;
+}
+bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)
+try
+{
+    error = {};
+    presentation = {};
+    if (!_impl->ready || !_impl->info.scene ||
+        !Internal::ReadPresentation(_impl->cache->Pcfl(), _impl->info.asset.number, presentation))
+        return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for movie presentation.");
+}
+std::vector<PreviewSoundCue> Preview::FrameSounds() const
+{
+    std::vector<PreviewSoundCue> result;
+    for (const auto &actor : _impl->actors)
+        result.insert(result.end(), actor->sounds.begin(), actor->sounds.end());
+    return result;
+}
+std::uint32_t Preview::PresentationColour(std::uint32_t colour) const
+{
+    if ((colour >> 24) == 0xfe)
+    {
+        const auto &value = (_impl->background ? _impl->background->palette : _impl->palette)[colour & 255];
+        return 0x01000000 | (std::uint32_t(value.bRed) << 16) | (std::uint32_t(value.bGreen) << 8) | value.bBlue;
+    }
+    return colour;
+}
+bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error)
+try
+{
+    error = {};
+    audio = {};
+    if (cue.silent)
+    {
+        audio.silent = true;
+        return true;
+    }
+    if (!_impl->ready)
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene before reading its sounds.");
+    TAGOnFile tag = {cue.source, 0, cue.sound.type, cue.sound.number};
+    if (cue.source == 0)
+    {
+        auto file = _impl->cache->Pcfl();
+        ChildChunkIdentification child;
+        if (file->FGetKidChidCtg(kctgScen, _impl->info.asset.number, cue.child, kctgMsnd, &child))
+            tag.cno = child.cki.cno;
+        else
+            for (const auto &chunk : _impl->assets.Chunks())
+                if (chunk.id.type == kctgMvie &&
+                    file->FGetKidChidCtg(kctgMvie, chunk.id.number, cue.child, kctgMsnd, &child))
+                {
+                    tag.cno = child.cki.cno;
+                    break;
+                }
+    }
+    auto source = _impl->Resolve(tag);
+    if (!source)
+        return Fail(error, ErrorCode::decode_failed, _impl->resolveError.c_str());
+    if (!Internal::ReadAudio(source->Pcfl(), tag.ctg, tag.cno, audio))
+        return Fail(error, ErrorCode::decode_failed,
+                    ("Cannot decode sound " + Identity({tag.ctg, tag.cno}) + ".").c_str());
+    audio.source = cue.source;
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode movie audio.");
 }
 bool Preview::Open(const std::string &archivePath, const std::string &resourcesPath, Error &error)
 try

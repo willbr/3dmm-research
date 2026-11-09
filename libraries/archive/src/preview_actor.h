@@ -22,10 +22,14 @@ class PreviewActor
     bool Position(bool selectCel);
     bool Evaluate(bool display);
     ActorStepSource Steps() const;
+    std::vector<ActorEvent::Sound> motionSounds;
+    bool soundDisplay = false;
+    PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
 
   public:
     ChunkNumber number = 0;
     PBody body = nullptr;
+    std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
     bool Load(PChunkyResourceFile file, ChunkNumber number,
               std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,

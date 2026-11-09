@@ -16,7 +16,6 @@
 #define MUTED 0x969da8UL
 #define ACCENT 0x78cbc4UL
 #define ROW_HEIGHT 28
-#define MARCUS_FPS 6.0
 #define FRAME_NAV_X 16
 #define SCENE_NAV_X 432
 #define NAV_STEP 32
@@ -48,6 +47,7 @@ typedef struct App
     MarcusUI ui;
     MarcusPlayer *player;
     MarcusInfo info;
+    MarcusPlaybackState playback;
     MarcusCamera camera, flight;
     MarcusProjection projection, scene_camera;
     MarcusCameraGuide camera_guide;
@@ -56,11 +56,12 @@ typedef struct App
     int settings_open, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
     int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
+    int continue_click, muted;
     int flying, fly_ready, camera_ready, fly_keys;
     int row_scroll, object_scroll, width, height;
     float sidebar, viewport_bottom, timeline_y, grid_x, grid_width;
     float yaw, pitch, zoom, pixels_per_frame;
-    double timeline_start, next_frame;
+    double timeline_start;
     Uint32 dialog_event;
 } App;
 
@@ -106,6 +107,7 @@ static void fail(App *app, const char *message)
 {
     SDL_strlcpy(app->error, message, sizeof(app->error));
     app->playing = 0;
+    marcus_stop(app->player);
     app->dragging = app->orbiting = app->panning = 0;
     release_fly(app);
 }
@@ -264,24 +266,17 @@ static void toggle_play(App *app)
 {
     if (!app->loaded)
         return;
+    if (app->playing && app->playback.wait == 1)
+    {
+        app->continue_click = 1;
+        return;
+    }
     if (!app->playing && app->info.frame == app->info.last_frame && app->info.scene == app->info.scene_count - 1)
     {
         if (!select_scene(app, 0))
             return;
     }
     app->playing = !app->playing;
-    app->next_frame = (double)SDL_GetTicks() + 1000.0 / MARCUS_FPS;
-}
-static void advance(App *app)
-{
-    if (app->info.frame < app->info.last_frame)
-        seek(app, app->info.frame + 1);
-    else if (app->info.scene + 1 < app->info.scene_count)
-        select_scene(app, app->info.scene + 1);
-    else if (app->loop)
-        select_scene(app, 0);
-    else
-        app->playing = 0;
 }
 static void perform_action(App *app, int action)
 {
@@ -446,6 +441,12 @@ static void mouse_down(App *app, float x, float y, int button)
             settings_click(app, x, y);
         return;
     }
+    if (button == SDL_BUTTON_LEFT && app->playing && app->playback.wait == 1 &&
+        ui_inside(x, y, 12, 132, app->sidebar - 24, app->viewport_bottom - 144))
+    {
+        app->continue_click = 1;
+        return;
+    }
     if (button == SDL_BUTTON_RIGHT && app->loaded && !app->authored && app->camera_ready &&
         ui_inside(x, y, 12, 132, app->sidebar - 24, app->viewport_bottom - 144))
     {
@@ -489,6 +490,11 @@ static void mouse_down(App *app, float x, float y, int button)
         choose_file(app, 2);
     else if (ui_inside(x, y, 360, 52, 96, 28))
         open_settings(app);
+    else if (ui_inside(x, y, 464, 52, 72, 28))
+    {
+        app->muted = !app->muted;
+        marcus_set_muted(app->player, app->muted);
+    }
     else if (!app->loaded)
     {
         if (ui_inside(x, y, app->sidebar / 2 - 65, 280, 130, 28))
@@ -835,12 +841,13 @@ static void draw_header(App *app)
     if (slash)
         name = slash + 1;
     ui_label(ui, 300, 13, (float)app->width - 510, name, TEXT);
-    ui_text(ui, (float)app->width - 160, 13, "VISUAL PREVIEW", ACCENT);
+    ui_text(ui, (float)app->width - 160, 13, "MOVIE PLAYBACK", ACCENT);
     ui_button(ui, 16, 52, 112, "Open movie", 0, 1);
     ui_button(ui, 136, 52, 104, "Resources...", 0, 1);
     ui_button(ui, 248, 52, 104, "Content...", 0, 1);
     ui_button(ui, 360, 52, 96, "Settings", app->settings_open, 1);
-    ui_label(ui, 480, 58, app->sidebar - 496, "Drop a .3MM or .VMM movie here", MUTED);
+    ui_button(ui, 464, 52, 72, app->muted ? "Unmute" : "Mute", app->muted, 1);
+    ui_label(ui, 552, 58, app->sidebar - 568, "Drop a .3MM or .VMM movie here", MUTED);
     ui_line(ui, 0, 88, (float)app->width, 88, LINE);
 }
 static void draw_view(App *app)
@@ -1077,7 +1084,9 @@ static void draw_timeline(App *app)
                          app->loaded && app->info.frame < app->info.last_frame, "Next frame");
     ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + 8, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
-    ui_button(ui, 148, y + 8, 60, app->playing ? "Pause" : "Play", app->playing, app->loaded);
+    ui_button(ui, 148, y + 8, 60,
+              app->playing && app->playback.wait == 1 ? "Next" : app->playing ? "Pause" : "Play",
+              app->playing, app->loaded);
     ui_button(ui, 216, y + 8, 60, "Loop", app->loop, app->loaded);
     ui_navigation_button(ui, SCENE_NAV_X, y + 8, 0, app->loaded && app->info.scene > 0, "First scene");
     ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + 8, 1, app->loaded && app->info.scene > 0, "Previous scene");
@@ -1262,7 +1271,13 @@ static void draw(App *app)
                  ? "Hold right mouse: look + WASD move   Q/E down/up   Shift faster   Wheel speed   Esc release"
                  : hint,
              MUTED);
-    ui_text(&app->ui, (float)app->width - 194, (float)app->height - 21, "READ ONLY  /  NO AUDIO", ACCENT);
+    ui_text(&app->ui, (float)app->width - 194, (float)app->height - 21,
+            app->playback.scrolling ? "SCROLLING CAPTION"
+            : app->playback.transition ? "SCENE TRANSITION"
+            : app->playback.wait == 1 ? "CLICK / SPACE TO CONTINUE"
+            : app->playback.wait == 2 ? "WAITING FOR SOUND"
+            : app->playback.wait == 3 ? "TIMED PAUSE"
+            : "READ ONLY", ACCENT);
     if (app->settings_open)
         draw_settings(app);
     if (app->error[0])
@@ -1332,7 +1347,7 @@ static void usage(void)
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings]\n"
          "              [--settings-file shortcuts.cfg]\n"
-         "Scenes and scene-relative frames start at 1; object indices start at 0. Sound is not yet supported.");
+         "Scenes and scene-relative frames start at 1; object indices start at 0.");
 }
 static int number(const char *text, long *output)
 {
@@ -1480,17 +1495,36 @@ int main(int argc, char **argv)
         }
         now = (double)SDL_GetTicks();
         update_flight(&app, (now - previous_tick) / 1000.0);
-        previous_tick = now;
-        if (app.playing && now >= app.next_frame)
+        if (app.loaded)
         {
-            advance(&app);
-            app.next_frame += 1000.0 / MARCUS_FPS;
-            if (app.next_frame < now)
-                app.next_frame = now + 1000.0 / MARCUS_FPS;
+            if (!marcus_update(app.player, app.playing, app.loop, now - previous_tick, app.continue_click,
+                               &app.playback))
+            {
+                fail(&app, marcus_error(app.player));
+                refresh(&app);
+                app.dirty = 1;
+            }
+            else
+            {
+                app.playing = app.playback.playing;
+                if (app.playback.changed)
+                {
+                    refresh(&app);
+                    app.dirty = 1;
+                }
+                if (app.playback.scene_changed)
+                {
+                    app.selected = app.info.object_count ? 0 : -1;
+                    app.row_scroll = app.object_scroll = 0;
+                    fit_timeline(&app);
+                }
+            }
             if (frame_x(&app, app.info.frame) > app.grid_x + app.grid_width ||
                 frame_x(&app, app.info.frame) < app.grid_x)
                 app.timeline_start = app.info.frame;
         }
+        app.continue_click = 0;
+        previous_tick = now;
         draw(&app);
         if (capture && frames == 3)
         {

@@ -63,6 +63,53 @@ struct PreviewObject
     bool prop = false, text = false, visible = false, hasLifetime = false;
     float x = 0, y = 0, z = 0;
 };
+// Read-only presentation records. Colours retain Kauai's stored abstract RGB,
+// palette-index and transparent encodings; character positions are UTF-16 units.
+struct PreviewTextProperty
+{
+    std::uint32_t position = 0, kind = 0, value = 0;
+    std::string font;
+};
+struct PreviewCaption
+{
+    std::int32_t firstFrame = 0, endFrame = 0;
+    std::int32_t left = 0, top = 0, right = 0, bottom = 0, fontSize = 12;
+    bool story = true;
+    std::uint32_t background = 0xffffffff;
+    std::string font;
+    std::vector<std::uint16_t> text;
+    std::vector<PreviewTextProperty> properties;
+};
+struct PreviewSoundCue
+{
+    std::int32_t frame = 0, source = 0, actor = 0, style = 0, volume = 0x10000;
+    Id sound;
+    std::uint32_t child = 0;
+    bool actorSound = false, loop = false, queue = false, silent = false, motion = false;
+};
+struct PreviewPause
+{
+    std::int32_t frame = 0, kind = 0, milliseconds = 0;
+};
+struct PreviewPresentation
+{
+    std::int32_t transition = 0;
+    std::vector<PreviewCaption> captions;
+    std::vector<PreviewPause> pauses;
+    std::vector<PreviewSoundCue> sounds;
+};
+struct PreviewMidiEvent
+{
+    std::uint32_t milliseconds = 0, message = 0;
+};
+struct PreviewAudio
+{
+    Id asset; // Resolved WAVE/MIDI child identity, after imported-scene remapping.
+    std::int32_t source = 0;
+    bool midi = false, silent = false;
+    std::vector<std::uint8_t> wave;
+    std::vector<PreviewMidiEvent> events;
+};
 // Read-only engine preview adapter. Owns BRender's process-wide runtime;
 // only one open Preview may exist at a time. Use on one thread, separately
 // from Studio's renderer. The public boundary contains no native/UI types.
@@ -89,6 +136,11 @@ class Preview
     bool Select(Id asset, Error &error, bool preserveFraming = false);
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
+    bool ReadPresentation(PreviewPresentation &presentation, Error &error);
+    std::vector<PreviewSoundCue> FrameSounds() const;
+    bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
+    // Resolve stored indexed caption colours against the active movie palette.
+    std::uint32_t PresentationColour(std::uint32_t colour) const;
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);
     bool SetFrame(std::int32_t frame, Error &error);
     bool SetCamera(std::uint32_t camera, Error &error);

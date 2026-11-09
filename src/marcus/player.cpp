@@ -1,5 +1,6 @@
 #include "player.h"
 #include "content.h"
+#include "playback.h"
 #include "three_mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -8,6 +9,7 @@
 #include <limits>
 #include <map>
 #include <exception>
+#include <cmath>
 
 namespace
 {
@@ -43,6 +45,7 @@ struct MarcusPlayer
     std::unique_ptr<MarcusContent> content;
     ThreeMM::Preview preview;
     ThreeMM::PreviewImage image;
+    MarcusPlayback playback;
     std::vector<ThreeMM::Id> scenes;
     std::vector<MarcusScene> sceneInfo;
     std::vector<ThreeMM::PreviewObject> objects;
@@ -67,6 +70,8 @@ MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
 {
     if (!image || player->selected < 0 || !player->preview.Render(view, player->image, error))
+        return false;
+    if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error))
         return false;
     image->width = static_cast<int>(player->image.width);
     image->height = static_cast<int>(player->image.height);
@@ -100,15 +105,25 @@ template <typename F> int Guard(MarcusPlayer *player, F operation)
     }
     return 0;
 }
-int SelectScene(MarcusPlayer *player, int index, bool preserveFraming)
+int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool preserveAudio = false)
 {
     return Guard(player, [&](ThreeMM::Error &error) {
         if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
             return false;
         player->selected = -1;
         player->objects.clear();
+        if (!preserveAudio)
+            player->playback.Stop();
         if (!player->preview.Select(player->scenes[index], error, preserveFraming))
+        {
+            player->playback.Stop();
             return false;
+        }
+        if (!player->playback.Select(player->preview, error, preserveAudio))
+        {
+            player->playback.Stop();
+            return false;
+        }
         player->objects = player->preview.Objects();
         player->selected = index;
         return true;
@@ -167,6 +182,8 @@ extern "C"
     }
     int marcus_open(MarcusPlayer *player, const char *movie, const char *resources, const char *directory)
     {
+        if (player)
+            player->playback.Stop();
         return Guard(player, [&](ThreeMM::Error &error) {
             if (!movie || !resources || !directory)
                 return false;
@@ -268,6 +285,8 @@ extern "C"
             player->names.swap(names);
             if (!player->preview.Select(player->scenes[0], error))
                 return false;
+            if (!player->playback.Select(player->preview, error))
+                return false;
             player->objects = player->preview.Objects();
             player->selected = 0;
             return true;
@@ -342,9 +361,96 @@ extern "C"
                 return false;
             if (!player->preview.SetFrame(static_cast<std::int32_t>(frame), error))
                 return false;
+            player->playback.Seek();
             player->objects = player->preview.Objects();
             return true;
         });
+    }
+    void marcus_stop(MarcusPlayer *player)
+    {
+        if (player)
+            player->playback.Stop();
+    }
+    int marcus_audio_stats(MarcusPlayer *player, MarcusAudioStats *stats)
+    {
+        return Guard(player, [&](ThreeMM::Error &) {
+            if (!stats)
+                return false;
+            player->playback.Statistics(*stats);
+            return true;
+        });
+    }
+    void marcus_set_muted(MarcusPlayer *player, int muted)
+    {
+        if (player)
+            player->playback.Mute(muted != 0);
+    }
+    int marcus_update(MarcusPlayer *player, int playing, int loop, double elapsed, int click,
+                      MarcusPlaybackState *state)
+    {
+        const int success = Guard(player, [&](ThreeMM::Error &error) {
+            if (!state || !std::isfinite(elapsed) || elapsed < 0 || player->selected < 0)
+            {
+                error.message = "Playback requires a loaded movie and a finite, nonnegative elapsed time.";
+                return false;
+            }
+            *state = {};
+            state->playing = playing != 0;
+            const bool wasAnimated = player->playback.Scrolling() || player->playback.Transitioning();
+            bool advance = false;
+            if (!player->playback.Update(player->preview, playing != 0, elapsed, click != 0, advance, error))
+            {
+                player->playback.Stop();
+                state->playing = 0;
+                return false;
+            }
+            state->changed = playing && (wasAnimated || player->playback.Scrolling() ||
+                                         player->playback.Transitioning());
+            if (advance)
+            {
+                state->changed = 1;
+                const auto info = player->preview.Info();
+                if (info.currentFrame < info.lastFrame)
+                {
+                    if (!player->preview.SetFrame(info.currentFrame + 1, error))
+                        return false;
+                    player->objects = player->preview.Objects();
+                    bool ignored = false;
+                    if (!player->playback.Update(player->preview, true, 0, false, ignored, error))
+                        return false;
+                }
+                else if (player->selected + 1 < static_cast<int>(player->scenes.size()) || loop)
+                {
+                    const auto transition = player->playback.Transition();
+                    const auto previous = player->image;
+                    const auto next = player->selected + 1 < static_cast<int>(player->scenes.size())
+                                          ? player->selected + 1 : 0;
+                    if (!SelectScene(player, next, true, true))
+                    {
+                        error.message = player->error;
+                        return false;
+                    }
+                    player->playback.BeginTransition(transition, previous);
+                    state->scene_changed = 1;
+                }
+                else
+                {
+                    player->playback.Stop();
+                    state->playing = 0;
+                }
+            }
+            state->wait = player->playback.Wait();
+            state->scrolling = player->playback.Scrolling();
+            state->transition = player->playback.Transitioning();
+            return true;
+        });
+        if (!success)
+        {
+            marcus_stop(player);
+            if (state)
+                *state = {};
+        }
+        return success;
     }
     void marcus_reset_framing(MarcusPlayer *player)
     {

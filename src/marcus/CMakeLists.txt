@@ -1,9 +1,11 @@
 include(SDL3Dependency)
 include(FreeTypeDependency)
 
-add_library(marcus-player STATIC player.cpp content.cpp)
+add_library(marcus-player STATIC player.cpp content.cpp playback.cpp)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(marcus-player PRIVATE ThreeMM::Preview studio-pack-store studio-settings SDL3::SDL3-static)
+target_link_libraries(marcus-player PRIVATE ThreeMM::Preview studio-pack-store studio-settings SDL3::SDL3-static
+  kauai-sdl-audio kauai-midi-synth kauai-font-host)
+target_compile_definitions(marcus-player PRIVATE MARCUS_MIDI_BANK="${KAUAI_MIDI_BANK_FILE}")
 
 # Explicitly built, headless playback diagnostic; no UI input simulation.
 add_executable(marcus-playback EXCLUDE_FROM_ALL ../../tools/marcus_playback.c)
@@ -14,6 +16,16 @@ add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(marcus PRIVATE marcus-player SDL3::SDL3-static freetype)
+kauai_copy_midi_assets(marcus)
+add_custom_command(TARGET marcus POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${PROJECT_SOURCE_DIR}/docs/licenses/audio-codecs.txt"
+    "${PROJECT_SOURCE_DIR}/docs/licenses/dr-mp3-LICENSE.txt"
+    "${PROJECT_SOURCE_DIR}/docs/licenses/libgsm-LICENSE.txt"
+    "${PROJECT_SOURCE_DIR}/docs/licenses/freetype-FTL.txt"
+    "${PROJECT_SOURCE_DIR}/docs/licenses/freetype-LICENSE.txt"
+    "$<TARGET_FILE_DIR:marcus>/licenses"
+  VERBATIM)
 # SDL's headers use platform integer/bool extensions. Keep diagnostics on our
 # C89 sources strict while treating external declarations as system headers.
 target_include_directories(marcus SYSTEM PRIVATE
@@ -26,6 +38,9 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(marcus PRIVATE -pedantic-errors -Werror=declaration-after-statement)
 endif()
 if(BUILD_TESTING)
+  add_executable(marcus-playback-test EXCLUDE_FROM_ALL ../../tests/marcus_playback_test.cpp)
+  target_link_libraries(marcus-playback-test PRIVATE marcus-player engine-core SDL3::SDL3-static)
+  kauai_copy_midi_assets(marcus-playback-test)
   # Native content adapter regression; no UI input or application window.
   add_executable(marcus-content-test EXCLUDE_FROM_ALL ../../tests/marcus_content_test.cpp)
   target_link_libraries(marcus-content-test PRIVATE marcus-player studio-pack-store studio-settings engine-core miniz SDL3::SDL3-static)
@@ -46,6 +61,10 @@ if(BUILD_TESTING)
     set(marcus_resources "${PROJECT_SOURCE_DIR}/build/studio-portable-x64/3dmovie/utest.chk"
       CACHE FILEPATH "3dmovie.chk or built utest.chk for Marcus integration tests")
     if(EXISTS "${marcus_resources}")
+      file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-data")
+      add_test(NAME marcus-playback COMMAND marcus-playback-test
+        "${CMAKE_CURRENT_BINARY_DIR}/test-data/presentation.3mm" "${marcus_resources}" "${PROJECT_SOURCE_DIR}/content-files")
+      set_tests_properties(marcus-playback PROPERTIES TIMEOUT 60 ENVIRONMENT "SDL_AUDIODRIVER=dummy")
       add_test(NAME marcus-player COMMAND ${CMAKE_COMMAND}
         -DAPI_EXE=$<TARGET_FILE:marcus-player-test>
         -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>

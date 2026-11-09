@@ -124,6 +124,7 @@ bool PreviewActor::Apply(LegacyLong index)
         state.location = event.rtel;
         ActorRouteEvaluator::Position(track, &state.location, &state.position);
         state.onStage = true;
+        motionSounds.clear();
         return true;
     }
     case aetActn: {
@@ -131,6 +132,8 @@ bool PreviewActor::Apply(LegacyLong index)
         track.events->Get(index, &action);
         if (action.anid < 0 || action.anid >= tmpl->Cactn() || !tmpl->FSetActnCel(body, action.anid, action.celn))
             return false;
+        if (state.action != action.anid)
+            motionSounds.clear();
         state.action = action.anid;
         state.cel = action.celn;
         state.actionEvent = index;
@@ -167,11 +170,43 @@ bool PreviewActor::Apply(LegacyLong index)
     case aetRem:
         state.onStage = false;
         return true;
-    case aetSnd:
-        return true; // Preview has no sound effects or playback devices.
+    case aetSnd: {
+        Sound sound;
+        track.events->Get(index, &sound);
+        if (sound.celn != ivNil)
+        {
+            for (auto &existing : motionSounds)
+                if (existing.celn == sound.celn && existing.sty == sound.sty)
+                {
+                    existing = sound;
+                    return true;
+                }
+            motionSounds.push_back(sound);
+        }
+        else if (soundDisplay)
+            sounds.push_back(SoundCue(sound));
+        return true;
+    }
     default:
         return false;
     }
+}
+PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
+{
+    PreviewSoundCue cue;
+    cue.frame = state.frame;
+    cue.actor = header.arid;
+    cue.actorSound = true;
+    cue.sound = {sound.tag.ctg, sound.tag.cno};
+    cue.source = sound.tag.sid;
+    cue.child = sound.chid;
+    cue.style = sound.sty;
+    cue.volume = sound.vlm;
+    cue.loop = sound.fLoop != tNo;
+    cue.queue = sound.fQueue != tNo;
+    cue.silent = sound.fNoSound == tYes;
+    cue.motion = sound.celn != ivNil;
+    return cue;
 }
 bool PreviewActor::Position(bool selectCel)
 {
@@ -187,10 +222,12 @@ bool PreviewActor::Position(bool selectCel)
 }
 bool PreviewActor::Evaluate(bool display)
 {
+    sounds.clear();
+    soundDisplay = display;
     ActorFrameInputs inputs;
     inputs.firstFrame = header.nfrmFirst;
     inputs.displayFrame = display;
-    inputs.suppressSounds = true;
+    inputs.suppressSounds = false;
     inputs.stepSucceeded = Steps().FPlaybackStep(state, &inputs.step);
     ActorFrameEvaluator evaluator(state, track, inputs, true);
     for (;;)
@@ -210,10 +247,16 @@ bool PreviewActor::Evaluate(bool display)
     const auto &result = evaluator.Result();
     if (!result.success)
         return false;
+    if (result.considerMotionSounds && state.frame <= header.nfrmLast && state.celCount > 0)
+        for (const auto &sound : motionSounds)
+            if (sound.celn == state.cel % state.celCount)
+                sounds.push_back(SoundCue(sound));
     return (!result.positionBody && !result.updatePose) || Position(result.selectCel);
 }
 bool PreviewActor::Seek(LegacyLong frame)
 {
+    if (frame != state.frame)
+        sounds.clear();
     if (inactive)
         return true;
     if (int64_t(frame) - header.nfrmFirst > 100000)
@@ -229,6 +272,7 @@ bool PreviewActor::Seek(LegacyLong frame)
             seek.Complete(true);
             break;
         case ActorSeekCommandKind::ResetCostume:
+            motionSounds.clear();
             seek.Complete(tmpl->FSetDefaultCost(body));
             break;
         case ActorSeekCommandKind::ApplyQuickEffects:

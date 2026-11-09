@@ -1,7 +1,8 @@
 # Marcus
 
 Marcus is the first step toward a new Studio interface. It is currently a
-read-only, silent visual player for original 3D Movie Maker `.3MM` files.
+read-only movie player for original 3D Movie Maker `.3MM` files, including
+sampled sound, MIDI music, 2D captions, transitions and authored pauses.
 It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
 The dark layout has a camera viewport, per-object timeline, scene object list
 and properties pane. The existing Studio application is unchanged.
@@ -67,6 +68,8 @@ Resources or Content reloads that movie.
 | Release right mouse / Escape | Release mouse capture and stop flying |
 | Reset / R | Reframe visible geometry; R also fits the timeline |
 | Loop | Repeat the movie after the final scene |
+| Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
+| Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
 | Settings / Ctrl+, | Open playback and keyboard shortcut settings |
 
 Click a binding in Settings and press a key combination to replace it. Shift,
@@ -99,6 +102,40 @@ The timeline follows the playhead during playback. Frame counters and ruler
 labels start at 1 in each scene, even when the movie stores negative frame
 numbers. Playback and scrubbing retain the movie's original frame coordinates
 internally.
+
+Movie playback presents 2D captions in the authored Camera view, using their
+stored lifetime, bounds, font sizes/styles, colours and paragraph formatting.
+Text is decoded from the stored Windows, Mac or UTF-16 encoding. Missing font
+families fall back to the system font. Scrolling credits hold their first frame
+and move one original pixel every five 60 Hz ticks until the overflow is visible,
+then playback continues. Scrubbing resets their scroll position. Orbit and Fly
+remain geometry inspection views.
+
+Scene and actor sound events use the movie's mapped content sources, including
+embedded sounds referenced by scene child IDs. Sampled clips share Studio's
+portable PCM/ADPCM/GSM/MP3-in-WAVE decoders; MIDI uses the shared SoundFont
+synthesizer. Actor motion-match sounds follow evaluated animation cels. Sound
+queues, looping, volume, and silent stop cues are honoured. Pausing freezes audio
+and presentation clocks; seeking stops old sounds and restores scene music at
+the seek position when playback resumes. Scrubbing alone stays silent.
+Automatic scene changes preserve music and unfinished non-looping clips, stop
+looping sampled effects, and avoid restarting a MIDI clip that is already playing.
+
+Click pauses wait for a viewport click or the Play shortcut (Space by default).
+Timed pauses honour their stored duration; sound pauses wait for non-looping
+voices, including queued clips, while looped music continues. The status bar
+identifies the current wait or scrolling/transition phase.
+
+Transitions use the outgoing scene's setting: cut, black, dissolve, or a
+two-stage pixel dissolve through black/white. Dissolve and black/white transitions
+take four seconds, matching the original timing; a black transition holds black
+for one movie frame. Manual scene selection and seeking show the requested frame
+immediately. Looping uses the last scene's transition before returning to the first.
+
+The build copies `assets/GeneralUserGS.sf2` and dependency licences beside Marcus.
+Keep those folders with the executable. MIDI also accepts the configured build
+bank as a development fallback. Audio output opens lazily when a sound is played;
+device/decoding failures are reported through the existing error display.
 
 Fly starts from the currently displayed camera or orbit view. Movement follows
 the look direction, with upright strafing and world-space vertical movement.
@@ -142,12 +179,15 @@ viewport geometry picking is not yet implemented.
 
 ## Current limits
 
-- Visual playback only: no audio, editing or save commands.
+- Read-only playback: no editing or movie save commands.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.
-- **2D captions, transitions and click/time/sound pause events are not yet
-  presented.** Scenes play continuously with cuts. A title-only scene may appear
-  blank. This is not yet a complete presentation of every movie.
+- Caption glyphs use available host fonts, and MIDI uses a software instrument
+  bank. Font substitution, rasterization and synthesis can differ from the
+  original machine. Full audiovisual/image parity has not been established.
+- Captions are limited to 65,536 UTF-16 units and 4,096-pixel bounds per box;
+  cached glyph masks have a 128 MiB scene budget. Decoded audio has a 256 MiB
+  cache budget; active voices retain their clips until stopped or completed.
 - Orbit and Fly display actor geometry. Backgrounds are prerendered images,
   rather than explorable 3D scenery. Orbit automatically frames visible bodies;
   Fly uses an explicit world-space camera position.
@@ -217,16 +257,20 @@ the additional `TDF /00000005` font is still unavailable in the checked content.
 `src/marcus/main.c` and `ui.c` implement the application and drawing in C89.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
-`player.cpp` owns the C++ Archive/Preview backend, while `content.cpp` adapts the
+`player.cpp` owns the C++ Archive/Preview backend; `playback.cpp` implements audio,
+caption composition and presentation timing. `content.cpp` adapts the
 shared C89 VFS to the existing pack and bundle libraries. Exceptions stop at the
 C boundary. `Preview::Objects()` supplies evaluated actor state.
+The audio callback uses decoded clips and synthesizers, never the renderer,
+archive readers or UI. The renderer and legacy readers retain their single-thread
+ownership rule.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
 FreeType headers are system headers during C89 checking. The backend is C++.
 
 ```console
-cmake --build build/marcus --target marcus marcus-player-test preview-scene-fixture
+cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test preview-scene-fixture
 ctest --test-dir build/marcus -R "^marcus-" --output-on-failure
 ```
 
@@ -237,6 +281,20 @@ With original content and `marcus_resources` pointing at a valid `.chk`,
 switching, camera cuts, stable framing, rewind image identity, renderer lifecycle
 and invalid inputs. Input hashes verify read-only behaviour. Marcus has no UI
 smoke tests or input simulations.
+
+CTest's `marcus-playback` regression (`marcus-playback-test`) uses generated
+title-only and actor scenes. It checks Unicode captions, lifetime/rewind, scrolling, authored
+click/time/sound waits, pausing/resuming, queued sampled clips, audible MIDI/WAVE
+output with SDL's dummy audio device, motion-match precedence, mute, outgoing
+transitions and looping. It also verifies unchanged movie/resource bytes.
+
+On 9 November 2026 these four Marcus checks passed, along with the headless
+preview regressions for 45 actors, 21 props, 12 backgrounds and 188 cameras.
+An additional full visual pass of `TheSnowman` rendered all 3,383 frames in 145
+scenes. Sampling the first five frames of every scene in `TheSnowman`, `Trenches`,
+`I Know Xmas Compilation` and `Liberation Day Teaser Trailer` exercised 129 WAVE
+voice starts and 20 MIDI voice starts without decoding errors. Sampling is not a
+full audiovisual playback comparison.
 
 For a manual capture, scenes start at 1 and object indices at 0:
 
@@ -263,7 +321,9 @@ and runs read-only copies in isolated processes. RAR and older ZIP compression
 methods require 7-Zip. Every frame is evaluated and rendered in the authored
 camera at 480 x 360, without playback pacing or UI input simulation. A failed
 scene is recorded and the tool continues with subsequent scenes. This does not
-check image correctness or the unimplemented audio/caption/transition features.
+check image correctness, audio output, scrolling timing or transitions. Current
+builds composite the captions visible at each seek; the historical coverage
+figures below predate caption presentation.
 Supported VMM bundles are included; the audit does not install expansion content.
 
 `summary.txt` lists completed, incomplete and unsupported movies. `report.json`

@@ -91,7 +91,13 @@ preview is rejected; `Close` permits a new session. Render buffers are limited t
 decoded per chunk and 512 MiB total declared decoded bytes per archive. Scenes
 accept up to 256 actors and evaluated actor lifetimes up to 100,000 frames.
 These bounds do not make the legacy asset readers a complete untrusted-input
-validator. Captions, sound and movie transitions are outside the 3D asset view.
+validator. Captions, sound and movie transitions are outside `Render`'s 3D asset
+view. `ReadPresentation` exposes scene caption text/formatting, sound cues, pauses
+and the outgoing transition as copied standard C++ records. `FrameSounds`
+provides sound events for the evaluated actor frame, including motion-match
+sounds. `ReadSound` resolves content/embedded child references and returns WAVE
+bytes or parsed millisecond MIDI events; it never opens an audio device.
+Marcus composes and schedules these records outside the renderer.
 
 Build `preview-checks` and run `ctest -R asset-previews`. When the original content
 fixtures are available, it renders all 45 actors, 21 props, 12 backgrounds and

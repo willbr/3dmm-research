@@ -164,11 +164,12 @@ passes the native arm64 editing workflow. See [build and content/font setup](doc
 
 ### Marcus movie player
 
-Marcus is a separate, read-only visual player with a C89 frontend: a camera/orbit
+Marcus is a separate, read-only movie player with a C89 frontend: a camera/orbit
 viewport, object timeline, scene navigation and live actor/prop properties.
-The existing C++ preview backend remains behind a C API. This first version has
-no sound or editing; 2D captions, scene transitions and authored pause events
-are not yet presented. See [Marcus build, controls and limitations](docs/tools/marcus.md).
+The C++ backend remains behind a C API. Playback includes sampled audio, MIDI,
+2D captions and scrolling credits, scene transitions, and authored click/time/sound
+pauses. Editing and saving remain future work.
+See [Marcus build, controls and limitations](docs/tools/marcus.md).
 
 ```console
 cmake -S . -B build/marcus -DBUILD_MARCUS=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF

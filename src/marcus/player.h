@@ -56,6 +56,16 @@ extern "C"
         MarcusCamera camera;
         MarcusProjection projection, scene_camera;
     } MarcusImage;
+    typedef struct MarcusPlaybackState
+    {
+        int playing, changed, scene_changed;
+        int wait; /* 0 none, 1 click, 2 non-looping sound, 3 authored duration. */
+        int scrolling, transition;
+    } MarcusPlaybackState;
+    typedef struct MarcusAudioStats
+    {
+        unsigned long wave_sounds, midi_sounds, rendered_frames, audible_frames;
+    } MarcusAudioStats;
 
     MarcusPlayer *marcus_create(void);
     void marcus_destroy(MarcusPlayer *player);
@@ -71,6 +81,14 @@ extern "C"
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
     int marcus_seek(MarcusPlayer *player, long frame);
+    /* Call once per host update, with elapsed milliseconds. Playback preserves
+     * authored waits/scrolling; a click/Space continues a click wait. Manual
+     * seeks are silent and reset presentation timing. No SDL types cross here. */
+    int marcus_update(MarcusPlayer *player, int playing, int loop, double elapsed_ms, int continue_click,
+                      MarcusPlaybackState *state);
+    void marcus_stop(MarcusPlayer *player);
+    int marcus_audio_stats(MarcusPlayer *player, MarcusAudioStats *stats);
+    void marcus_set_muted(MarcusPlayer *player, int muted);
     /* Refit Orbit on its next render. */
     void marcus_reset_framing(MarcusPlayer *player);
     /* Pan the cached orbit center by fractions of viewport width/right and
