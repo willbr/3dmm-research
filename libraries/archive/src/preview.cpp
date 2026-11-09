@@ -426,7 +426,6 @@ try
             auto starts = SceneData::PggReadEvents(&block, &order, true);
             if (!starts)
                 return Fail(error, ErrorCode::decode_failed, "Cannot read scene start events.");
-            bool valid = true;
             TAGOnFile backgroundTag = {};
             bool hasBackground = false;
             for (LegacyLong i = 0; i < starts->IvMac(); ++i)
@@ -443,15 +442,13 @@ try
                         SwapBytesRglw(&slot, 1);
                     if (!file->FGetKidChidCtg(asset.type, asset.number, slot, kctgActr, &child))
                     {
-                        valid = false;
-                        break;
+                        ReleasePpo(&starts);
+                        error.hasChunk = true;
+                        error.chunk = asset;
+                        return Fail(error, ErrorCode::decode_failed,
+                                    ("Scene references missing actor child " + std::to_string(slot) + ".").c_str());
                     }
                     actorChunks.push_back(child.cki.cno);
-                    if (actorChunks.size() > 256)
-                    {
-                        valid = false;
-                        break;
-                    }
                 }
                 else if (event.sevt == sevtSetBkgd)
                 {
@@ -468,8 +465,6 @@ try
                 }
             }
             ReleasePpo(&starts);
-            if (!valid)
-                return Fail(error, ErrorCode::decode_failed, "Scene references a missing actor.");
             if (hasBackground)
             {
                 auto source = _impl->Resolve(backgroundTag);
