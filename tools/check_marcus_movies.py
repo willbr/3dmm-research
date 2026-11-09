@@ -164,7 +164,7 @@ def run_movie(movie, args):
         result.update({key: value for key, value in done.items() if key not in ('event', 'errors')})
     if process.returncode == 0 and done and not result['errors']:
         result['status'] = 'passed'
-    elif movie['format'] != 'native':
+    elif movie['format'] == 'webm':
         result['status'] = 'unsupported'
     elif not result['errors']:
         result['errors'].append({'phase': 'process', 'message': 'Playback process did not complete',

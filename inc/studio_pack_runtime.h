@@ -4,6 +4,10 @@
 #include "studio_packs.h"
 #include "studio_content.h"
 #include <memory>
+namespace ThreeMM::Content
+{
+class Vfs;
+}
 namespace StudioPacks
 {
 enum class Access
@@ -19,6 +23,7 @@ const Preferences &ActivePreferences();
 Preferences SavedPreferences();
 void SavePreferences(const Preferences &preferences);
 StudioContent::Products Products();
+ThreeMM::Content::Vfs &Filesystem();
 Access Resolve(const std::string &longName, const std::string &shortName, std::string &path);
 class Edits
 {

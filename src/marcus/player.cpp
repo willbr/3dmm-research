@@ -1,4 +1,5 @@
 #include "player.h"
+#include "content.h"
 #include "three_mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -35,18 +36,11 @@ std::int32_t Word(const std::vector<std::uint8_t> &bytes, bool big)
     std::memcpy(&result, &value, sizeof(result));
     return result;
 }
-bool OriginalSource(std::string name)
-{
-    // Localized display names retain the /3DMovie product identifier. Source
-    // strings are not required to use the English spelling or upper-case path.
-    for (auto &letter : name)
-        if (letter >= 'a' && letter <= 'z')
-            letter -= 'a' - 'A';
-    return name.find("3D MOVIE MAKER") != std::string::npos || name.find("3DMOVIE") != std::string::npos;
-}
 } // namespace
 struct MarcusPlayer
 {
+    // Destroy the renderer before deleting any private VMM working files.
+    std::unique_ptr<MarcusContent> content;
     ThreeMM::Preview preview;
     ThreeMM::PreviewImage image;
     std::vector<ThreeMM::Id> scenes;
@@ -176,14 +170,16 @@ extern "C"
         return Guard(player, [&](ThreeMM::Error &error) {
             if (!movie || !resources || !directory)
                 return false;
+            auto content = std::make_unique<MarcusContent>(movie, directory);
+            const auto document = content->movie.u8string();
             // Validate the graph and ordered scene list before replacing the live renderer.
             ThreeMM::Archive archive;
-            if (!archive.Open(movie, error))
+            if (!archive.Open(document, error))
                 return false;
             std::vector<ThreeMM::Id> scenes;
             std::vector<MarcusScene> sceneInfo;
             std::map<std::int32_t, std::string> names;
-            std::vector<std::int32_t> sources;
+            std::vector<std::pair<std::int32_t, std::string>> sources;
             bool hasSourceTable = false;
             const ThreeMM::Chunk *root = nullptr;
             for (const auto &chunk : archive.Chunks())
@@ -215,12 +211,12 @@ extern "C"
                     for (const auto &entry : entries)
                         if (child.slot == 0 && entry.extra.size() == 28)
                             names[Word(entry.extra, big)] = entry.text;
-                        else if (child.slot == 1 && entry.extra.size() == 4 && OriginalSource(entry.text))
-                            sources.push_back(Word(entry.extra, big));
+                        else if (child.slot == 1 && entry.extra.size() == 4)
+                            sources.push_back({Word(entry.extra, big), entry.text});
                 }
                 // Source 2 is the original retail content when older movies omit a table.
                 if (!hasSourceTable)
-                    sources.push_back(2);
+                    sources.push_back({2, "3dmovie"});
             }
             else
             {
@@ -228,11 +224,11 @@ extern "C"
                 for (const auto &chunk : archive.Chunks())
                     if (chunk.id.type == sceneType)
                         scenes.push_back(chunk.id);
-                sources.push_back(1);
+                sources.push_back({1, "3dmovie"});
             }
             if (scenes.empty())
             {
-                error.message = "This archive contains no movie scenes. Open a .3MM movie.";
+                error.message = "This document contains no movie scenes.";
                 return false;
             }
             for (const auto &id : scenes)
@@ -250,20 +246,21 @@ extern "C"
                 Copy(scene.name, name.empty() ? "Scene " + std::to_string(sceneInfo.size() + 1) : name);
                 sceneInfo.push_back(scene);
             }
-            if (!player->preview.Open(movie, resources, error))
+            for (const auto &source : sources)
+                content->PrepareSource(source.second);
+            if (!player->preview.Open(document, resources, error))
                 return false;
+            player->content = std::move(content);
             player->selected = -1;
             player->scenes.clear();
             player->sceneInfo.clear();
             player->objects.clear();
             player->names.clear();
             player->image = {};
-            const char *files[] = {"tmpls.3cn", "mtrls.3cn", "bkgds.3cn", "tdfs.3cn"};
-            for (const auto source : sources)
-                for (const auto file : files)
+            for (const auto &source : sources)
+                for (const auto &path : player->content->files.Files(source.second, ".3cn"))
                 {
-                    const auto path = std::string(directory) + "/" + file;
-                    if (std::ifstream(path, std::ios::binary) && !player->preview.AddContent(source, path, error))
+                    if (!player->preview.AddContent(source.first, path.u8string(), error))
                         return false;
                 }
             player->scenes.swap(scenes);

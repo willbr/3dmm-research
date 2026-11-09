@@ -242,7 +242,7 @@ static void SDLCALL dialog_callback(void *userdata, const char *const *files, in
 static void choose_file(App *app, int kind)
 {
     DialogRequest *request;
-    static const SDL_DialogFileFilter movies[] = {{"3D Movie Maker movies", "3mm"}, {"All files", "*"}};
+    static const SDL_DialogFileFilter movies[] = {{"3D Movie Maker movies", "3mm;vmm"}, {"All files", "*"}};
     static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
     release_fly(app);
     request = (DialogRequest *)SDL_calloc(1, sizeof(*request));
@@ -840,7 +840,7 @@ static void draw_header(App *app)
     ui_button(ui, 136, 52, 104, "Resources...", 0, 1);
     ui_button(ui, 248, 52, 104, "Content...", 0, 1);
     ui_button(ui, 360, 52, 96, "Settings", app->settings_open, 1);
-    ui_label(ui, 480, 58, app->sidebar - 496, "Drop a .3MM movie here to open it", MUTED);
+    ui_label(ui, 480, 58, app->sidebar - 496, "Drop a .3MM or .VMM movie here", MUTED);
     ui_line(ui, 0, 88, (float)app->width, 88, LINE);
 }
 static void draw_view(App *app)
@@ -1328,7 +1328,7 @@ static void initialize_shortcuts(App *app)
 static void usage(void)
 {
     puts("Marcus - read-only 3D Movie Maker visual player\n"
-         "Usage: marcus [movie.3mm] [--resources 3dmovie.chk] [--content-dir folder]\n"
+         "Usage: marcus [movie.3mm|movie.vmm] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings]\n"
          "              [--settings-file shortcuts.cfg]\n"

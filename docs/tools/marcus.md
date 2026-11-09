@@ -2,6 +2,7 @@
 
 Marcus is the first step toward a new Studio interface. It is currently a
 read-only, silent visual player for original 3D Movie Maker `.3MM` files.
+It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
 The dark layout has a camera viewport, per-object timeline, scene object list
 and properties pane. The existing Studio application is unchanged.
 
@@ -150,9 +151,18 @@ viewport geometry picking is not yet implemented.
 - Orbit and Fly display actor geometry. Backgrounds are prerendered images,
   rather than explorable 3D scenery. Orbit automatically frames visible bodies;
   Fly uses an explicit world-space camera position.
-- Original content sources are mapped from the movie source table. Unavailable
-  expansion sources report their missing ID. VMM/VXP import and expansion
-  installation are outside this first version.
+- Base content, enabled Nickelodeon/Doraemon/Frankie libraries and portable VXP
+  content share the C89 content VFS used by Studio. Movie source IDs are mapped
+  by recorded product names, rather than assuming the installed numeric IDs.
+  Marcus reads Studio's existing expansion preferences and managed pack store;
+  `THREEDMM_PACK_DIR` selects the same optional store override. It also recognizes
+  prepared expansion folders beside the selected base content.
+- Supported v1 `.vmm` bundles use their declared package selection. Installed
+  packages are reused by name; remaining embedded packages and the inner movie
+  are materialized privately for that session. Ordinary `.3mm` movies use the
+  installed portable defaults when they reference Virtual3dmm. Marcus does not
+  install packages, edit Studio preferences or write back to movie inputs.
+  Disabled/missing required libraries and unsupported package forms remain errors.
 - The renderer retains the preview API's size/decode budgets and one-session,
   one-thread ownership rule. No Studio UI/runtime library is linked.
 - UI text uses FreeType and an available system font: Segoe UI on Windows,
@@ -165,7 +175,8 @@ viewport geometry picking is not yet implemented.
 `src/marcus/main.c` and `ui.c` implement the application and drawing in C89.
 `player.h` exposes an opaque player, copied POD records, integer success results
 and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
-`player.cpp` owns the C++ Archive/Preview backend and catches exceptions at the
+`player.cpp` owns the C++ Archive/Preview backend, while `content.cpp` adapts the
+shared C89 VFS to the existing pack and bundle libraries. Exceptions stop at the
 C boundary. `Preview::Objects()` supplies evaluated actor state.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
@@ -211,7 +222,7 @@ methods require 7-Zip. Every frame is evaluated and rendered in the authored
 camera at 480 x 360, without playback pacing or UI input simulation. A failed
 scene is recorded and the tool continues with subsequent scenes. This does not
 check image correctness or the unimplemented audio/caption/transition features.
-VMM bundles remain unsupported; the audit does not install expansion content.
+Supported VMM bundles are included; the audit does not install expansion content.
 
 `summary.txt` lists completed, incomplete and unsupported movies. `report.json`
 contains exact errors, frame coverage and source aliases; per-movie journals

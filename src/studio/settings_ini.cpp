@@ -403,6 +403,43 @@ const KauaiSettings::Backend &StudioSettings::IniBackend()
     static const KauaiSettings::Backend backend{Open, Read, Write, Close};
     return backend;
 }
+KauaiSettings::ReadResult StudioSettings::ReadString(const std::string &section, const std::string &key,
+                                                     std::string &value)
+{
+    value.clear();
+    try
+    {
+        auto path = fs::u8path(IniPath());
+        if (path.empty() || !fs::exists(path))
+            return ReadResult::Missing;
+        if (!fs::is_regular_file(path) || fs::file_size(path) > 16 * 1024 * 1024)
+            return ReadResult::Error;
+        std::size_t size = 0;
+        std::unique_ptr<char, decltype(&SDL_free)> bytes(static_cast<char *>(SDL_LoadFile(IniPath().c_str(), &size)),
+                                                         SDL_free);
+        Store snapshot;
+        if (!bytes || !snapshot.document.Parse(std::string(bytes.get(), size)))
+            return ReadResult::Error;
+        snapshot.section = section;
+        std::basic_string<NameChar> nativeKey(key.begin(), key.end());
+        std::uint32_t length = 0;
+        Type type;
+        auto result = Read(&snapshot, nativeKey.c_str(), nullptr, &length, &type);
+        if (result != ReadResult::Found)
+            return result;
+        if (type != Type::String || !length || length % sizeof(NameChar))
+            return ReadResult::Error;
+        std::vector<NameChar> text(length / sizeof(NameChar));
+        result = Read(&snapshot, nativeKey.c_str(), text.data(), &length, &type);
+        if (result == ReadResult::Found)
+            value = Text(text.data());
+        return result;
+    }
+    catch (...)
+    {
+        return ReadResult::Error;
+    }
+}
 const std::string &StudioSettings::IniPath()
 {
     static const std::string path = []() -> std::string {

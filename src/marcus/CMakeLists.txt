@@ -1,9 +1,9 @@
 include(SDL3Dependency)
 include(FreeTypeDependency)
 
-add_library(marcus-player STATIC player.cpp)
+add_library(marcus-player STATIC player.cpp content.cpp)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(marcus-player PRIVATE ThreeMM::Preview)
+target_link_libraries(marcus-player PRIVATE ThreeMM::Preview studio-pack-store studio-settings SDL3::SDL3-static)
 
 # Explicitly built, headless playback diagnostic; no UI input simulation.
 add_executable(marcus-playback EXCLUDE_FROM_ALL ../../tools/marcus_playback.c)

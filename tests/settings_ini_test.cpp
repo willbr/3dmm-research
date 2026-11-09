@@ -48,6 +48,10 @@ int main()
     setenv("KAUAI_TEST_SETTINGS_RUN", run.c_str(), 1);
 #endif
     const auto key = Name("Software\\Microsoft\\Microsoft Kids\\3D Movie Maker");
+    std::string missingSnapshot;
+    CHECK(!std::filesystem::exists(std::filesystem::u8path(StudioSettings::IniPath())));
+    CHECK(StudioSettings::ReadString("User", "ExpansionPacks", missingSnapshot) == ReadResult::Missing);
+    CHECK(!std::filesystem::exists(std::filesystem::u8path(StudioSettings::IniPath())));
     const auto option = Name("AllowMultipleInstances"), number = Name("Count"), blob = Name("UserData"),
                folder = Name("HomeDir");
     bool enabled = true;
@@ -114,6 +118,13 @@ int main()
     request.write = false;
     CHECK(Access(StudioSettings::IniBackend(), key.c_str(), folder.c_str(), output, sizeof(output), request));
     CHECK(path == output);
+    const auto snapshotBefore = Load();
+    std::string snapshot;
+    CHECK(StudioSettings::ReadString("User", "HomeDir", snapshot) == ReadResult::Found);
+    CHECK(snapshot == std::string("C:\\My movies\\a \"quoted\" folder\nnext") + u8"\u00e9");
+    CHECK(StudioSettings::ReadString("User", "UnknownReadOnlyKey", snapshot) == ReadResult::Missing);
+    CHECK(StudioSettings::ReadString("Machine", "Count", snapshot) == ReadResult::Error);
+    CHECK(Load() == snapshotBefore);
     const auto before = Load();
     const auto comments = before + "\n; keep my comment\n[Custom]\nExample=untouched\n";
     CHECK(SDL_SaveFile(StudioSettings::IniPath().c_str(), comments.data(), comments.size()));
@@ -133,6 +144,7 @@ int main()
     bool created = false;
     auto first = StudioSettings::IniBackend().open(key.c_str(), false, &created);
     CHECK(first && !created);
+    CHECK(StudioSettings::ReadString("User", "HomeDir", snapshot) == ReadResult::Found);
     CHECK(!StudioSettings::IniBackend().open(key.c_str(), false, &created));
     StudioSettings::IniBackend().close(first);
     // A failed temporary write cannot replace a good file.

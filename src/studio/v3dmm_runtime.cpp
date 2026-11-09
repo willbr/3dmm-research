@@ -5,6 +5,7 @@
 #include "sdl_dialog.h"
 #include "platform_text.h"
 #include "text_utf8.h"
+#include "three_mm/content_vfs.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -24,7 +25,6 @@ namespace fs = std::filesystem;
 namespace V = ThreeMM::V3dmm;
 std::unique_ptr<Store> store;
 std::vector<Installation> active;
-std::vector<fs::path> contentFiles, thumbnailFiles;
 std::uint64_t revision = 0;
 fs::path Path(PFilename filename)
 {
@@ -49,35 +49,25 @@ void Report(const std::exception &error)
     }
     PushErc(ercSocBadFile);
 }
-std::vector<fs::path> Files(const std::vector<Installation> &selection, const std::string &extension)
+std::vector<ThreeMM::Content::File> Mounts(const std::vector<Installation> &selection)
 {
-    // PhysicsFS exposes a sorted, deduplicated filename set. The first mount
-    // supplying a name wins; keep package files separate in physical storage.
-    std::map<std::string, fs::path> names;
-    std::map<std::string, std::string> spellings;
+    std::vector<ThreeMM::Content::File> result;
     for (const auto &entry : selection)
         for (const auto &member : entry.members)
         {
-            if (V::Extension(member.first) != extension)
-                continue;
-            auto lower = V::Fold(member.first);
-            auto spelling = spellings.emplace(lower, member.first);
-            if (!spelling.second && spelling.first->second != member.first)
-                throw std::runtime_error("VXP packages have ambiguous filename casing: " + member.first);
-            names.emplace(member.first, member.second);
+            const auto extension = V::Extension(member.first);
+            if (extension == ".3cn" || extension == ".3th")
+                result.push_back({member.first, member.second});
         }
-    std::vector<fs::path> result;
-    for (const auto &name : names)
-        result.push_back(name.second);
     return result;
 }
 void Activate(const std::vector<Installation> &selection)
 {
-    auto content = Files(selection, ".3cn");
-    auto thumbnails = Files(selection, ".3th");
+    ThreeMM::Content::Vfs candidate;
+    candidate.Replace("v3dmm", Mounts(selection));
     std::uint64_t bytes = 0;
     for (auto extension : {".3cn", ".3th"})
-        for (const auto &path : Files(selection, extension))
+        for (const auto &path : candidate.Files("v3dmm", extension))
         {
             Filename name;
             if (!FilenameOf(path, &name))
@@ -86,9 +76,8 @@ void Activate(const std::vector<Installation> &selection)
             if (bytes > V::Limits{}.expandedBytes)
                 throw std::runtime_error("Active VXP content exceeds its disk budget");
         }
+    StudioPacks::Filesystem().Replace("v3dmm", candidate.Entries("v3dmm"));
     active = selection;
-    contentFiles = std::move(content);
-    thumbnailFiles = std::move(thumbnails);
     ++revision;
     if (vptagm)
         vptagm->InvalidateSource(6);
@@ -118,7 +107,7 @@ struct Document : MovieContainer::Document
     bool bundled = false, committed = false, changed = false, explicitSelection = false;
     std::uint64_t activatedRevision = 0;
     std::vector<Installation> previous, selection;
-    std::vector<fs::path> previousContent, previousThumbnails;
+    std::vector<ThreeMM::Content::File> previousMounts;
     std::vector<std::string> libraries;
     fs::path working;
     ~Document() override
@@ -126,8 +115,7 @@ struct Document : MovieContainer::Document
         if (changed && !committed && revision == activatedRevision)
         {
             active = previous;
-            contentFiles = previousContent;
-            thumbnailFiles = previousThumbnails;
+            StudioPacks::Filesystem().Replace("v3dmm", previousMounts);
             ++revision;
             if (vptagm)
                 vptagm->InvalidateSource(6);
@@ -189,8 +177,7 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
     {
         auto document = std::make_shared<Document>();
         document->previous = active;
-        document->previousContent = contentFiles;
-        document->previousThumbnails = thumbnailFiles;
+        document->previousMounts = StudioPacks::Filesystem().Entries("v3dmm");
         for (const auto &entry : store->Entries())
             if (entry.enabled)
                 document->selection.push_back(entry);
@@ -341,11 +328,19 @@ bool Resolve(PString longName, PString shortName, PFilename path)
 }
 bool Archive(LegacyLong sid, FileType type, LegacyLong index, PFilename path)
 {
-    if (sid != 6 || !store)
+    std::string source;
+    if (sid == 6)
+        source = "v3dmm";
+    else
+        for (const auto &product : StudioPacks::Products().entries)
+            if (std::string(product.sourceId.begin(), product.sourceId.end()) == std::to_string(sid))
+                source = ThreeMM::Content::SourceKey(std::string(product.title.begin(), product.title.end()));
+    auto &vfs = StudioPacks::Filesystem();
+    if (source.empty() || !vfs.Mounted(source))
         return false;
     if (index < 0)
         return true;
-    const auto &files = type == kftgContent ? contentFiles : thumbnailFiles;
+    const auto files = vfs.Files(source, type == kftgContent ? ".3cn" : ".3th");
     return std::size_t(index) < files.size() && FilenameOf(files[index], path);
 }
 } // namespace StudioV3dmm

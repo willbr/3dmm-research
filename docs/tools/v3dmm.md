@@ -84,6 +84,22 @@ The format library is in `libraries/v3dmm/`, persistent storage in
 `src/studio/v3dmm_runtime.cpp`. The engine's `MovieContainer::Document` adapter
 keeps host package management outside the movie wire format.
 
+Studio and Marcus share the read-only content VFS in `libraries/content/`.
+Its mount tables, source aliases, lookup, enumeration, mount precedence and
+provider-based streams are implemented in C89. The public C API is
+`three_mm/content_vfs.h`; `content_vfs.hpp` is a thin C++ filesystem adapter for
+the existing engine. Positions use two 32-bit words so the C89 core can address
+large files without C99 integer types. Files are exposed under logical product
+namespaces, independent of a movie's numeric source IDs. Legacy chunky readers
+can still obtain physical paths while using the common mount selection.
+
+The VMM/VXP decoder, installed-pack store and host integration remain C++.
+Studio activates its per-movie portable set in the VFS and uses the same archive
+enumeration for base content, fixed libraries, thumbnails and portable content.
+Marcus uses that mount policy with read-only Studio preference snapshots and
+session-private materialization, without taking over Studio's package manager.
+`content-vfs` and `content-vfs-c89` validate the core and its C89 boundary.
+
 ## Validation
 
 Build `v3dmm-test` and run it, or run CTest's `v3dmm` test. It covers embedded
