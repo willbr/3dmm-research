@@ -1041,6 +1041,8 @@ static void open_settings(App *app)
 }
 static void normalize_camera_options(int renderer, MarcusRenderOptions *view)
 {
+    /* 3DMM materials already use Gouraud shading in the authored mode. */
+    if (view->display_mode == MARCUS_DISPLAY_SMOOTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
     if (renderer == MARCUS_RENDERER_BRENDER)
     {
         if (view->display_mode >= MARCUS_DISPLAY_DEPTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
@@ -1152,6 +1154,7 @@ static void settings_click(App *app, float x, float y)
             if (ui_inside(x, y, left + 480, top + 80, 256, 28))
             {
                 view->display_mode = (view->display_mode + 1) % MARCUS_DISPLAY_COUNT;
+                if (view->display_mode == MARCUS_DISPLAY_SMOOTH) ++view->display_mode;
                 if (!gpu && view->display_mode >= MARCUS_DISPLAY_DEPTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
             }
             if (gpu && ui_inside(x, y, left + 620, top + 120, 116, 28)) view->wire_overlay = !view->wire_overlay;

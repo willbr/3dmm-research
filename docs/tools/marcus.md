@@ -164,14 +164,17 @@ work cameras save independent renderer and resolution choices. The top-right
 **cog** in the movie-only view edits the movie camera's settings without leaving
 the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and select
 a **render resolution**, then click **Apply** to save that camera's choices.
-The same dialog offers **Textured**, **Solid**, **Flat shading**, **Smooth
-shading**, and **Wireframe** display modes using BRender's existing APIs.
+The same dialog offers **Textured (authored)**, **Solid**, **Flat shading**, and
+**Wireframe** display modes using BRender's existing APIs. Authored 3DMM
+materials already use smooth/Gouraud shading: lighting intensity is interpolated
+and then resolved through the indexed shade table and palette. There is no
+separate Smooth choice; old Smooth selections return to Textured (authored).
 GPU backends also offer **Depth** and **Face normals**, an independent **Wire
 overlay**, **Nearest / Bilinear** texture filtering, and **Off / 2x / 4x SSAA**.
 Filtering interpolates resolved palette colours, including transparent texels;
 it does not interpolate palette indices. Diagnostic display modes hide the
 original background bitmap; Depth also visualizes its authored depth map.
-Flat/smooth shading affects geometry, since
+Flat shading affects geometry, since
 background lighting is already baked into the artwork.
 
 SSAA renders at twice or four times the chosen width and height, then averages

@@ -6,7 +6,7 @@ static const char *ids[MARCUS_RENDERER_COUNT] = {"brender", "brender-compute", "
 const char *marcus_display_mode_name(int mode)
 {
     static const char *display_names[MARCUS_DISPLAY_COUNT] = {
-        "Textured", "Solid", "Flat shading", "Smooth shading", "Wireframe", "Depth", "Face normals"};
+        "Textured (authored)", "Solid", "Flat shading", "Textured (authored)", "Wireframe", "Depth", "Face normals"};
     return mode >= 0 && mode < MARCUS_DISPLAY_COUNT ? display_names[mode] : "Unknown mode";
 }
 int marcus_render_options_valid(const MarcusRenderOptions *options)
