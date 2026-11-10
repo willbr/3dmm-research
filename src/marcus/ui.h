@@ -26,6 +26,8 @@ void ui_text(MarcusUI *ui, float x, float y, const char *text, unsigned long col
 void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long colour);
 int ui_inside(float px, float py, float x, float y, float w, float h);
 void ui_button(MarcusUI *ui, float x, float y, float w, const char *text, int active, int enabled);
+void ui_button_sized(MarcusUI *ui, float x, float y, float w, float h, const char *text, int active, int enabled);
+#define UI_NAVIGATION_HEIGHT 20
 /* action: 0 first, 1 previous, 2 next, 3 last. */
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
 #endif

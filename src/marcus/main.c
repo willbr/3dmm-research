@@ -16,8 +16,12 @@
 #define MUTED 0x969da8UL
 #define ACCENT 0x78cbc4UL
 #define ROW_HEIGHT 28
-#define FRAME_NAV_X 16
-#define SCENE_NAV_X 432
+#define FRAME_NAV_X 192
+#define SCENE_NAV_X FRAME_NAV_X
+#define FRAME_NAV_Y 4
+#define SCENE_NAV_Y 26
+#define PLAY_X 332
+#define LOOP_X 400
 #define NAV_STEP 32
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
@@ -1049,7 +1053,7 @@ static void mouse_down(App *app, float x, float y, int button)
         if (ui_inside(x, y, app->sidebar / 2 - 65, 280, 130, 28))
             choose_file(app, 0);
     }
-    else if (ui_inside(x, y, SCENE_NAV_X, app->timeline_y + 8, NAV_STEP * 4 - 4, 28))
+    else if (ui_inside(x, y, SCENE_NAV_X, app->timeline_y + SCENE_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
         action = (int)((x - SCENE_NAV_X) / NAV_STEP);
         if (x - SCENE_NAV_X - action * NAV_STEP >= 28)
@@ -1070,16 +1074,16 @@ static void mouse_down(App *app, float x, float y, int button)
         view_mode(app, 2);
     else if (!app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
         reset_view(app);
-    else if (ui_inside(x, y, FRAME_NAV_X, app->timeline_y + 8, NAV_STEP * 4 - 4, 28))
+    else if (ui_inside(x, y, FRAME_NAV_X, app->timeline_y + FRAME_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
         action = (int)((x - FRAME_NAV_X) / NAV_STEP);
         if (x - FRAME_NAV_X - action * NAV_STEP >= 28)
             return;
         perform_action(app, MARCUS_FIRST_FRAME + action);
     }
-    else if (ui_inside(x, y, 148, app->timeline_y + 8, 60, 28))
+    else if (ui_inside(x, y, PLAY_X, app->timeline_y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         toggle_play(app);
-    else if (ui_inside(x, y, 216, app->timeline_y + 8, 60, 28))
+    else if (ui_inside(x, y, LOOP_X, app->timeline_y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         app->loop = !app->loop;
     else if (ui_inside(x, y, app->sidebar - 132, app->timeline_y + 8, 32, 28))
         zoom_timeline(app, 0.8f, app->grid_x + app->grid_width / 2);
@@ -2062,37 +2066,47 @@ static void draw_timeline(App *app)
         ui->hint = "Drag up or down to resize the dope sheets";
     ui_fill(ui, 0, y, app->sidebar, (float)app->height - y - 24, PANEL);
     ui_line(ui, 0, y, app->sidebar, y, LINE);
-    ui_navigation_button(ui, FRAME_NAV_X, y + 8, 0, app->loaded && app->info.frame > app->info.first_frame,
+    ui_text(ui, 16, y + FRAME_NAV_Y + 1, "Frame", MUTED);
+    ui_text(ui, 16, y + SCENE_NAV_Y + 1, "Scene", MUTED);
+    ui_fill(ui, 68, y + FRAME_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
+    ui_fill(ui, 68, y + SCENE_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
+    ui_navigation_button(ui, FRAME_NAV_X, y + FRAME_NAV_Y, 0, app->loaded && app->info.frame > app->info.first_frame,
                          "First frame");
-    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP, y + 8, 1, app->loaded && app->info.frame > app->info.first_frame,
-                         "Previous frame");
-    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 2, y + 8, 2,
+    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP, y + FRAME_NAV_Y, 1,
+                         app->loaded && app->info.frame > app->info.first_frame, "Previous frame");
+    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 2, y + FRAME_NAV_Y, 2,
                          app->loaded && app->info.frame < app->info.last_frame, "Next frame");
-    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + 8, 3,
+    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
-    ui_button(ui, 148, y + 8, 60,
-              app->playing && app->playback.wait == 1 ? "Next" : app->playing ? "Pause" : "Play",
-              app->playing, app->loaded);
-    ui_button(ui, 216, y + 8, 60, "Loop", app->loop, app->loaded);
-    if (ui_inside(ui->mouse_x, ui->mouse_y, 216, y + 8, 60, 28))
+    ui_button_sized(ui, PLAY_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT,
+                    app->playing && app->playback.wait == 1 ? "Next"
+                    : app->playing                          ? "Pause"
+                                                            : "Play",
+                    app->playing, app->loaded);
+    ui_button_sized(ui, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT, "Loop", app->loop, app->loaded);
+    if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         ui->hint = "Repeat the current scene from its first frame";
-    ui_navigation_button(ui, SCENE_NAV_X, y + 8, 0, app->loaded && app->info.scene > 0, "First scene");
-    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + 8, 1, app->loaded && app->info.scene > 0, "Previous scene");
-    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 2, y + 8, 2,
+    ui_navigation_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
+    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
+                         "Previous scene");
+    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 2, y + SCENE_NAV_Y, 2,
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Next scene");
-    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 3, y + 8, 3,
+    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 3, y + SCENE_NAV_Y, 3,
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Last scene");
     if (app->loaded)
     {
-        SDL_snprintf(label, sizeof(label), "Frame %.0f / %.0f", display_frame(app, app->info.frame),
+        SDL_snprintf(label, sizeof(label), "%.0f / %.0f", display_frame(app, app->info.frame),
                      display_frame(app, app->info.last_frame));
-        ui_label(ui, 286, y + 14, 134, label, TEXT);
+        ui_label(ui, 76, y + FRAME_NAV_Y + 1, 96, label, TEXT);
+        SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
+        ui_label(ui, 76, y + SCENE_NAV_Y + 1, 96, label, TEXT);
         if (marcus_scene(app->player, app->info.scene, &scene))
-        {
-            SDL_snprintf(label, sizeof(label), app->sidebar < 850 ? "%d / %d   %s" : "Scene %d / %d   %s",
-                         app->info.scene + 1, app->info.scene_count, scene.name);
-            ui_label(ui, 568, y + 14, app->sidebar - 716, label, TEXT);
-        }
+            ui_label(ui, PLAY_X, y + SCENE_NAV_Y + 1, app->sidebar - PLAY_X - 148, scene.name, TEXT);
+    }
+    else
+    {
+        ui_text(ui, 76, y + FRAME_NAV_Y + 1, "- / -", MUTED);
+        ui_text(ui, 76, y + SCENE_NAV_Y + 1, "- / -", MUTED);
     }
     ui_button(ui, app->sidebar - 132, y + 8, 32, "-", 0, app->loaded);
     ui_button(ui, app->sidebar - 94, y + 8, 32, "+", 0, app->loaded);

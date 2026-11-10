@@ -81,8 +81,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Left / Right | Step one frame; Shift steps ten |
 | Home / End | First / last frame of the current scene |
 | Page Up / Page Down, or scene arrows | Previous / next scene |
-| Four buttons before Play | First / previous / next / last frame |
-| Four buttons beside the scene info | First / previous / next / last scene |
+| Four buttons in the Frame row | First / previous / next / last frame |
+| Four buttons in the Scene row | First / previous / next / last scene |
 | Click or drag the timeline | Scrub the current scene |
 | Click an object name or track | Select the actor/prop and inspect its evaluated metadata |
 | Objects / Sounds / Both dropdown | Choose which tracks appear in the dope sheet |
@@ -247,7 +247,10 @@ shows a message in Settings. `--settings-file path` allows an explicit profile;
 
 Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
-in the status bar on hover. Buttons at the first/last boundary are disabled.
+in the status bar on hover. The Frame row sits above the Scene row, with aligned
+counters and navigation buttons like retail 3DMM. Play and Loop sit beside the
+Frame controls, with the scene name beside the Scene controls. Buttons at the
+first/last boundary are disabled.
 With Loop off, playback advances through scenes and stops at the movie's final
 frame. With Loop on, the current scene repeats, resetting its animation, captions
 and audio while retaining selection, timeline zoom and work-camera position.

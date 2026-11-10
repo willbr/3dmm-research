@@ -172,20 +172,24 @@ int ui_inside(float px, float py, float x, float y, float w, float h)
 }
 void ui_button(MarcusUI *ui, float x, float y, float w, const char *text, int active, int enabled)
 {
+    ui_button_sized(ui, x, y, w, 28, text, active, enabled);
+}
+void ui_button_sized(MarcusUI *ui, float x, float y, float w, float h, const char *text, int active, int enabled)
+{
     unsigned long background;
     background = active ? 0x375e64 : 0x33363b;
-    if (enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, y, w, 28))
+    if (enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, y, w, h))
         background = active ? 0x467c82 : 0x45494f;
-    ui_fill(ui, x, y, w, 28, background);
-    ui_line(ui, x, y + 27, x + w, y + 27, active ? 0x71c6c0 : 0x45494f);
-    ui_label(ui, x + 9, y + 5, w - 18, text, enabled ? 0xe3e5e8 : 0x737780);
+    ui_fill(ui, x, y, w, h, background);
+    ui_line(ui, x, y + h - 1, x + w, y + h - 1, active ? 0x71c6c0 : 0x45494f);
+    ui_label(ui, x + 9, y + (h - 18) / 2, w - 18, text, enabled ? 0xe3e5e8 : 0x737780);
 }
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint)
 {
     int row;
     float center;
     unsigned long colour;
-    ui_button(ui, x, y, 28, "", 0, enabled);
+    ui_button_sized(ui, x, y, 28, UI_NAVIGATION_HEIGHT, "", 0, enabled);
     colour = enabled ? 0xe3e5e8 : 0x737780;
     center = x + 14;
     if (action == 0)
@@ -195,14 +199,14 @@ void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enable
     for (row = -5; row <= 5; ++row)
     {
         if (action <= 1)
-            ui_line(ui, center - 4 + abs(row) * 8 / 5, y + 14 + row, center + 4, y + 14 + row, colour);
+            ui_line(ui, center - 4 + abs(row) * 8 / 5, y + 10 + row, center + 4, y + 10 + row, colour);
         else
-            ui_line(ui, center - 4, y + 14 + row, center + 4 - abs(row) * 8 / 5, y + 14 + row, colour);
+            ui_line(ui, center - 4, y + 10 + row, center + 4 - abs(row) * 8 / 5, y + 10 + row, colour);
     }
     if (action == 0)
-        ui_fill(ui, x + 6, y + 8, 2, 13, colour);
+        ui_fill(ui, x + 6, y + 4, 2, 13, colour);
     if (action == 3)
-        ui_fill(ui, x + 20, y + 8, 2, 13, colour);
-    if (ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, 28))
+        ui_fill(ui, x + 20, y + 4, 2, 13, colour);
+    if (ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, UI_NAVIGATION_HEIGHT))
         ui->hint = hint;
 }
