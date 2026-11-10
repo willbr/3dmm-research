@@ -41,7 +41,27 @@ extern "C"
         int scene, scene_count, object_count;
         long first_frame, last_frame, frame;
         unsigned long camera, camera_count;
+        int sound_count, sound_track_count;
     } MarcusInfo;
+
+    enum MarcusSoundStyle
+    {
+        MARCUS_SOUND_EFFECT = 2,
+        MARCUS_SOUND_SPEECH = 3,
+        MARCUS_SOUND_MUSIC = 4
+    };
+    typedef struct MarcusSoundTrack
+    {
+        char name[192];
+        int cue_count;
+    } MarcusSoundTrack;
+    typedef struct MarcusSound
+    {
+        char name[192], owner[192];
+        long frame, actor_id, source_id, style, volume, motion_cel;
+        unsigned long chunk, child;
+        int track, actor_sound, loop, queue, silent, motion;
+    } MarcusSound;
 
     typedef struct MarcusCamera
     {
@@ -111,6 +131,10 @@ extern "C"
     int marcus_select_scene_keep_view(MarcusPlayer *player, int index);
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
+    /* Authored cue markers, not waveform durations. Motion cues mark bindings;
+     * queued cues share their authored start. Reading never seeks or plays. */
+    int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track);
+    int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound);
     int marcus_seek(MarcusPlayer *player, long frame);
     /* Call once per host update, with elapsed milliseconds. Playback preserves
      * authored waits/scrolling; a click/Space continues a click wait. Manual

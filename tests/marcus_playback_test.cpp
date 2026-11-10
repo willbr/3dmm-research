@@ -292,6 +292,25 @@ int main(int argc, char **argv)
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
     CHECK(Info().first_frame == -2 && Info().object_count == 0);
+    // Read-only dope sheet metadata must neither move the playhead nor start
+    // audio. Queued entries retain their shared authored start frame.
+    CHECK(Info().sound_count == 3 && Info().sound_track_count == 2);
+    MarcusSound cue, queued;
+    MarcusSoundTrack soundTrack;
+    CHECK(!marcus_sound(nullptr, 0, &cue) && !marcus_sound(player, -1, &cue));
+    CHECK(!marcus_sound(player, 3, &cue) && !marcus_sound(player, 0, nullptr));
+    CHECK(!marcus_sound_track(player, -1, &soundTrack) && !marcus_sound_track(player, 2, &soundTrack));
+    CHECK(!marcus_sound_track(nullptr, 0, &soundTrack) && !marcus_sound_track(player, 0, nullptr));
+    CHECK(marcus_sound(player, 0, &cue));
+    CHECK(cue.frame == 0 && cue.style == MARCUS_SOUND_MUSIC && cue.loop && !cue.actor_sound);
+    CHECK(cue.source_id == 0 && cue.child == 8 && cue.volume == 0x10000);
+    CHECK(marcus_sound(player, 1, &cue) && marcus_sound(player, 2, &queued));
+    CHECK(cue.frame == 2 && queued.frame == 2 && !cue.queue && queued.queue && cue.track == queued.track);
+    CHECK(marcus_sound_track(player, cue.track, &soundTrack) && soundTrack.cue_count == 2);
+    CHECK(!std::strcmp(soundTrack.name, "Scene / Effects"));
+    CHECK(Info().frame == -2);
+    MarcusAudioStats sheetStats;
+    CHECK(marcus_audio_stats(player, &sheetStats) && !sheetStats.wave_sounds && !sheetStats.midi_sounds);
     const auto title = Image();
     CHECK(std::count(title.begin(), title.end(), byte(255)) > 1000);
     const auto orbitTitle = Image(0);
@@ -385,6 +404,13 @@ int main(int argc, char **argv)
     CHECK(marcus_audio_stats(player, &stats));
     const auto soundsBefore = stats.wave_sounds;
     CHECK(marcus_select_scene(player, 4));
+    CHECK(Info().sound_count == 5 && Info().sound_track_count == 3);
+    CHECK(marcus_sound(player, 0, &cue) && cue.actor_sound && cue.actor_id == 42 && cue.frame == -2);
+    CHECK(cue.motion && cue.motion_cel == 0 && cue.child == 7);
+    CHECK(marcus_sound(player, 1, &queued) && queued.actor_sound && !queued.motion && queued.motion_cel == -1);
+    CHECK(cue.track == queued.track && marcus_sound_track(player, cue.track, &soundTrack));
+    CHECK(!std::strcmp(soundTrack.name, "Actor 42 / Effects") && soundTrack.cue_count == 2);
+    CHECK(Info().frame == -2 && marcus_audio_stats(player, &sheetStats) && sheetStats.wave_sounds == soundsBefore);
     Tick(0);
     CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == soundsBefore + 1);
     Tick(170);

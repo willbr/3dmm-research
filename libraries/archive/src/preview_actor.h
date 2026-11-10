@@ -36,6 +36,7 @@ class PreviewActor
               std::function<void(PTemplate)> bindTemplate);
     bool Seek(LegacyLong frame);
     PreviewObject Snapshot() const;
+    void AppendSoundCues(std::vector<PreviewSoundCue> &cues) const;
     bool Visible() const
     {
         return state.onStage;

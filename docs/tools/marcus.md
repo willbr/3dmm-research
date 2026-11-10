@@ -4,7 +4,7 @@ Marcus is the first step toward a new Studio interface. It is currently a
 read-only movie player for original 3D Movie Maker `.3MM` files, including
 sampled sound, MIDI music, 2D captions, transitions and authored pauses.
 It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
-The dark layout has a camera viewport, per-object timeline, scene object list
+The dark layout has a camera viewport, object and sound dope sheets, scene object list
 and properties pane. The existing Studio application is unchanged.
 
 ## Build and launch
@@ -85,8 +85,10 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Four buttons beside the scene info | First / previous / next / last scene |
 | Click or drag the timeline | Scrub the current scene |
 | Click an object name or track | Select the actor/prop and inspect its evaluated metadata |
+| Objects / Sounds tabs | Switch the bottom dope sheet; both share the ruler, playhead and zoom |
+| Click a sound cue marker | Seek silently to its frame and inspect its owner, volume, loop, queue and trigger |
 | Timeline `-`, `+`, Fit | Zoom out, zoom in, fit the scene |
-| Timeline wheel | Scroll object tracks |
+| Timeline wheel | Scroll tracks in the active dope sheet |
 | Shift+wheel, horizontal wheel, or wheel over ruler | Pan frames |
 | Ctrl+wheel over timeline | Zoom around the pointer |
 | Camera / Orbit / Fly, or C | Switch authored camera / orbit / first-person flight |
@@ -103,6 +105,17 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
 | Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
 | Settings / Ctrl+, | Open playback and keyboard shortcut settings |
+
+The sound sheet groups authored cues into scene and actor lanes, with separate
+music, speech and effects tracks. Rectangles mark frame cues; diamonds mark
+motion-match bindings. A dot denotes a queued sound and an underline denotes a
+loop. Queued sounds share their authored frame; their eventual playback time
+depends on preceding sounds. Repeated clicks cycle overlapping markers.
+Motion bindings can produce repeated sounds when the actor reaches the matching
+cel. Markers represent events rather than audio
+duration or waveforms. Sound identities are shown as source ID and chunk number.
+Selecting or scrubbing a cue is silent; Play uses the existing audio playback.
+Use `--sounds` to open directly on the sound sheet, including with `--screenshot`.
 
 Click a binding in Settings and press a key combination to replace it. Shift,
 Ctrl, Alt and Command modifiers are supported. Escape cancels capture; Backspace

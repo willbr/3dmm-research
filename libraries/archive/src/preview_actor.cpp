@@ -206,7 +206,25 @@ PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
     cue.queue = sound.fQueue != tNo;
     cue.silent = sound.fNoSound == tYes;
     cue.motion = sound.celn != ivNil;
+    cue.motionCel = sound.celn;
     return cue;
+}
+void PreviewActor::AppendSoundCues(std::vector<PreviewSoundCue> &cues) const
+{
+    if (inactive)
+        return;
+    for (LegacyLong index = 0; track.events && index < track.events->IvMac(); ++index)
+    {
+        Base event;
+        track.events->GetFixed(index, &event);
+        if (event.aet != aetSnd)
+            continue;
+        Sound sound;
+        track.events->Get(index, &sound);
+        auto cue = SoundCue(sound);
+        cue.frame = event.nfrm;
+        cues.push_back(cue);
+    }
 }
 bool PreviewActor::Position(bool selectCel)
 {

@@ -92,6 +92,7 @@ struct PreviewSoundCue
     Id sound;
     std::uint32_t child = 0;
     bool actorSound = false, loop = false, queue = false, silent = false, motion = false;
+    std::int32_t motionCel = -1; // Motion binding cel; -1 for an ordinary cue.
 };
 struct PreviewPause
 {
@@ -143,6 +144,9 @@ class Preview
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
+    // Authored scene cues and actor sound events, without seeking or playing.
+    // Motion sounds mark the binding event, not every subsequent cel match.
+    bool ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error);
     std::vector<PreviewSoundCue> FrameSounds() const;
     bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
     // Resolve stored indexed caption colours against the active movie palette.

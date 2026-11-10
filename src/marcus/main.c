@@ -62,6 +62,7 @@ typedef struct App
     int continue_click, muted;
     int flying, fly_ready, camera_ready, fly_keys;
     int row_scroll, object_scroll, width, height;
+    int sound_sheet, sound_scroll, selected_sound, selected_sound_track;
     float sidebar, viewport_bottom, timeline_y, grid_x, grid_width;
     float yaw, pitch, zoom, pixels_per_frame;
     double timeline_start;
@@ -116,9 +117,16 @@ static void fail(App *app, const char *message)
 }
 static void refresh(App *app)
 {
+    int previous_scene;
+    previous_scene = app->info.scene;
     app->loaded = marcus_info(app->player, &app->info);
     if (app->selected >= app->info.object_count)
         app->selected = -1;
+    if (!app->loaded || previous_scene != app->info.scene)
+    {
+        app->selected_sound = app->selected_sound_track = -1;
+        app->sound_scroll = 0;
+    }
 }
 static void layout(App *app)
 {
@@ -173,6 +181,8 @@ static int select_scene(App *app, int index)
     }
     app->selected = app->info.object_count ? 0 : -1;
     app->row_scroll = app->object_scroll = 0;
+    app->sound_scroll = 0;
+    app->selected_sound = app->selected_sound_track = -1;
     fit_timeline(app);
     app->dirty = 1;
     return 1;
@@ -223,6 +233,8 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
     app->selected = app->info.object_count ? 0 : -1;
     app->camera_ready = 0;
     app->row_scroll = app->object_scroll = 0;
+    app->sound_scroll = 0;
+    app->selected_sound = app->selected_sound_track = -1;
     fit_timeline(app);
     reset_view(app);
     return 1;
@@ -453,6 +465,46 @@ static void zoom_timeline(App *app, float factor, float anchor)
     if (app->timeline_start < app->info.first_frame)
         app->timeline_start = app->info.first_frame;
 }
+static void select_timeline_row(App *app, float x, float y, int grid)
+{
+    int row, index, previous, closest, fallback;
+    MarcusSound sound;
+    float center, marker_y;
+    row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT);
+    if (!app->sound_sheet)
+    {
+        row += app->row_scroll;
+        if (row >= 0 && row < app->info.object_count)
+            app->selected = row;
+        return;
+    }
+    row += app->sound_scroll;
+    previous = app->selected_sound;
+    app->selected_sound = -1;
+    if (row < 0 || row >= app->info.sound_track_count)
+        return;
+    app->selected_sound_track = row;
+    if (!grid)
+        return;
+    /* Stagger coincident cues vertically so queued entries can be selected. */
+    closest = fallback = -1;
+    for (index = app->info.sound_count - 1; index >= 0; --index)
+        if (marcus_sound(app->player, index, &sound) && sound.track == row)
+        {
+            center = frame_x(app, sound.frame + 0.5);
+            marker_y = app->timeline_y + 87 + (row - app->sound_scroll) * ROW_HEIGHT + (index % 3) * 5;
+            if (fabs(x - center) <= 6 && fabs(y - marker_y) <= 4)
+            {
+                if (fallback < 0)
+                    fallback = index;
+                if (closest < 0 && index < previous)
+                    closest = index;
+            }
+        }
+    app->selected_sound = closest >= 0 ? closest : fallback;
+    if (marcus_sound(app->player, app->selected_sound, &sound))
+        seek(app, sound.frame);
+}
 static void open_settings(App *app)
 {
     release_fly(app);
@@ -657,17 +709,22 @@ static void mouse_down(App *app, float x, float y, int button)
         zoom_timeline(app, 1.25f, app->grid_x + app->grid_width / 2);
     else if (ui_inside(x, y, app->sidebar - 56, app->timeline_y + 8, 40, 28))
         fit_timeline(app);
+    else if (ui_inside(x, y, 10, app->timeline_y + 50, 94, 28))
+        app->sound_sheet = 0;
+    else if (ui_inside(x, y, 110, app->timeline_y + 50, 94, 28))
+        app->sound_sheet = 1;
     else if (ui_inside(x, y, app->sidebar + 1, 126, 298, 168))
     {
         row = (int)((y - 126) / ROW_HEIGHT) + app->object_scroll;
         if (row < app->info.object_count)
+        {
             app->selected = row;
+            app->sound_sheet = 0;
+        }
     }
     else if (ui_inside(x, y, 0, app->timeline_y + 80, app->grid_x, app->height - app->timeline_y - 112))
     {
-        row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT) + app->row_scroll;
-        if (row < app->info.object_count)
-            app->selected = row;
+        select_timeline_row(app, x, y, 0);
     }
     else if (ui_inside(x, y, app->grid_x, app->timeline_y + 48, app->grid_width, app->height - app->timeline_y - 80))
     {
@@ -675,11 +732,10 @@ static void mouse_down(App *app, float x, float y, int button)
         app->dragging = 1;
         if (y >= app->timeline_y + 80)
         {
-            row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT) + app->row_scroll;
-            if (row < app->info.object_count)
-                app->selected = row;
+            select_timeline_row(app, x, y, 1);
         }
-        seek(app, frame_at(app, x));
+        if (!app->sound_sheet || app->selected_sound < 0 || y < app->timeline_y + 80)
+            seek(app, frame_at(app, x));
     }
     else if (!app->authored && ui_inside(x, y, 12, 132, app->sidebar - 24, app->viewport_bottom - 144))
     {
@@ -940,14 +996,13 @@ static void handle_event(App *app, const SDL_Event *event)
             else
             {
                 rows = (int)((app->height - app->timeline_y - 112) / ROW_HEIGHT);
-                maximum_scroll = app->info.object_count - rows;
+                maximum_scroll = (app->sound_sheet ? app->info.sound_track_count : app->info.object_count) - rows;
                 if (maximum_scroll < 0)
                     maximum_scroll = 0;
-                app->row_scroll -= (int)delta;
-                if (app->row_scroll < 0)
-                    app->row_scroll = 0;
-                if (app->row_scroll > maximum_scroll)
-                    app->row_scroll = maximum_scroll;
+                if (app->sound_sheet)
+                    app->sound_scroll = (int)maximum(0, minimum(maximum_scroll, app->sound_scroll - (int)delta));
+                else
+                    app->row_scroll = (int)maximum(0, minimum(maximum_scroll, app->row_scroll - (int)delta));
             }
         }
         else if (!app->authored && x < app->sidebar && y >= 132)
@@ -1133,6 +1188,48 @@ static void property(App *app, float y, const char *label, const char *value)
     ui_text(&app->ui, app->sidebar + 18, y, label, MUTED);
     ui_label(&app->ui, app->sidebar + 120, y, 162, value, TEXT);
 }
+static void draw_sound_properties(App *app)
+{
+    MarcusSound sound;
+    MarcusSoundTrack track;
+    char label[192];
+    ui_text(&app->ui, app->sidebar + 18, 340, "SOUND PROPERTIES", MUTED);
+    if (!app->loaded || !marcus_sound(app->player, app->selected_sound, &sound))
+    {
+        if (app->loaded && marcus_sound_track(app->player, app->selected_sound_track, &track))
+        {
+            ui_label(&app->ui, app->sidebar + 18, 377, 264, track.name, TEXT);
+            SDL_snprintf(label, sizeof(label), "%d authored cues", track.cue_count);
+            ui_text(&app->ui, app->sidebar + 18, 405, label, MUTED);
+        }
+        else
+            ui_text(&app->ui, app->sidebar + 18, 377, "Select a sound track", TEXT);
+        ui_text(&app->ui, app->sidebar + 18, 435, "Click a cue marker to inspect.", MUTED);
+        ui_text(&app->ui, app->sidebar + 18, 463, "Markers show authored events.", MUTED);
+        ui_text(&app->ui, app->sidebar + 18, 487, "Motion cues mark cel bindings.", MUTED);
+        return;
+    }
+    ui_label(&app->ui, app->sidebar + 18, 374, 264, sound.name, TEXT);
+    ui_text(&app->ui, app->sidebar + 18, 400,
+            sound.style == MARCUS_SOUND_MUSIC ? "MUSIC"
+            : sound.style == MARCUS_SOUND_SPEECH ? "SPEECH" : "SOUND EFFECT", 0xe4b575);
+    ui_line(&app->ui, app->sidebar + 18, 435, (float)app->width - 18, 435, LINE);
+    property(app, 450, "Owner", sound.owner);
+    SDL_snprintf(label, sizeof(label), "%.0f", display_frame(app, sound.frame));
+    property(app, 478, "Cue frame", label);
+    SDL_snprintf(label, sizeof(label), "%.1f%%", sound.volume * 100.0 / 65536.0);
+    property(app, 506, "Volume", label);
+    property(app, 534, "Loop", sound.loop ? "Yes" : "No");
+    property(app, 562, "Queued", sound.queue ? "Yes" : "No");
+    property(app, 590, "Silence", sound.silent ? "Yes" : "No");
+    SDL_snprintf(label, sizeof(label), "Cel %ld (binding)", sound.motion_cel);
+    property(app, 618, "Trigger", sound.motion ? label : "Frame cue");
+    SDL_snprintf(label, sizeof(label), "%ld : %08lX", sound.source_id, sound.chunk);
+    property(app, 646, "Sound", label);
+    SDL_snprintf(label, sizeof(label), "%lu", sound.child);
+    property(app, 674, "Child ID", label);
+    ui_text(&app->ui, app->sidebar + 18, 710, "Scrubbing is silent.", MUTED);
+}
 static void draw_sidebar(App *app)
 {
     MarcusUI *ui;
@@ -1172,6 +1269,11 @@ static void draw_sidebar(App *app)
         ui_text(ui, app->sidebar + 18, 300, label, MUTED);
     }
     ui_line(ui, app->sidebar, 326, (float)app->width, 326, LINE);
+    if (app->sound_sheet)
+    {
+        draw_sound_properties(app);
+        return;
+    }
     ui_text(ui, app->sidebar + 18, 340, "OBJECT PROPERTIES", MUTED);
     if (!app->loaded || app->selected < 0 || !marcus_object(app->player, app->selected, &object))
     {
@@ -1210,9 +1312,11 @@ static void draw_timeline(App *app)
     MarcusUI *ui;
     MarcusObject object;
     MarcusScene scene;
+    MarcusSound sound;
+    MarcusSoundTrack track;
     SDL_Rect clip;
     char label[320];
-    int row, index, rows;
+    int row, index, rows, selected_row;
     float x, y, left, right;
     double frame, tick, end;
     unsigned long tint;
@@ -1254,24 +1358,37 @@ static void draw_timeline(App *app)
     ui_button(ui, app->sidebar - 94, y + 8, 32, "+", 0, app->loaded);
     ui_button(ui, app->sidebar - 56, y + 8, 40, "Fit", 0, app->loaded);
     ui_fill(ui, 0, y + 48, app->sidebar, 32, 0x2c2f35);
-    ui_text(ui, 18, y + 56, "OBJECT TRACKS", MUTED);
+    ui_button(ui, 10, y + 50, 94, "Objects", !app->sound_sheet, app->loaded);
+    ui_button(ui, 110, y + 50, 94, "Sounds", app->sound_sheet, app->loaded);
     rows = (int)((app->height - y - 112) / ROW_HEIGHT);
     for (row = 0; row < rows; ++row)
     {
-        index = row + app->row_scroll;
+        index = row + (app->sound_sheet ? app->sound_scroll : app->row_scroll);
+        selected_row = app->sound_sheet ? app->selected_sound_track : app->selected;
         ui_fill(ui, 0, y + 80 + row * ROW_HEIGHT, app->sidebar, ROW_HEIGHT,
-                app->loaded && index == app->selected ? 0x303f45
+                app->loaded && index == selected_row ? 0x303f45
                 : row % 2                             ? 0x23262b
                                                       : 0x272a30);
         ui_line(ui, 0, y + 80 + (row + 1) * ROW_HEIGHT, app->sidebar, y + 80 + (row + 1) * ROW_HEIGHT, 0x30333a);
-        if (!app->loaded || index >= app->info.object_count)
+        if (!app->loaded)
             continue;
+        if (app->sound_sheet)
+        {
+            if (marcus_sound_track(app->player, index, &track))
+            {
+                ui_fill(ui, 18, y + 90 + row * ROW_HEIGHT, 7, 7, 0xe4b575);
+                ui_label(ui, 35, y + 85 + row * ROW_HEIGHT, app->grid_x - 54, track.name, TEXT);
+            }
+            continue;
+        }
         if (!marcus_object(app->player, index, &object))
             continue;
         tint = object.text ? 0xd2b780 : object.prop ? 0xb3a4d6 : ACCENT;
         ui_fill(ui, 18, y + 90 + row * ROW_HEIGHT, 7, 7, tint);
         ui_label(ui, 35, y + 85 + row * ROW_HEIGHT, app->grid_x - 54, object.name, object.visible ? TEXT : MUTED);
     }
+    if (app->loaded && app->sound_sheet && !app->info.sound_count)
+        ui_text(ui, app->grid_x + 18, y + 94, "No authored sound cues in this scene.", MUTED);
     clip.x = (int)app->grid_x;
     clip.y = (int)y + 48;
     clip.w = (int)app->grid_width;
@@ -1300,7 +1417,7 @@ static void draw_timeline(App *app)
                 x = frame_x(app, frame);
                 ui_line(ui, x, y + 75, x, y + 80, 0x59606a);
             }
-        for (row = 0; row < rows; ++row)
+        for (row = 0; !app->sound_sheet && row < rows; ++row)
         {
             index = row + app->row_scroll;
             if (index >= app->info.object_count || !marcus_object(app->player, index, &object))
@@ -1322,6 +1439,38 @@ static void draw_timeline(App *app)
             if (object.first_frame >= app->timeline_start)
                 ui_fill(ui, left + 2, y + 91 + row * ROW_HEIGHT, 4, 6, TEXT);
         }
+        if (app->sound_sheet)
+            for (index = 0; index < app->info.sound_count; ++index)
+            {
+                if (!marcus_sound(app->player, index, &sound))
+                    continue;
+                row = sound.track - app->sound_scroll;
+                if (row < 0 || row >= rows || sound.frame < app->info.first_frame ||
+                    sound.frame > app->info.last_frame)
+                    continue;
+                x = frame_x(app, sound.frame + 0.5);
+                left = y + 87 + row * ROW_HEIGHT + (index % 3) * 5;
+                tint = index == app->selected_sound ? TEXT
+                       : sound.silent ? MUTED : sound.motion ? 0xb3a4d6 : 0xe4b575;
+                ui_line(ui, x, y + 82 + row * ROW_HEIGHT, x, y + 106 + row * ROW_HEIGHT, 0x635747);
+                if (sound.motion)
+                {
+                    ui_line(ui, x - 4, left, x, left - 4, tint);
+                    ui_line(ui, x, left - 4, x + 4, left, tint);
+                    ui_line(ui, x + 4, left, x, left + 4, tint);
+                    ui_line(ui, x, left + 4, x - 4, left, tint);
+                }
+                else
+                    ui_fill(ui, x - 4, left - 3, 8, 6, tint);
+                if (sound.queue)
+                    ui_fill(ui, x + 6, left - 1, 2, 2, tint);
+                if (sound.loop)
+                    ui_line(ui, x - 4, left + 5, x + 4, left + 5, tint);
+                if (x >= app->grid_x && x < app->grid_x + app->grid_width &&
+                    ui_inside(ui->mouse_x, ui->mouse_y, x - 6, left - 4, 12, 8))
+                    ui->hint = "Click cue to inspect (repeat to cycle overlaps) / rectangle: frame / "
+                               "diamond: motion / dot: queue / underline: loop";
+            }
         x = frame_x(app, app->info.frame + 0.5);
         ui_line(ui, x, y + 48, x, (float)app->height - 32, 0xf28b76);
         ui_fill(ui, x - 4, y + 48, 9, 5, 0xf28b76);
@@ -1525,7 +1674,7 @@ static void usage(void)
     puts("Marcus - read-only 3D Movie Maker player\n"
          "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
-         "              [--screenshot output.bmp] [--show-settings]\n"
+         "              [--screenshot output.bmp] [--show-settings] [--sounds]\n"
          "              [--settings-file shortcuts.cfg] [--zip-movie N]\n"
          "              [--renderer brender|brender-compute|sdl-gpu]\n"
          "Scenes and scene-relative frames start at 1; object indices start at 0.");
@@ -1559,6 +1708,7 @@ int main(int argc, char **argv)
     requested_renderer = -1;
     app.running = app.authored = app.dirty = 1;
     app.selected = -1;
+    app.selected_sound = app.selected_sound_track = -1;
     app.pixels_per_frame = 12;
     app.zoom = 1;
     find_defaults(&app);
@@ -1571,6 +1721,8 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(argv[i], "--show-settings"))
             show_settings = 1;
+        else if (!strcmp(argv[i], "--sounds"))
+            app.sound_sheet = 1;
         else if (!strcmp(argv[i], "--settings-file") && i + 1 < argc)
             SDL_strlcpy(app.settings_path, argv[++i], sizeof(app.settings_path));
         else if (!strcmp(argv[i], "--renderer") && i + 1 < argc)

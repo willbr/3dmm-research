@@ -10,6 +10,7 @@
 #include <fstream>
 #include <limits>
 #include <map>
+#include <tuple>
 #include <exception>
 #include <cmath>
 
@@ -53,12 +54,66 @@ struct MarcusPlayer
     std::vector<ThreeMM::Id> scenes;
     std::vector<MarcusScene> sceneInfo;
     std::vector<ThreeMM::PreviewObject> objects;
+    std::vector<MarcusSound> sounds;
+    std::vector<MarcusSoundTrack> soundTracks;
     std::map<std::int32_t, std::string> names;
     char error[1024] = {};
     int selected = -1;
 };
 namespace
 {
+bool ReadSoundSheet(MarcusPlayer *player, ThreeMM::Error &error)
+{
+    std::vector<ThreeMM::PreviewSoundCue> cues;
+    if (!player->preview.ReadSoundCues(cues, error))
+        return false;
+    // Separate scene and actor lanes, including actor ID zero. Keep styles in
+    // separate lanes so simultaneous speech and effects remain distinguishable.
+    std::map<std::tuple<bool, std::int32_t, std::int32_t>, int> lanes;
+    for (const auto &cue : cues)
+        lanes.emplace(std::make_tuple(cue.actorSound, cue.actorSound ? cue.actor : 0, cue.style), 0);
+    for (auto &lane : lanes)
+    {
+        MarcusSoundTrack track = {};
+        const auto actor = std::get<1>(lane.first), style = std::get<2>(lane.first);
+        const char *kind = style == MARCUS_SOUND_MUSIC ? "Music" : style == MARCUS_SOUND_SPEECH ? "Speech"
+                           : style == MARCUS_SOUND_EFFECT ? "Effects" : "Sound";
+        std::string owner = "Scene";
+        if (std::get<0>(lane.first))
+        {
+            const auto name = player->names.find(actor);
+            owner = name != player->names.end() ? name->second : "Actor " + std::to_string(actor);
+        }
+        Copy(track.name, owner + " / " + kind);
+        lane.second = static_cast<int>(player->soundTracks.size());
+        player->soundTracks.push_back(track);
+    }
+    for (const auto &cue : cues)
+    {
+        MarcusSound sound = {};
+        sound.track = lanes.at(std::make_tuple(cue.actorSound, cue.actorSound ? cue.actor : 0, cue.style));
+        Copy(sound.name, cue.silent ? "Stop / silence" : "Sound " + std::to_string(cue.sound.number));
+        const auto name = player->names.find(cue.actor);
+        Copy(sound.owner, !cue.actorSound ? std::string("Scene")
+                          : name != player->names.end() ? name->second : "Actor " + std::to_string(cue.actor));
+        sound.frame = cue.frame;
+        sound.actor_id = cue.actor;
+        sound.source_id = cue.source;
+        sound.style = cue.style;
+        sound.volume = cue.volume;
+        sound.motion_cel = cue.motionCel;
+        sound.chunk = cue.sound.number;
+        sound.child = cue.child;
+        sound.actor_sound = cue.actorSound;
+        sound.loop = cue.loop;
+        sound.queue = cue.queue;
+        sound.silent = cue.silent;
+        sound.motion = cue.motion;
+        ++player->soundTracks[sound.track].cue_count;
+        player->sounds.push_back(sound);
+    }
+    return true;
+}
 MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
 {
     MarcusProjection result = {};
@@ -119,6 +174,8 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             return false;
         player->selected = -1;
         player->objects.clear();
+        player->sounds.clear();
+        player->soundTracks.clear();
         if (!preserveAudio)
             player->playback.Stop();
         if (!player->preview.Select(player->scenes[index], error, preserveFraming))
@@ -132,6 +189,11 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             return false;
         }
         player->objects = player->preview.Objects();
+        if (!ReadSoundSheet(player, error))
+        {
+            player->playback.Stop();
+            return false;
+        }
         player->selected = index;
         return true;
     });
@@ -328,6 +390,8 @@ extern "C"
             player->sceneInfo.clear();
             player->objects.clear();
             player->names.clear();
+            player->sounds.clear();
+            player->soundTracks.clear();
             player->image = {};
             for (const auto &source : sources)
                 for (const auto &path : player->content->files.Files(source.second, ".3cn"))
@@ -343,6 +407,8 @@ extern "C"
             if (!player->playback.Select(player->preview, error))
                 return false;
             player->objects = player->preview.Objects();
+            if (!ReadSoundSheet(player, error))
+                return false;
             player->selected = 0;
             return true;
         });
@@ -375,6 +441,24 @@ extern "C"
         info->frame = source.currentFrame;
         info->camera = source.currentCamera;
         info->camera_count = source.cameraCount;
+        info->sound_count = static_cast<int>(player->sounds.size());
+        info->sound_track_count = static_cast<int>(player->soundTracks.size());
+        return 1;
+    }
+    int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track)
+    {
+        if (!player || player->selected < 0 || !track || index < 0 ||
+            static_cast<std::size_t>(index) >= player->soundTracks.size())
+            return 0;
+        *track = player->soundTracks[index];
+        return 1;
+    }
+    int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound)
+    {
+        if (!player || player->selected < 0 || !sound || index < 0 ||
+            static_cast<std::size_t>(index) >= player->sounds.size())
+            return 0;
+        *sound = player->sounds[index];
         return 1;
     }
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object)

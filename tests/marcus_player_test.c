@@ -43,6 +43,7 @@ int main(int argc, char **argv)
     CHECK(marcus_info(player, &info));
     scene_count = info.scene_count;
     CHECK(info.scene_count == 2 && info.object_count == 4 && info.first_frame == 1 && info.last_frame == 30);
+    CHECK(info.sound_count == 0 && info.sound_track_count == 0);
     CHECK(marcus_scene(player, 0, &scene) && scene.first_frame == 1 && scene.last_frame == 30);
     CHECK(marcus_object(player, 0, &first));
     CHECK(!strcmp(first.name, "Animated actor") && first.visible && !first.prop && first.has_lifetime);

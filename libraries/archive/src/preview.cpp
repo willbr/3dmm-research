@@ -294,6 +294,26 @@ std::vector<PreviewSoundCue> Preview::FrameSounds() const
         result.insert(result.end(), actor->sounds.begin(), actor->sounds.end());
     return result;
 }
+bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
+try
+{
+    cues.clear();
+    PreviewPresentation presentation;
+    if (!ReadPresentation(presentation, error))
+        return false;
+    cues = std::move(presentation.sounds);
+    for (const auto &actor : _impl->actors)
+        actor->AppendSoundCues(cues);
+    std::stable_sort(cues.begin(), cues.end(), [](const PreviewSoundCue &a, const PreviewSoundCue &b) {
+        return a.frame < b.frame;
+    });
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    cues.clear();
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for movie sound cues.");
+}
 std::uint32_t Preview::PresentationColour(std::uint32_t colour) const
 {
     if ((colour >> 24) == 0xfe)
