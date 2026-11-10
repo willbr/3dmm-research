@@ -233,23 +233,96 @@ void Preview::ResetOrbitFraming()
 {
     _impl->orbitFramed = false;
 }
+bool Preview::MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error)
+{
+    error = {};
+    camera = {};
+    if (!_impl->ready || !_impl->info.scene || !std::isfinite(outputAspect) || outputAspect <= 0)
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene before matching its camera.");
+    float right[3] = {1, 0, 0}, backward[3] = {0, 0, 1};
+    camera.z = 10;
+    if (_impl->background)
+    {
+        const auto &source = *_impl->background;
+        camera.x = BrScalarToFloat(source.camera.bmat34Cam.m[3][0]);
+        camera.y = BrScalarToFloat(source.camera.bmat34Cam.m[3][1]);
+        camera.z = BrScalarToFloat(source.camera.bmat34Cam.m[3][2]);
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            right[axis] = BrScalarToFloat(source.camera.bmat34Cam.m[0][axis]);
+            backward[axis] = BrScalarToFloat(source.camera.bmat34Cam.m[2][axis]);
+        }
+        const float fov = float(source.camera.aFov) * (360.f / 65536.f);
+        // Preserve the shot's framing inside its letterboxed image when the
+        // inspection renderer uses a different output aspect ratio.
+        const float scale = std::max(1.f, (float(source.width) / source.height) / outputAspect);
+        camera.verticalFov = 2 * std::atan(std::tan(fov * .00872664626f) * scale) * 57.2957795f;
+    }
+    camera.yaw = std::atan2(backward[0], backward[2]) * 57.2957795f;
+    camera.pitch = std::asin(std::max(-1.f, std::min(1.f, backward[1]))) * 57.2957795f;
+    const float yaw = camera.yaw * .01745329252f, pitch = camera.pitch * .01745329252f;
+    const float baseRight[3] = {std::cos(yaw), 0, -std::sin(yaw)};
+    const float baseUp[3] = {-std::sin(yaw) * std::sin(pitch), std::cos(pitch), -std::cos(yaw) * std::sin(pitch)};
+    float cosine = 0, sine = 0;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        cosine += right[axis] * baseRight[axis];
+        sine += right[axis] * baseUp[axis];
+    }
+    camera.roll = std::atan2(sine, cosine) * 57.2957795f;
+    float focus = 10, low[3] = {}, high[3] = {};
+    bool first = true;
+    for (const auto body : _impl->Bodies())
+    {
+        BCB bounds;
+        body->GetBcbBounds(&bounds, fTrue);
+        const float min[3] = {BrScalarToFloat(bounds.xrMin), BrScalarToFloat(bounds.yrMin), BrScalarToFloat(bounds.zrMin)};
+        const float max[3] = {BrScalarToFloat(bounds.xrMax), BrScalarToFloat(bounds.yrMax), BrScalarToFloat(bounds.zrMax)};
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            low[axis] = first ? min[axis] : std::min(low[axis], min[axis]);
+            high[axis] = first ? max[axis] : std::max(high[axis], max[axis]);
+        }
+        first = false;
+    }
+    if (!first)
+    {
+        const float position[3] = {camera.x, camera.y, camera.z};
+        focus = 0;
+        for (int axis = 0; axis < 3; ++axis)
+            focus += (position[axis] - (low[axis] + high[axis]) * .5f) * backward[axis];
+        focus = std::max(1.f, std::min(10000.f, focus));
+    }
+    const float position[3] = {camera.x, camera.y, camera.z};
+    for (int axis = 0; axis < 3; ++axis)
+        _impl->orbitCenter[axis] = position[axis] - backward[axis] * focus;
+    _impl->orbitRadius = focus * std::min(1.f, outputAspect) / 2.8f;
+    _impl->orbitFramed = _impl->orbitIncludesCamera = true;
+    camera.moveSpeed = std::max(.1f, std::min(1000.f, focus * .25f));
+    return true;
+}
 bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &error)
 {
     error = {};
     if (!_impl->ready || !_impl->orbitFramed || view.width < 64 || view.height < 64 || view.width > 1024 ||
         view.height > 1024 || !std::isfinite(right) || !std::isfinite(up) || !std::isfinite(view.yaw) ||
-        !std::isfinite(view.pitch) || !std::isfinite(view.zoom) || view.pitch < -85 || view.pitch > 85 ||
+        !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
+        view.verticalFov <= 0 || view.verticalFov >= 179 || !std::isfinite(view.zoom) || view.pitch < -90 || view.pitch > 90 ||
         view.zoom < .1f || view.zoom > 10)
         return Fail(error, ErrorCode::invalid_argument,
                     "Render an orbit view with valid camera values before panning.");
     const float aspect = float(view.width) / view.height;
     const float distance = _impl->orbitRadius * 2.8f / std::min(1.f, aspect) / view.zoom;
-    const float height = 2 * distance * std::tan(.3926990817f);
+    const float height = 2 * distance * std::tan(view.verticalFov * .00872664626f);
     const float yaw = std::fmod(view.yaw, 360.f) * .01745329252f, pitch = view.pitch * .01745329252f;
     const float sy = std::sin(yaw), cy = std::cos(yaw), sp = std::sin(pitch), cp = std::cos(pitch);
     const float backward[3] = {sy * cp, sp, cy * cp};
-    const float delta[3] = {height * (right * aspect * cy - up * sy * sp), height * up * cp,
-                            height * (-right * aspect * sy - up * cy * sp)};
+    const float cr = std::cos(view.roll * .01745329252f), sr = std::sin(view.roll * .01745329252f);
+    const float cameraRight[3] = {cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr};
+    const float cameraUp[3] = {-sy * sp * cr - cy * sr, cp * cr, -cy * sp * cr + sy * sr};
+    float delta[3];
+    for (int axis = 0; axis < 3; ++axis)
+        delta[axis] = height * (right * aspect * cameraRight[axis] + up * cameraUp[axis]);
     float fraction = 1;
     for (int axis = 0; axis < 3; ++axis)
     {
@@ -737,7 +810,9 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
     if (!_impl->ready)
         return Fail(error, ErrorCode::invalid_argument, "Select an asset to render.");
     if (view.width < 64 || view.height < 64 || view.width > 1024 || view.height > 1024 || !std::isfinite(view.yaw) ||
-        !std::isfinite(view.pitch) || !std::isfinite(view.zoom) || view.pitch < -85 || view.pitch > 85 ||
+        !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
+        view.verticalFov <= 0 || view.verticalFov >= 179 || !std::isfinite(view.nearClip) || view.nearClip < 0 ||
+        view.nearClip > 100 || !std::isfinite(view.zoom) || view.pitch < -90 || view.pitch > 90 ||
         view.zoom < .1f || view.zoom > 10 ||
         (view.freeCamera && (!std::isfinite(view.cameraX) || !std::isfinite(view.cameraY) ||
                              !std::isfinite(view.cameraZ) || std::abs(view.cameraX) > 32700 ||
@@ -890,16 +965,14 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             return Fail(error, ErrorCode::unsupported_format, "Asset exceeds the fixed-point preview camera range.");
         br_camera camera = {};
         camera.type = BR_CAMERA_PERSPECTIVE_FOV;
-        camera.field_of_view = BR_ANGLE_DEG(45);
+        camera.field_of_view = BR_ANGLE_DEG(view.verticalFov);
         camera.hither_z = bg ? bg->camera.zrHither
                             : BrFloatToScalar(view.freeCamera ? .1f : std::max(.01f, distance / 1000));
-        camera.yon_z = bg ? bg->camera.zrYon : BrFloatToScalar(view.freeCamera ? 30000.f : distance + radius * 4 + 1);
+        camera.yon_z = bg ? bg->camera.zrYon : BrFloatToScalar(30000.f);
         if (view.freeCamera)
-        {
-            const float dx = view.cameraX - center[0], dy = view.cameraY - center[1], dz = view.cameraZ - center[2];
             camera.hither_z = BR_SCALAR(.1);
-            camera.yon_z = BrFloatToScalar(std::min(30000.f, std::sqrt(dx * dx + dy * dy + dz * dz) + radius * 4 + 1));
-        }
+        if (!bg && view.nearClip > 0)
+            camera.hither_z = BrFloatToScalar(view.nearClip);
         camera.aspect = BrFloatToScalar(aspect);
         if (bg)
         {
@@ -911,7 +984,10 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         BrActorAdd(frame.world, cam);
         const float yaw = std::fmod(view.yaw, 360.f) * .01745329252f, pitch = view.pitch * .01745329252f;
         const float sy = std::sin(yaw), cy = std::cos(yaw), sp = std::sin(pitch), cp = std::cos(pitch);
-        const float basis[3][3] = {{cy, 0, -sy}, {-sy * sp, cp, -cy * sp}, {sy * cp, sp, cy * cp}};
+        const float roll = view.roll * .01745329252f, cr = std::cos(roll), sr = std::sin(roll);
+        const float basis[3][3] = {{cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr},
+                                 {-sy * sp * cr - cy * sr, cp * cr, -cy * sp * cr + sy * sr},
+                                 {sy * cp, sp, cy * cp}};
         cam->t.type = BR_TRANSFORM_MATRIX34;
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < 3; ++j)
@@ -1014,7 +1090,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         rendered.camera.z = BrScalarToFloat(cam->t.t.mat.m[3][2]);
         rendered.camera.yaw = std::atan2(BrScalarToFloat(cam->t.t.mat.m[2][0]),
                                        BrScalarToFloat(cam->t.t.mat.m[2][2])) * 57.2957795f;
-        rendered.camera.pitch = std::max(-85.f, std::min(85.f,
+        rendered.camera.pitch = std::max(-90.f, std::min(90.f,
             std::asin(std::max(-1.f, std::min(1.f, BrScalarToFloat(cam->t.t.mat.m[2][1])))) * 57.2957795f));
         if (!bg)
         {
@@ -1025,6 +1101,20 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             rendered.camera.pitch = view.pitch;
         }
         rendered.camera.moveSpeed = std::max(1.f, std::min(1000.f, radius));
+        rendered.camera.roll = view.roll;
+        if (bg)
+        {
+            const float yaw = rendered.camera.yaw * .01745329252f;
+            const float pitch = rendered.camera.pitch * .01745329252f;
+            const float x = BrScalarToFloat(cam->t.t.mat.m[0][0]);
+            const float y = BrScalarToFloat(cam->t.t.mat.m[0][1]);
+            const float z = BrScalarToFloat(cam->t.t.mat.m[0][2]);
+            const float cosine = x * std::cos(yaw) - z * std::sin(yaw);
+            const float sine = -x * std::sin(yaw) * std::sin(pitch) + y * std::cos(pitch) -
+                               z * std::cos(yaw) * std::sin(pitch);
+            rendered.camera.roll = std::atan2(sine, cosine) * 57.2957795f;
+        }
+        rendered.camera.verticalFov = float(camera.field_of_view) * (360.f / 65536.f);
         rendered.projection = Projection(cam->t.t.mat, camera.field_of_view, BrScalarToFloat(camera.aspect),
                                          camera.hither_z, camera.yon_z);
         rendered.sceneCamera = sceneCamera;

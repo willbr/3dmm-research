@@ -104,7 +104,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Shift while flying | Four times normal movement speed |
 | Wheel in Fly | Adjust flight speed |
 | Release right mouse / Escape | Release mouse capture and stop flying |
-| Reset / R | Reframe visible geometry; R also fits the timeline |
+| Reset / R | Match the current movie camera; R also fits the timeline |
 | Loop | Repeat the movie after the final scene |
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
 | Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
@@ -273,40 +273,40 @@ Keep those folders with the executable. MIDI also accepts the configured build
 bank as a development fallback. Audio output opens lazily when a sound is played;
 device/decoding failures are reported through the existing error display.
 
+Orbit and Fly initially match the movie camera's position, orientation (including
+roll), lens and image. Reset returns either mode to the current movie camera.
+The work view follows the shot during playback and scrubbing until you navigate;
+after that it stays independent, including across automatic scene changes.
+Manual scene selection also returns the work view to the new shot.
+
 Fly starts from the currently displayed camera or orbit view. Movement follows
 the look direction, with upright strafing and world-space vertical movement.
 It has no collision or gravity. Movement uses elapsed time, and diagonal input
 is normalized. The flight position stays fixed when scrubbing or playing,
-including automatic scene changes. Manual scene selection and Reset reframe the
-geometry. Focus loss releases the mouse and clears movement keys. `--fly` opens
-directly in flight mode.
+including automatic scene changes, after you navigate. Focus loss releases the
+mouse and clears movement keys. `--fly` opens directly in flight mode.
 
-Orbit and Fly show a compact amber camera marker for the active authored camera,
-labelled with its camera number. A single rectangular frame connects back to the
-camera position, with a triangle marking the top of the image. It preserves the
-original camera-to-world transform, vertical field of view and background image
+After navigation, Orbit and Fly show a compact amber camera marker for the active
+authored camera, labelled with its camera number. A single rectangular frame
+connects back to the camera position, with a triangle marking the top of the
+image. It preserves the original camera-to-world transform, vertical field of view and background image
 aspect, including roll. Its display length is fixed at 10 world units,
 independent of the movie's near/far clipping planes and actor positions. No
 clipping planes are drawn. The marker follows authored camera cuts when
 scrubbing or playing and is hidden in the authored Camera view. It draws above
 the scene geometry, with segments clipped to the viewing camera and viewport.
-Orbit fits the camera guide together with visible actors where the renderer's
-coordinate limits permit, once on first entering a scene's Orbit view. That
-center and size remain fixed during playback, scrubbing and camera cuts, including
-automatic scene changes and looping; rotating and zooming keep using the same
-center. Right drag pans that center in the screen plane, with speed following
-zoom and viewport size. The scene follows the drag; subsequent rotation and zoom
-use the panned center. Manual scene selection and Reset explicitly fit the
-current frame.
-Fly retains its explicit position and uses the same fixed scene reference for
-its clipping range; actor movement does not change that range while the flight
-camera is stationary.
+Orbit places its pivot in front of the matched camera, using visible actors to
+choose the focus distance. After navigation that pivot stays fixed during
+playback, scrubbing and camera cuts. Right drag pans the pivot in the screen
+plane, with speed following zoom, lens and viewport size. Subsequent rotation
+and zoom use the panned pivot. Inspection views use a far clipping distance of
+30,000 world units, independent of cached actor bounds.
 
 Orbit and Fly reconstruct the active camera's background as textured scenery
 from its colour image and ZBMP depth, placed using the authored camera transform.
-Orbit's initial fit includes this scenery. Cached BRender models and materials
-place it in the same scene render as the actors, sharing clipping and the depth
-buffer, so counters, floors and walls can occlude actors, props and caption quads.
+Cached BRender models and materials place it in the same scene render as the
+actors, sharing clipping and the depth buffer, so counters, floors and walls can
+occlude actors, props and caption quads.
 Texture mapping preserves perspective and the background palette, without
 relighting the original artwork. Both sides of the reconstructed surface are
 visible. Camera mode continues to use the original image and depth directly.

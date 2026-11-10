@@ -26,6 +26,7 @@ struct PreviewView
 {
     std::uint32_t width = 480, height = 360;
     float yaw = 0, pitch = 0, zoom = 1; // Degrees; zoom 1 frames the entire asset.
+    float roll = 0, verticalFov = 45, nearClip = 0; // Zero nearClip uses the normal inspection default.
     bool authoredCamera = true;         // Original image/depth; other views reconstruct a background mesh.
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
@@ -38,6 +39,7 @@ struct PreviewCamera
 {
     float x = 0, y = 0, z = 0, yaw = 0, pitch = 0;
     float moveSpeed = 1; // Suggested world units/second based on the visible geometry.
+    float roll = 0, verticalFov = 45;
 };
 struct PreviewProjection
 {
@@ -159,13 +161,15 @@ class Preview
     bool SetFrame(std::int32_t frame, Error &error);
     bool SetCamera(std::uint32_t camera, Error &error);
     void ResetOrbitFraming();
+    // Seed inspection position, orientation, lens and orbit pivot from the shot.
+    bool MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error);
     // Translate the cached orbit center in its view plane. Offsets are fractions
     // of the viewport width/right and height/up; zoom and angles set the scale.
     bool PanOrbit(const PreviewView &view, float right, float up, Error &error);
-    // Dimensions 64..1024, finite camera values, pitch -85..85, zoom .1..10.
+    // Dimensions 64..1024, finite camera values, pitch -90..90, zoom .1..10.
     // Free camera coordinates are limited to +/-32700 world units and take
     // precedence over authoredCamera. Returned images include the rendered pose.
-    // Output cleared on failure. Camera orbit preserves upright world Y.
+    // Output cleared on failure. Camera orbit uses world Y and the supplied roll.
     bool Render(const PreviewView &view, PreviewImage &image, Error &error);
 };
 } // namespace ThreeMM

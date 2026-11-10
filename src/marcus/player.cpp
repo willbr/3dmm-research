@@ -65,6 +65,8 @@ struct MarcusPlayer
     MarcusWaveformCache waveforms;
     MarcusSoundTimeline soundTimeline;
     bool restoreAudio = true;
+    bool inspectionMatched = false;
+    float inspectionRoll = 0, inspectionFov = 45;
     std::map<std::int32_t, std::string> names;
     char error[1024] = {};
     int selected = -1;
@@ -225,6 +227,8 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             player->playback.Stop();
             return false;
         }
+        if (!preserveFraming)
+            player->inspectionMatched = false;
         if (!player->playback.Select(player->preview, error, preserveAudio))
         {
             player->playback.Stop();
@@ -440,6 +444,7 @@ extern "C"
             player->image = {};
             player->movieImage = {};
             player->movieImageScene = -1;
+            player->inspectionMatched = false;
             for (const auto &source : sources)
                 for (const auto &path : player->content->files.Files(source.second, ".3cn"))
                 {
@@ -700,7 +705,25 @@ extern "C"
     void marcus_reset_framing(MarcusPlayer *player)
     {
         if (player)
+        {
             player->preview.ResetOrbitFraming();
+            player->inspectionMatched = false;
+        }
+    }
+    int marcus_match_camera(MarcusPlayer *player, int width, int height, MarcusCamera *camera)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!camera || width < 64 || height < 64 || width > 1024 || height > 1024)
+                return false;
+            ThreeMM::PreviewCamera matched;
+            if (!player->preview.MatchSceneCamera(float(width) / height, matched, error))
+                return false;
+            *camera = {matched.x, matched.y, matched.z, matched.yaw, matched.pitch, matched.moveSpeed};
+            player->inspectionRoll = matched.roll;
+            player->inspectionFov = matched.verticalFov;
+            player->inspectionMatched = true;
+            return true;
+        });
     }
     int marcus_pan_orbit(MarcusPlayer *player, float right, float up, float yaw, float pitch, float zoom)
     {
@@ -711,6 +734,12 @@ extern "C"
             view.yaw = yaw;
             view.pitch = pitch;
             view.zoom = zoom;
+            if (player->inspectionMatched)
+            {
+                view.roll = player->inspectionRoll;
+                view.verticalFov = player->inspectionFov;
+                view.nearClip = .1f;
+            }
             return player->preview.PanOrbit(view, right, up, error);
         });
     }
@@ -731,6 +760,12 @@ extern "C"
             view.yaw = yaw;
             view.pitch = pitch;
             view.zoom = zoom;
+            if (!view.authoredCamera && player->inspectionMatched)
+            {
+                view.roll = player->inspectionRoll;
+                view.verticalFov = player->inspectionFov;
+                view.nearClip = .1f;
+            }
             return Render(player, view, image, error);
         });
     }
@@ -755,6 +790,12 @@ extern "C"
             view.cameraZ = pose.z;
             view.yaw = pose.yaw;
             view.pitch = pose.pitch;
+            if (player->inspectionMatched)
+            {
+                view.roll = player->inspectionRoll;
+                view.verticalFov = player->inspectionFov;
+                view.nearClip = .1f;
+            }
             return Render(player, view, image, error);
         });
     }

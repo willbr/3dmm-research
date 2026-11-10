@@ -146,6 +146,45 @@ int main(int argc, char **argv)
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(!memcmp(pixels, image.rgba, bytes));
     CHECK(!memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)));
+    /* Reset inspection to the shot, preserving its pose and lens instead of
+     * fitting all actor bounds. Orbit and Fly must start at that same pose. */
+    CHECK(marcus_match_camera(player, 480, 360, &camera));
+    CHECK(fabs(camera.x - authored.transform[9]) < .001);
+    CHECK(fabs(camera.y - authored.transform[10]) < .001);
+    CHECK(fabs(camera.z - authored.transform[11]) < .001);
+    CHECK(marcus_render(player, 480, 360, 0, camera.yaw, camera.pitch, 1, &image));
+    manual = image.projection;
+    for (index = 0; index < 12; ++index)
+        CHECK(fabs(manual.transform[index] - authored.transform[index]) < .02);
+    CHECK(manual.far_clip == 30000);
+    CHECK(fabs(manual.vertical_fov - 2 * atan(tan(authored.vertical_fov * .00872664626) *
+               (authored.aspect > 4.0 / 3 ? authored.aspect / (4.0 / 3) : 1)) * 57.2957795) < .02);
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
+    for (index = 0; index < 12; ++index)
+        CHECK(fabs(manual.transform[index] - image.projection.transform[index]) < .02);
+    CHECK(fabs(manual.vertical_fov - image.projection.vertical_fov) < .001);
+    moved = camera;
+    moved.x += 5;
+    CHECK(marcus_render_fly(player, 480, 360, &moved, &image));
+    CHECK(marcus_info(player, &info) && info.frame == 1 && info.camera == 0);
+    CHECK(marcus_match_camera(player, 480, 360, &camera));
+    CHECK(fabs(camera.x - authored.transform[9]) < .001);
+    CHECK(!marcus_match_camera(player, 1, 1, &camera));
+    CHECK(!marcus_match_camera(player, 480, 360, NULL));
+    CHECK(marcus_seek(player, 20) && marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    authored = image.scene_camera;
+    CHECK(marcus_match_camera(player, 480, 360, &camera));
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
+    for (index = 0; index < 12; ++index)
+        CHECK(fabs(image.projection.transform[index] - authored.transform[index]) < .02);
+    CHECK(marcus_render(player, 480, 360, 0, camera.yaw, camera.pitch, 1, &image));
+    manual = image.projection;
+    CHECK(marcus_pan_orbit(player, .1f, .1f, camera.yaw, camera.pitch, 1));
+    CHECK(marcus_render(player, 480, 360, 0, camera.yaw, camera.pitch, 1, &image));
+    CHECK(!memcmp(manual.transform, image.projection.transform, 9 * sizeof(float)));
+    CHECK(memcmp(manual.transform + 9, image.projection.transform + 9, 3 * sizeof(float)));
+    CHECK(marcus_seek(player, 1));
+    marcus_reset_framing(player);
     moved = camera;
     moved.x = 40000;
     CHECK(!marcus_render_fly(player, 480, 360, &moved, &image) && !image.rgba);

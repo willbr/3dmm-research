@@ -68,6 +68,7 @@ typedef struct App
     int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
     int continue_click, muted;
     int flying, fly_ready, camera_ready, fly_keys;
+    int work_matched, work_needs_match;
     int row_scroll, object_scroll, width, height;
     int sound_sheet, sound_scroll, selected_sound, selected_sound_track;
     int second_view, second_mode, resizing_view, movie_dirty;
@@ -213,9 +214,9 @@ static void fit_timeline(App *app)
 static void reset_view(App *app)
 {
     marcus_reset_framing(app->player);
-    app->yaw = -18;
-    app->pitch = 12;
+    app->yaw = app->pitch = 0;
     app->zoom = 1;
+    app->work_matched = app->work_needs_match = 1;
     app->fly_ready = app->camera_ready = 0;
     app->dragging = app->orbiting = app->panning = 0;
     app->dirty = 1;
@@ -240,6 +241,7 @@ static int select_scene(App *app, int index)
         release_fly(app);
         app->dragging = app->orbiting = app->panning = 0;
         app->fly_ready = app->camera_ready = 0;
+        app->work_matched = app->work_needs_match = 1;
     }
     app->selected = app->info.object_count ? 0 : -1;
     app->row_scroll = app->object_scroll = 0;
@@ -982,6 +984,7 @@ static void update_flight(App *app, double seconds)
     length = sqrt(dx * dx + dy * dy + dz * dz);
     if (length == 0)
         return;
+    app->work_matched = 0;
     if (seconds > 0.1)
         seconds = 0.1;
     distance = app->flight.move_speed * seconds * ((app->fly_keys & (FLY_FAST | FLY_FAST_RIGHT)) ? 4 : 1) / length;
@@ -1038,7 +1041,9 @@ static void handle_event(App *app, const SDL_Event *event)
         else
         {
             app->flight.yaw = (float)fmod(app->flight.yaw - event->motion.xrel * 0.15, 360);
-            app->flight.pitch = (float)minimum(85, maximum(-85, app->flight.pitch + event->motion.yrel * 0.15));
+            app->flight.pitch = (float)minimum(90, maximum(-90, app->flight.pitch + event->motion.yrel * 0.15));
+            if (event->motion.xrel != 0 || event->motion.yrel != 0)
+                app->work_matched = 0;
             app->dirty = 1;
         }
         if (app->resizing_timeline)
@@ -1069,16 +1074,20 @@ static void handle_event(App *app, const SDL_Event *event)
             seek(app, frame_at(app, event->motion.x));
         if (app->orbiting)
         {
+            if (event->motion.xrel != 0 || event->motion.yrel != 0)
+                app->work_matched = 0;
             app->yaw -= event->motion.xrel * 0.4f;
             app->pitch += event->motion.yrel * 0.4f;
-            if (app->pitch > 85)
-                app->pitch = 85;
-            if (app->pitch < -85)
-                app->pitch = -85;
+            if (app->pitch > 90)
+                app->pitch = 90;
+            if (app->pitch < -90)
+                app->pitch = -90;
             app->dirty = 1;
         }
         if (app->panning)
         {
+            if (event->motion.xrel != 0 || event->motion.yrel != 0)
+                app->work_matched = 0;
             if (!marcus_pan_orbit(app->player, -event->motion.xrel / (960 * viewport_scale(app)),
                                   event->motion.yrel / (720 * viewport_scale(app)), app->yaw, app->pitch, app->zoom))
                 fail(app, marcus_error(app->player));
@@ -1162,6 +1171,8 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         else if (!app->authored && inside_work(app, x, y))
         {
+            if (delta != 0)
+                app->work_matched = 0;
             app->zoom *= delta > 0 ? 1.1f : 0.9f;
             if (app->zoom > 10)
                 app->zoom = 10;
@@ -1266,6 +1277,26 @@ static void draw_view_strip(App *app)
     if (hovered)
         app->ui.hint = app->second_view ? "Collapse work camera" : "Expand work camera";
 }
+static int match_work_camera(App *app)
+{
+    MarcusCamera camera;
+    float speed;
+    speed = app->fly_ready && !app->work_needs_match ? app->flight.move_speed : 0;
+    if (!marcus_match_camera(app->player, 960, 720, &camera))
+    {
+        fail(app, marcus_error(app->player));
+        return 0;
+    }
+    app->flight = camera;
+    if (speed > 0)
+        app->flight.move_speed = speed;
+    app->yaw = camera.yaw;
+    app->pitch = camera.pitch;
+    app->zoom = 1;
+    app->fly_ready = 1;
+    app->work_needs_match = 0;
+    return 1;
+}
 static void draw_view(App *app)
 {
     MarcusImage image;
@@ -1308,7 +1339,14 @@ static void draw_view(App *app)
     if (app->dirty)
     {
         app->dirty = 0;
-        if (app->authored == 2)
+        if (app->authored != 1 && (app->work_matched || app->work_needs_match))
+        {
+            /* Keep the original backdrop and composited captions identical to
+             * the movie until navigation needs the reconstructed 3D scenery. */
+            rendered = match_work_camera(app) &&
+                marcus_render(app->player, render_width, render_height, 1, 0, 0, 1, &image);
+        }
+        else if (app->authored == 2)
         {
             rendered = 1;
             if (!app->fly_ready)
@@ -1354,7 +1392,7 @@ static void draw_view(App *app)
     if (app->picture)
         SDL_RenderTexture(app->renderer, app->picture, NULL, &destination);
     memset(&app->camera_guide, 0, sizeof(app->camera_guide));
-    if (app->authored != 1 && app->picture)
+    if (app->authored != 1 && !app->work_matched && app->picture)
     {
         SDL_Rect clip;
         int line;

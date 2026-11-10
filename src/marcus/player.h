@@ -178,6 +178,9 @@ extern "C"
     void marcus_set_muted(MarcusPlayer *player, int muted);
     /* Refit Orbit on its next render. */
     void marcus_reset_framing(MarcusPlayer *player);
+    /* Match inspection framing to the active shot; width/height describe the
+     * inspection image. Does not seek, render, or alter the movie camera. */
+    int marcus_match_camera(MarcusPlayer *player, int width, int height, MarcusCamera *camera);
     /* Pan the cached orbit center by fractions of viewport width/right and
      * height/up. Angles and zoom match the current orbit render. */
     int marcus_pan_orbit(MarcusPlayer *player, float right, float up, float yaw, float pitch, float zoom);
