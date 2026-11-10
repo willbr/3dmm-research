@@ -117,8 +117,8 @@ cel. Sound identities are shown as source ID and chunk number.
 Selecting or scrubbing a cue is silent; Play uses the existing audio playback.
 Use `--sounds` to open directly on the sound sheet, including with `--screenshot`.
 
-Both dope sheets mark the boundary after the final scene frame with an amber
-vertical line and an **END** flag on the ruler. It follows timeline zoom and pan.
+Both dope sheets mark the boundary after the final scene frame with a violet
+vertical line. It follows timeline zoom and pan; hovering identifies the boundary.
 
 Sampled sounds show a waveform from their decoded audio, scaled by cue volume;
 the inspector includes the clip duration. Peaks from both stereo channels are

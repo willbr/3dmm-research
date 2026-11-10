@@ -1587,15 +1587,13 @@ static void draw_timeline(App *app)
             }
         }
         /* The boundary follows the whole final frame, matching clip extents.
-         * Keep the flag inside the ruler when Fit puts it at the right edge. */
+         * Keep the line inside the ruler when Fit puts it at the right edge. */
         x = frame_x(app, (double)app->info.last_frame + 1);
         if (x >= app->grid_x && x <= app->grid_x + app->grid_width + 0.5f)
         {
             x = (float)minimum(x, app->grid_x + app->grid_width - 2);
-            ui_fill(ui, x, y + 48, 2, (float)app->height - y - 80, 0xe4b575);
-            ui_fill(ui, x - 42, y + 50, 42, 23, 0x58422e);
-            ui_text(ui, x - 35, y + 53, "END", 0xf2cb8f);
-            if (ui_inside(ui->mouse_x, ui->mouse_y, x - 42, y + 48, 46, 32))
+            ui_fill(ui, x, y + 48, 2, (float)app->height - y - 80, 0x9c9cff);
+            if (ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 12, (float)app->height - y - 80))
                 ui->hint = "End of scene / after the final frame";
         }
         x = frame_x(app, app->info.frame + 0.5);
