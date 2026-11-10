@@ -59,6 +59,7 @@ typedef struct App
     MarcusInfo info;
     MarcusPlaybackState playback;
     MarcusCamera camera, flight;
+    MarcusImage work_image, movie_image; /* Retained camera metadata; no borrowed pixels. */
     MarcusProjection projection, scene_camera;
     MarcusCameraGuide camera_guide;
     MarcusShortcuts shortcuts, edited_shortcuts;
@@ -81,16 +82,16 @@ typedef struct App
     Uint32 dialog_event;
 } App;
 
-static void release_fly(App *app)
+static void release_camera(App *app)
 {
-    if (app->flying && app->window)
+    if (app->window && SDL_GetWindowRelativeMouseMode(app->window))
         SDL_SetWindowRelativeMouseMode(app->window, 0);
-    app->flying = 0;
+    app->flying = app->orbiting = app->panning = 0;
     app->fly_keys = 0;
 }
 static void view_mode(App *app, int mode)
 {
-    release_fly(app);
+    release_camera(app);
     if (mode == 2 && app->authored != 2)
     {
         app->flight = app->camera;
@@ -128,6 +129,20 @@ static float work_left(const App *app)
 {
     return app->second_view ? app->split_x + 4 : 0;
 }
+static SDL_FRect viewport_rect(const App *app, int movie)
+{
+    SDL_FRect rect;
+    float left, right, scale, height;
+    left = movie ? 0 : work_left(app);
+    right = movie ? app->split_x : view_right(app);
+    height = app->viewport_bottom - 172;
+    scale = (float)minimum((right - left - 32) / 960, height / 720);
+    rect.w = 960 * scale;
+    rect.h = 720 * scale;
+    rect.x = left + (right - left - rect.w) / 2;
+    rect.y = 136 + (height - rect.h) / 2;
+    return rect;
+}
 static int inside_work(const App *app, float x, float y)
 {
     float left;
@@ -141,7 +156,7 @@ static int inside_movie(const App *app, float x, float y)
 }
 static void toggle_second_view(App *app)
 {
-    release_fly(app);
+    release_camera(app);
     app->dragging = app->orbiting = app->panning = app->resizing_view = app->resizing_timeline = 0;
     if (app->second_view)
     {
@@ -168,7 +183,7 @@ static void fail(App *app, const char *message)
     app->dragging = app->orbiting = app->panning = 0;
     app->resizing_view = 0;
     app->resizing_timeline = 0;
-    release_fly(app);
+    release_camera(app);
 }
 static void refresh(App *app)
 {
@@ -213,6 +228,7 @@ static void fit_timeline(App *app)
 }
 static void reset_view(App *app)
 {
+    release_camera(app);
     marcus_reset_framing(app->player);
     app->yaw = app->pitch = 0;
     app->zoom = 1;
@@ -238,7 +254,7 @@ static int select_scene(App *app, int index)
     refresh(app);
     if (!keep_view)
     {
-        release_fly(app);
+        release_camera(app);
         app->dragging = app->orbiting = app->panning = 0;
         app->fly_ready = app->camera_ready = 0;
         app->work_matched = app->work_needs_match = 1;
@@ -273,7 +289,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
     char title[2200];
     MarcusMovieEntry member;
     app->playing = 0;
-    release_fly(app);
+    release_camera(app);
     app->error[0] = 0;
     if (!marcus_open_input(app->player, input, entry, app->resources, app->content))
     {
@@ -317,7 +333,7 @@ static void open_movie(App *app, const char *path)
 {
     MarcusMovieInput *input;
     app->playing = 0;
-    release_fly(app);
+    release_camera(app);
     app->dragging = app->orbiting = app->panning = 0;
     input = marcus_input_create();
     if (!input || !marcus_input_open(input, path))
@@ -422,7 +438,7 @@ static void choose_file(App *app, int kind)
     DialogRequest *request;
     static const SDL_DialogFileFilter movies[] = {{"3D Movie Maker movies and ZIPs", "3mm;vmm;zip"}, {"All files", "*"}};
     static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
-    release_fly(app);
+    release_camera(app);
     request = (DialogRequest *)SDL_calloc(1, sizeof(*request));
     if (!request)
     {
@@ -605,7 +621,7 @@ static void select_timeline_row(App *app, float x, float y, int grid)
 }
 static void open_settings(App *app)
 {
-    release_fly(app);
+    release_camera(app);
     app->resizing_view = app->resizing_timeline = 0;
     app->playing = app->dragging = app->orbiting = app->panning = 0;
     app->edited_shortcuts = app->shortcuts;
@@ -697,6 +713,38 @@ static void settings_key(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     else if (key == SDLK_RETURN)
         apply_settings(app);
 }
+static void pick_object(App *app, float x, float y)
+{
+    SDL_FRect rect;
+    const MarcusImage *image;
+    int movie, index, rows;
+    movie = app->second_view && inside_movie(app, x, y);
+    if (movie ? app->movie_dirty || !app->movie_picture : app->dirty || !app->picture)
+        return;
+    image = movie ? &app->movie_image : &app->work_image;
+    rect = viewport_rect(app, movie);
+    if (!ui_inside(x, y, rect.x, rect.y, rect.w, rect.h))
+        return;
+    if (!marcus_pick(app->player, image, (int)((x - rect.x) * image->width / rect.w),
+                     (int)((y - rect.y) * image->height / rect.h), &index))
+    {
+        fail(app, marcus_error(app->player));
+        return;
+    }
+    app->selected = index;
+    if (index < 0)
+        return;
+    app->sound_sheet = 0;
+    if (index < app->object_scroll)
+        app->object_scroll = index;
+    if (index >= app->object_scroll + 6)
+        app->object_scroll = index - 5;
+    rows = (int)maximum(1, (app->height - app->timeline_y - 112) / ROW_HEIGHT);
+    if (index < app->row_scroll)
+        app->row_scroll = index;
+    if (index >= app->row_scroll + rows)
+        app->row_scroll = index - rows + 1;
+}
 static void mouse_down(App *app, float x, float y, int button)
 {
     int row, action;
@@ -750,8 +798,14 @@ static void mouse_down(App *app, float x, float y, int button)
     if (button == SDL_BUTTON_RIGHT && app->loaded && !app->authored && app->camera_ready &&
         inside_work(app, x, y))
     {
-        app->panning = 1;
-        app->orbiting = app->dragging = 0;
+        app->panning = (SDL_GetModState() & SDL_KMOD_SHIFT) != 0;
+        if (!app->panning && !SDL_SetWindowRelativeMouseMode(app->window, 1))
+        {
+            fail(app, SDL_GetError());
+            return;
+        }
+        app->orbiting = !app->panning;
+        app->dragging = 0;
         return;
     }
     if (button == SDL_BUTTON_RIGHT && app->loaded && app->authored == 2 && app->fly_ready &&
@@ -780,7 +834,7 @@ static void mouse_down(App *app, float x, float y, int button)
             app->fly_keys |= FLY_FAST_RIGHT;
         return;
     }
-    if (button != SDL_BUTTON_LEFT || app->flying)
+    if (button != SDL_BUTTON_LEFT || app->flying || app->orbiting || app->panning)
         return;
     if (ui_inside(x, y, 16, 52, 112, 28))
         choose_file(app, 0);
@@ -866,11 +920,8 @@ static void mouse_down(App *app, float x, float y, int button)
         if (!app->sound_sheet || app->selected_sound < 0 || y < app->timeline_y + 80)
             seek(app, frame_at(app, x));
     }
-    else if (!app->authored && inside_work(app, x, y))
-    {
-        app->orbiting = 1;
-        app->panning = 0;
-    }
+    else if (inside_movie(app, x, y) || inside_work(app, x, y))
+        pick_object(app, x, y);
 }
 static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
@@ -933,9 +984,9 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         select_scene(app, app->info.scene + 1);
         break;
     case SDLK_ESCAPE:
-        if (app->flying)
+        if (app->flying || app->orbiting || app->panning)
         {
-            release_fly(app);
+            release_camera(app);
             break;
         }
         app->playing = 0;
@@ -1035,8 +1086,11 @@ static void handle_event(App *app, const SDL_Event *event)
     {
         if (!app->flying)
         {
-            app->ui.mouse_x = event->motion.x;
-            app->ui.mouse_y = event->motion.y;
+            if (!app->orbiting)
+            {
+                app->ui.mouse_x = event->motion.x;
+                app->ui.mouse_y = event->motion.y;
+            }
         }
         else
         {
@@ -1057,7 +1111,7 @@ static void handle_event(App *app, const SDL_Event *event)
             app->split_x = (float)maximum(330, minimum(view_right(app) - 330, event->motion.x));
             app->split_fraction = app->split_x / view_right(app);
         }
-        if (!app->flying)
+        if (!app->flying && !app->orbiting)
         {
             if (app->timeline_cursor && (app->resizing_timeline ||
                 ui_inside(event->motion.x, event->motion.y, 0, app->viewport_bottom,
@@ -1100,12 +1154,12 @@ static void handle_event(App *app, const SDL_Event *event)
     {
         if (event->button.button == SDL_BUTTON_RIGHT)
         {
-            release_fly(app);
-            app->panning = 0;
+            release_camera(app);
+            app->orbiting = app->panning = 0;
         }
         if (event->button.button == SDL_BUTTON_LEFT)
         {
-            app->dragging = app->orbiting = 0;
+            app->dragging = 0;
             app->resizing_view = 0;
             app->resizing_timeline = 0;
         }
@@ -1183,7 +1237,7 @@ static void handle_event(App *app, const SDL_Event *event)
     }
     else if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
     {
-        release_fly(app);
+        release_camera(app);
         app->dragging = app->orbiting = app->panning = 0;
         app->resizing_view = 0;
         app->resizing_timeline = 0;
@@ -1235,23 +1289,22 @@ static void draw_movie_view(App *app)
 {
     MarcusImage image;
     SDL_FRect destination;
-    float scale, area_height;
     char label[128];
     if (app->movie_dirty)
     {
         app->movie_dirty = 0;
         if (!marcus_render(app->player, 960, 720, 1, 0, 0, 1, &image))
             fail(app, marcus_error(app->player));
-        else if (!update_picture(app, &app->movie_picture, &image))
-            fail(app, SDL_GetError());
+        else
+        {
+            app->movie_image = image;
+            app->movie_image.rgba = NULL;
+            if (!update_picture(app, &app->movie_picture, &image))
+                fail(app, SDL_GetError());
+        }
     }
     ui_text(&app->ui, 20, 102, "Movie camera", MUTED);
-    area_height = app->viewport_bottom - 172;
-    scale = (float)minimum((app->split_x - 32) / 960, area_height / 720);
-    destination.w = 960 * scale;
-    destination.h = 720 * scale;
-    destination.x = (app->split_x - destination.w) / 2;
-    destination.y = 136 + (area_height - destination.h) / 2;
+    destination = viewport_rect(app, 1);
     ui_fill(&app->ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->movie_picture)
         SDL_RenderTexture(app->renderer, app->movie_picture, NULL, &destination);
@@ -1303,7 +1356,7 @@ static void draw_view(App *app)
     SDL_FRect destination;
     char label[256];
     int rendered, render_width, render_height;
-    float area_height, scale, left, width, right;
+    float left, width, right;
     MarcusUI *ui;
     ui = &app->ui;
     left = work_left(app);
@@ -1368,6 +1421,8 @@ static void draw_view(App *app)
                               app->yaw, app->pitch, app->zoom, &image);
         if (rendered)
         {
+            app->work_image = image;
+            app->work_image.rgba = NULL;
             app->camera = image.camera;
             app->projection = image.projection;
             app->scene_camera = image.scene_camera;
@@ -1382,12 +1437,7 @@ static void draw_view(App *app)
             fail(app, marcus_error(app->player));
         }
     }
-    area_height = app->viewport_bottom - 172;
-    scale = viewport_scale(app);
-    destination.w = 960 * scale;
-    destination.h = 720 * scale;
-    destination.x = left + (width - destination.w) / 2;
-    destination.y = 136 + (area_height - destination.h) / 2;
+    destination = viewport_rect(app, 0);
     ui_fill(ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->picture)
         SDL_RenderTexture(app->renderer, app->picture, NULL, &destination);
@@ -1439,15 +1489,17 @@ static void draw_view(App *app)
     {
         draw_movie_view(app);
         if (inside_work(app, ui->mouse_x, ui->mouse_y))
-            ui->hint = app->authored == 2 ? "Work camera: hold RMB + WASD / Q E / Shift; wheel adjusts speed"
-                                        : "Work camera: LMB orbit / RMB pan / wheel zoom";
+            ui->hint = app->authored == 2 ? "Click to select / hold RMB + WASD to fly / wheel speed"
+                                          : "Click to select / RMB orbit / Shift + RMB pan / wheel zoom";
+        if (inside_movie(app, ui->mouse_x, ui->mouse_y))
+            ui->hint = "Click an object to select it";
         if (app->resizing_view || ui_inside(ui->mouse_x, ui->mouse_y, app->split_x - 4, 89, 8,
                                            app->viewport_bottom - 89))
             ui->hint = "Drag to resize the movie and work camera views";
     }
     else if (!app->authored)
-        ui_label(ui, app->sidebar - 415, app->viewport_bottom - 25, 395, "LMB orbit / RMB pan / scroll zoom / C camera",
-                 MUTED);
+        ui_label(ui, app->sidebar - 495, app->viewport_bottom - 25, 475,
+                 "Click select / RMB orbit / Shift + RMB pan / wheel zoom", MUTED);
     else if (app->authored == 2)
     {
         SDL_snprintf(label, sizeof(label), "Hold RMB + WASD / Q E / Shift    Speed: %.1f",
@@ -2308,7 +2360,7 @@ int main(int argc, char **argv)
         SDL_Delay(10);
     }
 cleanup:
-    release_fly(&app);
+    release_camera(&app);
     if (result && !app.error[0])
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     ui_destroy(&app.ui);

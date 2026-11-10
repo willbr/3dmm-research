@@ -104,6 +104,9 @@ extern "C"
         const unsigned char *rgba;
         MarcusCamera camera;
         MarcusProjection projection, scene_camera;
+        int scene, authored_camera;
+        long frame;
+        unsigned long document;
     } MarcusImage;
     typedef struct MarcusPlaybackState
     {
@@ -189,6 +192,11 @@ extern "C"
     /* Explicit camera position in original world units, independent of frame
      * evaluation. Position is limited to +/-32700 by the fixed-point renderer. */
     int marcus_render_fly(MarcusPlayer *player, int width, int height, const MarcusCamera *camera, MarcusImage *image);
+    /* Pick from a rendered image's camera metadata at the current scene/frame.
+     * RGBA bytes are not accessed, so metadata may be retained across renders.
+     * Returns success with object_index = -1 for background or outside pixels.
+     * Does not seek, move a camera, play audio, or invalidate borrowed images. */
+    int marcus_pick(MarcusPlayer *player, const MarcusImage *image, int x, int y, int *object_index);
 
 #ifdef __cplusplus
 }

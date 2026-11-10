@@ -96,8 +96,9 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Arrow strip beside the properties panel | Expand or collapse the work camera viewport |
 | Divider between viewports | Drag to resize the movie and work views |
 | Handle above the dope sheets | Drag up/down to change track-area height; both sheets share the height |
-| Left drag in Orbit / wheel | Orbit / zoom |
-| Right drag in Orbit | Pan the view |
+| Left click in a viewport | Select the visible object; empty image space clears selection |
+| Right drag in Orbit / wheel | Orbit / zoom |
+| Shift + right drag in Orbit | Pan the view |
 | Hold right mouse in Fly | Capture the mouse for first-person look and movement |
 | WASD while holding right mouse | Fly forward/backward and strafe left/right |
 | Q / E while holding right mouse | Move down / up in world space |
@@ -117,6 +118,13 @@ fly while the movie continues. C switches that work view between Orbit and Fly.
 Drag the divider to resize either viewport. The strip's arrow collapses and
 reopens the work camera; its pose and divider position are kept.
 Only the movie view consumes viewport clicks for click-to-continue pauses.
+Otherwise, left click picks actors, props and 3D text in either viewport. The
+selected object is revealed in the scene list and Objects dope sheet. Picking
+uses the displayed camera, evaluated model faces, texture transparency and depth;
+background scenery and caption overlays block objects behind them. Backgrounds,
+camera guides and 2D captions are not selectable scene objects. Movie-view
+picking waits until a scene transition finishes. Right drag captures the mouse
+for Orbit rotation, like Fly look; release it or press Escape to release capture.
 Use `--second-view` to launch in this layout (`--orbit` starts its work view in
 Orbit). These are resizable panes in Marcus's SDL interface.
 
@@ -297,10 +305,10 @@ scrubbing or playing and is hidden in the authored Camera view. It draws above
 the scene geometry, with segments clipped to the viewing camera and viewport.
 Orbit places its pivot in front of the matched camera, using visible actors to
 choose the focus distance. After navigation that pivot stays fixed during
-playback, scrubbing and camera cuts. Right drag pans the pivot in the screen
-plane, with speed following zoom, lens and viewport size. Subsequent rotation
-and zoom use the panned pivot. Inspection views use a far clipping distance of
-30,000 world units, independent of cached actor bounds.
+playback, scrubbing and camera cuts. Shift + right drag pans the pivot in the
+screen plane, with speed following zoom, lens and viewport size. Subsequent
+rotation and zoom use the panned pivot. Inspection views use a far clipping
+distance of 30,000 world units, independent of cached actor bounds.
 
 Orbit and Fly reconstruct the active camera's background as textured scenery
 from its colour image and ZBMP depth, placed using the authored camera transform.

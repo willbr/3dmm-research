@@ -70,6 +70,7 @@ struct MarcusPlayer
     std::map<std::int32_t, std::string> names;
     char error[1024] = {};
     int selected = -1;
+    unsigned long document = 0;
 };
 namespace
 {
@@ -164,6 +165,18 @@ MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
     result.display_depth = source.displayDepth;
     return result;
 }
+ThreeMM::PreviewProjection ReadProjection(const MarcusProjection &source)
+{
+    ThreeMM::PreviewProjection result;
+    result.valid = source.valid != 0;
+    std::memcpy(result.transform, source.transform, sizeof(result.transform));
+    result.verticalFov = source.vertical_fov;
+    result.aspect = source.aspect;
+    result.nearClip = source.near_clip;
+    result.farClip = source.far_clip;
+    result.displayDepth = source.display_depth;
+    return result;
+}
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
 {
     auto options = view;
@@ -187,6 +200,10 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
     image->camera = {camera.x, camera.y, camera.z, camera.yaw, camera.pitch, camera.moveSpeed};
     image->projection = CopyProjection(player->image.projection);
     image->scene_camera = CopyProjection(player->image.sceneCamera);
+    image->scene = player->selected;
+    image->frame = player->preview.Info().currentFrame;
+    image->authored_camera = view.authoredCamera && !view.freeCamera;
+    image->document = player->document;
     return true;
 }
 template <typename F> int Guard(MarcusPlayer *player, F operation)
@@ -431,6 +448,7 @@ extern "C"
                 content->PrepareSource(source.second);
             if (!player->preview.Open(document, resources, error))
                 return false;
+            ++player->document;
             player->content = std::move(content);
             player->selected = -1;
             player->scenes.clear();
@@ -767,6 +785,54 @@ extern "C"
                 view.nearClip = .1f;
             }
             return Render(player, view, image, error);
+        });
+    }
+    int marcus_pick(MarcusPlayer *player, const MarcusImage *image, int x, int y, int *object_index)
+    {
+        if (object_index)
+            *object_index = -1;
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!image || !object_index || player->selected < 0 || image->scene != player->selected ||
+                image->frame != player->preview.Info().currentFrame || image->document != player->document)
+            {
+                error.code = ThreeMM::ErrorCode::invalid_argument;
+                error.message = "Pick requires an image of the current scene and frame.";
+                return false;
+            }
+            // A dissolve can show two scenes. Avoid selecting incoming actors
+            // through the outgoing image; the independent work view still picks.
+            if (image->authored_camera && player->playback.Transitioning())
+                return true;
+            float distance;
+            const auto projection = ReadProjection(image->projection);
+            if (!player->preview.Pick(projection, image->authored_camera != 0, image->width, image->height, x, y,
+                                      *object_index, distance, error))
+                return false;
+            if (*object_index < 0)
+                return true;
+            // Composite only captions over a transparent canvas, with this hit
+            // as its depth sample. Opaque lettering must block selection too.
+            ThreeMM::PreviewImage captions;
+            captions.width = image->width;
+            captions.height = image->height;
+            captions.projection = projection;
+            captions.sceneCamera = ReadProjection(image->scene_camera);
+            captions.rgba.assign(std::size_t(image->width) * image->height * 4, 0);
+            const auto pixel = std::size_t(y) * image->width + x;
+            if (!image->authored_camera)
+            {
+                captions.depth.assign(std::size_t(image->width) * image->height,
+                                      std::numeric_limits<float>::infinity());
+                captions.depth[pixel] = distance;
+            }
+            if (!player->playback.Composite(player->preview, image->authored_camera != 0, captions, error))
+            {
+                *object_index = -1;
+                return false;
+            }
+            if (captions.rgba[pixel * 4 + 3])
+                *object_index = -1;
+            return true;
         });
     }
     int marcus_render_fly(MarcusPlayer *player, int width, int height, const MarcusCamera *camera, MarcusImage *image)

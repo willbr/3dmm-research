@@ -9,6 +9,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <map>
 #include "soc_core.h"
 #include "preview_actor.h"
 #include "preview_background.h"
@@ -60,6 +61,59 @@ PreviewProjection Projection(const br_matrix34 &transform, br_angle fov, float a
     result.nearClip = BrScalarToFloat(nearClip);
     result.farClip = BrScalarToFloat(farClip);
     return result;
+}
+struct PickState
+{
+    const std::map<br_actor *, int> &owners;
+    float nearClip, closest;
+    int candidate = -1, object = -1;
+};
+int BR_CALLBACK PickFace(br_model *, br_material *material, br_vector3 *, br_vector3 *, br_scalar distance, int, int,
+                         int, br_vector3 *, br_vector2 *map, void *context)
+{
+    auto &pick = *static_cast<PickState *>(context);
+    const float depth = BrScalarToFloat(distance);
+    if (depth < pick.nearClip || depth > pick.closest)
+        return 0;
+    // Indexed texture zero is transparent unless the material makes it opaque.
+    if (auto texture = material->colour_map)
+    {
+        if (!(material->flags & BR_MATF_MAP_OPAQUE) && texture->type == BR_PMT_INDEX_8 && texture->pixels &&
+            texture->width > 0 && texture->height > 0)
+        {
+            br_vector2 uv;
+            BrMatrix23ApplyP(&uv, map, &material->map_transform);
+            const auto wrap = [](float value, int extent) {
+                const int coordinate = static_cast<int>(std::floor(value * extent));
+                return (coordinate % extent + extent) % extent;
+            };
+            const int x = wrap(BrScalarToFloat(uv.v[0]), texture->width);
+            const int y = wrap(BrScalarToFloat(uv.v[1]), texture->height);
+            const auto texel = static_cast<const byte *>(texture->pixels) + (y + texture->base_y) * texture->row_bytes +
+                               x + texture->base_x;
+            if (!*texel)
+                return 0;
+        }
+    }
+    pick.closest = depth;
+    pick.object = pick.candidate;
+    return 0;
+}
+int BR_CALLBACK PickModel(br_actor *actor, br_model *model, br_material *material, br_vector3 *position,
+                          br_vector3 *direction, br_scalar nearClip, br_scalar farClip, void *context)
+{
+    auto &pick = *static_cast<PickState *>(context);
+    const auto owner = pick.owners.find(actor);
+    pick.candidate = owner == pick.owners.end() ? -1 : owner->second;
+    // Original arrays may have been released. Pick the prepared, pivot-adjusted
+    // faces/vertices that BRender actually draws, without changing shared models.
+    auto prepared = *model;
+    prepared.faces = model->prepared_faces;
+    prepared.vertices = model->prepared_vertices;
+    prepared.nfaces = model->nprepared_faces;
+    prepared.nvertices = model->nprepared_vertices;
+    BrModelPick2D(&prepared, material, position, direction, nearClip, farClip, PickFace, context);
+    return 0;
 }
 bool WithinBudget(const Archive &archive, PChunkyFile file, Error &error)
 {
@@ -164,6 +218,44 @@ struct Preview::Impl
             if (actor->Visible())
                 bodies.push_back(actor->body);
         return bodies;
+    }
+    bool AddModels(br_actor *world, std::map<br_actor *, int> *owners = nullptr) const
+    {
+        std::vector<std::pair<PBACT, int>> instances;
+        const auto append = [&](PBody value, int owner) {
+            for (LegacyLong i = 0; i < value->Cbact() - 2; ++i)
+                if (value->PbactPart(i)->model)
+                    instances.emplace_back(value->PbactPart(i), owner);
+        };
+        if (body)
+            append(body, -1);
+        for (std::size_t i = 0; i < actors.size(); ++i)
+            if (actors[i]->Visible())
+                append(actors[i]->body, static_cast<int>(i));
+        if (model)
+            instances.emplace_back(nullptr, -1);
+        for (const auto &instance : instances)
+        {
+            const auto source = instance.first;
+            auto actor = BrActorAllocate(BR_ACTOR_MODEL, nullptr);
+            if (!actor)
+                return false;
+            BrActorAdd(world, actor);
+            actor->model = source ? source->model : model->Pbmdl();
+            actor->material = source ? source->material : nullptr;
+            actor->t.type = BR_TRANSFORM_MATRIX34;
+            BrMatrix34Identity(&actor->t.t.mat);
+            // Copy instances, never relink Body's embedded BACTs (not owned by BrRes).
+            for (auto part = source; part; part = part->parent)
+            {
+                br_matrix34 composed;
+                BrMatrix34Mul(&composed, &actor->t.t.mat, &part->t.t.mat);
+                actor->t.t.mat = composed;
+            }
+            if (owners)
+                owners->emplace(actor, instance.second);
+        }
+        return true;
     }
     void RefreshStats()
     {
@@ -345,6 +437,90 @@ std::vector<PreviewObject> Preview::Objects() const
         for (const auto &actor : _impl->actors)
             result.push_back(actor->Snapshot());
     return result;
+}
+bool Preview::Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
+                   int x, int y, int &object, float &distance, Error &error)
+try
+{
+    error = {};
+    object = -1;
+    distance = std::numeric_limits<float>::infinity();
+    Internal::ClearDiagnostic();
+    if (!_impl->ready || !_impl->info.scene || !projection.valid || width < 64 || width > 1024 || height < 64 ||
+        height > 1024 || !std::isfinite(projection.verticalFov) || projection.verticalFov <= 0 ||
+        projection.verticalFov >= 179 || !std::isfinite(projection.aspect) || projection.aspect <= 0 ||
+        !std::isfinite(projection.nearClip) || !std::isfinite(projection.farClip) || projection.nearClip <= 0 ||
+        projection.farClip <= projection.nearClip || projection.farClip > 32767)
+        return Fail(error, ErrorCode::invalid_argument, "Pick requires a rendered scene projection.");
+    for (const auto value : projection.transform)
+        if (!std::isfinite(value) || std::abs(value) > 32767)
+            return Fail(error, ErrorCode::invalid_argument, "Pick camera exceeds the renderer range.");
+    if (x < 0 || y < 0 || x >= static_cast<int>(width) || y >= static_cast<int>(height))
+        return true;
+    const auto bg = authoredCamera ? _impl->background.get() : nullptr;
+    const auto renderWidth = bg ? bg->width : width, renderHeight = bg ? bg->height : height;
+    const float scale = std::min(float(width) / renderWidth, float(height) / renderHeight);
+    const int fittedWidth = static_cast<int>(renderWidth * scale),
+              fittedHeight = static_cast<int>(renderHeight * scale);
+    x -= (int(width) - fittedWidth) / 2;
+    y -= (int(height) - fittedHeight) / 2;
+    if (x < 0 || y < 0 || x >= fittedWidth || y >= fittedHeight)
+        return true;
+    x = std::min(int(renderWidth) - 1, static_cast<int>(x / scale));
+    y = std::min(int(renderHeight) - 1, static_cast<int>(y / scale));
+
+    Frame frame;
+    frame.world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
+    br_camera camera = {};
+    camera.type = BR_CAMERA_PERSPECTIVE_FOV;
+    camera.field_of_view = BR_ANGLE_DEG(projection.verticalFov);
+    camera.aspect = BrFloatToScalar(projection.aspect);
+    camera.hither_z = BrFloatToScalar(projection.nearClip);
+    camera.yon_z = BrFloatToScalar(projection.farClip);
+    auto cam = frame.world ? BrActorAllocate(BR_ACTOR_CAMERA, &camera) : nullptr;
+    if (!cam)
+        return Fail(error, ErrorCode::out_of_memory, "Cannot allocate pick camera.");
+    BrActorAdd(frame.world, cam);
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+    for (int row = 0; row < 4; ++row)
+        for (int axis = 0; axis < 3; ++axis)
+            cam->t.t.mat.m[row][axis] = BrFloatToScalar(projection.transform[row * 3 + axis]);
+    // Avoid passing a singular camera matrix to the legacy fixed-point picker.
+    br_matrix34 inverse;
+    if (!BrMatrix34Inverse(&inverse, &cam->t.t.mat))
+        return Fail(error, ErrorCode::invalid_argument, "Pick camera is singular.");
+    std::map<br_actor *, int> owners;
+    if (!_impl->AddModels(frame.world, &owners) ||
+        (!bg && _impl->background && !_impl->background->Mesh().AddToScene(frame.world)))
+        return Fail(error, ErrorCode::out_of_memory, "Cannot prepare scene picking.");
+    PickState pick{owners, projection.nearClip, projection.farClip};
+    if (bg)
+    {
+        const auto depth = bg->depths[std::size_t(y) * renderWidth + x];
+        if (depth != 0xffff)
+        {
+            br_matrix4 matrix;
+            BrMatrix4Perspective(&matrix, camera.field_of_view, camera.aspect, -camera.hither_z, -camera.yon_z);
+            const double denominator = BrScalarToFloat(matrix.m[2][2]) - static_cast<std::int16_t>(depth) / 32768.0;
+            const double distance = BrScalarToFloat(matrix.m[3][2]) / denominator;
+            if (std::isfinite(distance) && distance > 0)
+                pick.closest = std::min(pick.closest, static_cast<float>(distance));
+        }
+    }
+    br_pixelmap viewport = {};
+    viewport.width = static_cast<br_uint_16>(renderWidth);
+    viewport.height = static_cast<br_uint_16>(renderHeight);
+    BrScenePick2D(frame.world, cam, &viewport, x - int(renderWidth) / 2, y - int(renderHeight) / 2, PickModel, &pick);
+    if (Internal::AssertionFailed())
+        return Fail(error, ErrorCode::decode_failed, "The renderer rejected scene picking.");
+    object = pick.object;
+    if (object >= 0)
+        distance = pick.closest;
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene picking.");
 }
 bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)
 {
@@ -1035,31 +1211,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             frame.light->t = cam->t;
             BrLightEnable(frame.light);
         }
-        std::vector<PBACT> instances;
-        for (auto body : bodies)
-            for (LegacyLong i = 0; i < body->Cbact() - 2; ++i)
-                if (body->PbactPart(i)->model)
-                    instances.push_back(body->PbactPart(i));
-        if (_impl->model)
-            instances.push_back(nullptr);
-        for (auto source : instances)
-        {
-            auto actor = BrActorAllocate(BR_ACTOR_MODEL, nullptr);
-            if (!actor)
-                return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview model instance.");
-            BrActorAdd(frame.world, actor);
-            actor->model = source ? source->model : _impl->model->Pbmdl();
-            actor->material = source ? source->material : nullptr;
-            actor->t.type = BR_TRANSFORM_MATRIX34;
-            BrMatrix34Identity(&actor->t.t.mat);
-            // Copy instances, never relink Body's embedded BACTs (not owned by BrRes).
-            for (auto part = source; part; part = part->parent)
-            {
-                br_matrix34 composed;
-                BrMatrix34Mul(&composed, &actor->t.t.mat, &part->t.t.mat);
-                actor->t.t.mat = composed;
-            }
-        }
+        if (!_impl->AddModels(frame.world))
+            return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview model instance.");
         if (mesh && !mesh->AddToScene(frame.world))
             return Fail(error, ErrorCode::out_of_memory, "Cannot prepare background scenery models.");
         // Keep the process-wide sink scoped to this call, including failures.

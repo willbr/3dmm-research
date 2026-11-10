@@ -21,14 +21,14 @@ int main(int argc, char **argv)
     MarcusInfo info;
     MarcusScene scene;
     MarcusObject first, later, prop, inactive;
-    MarcusImage image;
+    MarcusImage image, pick_image;
     MarcusCamera camera, moved;
     MarcusProjection authored, orbit, manual, flight, panned;
     float guide_depth[2];
     const long frames[] = {1, 5, 10, 16, 25, 30, 1};
     unsigned char *pixels;
     size_t bytes;
-    int index, scene_count;
+    int index, scene_count, picked, pick_x, pick_y, x, y, hits, renderer, expected_pick;
     if (argc != 7)
         return 2;
     player = marcus_create();
@@ -60,6 +60,49 @@ int main(int argc, char **argv)
     pixels = (unsigned char *)malloc(bytes);
     CHECK(pixels);
     memcpy(pixels, image.rgba, bytes);
+    /* Picking uses visible faces in the rendered camera, retains object-list
+     * identities, and does not invalidate pixels or alter the evaluated frame. */
+    pick_image = image;
+    pick_image.rgba = NULL;
+    CHECK(marcus_pick(player, &pick_image, -1, 0, &picked) && picked == -1);
+    CHECK(marcus_pick(player, &pick_image, image.width, 0, &picked) && picked == -1);
+    hits = 0;
+    pick_x = pick_y = -1;
+    expected_pick = -1;
+    for (y = 6; y < image.height; y += 18)
+        for (x = 6; x < image.width; x += 18)
+        {
+            CHECK(marcus_pick(player, &pick_image, x, y, &picked));
+            if (picked >= 0)
+            {
+                CHECK(marcus_object(player, picked, &later) && later.visible);
+                CHECK(later.actor_id == picked); /* Fixture IDs follow object-list order. */
+                ++hits;
+                pick_x = x;
+                pick_y = y;
+                expected_pick = picked;
+            }
+        }
+    CHECK(hits > 0 && pick_x >= 0);
+    CHECK(!memcmp(pixels, image.rgba, bytes));
+    CHECK(marcus_info(player, &info) && info.frame == 1 && info.camera == 0);
+    for (renderer = MARCUS_RENDERER_BRENDER_COMPUTE; renderer < MARCUS_RENDERER_COUNT; ++renderer)
+    {
+        if (!marcus_set_renderer(player, renderer))
+        {
+            fprintf(stderr, "Skipping %s picking: %s\n", marcus_renderer_name(renderer), marcus_error(player));
+            continue;
+        }
+        CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+        CHECK(marcus_pick(player, &image, pick_x, pick_y, &picked) && picked == expected_pick);
+    }
+    CHECK(marcus_set_renderer(player, MARCUS_RENDERER_BRENDER));
+    CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+    CHECK(marcus_pick(player, &pick_image, pick_x, pick_y, &picked) && picked == expected_pick);
+    CHECK(!marcus_pick(player, NULL, 0, 0, &picked) && picked == -1);
+    CHECK(!marcus_pick(player, &pick_image, 0, 0, NULL));
+    CHECK(marcus_seek(player, 10));
+    CHECK(!marcus_pick(player, &pick_image, pick_x, pick_y, &picked) && picked == -1);
     CHECK(marcus_seek(player, 10) && marcus_object(player, 0, &later));
     CHECK(later.x != first.x || later.y != first.y || later.z != first.z || later.cel != first.cel);
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
@@ -163,6 +206,18 @@ int main(int argc, char **argv)
     for (index = 0; index < 12; ++index)
         CHECK(fabs(manual.transform[index] - image.projection.transform[index]) < .02);
     CHECK(fabs(manual.vertical_fov - image.projection.vertical_fov) < .001);
+    hits = 0;
+    for (y = 12; y < image.height; y += 24)
+        for (x = 12; x < image.width; x += 24)
+        {
+            CHECK(marcus_pick(player, &image, x, y, &picked));
+            if (picked >= 0)
+            {
+                CHECK(marcus_object(player, picked, &later) && later.visible);
+                ++hits;
+            }
+        }
+    CHECK(hits > 0); /* Fly uses its rendered pose rather than the movie's projection. */
     moved = camera;
     moved.x += 5;
     CHECK(marcus_render_fly(player, 480, 360, &moved, &image));
@@ -209,7 +264,9 @@ int main(int argc, char **argv)
     marcus_destroy(player);
     player = marcus_create();
     CHECK(marcus_open(player, argv[1], argv[2], argv[3]));
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &pick_image));
     CHECK(marcus_open(player, argv[5], argv[2], argv[3]));
+    CHECK(!marcus_pick(player, &pick_image, 240, 180, &picked) && picked == -1);
     CHECK(marcus_info(player, &info) && info.scene_count == 2 && info.object_count == 4);
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     input = marcus_input_create();
@@ -224,9 +281,18 @@ int main(int argc, char **argv)
     CHECK(marcus_open(player, argv[4], argv[2], argv[3]));
     CHECK(marcus_object(player, 4, &inactive) && !inactive.visible && !inactive.has_lifetime);
     CHECK(marcus_object(player, 1, &prop) && prop.last_frame > 10);
+    CHECK(marcus_render(player, 480, 960, 1, 0, 0, 1, &image));
+    CHECK(marcus_pick(player, &image, 240, 0, &picked) && picked == -1); /* Letterbox. */
+    CHECK(marcus_select_scene(player, 1));
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    CHECK(marcus_pick(player, &image, 240, 180, &picked) && picked == -1);
+    CHECK(marcus_match_camera(player, 480, 360, &camera));
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
+    CHECK(marcus_pick(player, &image, 240, 180, &picked) && picked == -1); /* Scenery is not an actor. */
     marcus_destroy(player);
     free(pixels);
-    puts("Marcus C API: scenes, actor/prop metadata, evaluated motion, image rewind, invalid input and renderer "
+    puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "
+         "and renderer "
          "lifecycle passed.");
     return 0;
 failed:

@@ -166,6 +166,12 @@ class Preview
     // Translate the cached orbit center in its view plane. Offsets are fractions
     // of the viewport width/right and height/up; zoom and angles set the scale.
     bool PanOrbit(const PreviewView &view, float right, float up, Error &error);
+    // Pick a visible scene actor at an output-image pixel using the rendered
+    // projection and current evaluated frame. Background scenery only occludes.
+    // A successful miss returns object = -1; object indices match Objects().
+    // Distance is camera-forward depth at the hit, or infinity on a miss.
+    bool Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
+              int x, int y, int &object, float &distance, Error &error);
     // Dimensions 64..1024, finite camera values, pitch -90..90, zoom .1..10.
     // Free camera coordinates are limited to +/-32700 world units and take
     // precedence over authoredCamera. Returned images include the rendered pose.
