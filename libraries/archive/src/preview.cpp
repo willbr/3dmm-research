@@ -295,17 +295,23 @@ std::vector<PreviewSoundCue> Preview::FrameSounds() const
     return result;
 }
 bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
+{
+    return ReadSoundCues(_impl->info.asset, cues, error);
+}
+bool Preview::ReadSoundCues(Id scene, std::vector<PreviewSoundCue> &cues, Error &error)
 try
 {
+    error = {};
     cues.clear();
     PreviewPresentation presentation;
-    if (!ReadPresentation(presentation, error))
-        return false;
+    if (!_impl->ready || scene.type != kctgScen ||
+        !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true))
+        return Fail(error, ErrorCode::decode_failed, "Cannot read the scene's sound events.");
     cues = std::move(presentation.sounds);
-    for (const auto &actor : _impl->actors)
-        actor->AppendSoundCues(cues);
+    for (auto &cue : cues)
+        cue.scene = scene;
     std::stable_sort(cues.begin(), cues.end(), [](const PreviewSoundCue &a, const PreviewSoundCue &b) {
-        return a.frame < b.frame;
+        return a.frame != b.frame ? a.frame < b.frame : a.actorSound < b.actorSound;
     });
     return true;
 }
@@ -340,7 +346,8 @@ try
     {
         auto file = _impl->cache->Pcfl();
         ChildChunkIdentification child;
-        if (file->FGetKidChidCtg(kctgScen, _impl->info.asset.number, cue.child, kctgMsnd, &child))
+        const auto scene = cue.scene.type == kctgScen ? cue.scene.number : _impl->info.asset.number;
+        if (file->FGetKidChidCtg(kctgScen, scene, cue.child, kctgMsnd, &child))
             tag.cno = child.cki.cno;
         else
             for (const auto &chunk : _impl->assets.Chunks())

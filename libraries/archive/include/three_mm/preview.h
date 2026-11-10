@@ -90,6 +90,7 @@ struct PreviewSoundCue
 {
     std::int32_t frame = 0, source = 0, actor = 0, style = 0, volume = 0x10000;
     Id sound;
+    Id scene; // Optional origin for imported sound-child remapping across cuts.
     std::uint32_t child = 0;
     bool actorSound = false, loop = false, queue = false, silent = false, motion = false;
     std::int32_t motionCel = -1; // Motion binding cel; -1 for an ordinary cue.
@@ -147,6 +148,8 @@ class Preview
     // Authored scene cues and actor sound events, without seeking or playing.
     // Motion sounds mark the binding event, not every subsequent cel match.
     bool ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error);
+    // Read another scene's authored sound events without selecting or seeking it.
+    bool ReadSoundCues(Id scene, std::vector<PreviewSoundCue> &cues, Error &error);
     std::vector<PreviewSoundCue> FrameSounds() const;
     bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
     // Resolve stored indexed caption colours against the active movie palette.

@@ -83,7 +83,7 @@ bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
     return true;
 }
 } // namespace
-bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out)
+bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out, bool soundSheet)
 {
     out = {};
     SceneData metadata;
@@ -108,7 +108,48 @@ bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &
             group->GetFixed(i, &event);
             if (order == kboOther)
                 SwapBytesBom(&event, kbomSev);
-            if (event.sevt == sevtAddTbox)
+            if (soundSheet && event.sevt == sevtAddActr)
+            {
+                std::uint32_t slot;
+                group->Get(i, &slot);
+                if (order == kboOther)
+                    SwapBytesRglw(&slot, 1);
+                ActorChunkOnFile header;
+                ok = file->FGetKidChidCtg(kctgScen, scene, slot, kctgActr, &child) &&
+                     file->FFind(kctgActr, child.cki.cno, &block) && ActorData::FReadHeader(&block, &header);
+                if (!ok || header.nfrmFirst == knfrmInvalid)
+                    continue;
+                ok = file->FGetKidChidCtg(kctgActr, child.cki.cno, 0, kctgGgae, &child) &&
+                     file->FFind(child.cki.ctg, child.cki.cno, &block);
+                auto events = ok ? ActorData::PggReadEvents(&block) : nullptr;
+                ok = events != nullptr;
+                for (LegacyLong row = 0; ok && row < events->IvMac(); ++row)
+                {
+                    ActorEvent::Base base;
+                    events->GetFixed(row, &base);
+                    if (base.aet != ActorEvent::aetSnd)
+                        continue;
+                    ActorEvent::Sound sound;
+                    events->Get(row, &sound);
+                    PreviewSoundCue cue;
+                    cue.frame = base.nfrm;
+                    cue.actor = header.arid;
+                    cue.actorSound = true;
+                    cue.source = sound.tag.sid;
+                    cue.sound = {sound.tag.ctg, sound.tag.cno};
+                    cue.child = sound.chid;
+                    cue.style = sound.sty;
+                    cue.volume = sound.vlm;
+                    cue.loop = sound.fLoop != tNo;
+                    cue.queue = sound.fQueue != tNo;
+                    cue.silent = sound.fNoSound == tYes;
+                    cue.motion = sound.celn != ivNil;
+                    cue.motionCel = sound.celn;
+                    out.sounds.push_back(cue);
+                }
+                ReleasePpo(&events);
+            }
+            else if (!soundSheet && event.sevt == sevtAddTbox)
             {
                 std::uint32_t slot;
                 group->Get(i, &slot);

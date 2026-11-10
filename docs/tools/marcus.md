@@ -119,14 +119,23 @@ Use `--sounds` to open directly on the sound sheet, including with `--screenshot
 
 Sampled sounds show a waveform from their decoded audio, scaled by cue volume;
 the inspector includes the clip duration. Peaks from both stereo channels are
-preserved as you zoom. Decoding is lazy and silent, with a scene-local 32 MiB
+preserved as you zoom. Decoding is silent, with a movie-local 32 MiB
 peak cache; decoded sample buffers are released after building the peaks.
-Waveforms show one clip iteration from the authored cue on the six-fps ruler,
-clipped to the scene. Queued starts, repeated loops, motion matches and authored
-waits still follow live playback, so these are source previews rather than a
-rendered soundtrack. MIDI keeps its cue markers because it contains notes rather
-than sampled audio. Silent or unavailable sounds keep their markers; the
-inspector explains when a waveform cannot be displayed.
+The sheet follows sounds across scene boundaries, including when jumping straight
+to a later scene. A teal arrow marks a carried clip; its inspector identifies the
+source scene and frame. Its waveform starts at the remaining source offset,
+including audio imported under a different child ID in its original scene.
+Unfinished sounds and MIDI continue; sampled loops stop at the cut, matching
+playback. Queued clips follow earlier sounds in their lane, replacements truncate
+earlier clips, and sampled loops repeat their waveform. MIDI continuation has a
+labelled band because it contains notes rather than samples.
+
+The sheet uses a nominal six-fps movie clock, clipped to each scene. Interactive
+waits, transitions and repeated motion matches can change live audio timing, so
+these remain an authored timeline preview rather than a rendered soundtrack.
+Silent or unavailable sounds retain markers; the inspector explains unavailable
+waveforms. Scene history and clip durations are cached as scenes are visited;
+reading them does not seek, render prior scenes, or start audio playback.
 
 Click a binding in Settings and press a key combination to replace it. Shift,
 Ctrl, Alt and Command modifiers are supported. Escape cancels capture; Backspace

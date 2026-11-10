@@ -45,14 +45,23 @@ std::size_t MarcusWaveformEnvelope::Bytes() const
 {
     return tree.capacity() * sizeof(MarcusWaveformColumn);
 }
-void MarcusWaveformEnvelope::Read(double first, double step, int count, MarcusWaveformColumn *columns) const
+void MarcusWaveformEnvelope::Read(double first, double step, int count, MarcusWaveformColumn *columns, bool repeat) const
 {
     std::fill_n(columns, count, MarcusWaveformColumn{});
     if (!frames)
         return;
     for (int column = 0; column < count; ++column)
     {
-        const double start = first + column * step;
+        double start = first + column * step;
+        if (repeat)
+        {
+            if (step >= Seconds())
+            {
+                columns[column] = tree[1];
+                continue;
+            }
+            start = std::fmod(start, Seconds());
+        }
         if (start >= Seconds())
             break;
         const double end = std::min(Seconds(), start + step);
@@ -68,6 +77,12 @@ void MarcusWaveformEnvelope::Read(double first, double step, int count, MarcusWa
             left /= 2;
             right /= 2;
         }
+        if (repeat && start + step > Seconds())
+        {
+            MarcusWaveformColumn tail;
+            Read(0, start + step - Seconds(), 1, &tail);
+            columns[column] = Merge(columns[column], tail);
+        }
     }
 }
 void MarcusWaveformCache::Clear()
@@ -79,8 +94,8 @@ void MarcusWaveformCache::Clear()
 void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue, double first,
                                double step, int count, MarcusWaveformColumn *columns, MarcusWaveformInfo &info)
 {
-    // Scene-local cache: imported sound child remapping cannot leak across cuts.
-    const auto key = std::make_tuple(cue.source, cue.sound.type, cue.sound.number, cue.child);
+    const auto key = std::make_tuple(cue.source, cue.sound.type, cue.sound.number, cue.child,
+                                     cue.source == 0 ? cue.scene.number : 0);
     // An explicit stop may carry the same identity as its earlier playable cue.
     if (cue.silent)
     {
@@ -125,6 +140,9 @@ void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::Preview
                 entry.info.kind = MARCUS_WAVEFORM_SAMPLED;
             }
         }
+        entry.info.resolved_source = audio.source;
+        entry.info.resolved_type = audio.asset.type;
+        entry.info.resolved_chunk = audio.asset.number;
         const auto required = entry.envelope.Bytes();
         while (!entries.empty() && (bytes + required > cacheBudget || entries.size() >= 512))
         {
@@ -140,5 +158,5 @@ void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::Preview
     auto &entry = found->second;
     entry.used = ++clock;
     info = entry.info;
-    entry.envelope.Read(first, step, count, columns);
+    entry.envelope.Read(first, step, count, columns, cue.loop);
 }

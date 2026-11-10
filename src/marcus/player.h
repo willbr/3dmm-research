@@ -61,6 +61,9 @@ extern "C"
         long frame, actor_id, source_id, style, volume, motion_cel;
         unsigned long chunk, child;
         int track, actor_sound, loop, queue, silent, motion;
+        int origin_scene, carried; /* Zero-based source scene; carried into this sheet. */
+        double origin_frame; /* One-based frame in the source scene. */
+        double timeline_frame, end_frame; /* Scheduled extent in this scene's frame coordinates. */
     } MarcusSound;
     enum MarcusWaveformKind
     {
@@ -78,6 +81,8 @@ extern "C"
         double seconds; /* One clip iteration, independent of cue volume. */
         int kind;
         char message[192];
+        unsigned long resolved_type, resolved_chunk;
+        long resolved_source;
     } MarcusWaveformInfo;
 
     typedef struct MarcusCamera
@@ -153,8 +158,9 @@ extern "C"
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track);
     int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound);
     /* Lazy, cached, silent decoding. Sampled peaks cover successive clip-relative
-     * windows; out-of-clip columns are zero. MIDI/silence/unavailable have zero
-     * columns and an explanatory kind/message. count is 1..4096; first_seconds
+     * windows; loops repeat and other out-of-clip columns are zero. MIDI,
+     * silence and unavailable clips have zero columns and a kind/message.
+     * count is 1..4096; first_seconds
      * must be nonnegative and seconds_per_column positive, both finite. */
     int marcus_sound_waveform(MarcusPlayer *player, int index, double first_seconds, double seconds_per_column,
                               int count, MarcusWaveformColumn *columns, MarcusWaveformInfo *info);

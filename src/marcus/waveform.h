@@ -15,14 +15,14 @@ class MarcusWaveformEnvelope
 
   public:
     void Build(const float *stereo, std::size_t frameCount);
-    void Read(double first, double step, int count, MarcusWaveformColumn *columns) const;
+    void Read(double first, double step, int count, MarcusWaveformColumn *columns, bool repeat = false) const;
     double Seconds() const;
     std::size_t Bytes() const;
 };
 
 class MarcusWaveformCache
 {
-    using Key = std::tuple<int, unsigned, unsigned, unsigned>;
+    using Key = std::tuple<int, unsigned, unsigned, unsigned, unsigned>;
     struct Entry
     {
         MarcusWaveformEnvelope envelope;

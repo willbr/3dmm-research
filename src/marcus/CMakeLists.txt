@@ -2,7 +2,7 @@ include(SDL3Dependency)
 include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
-add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp caption_quad.cpp gpu_renderer.cpp renderer_ids.c waveform.cpp)
+add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp caption_quad.cpp gpu_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp)
 target_compile_features(marcus-player PRIVATE cxx_std_17)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(marcus-player PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/bren/inc")

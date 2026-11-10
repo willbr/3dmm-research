@@ -7,6 +7,7 @@
 #include <vector>
 #include "player.h"
 #include "waveform.h"
+#include "sound_timeline.h"
 #include "soc_core.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -45,7 +46,15 @@ void WaveformPeaks()
     CHECK(columns[0].minimum == -.5f && columns[0].maximum == .75f);
     envelope.Read(0, 1, 1, columns);
     CHECK(columns[0].minimum == -1 && columns[0].maximum == .75f);
+    envelope.Read(envelope.Seconds() * 2, 1, 1, columns, true);
+    CHECK(columns[0].minimum == -1 && columns[0].maximum == .75f);
     CHECK(std::abs(envelope.Seconds() - 1025.0 / 48000) < 1e-9);
+    samples.assign(256 * 2, 0);
+    samples[0] = .5f;
+    samples.back() = -1;
+    envelope.Build(samples.data(), 256);
+    envelope.Read(255.0 / 48000, 2.0 / 48000, 1, columns, true);
+    CHECK(columns[0].minimum == -1 && columns[0].maximum == .5f);
     envelope.Build(nullptr, 0);
     envelope.Read(0, 1, 6, columns);
     for (const auto &column : columns)
@@ -77,7 +86,7 @@ void Word(std::vector<byte> &bytes, std::uint32_t value, int count)
     for (int i = 0; i < count; ++i)
         bytes.push_back(static_cast<byte>(value >> (i * 8)));
 }
-ChunkNumber Sound(PChunkyFile file, bool midi)
+ChunkNumber Sound(PChunkyFile file, bool midi, unsigned samples = 4800)
 {
     struct Header
     {
@@ -95,7 +104,6 @@ ChunkNumber Sound(PChunkyFile file, bool midi)
     }
     else
     {
-        const unsigned samples = 4800;
         bytes.insert(bytes.end(), {'R', 'I', 'F', 'F'});
         Word(bytes, 36 + samples * 2, 4);
         bytes.insert(bytes.end(), {'W', 'A', 'V', 'E', 'f', 'm', 't', ' '});
@@ -114,6 +122,54 @@ ChunkNumber Sound(PChunkyFile file, bool midi)
     CHECK(file->FAddPv(bytes.data(), static_cast<LegacyLong>(bytes.size()), midi ? kctgMidi : kctgWave, &child));
     CHECK(file->FAdoptChild(kctgMsnd, sound, midi ? kctgMidi : kctgWave, child, 0));
     return sound;
+}
+void CarryScheduling()
+{
+    MarcusSoundTimeline timeline;
+    MarcusScene first = {}, later = {};
+    first.first_frame = 10;
+    first.last_frame = 15;
+    later.first_frame = -5;
+    later.last_frame = 0;
+    auto read = [](const ThreeMM::PreviewSoundCue &cue) {
+        MarcusWaveformInfo audio = {};
+        audio.kind = cue.silent ? MARCUS_WAVEFORM_SILENT : cue.style == MARCUS_SOUND_MUSIC
+                     ? MARCUS_WAVEFORM_MIDI : MARCUS_WAVEFORM_SAMPLED;
+        audio.seconds = cue.sound.number == 4 ? .25 : cue.sound.number == 5 ? 1 : 2;
+        audio.resolved_chunk = cue.sound.number;
+        return audio;
+    };
+    ThreeMM::PreviewSoundCue music, effect, speech, loop;
+    music.frame = 10; music.style = MARCUS_SOUND_MUSIC; music.loop = true; music.sound.number = 100;
+    effect.frame = 13; effect.style = MARCUS_SOUND_EFFECT; effect.sound.number = 1;
+    speech.frame = 14; speech.style = MARCUS_SOUND_SPEECH; speech.actorSound = true;
+    speech.actor = 7; speech.sound.number = 2;
+    loop = effect; loop.frame = 10; loop.loop = true; loop.actorSound = true; loop.actor = 9;
+    timeline.Append(first, {music, loop, effect, speech}, read);
+    music.frame = -3;
+    timeline.Append(later, {music}, read);
+    CHECK(timeline.Scene(1).sounds.size() == 4); // Three tails plus the duplicate music marker.
+    CHECK(timeline.Scene(1).sounds[0]->scene == 0 && timeline.Scene(1).sounds[0]->start == 0);
+    CHECK(std::abs(timeline.Scene(1).start - timeline.Scene(1).sounds[1]->start - .5) < 1e-6);
+    CHECK(timeline.Scene(0).sounds[1]->end == 1); // Sampled loops stop at the cut.
+    effect.frame = -5; effect.sound.number = 4;
+    speech.frame = -5; speech.sound.number = 5; speech.queue = true;
+    timeline.Append(later, {effect, speech}, read);
+    CHECK(timeline.Scene(2).sounds.size() == 4); // Music, speech tail, replacement, queued speech.
+    CHECK(timeline.Scene(0).sounds[2]->end == 2); // Replacement truncates the carried effect.
+    CHECK(std::abs(timeline.Scene(2).sounds.back()->start - 8.0 / 3) < 1e-6);
+    timeline.Append(later, {}, read);
+    CHECK(timeline.Scene(3).sounds.size() == 2); // Only music and the queued speech remain.
+    music.frame = -5; music.silent = true;
+    timeline.Append(later, {music}, read);
+    CHECK(timeline.Scene(4).sounds.size() == 1 && timeline.Scene(4).sounds[0]->cue.silent);
+    timeline.Clear();
+    loop.actorSound = false; loop.frame = 10;
+    effect = loop; effect.loop = false; effect.queue = true; effect.sound.number = 5;
+    timeline.Append(first, {loop, effect}, read);
+    timeline.Append(later, {}, read);
+    CHECK(timeline.Scene(1).sounds.size() == 1 && timeline.Scene(1).sounds[0]->cue.queue);
+    CHECK(timeline.Scene(1).sounds[0]->start == 1 && timeline.Scene(1).sounds[0]->end == 2);
 }
 ChunkNumber Caption(PChunkyFile file, bool scrolling)
 {
@@ -148,11 +204,11 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling)
     return number;
 }
 void SceneSound(PGeneralGroup events, int frame, ChunkNumber sound, int slot, bool midi, bool loop = false,
-                bool queued = false)
+                bool queued = false, int style = styNil)
 {
     SceneEvent event = {frame, sevtPlaySnd};
     std::int32_t data[] = {0x10000,
-                           midi ? styMidi : stySfx,
+                           midi ? styMidi : style == styNil ? stySfx : style,
                            loop ? 1 : 0,
                            queued ? 2 : 1,
                            slot,
@@ -279,6 +335,67 @@ void Fixture(const char *path)
     CHECK(file->FSave(kctgSoc));
     ReleasePpo(&file);
 }
+void CarryIntegration(const char *path, const char *resources, const char *content)
+{
+    String name;
+    name.SetSzs(const_cast<char *>(path));
+    Filename filename;
+    CHECK(filename.FBuildFromPath(&name));
+    auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
+    CHECK(file);
+    ChunkNumber root;
+    CHECK(MovieData::FCreateRoot(file, &root));
+    const auto longSound = Sound(file, false, 96000), otherSound = Sound(file, false);
+    const int first[] = {-2, 100, -10, 0}, last[] = {0, 105, -5, 5};
+    for (int index = 0; index < 4; ++index)
+    {
+        SceneData scene;
+        scene.firstFrame = first[index]; scene.lastFrame = last[index]; scene.transition = transCut;
+        ChunkNumber number;
+        CHECK(scene.FCreate(file, &number) && file->FAdoptChild(kctgMvie, root, kctgScen, number, index));
+        CHECK(file->FAdoptChild(kctgScen, number, kctgMsnd, index ? otherSound : longSound, 7));
+        auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
+        auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
+        CHECK(starts && frames);
+        if (!index)
+            SceneSound(frames, 0, longSound + 123, 7, false);
+        else if (index == 1)
+            SceneSound(frames, first[index], longSound + 123, 7, false, false, false, stySpeech);
+        CHECK(SceneData::FWriteEvents(file, number, frames, starts));
+        ReleasePpo(&starts); ReleasePpo(&frames);
+    }
+    CHECK(file->FSave(kctgSoc));
+    ReleasePpo(&file);
+    player = marcus_create();
+    CHECK(player && marcus_open(player, path, resources, content));
+    CHECK(marcus_select_scene(player, 2)); // Direct jump must reconstruct earlier tails.
+    MarcusInfo info;
+    MarcusSound sound;
+    MarcusWaveformInfo wave;
+    MarcusWaveformColumn columns[4];
+    CHECK(marcus_info(player, &info) && info.sound_count == 1 && info.frame == -10);
+    CHECK(marcus_sound(player, 0, &sound) && sound.carried && sound.origin_scene == 0 && sound.origin_frame == 3);
+    CHECK(std::abs(sound.timeline_frame + 17) < 1e-6 && std::abs(sound.end_frame + 5) < 1e-6);
+    CHECK(marcus_sound_waveform(player, 0, 7.0 / 6, .01, 4, columns, &wave));
+    CHECK(wave.kind == MARCUS_WAVEFORM_SAMPLED && std::abs(wave.seconds - 2) < 1e-6);
+    CHECK(columns[0].minimum < -.2f && columns[0].maximum > .2f);
+    CHECK(marcus_select_scene(player, 3) && marcus_info(player, &info) && info.sound_count == 0);
+    CHECK(marcus_select_scene(player, 1) && marcus_info(player, &info) && info.sound_count == 2);
+    // Both cues use the same stored ID and child slot, but resolve in different scenes.
+    CHECK(marcus_sound_waveform(player, 1, 0, .01, 4, columns, &wave) && std::abs(wave.seconds - .1) < 1e-6);
+    CHECK(marcus_sound_waveform(player, 0, 0, .01, 4, columns, &wave) && std::abs(wave.seconds - 2) < 1e-6);
+    MarcusAudioStats stats;
+    CHECK(marcus_audio_stats(player, &stats) && !stats.wave_sounds && !stats.midi_sounds);
+    CHECK(marcus_info(player, &info) && info.frame == 100);
+    CHECK(marcus_select_scene(player, 0) && marcus_seek(player, 0));
+    MarcusPlaybackState state;
+    CHECK(marcus_update(player, 1, 0, 0, 0, &state));
+    CHECK(marcus_update(player, 1, 0, 170, 0, &state) && state.scene_changed);
+    CHECK(marcus_info(player, &info) && info.scene == 1 && info.sound_count == 2);
+    CHECK(marcus_sound(player, 0, &sound) && sound.carried && sound.origin_scene == 0);
+    marcus_destroy(player);
+    player = nullptr;
+}
 MarcusPlaybackState Tick(double elapsed, bool playing = true, bool click = false, bool loop = false)
 {
     MarcusPlaybackState state;
@@ -333,6 +450,7 @@ int main(int argc, char **argv)
     if (argc != 4)
         return 2;
     WaveformPeaks();
+    CarryScheduling();
     Fixture(argv[1]);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     player = marcus_create();
@@ -476,14 +594,15 @@ int main(int argc, char **argv)
     CHECK(marcus_audio_stats(player, &stats));
     const auto soundsBefore = stats.wave_sounds;
     CHECK(marcus_select_scene(player, 4));
-    CHECK(Info().sound_count == 5 && Info().sound_track_count == 3);
-    CHECK(marcus_sound(player, 0, &cue) && cue.actor_sound && cue.actor_id == 42 && cue.frame == -2);
+    CHECK(Info().sound_count == 6 && Info().sound_track_count == 3);
+    CHECK(marcus_sound(player, 0, &cue) && cue.carried && cue.origin_scene == 0 && cue.loop);
+    CHECK(marcus_sound(player, 1, &cue) && cue.actor_sound && cue.actor_id == 42 && cue.frame == -2);
     CHECK(cue.motion && cue.motion_cel == 0 && cue.child == 7);
-    CHECK(marcus_sound(player, 1, &queued) && queued.actor_sound && !queued.motion && queued.motion_cel == -1);
+    CHECK(marcus_sound(player, 2, &queued) && queued.actor_sound && !queued.motion && queued.motion_cel == -1);
     CHECK(cue.track == queued.track && marcus_sound_track(player, cue.track, &soundTrack));
     CHECK(!std::strcmp(soundTrack.name, "Actor 42 / Effects") && soundTrack.cue_count == 2);
     CHECK(Info().frame == -2 && marcus_audio_stats(player, &sheetStats) && sheetStats.wave_sounds == soundsBefore);
-    CHECK(marcus_sound_waveform(player, 0, 0, .01, 16, repeated, &waveform));
+    CHECK(marcus_sound_waveform(player, 1, 0, .01, 16, repeated, &waveform));
     CHECK(waveform.kind == MARCUS_WAVEFORM_SAMPLED && !std::memcmp(peaks, repeated, sizeof(peaks)));
     Tick(0);
     CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == soundsBefore + 1);
@@ -522,6 +641,7 @@ int main(int argc, char **argv)
     marcus_destroy(player);
     player = nullptr;
     CHECK(Bytes(argv[1]) == movieBefore && Bytes(argv[2]) == resourcesBefore);
+    CarryIntegration((std::string(argv[1]) + ".carry.3mm").c_str(), argv[2], argv[3]);
     std::puts(
         "Headless playback: caption visibility/rewind, Unicode, scrolling, click/time/sound waits, MIDI/WAVE audio,");
     std::puts("queued clips, outgoing scene transitions, looping, pause/resume, and unchanged input files.");

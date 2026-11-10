@@ -515,9 +515,10 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     for (index = app->info.sound_count - 1; index >= 0; --index)
         if (marcus_sound(app->player, index, &sound) && sound.track == row)
         {
-            clip_seconds = (app->timeline_start + (x - app->grid_x) / app->pixels_per_frame - sound.frame) / 6;
+            clip_seconds = (app->timeline_start + (x - app->grid_x) / app->pixels_per_frame - sound.timeline_frame) / 6;
             if (clip_seconds >= 0 && marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) &&
-                waveform.kind == MARCUS_WAVEFORM_SAMPLED && clip_seconds < waveform.seconds)
+                waveform.kind == MARCUS_WAVEFORM_SAMPLED && (sound.loop || clip_seconds < waveform.seconds) &&
+                app->timeline_start + (x - app->grid_x) / app->pixels_per_frame < sound.end_frame)
             {
                 if (fallback < 0)
                     fallback = index;
@@ -1225,7 +1226,7 @@ static void draw_sound_properties(App *app)
         if (app->loaded && marcus_sound_track(app->player, app->selected_sound_track, &track))
         {
             ui_label(&app->ui, app->sidebar + 18, 377, 264, track.name, TEXT);
-            SDL_snprintf(label, sizeof(label), "%d authored cues", track.cue_count);
+            SDL_snprintf(label, sizeof(label), "%d sound cues / clips", track.cue_count);
             ui_text(&app->ui, app->sidebar + 18, 405, label, MUTED);
         }
         else
@@ -1241,8 +1242,11 @@ static void draw_sound_properties(App *app)
             : sound.style == MARCUS_SOUND_SPEECH ? "SPEECH" : "SOUND EFFECT", 0xe4b575);
     ui_line(&app->ui, app->sidebar + 18, 435, (float)app->width - 18, 435, LINE);
     property(app, 450, "Owner", sound.owner);
-    SDL_snprintf(label, sizeof(label), "%.0f", display_frame(app, sound.frame));
-    property(app, 478, "Cue frame", label);
+    if (sound.carried)
+        SDL_snprintf(label, sizeof(label), "%d / frame %.0f", sound.origin_scene + 1, sound.origin_frame);
+    else
+        SDL_snprintf(label, sizeof(label), "%.0f", display_frame(app, sound.frame));
+    property(app, 478, sound.carried ? "From scene" : "Cue frame", label);
     SDL_snprintf(label, sizeof(label), "%.1f%%", sound.volume * 100.0 / 65536.0);
     property(app, 506, "Volume", label);
     property(app, 534, "Loop", sound.loop ? "Yes" : "No");
@@ -1264,7 +1268,8 @@ static void draw_sound_properties(App *app)
         else
             ui_label(&app->ui, app->sidebar + 18, 702, 264, waveform.message, MUTED);
     }
-    ui_text(&app->ui, app->sidebar + 18, 738, "Scrubbing is silent.", MUTED);
+    ui_text(&app->ui, app->sidebar + 18, 738,
+            sound.carried ? "Continues from an earlier scene." : "Scrubbing is silent.", MUTED);
 }
 static void draw_sidebar(App *app)
 {
@@ -1351,22 +1356,31 @@ static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, i
     float start, right, center, amplitude, gain, top, bottom, column_width;
     double first, step;
     unsigned long tint;
-    /* Source audio is aligned to the six-fps ruler. Show one iteration even
-     * for loops and motion bindings; live waits/matches are playback-dependent. */
-    start = frame_x(app, sound->frame);
+    /* A carried clip can start before the visible scene. Keep its original
+     * source offset, and clip at completion, replacement, or the scene edge. */
+    start = frame_x(app, sound->timeline_frame);
     if (start > app->grid_x + app->grid_width)
         return;
     start = (float)maximum(ceil(start), app->grid_x);
-    first = maximum(0, (app->timeline_start + (start - app->grid_x) / app->pixels_per_frame - sound->frame) / 6);
-    right = (float)minimum(app->grid_x + app->grid_width, frame_x(app, (double)app->info.last_frame + 1));
+    first = maximum(0, (app->timeline_start + (start - app->grid_x) / app->pixels_per_frame - sound->timeline_frame) / 6);
+    right = (float)minimum(app->grid_x + app->grid_width, frame_x(app, sound->end_frame));
     column_width = (float)maximum(1, (right - start) / 4096);
     step = column_width / (app->pixels_per_frame * 6);
     count = (int)minimum(4096, ceil((right - start) / column_width));
-    if (count < 1 || !marcus_sound_waveform(app->player, index, first, step, count, columns, &waveform) ||
-        waveform.kind != MARCUS_WAVEFORM_SAMPLED || waveform.seconds <= first)
+    if (count < 1 || !marcus_sound_waveform(app->player, index, first, step, count, columns, &waveform))
         return;
-    right = (float)minimum(right, start + (waveform.seconds - first) / step * column_width);
     center = app->timeline_y + 94 + row * ROW_HEIGHT;
+    if (waveform.kind == MARCUS_WAVEFORM_MIDI && sound->carried)
+    {
+        ui_fill(&app->ui, start, center - 9, right - start, 19, 0x343044);
+        ui_line(&app->ui, start, center + 9, right, center + 9, 0xb3a4d6);
+        ui_label(&app->ui, start + 8, center - 8, right - start - 16, "MIDI continues", 0xb3a4d6);
+        return;
+    }
+    if (waveform.kind != MARCUS_WAVEFORM_SAMPLED || (!sound->loop && waveform.seconds <= first))
+        return;
+    if (!sound->loop)
+        right = (float)minimum(right, start + (waveform.seconds - first) / step * column_width);
     amplitude = 10;
     gain = (float)maximum(0, minimum(1, sound->volume / 65536.0));
     tint = index == app->selected_sound ? 0xf4ca8e : sound->motion ? 0xa28ac3 : 0xc79b5f;
@@ -1543,10 +1557,16 @@ static void draw_timeline(App *app)
                     continue;
                 x = frame_x(app, sound.frame + 0.5);
                 left = y + 87 + row * ROW_HEIGHT + (index % 3) * 5;
-                tint = index == app->selected_sound ? TEXT
+                tint = index == app->selected_sound ? TEXT : sound.carried ? ACCENT
                        : sound.silent ? MUTED : sound.motion ? 0xb3a4d6 : 0xe4b575;
                 ui_line(ui, x, y + 82 + row * ROW_HEIGHT, x, y + 106 + row * ROW_HEIGHT, 0x635747);
-                if (sound.motion)
+                if (sound.carried)
+                {
+                    ui_line(ui, x - 4, left - 4, x, left, tint);
+                    ui_line(ui, x, left, x - 4, left + 4, tint);
+                    ui_line(ui, x - 4, left, x + 4, left, tint);
+                }
+                else if (sound.motion)
                 {
                     ui_line(ui, x - 4, left, x, left - 4, tint);
                     ui_line(ui, x, left - 4, x + 4, left, tint);
@@ -1561,8 +1581,9 @@ static void draw_timeline(App *app)
                     ui_line(ui, x - 4, left + 5, x + 4, left + 5, tint);
                 if (x >= app->grid_x && x < app->grid_x + app->grid_width &&
                     ui_inside(ui->mouse_x, ui->mouse_y, x - 6, left - 4, 12, 8))
-                    ui->hint = "Click cue to inspect (repeat to cycle overlaps) / rectangle: frame / "
-                               "diamond: motion / dot: queue / underline: loop";
+                    ui->hint = sound.carried ? "Continues from an earlier scene / click to inspect its source"
+                               : "Click cue to inspect (repeat to cycle overlaps) / rectangle: frame / "
+                                 "diamond: motion / dot: queue / underline: loop";
             }
         }
         x = frame_x(app, app->info.frame + 0.5);
