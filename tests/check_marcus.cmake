@@ -19,6 +19,12 @@ if(NOT result EQUAL 0)
   message(FATAL_ERROR "Could not create the standalone scene fixture: ${result}")
 endif()
 set(single_zip "${TEST_DIR}/single.zip")
+set(animation_movie "${TEST_DIR}/animation-events.3mm")
+execute_process(COMMAND "${FIXTURE_EXE}" "${animation_movie}" "${CONTENT}/bkgds.3cn" "${RESOURCES}"
+  "${CONTENT}/tmpls.3cn" --events RESULT_VARIABLE result TIMEOUT 45)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "Could not create the animation event fixture: ${result}")
+endif()
 set(multi_zip "${TEST_DIR}/multi.zip")
 execute_process(COMMAND "${CMAKE_COMMAND}" -E tar cf "${single_zip}" --format=zip marcus.3mm
   WORKING_DIRECTORY "${TEST_DIR}" RESULT_VARIABLE result)
@@ -33,7 +39,7 @@ endif()
 file(SHA256 "${single_zip}" single_zip_before)
 file(SHA256 "${multi_zip}" multi_zip_before)
 execute_process(COMMAND "${API_EXE}" "${movie}" "${RESOURCES}" "${CONTENT}" "${scene_only}"
-  "${single_zip}" "${multi_zip}"
+  "${single_zip}" "${multi_zip}" "${animation_movie}"
   RESULT_VARIABLE result TIMEOUT 90)
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Marcus C API integration failed: ${result}")

@@ -59,6 +59,13 @@ struct MarcusPlayer
     std::vector<ThreeMM::Id> scenes;
     std::vector<MarcusScene> sceneInfo;
     std::vector<ThreeMM::PreviewObject> objects;
+    struct AnimationCache
+    {
+        ThreeMM::PreviewAnimationTimeline timeline;
+        ThreeMM::Error error;
+        bool available = false;
+    };
+    std::map<int, AnimationCache> animations;
     std::vector<MarcusSound> sounds;
     std::vector<MarcusSoundTrack> soundTracks;
     std::vector<ThreeMM::PreviewSoundCue> soundCues;
@@ -74,6 +81,24 @@ struct MarcusPlayer
 };
 namespace
 {
+MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, ThreeMM::Error &error)
+{
+    if (object < 0 || static_cast<std::size_t>(object) >= player->objects.size())
+        return nullptr;
+    auto found = player->animations.find(object);
+    if (found == player->animations.end())
+    {
+        MarcusPlayer::AnimationCache cache;
+        cache.available = player->preview.ReadAnimationTimeline(object, cache.timeline, cache.error);
+        found = player->animations.emplace(object, std::move(cache)).first;
+    }
+    if (!found->second.available)
+    {
+        error = found->second.error;
+        return nullptr;
+    }
+    return &found->second;
+}
 bool ReadSoundSheet(MarcusPlayer *player, int index, ThreeMM::Error &error)
 {
     player->soundCues.clear();
@@ -235,6 +260,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             return false;
         player->selected = -1;
         player->objects.clear();
+        player->animations.clear();
         player->sounds.clear();
         player->soundTracks.clear();
         if (!preserveAudio)
@@ -454,6 +480,7 @@ extern "C"
             player->scenes.clear();
             player->sceneInfo.clear();
             player->objects.clear();
+            player->animations.clear();
             player->names.clear();
             player->sounds.clear();
             player->soundTracks.clear();
@@ -603,6 +630,52 @@ extern "C"
             object->x = source.x;
             object->y = source.y;
             object->z = source.z;
+            return true;
+        });
+    }
+    int marcus_animation_info(MarcusPlayer *player, int object, MarcusAnimationInfo *info)
+    {
+        if (info)
+            *info = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            const auto cache = info ? Animation(player, object, error) : nullptr;
+            if (!cache)
+                return false;
+            info->span_count = static_cast<int>(cache->timeline.spans.size());
+            info->event_count = static_cast<int>(cache->timeline.events.size());
+            return true;
+        });
+    }
+    int marcus_action_span(MarcusPlayer *player, int object, int index, MarcusActionSpan *span)
+    {
+        if (span)
+            *span = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            const auto cache = span ? Animation(player, object, error) : nullptr;
+            if (!cache || index < 0 || static_cast<std::size_t>(index) >= cache->timeline.spans.size())
+                return false;
+            const auto &source = cache->timeline.spans[index];
+            span->first_frame = static_cast<double>(source.firstFrame);
+            span->end_frame = static_cast<double>(source.endFrame);
+            span->action = source.action;
+            span->frozen = source.frozen;
+            Copy(span->name, source.name);
+            return true;
+        });
+    }
+    int marcus_animation_event(MarcusPlayer *player, int object, int index, MarcusAnimationEvent *event)
+    {
+        if (event)
+            *event = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            const auto cache = event ? Animation(player, object, error) : nullptr;
+            if (!cache || index < 0 || static_cast<std::size_t>(index) >= cache->timeline.events.size())
+                return false;
+            const auto &source = cache->timeline.events[index];
+            event->frame = source.frame;
+            event->kind = static_cast<int>(source.kind);
+            Copy(event->name, source.name);
+            Copy(event->detail, source.detail);
             return true;
         });
     }

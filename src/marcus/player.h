@@ -49,6 +49,37 @@ extern "C"
         float corners[24];    /* Eight world-space corners; bits 0/1/2 choose max X/Y/Z. */
         unsigned long colour; /* RGB selection colour. */
     } MarcusBounds;
+    enum MarcusAnimationKind
+    {
+        MARCUS_ANIMATION_ENTRANCE,
+        MARCUS_ANIMATION_EXIT,
+        MARCUS_ANIMATION_ACTION,
+        MARCUS_ANIMATION_ROTATION,
+        MARCUS_ANIMATION_SCALE,
+        MARCUS_ANIMATION_STRETCH,
+        MARCUS_ANIMATION_MOVE,
+        MARCUS_ANIMATION_PATH,
+        MARCUS_ANIMATION_COSTUME,
+        MARCUS_ANIMATION_STEP,
+        MARCUS_ANIMATION_FREEZE
+    };
+    typedef struct MarcusAnimationInfo
+    {
+        int span_count, event_count;
+    } MarcusAnimationInfo;
+    typedef struct MarcusActionSpan
+    {
+        double first_frame, end_frame; /* Half-open scene frame coordinates. */
+        long action;
+        int frozen;
+        char name[192];
+    } MarcusActionSpan;
+    typedef struct MarcusAnimationEvent
+    {
+        long frame;
+        int kind;
+        char name[192], detail[256];
+    } MarcusAnimationEvent;
 
     enum MarcusSoundStyle
     {
@@ -164,6 +195,11 @@ extern "C"
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
     /* Evaluated, oriented bounds; off-stage actors have valid = 0. */
     int marcus_object_bounds(MarcusPlayer *player, int index, MarcusBounds *bounds);
+    /* Lazy scene-local analysis of private tracks. These calls never seek,
+     * change evaluated poses, invalidate images, or play sounds. */
+    int marcus_animation_info(MarcusPlayer *player, int object, MarcusAnimationInfo *info);
+    int marcus_action_span(MarcusPlayer *player, int object, int index, MarcusActionSpan *span);
+    int marcus_animation_event(MarcusPlayer *player, int object, int index, MarcusAnimationEvent *event);
     /* Authored cue markers, not waveform durations. Motion cues mark bindings;
      * queued cues share their authored start. Reading never seeks or plays. */
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track);

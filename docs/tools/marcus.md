@@ -97,6 +97,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Divider between viewports | Drag to resize the movie and work views |
 | Handle above the dope sheets | Drag up/down to change track-area height; both sheets share the height |
 | Left click in a viewport | Select the visible object; empty image space clears selection |
+| Arrow beside an object track | Expand/collapse Transform, Appearance, Timing and Visibility event lanes |
+| Click an animation event diamond | Select its actor and seek silently to the evaluated event frame |
 | Right drag in Orbit / wheel | Orbit / zoom |
 | Shift + right drag in Orbit | Pan the view |
 | Hold right mouse in Fly | Capture the mouse for first-person look and movement |
@@ -338,12 +340,28 @@ supports arbitrary background sizes and palette index zero. Existing movie
 materials keep their previous rendering paths. There is no separate scenery
 rasterization pass in the preview adapter.
 
-Object bars show **overall lifetime**, clipped to the current scene. They are
-not individual animation keyframes and do not show every offstage interval.
-The bar's left edge marks its start, without an additional square marker.
-Actors with no entrance remain listed without a bar. Lifetime properties use the
-same scene-relative numbering, clipped to the scene; objects with no overlap show
-"Outside scene".
+Object bars show **evaluated on-stage action spans**, labelled with the action
+name and clipped to the scene. Gaps show off-stage intervals. Action changes,
+restarts and freeze/unfreeze changes split spans; frozen spans have a distinct
+tint. Actors with no entrance remain listed without a bar. Hover a span to see
+its action and frame range. No extra square is drawn at its start.
+
+The arrow beside an object expands four event lanes: **Transform** (rotation,
+size, stretch, movement and path adjustments), **Appearance** (costumes and
+materials), **Timing** (movement speed and animation freeze/unfreeze), and
+**Visibility** (entrances/exits). Diamonds mark authored changes, with coincident
+events staggered vertically. Hover for details; click to select the actor and
+seek to the evaluated frame. The Visibility lane also shows on-stage spans.
+Only the selected actor's event lanes expand, keeping other rows compact.
+
+Timing is evaluated lazily and cached per actor in the current scene. A private
+track copy runs through the playback sequencer, including action step distances,
+size scaling and holds. Reading the sheet does not seek the movie, change its
+pose, play sounds or trust cached event frame numbers. Actor sound events remain
+in the Sounds sheet. Automatic cel progression does not add markers.
+
+Lifetime properties retain the authored overall lifetime, using scene-relative
+numbering clipped to the scene; objects with no overlap show "Outside scene".
 
 Properties show roll-call name, actor/prop/3D-text kind, on-stage state, evaluated
 world XYZ, actor ID, current action/cel indices, lifetime and template source/chunk.

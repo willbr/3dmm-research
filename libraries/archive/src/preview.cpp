@@ -438,6 +438,26 @@ std::vector<PreviewObject> Preview::Objects() const
             result.push_back(actor->Snapshot());
     return result;
 }
+bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
+try
+{
+    timeline = {};
+    error = {};
+    if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading animation events.");
+    if (!_impl->actors[object]->ReadTimeline(_impl->info.firstFrame, _impl->info.lastFrame, timeline))
+    {
+        timeline = {};
+        return Fail(error, ErrorCode::decode_failed,
+                    "Cannot evaluate this actor's animation events within the preview budget.");
+    }
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    timeline = {};
+    return Fail(error, ErrorCode::out_of_memory, "Cannot allocate animation events.");
+}
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
     bounds = {};

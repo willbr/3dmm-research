@@ -22,6 +22,9 @@ int main(int argc, char **argv)
     MarcusScene scene;
     MarcusObject first, later, prop, inactive;
     MarcusBounds first_bounds, bounds;
+    MarcusAnimationInfo animation;
+    MarcusActionSpan action_span;
+    MarcusAnimationEvent animation_event;
     MarcusImage image, pick_image;
     MarcusCamera camera, moved;
     MarcusProjection authored, orbit, manual, flight, panned;
@@ -29,8 +32,9 @@ int main(int argc, char **argv)
     const long frames[] = {1, 5, 10, 16, 25, 30, 1};
     unsigned char *pixels;
     size_t bytes;
-    int index, scene_count, picked, pick_x, pick_y, x, y, hits, renderer, expected_pick;
-    if (argc != 7)
+    int index, scene_count, picked, pick_x, pick_y, x, y, hits, renderer, expected_pick, span_index, event_index,
+        active;
+    if (argc != 8)
         return 2;
     player = marcus_create();
     other = NULL;
@@ -71,6 +75,24 @@ int main(int argc, char **argv)
     pixels = (unsigned char *)malloc(bytes);
     CHECK(pixels);
     memcpy(pixels, image.rgba, bytes);
+    CHECK(marcus_animation_info(player, 0, &animation) && animation.span_count >= 1 && animation.event_count >= 5);
+    CHECK(marcus_action_span(player, 0, 0, &action_span) && action_span.first_frame == 1 && action_span.name[0]);
+    CHECK(action_span.action == first.action);
+    hits = 0;
+    for (index = 0; index < animation.event_count; ++index)
+    {
+        CHECK(marcus_animation_event(player, 0, index, &animation_event));
+        if (animation_event.kind == MARCUS_ANIMATION_COSTUME)
+        {
+            CHECK(animation_event.frame == 8 || animation_event.frame == 20);
+            ++hits;
+        }
+    }
+    CHECK(hits == 2 && !memcmp(pixels, image.rgba, bytes));
+    CHECK(marcus_info(player, &info) && info.frame == 1 && info.camera == 0);
+    CHECK(!marcus_animation_info(player, -1, &animation));
+    CHECK(!marcus_action_span(player, 0, -1, &action_span));
+    CHECK(!marcus_animation_event(player, 0, -1, &animation_event));
     /* Picking uses visible faces in the rendered camera, retains object-list
      * identities, and does not invalidate pixels or alter the evaluated frame. */
     pick_image = image;
@@ -296,6 +318,7 @@ int main(int argc, char **argv)
     CHECK(marcus_open(player, argv[4], argv[2], argv[3]));
     CHECK(marcus_object(player, 4, &inactive) && !inactive.visible && !inactive.has_lifetime);
     CHECK(marcus_object_bounds(player, 4, &bounds) && !bounds.valid);
+    CHECK(marcus_animation_info(player, 4, &animation) && !animation.span_count && !animation.event_count);
     CHECK(marcus_object(player, 1, &prop) && prop.last_frame > 10);
     CHECK(marcus_render(player, 480, 960, 1, 0, 0, 1, &image));
     CHECK(marcus_pick(player, &image, 240, 0, &picked) && picked == -1); /* Letterbox. */
@@ -305,6 +328,40 @@ int main(int argc, char **argv)
     CHECK(marcus_match_camera(player, 480, 360, &camera));
     CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
     CHECK(marcus_pick(player, &image, 240, 180, &picked) && picked == -1); /* Scenery is not an actor. */
+    CHECK(marcus_open(player, argv[7], argv[2], argv[3]));
+    CHECK(marcus_animation_info(player, 1, &animation) && animation.event_count == 17);
+    CHECK(marcus_animation_event(player, 1, 3, &animation_event) && animation_event.kind == MARCUS_ANIMATION_FREEZE &&
+          animation_event.frame == 4);
+    CHECK(marcus_animation_event(player, 1, 7, &animation_event) && animation_event.kind == MARCUS_ANIMATION_STEP &&
+          animation_event.frame == 11);
+    CHECK(marcus_animation_event(player, 1, 8, &animation_event) && animation_event.kind == MARCUS_ANIMATION_ROTATION &&
+          animation_event.frame == 12);
+    CHECK(marcus_animation_event(player, 1, 9, &animation_event) && animation_event.kind == MARCUS_ANIMATION_STEP &&
+          animation_event.frame == 13);
+    CHECK(marcus_animation_event(player, 1, 16, &animation_event) && animation_event.kind == MARCUS_ANIMATION_COSTUME &&
+          animation_event.frame == 23);
+    for (index = 1; index <= 30; ++index)
+    {
+        CHECK(marcus_seek(player, index) && marcus_object(player, 1, &prop));
+        active = 0;
+        for (span_index = 0; span_index < animation.span_count; ++span_index)
+        {
+            CHECK(marcus_action_span(player, 1, span_index, &action_span));
+            if (index >= action_span.first_frame && index < action_span.end_frame)
+            {
+                ++active;
+                CHECK(prop.visible && prop.action == action_span.action);
+                CHECK(action_span.frozen == (index >= 4 && index < 6));
+            }
+        }
+        CHECK(active == (prop.visible ? 1 : 0));
+        CHECK(prop.visible == (index < 17 || index >= 22));
+    }
+    CHECK(marcus_seek(player, 1) && marcus_object(player, 1, &first));
+    CHECK(marcus_animation_info(player, 1, &animation) && animation.event_count == 17);
+    event_index = animation.event_count;
+    CHECK(marcus_select_scene(player, 1));
+    CHECK(marcus_animation_info(player, 1, &animation) && animation.event_count == event_index);
     marcus_destroy(player);
     free(pixels);
     puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "

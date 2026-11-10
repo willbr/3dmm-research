@@ -1,5 +1,11 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include "platform_text.h"
+#include <codecvt>
+#include <locale>
+#include <map>
+#include <sstream>
 #include "preview_actor.h"
+#undef size
 ASSERTNAME
 using namespace ActorEvent;
 
@@ -94,6 +100,220 @@ PreviewObject PreviewActor::Snapshot() const
     object.y = BrScalarToFloat(BrsAdd(state.routeTranslation.dyr, state.position.dyr));
     object.z = BrScalarToFloat(BrsAdd(state.routeTranslation.dzr, state.position.dzr));
     return object;
+}
+bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
+{
+    timeline = {};
+    if (inactive || header.nfrmFirst > last)
+        return true;
+    if (int64_t(last) - header.nfrmFirst > 100000)
+        return false;
+    ActorTrack copy;
+    if (!copy.FCloneFrom(track))
+        return false;
+    ActorFrameState cursor;
+    cursor.RewindRoute(copy);
+    std::map<LegacyLong, std::string> names;
+    const auto actionName = [&](LegacyLong action) {
+        auto found = names.find(action);
+        if (found != names.end())
+            return found->second;
+        std::string result = "Action " + std::to_string(action);
+        String name;
+        if (action >= 0 && action < tmpl->Cactn() && tmpl->FGetActnName(action, &name) && name.Cch())
+        {
+            const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
+            const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
+            std::u16string text(count, 0);
+            if (count && KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding,
+                                            reinterpret_cast<std::uint16_t *>(&text[0]), count))
+                result = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
+        }
+        names.emplace(action, result);
+        return result;
+    };
+    const auto describe = [&](LegacyLong index, const Base &event) {
+        PreviewAnimationEvent marker;
+        marker.frame = cursor.frame;
+        std::ostringstream detail;
+        detail.precision(4);
+        switch (event.aet)
+        {
+        case aetAdd:
+            marker.kind = PreviewAnimationKind::Entrance;
+            marker.name = "Enter stage";
+            break;
+        case aetRem:
+            marker.kind = PreviewAnimationKind::Exit;
+            marker.name = "Leave stage";
+            break;
+        case aetActn: {
+            Action action;
+            copy.events->Get(index, &action);
+            marker.kind = PreviewAnimationKind::Action;
+            marker.name = actionName(action.anid);
+            detail << "Action " << action.anid << ", starting cel " << action.celn;
+            break;
+        }
+        case aetCost: {
+            Costume costume;
+            copy.events->Get(index, &costume);
+            marker.kind = PreviewAnimationKind::Costume;
+            marker.name = "Costume";
+            detail << "Part set " << costume.ibset;
+            if (costume.fCmtl)
+                detail << ", costume " << costume.cmid;
+            else
+                detail << ", material " << costume.tag.cno << ", source " << costume.tag.sid;
+            break;
+        }
+        case aetRotF:
+        case aetRotH:
+            marker.kind = PreviewAnimationKind::Rotation;
+            marker.name = event.aet == aetRotH ? "Rotate this frame" : "Rotate";
+            break;
+        case aetSize:
+            marker.kind = PreviewAnimationKind::Scale;
+            marker.name = "Size";
+            detail << BrScalarToFloat(cursor.transform.rScaleStep) << "x";
+            break;
+        case aetPull:
+            marker.kind = PreviewAnimationKind::Stretch;
+            marker.name = "Stretch";
+            detail << "X " << BrScalarToFloat(cursor.transform.aevpull.rScaleX) << ", Y "
+                   << BrScalarToFloat(cursor.transform.aevpull.rScaleY) << ", Z "
+                   << BrScalarToFloat(cursor.transform.aevpull.rScaleZ);
+            break;
+        case aetMove:
+        case aetTweak: {
+            RoutePoint value;
+            copy.events->Get(index, &value);
+            marker.kind = event.aet == aetMove ? PreviewAnimationKind::Move : PreviewAnimationKind::Path;
+            marker.name = event.aet == aetMove ? "Move path" : "Adjust path";
+            detail << "X " << BrScalarToFloat(value.dxr) << ", Y " << BrScalarToFloat(value.dyr) << ", Z "
+                   << BrScalarToFloat(value.dzr);
+            break;
+        }
+        case aetStep:
+            marker.kind = PreviewAnimationKind::Step;
+            marker.name = cursor.step == rZero     ? "Stop movement"
+                          : cursor.step == kdwrNil ? "Action speed"
+                                                   : "Movement speed";
+            if (cursor.step != kdwrNil)
+                detail << BrScalarToFloat(cursor.step) << " units per frame (before size scaling)";
+            break;
+        case aetFreeze:
+            marker.kind = PreviewAnimationKind::Freeze;
+            marker.name = cursor.frozen ? "Freeze animation" : "Unfreeze animation";
+            break;
+        default:
+            return; // Actor sound events already have their own dope sheet.
+        }
+        marker.detail = detail.str();
+        timeline.events.push_back(std::move(marker));
+    };
+    // Use the same sequencer and value-event operations as live playback. Body,
+    // costume and sound effects are deliberately absent from this private host.
+    const auto apply = [&](LegacyLong index) {
+        Base event;
+        copy.events->GetFixed(index, &event);
+        event.nfrm = cursor.frame;
+        copy.events->PutFixed(index, &event);
+        const auto result = cursor.ApplyValueEvent(copy, index, header.dxyzFullRte);
+        if (result == ActorValueEventResult::Invalid)
+            return false;
+        if (result == ActorValueEventResult::NeedsRuntime)
+            switch (event.aet)
+            {
+            case aetAdd: {
+                Add add;
+                copy.events->Get(index, &add);
+                cursor.subrouteTranslation = {add.dxr, add.dyr, add.dzr};
+                cursor.UpdateOrigin(header.dxyzFullRte);
+                cursor.InitTransform();
+                BrMatrix34PostRotateX(&cursor.transform.bmat34Cur, add.xa);
+                BrMatrix34PostRotateY(&cursor.transform.bmat34Cur, add.ya);
+                BrMatrix34PostRotateZ(&cursor.transform.bmat34Cur, add.za);
+                cursor.transform.xaPath = add.xa;
+                cursor.transform.yaPath = add.ya;
+                cursor.transform.zaPath = add.za;
+                cursor.firstEventInFrame = cursor.addEvent = index;
+                cursor.location = event.rtel;
+                ActorRouteEvaluator::Position(copy, &cursor.location, &cursor.position);
+                cursor.onStage = true;
+                break;
+            }
+            case aetActn: {
+                Action action;
+                copy.events->Get(index, &action);
+                if (action.anid < 0 || action.anid >= tmpl->Cactn() ||
+                    !tmpl->FGetCcelActn(action.anid, &cursor.celCount) ||
+                    !tmpl->FGetGrfactn(action.anid, &cursor.actionFlags))
+                    return false;
+                cursor.action = action.anid;
+                cursor.cel = action.celn;
+                cursor.actionEvent = index;
+                cursor.location = event.rtel;
+                ActorRouteEvaluator::Position(copy, &cursor.location, &cursor.position);
+                break;
+            }
+            case aetRem:
+                cursor.onStage = false;
+                break;
+            case aetCost:
+            case aetSnd:
+                break;
+            default:
+                return false;
+            }
+        if (cursor.frame >= first)
+        {
+            if (timeline.events.size() >= 100000)
+                return false;
+            describe(index, event);
+        }
+        return true;
+    };
+    LegacyLong previousAction = ivNil, previousEntrance = ivNil;
+    for (int64_t frame = header.nfrmFirst; frame <= last; ++frame)
+    {
+        cursor.frame = static_cast<LegacyLong>(frame);
+        cursor.firstEventInFrame = cursor.nextEvent;
+        ActorFrameInputs inputs;
+        inputs.firstFrame = header.nfrmFirst;
+        inputs.displayFrame = true;
+        inputs.suppressSounds = true;
+        inputs.stepSucceeded = Steps().FPlaybackStep(cursor, &inputs.step);
+        ActorFrameEvaluator evaluator(cursor, copy, inputs, true);
+        for (;;)
+        {
+            const auto command = evaluator.Next();
+            if (command.kind == ActorFrameCommandKind::Finished)
+                break;
+            if (command.kind == ActorFrameCommandKind::CheckEntrance)
+            {
+                Base event;
+                copy.events->GetFixed(command.eventIndex, &event);
+                evaluator.Complete(event.nfrm <= cursor.frame);
+            }
+            else
+                evaluator.Complete(apply(command.eventIndex));
+        }
+        if (!evaluator.Result().success)
+            return false;
+        if (frame >= first && cursor.onStage)
+        {
+            if (timeline.spans.empty() || timeline.spans.back().endFrame != frame ||
+                previousAction != cursor.actionEvent || previousEntrance != cursor.addEvent ||
+                timeline.spans.back().frozen != cursor.frozen)
+                timeline.spans.push_back({frame, frame + 1, cursor.action, cursor.frozen, actionName(cursor.action)});
+            else
+                timeline.spans.back().endFrame = frame + 1;
+        }
+        previousAction = cursor.actionEvent;
+        previousEntrance = cursor.addEvent;
+    }
+    return true;
 }
 bool PreviewActor::Apply(LegacyLong index)
 {

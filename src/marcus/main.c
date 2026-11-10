@@ -71,6 +71,8 @@ typedef struct App
     int flying, fly_ready, camera_ready, fly_keys;
     int work_matched, work_needs_match;
     int row_scroll, object_scroll, width, height;
+    int animation_expanded;
+    char animation_hint[640];
     int sound_sheet, sound_scroll, selected_sound, selected_sound_track;
     int second_view, second_mode, resizing_view, movie_dirty;
     int resizing_timeline;
@@ -82,6 +84,37 @@ typedef struct App
     Uint32 dialog_event;
 } App;
 
+static int object_row_count(const App *app)
+{
+    return app->info.object_count + (app->animation_expanded && app->selected >= 0 ? 4 : 0);
+}
+static int object_at_row(const App *app, int row, int *lane)
+{
+    *lane = 0;
+    if (app->animation_expanded && app->selected >= 0 && row > app->selected)
+    {
+        if (row <= app->selected + 4)
+        {
+            *lane = row - app->selected;
+            return app->selected;
+        }
+        row -= 4;
+    }
+    return row;
+}
+static int animation_lane(int kind)
+{
+    if (kind == MARCUS_ANIMATION_ROTATION || kind == MARCUS_ANIMATION_SCALE || kind == MARCUS_ANIMATION_STRETCH ||
+        kind == MARCUS_ANIMATION_MOVE || kind == MARCUS_ANIMATION_PATH)
+        return 1;
+    if (kind == MARCUS_ANIMATION_COSTUME)
+        return 2;
+    if (kind == MARCUS_ANIMATION_STEP || kind == MARCUS_ANIMATION_FREEZE)
+        return 3;
+    if (kind == MARCUS_ANIMATION_ENTRANCE || kind == MARCUS_ANIMATION_EXIT)
+        return 4;
+    return 0;
+}
 static void release_camera(App *app)
 {
     if (app->window && SDL_GetWindowRelativeMouseMode(app->window))
@@ -212,7 +245,7 @@ static void layout(App *app)
     app->grid_width = app->sidebar - app->grid_x - 8;
     app->split_x = (float)maximum(330, minimum(view_right(app) - 330, view_right(app) * app->split_fraction));
     rows = (int)((height - 112) / ROW_HEIGHT);
-    app->row_scroll = (int)maximum(0, minimum(app->row_scroll, app->info.object_count - rows));
+    app->row_scroll = (int)maximum(0, minimum(app->row_scroll, object_row_count(app) - rows));
     app->sound_scroll = (int)maximum(0, minimum(app->sound_scroll, app->info.sound_track_count - rows));
 }
 static void fit_timeline(App *app)
@@ -554,9 +587,34 @@ static int sound_has_marker(App *app, int index, const MarcusSound *sound)
     return !marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) ||
            waveform.kind != MARCUS_WAVEFORM_SAMPLED;
 }
-static void select_timeline_row(App *app, float x, float y, int grid)
+static int animation_event_at(App *app, int object, int lane, int row, float x, float y)
 {
-    int row, index, previous, closest, fallback;
+    MarcusAnimationInfo info;
+    MarcusAnimationEvent event;
+    int index, found;
+    float center, marker_y, distance, closest;
+    if (!lane || !marcus_animation_info(app->player, object, &info))
+        return -1;
+    found = -1;
+    closest = 1000;
+    for (index = 0; index < info.event_count; ++index)
+        if (marcus_animation_event(app->player, object, index, &event) && animation_lane(event.kind) == lane)
+        {
+            center = frame_x(app, event.frame + 0.5);
+            marker_y = app->timeline_y + 88 + row * ROW_HEIGHT + (index % 3) * 6;
+            distance = (float)(fabs(x - center) + fabs(y - marker_y));
+            if (fabs(x - center) <= 6 && fabs(y - marker_y) <= 5 && distance < closest)
+            {
+                closest = distance;
+                found = index;
+            }
+        }
+    return found;
+}
+static int select_timeline_row(App *app, float x, float y, int grid)
+{
+    int row, index, previous, closest, fallback, lane, object, rows;
+    MarcusAnimationEvent event;
     MarcusSound sound;
     MarcusWaveformInfo waveform;
     MarcusWaveformColumn peak;
@@ -565,19 +623,35 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT);
     if (!app->sound_sheet)
     {
-        row += app->row_scroll;
-        if (row >= 0 && row < app->info.object_count)
-            app->selected = row;
-        return;
+        object = object_at_row(app, row + app->row_scroll, &lane);
+        if (object >= 0 && object < app->info.object_count)
+        {
+            if (!grid && !lane && x < 30)
+                app->animation_expanded = app->selected == object ? !app->animation_expanded : 1;
+            app->selected = object;
+            if (!grid && !lane && x < 30 && app->animation_expanded)
+            {
+                rows = (int)((app->height - app->timeline_y - 112) / ROW_HEIGHT);
+                if (rows >= 5 && object + 4 >= app->row_scroll + rows)
+                    app->row_scroll = object + 5 - rows;
+            }
+            index = grid ? animation_event_at(app, object, lane, row, x, y) : -1;
+            if (index >= 0 && marcus_animation_event(app->player, object, index, &event))
+            {
+                seek(app, event.frame);
+                return 1;
+            }
+        }
+        return 0;
     }
     row += app->sound_scroll;
     previous = app->selected_sound;
     app->selected_sound = -1;
     if (row < 0 || row >= app->info.sound_track_count)
-        return;
+        return 0;
     app->selected_sound_track = row;
     if (!grid)
-        return;
+        return 0;
     /* Stagger coincident cues vertically so queued entries can be selected. */
     closest = fallback = -1;
     for (index = app->info.sound_count - 1; index >= 0; --index)
@@ -597,7 +671,7 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     if (marcus_sound(app->player, app->selected_sound, &sound))
     {
         seek(app, sound.frame);
-        return;
+        return 1;
     }
     /* Clicking a waveform selects its cue while scrubbing to the pointer. */
     closest = fallback = -1;
@@ -618,6 +692,7 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     app->selected_sound = closest >= 0 ? closest : fallback;
     if (app->selected_sound >= 0)
         seek(app, frame_at(app, x));
+    return 0;
 }
 static void open_settings(App *app)
 {
@@ -915,7 +990,8 @@ static void mouse_down(App *app, float x, float y, int button)
         app->dragging = 1;
         if (y >= app->timeline_y + 80)
         {
-            select_timeline_row(app, x, y, 1);
+            if (select_timeline_row(app, x, y, 1))
+                return;
         }
         if (!app->sound_sheet || app->selected_sound < 0 || y < app->timeline_y + 80)
             seek(app, frame_at(app, x));
@@ -1217,7 +1293,7 @@ static void handle_event(App *app, const SDL_Event *event)
             else
             {
                 rows = (int)((app->height - app->timeline_y - 112) / ROW_HEIGHT);
-                maximum_scroll = (app->sound_sheet ? app->info.sound_track_count : app->info.object_count) - rows;
+                maximum_scroll = (app->sound_sheet ? app->info.sound_track_count : object_row_count(app)) - rows;
                 if (maximum_scroll < 0)
                     maximum_scroll = 0;
                 if (app->sound_sheet)
@@ -1734,6 +1810,91 @@ static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, i
     if (ui_inside(app->ui.mouse_x, app->ui.mouse_y, start, center - 11, right - start, 23))
         app->ui.hint = "Click waveform to select and scrub / repeat to cycle overlapping sounds";
 }
+static void draw_animation_row(App *app, int object, int row, int lane)
+{
+    MarcusAnimationInfo info;
+    MarcusActionSpan span;
+    MarcusAnimationEvent event;
+    MarcusObject owner;
+    char label[240];
+    int index, hovered;
+    float left, right, center, marker_y, y;
+    unsigned long tint;
+    if (!marcus_animation_info(app->player, object, &info))
+    {
+        if (!lane)
+            ui_label(&app->ui, app->grid_x + 8, app->timeline_y + 85 + row * ROW_HEIGHT, app->grid_width - 16,
+                     "Animation events unavailable", MUTED);
+        if (ui_inside(app->ui.mouse_x, app->ui.mouse_y, app->grid_x, app->timeline_y + 80 + row * ROW_HEIGHT,
+                      app->grid_width, ROW_HEIGHT))
+        {
+            SDL_snprintf(app->animation_hint, sizeof(app->animation_hint), "Animation events unavailable: %s",
+                         marcus_error(app->player));
+            app->ui.hint = app->animation_hint;
+        }
+        return;
+    }
+    if (!marcus_object(app->player, object, &owner))
+        return;
+    y = app->timeline_y + 80 + row * ROW_HEIGHT;
+    tint = owner.text ? 0x7f704b : owner.prop ? 0x67597f : 0x3d7372;
+    if (!lane || lane == 4)
+        for (index = 0; index < info.span_count; ++index)
+        {
+            if (!marcus_action_span(app->player, object, index, &span))
+                continue;
+            left = frame_x(app, span.first_frame);
+            right = frame_x(app, span.end_frame);
+            if (right < app->grid_x || left > app->grid_x + app->grid_width || right <= left)
+                continue;
+            left = (float)maximum(left, app->grid_x);
+            right = (float)minimum(right, app->grid_x + app->grid_width);
+            if (right - left <= 1)
+                continue;
+            ui_fill(&app->ui, left + 1, y + (lane ? 12 : 7), right - left - 1, lane ? 5 : 16,
+                    span.frozen ? 0x4d526b : tint);
+            if (lane)
+                continue;
+            ui_line(&app->ui, left + 1, y + 7, right - 1, y + 7, object == app->selected ? ACCENT : 0x819098);
+            if (right - left > 36)
+            {
+                SDL_snprintf(label, sizeof(label), "%s%s", span.name, span.frozen ? " (frozen)" : "");
+                ui_label(&app->ui, left + 5, y + 7, right - left - 9, label, TEXT);
+            }
+            if (ui_inside(app->ui.mouse_x, app->ui.mouse_y, left, y + 5, right - left, 20))
+            {
+                SDL_snprintf(app->animation_hint, sizeof(app->animation_hint),
+                             "%s / %s / Frames %.0f-%.0f%s / click to scrub", owner.name, span.name,
+                             display_frame(app, span.first_frame), display_frame(app, span.end_frame - 1),
+                             span.frozen ? " / animation frozen" : "");
+                app->ui.hint = app->animation_hint;
+            }
+        }
+    if (!lane)
+        return;
+    hovered = animation_event_at(app, object, lane, row, app->ui.mouse_x, app->ui.mouse_y);
+    tint = lane == 1 ? 0x8ab3df : lane == 2 ? 0xb3a4d6 : lane == 3 ? 0xe4b575 : ACCENT;
+    for (index = 0; index < info.event_count; ++index)
+    {
+        if (!marcus_animation_event(app->player, object, index, &event) || animation_lane(event.kind) != lane)
+            continue;
+        center = frame_x(app, event.frame + 0.5);
+        if (center < app->grid_x || center > app->grid_x + app->grid_width)
+            continue;
+        marker_y = y + 8 + (index % 3) * 6;
+        ui_line(&app->ui, center - 3, marker_y, center, marker_y - 3, index == hovered ? TEXT : tint);
+        ui_line(&app->ui, center, marker_y - 3, center + 3, marker_y, index == hovered ? TEXT : tint);
+        ui_line(&app->ui, center + 3, marker_y, center, marker_y + 3, index == hovered ? TEXT : tint);
+        ui_line(&app->ui, center, marker_y + 3, center - 3, marker_y, index == hovered ? TEXT : tint);
+        if (index == hovered)
+        {
+            SDL_snprintf(app->animation_hint, sizeof(app->animation_hint), "%s / Frame %.0f / %s%s%s / click to seek",
+                         owner.name, display_frame(app, event.frame), event.name, event.detail[0] ? ": " : "",
+                         event.detail);
+            app->ui.hint = app->animation_hint;
+        }
+    }
+}
 static void draw_timeline(App *app)
 {
     MarcusUI *ui;
@@ -1743,8 +1904,8 @@ static void draw_timeline(App *app)
     MarcusSoundTrack track;
     SDL_Rect clip;
     char label[320];
-    int row, index, rows, selected_row;
-    float x, y, left, right;
+    int row, index, rows, selected_row, lane;
+    float x, y, left;
     double frame, tick, end;
     unsigned long tint;
     ui = &app->ui;
@@ -1798,7 +1959,7 @@ static void draw_timeline(App *app)
     rows = (int)((app->height - y - 112) / ROW_HEIGHT);
     for (row = 0; row < rows; ++row)
     {
-        index = row + (app->sound_sheet ? app->sound_scroll : app->row_scroll);
+        index = app->sound_sheet ? row + app->sound_scroll : object_at_row(app, row + app->row_scroll, &lane);
         selected_row = app->sound_sheet ? app->selected_sound_track : app->selected;
         ui_fill(ui, 0, y + 80 + row * ROW_HEIGHT, app->sidebar, ROW_HEIGHT,
                 app->loaded && index == selected_row ? 0x303f45
@@ -1818,9 +1979,22 @@ static void draw_timeline(App *app)
         }
         if (!marcus_object(app->player, index, &object))
             continue;
+        if (lane)
+        {
+            ui_text(ui, 46, y + 85 + row * ROW_HEIGHT,
+                    lane == 1   ? "Transform"
+                    : lane == 2 ? "Appearance"
+                    : lane == 3 ? "Timing"
+                                : "Visibility",
+                    MUTED);
+            continue;
+        }
         tint = object.text ? 0xd2b780 : object.prop ? 0xb3a4d6 : ACCENT;
-        ui_fill(ui, 18, y + 90 + row * ROW_HEIGHT, 7, 7, tint);
-        ui_label(ui, 35, y + 85 + row * ROW_HEIGHT, app->grid_x - 54, object.name, object.visible ? TEXT : MUTED);
+        ui_text(ui, 8, y + 85 + row * ROW_HEIGHT, app->animation_expanded && index == app->selected ? "v" : ">", MUTED);
+        ui_fill(ui, 30, y + 90 + row * ROW_HEIGHT, 7, 7, tint);
+        ui_label(ui, 46, y + 85 + row * ROW_HEIGHT, app->grid_x - 64, object.name, object.visible ? TEXT : MUTED);
+        if (ui_inside(ui->mouse_x, ui->mouse_y, 0, y + 80 + row * ROW_HEIGHT, 28, ROW_HEIGHT))
+            ui->hint = "Click arrow to expand or collapse this actor's animation events";
     }
     if (app->loaded && app->sound_sheet && !app->info.sound_count)
         ui_text(ui, app->grid_x + 18, y + 94, "No authored sound cues in this scene.", MUTED);
@@ -1854,23 +2028,10 @@ static void draw_timeline(App *app)
             }
         for (row = 0; !app->sound_sheet && row < rows; ++row)
         {
-            index = row + app->row_scroll;
+            index = object_at_row(app, row + app->row_scroll, &lane);
             if (index >= app->info.object_count || !marcus_object(app->player, index, &object))
                 break;
-            if (!object.has_lifetime)
-                continue;
-            left = frame_x(app, maximum((double)object.first_frame, app->info.first_frame));
-            right = frame_x(app, minimum((double)object.last_frame, app->info.last_frame) + 1);
-            if (right < app->grid_x || left > app->grid_x + app->grid_width || right <= left)
-                continue;
-            if (left < app->grid_x)
-                left = app->grid_x;
-            if (right > app->grid_x + app->grid_width)
-                right = app->grid_x + app->grid_width;
-            tint = object.text ? 0x7f704b : object.prop ? 0x67597f : 0x3d7372;
-            ui_fill(ui, left + 1, y + 87 + row * ROW_HEIGHT, right - left - 1, 14, tint);
-            ui_line(ui, left + 1, y + 87 + row * ROW_HEIGHT, right - 1, y + 87 + row * ROW_HEIGHT,
-                    index == app->selected ? ACCENT : 0x819098);
+            draw_animation_row(app, index, row, lane);
         }
         if (app->sound_sheet)
         {

@@ -36,6 +36,7 @@ class PreviewActor
               std::function<void(PTemplate)> bindTemplate);
     bool Seek(LegacyLong frame);
     PreviewObject Snapshot() const;
+    bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const
     {
         return state.onStage;

@@ -54,6 +54,34 @@ static bool Costume(ActorTrack &track, int frame, int set, int cmid, PChunkyReso
     TagManager::CloseTag(&costume.tag);
     return false;
 }
+static bool AnimationEvents(ActorTrack &track, PChunkyResourceFile resource, ChunkNumber material)
+{
+    const auto append = [&](int kind, int offset, int hold, const void *value, int bytes, int cached = 900) {
+        ActorEvent::Base event = {kind, cached, {0, BR_SCALAR(offset), hold}};
+        return track.events->FInsert(track.events->IvMac(), bytes, const_cast<void *>(value), &event);
+    };
+    int32_t freeze = 1, unfreeze = 0;
+    BRS size = BR_SCALAR(1.5), stop = rZero, speed = BR_SCALAR(2);
+    ActorEvent::Action action = {0, 0};
+    BMAT34 rotation;
+    BrMatrix34RotateY(&rotation, BR_ANGLE_DEG(35));
+    ActorEvent::Stretch stretch = {BR_SCALAR(1.2), BR_SCALAR(.8), rOne};
+    RoutePoint move = {rOne, BR_SCALAR(2), rZero}, tweak = {BR_SCALAR(31), rZero, rZero};
+    ActorEvent::Add entrance = {};
+    return append(ActorEvent::aetFreeze, 6, 0, &freeze, sizeof(freeze)) &&
+           append(ActorEvent::aetFreeze, 10, 0, &unfreeze, sizeof(unfreeze)) &&
+           append(ActorEvent::aetActn, 12, 0, &action, sizeof(action)) &&
+           append(ActorEvent::aetSize, 16, 0, &size, sizeof(size)) &&
+           append(ActorEvent::aetStep, 22, 0, &stop, sizeof(stop)) &&
+           append(ActorEvent::aetRotF, 22, 1, &rotation, sizeof(rotation)) &&
+           append(ActorEvent::aetStep, 22, 2, &speed, sizeof(speed)) &&
+           append(ActorEvent::aetPull, 25, 0, &stretch, sizeof(stretch)) &&
+           append(ActorEvent::aetMove, 28, 0, &move, sizeof(move)) &&
+           append(ActorEvent::aetTweak, 31, 0, &tweak, sizeof(tweak)) &&
+           append(ActorEvent::aetRem, 34, 0, nullptr, 0) &&
+           append(ActorEvent::aetAdd, 36, 0, &entrance, sizeof(entrance), 22) &&
+           append(ActorEvent::aetActn, 36, 0, &action, sizeof(action)) && Costume(track, 20, 0, 0, resource, material);
+}
 
 static bool BatchPauses(PGeneralGroup frames, LegacyLong insertion)
 {
@@ -97,15 +125,18 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number)
 int main(int argc, char **argv)
 {
     if (argc != 4 && argc != 5 &&
-        !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0)))
+        !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0 ||
+                        std::strcmp(argv[5], "--events") == 0)))
     {
-        std::fprintf(stderr,
-                     "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES [--batch|--dissolve]]\n");
+        std::fprintf(
+            stderr,
+            "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES [--batch|--dissolve|--events]]\n");
         return 2;
     }
     const bool movie = argc >= 5;
     const bool batch = argc == 6 && std::strcmp(argv[5], "--batch") == 0;
     const bool dissolve = argc == 6 && std::strcmp(argv[5], "--dissolve") == 0;
+    const bool events = argc == 6 && std::strcmp(argv[5], "--events") == 0;
     const int source = movie ? 2 : 1;
     String backgroundPath;
     backgroundPath.SetSzs(argv[2]);
@@ -276,6 +307,8 @@ int main(int argc, char **argv)
         if (movie && actor == 2)
             for (unsigned texture = 0; texture < 2; ++texture)
                 ok = ok && file->FAdoptChild(kctgActr, actorNumber, kctgMtrl, textures[texture], texture);
+        if (events && actor == 1)
+            ok = ok && AnimationEvents(track, document, textures[0]);
         if (actor == 4)
         {
             track.route->Delete(0, track.route->IvMac());

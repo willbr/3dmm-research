@@ -77,6 +77,38 @@ struct PreviewBounds
     float corners[24] = {};   // Eight world-space corners; bits 0/1/2 choose max X/Y/Z.
     std::uint32_t colour = 0; // RGB selection colour from the movie palette.
 };
+enum class PreviewAnimationKind
+{
+    Entrance,
+    Exit,
+    Action,
+    Rotation,
+    Scale,
+    Stretch,
+    Move,
+    Path,
+    Costume,
+    Step,
+    Freeze
+};
+struct PreviewActionSpan
+{
+    std::int64_t firstFrame = 0, endFrame = 0; // Half-open, clipped to the scene.
+    std::int32_t action = 0;
+    bool frozen = false;
+    std::string name;
+};
+struct PreviewAnimationEvent
+{
+    std::int32_t frame = 0;
+    PreviewAnimationKind kind = PreviewAnimationKind::Entrance;
+    std::string name, detail;
+};
+struct PreviewAnimationTimeline
+{
+    std::vector<PreviewActionSpan> spans; // On-stage intervals, split at action/restart/freeze changes.
+    std::vector<PreviewAnimationEvent> events;
+};
 // Read-only presentation records. Colours retain Kauai's stored abstract RGB,
 // palette-index and transparent encodings; character positions are UTF-16 units.
 struct PreviewTextProperty
@@ -155,6 +187,8 @@ class Preview
     // Current posed bounds in actor-local axes, transformed with the actor.
     // An off-stage actor succeeds with invalid bounds.
     bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
+    // Evaluate a private track copy; leaves live frame, pose and sounds unchanged.
+    bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
     // Authored scene cues and actor sound events, without seeking or playing.
