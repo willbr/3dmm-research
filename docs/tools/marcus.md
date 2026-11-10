@@ -104,7 +104,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Q / E while holding right mouse | Move down / up in world space |
 | Shift while flying | Four times normal movement speed |
 | Wheel in Fly | Adjust flight speed |
-| Release right mouse / Escape | Release mouse capture and stop flying |
+| Release right mouse | Release mouse capture and stop flying |
+| Escape | Clear object/sound selection and release camera capture; otherwise pause playback |
 | Reset / R | Match the current movie camera; R also fits the timeline |
 | Loop | Repeat the movie after the final scene |
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
@@ -123,7 +124,8 @@ selected object is revealed in the scene list and Objects dope sheet, with a
 3DMM-style wireframe bounding box in both views. The box follows the current pose
 and actor rotation, using the original selection palette colour; off-stage
 objects have no box. Selecting from the scene list or dope sheet shows the same
-box, and clicking empty space clears it.
+box, and clicking empty space or pressing Escape clears it. Escape also clears
+selected sound cues/tracks, and clearing a selection keeps movie playback running.
 
 Picking uses the displayed camera, evaluated model faces, texture transparency and depth;
 background scenery and caption overlays block objects behind them. Backgrounds,

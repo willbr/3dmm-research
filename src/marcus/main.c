@@ -984,8 +984,11 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         select_scene(app, app->info.scene + 1);
         break;
     case SDLK_ESCAPE:
-        if (app->flying || app->orbiting || app->panning)
+        if (app->flying || app->orbiting || app->panning || app->selected >= 0 ||
+            app->selected_sound >= 0 || app->selected_sound_track >= 0)
         {
+            app->selected = -1;
+            app->selected_sound = app->selected_sound_track = -1;
             release_camera(app);
             break;
         }
