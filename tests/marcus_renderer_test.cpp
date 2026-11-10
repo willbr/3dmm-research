@@ -1,6 +1,7 @@
 #include "gpu_renderer.h"
 #include "player.h"
 #include "settings.h"
+#include "three_mm/preview.h"
 #include "zb_capture.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
@@ -57,7 +58,8 @@ int main(int argc, char **argv)
     for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
     {
         const auto *resolution = marcus_render_resolution(index);
-        CHECK(resolution && resolution->width <= 1024 && resolution->width * 3 == resolution->height * 4);
+        CHECK(resolution && resolution->width <= ThreeMM::PreviewMaxDimension &&
+              resolution->height <= ThreeMM::PreviewMaxDimension && resolution->width * 3 == resolution->height * 4);
         shortcuts.render_resolution = index;
         CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
         shortcuts_defaults(&loaded);
@@ -236,6 +238,18 @@ int main(int argc, char **argv)
                     CHECK(marcus_match_camera(player, resolution->width, resolution->height, &camera));
                 }
             }
+            // The shared limit must also work for a square render, picking and
+            // camera matching, while larger requests fail before allocation.
+            const int maximum = ThreeMM::PreviewMaxDimension;
+            CHECK(marcus_render(player, maximum, maximum, 0, -18, 12, 1, &image));
+            CHECK(image.width == maximum && image.height == maximum);
+            int picked = -1;
+            CHECK(marcus_pick(player, &image, maximum / 2, maximum / 2, &picked));
+            MarcusCamera camera;
+            CHECK(marcus_match_camera(player, maximum, maximum, &camera));
+            CHECK(!marcus_match_camera(player, maximum + 1, maximum, &camera));
+            CHECK(!marcus_render(player, maximum + 1, maximum, 0, 0, 0, 1, &image) && !image.rgba);
+            CHECK(!marcus_render(player, maximum, maximum + 1, 1, 0, 0, 1, &image) && !image.rgba);
         }
         CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
         CHECK(!std::memcmp(cpu.data(), image.rgba, cpu.size()));

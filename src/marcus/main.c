@@ -26,7 +26,8 @@
 #define NAV_STEP 32
 #define MOVIE_CONTROLS_HEIGHT 140
 #define MOVIE_IDLE_MS 2500
-#define RENDER_SETTINGS_HEIGHT 314
+#define RESOLUTION_GRID_HEIGHT (((MARCUS_RESOLUTION_COUNT + 3) / 4) * 40)
+#define RENDER_SETTINGS_HEIGHT (274 + RESOLUTION_GRID_HEIGHT)
 #define SETTINGS_HEIGHT 656
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
@@ -1045,9 +1046,9 @@ static void settings_click(App *app, float x, float y)
         left = app->width / 2.0f - 240;
         top = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
         if (ui_inside(x, y, left + 438, top + 16, 28, 28) ||
-            ui_inside(x, y, left + 256, top + 266, 88, 28))
+            ui_inside(x, y, left + 256, top + RENDER_SETTINGS_HEIGHT - 48, 88, 28))
             cancel_settings(app);
-        else if (ui_inside(x, y, left + 360, top + 266, 96, 28))
+        else if (ui_inside(x, y, left + 360, top + RENDER_SETTINGS_HEIGHT - 48, 96, 28))
             apply_settings(app);
         else
         {
@@ -1059,7 +1060,7 @@ static void settings_click(App *app, float x, float y)
                     break;
                 }
             for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
-                if (ui_inside(x, y, left + 24 + resolution * 110, top + 160, 102, 32))
+                if (ui_inside(x, y, left + 24 + (resolution % 4) * 110, top + 160 + (resolution / 4) * 40, 102, 32))
                 {
                     app->edited_shortcuts.render_resolution = resolution;
                     app->settings_message[0] = 0;
@@ -1808,6 +1809,17 @@ static void draw_header(App *app)
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
 {
+    float width, height;
+    if (*texture)
+    {
+        if (!SDL_GetTextureSize(*texture, &width, &height))
+            return 0;
+        if (width != image->width || height != image->height)
+        {
+            SDL_DestroyTexture(*texture);
+            *texture = NULL;
+        }
+    }
     if (!*texture)
     {
         *texture = SDL_CreateTexture(app->renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING,
@@ -2686,13 +2698,13 @@ static void draw_rendering_settings(App *app)
                         app->edited_shortcuts.renderer == renderer, 1);
     ui_text(&app->ui, x + 24, y + 134, "RENDER RESOLUTION", ACCENT);
     for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
-        ui_button_sized(&app->ui, x + 24 + resolution * 110, y + 160, 102, 32,
+        ui_button_sized(&app->ui, x + 24 + (resolution % 4) * 110, y + 160 + (resolution / 4) * 40, 102, 32,
                         marcus_render_resolution(resolution)->name,
                         app->edited_shortcuts.render_resolution == resolution, 1);
-    ui_text(&app->ui, x + 24, y + 208, "Applies to the movie and work camera views.", MUTED);
-    ui_label(&app->ui, x + 24, y + 234, 432, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + 256, y + 266, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 360, y + 266, 96, "Apply", 1, 1);
+    ui_text(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 106, "Applies to the movie and work camera views.", MUTED);
+    ui_label(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 80, 432, app->settings_message, 0xf2ae9b);
+    ui_button(&app->ui, x + 256, y + RENDER_SETTINGS_HEIGHT - 48, 88, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 360, y + RENDER_SETTINGS_HEIGHT - 48, 96, "Apply", 1, 1);
 }
 static void draw_settings(App *app)
 {

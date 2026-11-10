@@ -905,7 +905,8 @@ extern "C"
     int marcus_match_camera(MarcusPlayer *player, int width, int height, MarcusCamera *camera)
     {
         return Guard(player, [&](ThreeMM::Error &error) {
-            if (!camera || width < 64 || height < 64 || width > 1024 || height > 1024)
+            if (!camera || width < 64 || height < 64 || width > ThreeMM::PreviewMaxDimension ||
+                height > ThreeMM::PreviewMaxDimension)
                 return false;
             ThreeMM::PreviewCamera matched;
             if (!player->preview.MatchSceneCamera(float(width) / height, matched, error))

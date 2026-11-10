@@ -39,7 +39,7 @@ typedef struct MarcusShortcuts
     int render_resolution;
 } MarcusShortcuts;
 
-#define MARCUS_RESOLUTION_COUNT 4
+#define MARCUS_RESOLUTION_COUNT 10
 #define MARCUS_DEFAULT_RESOLUTION 2
 typedef struct MarcusRenderResolution
 {

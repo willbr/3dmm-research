@@ -396,8 +396,9 @@ bool Preview::MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error 
 bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->orbitFramed || view.width < 64 || view.height < 64 || view.width > 1024 ||
-        view.height > 1024 || !std::isfinite(right) || !std::isfinite(up) || !std::isfinite(view.yaw) ||
+    if (!_impl->ready || !_impl->orbitFramed || view.width < 64 || view.height < 64 ||
+        view.width > PreviewMaxDimension || view.height > PreviewMaxDimension ||
+        !std::isfinite(right) || !std::isfinite(up) || !std::isfinite(view.yaw) ||
         !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
         view.verticalFov <= 0 || view.verticalFov >= 179 || !std::isfinite(view.zoom) || view.pitch < -90 || view.pitch > 90 ||
         view.zoom < .1f || view.zoom > 10)
@@ -497,8 +498,9 @@ try
     object = -1;
     distance = std::numeric_limits<float>::infinity();
     Internal::ClearDiagnostic();
-    if (!_impl->ready || !_impl->info.scene || !projection.valid || width < 64 || width > 1024 || height < 64 ||
-        height > 1024 || !std::isfinite(projection.verticalFov) || projection.verticalFov <= 0 ||
+    if (!_impl->ready || !_impl->info.scene || !projection.valid || width < 64 || height < 64 ||
+        width > PreviewMaxDimension || height > PreviewMaxDimension ||
+        !std::isfinite(projection.verticalFov) || projection.verticalFov <= 0 ||
         projection.verticalFov >= 179 || !std::isfinite(projection.aspect) || projection.aspect <= 0 ||
         !std::isfinite(projection.nearClip) || !std::isfinite(projection.farClip) || projection.nearClip <= 0 ||
         projection.farClip <= projection.nearClip || projection.farClip > 32767)
@@ -1036,8 +1038,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
     Internal::ClearDiagnostic();
     if (!_impl->ready)
         return Fail(error, ErrorCode::invalid_argument, "Select an asset to render.");
-    if (view.width < 64 || view.height < 64 || view.width > 1024 || view.height > 1024 || !std::isfinite(view.yaw) ||
-        !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
+    if (view.width < 64 || view.height < 64 || view.width > PreviewMaxDimension || view.height > PreviewMaxDimension ||
+        !std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
         view.verticalFov <= 0 || view.verticalFov >= 179 || !std::isfinite(view.nearClip) || view.nearClip < 0 ||
         view.nearClip > 100 || !std::isfinite(view.zoom) || view.pitch < -90 || view.pitch > 90 ||
         view.zoom < .1f || view.zoom > 10 ||

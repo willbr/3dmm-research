@@ -6,6 +6,8 @@
 namespace ThreeMM
 {
 class PreviewRasterizer;
+// Matches the bundled BRender output pixelmap limit.
+constexpr std::uint32_t PreviewMaxDimension = 4096;
 struct PreviewAction
 {
     std::string name;
@@ -216,7 +218,7 @@ class Preview
     // Distance is camera-forward depth at the hit, or infinity on a miss.
     bool Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
               int x, int y, int &object, float &distance, Error &error);
-    // Dimensions 64..1024, finite camera values, pitch -90..90, zoom .1..10.
+    // Dimensions 64..PreviewMaxDimension, finite camera values, pitch -90..90, zoom .1..10.
     // Free camera coordinates are limited to +/-32700 world units and take
     // precedence over authoredCamera. Returned images include the rendered pose.
     // Output cleared on failure. Camera orbit uses world Y and the supplied roll.

@@ -13,7 +13,9 @@ static const char *action_ids[MARCUS_ACTION_COUNT] = {"first_frame", "prev_frame
 const MarcusRenderResolution *marcus_render_resolution(int index)
 {
     static const MarcusRenderResolution resolutions[MARCUS_RESOLUTION_COUNT] = {
-        {320, 240, "320x240"}, {640, 480, "640x480"}, {960, 720, "960x720"}, {1024, 768, "1024x768"}};
+        {320, 240, "320x240"}, {640, 480, "640x480"}, {960, 720, "960x720"}, {1024, 768, "1024x768"},
+        {1600, 1200, "1600x1200"}, {1920, 1440, "1920x1440"}, {2560, 1920, "2560x1920"},
+        {2880, 2160, "2880x2160"}, {3840, 2880, "3840x2880"}, {4096, 3072, "4096x3072"}};
     return index >= 0 && index < MARCUS_RESOLUTION_COUNT ? &resolutions[index] : NULL;
 }
 static SDL_Keycode normalize_key(SDL_Keycode key)
