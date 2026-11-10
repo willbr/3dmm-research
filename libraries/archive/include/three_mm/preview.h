@@ -145,6 +145,7 @@ class Preview
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
+    bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
     // Authored scene cues and actor sound events, without seeking or playing.
     // Motion sounds mark the binding event, not every subsequent cel match.
     bool ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error);

@@ -133,9 +133,13 @@ playback. Queued clips follow earlier sounds in their lane, replacements truncat
 earlier clips, and sampled loops repeat their waveform. MIDI continuation has a
 labelled band because it contains notes rather than samples.
 
-The sheet uses a nominal six-fps movie clock, clipped to each scene. Interactive
-waits, transitions and repeated motion matches can change live audio timing, so
-these remain an authored timeline preview rather than a rendered soundtrack.
+The sheet uses a six-fps presentation clock that includes scrolling-text holds,
+authored time/sound waits and outgoing transitions. Scrolling uses playback's
+actual rich-text layout and scroll speed, rather than an estimate from the frame
+count. Waveforms and restart positions share this clock. Click pauses have no
+authored duration, so a direct jump assumes immediate acknowledgement; repeated
+motion matches still follow live animation cels. These are timeline previews
+rather than a rendered soundtrack.
 Silent or unavailable sounds retain markers; the inspector explains unavailable
 waveforms. Scene history and clip durations are cached as scenes are visited;
 reading them does not seek, render prior scenes, or start audio playback.
@@ -229,8 +233,12 @@ embedded sounds referenced by scene child IDs. Sampled clips share Studio's
 portable PCM/ADPCM/GSM/MP3-in-WAVE decoders; MIDI uses the shared SoundFont
 synthesizer. Actor motion-match sounds follow evaluated animation cels. Sound
 queues, looping, volume, and silent stop cues are honoured. Pausing freezes audio
-and presentation clocks; seeking stops old sounds and restores scene music at
-the seek position when playback resumes. Scrubbing alone stays silent.
+and presentation clocks. Seeking stops old sounds; Play rebuilds unfinished
+frame-cued scene/actor sounds, MIDI and pending queues at the selected position,
+including clips from earlier scenes. Completed clips are omitted. Source offsets
+include preceding scrolling, authored waits and transitions, and imported clips
+resolve against their original scene. Scrubbing alone stays silent, and ordinary
+pause/resume retains the existing voices rather than restarting them.
 Automatic scene changes preserve music and unfinished non-looping clips, stop
 looping sampled effects, and avoid restarting a MIDI clip that is already playing.
 

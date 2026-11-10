@@ -472,7 +472,7 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     MarcusWaveformInfo waveform;
     MarcusWaveformColumn peak;
     float center, marker_y;
-    double clip_seconds;
+    double pointer_frame;
     row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT);
     if (!app->sound_sheet)
     {
@@ -515,10 +515,10 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     for (index = app->info.sound_count - 1; index >= 0; --index)
         if (marcus_sound(app->player, index, &sound) && sound.track == row)
         {
-            clip_seconds = (app->timeline_start + (x - app->grid_x) / app->pixels_per_frame - sound.timeline_frame) / 6;
-            if (clip_seconds >= 0 && marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) &&
-                waveform.kind == MARCUS_WAVEFORM_SAMPLED && (sound.loop || clip_seconds < waveform.seconds) &&
-                app->timeline_start + (x - app->grid_x) / app->pixels_per_frame < sound.end_frame)
+            pointer_frame = app->timeline_start + (x - app->grid_x) / app->pixels_per_frame;
+            if (pointer_frame >= sound.timeline_frame && pointer_frame < sound.end_frame &&
+                marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) &&
+                waveform.kind == MARCUS_WAVEFORM_SAMPLED)
             {
                 if (fallback < 0)
                     fallback = index;
@@ -1362,12 +1362,12 @@ static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, i
     if (start > app->grid_x + app->grid_width)
         return;
     start = (float)maximum(ceil(start), app->grid_x);
-    first = maximum(0, (app->timeline_start + (start - app->grid_x) / app->pixels_per_frame - sound->timeline_frame) / 6);
+    first = app->timeline_start + (start - app->grid_x) / app->pixels_per_frame;
     right = (float)minimum(app->grid_x + app->grid_width, frame_x(app, sound->end_frame));
     column_width = (float)maximum(1, (right - start) / 4096);
-    step = column_width / (app->pixels_per_frame * 6);
+    step = column_width / app->pixels_per_frame;
     count = (int)minimum(4096, ceil((right - start) / column_width));
-    if (count < 1 || !marcus_sound_waveform(app->player, index, first, step, count, columns, &waveform))
+    if (count < 1 || !marcus_sound_waveform_frames(app->player, index, first, step, count, columns, &waveform))
         return;
     center = app->timeline_y + 94 + row * ROW_HEIGHT;
     if (waveform.kind == MARCUS_WAVEFORM_MIDI && sound->carried)
@@ -1377,10 +1377,8 @@ static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, i
         ui_label(&app->ui, start + 8, center - 8, right - start - 16, "MIDI continues", 0xb3a4d6);
         return;
     }
-    if (waveform.kind != MARCUS_WAVEFORM_SAMPLED || (!sound->loop && waveform.seconds <= first))
+    if (waveform.kind != MARCUS_WAVEFORM_SAMPLED)
         return;
-    if (!sound->loop)
-        right = (float)minimum(right, start + (waveform.seconds - first) / step * column_width);
     amplitude = 10;
     gain = (float)maximum(0, minimum(1, sound->volume / 65536.0));
     tint = index == app->selected_sound ? 0xf4ca8e : sound->motion ? 0xa28ac3 : 0xc79b5f;

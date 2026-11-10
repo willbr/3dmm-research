@@ -274,12 +274,16 @@ std::vector<PreviewObject> Preview::Objects() const
     return result;
 }
 bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)
+{
+    return ReadPresentation(_impl->info.asset, presentation, error);
+}
+bool Preview::ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error)
 try
 {
     error = {};
     presentation = {};
-    if (!_impl->ready || !_impl->info.scene ||
-        !Internal::ReadPresentation(_impl->cache->Pcfl(), _impl->info.asset.number, presentation))
+    if (!_impl->ready || scene.type != kctgScen ||
+        !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
     return true;
 }

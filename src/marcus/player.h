@@ -164,6 +164,9 @@ extern "C"
      * must be nonnegative and seconds_per_column positive, both finite. */
     int marcus_sound_waveform(MarcusPlayer *player, int index, double first_seconds, double seconds_per_column,
                               int count, MarcusWaveformColumn *columns, MarcusWaveformInfo *info);
+    /* Timeline-aligned peaks, including scrolling and authored frame holds. */
+    int marcus_sound_waveform_frames(MarcusPlayer *player, int index, double first_frame, double frames_per_column,
+                                     int count, MarcusWaveformColumn *columns, MarcusWaveformInfo *info);
     int marcus_seek(MarcusPlayer *player, long frame);
     /* Call once per host update, with elapsed milliseconds. Playback preserves
      * authored waits/scrolling; a click/Space continues a click wait. Manual

@@ -23,6 +23,10 @@ bool Fail(Error &error, const std::string &message)
     error.message = message;
     return false;
 }
+double TransitionSeconds(int kind)
+{
+    return kind == 4 ? 1.0 / 6 : kind > 0 && kind < 4 ? 4 : 0;
+}
 struct AudioClip
 {
     std::tuple<int, unsigned, unsigned> identity;
@@ -203,11 +207,12 @@ class Audio
                     return true;
         return false;
     }
-    bool Play(Preview &preview, const PreviewSoundCue &cue, std::uint32_t offset, Error &error)
+    bool Play(Preview &preview, const PreviewSoundCue &cue, std::uint64_t offsetFrames, Error &error)
     {
         const auto key =
             std::make_tuple(cue.source, cue.sound.type, cue.sound.number,
-                            cue.source == 0 ? static_cast<int>(preview.Info().asset.number) : -1, cue.child);
+                            cue.source == 0 ? static_cast<int>(cue.scene.type ? cue.scene.number : preview.Info().asset.number)
+                                            : -1, cue.child);
         std::shared_ptr<AudioClip> clip;
         auto found = clips.find(key);
         if (!cue.silent && found != clips.end())
@@ -255,7 +260,7 @@ class Audio
             voice->clip = clip;
             voice->volume = std::max(0.f, std::min(1.f, cue.volume / 65536.f));
             voice->loop = cue.loop;
-            voice->position = std::uint64_t(offset) * 48;
+            voice->position = offsetFrames;
             if (voice->loop)
                 voice->position %= clip->frames;
             else
@@ -558,6 +563,37 @@ MarcusPlayback::MarcusPlayback() : impl(new Impl)
 {
 }
 MarcusPlayback::~MarcusPlayback() = default;
+bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusSoundTiming &timing, Error &error)
+{
+    timing = {};
+    timing.transition = TransitionSeconds(presentation.transition);
+    timing.pauses = presentation.pauses;
+    // Use the playback layout itself, including font metrics and rich-text
+    // wrapping, so restart offsets use the same scrolling distance and speed.
+    Impl calculator;
+    for (const auto &data : presentation.captions)
+        if (!data.story)
+        {
+            CaptionImage caption;
+            caption.data = data;
+            if (!calculator.Layout(caption, error))
+                return false;
+            const int overflow = std::max(0, caption.height - (data.bottom - data.top - 10));
+            timing.scrolling[data.firstFrame] = std::max(timing.scrolling[data.firstFrame], overflow * 5000.0 / 60000);
+            calculator.captionBytes -= caption.maskBytes;
+        }
+    return true;
+}
+bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResumeSound> &sounds, Error &error)
+{
+    impl->audio.Suspend(true);
+    for (const auto &sound : sounds)
+        if (!impl->audio.Play(preview, sound.cue,
+                             static_cast<std::uint64_t>(std::floor(sound.seconds * 48000 + .5)), error))
+            return false;
+    impl->restoreMusic = false;
+    return true;
+}
 bool MarcusPlayback::Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bool preserveAudio)
 {
     if (preserveAudio)
@@ -644,7 +680,7 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
     if (impl->transition)
     {
         impl->transitionTime += elapsed;
-        if (impl->transitionTime < (impl->transition == 4 ? 1000.0 / 6 : 4000.0))
+        if (impl->transitionTime < TransitionSeconds(impl->transition) * 1000)
             return true;
         impl->transition = 0;
         impl->previous = {};
@@ -667,8 +703,7 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
                     !impl->audio.Play(preview, cue,
                                       cue.queue
                                           ? 0
-                                          : static_cast<std::uint32_t>(std::min(
-                                                4294967295.0, std::max(0.0, (double(frame) - musicFrame) * 1000 / 6))),
+                                          : static_cast<std::uint64_t>(std::max(0.0, (double(frame) - musicFrame) * 8000)),
                                       error))
                     return false;
         }

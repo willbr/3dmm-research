@@ -8,6 +8,7 @@
 #include "player.h"
 #include "waveform.h"
 #include "sound_timeline.h"
+#include "playback.h"
 #include "soc_core.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -158,6 +159,8 @@ void CarryScheduling()
     CHECK(timeline.Scene(2).sounds.size() == 4); // Music, speech tail, replacement, queued speech.
     CHECK(timeline.Scene(0).sounds[2]->end == 2); // Replacement truncates the carried effect.
     CHECK(std::abs(timeline.Scene(2).sounds.back()->start - 8.0 / 3) < 1e-6);
+    const auto queuedResume = timeline.Resume(2, -3);
+    CHECK(queuedResume.size() == 3 && queuedResume.back().cue.queue && queuedResume.back().seconds == 0);
     timeline.Append(later, {}, read);
     CHECK(timeline.Scene(3).sounds.size() == 2); // Only music and the queued speech remain.
     music.frame = -5; music.silent = true;
@@ -170,6 +173,49 @@ void CarryScheduling()
     timeline.Append(later, {}, read);
     CHECK(timeline.Scene(1).sounds.size() == 1 && timeline.Scene(1).sounds[0]->cue.queue);
     CHECK(timeline.Scene(1).sounds[0]->start == 1 && timeline.Scene(1).sounds[0]->end == 2);
+}
+void PresentationClock()
+{
+    MarcusScene first = {}, later = {};
+    first.first_frame = 10; first.last_frame = 15;
+    later.first_frame = -5; later.last_frame = 0;
+    ThreeMM::PreviewSoundCue cue;
+    cue.frame = 10; cue.style = MARCUS_SOUND_EFFECT;
+    auto read = [](const ThreeMM::PreviewSoundCue &) {
+        MarcusWaveformInfo audio = {};
+        audio.kind = MARCUS_WAVEFORM_SAMPLED; audio.seconds = 20;
+        return audio;
+    };
+    MarcusSoundTiming timing;
+    timing.scrolling[11] = 2;
+    timing.pauses.push_back({12, 3, 500});
+    timing.transition = 4;
+    MarcusSoundTimeline timeline;
+    timeline.Append(first, {cue}, read, timing);
+    const auto &scene = timeline.Scene(0);
+    CHECK(std::abs(scene.TimeAt(12) - 7.0 / 3) < 1e-6);
+    CHECK(std::abs(scene.FrameAt(scene.TimeAt(11.5)) - 11.5) < 1e-6);
+    CHECK(std::abs(scene.TimeAt(16) - 3.5) < 1e-6);
+    timeline.Append(later, {}, read);
+    CHECK(std::abs(timeline.Scene(1).start - 7.5) < 1e-6);
+    const auto resume = timeline.Resume(1, -3);
+    CHECK(resume.size() == 1 && std::abs(resume[0].seconds - 47.0 / 6) < 1e-6);
+    timeline.Clear();
+    timing.transition = 0;
+    timing.pauses.push_back({13, 2, 0});
+    timeline.Append(first, {cue}, read, timing);
+    CHECK(std::abs(timeline.Scene(0).TimeAt(16) - 20.5) < 1e-6);
+    timeline.Append(later, {}, read);
+    CHECK(timeline.Resume(1, -5).empty()); // Sound-wait audio has completed.
+    ThreeMM::PreviewPresentation presentation;
+    ThreeMM::Error error;
+    for (int transition = 0; transition <= 5; ++transition)
+    {
+        presentation.transition = transition;
+        CHECK(MarcusPlayback::ReadTiming(presentation, timing, error));
+        const double expected = transition == 4 ? 1.0 / 6 : transition > 0 && transition < 4 ? 4 : 0;
+        CHECK(timing.transition == expected);
+    }
 }
 ChunkNumber Caption(PChunkyFile file, bool scrolling)
 {
@@ -335,6 +381,26 @@ void Fixture(const char *path)
     CHECK(file->FSave(kctgSoc));
     ReleasePpo(&file);
 }
+MarcusSoundTiming FixtureTiming(const char *path, const char *resources)
+{
+    ThreeMM::Archive archive;
+    ThreeMM::Preview preview;
+    ThreeMM::Error error;
+    CHECK(archive.Open(path, error) && preview.Open(path, resources, error));
+    for (const auto &chunk : archive.Chunks())
+        if (chunk.id.type == kctgScen)
+        {
+            CHECK(preview.Select(chunk.id, error));
+            ThreeMM::PreviewPresentation presentation;
+            MarcusSoundTiming timing;
+            CHECK(preview.ReadPresentation(presentation, error));
+            CHECK(MarcusPlayback::ReadTiming(presentation, timing, error));
+            CHECK(timing.scrolling.at(0) > 0);
+            return timing;
+        }
+    CHECK(false);
+    return {};
+}
 void CarryIntegration(const char *path, const char *resources, const char *content)
 {
     String name;
@@ -379,6 +445,11 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     CHECK(marcus_sound_waveform(player, 0, 7.0 / 6, .01, 4, columns, &wave));
     CHECK(wave.kind == MARCUS_WAVEFORM_SAMPLED && std::abs(wave.seconds - 2) < 1e-6);
     CHECK(columns[0].minimum < -.2f && columns[0].maximum > .2f);
+    CHECK(marcus_sound_waveform_frames(player, 0, -10, .06, 4, columns, &wave));
+    CHECK(columns[0].minimum < -.2f && columns[0].maximum > .2f);
+    CHECK(marcus_sound_waveform_frames(player, 0, -4, .06, 4, columns, &wave));
+    CHECK(columns[0].minimum == 0 && columns[0].maximum == 0);
+    CHECK(!marcus_sound_waveform_frames(player, 0, -10, 0, 4, columns, &wave));
     CHECK(marcus_select_scene(player, 3) && marcus_info(player, &info) && info.sound_count == 0);
     CHECK(marcus_select_scene(player, 1) && marcus_info(player, &info) && info.sound_count == 2);
     // Both cues use the same stored ID and child slot, but resolve in different scenes.
@@ -387,8 +458,24 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     MarcusAudioStats stats;
     CHECK(marcus_audio_stats(player, &stats) && !stats.wave_sounds && !stats.midi_sounds);
     CHECK(marcus_info(player, &info) && info.frame == 100);
-    CHECK(marcus_select_scene(player, 0) && marcus_seek(player, 0));
+    CHECK(marcus_seek(player, 103));
     MarcusPlaybackState state;
+    CHECK(marcus_update(player, 0, 0, 0, 0, &state));
+    CHECK(marcus_audio_stats(player, &stats) && !stats.wave_sounds); // Scrubbing stays silent.
+    CHECK(marcus_update(player, 1, 0, 0, 0, &state));
+    CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == 1); // Restore the earlier scene's effect.
+    CHECK(marcus_update(player, 0, 0, 0, 0, &state));
+    CHECK(marcus_update(player, 1, 0, 0, 0, &state));
+    CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == 1); // Pause/resume preserves the voice.
+    CHECK(marcus_select_scene(player, 2) && marcus_seek(player, -6));
+    const auto audibleBefore = stats.audible_frames;
+    CHECK(marcus_update(player, 1, 0, 0, 0, &state));
+    SDL_Delay(350);
+    CHECK(marcus_audio_stats(player, &stats) && stats.audible_frames > audibleBefore && stats.wave_sounds == 2);
+    const auto completed = stats.audible_frames;
+    SDL_Delay(200);
+    CHECK(marcus_audio_stats(player, &stats) && stats.audible_frames == completed); // Correct offset leaves only 1/6 s.
+    CHECK(marcus_select_scene(player, 0) && marcus_seek(player, 0));
     CHECK(marcus_update(player, 1, 0, 0, 0, &state));
     CHECK(marcus_update(player, 1, 0, 170, 0, &state) && state.scene_changed);
     CHECK(marcus_info(player, &info) && info.scene == 1 && info.sound_count == 2);
@@ -451,7 +538,9 @@ int main(int argc, char **argv)
         return 2;
     WaveformPeaks();
     CarryScheduling();
+    PresentationClock();
     Fixture(argv[1]);
+    const auto authoredTiming = FixtureTiming(argv[1], argv[2]);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
@@ -539,14 +628,20 @@ int main(int argc, char **argv)
     CHECK(Info().frame == 0);
     CHECK(Tick(0).scrolling);
     Tick(100);
+    double scrollElapsed = 100;
     CHECK(Info().frame == 0 && Image() != credits);
     MarcusAudioStats stats;
     CHECK(marcus_audio_stats(player, &stats) && stats.midi_sounds == 1);
     SDL_Delay(150);
     CHECK(marcus_audio_stats(player, &stats) && stats.audible_frames > 0);
     for (int i = 0; i < 200 && Info().frame == 0; ++i)
+    {
         Tick(100);
+        scrollElapsed += 100;
+    }
     CHECK(Info().frame == 1);
+    CHECK(scrollElapsed >= authoredTiming.scrolling.at(0) * 1000 + 1000.0 / 6);
+    CHECK(scrollElapsed <= authoredTiming.scrolling.at(0) * 1000 + 400);
     CHECK(Tick(0).wait == 3);
     Tick(200);
     Tick(0, false);

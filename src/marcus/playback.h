@@ -2,6 +2,7 @@
 #define MARCUS_PLAYBACK_H
 #include "three_mm/preview.h"
 #include "player.h"
+#include "sound_timeline.h"
 #include <memory>
 class MarcusPlayback
 {
@@ -14,6 +15,9 @@ class MarcusPlayback
     bool Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bool preserveAudio = false);
     void Seek();
     void Stop();
+    static bool ReadTiming(const ThreeMM::PreviewPresentation &presentation, MarcusSoundTiming &timing,
+                           ThreeMM::Error &error);
+    bool RestoreAudio(ThreeMM::Preview &preview, const std::vector<MarcusResumeSound> &sounds, ThreeMM::Error &error);
     void Statistics(MarcusAudioStats &stats);
     void Mute(bool muted);
     // Advance one displayed frame only after its sounds, scrolling and waits
