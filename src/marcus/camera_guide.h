@@ -20,4 +20,7 @@ typedef struct MarcusCameraGuide
  * view, aspect and orientation are preserved. Lines are clipped to the viewer;
  * invalid or absent cameras produce an empty guide. */
 void camera_guide_build(const MarcusProjection *view, const MarcusProjection *camera, MarcusCameraGuide *guide);
+/* Project all twelve selection-box edges into the rendered image, preserving
+ * authored letterboxing. The box uses the actor's current world-space corners. */
+void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide);
 #endif

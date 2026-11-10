@@ -21,6 +21,7 @@ int main(int argc, char **argv)
     MarcusInfo info;
     MarcusScene scene;
     MarcusObject first, later, prop, inactive;
+    MarcusBounds first_bounds, bounds;
     MarcusImage image, pick_image;
     MarcusCamera camera, moved;
     MarcusProjection authored, orbit, manual, flight, panned;
@@ -39,6 +40,7 @@ int main(int argc, char **argv)
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_seek(player, 1));
     CHECK(!marcus_scene(player, -1, &scene));
+    CHECK(!marcus_object_bounds(player, 0, &bounds) && !bounds.valid);
     CHECK(marcus_open(player, argv[1], argv[2], argv[3]));
     CHECK(marcus_info(player, &info));
     scene_count = info.scene_count;
@@ -50,6 +52,15 @@ int main(int argc, char **argv)
     CHECK(marcus_object(player, 1, &prop) && prop.prop);
     CHECK(!marcus_object(player, -1, &later));
     CHECK(!marcus_object(player, 4, &later));
+    CHECK(marcus_object_bounds(player, 0, &first_bounds) && first_bounds.valid);
+    CHECK(marcus_object_bounds(player, 1, &bounds) && bounds.valid); /* Prop. */
+    CHECK(marcus_object_bounds(player, 3, &bounds) && bounds.valid); /* 3D text. */
+    CHECK(!marcus_object_bounds(player, -1, &bounds) && !bounds.valid);
+    CHECK(!marcus_object_bounds(player, info.object_count, &bounds) && !bounds.valid);
+    CHECK(!marcus_object_bounds(player, 0, NULL));
+    for (index = 0; index < 24; ++index)
+        CHECK(fabs(first_bounds.corners[index]) < 32767);
+    CHECK(memcmp(first_bounds.corners, first_bounds.corners + 21, 3 * sizeof(float)));
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(image.width == 480 && image.height == 360 && image.pitch == 480 * 4 && image.rgba);
     CHECK(image.projection.valid && image.scene_camera.valid && image.scene_camera.vertical_fov > 0);
@@ -105,10 +116,14 @@ int main(int argc, char **argv)
     CHECK(!marcus_pick(player, &pick_image, pick_x, pick_y, &picked) && picked == -1);
     CHECK(marcus_seek(player, 10) && marcus_object(player, 0, &later));
     CHECK(later.x != first.x || later.y != first.y || later.z != first.z || later.cel != first.cel);
+    CHECK(marcus_object_bounds(player, 0, &bounds) && bounds.valid);
+    CHECK(memcmp(first_bounds.corners, bounds.corners, sizeof(bounds.corners)));
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(image.scene_camera.display_depth == guide_depth[0]);
     CHECK(memcmp(pixels, image.rgba, bytes));
     CHECK(marcus_seek(player, 1));
+    CHECK(marcus_object_bounds(player, 0, &bounds) && bounds.valid);
+    CHECK(!memcmp(first_bounds.corners, bounds.corners, sizeof(bounds.corners)));
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(!memcmp(pixels, image.rgba, bytes));
     CHECK(!memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)));
@@ -280,6 +295,7 @@ int main(int argc, char **argv)
     CHECK(marcus_info(player, &info) && info.object_count == 5);
     CHECK(marcus_open(player, argv[4], argv[2], argv[3]));
     CHECK(marcus_object(player, 4, &inactive) && !inactive.visible && !inactive.has_lifetime);
+    CHECK(marcus_object_bounds(player, 4, &bounds) && !bounds.valid);
     CHECK(marcus_object(player, 1, &prop) && prop.last_frame > 10);
     CHECK(marcus_render(player, 480, 960, 1, 0, 0, 1, &image));
     CHECK(marcus_pick(player, &image, 240, 0, &picked) && picked == -1); /* Letterbox. */

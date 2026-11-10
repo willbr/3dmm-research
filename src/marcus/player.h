@@ -43,6 +43,12 @@ extern "C"
         unsigned long camera, camera_count;
         int sound_count, sound_track_count;
     } MarcusInfo;
+    typedef struct MarcusBounds
+    {
+        int valid;
+        float corners[24];    /* Eight world-space corners; bits 0/1/2 choose max X/Y/Z. */
+        unsigned long colour; /* RGB selection colour. */
+    } MarcusBounds;
 
     enum MarcusSoundStyle
     {
@@ -156,6 +162,8 @@ extern "C"
     int marcus_select_scene_keep_view(MarcusPlayer *player, int index);
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
+    /* Evaluated, oriented bounds; off-stage actors have valid = 0. */
+    int marcus_object_bounds(MarcusPlayer *player, int index, MarcusBounds *bounds);
     /* Authored cue markers, not waveform durations. Motion cues mark bindings;
      * queued cues share their authored start. Reading never seeks or plays. */
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track);

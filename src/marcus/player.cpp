@@ -606,6 +606,22 @@ extern "C"
             return true;
         });
     }
+    int marcus_object_bounds(MarcusPlayer *player, int index, MarcusBounds *bounds)
+    {
+        if (bounds)
+            *bounds = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!bounds)
+                return false;
+            ThreeMM::PreviewBounds source;
+            if (!player->preview.ObjectBounds(index, source, error))
+                return false;
+            bounds->valid = source.valid;
+            std::memcpy(bounds->corners, source.corners, sizeof(bounds->corners));
+            bounds->colour = source.colour;
+            return true;
+        });
+    }
     int marcus_seek(MarcusPlayer *player, long frame)
     {
         return Guard(player, [&](ThreeMM::Error &error) {

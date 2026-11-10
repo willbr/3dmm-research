@@ -1285,6 +1285,35 @@ static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *im
     }
     return *texture && SDL_UpdateTexture(*texture, NULL, image->rgba, image->pitch);
 }
+static void draw_selection(App *app, const MarcusImage *image, const SDL_FRect *destination)
+{
+    MarcusBounds bounds;
+    MarcusCameraGuide box;
+    const MarcusGuideLine *edge;
+    int i;
+    SDL_Rect clip;
+    if (!app->loaded || app->selected < 0 || image->scene != app->info.scene || image->frame != app->info.frame ||
+        (image->authored_camera && app->playback.transition))
+        return;
+    if (!marcus_object_bounds(app->player, app->selected, &bounds))
+    {
+        fail(app, marcus_error(app->player));
+        return;
+    }
+    object_bounds_build(image, &bounds, &box);
+    clip.x = (int)destination->x;
+    clip.y = (int)destination->y;
+    clip.w = (int)destination->w;
+    clip.h = (int)destination->h;
+    SDL_SetRenderClipRect(app->renderer, &clip);
+    for (i = 0; i < box.line_count; ++i)
+    {
+        edge = &box.lines[i];
+        ui_line(&app->ui, destination->x + edge->x1 * destination->w, destination->y + edge->y1 * destination->h,
+                destination->x + edge->x2 * destination->w, destination->y + edge->y2 * destination->h, bounds.colour);
+    }
+    SDL_SetRenderClipRect(app->renderer, NULL);
+}
 static void draw_movie_view(App *app)
 {
     MarcusImage image;
@@ -1307,7 +1336,10 @@ static void draw_movie_view(App *app)
     destination = viewport_rect(app, 1);
     ui_fill(&app->ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->movie_picture)
+    {
         SDL_RenderTexture(app->renderer, app->movie_picture, NULL, &destination);
+        draw_selection(app, &app->movie_image, &destination);
+    }
     SDL_snprintf(label, sizeof(label), "CAMERA %02lu  |  FRAME %.0f", app->info.camera + 1,
                  display_frame(app, app->info.frame));
     ui_label(&app->ui, 20, app->viewport_bottom - 25, app->split_x - 36, label, MUTED);
@@ -1472,6 +1504,8 @@ static void draw_view(App *app)
         }
         SDL_SetRenderClipRect(app->renderer, NULL);
     }
+    if (app->picture)
+        draw_selection(app, &app->work_image, &destination);
     if (app->flying)
     {
         ui_line(ui, left + width / 2 - 6, destination.y + destination.h / 2, left + width / 2 + 6,

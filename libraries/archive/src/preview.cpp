@@ -438,6 +438,37 @@ std::vector<PreviewObject> Preview::Objects() const
             result.push_back(actor->Snapshot());
     return result;
 }
+bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
+{
+    bounds = {};
+    error = {};
+    if (!_impl->ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading its bounds.");
+    const auto &actor = *_impl->actors[object];
+    if (!actor.Visible() || !actor.body)
+        return true;
+    BCB box;
+    actor.body->GetBcbBounds(&box);
+    const BRS low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
+    for (int axis = 0; axis < 3; ++axis)
+        if (low[axis] > high[axis])
+            return true;
+    const auto &transform = actor.body->PbactRoot()->t.t.mat;
+    for (int corner = 0; corner < 8; ++corner)
+        for (int axis = 0; axis < 3; ++axis)
+        {
+            double position = BrScalarToFloat(transform.m[3][axis]);
+            for (int local = 0; local < 3; ++local)
+                position += BrScalarToFloat((corner & (1 << local)) ? high[local] : low[local]) *
+                            double(BrScalarToFloat(transform.m[local][axis]));
+            bounds.corners[corner * 3 + axis] = static_cast<float>(position);
+        }
+    // Palette entry 108 is kiclrNormalHilite in the original actor UI.
+    const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[108];
+    bounds.colour = (std::uint32_t(colour.bRed) << 16) | (std::uint32_t(colour.bGreen) << 8) | colour.bBlue;
+    bounds.valid = true;
+    return true;
+}
 bool Preview::Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
                    int x, int y, int &object, float &distance, Error &error)
 try

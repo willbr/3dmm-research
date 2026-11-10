@@ -181,3 +181,50 @@ void camera_guide_build(const MarcusProjection *projection, const MarcusProjecti
         }
     }
 }
+void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide)
+{
+    GuideView view;
+    double a[3], b[3], width, height, left, top;
+    int corner, axis, coordinate_index, next, i;
+    MarcusGuideLine *line;
+    memset(guide, 0, sizeof(*guide));
+    if (!image || !bounds || !bounds->valid || image->width <= 0 || image->height <= 0 ||
+        !valid_projection(&image->projection) || !make_view(&image->projection, &view))
+        return;
+    for (i = 0; i < 24; ++i)
+        if (!finite_value(bounds->corners[i]))
+            return;
+    for (corner = 0; corner < 8; ++corner)
+        for (axis = 0; axis < 3; ++axis)
+            if (!(corner & (1 << axis)))
+            {
+                next = corner | (1 << axis);
+                for (coordinate_index = 0; coordinate_index < 3; ++coordinate_index)
+                {
+                    a[coordinate_index] = bounds->corners[corner * 3 + coordinate_index];
+                    b[coordinate_index] = bounds->corners[next * 3 + coordinate_index];
+                }
+                add_line(&view, a, b, guide);
+            }
+    if (!image->authored_camera)
+        return;
+    /* The movie's projection covers its source image, which is fitted inside
+     * the output. Inspection projections already cover the whole output. */
+    width = image->width;
+    height = width / image->projection.aspect;
+    if (height > image->height)
+    {
+        height = image->height;
+        width = height * image->projection.aspect;
+    }
+    left = (image->width - width) / 2;
+    top = (image->height - height) / 2;
+    for (i = 0; i < guide->line_count; ++i)
+    {
+        line = &guide->lines[i];
+        line->x1 = (float)((left + line->x1 * width) / image->width);
+        line->y1 = (float)((top + line->y1 * height) / image->height);
+        line->x2 = (float)((left + line->x2 * width) / image->width);
+        line->y2 = (float)((top + line->y2 * height) / image->height);
+    }
+}

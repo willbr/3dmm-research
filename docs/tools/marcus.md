@@ -119,8 +119,13 @@ Drag the divider to resize either viewport. The strip's arrow collapses and
 reopens the work camera; its pose and divider position are kept.
 Only the movie view consumes viewport clicks for click-to-continue pauses.
 Otherwise, left click picks actors, props and 3D text in either viewport. The
-selected object is revealed in the scene list and Objects dope sheet. Picking
-uses the displayed camera, evaluated model faces, texture transparency and depth;
+selected object is revealed in the scene list and Objects dope sheet, with a
+3DMM-style wireframe bounding box in both views. The box follows the current pose
+and actor rotation, using the original selection palette colour; off-stage
+objects have no box. Selecting from the scene list or dope sheet shows the same
+box, and clicking empty space clears it.
+
+Picking uses the displayed camera, evaluated model faces, texture transparency and depth;
 background scenery and caption overlays block objects behind them. Backgrounds,
 camera guides and 2D captions are not selectable scene objects. Movie-view
 picking waits until a scene transition finishes. Right drag captures the mouse

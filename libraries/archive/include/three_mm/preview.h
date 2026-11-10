@@ -71,6 +71,12 @@ struct PreviewObject
     bool prop = false, text = false, visible = false, hasLifetime = false;
     float x = 0, y = 0, z = 0;
 };
+struct PreviewBounds
+{
+    bool valid = false;
+    float corners[24] = {};   // Eight world-space corners; bits 0/1/2 choose max X/Y/Z.
+    std::uint32_t colour = 0; // RGB selection colour from the movie palette.
+};
 // Read-only presentation records. Colours retain Kauai's stored abstract RGB,
 // palette-index and transparent encodings; character positions are UTF-16 units.
 struct PreviewTextProperty
@@ -146,6 +152,9 @@ class Preview
     bool Select(Id asset, Error &error, bool preserveFraming = false);
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
+    // Current posed bounds in actor-local axes, transformed with the actor.
+    // An off-stage actor succeeds with invalid bounds.
+    bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
     // Authored scene cues and actor sound events, without seeking or playing.
