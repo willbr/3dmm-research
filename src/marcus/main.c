@@ -21,7 +21,8 @@
 #define FRAME_NAV_Y 4
 #define SCENE_NAV_Y 26
 #define PLAY_X 332
-#define LOOP_X 400
+#define PLAY_Y 2
+#define LOOP_X 384
 #define NAV_STEP 32
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
@@ -1081,7 +1082,7 @@ static void mouse_down(App *app, float x, float y, int button)
             return;
         perform_action(app, MARCUS_FIRST_FRAME + action);
     }
-    else if (ui_inside(x, y, PLAY_X, app->timeline_y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, PLAY_X, app->timeline_y + PLAY_Y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
         toggle_play(app);
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         app->loop = !app->loop;
@@ -2078,11 +2079,7 @@ static void draw_timeline(App *app)
                          app->loaded && app->info.frame < app->info.last_frame, "Next frame");
     ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
-    ui_button_sized(ui, PLAY_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT,
-                    app->playing && app->playback.wait == 1 ? "Next"
-                    : app->playing                          ? "Pause"
-                                                            : "Play",
-                    app->playing, app->loaded);
+    ui_play_button(ui, PLAY_X, y + PLAY_Y, app->playing, app->playback.wait == 1, app->loaded);
     ui_button_sized(ui, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT, "Loop", app->loop, app->loaded);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         ui->hint = "Repeat the current scene from its first frame";
@@ -2101,7 +2098,7 @@ static void draw_timeline(App *app)
         SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
         ui_label(ui, 76, y + SCENE_NAV_Y + 1, 96, label, TEXT);
         if (marcus_scene(app->player, app->info.scene, &scene))
-            ui_label(ui, PLAY_X, y + SCENE_NAV_Y + 1, app->sidebar - PLAY_X - 148, scene.name, TEXT);
+            ui_label(ui, LOOP_X, y + SCENE_NAV_Y + 1, app->sidebar - LOOP_X - 148, scene.name, TEXT);
     }
     else
     {

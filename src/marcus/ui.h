@@ -28,6 +28,9 @@ int ui_inside(float px, float py, float x, float y, float w, float h);
 void ui_button(MarcusUI *ui, float x, float y, float w, const char *text, int active, int enabled);
 void ui_button_sized(MarcusUI *ui, float x, float y, float w, float h, const char *text, int active, int enabled);
 #define UI_NAVIGATION_HEIGHT 20
+#define UI_PLAY_WIDTH 40
+#define UI_PLAY_HEIGHT 44
+void ui_play_button(MarcusUI *ui, float x, float y, int playing, int waiting, int enabled);
 /* action: 0 first, 1 previous, 2 next, 3 last. */
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
 #endif

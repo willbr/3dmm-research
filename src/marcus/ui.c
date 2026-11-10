@@ -1,4 +1,5 @@
 #include "ui.h"
+#include "ui_vectors.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -209,4 +210,51 @@ void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enable
         ui_fill(ui, x + 20, y + 4, 2, 13, colour);
     if (ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, UI_NAVIGATION_HEIGHT))
         ui->hint = hint;
+}
+static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex *source, int count, float brightness,
+                        int enabled)
+{
+    SDL_Vertex vertices[MARCUS_VECTOR_MAX_VERTICES];
+    float red, green, blue, grey;
+    int i;
+    for (i = 0; i < count; ++i)
+    {
+        red = ((source[i].colour >> 16) & 255) / 255.0f;
+        green = ((source[i].colour >> 8) & 255) / 255.0f;
+        blue = (source[i].colour & 255) / 255.0f;
+        if (!enabled)
+        {
+            grey = (red + green + blue) / 3;
+            red = green = blue = grey;
+        }
+        red *= brightness;
+        green *= brightness;
+        blue *= brightness;
+        vertices[i].position.x = x + source[i].x * UI_PLAY_WIDTH / MARCUS_VECTOR_WIDTH;
+        vertices[i].position.y = y + source[i].y * UI_PLAY_HEIGHT / MARCUS_VECTOR_HEIGHT;
+        vertices[i].color.r = red > 1 ? 1 : red;
+        vertices[i].color.g = green > 1 ? 1 : green;
+        vertices[i].color.b = blue > 1 ? 1 : blue;
+        vertices[i].color.a = 1;
+        vertices[i].tex_coord.x = vertices[i].tex_coord.y = 0;
+    }
+    SDL_RenderGeometry(ui->renderer, NULL, vertices, count, NULL, 0);
+}
+void ui_play_button(MarcusUI *ui, float x, float y, int playing, int waiting, int enabled)
+{
+    int hovered, pressed;
+    float brightness, offset;
+    hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT);
+    pressed = hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
+    brightness = !enabled ? 0.65f : pressed ? 0.82f : hovered ? 1.12f : 1;
+    offset = pressed ? 1 : 0;
+    draw_vector(ui, x, y, marcus_vector_frame, MARCUS_VECTOR_FRAME_COUNT, brightness, enabled);
+    if (playing && waiting)
+        draw_vector(ui, x, y + offset, marcus_vector_continue, MARCUS_VECTOR_CONTINUE_COUNT, brightness, enabled);
+    else if (playing)
+        draw_vector(ui, x, y + offset, marcus_vector_pause, MARCUS_VECTOR_PAUSE_COUNT, brightness, enabled);
+    else
+        draw_vector(ui, x, y + offset, marcus_vector_play, MARCUS_VECTOR_PLAY_COUNT, brightness, enabled);
+    if (hovered)
+        ui->hint = playing && waiting ? "Continue the authored pause" : playing ? "Pause" : "Play";
 }

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 44" width="40" height="44">
+  <title>Marcus transport frame</title>
+  <desc>Original vector artwork paying tribute to 3D Movie Maker's inset transport button.</desc>
+  <rect x="0" y="0" width="40" height="44" fill="#20251f"/>
+  <polygon points="0,0 40,0 37,3 3,3" fill="#c4c8bd"/>
+  <polygon points="0,0 3,3 3,41 0,44" fill="#959c8e"/>
+  <polygon points="40,0 40,44 37,41 37,3" fill="#353c31"/>
+  <polygon points="0,44 3,41 37,41 40,44" fill="#252d22"/>
+  <rect x="3" y="3" width="34" height="38" fill="#737b6b"/>
+  <rect x="5" y="5" width="30" height="34" fill="#a2aa98"/>
+  <polygon points="5,5 35,5 33,7 7,7" fill="#30392b"/>
+  <polygon points="5,5 7,7 7,37 5,39" fill="#414b38"/>
+  <rect x="7" y="7" width="26" height="30" fill="#515b47"/>
+  <polygon points="7,7 33,7 33,17 7,27" fill="#58624d"/>
+</svg>

@@ -248,9 +248,21 @@ shows a message in Settings. `--settings-file path` allows an explicit profile;
 Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
 in the status bar on hover. The Frame row sits above the Scene row, with aligned
-counters and navigation buttons like retail 3DMM. Play and Loop sit beside the
-Frame controls, with the scene name beside the Scene controls. Buttons at the
-first/last boundary are disabled.
+counters and navigation buttons like retail 3DMM. A tall Play button spans both
+rows beside the navigation controls, with Loop and the scene name to its right.
+Its inset bevel and shaded green triangle pay tribute to the retail transport.
+The symbol switches to pause bars during playback and an arrow with a bar to
+continue a click wait. Hover/pressed feedback and a muted disabled state use the
+same vector artwork. Buttons at the first/last boundary are disabled.
+
+Editable transport artwork lives in `src/marcus/icons/*.svg`. Marcus draws native
+SDL triangles from the checked-in `src/marcus/ui_vectors.h`, keeping the artwork
+scalable without a runtime SVG loader or bitmap icon. After editing an SVG, run
+`python tools/compile_marcus_vectors.py`; `--check` verifies the generated data.
+The current asset compiler accepts explicit RGB fills on rectangles and convex
+polygons, and rejects unsupported SVG features such as paths, strokes and
+gradients. Extending the compiler is required before using those features.
+
 With Loop off, playback advances through scenes and stops at the movie's final
 frame. With Loop on, the current scene repeats, resetting its animation, captions
 and audio while retaining selection, timeline zoom and work-camera position.
