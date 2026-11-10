@@ -39,6 +39,8 @@ int main(int argc, char **argv)
     CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(shortcuts.work_renderer == MARCUS_RENDERER_BRENDER);
     CHECK(shortcuts.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
+    CHECK(marcus_render_resolution(MARCUS_DEFAULT_RESOLUTION)->width == 544 &&
+          marcus_render_resolution(MARCUS_DEFAULT_RESOLUTION)->height == 306);
     CHECK(!marcus_render_resolution(-1) && !marcus_render_resolution(MARCUS_RESOLUTION_COUNT));
     const auto path =
         std::filesystem::temp_directory_path() / ("marcus-renderer-" + std::to_string(SDL_GetTicksNS()) + ".cfg");
@@ -59,11 +61,14 @@ int main(int argc, char **argv)
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_SDL_GPU);
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
+    constexpr int nativeSizes[][2] = {{272, 153}, {544, 306}, {1088, 612}, {1632, 918}, {2176, 1224}};
     for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
     {
         const auto *resolution = marcus_render_resolution(index);
         CHECK(resolution && resolution->width <= ThreeMM::PreviewMaxDimension &&
-              resolution->height <= ThreeMM::PreviewMaxDimension && resolution->width * 3 == resolution->height * 4);
+              resolution->height <= ThreeMM::PreviewMaxDimension && resolution->width * 9 == resolution->height * 16);
+        if (index < 5)
+            CHECK(resolution->width == nativeSizes[index][0] && resolution->height == nativeSizes[index][1]);
         shortcuts.render_resolution = index;
         shortcuts.work_render_resolution = MARCUS_RESOLUTION_COUNT - 1 - index;
         CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
@@ -86,7 +91,8 @@ int main(int argc, char **argv)
         shortcuts_defaults(&loaded);
         CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
         CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER_COMPUTE && loaded.work_renderer == loaded.renderer);
-        CHECK(loaded.render_resolution == 5 && loaded.work_render_resolution == loaded.render_resolution);
+        CHECK(!std::strcmp(marcus_render_resolution(loaded.render_resolution)->name, "1920x1080") &&
+              loaded.work_render_resolution == loaded.render_resolution);
     }
     const char independent[] = "marcus-shortcuts 1\nwork_renderer sdl-gpu\nwork_render_resolution 320x240\n"
                                "renderer brender-compute\nrender_resolution 1920x1440\n";
@@ -94,7 +100,25 @@ int main(int argc, char **argv)
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER_COMPUTE && loaded.work_renderer == MARCUS_RENDERER_SDL_GPU);
-    CHECK(loaded.render_resolution == 5 && loaded.work_render_resolution == 0);
+    CHECK(!std::strcmp(marcus_render_resolution(loaded.render_resolution)->name, "1920x1080") &&
+          !std::strcmp(marcus_render_resolution(loaded.work_render_resolution)->name, "320x180"));
+    const char *legacyResolutions[] = {"320x240", "640x480", "960x720", "1024x768", "1600x1200",
+                                       "1920x1440", "2560x1920", "2880x2160", "3840x2880", "4096x3072"};
+    for (int index = 0; index < 10; ++index)
+    {
+        char legacy[256];
+        SDL_snprintf(legacy, sizeof(legacy), "marcus-shortcuts 1\nrender_resolution %s\nwork_render_resolution %s\n",
+                     legacyResolutions[index], legacyResolutions[9 - index]);
+        CHECK(SDL_SaveFile(path.u8string().c_str(), legacy, std::strlen(legacy)));
+        shortcuts_defaults(&loaded);
+        CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+        CHECK(loaded.render_resolution == index + 5 && loaded.work_render_resolution == 14 - index);
+        CHECK(shortcuts_save(path.u8string().c_str(), &loaded, message, sizeof(message)));
+        auto saved = static_cast<char *>(SDL_LoadFile(path.u8string().c_str(), nullptr));
+        CHECK(saved && std::strstr(saved, marcus_render_resolution(loaded.render_resolution)->name) &&
+              std::strstr(saved, marcus_render_resolution(loaded.work_render_resolution)->name));
+        SDL_free(saved);
+    }
     const char oldSettings[] = "marcus-shortcuts 1\npause_on_focus_loss 1\n";
     CHECK(SDL_SaveFile(path.u8string().c_str(), oldSettings, sizeof(oldSettings) - 1));
     shortcuts_defaults(&loaded);
@@ -104,12 +128,12 @@ int main(int argc, char **argv)
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     for (const char *invalid :
          {"marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n",
-          "marcus-shortcuts 1\nrender_resolution 1920x1080\n",
+          "marcus-shortcuts 1\nrender_resolution 1920x1081\n",
           "marcus-shortcuts 1\nrender_resolution 320x240\nrender_resolution 640x480\n",
           "marcus-shortcuts 1\nrender_resolution 640x480 extra\n",
           "marcus-shortcuts 1\nwork_renderer unknown\n",
           "marcus-shortcuts 1\nwork_renderer sdl-gpu\nwork_renderer brender\n",
-          "marcus-shortcuts 1\nwork_render_resolution 1920x1080\n",
+          "marcus-shortcuts 1\nwork_render_resolution 1920x1081\n",
           "marcus-shortcuts 1\nwork_render_resolution 320x240\nwork_render_resolution 640x480\n",
           "marcus-shortcuts 1\nwork_render_resolution 640x480 extra\n"})
     {

@@ -26,7 +26,8 @@
 #define NAV_STEP 32
 #define MOVIE_CONTROLS_HEIGHT 140
 #define MOVIE_IDLE_MS 2500
-#define RESOLUTION_GRID_HEIGHT (((MARCUS_RESOLUTION_COUNT + 3) / 4) * 40)
+#define RESOLUTION_COLUMNS 3
+#define RESOLUTION_GRID_HEIGHT (((MARCUS_RESOLUTION_COUNT + RESOLUTION_COLUMNS - 1) / RESOLUTION_COLUMNS) * 40)
 #define RENDER_SETTINGS_HEIGHT (274 + RESOLUTION_GRID_HEIGHT)
 #define SETTINGS_HEIGHT 728
 #define VIEW_STRIP_WIDTH 20
@@ -251,25 +252,22 @@ static float view_right(const App *app)
 {
     return app->sidebar - VIEW_STRIP_WIDTH;
 }
-static float viewport_scale(const App *app)
-{
-    float left;
-    left = app->second_view ? app->split_x + 4 : 0;
-    return (float)minimum((view_right(app) - left - 32) / 960, (app->viewport_bottom - 172) / 720);
-}
 static float work_left(const App *app)
 {
     return app->second_view ? app->split_x + 4 : 0;
 }
 static SDL_FRect viewport_rect(const App *app, int movie)
 {
+    const MarcusRenderResolution *resolution;
     SDL_FRect rect;
     float left, right, scale, height;
+    resolution = marcus_render_resolution(movie || app->movie_only || (!app->second_view && app->authored == 1) ?
+                                         app->shortcuts.render_resolution : app->shortcuts.work_render_resolution);
     if (app->movie_only)
     {
-        scale = (float)minimum((double)app->width / 960, (double)app->height / 720);
-        rect.w = 960 * scale;
-        rect.h = 720 * scale;
+        scale = (float)minimum((double)app->width / resolution->width, (double)app->height / resolution->height);
+        rect.w = resolution->width * scale;
+        rect.h = resolution->height * scale;
         rect.x = (app->width - rect.w) / 2;
         rect.y = (app->height - rect.h) / 2;
         return rect;
@@ -277,9 +275,9 @@ static SDL_FRect viewport_rect(const App *app, int movie)
     left = movie ? 0 : work_left(app);
     right = movie ? app->split_x : view_right(app);
     height = app->viewport_bottom - 172;
-    scale = (float)minimum((right - left - 32) / 960, height / 720);
-    rect.w = 960 * scale;
-    rect.h = 720 * scale;
+    scale = (float)minimum((right - left - 32) / resolution->width, height / resolution->height);
+    rect.w = resolution->width * scale;
+    rect.h = resolution->height * scale;
     rect.x = left + (right - left - rect.w) / 2;
     rect.y = 136 + (height - rect.h) / 2;
     return rect;
@@ -1101,7 +1099,8 @@ static void settings_click(App *app, float x, float y)
                     break;
                 }
             for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
-                if (ui_inside(x, y, left + 24 + (resolution % 4) * 110, top + 160 + (resolution / 4) * 40, 102, 32))
+                if (ui_inside(x, y, left + 24 + (resolution % RESOLUTION_COLUMNS) * 146,
+                              top + 160 + (resolution / RESOLUTION_COLUMNS) * 40, 138, 32))
                 {
                     *edited_resolution = resolution;
                     app->settings_message[0] = 0;
@@ -1623,6 +1622,7 @@ static void update_flight(App *app, double seconds)
 static void handle_event(App *app, const SDL_Event *event)
 {
     DialogRequest *request;
+    SDL_FRect viewport;
     int rows, maximum_scroll, *scroll;
     float x, y, delta;
     SDL_Keymod modifiers;
@@ -1742,8 +1742,9 @@ static void handle_event(App *app, const SDL_Event *event)
         {
             if (event->motion.xrel != 0 || event->motion.yrel != 0)
                 app->work_matched = 0;
-            if (!marcus_pan_orbit(app->player, -event->motion.xrel / (960 * viewport_scale(app)),
-                                  event->motion.yrel / (720 * viewport_scale(app)), app->yaw, app->pitch, app->zoom))
+            viewport = viewport_rect(app, 0);
+            if (!marcus_pan_orbit(app->player, -event->motion.xrel / viewport.w,
+                                  event->motion.yrel / viewport.h, app->yaw, app->pitch, app->zoom))
                 fail(app, marcus_error(app->player));
             app->dirty = 1;
         }
@@ -2852,10 +2853,11 @@ static void draw_rendering_settings(App *app)
     for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
         ui_button_sized(&app->ui, x + 24 + renderer * 144, y + 86, 136, 32, names[renderer],
                         edited_renderer == renderer, 1);
-    ui_text(&app->ui, x + 24, y + 134, "RENDER RESOLUTION", ACCENT);
+    ui_text(&app->ui, x + 24, y + 134, "RENDER RESOLUTION (1x = 3DMM)", ACCENT);
     for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
-        ui_button_sized(&app->ui, x + 24 + (resolution % 4) * 110, y + 160 + (resolution / 4) * 40, 102, 32,
-                        marcus_render_resolution(resolution)->name,
+        ui_button_sized(&app->ui, x + 24 + (resolution % RESOLUTION_COLUMNS) * 146,
+                        y + 160 + (resolution / RESOLUTION_COLUMNS) * 40, 138, 32,
+                        marcus_render_resolution(resolution)->label,
                         edited_resolution == resolution, 1);
     ui_text(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 106,
             app->settings_work_camera ? "Applies to the work camera." : "Applies to the movie camera and expanded player.", MUTED);
@@ -2901,12 +2903,12 @@ static void draw_settings(App *app)
     ui_button(&app->ui, x + 430, y + 508, 204, marcus_renderer_name(app->edited_shortcuts.renderer), 0, 1);
     ui_text(&app->ui, x + 28, y + 549, "Movie camera resolution", TEXT);
     ui_button(&app->ui, x + 430, y + 544, 204,
-              marcus_render_resolution(app->edited_shortcuts.render_resolution)->name, 0, 1);
+              marcus_render_resolution(app->edited_shortcuts.render_resolution)->label, 0, 1);
     ui_text(&app->ui, x + 28, y + 585, "Work camera renderer", TEXT);
     ui_button(&app->ui, x + 430, y + 580, 204, marcus_renderer_name(app->edited_shortcuts.work_renderer), 0, 1);
     ui_text(&app->ui, x + 28, y + 621, "Work camera resolution", TEXT);
     ui_button(&app->ui, x + 430, y + 616, 204,
-              marcus_render_resolution(app->edited_shortcuts.work_render_resolution)->name, 0, 1);
+              marcus_render_resolution(app->edited_shortcuts.work_render_resolution)->label, 0, 1);
     ui_label(&app->ui, x + 24, y + 646, 610, app->settings_message, 0xf2ae9b);
     ui_button(&app->ui, x + 24, y + 668, 148, "Restore defaults", 0, 1);
     ui_button(&app->ui, x + 438, y + 668, 88, "Cancel", 0, 1);

@@ -41,12 +41,15 @@ typedef struct MarcusShortcuts
     int work_render_resolution;
 } MarcusShortcuts;
 
-#define MARCUS_RESOLUTION_COUNT 10
-#define MARCUS_DEFAULT_RESOLUTION 2
+#define MARCUS_NATIVE_WIDTH 544
+#define MARCUS_NATIVE_HEIGHT 306
+#define MARCUS_RESOLUTION_COUNT 15
+#define MARCUS_DEFAULT_RESOLUTION 1
 typedef struct MarcusRenderResolution
 {
     int width, height;
     const char *name;
+    const char *label;
 } MarcusRenderResolution;
 const MarcusRenderResolution *marcus_render_resolution(int index);
 

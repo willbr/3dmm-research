@@ -164,12 +164,17 @@ work cameras save independent renderer and resolution choices. The top-right
 **cog** in the movie-only view edits the movie camera's settings without leaving
 the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and select
 a **render resolution**, then click **Apply** to save that camera's choices.
-Resolutions are **320x240**, **640x480**, **960x720** (default), **1024x768**,
-**1600x1200**, **1920x1440**, **2560x1920**, **2880x2160**, **3840x2880**, and
-**4096x3072**. The bundled BRender build supports up to **4096x4096** output;
-Marcus's presets preserve 4:3 proportions within that limit.
-They control geometry rasterization for the selected camera while
-keeping the movie's 4:3 proportions. In the movie camera, actors render at the
+The native 3DMM movie canvas is **544x306**. Its scale presets are **1/2x
+(272x153)**, **1x / 3DMM (544x306, default)**, **2x (1088x612)**, **3x
+(1632x918)**, and **4x (2176x1224)**. All presets use the movie's **16:9** ratio.
+Other available sizes are **320x180**, **640x360**, **960x540**, **1024x576**,
+**1600x900**, **1920x1080**, **2560x1440**, **2880x1620**, **3840x2160**, and
+**4096x2304**. Saved 4:3 presets migrate to the same width at 16:9, independently
+for each camera. The bundled BRender build supports up to
+**4096x4096** output.
+These choices control geometry rasterization for the selected camera. Each
+viewport, including the expanded player, preserves its selected resolution's
+aspect ratio. In the movie camera, actors render at the
 selected size inside the authored shot's letterbox; the original background
 image and depth map scale together to preserve framing and occlusion. Background
 bitmap detail remains limited by the original artwork. Applying a new size
