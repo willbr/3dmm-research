@@ -322,7 +322,8 @@ Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
 in the status bar on hover. The Frame row sits above the Scene row, with aligned
 counters and navigation buttons like retail 3DMM. A tall Play button spans both
-rows beside the navigation controls, with Loop and the scene name to its right.
+rows beside the navigation controls, with Mute beneath Loop and the movie time
+and scene name to their right.
 Its layered grey bevels and shaded green triangle pay tribute to the retail transport.
 The symbol switches to a red square during playback and an arrow with a bar to
 continue a click wait. Hover/pressed feedback and a muted disabled state use the

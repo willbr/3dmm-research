@@ -1367,7 +1367,7 @@ static void mouse_down(App *app, float x, float y, int button)
         choose_file(app, 2);
     else if (ui_inside(x, y, 360, 52, 96, 28))
         open_settings(app);
-    else if (ui_inside(x, y, 464, 52, 72, 28))
+    else if (ui_inside(x, y, LOOP_X, app->timeline_y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
     {
         app->muted = !app->muted;
         marcus_set_muted(app->player, app->muted);
@@ -1891,8 +1891,7 @@ static void draw_header(App *app)
     ui_button(ui, 136, 52, 104, "Resources...", 0, 1);
     ui_button(ui, 248, 52, 104, "Content...", 0, 1);
     ui_button(ui, 360, 52, 96, "Settings", app->settings_open, 1);
-    ui_button(ui, 464, 52, 72, app->muted ? "Unmute" : "Mute", app->muted, 1);
-    ui_label(ui, 552, 58, app->sidebar - 568, "Drop a movie or ZIP here", MUTED);
+    ui_label(ui, 472, 58, app->sidebar - 488, "Drop a movie or ZIP here", MUTED);
     ui_line(ui, 0, 88, (float)app->width, 88, LINE);
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
@@ -2579,6 +2578,8 @@ static void draw_timeline(App *app)
     ui_button_sized(ui, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT, "Loop", app->loop, app->loaded);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         ui->hint = "Repeat the current scene from its first frame";
+    ui_button_sized(ui, LOOP_X, y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT,
+                    app->muted ? "Unmute" : "Mute", app->muted, 1);
     movie_available = app->movie_time_available && marcus_movie_time(app->player, &app->movie_time);
     if (movie_available)
     {
@@ -2610,7 +2611,7 @@ static void draw_timeline(App *app)
         SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
         ui_label(ui, 76, y + SCENE_NAV_Y + 1, 96, label, TEXT);
         if (marcus_scene(app->player, app->info.scene, &scene))
-            ui_label(ui, LOOP_X, y + SCENE_NAV_Y + 1, 184, scene.name, TEXT);
+            ui_label(ui, LOOP_X + 72, y + SCENE_NAV_Y + 1, 112, scene.name, TEXT);
     }
     else
     {
