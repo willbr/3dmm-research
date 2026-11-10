@@ -30,7 +30,8 @@
 #define RESOLUTION_GRID_HEIGHT (((MARCUS_RESOLUTION_COUNT + RESOLUTION_COLUMNS - 1) / RESOLUTION_COLUMNS) * 40)
 #define RENDER_SETTINGS_WIDTH 760
 #define RENDER_SETTINGS_HEIGHT 620
-#define SETTINGS_HEIGHT 728
+#define SETTINGS_HEIGHT 764
+#define DEBUG_HISTORY 180
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
 #define MOVIE_SCRUBBER_HEIGHT 32
@@ -85,6 +86,8 @@ typedef struct App
     MarcusProjection projection, scene_camera;
     MarcusCameraGuide camera_guide;
     MarcusShortcuts shortcuts, edited_shortcuts;
+    double frame_ms[DEBUG_HISTORY];
+    int frame_next, frame_count;
     char settings_path[1024], settings_message[256];
     int settings_open, rendering_settings, settings_work_camera, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
@@ -1226,15 +1229,21 @@ static void settings_click(App *app, float x, float y)
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 24, top + 668, 148, 28))
+    else if (ui_inside(x, y, left + 24, top + 652, 610, 28))
+    {
+        app->edited_shortcuts.debug_overlay = !app->edited_shortcuts.debug_overlay;
+        app->binding_capture = -1;
+        app->settings_message[0] = 0;
+    }
+    else if (ui_inside(x, y, left + 24, top + 704, 148, 28))
     {
         shortcuts_defaults(&app->edited_shortcuts);
         app->binding_capture = -1;
         SDL_strlcpy(app->settings_message, "Defaults restored. Apply to save them.", sizeof(app->settings_message));
     }
-    else if (ui_inside(x, y, left + 438, top + 668, 88, 28))
+    else if (ui_inside(x, y, left + 438, top + 704, 88, 28))
         cancel_settings(app);
-    else if (ui_inside(x, y, left + 538, top + 668, 96, 28))
+    else if (ui_inside(x, y, left + 538, top + 704, 96, 28))
         apply_settings(app);
 }
 static void settings_key(App *app, SDL_Keycode key, SDL_Keymod modifiers)
@@ -3011,10 +3020,13 @@ static void draw_settings(App *app)
     ui_text(&app->ui, x + 28, y + 621, "Work camera resolution", TEXT);
     ui_button(&app->ui, x + 430, y + 616, 204,
               marcus_render_resolution(app->edited_shortcuts.work_render_resolution)->label, 0, 1);
-    ui_label(&app->ui, x + 24, y + 646, 610, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + 24, y + 668, 148, "Restore defaults", 0, 1);
-    ui_button(&app->ui, x + 438, y + 668, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 538, y + 668, 96, "Apply", 1, 1);
+    ui_text(&app->ui, x + 28, y + 657, "Debug overlay (FPS / frame time graphs)", TEXT);
+    ui_button(&app->ui, x + 430, y + 652, 204, app->edited_shortcuts.debug_overlay ? "On" : "Off",
+              app->edited_shortcuts.debug_overlay, 1);
+    ui_label(&app->ui, x + 24, y + 682, 610, app->settings_message, 0xf2ae9b);
+    ui_button(&app->ui, x + 24, y + 704, 148, "Restore defaults", 0, 1);
+    ui_button(&app->ui, x + 438, y + 704, 88, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 538, y + 704, 96, "Apply", 1, 1);
 }
 static void draw_zip(App *app)
 {
@@ -3110,6 +3122,93 @@ static void draw_movie_controls(App *app)
     ui_button_sized(ui, rect.x + rect.w - 108, rect.y + 86, 84, 28, "Editor", 0, 1);
     ui_opacity(ui, 1);
 }
+static void record_frame(App *app, double milliseconds)
+{
+    if (!app->shortcuts.debug_overlay)
+    {
+        app->frame_next = app->frame_count = 0;
+        return;
+    }
+    if (milliseconds <= 0)
+        return;
+    app->frame_ms[app->frame_next] = milliseconds;
+    app->frame_next = (app->frame_next + 1) % DEBUG_HISTORY;
+    if (app->frame_count < DEBUG_HISTORY)
+        ++app->frame_count;
+}
+static void draw_debug_graph(App *app, float x, float y, int fps)
+{
+    double value, limit;
+    float px, py, previous_x, previous_y;
+    int i, index;
+    char label[48];
+    unsigned long colour;
+    limit = fps ? 60 : 20;
+    colour = fps ? ACCENT : 0xe6ba78UL;
+    for (i = 0; i < app->frame_count; ++i)
+    {
+        index = (app->frame_next - app->frame_count + i + DEBUG_HISTORY) % DEBUG_HISTORY;
+        value = fps ? 1000.0 / app->frame_ms[index] : app->frame_ms[index];
+        limit = maximum(limit, value);
+    }
+    limit = ceil(limit / (fps ? 30 : 10)) * (fps ? 30 : 10);
+    SDL_snprintf(label, sizeof(label), "0 - %.0f%s", limit, fps ? " FPS" : " ms");
+    ui_label(&app->ui, x + 178, y - 23, 94, label, MUTED);
+    ui_fill(&app->ui, x, y, 272, 44, BG);
+    for (i = 0; i < 3; ++i)
+        ui_line(&app->ui, x, y + i * 21.5f, x + 271, y + i * 21.5f, LINE);
+    previous_x = previous_y = 0;
+    for (i = 0; i < app->frame_count; ++i)
+    {
+        index = (app->frame_next - app->frame_count + i + DEBUG_HISTORY) % DEBUG_HISTORY;
+        value = fps ? 1000.0 / app->frame_ms[index] : app->frame_ms[index];
+        px = x + (DEBUG_HISTORY - app->frame_count + i) * 271.0f / (DEBUG_HISTORY - 1);
+        py = y + 43 - (float)(value / limit * 43);
+        if (i)
+            ui_line(&app->ui, previous_x, previous_y, px, py, colour);
+        else
+            ui_fill(&app->ui, px, py, 1, 1, colour);
+        previous_x = px;
+        previous_y = py;
+    }
+}
+static void draw_debug_overlay(App *app)
+{
+    float x, y;
+    double total, average;
+    int count, index;
+    char label[96];
+    if (!app->shortcuts.debug_overlay)
+        return;
+    x = 24;
+    y = app->movie_only ? 24.0f : 132.0f;
+    total = 0;
+    count = 0;
+    /* Average the latest second; graph points retain individual frame spikes. */
+    while (count < app->frame_count && total < 1000)
+    {
+        index = (app->frame_next - 1 - count + DEBUG_HISTORY) % DEBUG_HISTORY;
+        total += app->frame_ms[index];
+        ++count;
+    }
+    average = count ? total / count : 0;
+    ui_fill(&app->ui, x - 1, y - 1, 306, 222, LINE);
+    ui_fill(&app->ui, x, y, 304, 220, PANEL);
+    ui_text(&app->ui, x + 16, y + 12, "DISPLAY PERFORMANCE", MUTED);
+    if (count)
+        SDL_snprintf(label, sizeof(label), "FPS  %.1f", 1000.0 / average);
+    else
+        SDL_strlcpy(label, "FPS  --", sizeof(label));
+    ui_text(&app->ui, x + 16, y + 38, label, ACCENT);
+    draw_debug_graph(app, x + 16, y + 62, 1);
+    if (count)
+        SDL_snprintf(label, sizeof(label), "Frame time  %.2f ms", average);
+    else
+        SDL_strlcpy(label, "Frame time  -- ms", sizeof(label));
+    ui_text(&app->ui, x + 16, y + 116, label, 0xe6ba78);
+    draw_debug_graph(app, x + 16, y + 140, 0);
+    ui_text(&app->ui, x + 16, y + 194, "180 frames / includes display wait", MUTED);
+}
 static void draw(App *app)
 {
     char previous[64], next[64], previous_scene[64], next_scene[64], play[64], view[64], hint[512];
@@ -3118,6 +3217,7 @@ static void draw(App *app)
         ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
         draw_movie_view(app);
         draw_movie_controls(app);
+        draw_debug_overlay(app);
         if (app->settings_open)
             draw_settings(app);
         if (app->error[0])
@@ -3154,6 +3254,7 @@ static void draw(App *app)
             : app->playback.wait == 2 ? "WAITING FOR SOUND"
             : app->playback.wait == 3 ? "TIMED PAUSE"
             : "READ ONLY", ACCENT);
+    draw_debug_overlay(app);
     if (app->settings_open)
         draw_settings(app);
     if (app->zip_input)
@@ -3247,6 +3348,7 @@ int main(int argc, char **argv)
     int requested_renderer;
     long requested_frame, parsed;
     double now, previous_tick;
+    Uint64 frame_tick, completed_tick;
     memset(&app, 0, sizeof(app));
     input = font = capture = NULL;
     result = have_frame = show_settings = 0;
@@ -3440,6 +3542,7 @@ int main(int argc, char **argv)
         open_settings(&app);
     frames = 0;
     previous_tick = (double)SDL_GetTicks();
+    frame_tick = SDL_GetTicksNS();
     while (app.running)
     {
         layout(&app);
@@ -3496,6 +3599,9 @@ int main(int argc, char **argv)
         SDL_RenderPresent(app.renderer);
         ++frames;
         SDL_Delay(10);
+        completed_tick = SDL_GetTicksNS();
+        record_frame(&app, (double)(completed_tick - frame_tick) / 1000000.0);
+        frame_tick = completed_tick;
     }
 cleanup:
     if (app.cursor_hidden)

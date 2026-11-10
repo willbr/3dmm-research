@@ -147,7 +147,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     char *data, *line, *cursor, id[64], extra;
     unsigned long key;
     unsigned int modifiers, seen;
-    int i, j, valid, pause_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work, view_seen;
+    int i, j, valid, pause_seen, debug_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work, view_seen;
     MarcusRenderOptions *view;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
@@ -166,6 +166,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     loaded = *shortcuts;
     seen = 0;
     pause_seen = 0;
+    debug_seen = 0;
     renderer_seen = 0;
     resolution_seen = 0;
     work_renderer_seen = 0;
@@ -238,6 +239,17 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
                 loaded.renderer = i;
                 renderer_seen = 1;
             }
+            continue;
+        }
+        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "debug_overlay"))
+        {
+            if (debug_seen || SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > 1)
+            {
+                valid = 0;
+                break;
+            }
+            loaded.debug_overlay = (int)key;
+            debug_seen = 1;
             continue;
         }
         if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "pause_on_focus_loss"))
@@ -316,9 +328,10 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         SDL_strlcpy(message, "The settings location is unavailable.", capacity);
         return 0;
     }
-    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\nrenderer %s\nrender_resolution %s\n"
+    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\ndebug_overlay %d\nrenderer %s\nrender_resolution %s\n"
                  "work_renderer %s\nwork_render_resolution %s\n",
-                 shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer), resolution->name,
+                 shortcuts->pause_on_focus_loss != 0, shortcuts->debug_overlay != 0,
+                 marcus_renderer_id(shortcuts->renderer), resolution->name,
                  marcus_renderer_id(shortcuts->work_renderer), work_resolution->name);
     length = strlen(data);
     for (i = 0; i < 2; ++i)

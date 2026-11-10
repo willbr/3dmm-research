@@ -302,6 +302,14 @@ action's name. Escape, Alt+Enter and Ctrl/Command+comma are reserved for the UI.
 window keeps the movie playing. Turn it on to pause when Marcus loses focus.
 Focus loss always releases flight controls and stops mouse drags.
 
+**Debug overlay (FPS / frame time graphs)** defaults to **Off**. Enable it and
+Apply to show display FPS and frame time in milliseconds, with a separate live
+graph for each, in both editor and expanded movie views. The values average the
+latest second and the graphs retain the last 180 individual frames, with an
+automatic scale shown above each graph. Timing includes rendering, presentation
+and frame pacing; it measures Marcus's display loop, not the movie's authored
+frame rate. The toggle is saved with the other settings.
+
 **Apply** activates and saves the edited settings; **Cancel** discards edits.
 **Restore defaults** resets all settings, which still needs Apply to save.
 Each first/previous/next/last action can be bound separately. Reset View defaults

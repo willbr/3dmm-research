@@ -37,6 +37,7 @@ int main(int argc, char **argv)
 
     MarcusShortcuts shortcuts = {}, loaded = {};
     shortcuts_defaults(&shortcuts);
+    CHECK(!shortcuts.debug_overlay);
     CHECK(shortcuts.renderer == MARCUS_RENDERER_BRENDER);
     CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(shortcuts.work_renderer == MARCUS_RENDERER_BRENDER);
@@ -62,15 +63,19 @@ int main(int argc, char **argv)
     char message[256] = {};
     shortcuts.renderer = MARCUS_RENDERER_SDL_GPU;
     shortcuts.work_renderer = MARCUS_RENDERER_BRENDER_COMPUTE;
+    shortcuts.debug_overlay = 1;
     CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_SDL_GPU);
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
+    CHECK(loaded.debug_overlay);
+    shortcuts.debug_overlay = 0;
     shortcuts.movie_view = {MARCUS_DISPLAY_FLAT, 1, 1, 1, 0, 0};
     shortcuts.work_view = {MARCUS_DISPLAY_NORMALS, 0, 2, 1, 1, 3};
     CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+    CHECK(!loaded.debug_overlay);
     CHECK(!std::memcmp(&loaded.movie_view, &shortcuts.movie_view, sizeof(MarcusRenderOptions)));
     CHECK(!std::memcmp(&loaded.work_view, &shortcuts.work_view, sizeof(MarcusRenderOptions)));
     constexpr int nativeSizes[][2] = {{272, 153}, {544, 306}, {1088, 612}, {1632, 918}, {2176, 1224}};
@@ -139,10 +144,15 @@ int main(int argc, char **argv)
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
+    CHECK(!loaded.debug_overlay);
     CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     for (const char *invalid :
          {"marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n",
+          "marcus-shortcuts 1\ndebug_overlay 2\n", "marcus-shortcuts 1\ndebug_overlay -1\n",
+          "marcus-shortcuts 1\ndebug_overlay 1 extra\n", "marcus-shortcuts 1\ndebug_overlay\n",
+          "marcus-shortcuts 1\ndebug_overlay 1\ndebug_overlay 0\n",
+          "marcus-shortcuts 1\ndebug_overlay 1\nrenderer unknown\n",
           "marcus-shortcuts 1\nrender_resolution 1920x1081\n",
           "marcus-shortcuts 1\nrender_resolution 320x240\nrender_resolution 640x480\n",
           "marcus-shortcuts 1\nrender_resolution 640x480 extra\n",
@@ -160,6 +170,7 @@ int main(int argc, char **argv)
         CHECK(SDL_SaveFile(path.u8string().c_str(), invalid, std::strlen(invalid)));
         CHECK(!shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
         CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
+        CHECK(!loaded.debug_overlay);
         CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
         CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     }
