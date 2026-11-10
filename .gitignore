@@ -16,6 +16,10 @@ build-x64/
 # Local test outputs and scratch files belong here.
 /tmp/
 
+# BRender reference images are generated locally; keep only their manifest.
+/tests/golden/*.pgm
+/tests/golden/*.ppm
+
 # Local Claude scratch files
 _claude_*
 .claude/
