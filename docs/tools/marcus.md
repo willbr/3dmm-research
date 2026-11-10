@@ -251,7 +251,7 @@ in the status bar on hover. The Frame row sits above the Scene row, with aligned
 counters and navigation buttons like retail 3DMM. A tall Play button spans both
 rows beside the navigation controls, with Loop and the scene name to its right.
 Its inset bevel and shaded green triangle pay tribute to the retail transport.
-The symbol switches to pause bars during playback and an arrow with a bar to
+The symbol switches to a red rectangle during playback and an arrow with a bar to
 continue a click wait. Hover/pressed feedback and a muted disabled state use the
 same vector artwork. Buttons at the first/last boundary are disabled.
 
