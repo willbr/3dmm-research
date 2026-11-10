@@ -85,6 +85,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Control | Behaviour |
 |---|---|
 | Space / Play | Play or pause at the original six frames per second |
+| Alt+Enter | Toggle fullscreen for the window |
+| Shift+click Play | Start or continue playback with only the movie filling the window |
 | D / F | Previous / next frame |
 | Shift+D / Shift+F | First / last frame |
 | S / G | Previous / next scene |
@@ -118,12 +120,20 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Shift while flying | Four times normal movement speed |
 | Wheel in Fly | Adjust flight speed |
 | Release right mouse | Release mouse capture and stop flying |
-| Escape | Clear object/sound selection and release camera capture; otherwise pause playback |
+| Escape | Return from movie-only or fullscreen mode to the windowed editor; otherwise clear selection/camera capture, or pause playback |
 | Reset / R | Match the current movie camera; R also fits the timeline |
 | Loop | Repeat the current scene from its first frame |
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
 | Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
 | Settings / Ctrl+, | Open playback and keyboard shortcut settings |
+
+**Alt+Enter** toggles fullscreen independently of the editor layout.
+**Shift+click Play** starts or continues playback in a movie-only view, hiding
+the editor panels and showing the authored movie camera at its original aspect
+ratio with black bars as needed. It works in either a normal or fullscreen
+window. Playback shortcuts and click-to-continue pauses still work. **Escape**
+restores the windowed editor while keeping the current playback position and
+play/pause state. The work camera and editor layout are preserved.
 
 The **arrow strip** beside the properties panel opens an authored movie camera on the left and an independent
 work camera on the right, both showing the same movie frame during playback.
@@ -199,7 +209,7 @@ reading them does not seek, render prior scenes, or start audio playback.
 Click a binding in Settings and press a key combination to replace it. Shift,
 Ctrl, Alt and Command modifiers are supported. Escape cancels capture; Backspace
 clears a binding. Duplicate combinations are rejected with the conflicting
-action's name. Escape and Ctrl/Command+comma are reserved for the UI.
+action's name. Escape, Alt+Enter and Ctrl/Command+comma are reserved for the UI.
 
 **Pause playback on focus loss** defaults to **Off**, so switching to another
 window keeps the movie playing. Turn it on to pause when Marcus loses focus.

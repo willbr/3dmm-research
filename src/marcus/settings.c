@@ -57,7 +57,8 @@ int shortcuts_is_modifier(SDL_Keycode key)
 }
 int shortcuts_reserved(SDL_Keycode key, unsigned int modifiers)
 {
-    return key == SDLK_ESCAPE || (key == SDLK_COMMA && (modifiers & (MARCUS_MOD_CTRL | MARCUS_MOD_GUI)));
+    return key == SDLK_ESCAPE || (key == SDLK_COMMA && (modifiers & (MARCUS_MOD_CTRL | MARCUS_MOD_GUI))) ||
+           ((key == SDLK_RETURN || key == SDLK_KP_ENTER) && modifiers == MARCUS_MOD_ALT);
 }
 void shortcuts_label(const MarcusShortcut *shortcut, char *text, size_t capacity)
 {

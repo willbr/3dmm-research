@@ -90,6 +90,7 @@ typedef struct App
     int sheet_mode, sound_scroll, selected_sound, selected_sound_track;
     int both_scroll, sound_inspector, sheet_menu, sheet_menu_choice;
     int second_view, second_mode, resizing_view, movie_dirty;
+    int movie_only, fullscreen;
     int resizing_timeline;
     float timeline_height, timeline_drag_offset;
     float split_fraction, split_x;
@@ -255,6 +256,15 @@ static SDL_FRect viewport_rect(const App *app, int movie)
 {
     SDL_FRect rect;
     float left, right, scale, height;
+    if (app->movie_only)
+    {
+        scale = (float)minimum((double)app->width / 960, (double)app->height / 720);
+        rect.w = 960 * scale;
+        rect.h = 720 * scale;
+        rect.x = (app->width - rect.w) / 2;
+        rect.y = (app->height - rect.h) / 2;
+        return rect;
+    }
     left = movie ? 0 : work_left(app);
     right = movie ? app->split_x : view_right(app);
     height = app->viewport_bottom - 172;
@@ -268,11 +278,15 @@ static SDL_FRect viewport_rect(const App *app, int movie)
 static int inside_work(const App *app, float x, float y)
 {
     float left;
+    if (app->movie_only)
+        return 0;
     left = work_left(app);
     return ui_inside(x, y, left + 12, 132, view_right(app) - left - 24, app->viewport_bottom - 144);
 }
 static int inside_movie(const App *app, float x, float y)
 {
+    if (app->movie_only)
+        return ui_inside(x, y, 0, 0, (float)app->width, (float)app->height);
     return app->second_view ? ui_inside(x, y, 12, 132, app->split_x - 24, app->viewport_bottom - 144)
                             : app->authored == 1 && inside_work(app, x, y);
 }
@@ -306,6 +320,26 @@ static void fail(App *app, const char *message)
     app->resizing_view = 0;
     app->resizing_timeline = 0;
     release_camera(app);
+}
+static int set_fullscreen(App *app, int fullscreen)
+{
+    release_camera(app);
+    if (!SDL_SetWindowFullscreen(app->window, fullscreen))
+    {
+        fail(app, SDL_GetError());
+        return 0;
+    }
+    app->fullscreen = fullscreen;
+    app->movie_dirty = app->dirty = 1;
+    return 1;
+}
+static void editor_view(App *app)
+{
+    if (app->fullscreen && !set_fullscreen(app, 0))
+        return;
+    app->movie_only = 0;
+    release_camera(app);
+    app->movie_dirty = app->dirty = 1;
 }
 static void refresh(App *app)
 {
@@ -955,6 +989,12 @@ static void mouse_down(App *app, float x, float y, int button)
             settings_click(app, x, y);
         return;
     }
+    if (app->movie_only)
+    {
+        if (button == SDL_BUTTON_LEFT && app->playing && app->playback.wait == 1)
+            app->continue_click = 1;
+        return;
+    }
     if (app->sheet_menu)
     {
         if (button == SDL_BUTTON_LEFT && ui_inside(x, y, 10, sheet_menu_top(app) + 2, 194, 84))
@@ -1087,7 +1127,20 @@ static void mouse_down(App *app, float x, float y, int button)
         perform_action(app, MARCUS_FIRST_FRAME + action);
     }
     else if (ui_inside(x, y, PLAY_X, app->timeline_y + PLAY_Y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
-        toggle_play(app);
+    {
+        if (SDL_GetModState() & SDL_KMOD_SHIFT)
+        {
+            release_camera(app);
+            app->dragging = app->resizing_view = app->resizing_timeline = 0;
+            app->sheet_menu = 0;
+            app->movie_only = app->movie_dirty = 1;
+            SDL_SetCursor(SDL_GetDefaultCursor());
+            if (!app->playing || app->playback.wait == 1)
+                toggle_play(app);
+        }
+        else
+            toggle_play(app);
+    }
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         app->loop = !app->loop;
     else if (ui_inside(x, y, app->sidebar - 132, app->timeline_y + 8, 32, 28))
@@ -1127,6 +1180,17 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
     long step;
     int action;
+    if ((key == SDLK_RETURN || key == SDLK_KP_ENTER) &&
+        shortcuts_modifiers(modifiers) == MARCUS_MOD_ALT)
+    {
+        set_fullscreen(app, !app->fullscreen);
+        return;
+    }
+    if (key == SDLK_ESCAPE && (app->movie_only || app->fullscreen))
+    {
+        editor_view(app);
+        return;
+    }
     if (app->error[0])
     {
         if (key == SDLK_ESCAPE || key == SDLK_RETURN)
@@ -1161,13 +1225,15 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     }
     if (key == SDLK_COMMA && (modifiers & (SDL_KMOD_CTRL | SDL_KMOD_GUI)))
     {
-        open_settings(app);
+        if (!app->movie_only)
+            open_settings(app);
         return;
     }
     action = shortcuts_match(&app->shortcuts, key, modifiers);
     if (action >= 0)
     {
-        perform_action(app, action);
+        if (!app->movie_only || action <= MARCUS_PLAY)
+            perform_action(app, action);
         return;
     }
     if (!app->loaded)
@@ -1291,7 +1357,11 @@ static void handle_event(App *app, const SDL_Event *event)
         SDL_free(request);
     }
     else if (event->type == SDL_EVENT_DROP_FILE && !app->settings_open)
+    {
+        if (app->movie_only)
+            editor_view(app);
         open_movie(app, event->drop.data);
+    }
     else if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
     {
         if (app->flying && flight_key(event->key.scancode))
@@ -1303,6 +1373,11 @@ static void handle_event(App *app, const SDL_Event *event)
         app->fly_keys &= ~flight_key(event->key.scancode);
     else if (event->type == SDL_EVENT_MOUSE_MOTION)
     {
+        if (app->movie_only)
+        {
+            SDL_SetCursor(SDL_GetDefaultCursor());
+            return;
+        }
         if (!app->flying)
         {
             if (!app->orbiting)
@@ -1409,7 +1484,8 @@ static void handle_event(App *app, const SDL_Event *event)
         if (app->zip_scroll > maximum_scroll)
             app->zip_scroll = maximum_scroll;
     }
-    else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->loaded && !app->error[0] && !app->settings_open)
+    else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->loaded && !app->error[0] && !app->settings_open &&
+             !app->movie_only)
     {
         x = event->wheel.mouse_x;
         y = event->wheel.mouse_y;
@@ -1463,6 +1539,11 @@ static void handle_event(App *app, const SDL_Event *event)
                 app->zoom = 0.1f;
             app->dirty = 1;
         }
+    }
+    else if (event->type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN || event->type == SDL_EVENT_WINDOW_LEAVE_FULLSCREEN)
+    {
+        app->fullscreen = event->type == SDL_EVENT_WINDOW_ENTER_FULLSCREEN;
+        app->movie_dirty = app->dirty = 1;
     }
     else if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
     {
@@ -1562,8 +1643,14 @@ static void draw_movie_view(App *app)
                 fail(app, SDL_GetError());
         }
     }
-    ui_text(&app->ui, 20, 102, "Movie camera", MUTED);
     destination = viewport_rect(app, 1);
+    if (app->movie_only)
+    {
+        if (app->movie_picture)
+            SDL_RenderTexture(app->renderer, app->movie_picture, NULL, &destination);
+        return;
+    }
+    ui_text(&app->ui, 20, 102, "Movie camera", MUTED);
     ui_fill(&app->ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->movie_picture)
     {
@@ -2094,6 +2181,8 @@ static void draw_timeline(App *app)
     ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
     ui_play_button(ui, PLAY_X, y + PLAY_Y, app->playing, app->playback.wait == 1, app->loaded);
+    if (app->loaded && ui_inside(ui->mouse_x, ui->mouse_y, PLAY_X, y + PLAY_Y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
+        ui->hint = "Play / pause; Shift+click to play with the movie filling the window; Esc returns to the editor";
     ui_button_sized(ui, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT, "Loop", app->loop, app->loaded);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         ui->hint = "Repeat the current scene from its first frame";
@@ -2419,6 +2508,14 @@ static void draw_zip(App *app)
 static void draw(App *app)
 {
     char previous[64], next[64], previous_scene[64], next_scene[64], play[64], view[64], hint[512];
+    if (app->movie_only)
+    {
+        ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
+        draw_movie_view(app);
+        if (app->error[0])
+            draw_error(app);
+        return;
+    }
     shortcuts_label(&app->shortcuts.binding[MARCUS_PREV_FRAME], previous, sizeof(previous));
     shortcuts_label(&app->shortcuts.binding[MARCUS_NEXT_FRAME], next, sizeof(next));
     shortcuts_label(&app->shortcuts.binding[MARCUS_PREV_SCENE], previous_scene, sizeof(previous_scene));
