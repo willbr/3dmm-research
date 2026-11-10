@@ -15,11 +15,14 @@ comparison.
 
 ## Generate and check
 
-Python 3.9+ and the existing `bren-rasterizer-test` executable are required.
-Build the harness in the appropriate compiler environment, for example:
+Python 3.9+, the existing `bren-rasterizer-test` executable and
+[generated fixtures](../data/README.md) are required. Build the tools in the
+appropriate compiler environment and generate the fixtures once, for example:
 
 ```powershell
-cmake --build build/studio-portable-x64 --target bren-rasterizer-test
+cmake --build build/studio-portable-x64 --target inspect-chunks bren-rasterizer-test
+python -B tools/rasterizer_fixtures.py generate `
+  --inspect-chunks build/studio-portable-x64/inspect-chunks.exe
 python tools/rasterizer_goldens.py generate --arch x64 `
   --exe build/studio-portable-x64/bren-rasterizer-test.exe
 python tools/rasterizer_goldens.py check --arch x64
@@ -27,14 +30,16 @@ python tools/rasterizer_goldens.py check --arch x64
 
 On other platforms, use the corresponding build directory and executable name.
 `--arch` labels the supplied executable; it must match the architecture you
-built. Recipes in the manifest supply the scene arguments and the committed
-`tests/data/` fixtures. `BREN_TEST_PALETTE` is set explicitly so colour PPMs are
-also produced, regardless of the caller's environment. Each scene's diagnostic
+built. Recipes in the manifest supply scene arguments and refer to generated
+fixtures through `{fixtures}`. All fixture hashes are checked before rendering.
+`BREN_TEST_PALETTE` is set explicitly so colour PPMs are also produced,
+regardless of the caller's environment. Each scene's diagnostic
 output is saved beside its images as a `.log` file.
 
 Use repeatable `--scene` arguments to select scenes, `--output tmp/NAME` for a
 separate output directory, or `generate --check` to render and compare in one
-command. Checking exits nonzero for missing, malformed or different images,
+command. `generate --fixtures tmp/NAME` selects a different verified fixture
+directory. Checking exits nonzero for missing, malformed or different images,
 including historical resolution differences. Extra generated PPMs without a
 historical entry are available for inspection but are not reference-checked.
 

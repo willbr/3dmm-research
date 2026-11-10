@@ -1,7 +1,7 @@
 {
   "version": 1,
   "reference_revision": "e83b81a0902df1e5db82c580356a4cf323c40a17",
-  "palette": "tests/data/palette/3dmm_global.bin",
+  "palette": "{fixtures}/palette/3dmm_global.bin",
   "recipes": {
     "tri-piz2i": [
       "tri-piz2i",
@@ -54,45 +54,45 @@
     "prop-1": [
       "prop-1",
       "{output}",
-      "tests/data/prop-tmpls-2000.bin"
+      "{fixtures}/prop-tmpls-2000.bin"
     ],
     "prop-4": [
       "prop-4",
       "{output}",
-      "tests/data/prop-tmpls-2000.bin"
+      "{fixtures}/prop-tmpls-2000.bin"
     ],
     "prop-3500": [
       "prop-1",
       "{output}",
-      "tests/data/prop-tmpls-3500.bin"
+      "{fixtures}/prop-tmpls-3500.bin"
     ],
     "props-overlap": [
       "props-overlap",
       "{output}",
-      "tests/data/prop-tmpls-2000.bin",
-      "tests/data/prop-tmpls-3500.bin"
+      "{fixtures}/prop-tmpls-2000.bin",
+      "{fixtures}/prop-tmpls-3500.bin"
     ],
     "actor-tmpl1020": [
       "actor-tmpl1020",
       "{output}",
-      "tests/data/tmpl_1020/BMDL_00011022.bin",
-      "tests/data/tmpl_1020/BMDL_00000016.bin",
-      "tests/data/tmpl_1020/TMAP_00000000.bin"
+      "{fixtures}/tmpl_1020/BMDL_00011022.bin",
+      "{fixtures}/tmpl_1020/BMDL_00000016.bin",
+      "{fixtures}/tmpl_1020/TMAP_00000000.bin"
     ],
     "actor-grid-tmpl2010": [
       "actor-grid",
       "{output}",
-      "tests/data/tmpl_2010",
-      "tests/data/tmpl_2010/manifest.txt"
+      "{fixtures}/tmpl_2010",
+      "{fixtures}/tmpl_2010/manifest.txt"
     ],
     "actor-pose-tmpl2010": [
       "actor-pose",
       "{output}",
-      "tests/data/palette/3dmm_global.bin",
-      "tests/data/tmpl_2010",
-      "tests/data/tmpl_2010/GLPI_0001210f.bin",
-      "tests/data/tmpl_2010/GLXF_0001209c.bin",
-      "tests/data/tmpl_2010/manifest.txt"
+      "{fixtures}/palette/3dmm_global.bin",
+      "{fixtures}/tmpl_2010",
+      "{fixtures}/tmpl_2010/GLPI_0001210f.bin",
+      "{fixtures}/tmpl_2010/GLXF_0001209c.bin",
+      "{fixtures}/tmpl_2010/manifest.txt"
     ]
   },
   "captures": [

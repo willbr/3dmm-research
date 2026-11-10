@@ -1273,7 +1273,7 @@ static int run_props_overlap(const char *out_path, const char *bmdl_a, const cha
 
 /* Render TMPL 0x1020's two body parts as a composed actor. The
  * fixture was captured by `inspect-chunks dump-all TMPL 0x1020 ...`
- * (see tests/data/tmpl_1020/). This is the smallest 2-body-part
+ * (see tests/data/README.md). This is the smallest 2-body-part
  * actor template in tmpls.3cn and exercises the multi-mesh-per-
  * actor render path that real actors use, without needing engine.lib
  * to actually parse the GG-format cel data.

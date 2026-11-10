@@ -12,6 +12,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "tests/golden/manifest.json"
 DEFAULT_OUTPUT = ROOT / "tmp/bren-rasterizer-goldens"
+DEFAULT_FIXTURES = ROOT / "tmp/bren-rasterizer-fixtures"
 
 
 def image_info(data):
@@ -49,16 +50,19 @@ def check(records, output):
     return 1 if failures else 0
 
 
-def generate(manifest, records, executable, output):
+def generate(manifest, records, executable, output, fixtures=DEFAULT_FIXTURES):
     """Render each scene once; never accept files left by an earlier run."""
     environment = os.environ.copy()
-    environment["BREN_TEST_PALETTE"] = str(ROOT / manifest["palette"])
+    environment["BREN_TEST_PALETTE"] = manifest["palette"].replace("{fixtures}", str(fixtures))
     scenes = list(dict.fromkeys((record["scene"], record["arch"]) for record in records))
     for scene, arch in scenes:
         pgm = output / f"{scene}.{arch}.pgm"
         for suffix in (".pgm", ".ppm"):
             pgm.with_suffix(suffix).unlink(missing_ok=True)
-        arguments = [str(pgm) if arg == "{output}" else arg for arg in manifest["recipes"][scene]]
+        arguments = [
+            str(pgm) if arg == "{output}" else arg.replace("{fixtures}", str(fixtures))
+            for arg in manifest["recipes"][scene]
+        ]
         print(f"Rendering {scene}.{arch}", flush=True)
         result = subprocess.run(
             [str(executable), *arguments], cwd=ROOT, env=environment,
@@ -107,6 +111,7 @@ def main(argv=None):
         command.add_argument("--scene", action="append", choices=sorted(manifest["recipes"]))
         if name == "generate":
             command.add_argument("--exe", type=Path, required=True)
+            command.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES)
             command.add_argument("--check", action="store_true", help="also check against reference hashes")
     args = parser.parse_args(argv)
     output = args.output.resolve()
@@ -125,11 +130,16 @@ def main(argv=None):
         parser.error("--output must be a subdirectory of the repository's ignored tmp/ directory")
     if args.command == "generate" and not args.exe.resolve().is_file():
         parser.error(f"renderer executable does not exist: {args.exe}")
+    if args.command == "generate":
+        subprocess.run([
+            sys.executable, "-B", str(ROOT / "tools/rasterizer_fixtures.py"),
+            "check", "--output", str(args.fixtures.resolve()),
+        ], check=True)
     output.mkdir(parents=True, exist_ok=True)
     if args.command == "restore":
         restore(manifest, records, output)
         return 0
-    generate(manifest, records, args.exe.resolve(), output)
+    generate(manifest, records, args.exe.resolve(), output, args.fixtures.resolve())
     return check(records, output) if args.check else 0
 
 

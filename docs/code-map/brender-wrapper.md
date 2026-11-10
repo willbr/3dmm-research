@@ -87,6 +87,8 @@ what 1995 3DMM was built against.
   scan-converters (asm vs C). Used by the x64 enablement work.
 - `tools/rasterizer_goldens.py` — generate local captures and compare them
   with the preserved hashes; see [reference capture instructions](../../tests/golden/README.md).
+- `tools/rasterizer_fixtures.py` — extract and verify local model, texture and
+  palette fixtures from the original assets; see [fixture instructions](../../tests/data/README.md).
 - `extract-bmdl` — dump a `BMDL` chunk's vertex / face data out of a
   `.CHK` file. CLI-only, links `brender-core`.
 

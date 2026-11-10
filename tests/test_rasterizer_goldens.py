@@ -26,7 +26,7 @@ class GoldenChecks(unittest.TestCase):
             "sha256": hashlib.sha256(self.image).hexdigest(), "captured_in": "a" * 40,
         }
         self.manifest = {
-            "reference_revision": "b" * 40, "palette": "tests/data/palette/3dmm_global.bin",
+            "reference_revision": "b" * 40, "palette": "{fixtures}/palette/3dmm_global.bin",
             "recipes": {"triangle": ["triangle", "{output}"]},
         }
 
@@ -53,17 +53,27 @@ class GoldenChecks(unittest.TestCase):
     def test_generation_cannot_pass_using_stale_files(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
+            fixture_directory = output / "custom fixtures"
+            self.manifest["recipes"]["triangle"].append("{fixtures}/model.bin")
             (output / self.record["file"]).write_bytes(self.image)
             (output / "triangle.x64.ppm").write_bytes(b"stale")
             result = subprocess.CompletedProcess([], 0, stdout=b"no image written")
             with mock.patch.object(goldens.subprocess, "run", return_value=result) as run, \
                     contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(ValueError, "did not produce"):
-                    goldens.generate(self.manifest, [self.record], Path("renderer"), output)
+                    goldens.generate(self.manifest, [self.record], Path("renderer"), output, fixture_directory)
             self.assertFalse((output / self.record["file"]).exists())
             self.assertFalse((output / "triangle.x64.ppm").exists())
             self.assertEqual(run.call_args.kwargs["env"]["BREN_TEST_PALETTE"],
-                             str(ROOT / self.manifest["palette"]))
+                             self.manifest["palette"].replace("{fixtures}", str(fixture_directory)))
+            self.assertEqual(Path(run.call_args.args[0][-1]), fixture_directory / "model.bin")
+
+    def test_fixture_check_failure_prevents_rendering(self):
+        with mock.patch.object(goldens, "generate") as generate, \
+                mock.patch.object(goldens.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "check")):
+            with self.assertRaises(subprocess.CalledProcessError):
+                goldens.main(["generate", "--arch", "x64", "--exe", str(Path(__file__).resolve())])
+        generate.assert_not_called()
 
     def test_renderer_failure_is_reported(self):
         with tempfile.TemporaryDirectory() as directory:

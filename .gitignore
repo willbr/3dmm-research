@@ -20,6 +20,11 @@ build-x64/
 /tests/golden/*.pgm
 /tests/golden/*.ppm
 
+# Extracted BRender fixtures are regenerated under tmp/.
+/tests/data/*.bin
+/tests/data/tmpl_*/
+/tests/data/palette/
+
 # Local Claude scratch files
 _claude_*
 .claude/
