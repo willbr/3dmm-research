@@ -737,7 +737,48 @@ int main(int argc, char **argv)
     Tick(0);
     CHECK(!Tick(170).playing && Info().scene == 4 && Info().frame == 4);
     Tick(0, true, false, true);
-    CHECK(Tick(170, true, false, true).scene_changed && Info().scene == 0 && Info().frame == -2);
+    auto wrap = Tick(170, true, false, true);
+    CHECK(wrap.playing && wrap.changed && !wrap.scene_changed && !wrap.transition && Info().scene == 4 &&
+          Info().frame == -2);
+    // The loop applies to any current scene, including ones with successors.
+    // Rewinding must preserve inspection framing and restart first-frame audio.
+    for (int scene : {0, 2, 4})
+    {
+        CHECK(marcus_select_scene(player, scene));
+        const auto firstShot = Image();
+        CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &inspection));
+        const auto workProjection = inspection.projection;
+        auto fly = inspection.camera;
+        fly.x += fly.move_speed;
+        for (int lap = 0; lap < 2; ++lap)
+        {
+            CHECK(marcus_seek(player, 4));
+            Tick(0, true, false, true);
+            wrap = Tick(170, true, false, true);
+            CHECK(wrap.playing && wrap.changed && !wrap.scene_changed && !wrap.transition);
+            CHECK(Info().scene == scene && Info().frame == Info().first_frame && Image() == firstShot);
+            CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &inspection));
+            CHECK(!std::memcmp(workProjection.transform, inspection.projection.transform,
+                               sizeof(workProjection.transform)));
+            CHECK(marcus_render_fly(player, 480, 360, &fly, &inspection));
+            CHECK(std::abs(inspection.camera.x - fly.x) < .001 && std::abs(inspection.camera.y - fly.y) < .001);
+            CHECK(marcus_audio_stats(player, &stats));
+            const auto voices = stats.wave_sounds;
+            Tick(0, true, false, true);
+            CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == voices + (scene == 4 ? 1 : 0));
+            Tick(0, true, false, true);
+            CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == voices + (scene == 4 ? 1 : 0));
+        }
+        Tick(170, true, false, true);
+        CHECK(Info().frame == -1 && Tick(0, true, false, true).wait == 1);
+        CHECK(Tick(5000, true, false, true).wait == 1 && Info().frame == -1);
+        CHECK(!Tick(0, true, true, true).wait);
+    }
+    // Turning Loop off resumes normal scene progression and transitions.
+    CHECK(marcus_select_scene(player, 2) && marcus_seek(player, 4));
+    Image();
+    Tick(0);
+    CHECK(Tick(170).scene_changed && Info().scene == 3);
     CHECK(!marcus_update(player, 1, 0, -1, 0, nullptr));
     marcus_destroy(player);
     player = nullptr;

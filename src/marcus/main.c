@@ -2074,6 +2074,8 @@ static void draw_timeline(App *app)
               app->playing && app->playback.wait == 1 ? "Next" : app->playing ? "Pause" : "Play",
               app->playing, app->loaded);
     ui_button(ui, 216, y + 8, 60, "Loop", app->loop, app->loaded);
+    if (ui_inside(ui->mouse_x, ui->mouse_y, 216, y + 8, 60, 28))
+        ui->hint = "Repeat the current scene from its first frame";
     ui_navigation_button(ui, SCENE_NAV_X, y + 8, 0, app->loaded && app->info.scene > 0, "First scene");
     ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + 8, 1, app->loaded && app->info.scene > 0, "Previous scene");
     ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 2, y + 8, 2,

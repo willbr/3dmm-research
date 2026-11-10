@@ -215,8 +215,9 @@ extern "C"
     int marcus_sound_waveform_frames(MarcusPlayer *player, int index, double first_frame, double frames_per_column,
                                      int count, MarcusWaveformColumn *columns, MarcusWaveformInfo *info);
     int marcus_seek(MarcusPlayer *player, long frame);
-    /* Call once per host update, with elapsed milliseconds. Playback preserves
-     * authored waits/scrolling; a click/Space continues a click wait. Manual
+    /* Call once per host update, with elapsed milliseconds. loop repeats the
+     * current scene from its first frame; a wrap does not set scene_changed.
+     * Playback preserves authored waits/scrolling; a click/Space continues a click wait. Manual
      * seeks are silent and reset presentation timing. No SDL types cross here. */
     int marcus_update(MarcusPlayer *player, int playing, int loop, double elapsed_ms, int continue_click,
                       MarcusPlaybackState *state);

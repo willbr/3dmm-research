@@ -772,7 +772,17 @@ extern "C"
                     if (!player->playback.Update(player->preview, true, 0, false, ignored, error))
                         return false;
                 }
-                else if (player->selected + 1 < static_cast<int>(player->scenes.size()) || loop)
+                else if (loop)
+                {
+                    // Rewind in place: reset audio/captions and actor poses,
+                    // retaining selection, cached event tracks and work framing.
+                    if (!marcus_seek(player, info.firstFrame))
+                    {
+                        error.message = player->error;
+                        return false;
+                    }
+                }
+                else if (player->selected + 1 < static_cast<int>(player->scenes.size()))
                 {
                     const auto transition = player->playback.Transition();
                     // Inspection renders must not replace the movie camera's
@@ -780,8 +790,7 @@ extern "C"
                     const auto previous = player->movieImageScene == player->selected &&
                                           player->movieImageFrame == info.currentFrame
                                               ? player->movieImage : player->image;
-                    const auto next = player->selected + 1 < static_cast<int>(player->scenes.size())
-                                          ? player->selected + 1 : 0;
+                    const auto next = player->selected + 1;
                     if (!SelectScene(player, next, true, true))
                     {
                         error.message = player->error;

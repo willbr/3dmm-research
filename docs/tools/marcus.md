@@ -109,7 +109,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Release right mouse | Release mouse capture and stop flying |
 | Escape | Clear object/sound selection and release camera capture; otherwise pause playback |
 | Reset / R | Match the current movie camera; R also fits the timeline |
-| Loop | Repeat the movie after the final scene |
+| Loop | Repeat the current scene from its first frame |
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
 | Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
 | Settings / Ctrl+, | Open playback and keyboard shortcut settings |
@@ -248,8 +248,11 @@ shows a message in Settings. `--settings-file path` allows an explicit profile;
 Playback follows movie scene-child order, including scenes with no actors.
 Both navigation groups use matching bar/triangle icons, with their action shown
 in the status bar on hover. Buttons at the first/last boundary are disabled.
-It stops at the final frame unless Loop is enabled. Focus loss pauses playback
-only when enabled in Settings.
+With Loop off, playback advances through scenes and stops at the movie's final
+frame. With Loop on, the current scene repeats, resetting its animation, captions
+and audio while retaining selection, timeline zoom and work-camera position.
+Authored waits and scrolling finish before the scene wraps. Focus loss pauses
+playback only when enabled in Settings.
 The timeline follows the playhead during playback. Frame counters and ruler
 labels start at 1 in each scene, even when the movie stores negative frame
 numbers. Playback and scrubbing retain the movie's original frame coordinates
@@ -292,7 +295,8 @@ Transitions use the outgoing scene's setting: cut, black, dissolve, or a
 two-stage pixel dissolve through black/white. Dissolve and black/white transitions
 take four seconds, matching the original timing; a black transition holds black
 for one movie frame. Manual scene selection and seeking show the requested frame
-immediately. Looping uses the last scene's transition before returning to the first.
+immediately. Scene looping wraps directly to the current scene's first frame;
+outgoing scene transitions are used when advancing normally with Loop off.
 
 The build copies `assets/GeneralUserGS.sf2` and dependency licences beside Marcus.
 Keep those folders with the executable. MIDI also accepts the configured build
