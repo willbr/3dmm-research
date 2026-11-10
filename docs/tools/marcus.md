@@ -340,14 +340,15 @@ rasterization pass in the preview adapter.
 
 Object bars show **overall lifetime**, clipped to the current scene. They are
 not individual animation keyframes and do not show every offstage interval.
+The bar's left edge marks its start, without an additional square marker.
 Actors with no entrance remain listed without a bar. Lifetime properties use the
 same scene-relative numbering, clipped to the scene; objects with no overlap show
 "Outside scene".
 
 Properties show roll-call name, actor/prop/3D-text kind, on-stage state, evaluated
 world XYZ, actor ID, current action/cel indices, lifetime and template source/chunk.
-Original coordinates are retained. Selection uses the list or timeline;
-viewport geometry picking is not yet implemented.
+Original coordinates are retained. Selection uses viewport picking, the list or
+the timeline.
 
 ## Current limits
 

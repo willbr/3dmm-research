@@ -1871,8 +1871,6 @@ static void draw_timeline(App *app)
             ui_fill(ui, left + 1, y + 87 + row * ROW_HEIGHT, right - left - 1, 14, tint);
             ui_line(ui, left + 1, y + 87 + row * ROW_HEIGHT, right - 1, y + 87 + row * ROW_HEIGHT,
                     index == app->selected ? ACCENT : 0x819098);
-            if (object.first_frame >= app->timeline_start)
-                ui_fill(ui, left + 2, y + 91 + row * ROW_HEIGHT, 4, 6, TEXT);
         }
         if (app->sound_sheet)
         {
