@@ -276,7 +276,7 @@ Cache Prepare(const fs::path &image, const fs::path &cacheDirectory, const std::
     std::uint64_t hash = UINT64_C(14695981039346656037);
     Hash(hash, source.u8string());
     Hash(hash, std::to_string(fs::file_size(source)));
-    Hash(hash, std::to_string(fs::last_write_time(source).time_since_epoch().count()));
+    Hash(hash, std::to_string(static_cast<long long>(fs::last_write_time(source).time_since_epoch().count())));
     for (const auto &supplement : supplements)
     {
         if (!Relative(supplement.name) || (!supplement.data && supplement.bytes))

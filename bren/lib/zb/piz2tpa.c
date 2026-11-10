@@ -4,6 +4,7 @@
  * projected fraction. This path deliberately bypasses lighting and zero-key
  * transparency for prerendered artwork. */
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "zb.h"
 
