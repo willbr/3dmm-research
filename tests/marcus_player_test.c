@@ -133,6 +133,19 @@ int main(int argc, char **argv)
     CHECK(flight.near_clip == image.projection.near_clip && flight.far_clip == image.projection.far_clip);
     CHECK(image.scene_camera.display_depth == guide_depth[1]);
     CHECK(marcus_seek(player, 1));
+    /* Both views share a frame, but moving the work camera must not alter the
+     * movie camera, its pixels, or the authored camera selection. */
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    memcpy(pixels, image.rgba, bytes);
+    authored = image.scene_camera;
+    moved = camera;
+    moved.x += camera.move_speed;
+    moved.yaw += 25;
+    CHECK(marcus_render_fly(player, 480, 360, &moved, &image));
+    CHECK(marcus_info(player, &info) && info.frame == 1 && info.camera == 0);
+    CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
+    CHECK(!memcmp(pixels, image.rgba, bytes));
+    CHECK(!memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)));
     moved = camera;
     moved.x = 40000;
     CHECK(!marcus_render_fly(player, 480, 360, &moved, &image) && !image.rgba);

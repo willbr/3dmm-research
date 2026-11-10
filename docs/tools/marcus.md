@@ -93,6 +93,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Shift+wheel, horizontal wheel, or wheel over ruler | Pan frames |
 | Ctrl+wheel over timeline | Zoom around the pointer |
 | Camera / Orbit / Fly, or C | Switch authored camera / orbit / first-person flight |
+| Arrow strip beside the properties panel | Expand or collapse the work camera viewport |
+| Divider between viewports | Drag to resize the movie and work views |
 | Left drag in Orbit / wheel | Orbit / zoom |
 | Right drag in Orbit | Pan the view |
 | Hold right mouse in Fly | Capture the mouse for first-person look and movement |
@@ -106,6 +108,16 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Mute / Unmute | Silence output while audio and authored sound waits keep progressing |
 | Click the viewport / Play shortcut during a click wait | Continue the authored pause; the Play button reads Next |
 | Settings / Ctrl+, | Open playback and keyboard shortcut settings |
+
+The **arrow strip** beside the properties panel opens an authored movie camera on the left and an independent
+work camera on the right, both showing the same movie frame during playback.
+Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
+fly while the movie continues. C switches that work view between Orbit and Fly.
+Drag the divider to resize either viewport. The strip's arrow collapses and
+reopens the work camera; its pose and divider position are kept.
+Only the movie view consumes viewport clicks for click-to-continue pauses.
+Use `--second-view` to launch in this layout (`--orbit` starts its work view in
+Orbit). These are resizable panes in Marcus's SDL interface.
 
 The sound sheet groups authored cues into scene and actor lanes, with separate
 music, speech and effects tracks. Rectangles mark frame cues; diamonds mark

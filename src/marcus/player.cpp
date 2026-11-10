@@ -52,6 +52,9 @@ struct MarcusPlayer
     std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizer;
     int renderer = MARCUS_RENDERER_BRENDER;
     ThreeMM::PreviewImage image;
+    ThreeMM::PreviewImage movieImage;
+    int movieImageScene = -1;
+    std::int32_t movieImageFrame = 0;
     MarcusPlayback playback;
     std::vector<ThreeMM::Id> scenes;
     std::vector<MarcusScene> sceneInfo;
@@ -168,6 +171,12 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
         return false;
     if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error))
         return false;
+    if (view.authoredCamera && !view.freeCamera)
+    {
+        player->movieImage = player->image;
+        player->movieImageScene = player->selected;
+        player->movieImageFrame = player->preview.Info().currentFrame;
+    }
     image->width = static_cast<int>(player->image.width);
     image->height = static_cast<int>(player->image.height);
     image->pitch = image->width * 4;
@@ -429,6 +438,8 @@ extern "C"
             player->soundTimeline.Clear();
             player->waveforms.Clear();
             player->image = {};
+            player->movieImage = {};
+            player->movieImageScene = -1;
             for (const auto &source : sources)
                 for (const auto &path : player->content->files.Files(source.second, ".3cn"))
                 {
@@ -652,7 +663,11 @@ extern "C"
                 else if (player->selected + 1 < static_cast<int>(player->scenes.size()) || loop)
                 {
                     const auto transition = player->playback.Transition();
-                    const auto previous = player->image;
+                    // Inspection renders must not replace the movie camera's
+                    // outgoing transition image when both views are visible.
+                    const auto previous = player->movieImageScene == player->selected &&
+                                          player->movieImageFrame == info.currentFrame
+                                              ? player->movieImage : player->image;
                     const auto next = player->selected + 1 < static_cast<int>(player->scenes.size())
                                           ? player->selected + 1 : 0;
                     if (!SelectScene(player, next, true, true))

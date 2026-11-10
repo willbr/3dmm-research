@@ -666,6 +666,12 @@ int main(int argc, char **argv)
         Tick(0);
         CHECK(marcus_audio_stats(player, &stats));
         const auto musicBeforeTransition = stats.midi_sounds;
+        // A work-camera render between the movie render and the cut must not
+        // replace the outgoing movie image used by the transition compositor.
+        CHECK(marcus_render(player, 480, 360, 0, 35, 15, 1, &inspection));
+        auto workCamera = inspection.camera;
+        workCamera.x += workCamera.move_speed;
+        CHECK(marcus_render_fly(player, 480, 360, &workCamera, &inspection));
         auto state = Tick(170);
         CHECK(state.scene_changed && state.transition && Info().scene == scene + 1);
         CHECK(marcus_audio_stats(player, &stats) && stats.midi_sounds == musicBeforeTransition);
