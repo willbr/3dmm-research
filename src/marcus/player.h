@@ -176,7 +176,8 @@ extern "C"
     const char *marcus_renderer_id(int renderer);
     int marcus_renderer_from_id(const char *id);
     int marcus_get_renderer(const MarcusPlayer *player);
-    /* A failed switch retains the current renderer and loaded movie. */
+    /* A failed switch retains the current renderer and loaded movie. Devices
+     * are reused so independent camera views can alternate backends per frame. */
     int marcus_set_renderer(MarcusPlayer *player, int renderer);
     void marcus_destroy(MarcusPlayer *player);
     const char *marcus_error(const MarcusPlayer *player);

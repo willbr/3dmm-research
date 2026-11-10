@@ -301,23 +301,24 @@ static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex
     }
     SDL_RenderGeometry(ui->renderer, NULL, vertices, count, NULL, 0);
 }
-void ui_settings_button(MarcusUI *ui, float x, float y, int active)
+void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {
-    float angle, next, radius, next_radius, center_x, center_y;
+    float angle, next, radius, next_radius, center_x, center_y, scale;
     int pass, index, hovered;
     unsigned long tint;
-    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, UI_SETTINGS_SIZE, UI_SETTINGS_SIZE);
+    scale = size / UI_SETTINGS_SIZE;
+    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, size, size);
     for (pass = 0; pass < 2; ++pass)
     {
-        center_x = x + UI_SETTINGS_SIZE / 2 + (pass ? 0 : 1);
-        center_y = y + UI_SETTINGS_SIZE / 2 + (pass ? 0 : 1);
+        center_x = x + size / 2 + (pass ? 0 : 1);
+        center_y = y + size / 2 + (pass ? 0 : 1);
         tint = pass ? (hovered || active ? 0x78cbc4 : 0xdde0e5) : 0;
         for (index = 0; index < 32; ++index)
         {
             angle = index * 0.19634954f;
             next = (index + 1) * 0.19634954f;
-            radius = index % 4 == 1 || index % 4 == 2 ? 14 : 11;
-            next_radius = (index + 1) % 4 == 1 || (index + 1) % 4 == 2 ? 14 : 11;
+            radius = (index % 4 == 1 || index % 4 == 2 ? 14 : 11) * scale;
+            next_radius = ((index + 1) % 4 == 1 || (index + 1) % 4 == 2 ? 14 : 11) * scale;
             ui_line(ui, center_x + SDL_cosf(angle) * radius, center_y + SDL_sinf(angle) * radius,
                     center_x + SDL_cosf(next) * next_radius, center_y + SDL_sinf(next) * next_radius, tint);
         }
@@ -325,8 +326,8 @@ void ui_settings_button(MarcusUI *ui, float x, float y, int active)
         {
             angle = index * 0.26179939f;
             next = (index + 1) * 0.26179939f;
-            ui_line(ui, center_x + SDL_cosf(angle) * 4.5f, center_y + SDL_sinf(angle) * 4.5f,
-                    center_x + SDL_cosf(next) * 4.5f, center_y + SDL_sinf(next) * 4.5f, tint);
+            ui_line(ui, center_x + SDL_cosf(angle) * 4.5f * scale, center_y + SDL_sinf(angle) * 4.5f * scale,
+                    center_x + SDL_cosf(next) * 4.5f * scale, center_y + SDL_sinf(next) * 4.5f * scale, tint);
         }
     }
     if (hovered)

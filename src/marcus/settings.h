@@ -37,6 +37,8 @@ typedef struct MarcusShortcuts
     int pause_on_focus_loss;
     int renderer;
     int render_resolution;
+    int work_renderer;
+    int work_render_resolution;
 } MarcusShortcuts;
 
 #define MARCUS_RESOLUTION_COUNT 10

@@ -29,6 +29,7 @@ void shortcuts_defaults(MarcusShortcuts *shortcuts)
     int i;
     memset(shortcuts, 0, sizeof(*shortcuts));
     shortcuts->render_resolution = MARCUS_DEFAULT_RESOLUTION;
+    shortcuts->work_render_resolution = MARCUS_DEFAULT_RESOLUTION;
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         shortcuts->binding[i].key = keys[i];
     shortcuts->binding[MARCUS_FIRST_FRAME].modifiers = MARCUS_MOD_SHIFT;
@@ -126,7 +127,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     char *data, *line, *cursor, id[64], extra;
     unsigned long key;
     unsigned int modifiers, seen;
-    int i, j, valid, pause_seen, renderer_seen, resolution_seen;
+    int i, j, valid, pause_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
         return 1;
@@ -146,13 +147,18 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     pause_seen = 0;
     renderer_seen = 0;
     resolution_seen = 0;
+    work_renderer_seen = 0;
+    work_resolution_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
     {
-        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "render_resolution"))
+        if (SDL_sscanf(line, "%63s", id) == 1 &&
+            (!strcmp(id, "render_resolution") || !strcmp(id, "work_render_resolution")))
         {
-            if (resolution_seen || SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2)
+            work = !strcmp(id, "work_render_resolution");
+            if ((work ? work_resolution_seen : resolution_seen) ||
+                SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2)
             {
                 valid = 0;
                 break;
@@ -165,19 +171,38 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
                 valid = 0;
                 break;
             }
-            loaded.render_resolution = i;
-            resolution_seen = 1;
+            if (work)
+            {
+                loaded.work_render_resolution = i;
+                work_resolution_seen = 1;
+            }
+            else
+            {
+                loaded.render_resolution = i;
+                resolution_seen = 1;
+            }
             continue;
         }
-        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "renderer"))
+        if (SDL_sscanf(line, "%63s", id) == 1 && (!strcmp(id, "renderer") || !strcmp(id, "work_renderer")))
         {
-            if (renderer_seen || SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2 ||
-                (loaded.renderer = marcus_renderer_from_id(renderer_id)) < 0)
+            work = !strcmp(id, "work_renderer");
+            if ((work ? work_renderer_seen : renderer_seen) ||
+                SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2 ||
+                (i = marcus_renderer_from_id(renderer_id)) < 0)
             {
                 valid = 0;
                 break;
             }
-            renderer_seen = 1;
+            if (work)
+            {
+                loaded.work_renderer = i;
+                work_renderer_seen = 1;
+            }
+            else
+            {
+                loaded.renderer = i;
+                renderer_seen = 1;
+            }
             continue;
         }
         if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "pause_on_focus_loss"))
@@ -221,6 +246,11 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
         SDL_strlcpy(message, "The settings file is invalid. Default settings are in use.", capacity);
         return 0;
     }
+    /* Older files had one profile shared by both cameras. */
+    if (!work_renderer_seen && renderer_seen)
+        loaded.work_renderer = loaded.renderer;
+    if (!work_resolution_seen && resolution_seen)
+        loaded.work_render_resolution = loaded.render_resolution;
     *shortcuts = loaded;
     if (capacity)
         message[0] = 0;
@@ -228,12 +258,13 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
 }
 int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *message, size_t capacity)
 {
-    const MarcusRenderResolution *resolution;
+    const MarcusRenderResolution *resolution, *work_resolution;
     char data[2048], temporary[1100];
     size_t length;
     int i;
     resolution = marcus_render_resolution(shortcuts->render_resolution);
-    if (!resolution)
+    work_resolution = marcus_render_resolution(shortcuts->work_render_resolution);
+    if (!resolution || !work_resolution)
     {
         SDL_strlcpy(message, "The render resolution is invalid.", capacity);
         return 0;
@@ -243,8 +274,10 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         SDL_strlcpy(message, "The settings location is unavailable.", capacity);
         return 0;
     }
-    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\nrenderer %s\nrender_resolution %s\n",
-                 shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer), resolution->name);
+    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\nrenderer %s\nrender_resolution %s\n"
+                 "work_renderer %s\nwork_render_resolution %s\n",
+                 shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer), resolution->name,
+                 marcus_renderer_id(shortcuts->work_renderer), work_resolution->name);
     length = strlen(data);
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         length += SDL_snprintf(data + length, sizeof(data) - length, "%s %lu %u\n", action_ids[i],

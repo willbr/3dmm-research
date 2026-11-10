@@ -49,7 +49,8 @@ struct MarcusPlayer
     // Destroy the renderer before deleting any private VMM working files.
     std::unique_ptr<MarcusContent> content;
     ThreeMM::Preview preview;
-    std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizer;
+    // Keep devices alive when movie and work cameras use different backends.
+    std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizers[MARCUS_RENDERER_COUNT];
     int renderer = MARCUS_RENDERER_BRENDER;
     ThreeMM::PreviewImage image;
     ThreeMM::PreviewImage movieImage;
@@ -213,7 +214,7 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
 {
     auto options = view;
     options.renderAtOutputResolution = true;
-    options.rasterizer = player->rasterizer.get();
+    options.rasterizer = player->rasterizers[player->renderer].get();
     options.includeDepth = !view.authoredCamera || view.freeCamera;
     if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
         return false;
@@ -359,14 +360,12 @@ extern "C"
                 error.message = "Unknown movie renderer.";
                 return false;
             }
-            if (renderer == player->renderer) return true;
-            std::unique_ptr<ThreeMM::PreviewRasterizer> replacement;
-            if (renderer != MARCUS_RENDERER_BRENDER)
+            if (renderer != MARCUS_RENDERER_BRENDER && !player->rasterizers[renderer])
             {
-                replacement = MarcusCreateGPURenderer(renderer == MARCUS_RENDERER_BRENDER_COMPUTE, error);
+                auto replacement = MarcusCreateGPURenderer(renderer == MARCUS_RENDERER_BRENDER_COMPUTE, error);
                 if (!replacement) return false;
+                player->rasterizers[renderer] = std::move(replacement);
             }
-            player->rasterizer = std::move(replacement);
             player->renderer = renderer;
             return true;
         });

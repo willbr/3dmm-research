@@ -37,6 +37,8 @@ int main(int argc, char **argv)
     shortcuts_defaults(&shortcuts);
     CHECK(shortcuts.renderer == MARCUS_RENDERER_BRENDER);
     CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
+    CHECK(shortcuts.work_renderer == MARCUS_RENDERER_BRENDER);
+    CHECK(shortcuts.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(!marcus_render_resolution(-1) && !marcus_render_resolution(MARCUS_RESOLUTION_COUNT));
     const auto path =
         std::filesystem::temp_directory_path() / ("marcus-renderer-" + std::to_string(SDL_GetTicksNS()) + ".cfg");
@@ -51,39 +53,71 @@ int main(int argc, char **argv)
     } removeSettings{path};
     char message[256] = {};
     shortcuts.renderer = MARCUS_RENDERER_SDL_GPU;
+    shortcuts.work_renderer = MARCUS_RENDERER_BRENDER_COMPUTE;
     CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_SDL_GPU);
+    CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
     for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
     {
         const auto *resolution = marcus_render_resolution(index);
         CHECK(resolution && resolution->width <= ThreeMM::PreviewMaxDimension &&
               resolution->height <= ThreeMM::PreviewMaxDimension && resolution->width * 3 == resolution->height * 4);
         shortcuts.render_resolution = index;
+        shortcuts.work_render_resolution = MARCUS_RESOLUTION_COUNT - 1 - index;
         CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
         shortcuts_defaults(&loaded);
         CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
         CHECK(loaded.render_resolution == index && loaded.renderer == MARCUS_RENDERER_SDL_GPU);
+        CHECK(loaded.work_render_resolution == MARCUS_RESOLUTION_COUNT - 1 - index &&
+              loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
     }
     shortcuts.render_resolution = -1;
     CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+    shortcuts.render_resolution = MARCUS_DEFAULT_RESOLUTION;
+    shortcuts.work_render_resolution = -1;
+    CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+    for (const char *legacy : {
+         "marcus-shortcuts 1\nrenderer brender-compute\nrender_resolution 1920x1440\n",
+         "marcus-shortcuts 1\nrender_resolution 1920x1440\nrenderer brender-compute\n"})
+    {
+        CHECK(SDL_SaveFile(path.u8string().c_str(), legacy, std::strlen(legacy)));
+        shortcuts_defaults(&loaded);
+        CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+        CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER_COMPUTE && loaded.work_renderer == loaded.renderer);
+        CHECK(loaded.render_resolution == 5 && loaded.work_render_resolution == loaded.render_resolution);
+    }
+    const char independent[] = "marcus-shortcuts 1\nwork_renderer sdl-gpu\nwork_render_resolution 320x240\n"
+                               "renderer brender-compute\nrender_resolution 1920x1440\n";
+    CHECK(SDL_SaveFile(path.u8string().c_str(), independent, sizeof(independent) - 1));
+    shortcuts_defaults(&loaded);
+    CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+    CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER_COMPUTE && loaded.work_renderer == MARCUS_RENDERER_SDL_GPU);
+    CHECK(loaded.render_resolution == 5 && loaded.work_render_resolution == 0);
     const char oldSettings[] = "marcus-shortcuts 1\npause_on_focus_loss 1\n";
     CHECK(SDL_SaveFile(path.u8string().c_str(), oldSettings, sizeof(oldSettings) - 1));
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
     CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
+    CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     for (const char *invalid :
          {"marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n",
           "marcus-shortcuts 1\nrender_resolution 1920x1080\n",
           "marcus-shortcuts 1\nrender_resolution 320x240\nrender_resolution 640x480\n",
-          "marcus-shortcuts 1\nrender_resolution 640x480 extra\n"})
+          "marcus-shortcuts 1\nrender_resolution 640x480 extra\n",
+          "marcus-shortcuts 1\nwork_renderer unknown\n",
+          "marcus-shortcuts 1\nwork_renderer sdl-gpu\nwork_renderer brender\n",
+          "marcus-shortcuts 1\nwork_render_resolution 1920x1080\n",
+          "marcus-shortcuts 1\nwork_render_resolution 320x240\nwork_render_resolution 640x480\n",
+          "marcus-shortcuts 1\nwork_render_resolution 640x480 extra\n"})
     {
         CHECK(SDL_SaveFile(path.u8string().c_str(), invalid, std::strlen(invalid)));
         CHECK(!shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
         CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
         CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
+        CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     }
 
     constexpr int size = 64, stride = 72;
@@ -300,8 +334,28 @@ int main(int argc, char **argv)
         }
         CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
         CHECK(!std::memcmp(cpu.data(), image.rgba, cpu.size()));
-        // Device initialization failure retains the live renderer and movie.
+        // Two camera profiles alternate backends/sizes without recreating GPU
+        // devices. Even an unavailable driver hint cannot break cached devices.
         SDL_SetHintWithPriority(SDL_HINT_GPU_DRIVER, "marcus-unavailable-driver", SDL_HINT_OVERRIDE);
+        for (int repeat = 0; repeat < 3; ++repeat)
+            for (int backend : {MARCUS_RENDERER_BRENDER_COMPUTE, MARCUS_RENDERER_SDL_GPU})
+            {
+                CHECK(marcus_set_renderer(player, backend));
+                CHECK(marcus_render(player, 640, 480, 1, 0, 0, 1, &image)); // Matched work camera.
+                CHECK(image.width == 640 && image.height == 480);
+                MarcusCamera camera = image.camera;
+                CHECK(marcus_render_fly(player, 640, 480, &camera, &image));
+                CHECK(image.width == 640 && image.height == 480);
+                CHECK(marcus_set_renderer(player, MARCUS_RENDERER_BRENDER));
+                CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image)); // Movie camera.
+                CHECK(!std::memcmp(cpu.data(), image.rgba, cpu.size()));
+                CHECK(marcus_info(player, &after) && before.scene == after.scene && before.frame == after.frame &&
+                      before.camera == after.camera);
+            }
+        marcus_destroy(player);
+        // A new device's initialization failure retains the live renderer/movie.
+        player = marcus_create();
+        CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
         CHECK(!marcus_set_renderer(player, MARCUS_RENDERER_SDL_GPU));
         SDL_ResetHint(SDL_HINT_GPU_DRIVER);
         CHECK(marcus_get_renderer(player) == MARCUS_RENDERER_BRENDER);

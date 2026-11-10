@@ -159,20 +159,24 @@ the same scene ticks, hover-time preview and silent seeking as the expanded
 view. Releasing a drag resumes a previously playing movie and keeps a paused
 movie paused. The track ruler below continues to scrub within the current scene.
 
-The top-right **cog** in the movie-only view opens rendering settings without
-leaving the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and
-select a **render resolution**, then click **Apply** to save both choices.
+Each camera header has a **cog** for its own rendering settings. The movie and
+work cameras save independent renderer and resolution choices. The top-right
+**cog** in the movie-only view edits the movie camera's settings without leaving
+the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and select
+a **render resolution**, then click **Apply** to save that camera's choices.
 Resolutions are **320x240**, **640x480**, **960x720** (default), **1024x768**,
 **1600x1200**, **1920x1440**, **2560x1920**, **2880x2160**, **3840x2880**, and
 **4096x3072**. The bundled BRender build supports up to **4096x4096** output;
 Marcus's presets preserve 4:3 proportions within that limit.
-They control geometry rasterization for the movie and work camera views while
+They control geometry rasterization for the selected camera while
 keeping the movie's 4:3 proportions. In the movie camera, actors render at the
 selected size inside the authored shot's letterbox; the original background
 image and depth map scale together to preserve framing and occlusion. Background
 bitmap detail remains limited by the original artwork. Applying a new size
-updates both viewports immediately. The editor's Settings dialog also offers
-the resolution choice.
+updates that camera immediately; the expanded player uses the movie camera's
+profile. The editor's Settings dialog also offers both cameras' renderer and
+resolution choices. Older settings files with shared choices initialize both
+cameras to those choices until you change them separately.
 Opening settings pauses playback; Cancel or Escape closes the dialog and keeps
 the expanded view. The cog fades
 with the playback controls, and the cursor stays visible while settings are open.
@@ -264,14 +268,14 @@ Each first/previous/next/last action can be bound separately. Reset View default
 to R because F is now Next Frame. Arrow/Home/End/Page Up/Page Down remain fallback
 navigation keys. Flight keeps physical WASD/QE movement while right mouse is held.
 
-The **Movie renderer** button in Settings cycles between **BRender (CPU)**,
-**BRender (compute)** and **SDL GPU**. Apply switches the loaded movie immediately
-and saves the choice with the other settings. Switching preserves the current
+The **Movie camera renderer** and **Work camera renderer** buttons in Settings
+cycle between **BRender (CPU)**, **BRender (compute)** and **SDL GPU**. Apply
+updates each camera and saves its choices with the other settings. Switching preserves the current
 scene, frame, camera and inspection framing. Cancel discards the edited choice;
 Restore defaults selects BRender CPU. Existing settings files without a renderer
 entry continue to use CPU rendering.
 
-You can override the saved renderer for a launch:
+You can override both cameras' saved renderers for a launch:
 
 ```console
 marcus movie.3mm --renderer brender-compute
@@ -598,12 +602,15 @@ rebuilding the mesh releases its model, material and map registrations.
 `marcus-renderer` checks both GPU pipelines without creating an application
 window: flat shading, indexed/pitched textures, shade tables, perspective UVs,
 zero transparency, opaque palette index zero, authored depth, equal-depth
-submission order, frame clearing, padded output rows and settings compatibility.
+submission order, frame clearing, padded output rows, independent camera settings
+and migration from shared settings.
 It reports a CTest skip if neither GPU backend can initialize. To also exercise
 loaded-movie switching and Camera/Orbit/Fly rendering, pass a movie, resources
 and content directory directly to `marcus-renderer-test`. The generated
 `src/marcus/test-data/marcus.3mm` from `marcus-player` is a suitable fixture.
-These checks do not drive the Marcus UI.
+The integration checks also alternate backends and resolutions between camera
+views, including reuse of initialized GPU devices. These checks do not drive
+the Marcus UI.
 
 Both GPU backends have passed these native checks on Windows x64 through
 Direct3D 12 and Vulkan, including loaded-movie switching and retaining the CPU
