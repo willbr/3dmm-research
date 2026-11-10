@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "reference_revision": "e83b81a0902df1e5db82c580356a4cf323c40a17",
+  "reference_revision": "dbd16c5ad715ba02a4ccca7521644e71daf8879b",
   "palette": "{fixtures}/palette/3dmm_global.bin",
   "recipes": {
     "tri-piz2i": [
@@ -104,7 +104,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "67b1af67d4e70b07a55279fd970aa306a53d2f7fd4e2dccd83bdf837a755f1c3",
-      "captured_in": "6313ba63154c15173b24e65bd20e8c5fb5e1ee23"
+      "captured_in": "3b1e24544b658de6c28204ed7df05000af894778"
     },
     {
       "file": "actor-cube-1.x86.pgm",
@@ -114,7 +114,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "60c709de4742df402fede64d0565fff32a1e341b6ea0bccfa70fd8e25f66a926",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-cube-1.x86.ppm",
@@ -124,7 +124,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "7ff569f20906f8c823e9917b1b23aa827e2e33400c2508139cd79ee3dc489454",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-cube-4.x64.pgm",
@@ -134,7 +134,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "f6b60bb650c44f88d05e03478f29fbf882789833aebd3bb9ed7e7aeb00f2021a",
-      "captured_in": "6313ba63154c15173b24e65bd20e8c5fb5e1ee23"
+      "captured_in": "3b1e24544b658de6c28204ed7df05000af894778"
     },
     {
       "file": "actor-cube-4.x86.pgm",
@@ -144,7 +144,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "90d44cd38df3e1e649270c465a3c9ff6d048d416f537778fca457d99501343d2",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-cube-4.x86.ppm",
@@ -154,7 +154,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "21566fe7b12b2856567948ff5b55ad1c7ff0dbd4fb4c8ec885ac213b2e3b518f",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-grid-tmpl2010.x64.pgm",
@@ -164,7 +164,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "5438efbd06627181eef6cca3695037d0c55d17b854cff2e0d26ec189fe9a92ad",
-      "captured_in": "663d70ae6d2fb0ec2c820cfa863c886f2b1d3f44"
+      "captured_in": "04ce0fdc6738aa81b018ec46e7dd618e1b0cf98b"
     },
     {
       "file": "actor-grid-tmpl2010.x64.ppm",
@@ -174,7 +174,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "6b9c204deb20c566dd6c0018c94272f9b2c4ee766ac8b014e1cf168020e5ded2",
-      "captured_in": "663d70ae6d2fb0ec2c820cfa863c886f2b1d3f44"
+      "captured_in": "04ce0fdc6738aa81b018ec46e7dd618e1b0cf98b"
     },
     {
       "file": "actor-grid-tmpl2010.x86.pgm",
@@ -184,7 +184,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "5438efbd06627181eef6cca3695037d0c55d17b854cff2e0d26ec189fe9a92ad",
-      "captured_in": "663d70ae6d2fb0ec2c820cfa863c886f2b1d3f44"
+      "captured_in": "04ce0fdc6738aa81b018ec46e7dd618e1b0cf98b"
     },
     {
       "file": "actor-grid-tmpl2010.x86.ppm",
@@ -194,7 +194,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "6b9c204deb20c566dd6c0018c94272f9b2c4ee766ac8b014e1cf168020e5ded2",
-      "captured_in": "663d70ae6d2fb0ec2c820cfa863c886f2b1d3f44"
+      "captured_in": "04ce0fdc6738aa81b018ec46e7dd618e1b0cf98b"
     },
     {
       "file": "actor-pose-tmpl2010.x64.pgm",
@@ -204,7 +204,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "e720d1232376e6099352f043e3097714c6028cb05faa26f93bc0d5177d2460cf",
-      "captured_in": "32fdbcf7e3faae009d5fe4249d55900cb9c2464a"
+      "captured_in": "946b954052ba7c073ef895488d2e85f010819ef2"
     },
     {
       "file": "actor-pose-tmpl2010.x64.ppm",
@@ -214,7 +214,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "2082af521c28fb79551eb1c4537c0b68c457e4a066a693978b1674438da19299",
-      "captured_in": "32fdbcf7e3faae009d5fe4249d55900cb9c2464a"
+      "captured_in": "946b954052ba7c073ef895488d2e85f010819ef2"
     },
     {
       "file": "actor-pose-tmpl2010.x86.pgm",
@@ -224,7 +224,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "a4f95e705b809e586ca3d2d820ea8ee8ab659982208f5e066794a27524e694f4",
-      "captured_in": "32fdbcf7e3faae009d5fe4249d55900cb9c2464a"
+      "captured_in": "946b954052ba7c073ef895488d2e85f010819ef2"
     },
     {
       "file": "actor-pose-tmpl2010.x86.ppm",
@@ -234,7 +234,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "8e83484a9e96f7c9e1d10e2514fe1a3cbc67c692b7367a167a0c8d0114f26abb",
-      "captured_in": "32fdbcf7e3faae009d5fe4249d55900cb9c2464a"
+      "captured_in": "946b954052ba7c073ef895488d2e85f010819ef2"
     },
     {
       "file": "actor-tmpl1020.x64.pgm",
@@ -244,7 +244,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "0706e6255f08fbaee663a32abc0190ef4e109e49e7a1c748b73ae3b188536043",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-tmpl1020.x64.ppm",
@@ -254,7 +254,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "8636880409df5b212c02d2e1baef7cf75864ab3e0134a3b847b3361ba3c87d5f",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-tmpl1020.x86.pgm",
@@ -264,7 +264,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "0706e6255f08fbaee663a32abc0190ef4e109e49e7a1c748b73ae3b188536043",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "actor-tmpl1020.x86.ppm",
@@ -274,7 +274,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "8636880409df5b212c02d2e1baef7cf75864ab3e0134a3b847b3361ba3c87d5f",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "cube-faces.x64.pgm",
@@ -284,7 +284,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "054a4940aa733365c828e24b78fe94d783ba2bf88cdead7fbbdcd8b8b13e64dd",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "cube-faces.x86.pgm",
@@ -294,7 +294,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "128e9b5c10eccc7c3840a9c968096613a27305c68576f0dd1bc92901a1615c8b",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "cube-faces.x86.ppm",
@@ -304,7 +304,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "e1d7855edb45e7e0755741b3df7565c52cea574e13f968a91d7888004ae3a68b",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "prop-1.x64.pgm",
@@ -314,7 +314,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "854ebad31eb79fd990d10953faf27182421d55d50fbedc116f26903b379031ba",
-      "captured_in": "7a4e437f0837e0496b69e31434d4e029a0e924b5"
+      "captured_in": "d2de13298d9d0c33965775559491d0d0293dbab0"
     },
     {
       "file": "prop-1.x86.pgm",
@@ -324,7 +324,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "648420199cf71dea96efa8eb3b3a85ad2cd19c358ef9f4c18cedb93b9e4a6d12",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "prop-1.x86.ppm",
@@ -334,7 +334,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "a74ea112f1b886d37c160ebc742b0bfc31e5ac2498cdf98ea538a3b06bd90e2d",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "prop-3500.x64.pgm",
@@ -344,7 +344,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "1b847f0b5eeed73e016845316d642a43092f208eadd55c6eecea1de5ecaf0402",
-      "captured_in": "66f09e16354928077dfa37f86729c421cf3badc0"
+      "captured_in": "1cfcb6624a519965704efd0f80faa811f81839c3"
     },
     {
       "file": "prop-3500.x86.pgm",
@@ -354,7 +354,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "f0a7de84c793592ae4659c8d71ee1264d9cee74894db51e3625a7913a31b30ce",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "prop-3500.x86.ppm",
@@ -364,7 +364,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "9961e52d3036cb4439918e41c37155c055381bf3988cd1db4480998d2a12eb07",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "prop-4.x64.pgm",
@@ -374,7 +374,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "e85205095cac4afffdc842c6c3da8e4dc30a503411e6dcb3b8d10bdbb065e193",
-      "captured_in": "7a4e437f0837e0496b69e31434d4e029a0e924b5"
+      "captured_in": "d2de13298d9d0c33965775559491d0d0293dbab0"
     },
     {
       "file": "prop-4.x86.pgm",
@@ -384,7 +384,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "4fce45a54c4edcf0772ea94b1965a80032dea35bbe3220643e415c8eee5a5480",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "prop-4.x86.ppm",
@@ -394,7 +394,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "1083803015b848a5c6b622bbcd01ba45297df9b2b4cb3b5ab81e706211abb440",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "props-overlap.x64.pgm",
@@ -404,7 +404,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "8ec436d75c33dabce26e69babd8a03f45530943e86585202322b5336c572d1ca",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "props-overlap.x64.ppm",
@@ -414,7 +414,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "36ab4bcaae7aa3c4e92f603c5db6876a122c1cd74b2cdace2ba06164a17532f7",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "props-overlap.x86.pgm",
@@ -424,7 +424,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "8ec436d75c33dabce26e69babd8a03f45530943e86585202322b5336c572d1ca",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "props-overlap.x86.ppm",
@@ -434,7 +434,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "36ab4bcaae7aa3c4e92f603c5db6876a122c1cd74b2cdace2ba06164a17532f7",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "quad-ccw.x64.pgm",
@@ -444,7 +444,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "f88a0581aa23b918ebb2505d7aa4fb6e34f3d16e2b9b71202a007bbac0fe12ed",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "quad-ccw.x86.pgm",
@@ -454,7 +454,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "671f2ead607049d53900cf85b9f5414c99ca92dbf5a283588ade37c92e0f69ef",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "quad-ccw.x86.ppm",
@@ -464,7 +464,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "5fde31fcbd5a2b3ee8d644d26f6d644a7549e4ded6d07a474bfb62316609e96c",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "quad-cw.x64.pgm",
@@ -474,7 +474,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "f88a0581aa23b918ebb2505d7aa4fb6e34f3d16e2b9b71202a007bbac0fe12ed",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "quad-cw.x86.pgm",
@@ -484,7 +484,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "671f2ead607049d53900cf85b9f5414c99ca92dbf5a283588ade37c92e0f69ef",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "quad-cw.x86.ppm",
@@ -494,7 +494,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "5fde31fcbd5a2b3ee8d644d26f6d644a7549e4ded6d07a474bfb62316609e96c",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tilted-overlap.x64.pgm",
@@ -504,7 +504,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "b73c42084ac2bdedf35fd21a6e8c4847aeadee6e860a133101f955a19cfa9788",
-      "captured_in": "b001b2ff649285ac5ca9bb2958ae4022b2b03201"
+      "captured_in": "a3fc444fac35c653cf2b3f31628bb94184239552"
     },
     {
       "file": "tilted-overlap.x86.pgm",
@@ -514,7 +514,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "7e8610d0750f523e13c8d62117287defeecd5ef720ce1ca6ddadcd1a5bbb387a",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tilted-overlap.x86.ppm",
@@ -524,7 +524,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "e4b49c3d1176e4aa16182e90381f7bdb225024ce7c653ba3edc848a7ba545650",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tri-piz2i.x64.pgm",
@@ -534,7 +534,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "1d3b6180cfebcf129b41b2a0a89377bf7caadd6ef207fa40d9b639cf2767bbe1",
-      "captured_in": "5089fc5175213e48a08ad76d16166a78b11345d0"
+      "captured_in": "453477387fd6acdf9c1489bca5b8335afe432a1e"
     },
     {
       "file": "tri-piz2i.x86.pgm",
@@ -544,7 +544,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "cc61ad21ba0d7aa95b2c1f9a86e01c635247dfd968d89483358a810dd1188df5",
-      "captured_in": "8a48be4a8b47e695a5de20967a895f7850f400c3"
+      "captured_in": "30d4f2abe2810ff751b6138332de288ad11c3d05"
     },
     {
       "file": "tri-piz2tia-rev.x64.pgm",
@@ -554,7 +554,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "3f60eb305563d489ff5b26ff7d8cf9741a8cf95a369d64d0aa11c4c82b3d1ca1",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "tri-piz2tia-rev.x86.pgm",
@@ -564,7 +564,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "cb9b3c005e391f631148dc4eb67dac6d493cc952ace63cf09f4934e60010e3f9",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tri-piz2tia-rev.x86.ppm",
@@ -574,7 +574,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "84b8bbed22e9bc27e56ebd91b3b35ff8b5db9576ac73639f6d857c151a11af19",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tri-piz2tia.x64.pgm",
@@ -584,7 +584,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "3f60eb305563d489ff5b26ff7d8cf9741a8cf95a369d64d0aa11c4c82b3d1ca1",
-      "captured_in": "e4831e67d53d63732a866102331405f3b77ab11a"
+      "captured_in": "7eb3981a5c23e9bf235c88a10081f9d44d1bedfe"
     },
     {
       "file": "tri-piz2tia.x86.pgm",
@@ -594,7 +594,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "cb9b3c005e391f631148dc4eb67dac6d493cc952ace63cf09f4934e60010e3f9",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tri-piz2tia.x86.ppm",
@@ -604,7 +604,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "84b8bbed22e9bc27e56ebd91b3b35ff8b5db9576ac73639f6d857c151a11af19",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tri-thin-horz.x64.pgm",
@@ -614,7 +614,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "f735e79b2572692e6227452fe62ab92e4f79f4ccd25aa946241bec6c483dbd52",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "tri-thin-horz.x86.pgm",
@@ -624,7 +624,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "f735e79b2572692e6227452fe62ab92e4f79f4ccd25aa946241bec6c483dbd52",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "tri-thin-vert.x64.pgm",
@@ -634,7 +634,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "9833d2da7a56d3493daefbc993738f80d29ce56a8f5ffbb956c10a68898a5324",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "tri-thin-vert.x86.pgm",
@@ -644,7 +644,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "9833d2da7a56d3493daefbc993738f80d29ce56a8f5ffbb956c10a68898a5324",
-      "captured_in": "10814b699c31d1fd8df04405bd73c2f13e0e2b45"
+      "captured_in": "ad761af89da1fe4253258d1b6e729634eafc329e"
     },
     {
       "file": "tri-tilted-z.x64.pgm",
@@ -654,7 +654,7 @@
       "height": 256,
       "bytes": 65551,
       "sha256": "3f60eb305563d489ff5b26ff7d8cf9741a8cf95a369d64d0aa11c4c82b3d1ca1",
-      "captured_in": "b001b2ff649285ac5ca9bb2958ae4022b2b03201"
+      "captured_in": "a3fc444fac35c653cf2b3f31628bb94184239552"
     },
     {
       "file": "tri-tilted-z.x86.pgm",
@@ -664,7 +664,7 @@
       "height": 1024,
       "bytes": 1048593,
       "sha256": "cb9b3c005e391f631148dc4eb67dac6d493cc952ace63cf09f4934e60010e3f9",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     },
     {
       "file": "tri-tilted-z.x86.ppm",
@@ -674,7 +674,7 @@
       "height": 1024,
       "bytes": 3145745,
       "sha256": "84b8bbed22e9bc27e56ebd91b3b35ff8b5db9576ac73639f6d857c151a11af19",
-      "captured_in": "ec04fc2184eb3102c33df45cab055c408dbd5a8e"
+      "captured_in": "2f2e86468903b1727eef621c3d511eb6a125ddcf"
     }
   ]
 }
