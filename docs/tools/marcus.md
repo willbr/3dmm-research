@@ -189,6 +189,9 @@ Ctrl/Command+comma also opens this dialog in the movie-only view.
 
 The **arrow strip** beside the properties panel opens an authored movie camera on the left and an independent
 work camera on the right, both showing the same movie frame during playback.
+Orbit and Fly keep the movie scene's authored lights in world space, so moving
+the work camera does not move the lighting. Isolated assets without a background
+use a preview light; reconstructed scenery retains its original baked colours.
 Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
 fly while the movie continues. C switches that work view between Orbit and Fly.
 Drag the divider to resize either viewport. The strip's arrow collapses and

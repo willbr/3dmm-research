@@ -1271,20 +1271,23 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         light.type = BR_LIGHT_DIRECT;
         light.colour = BR_COLOUR_RGB(255, 255, 255);
         light.attenuation_c = BR_SCALAR(1);
-        std::vector<br_light> lights(bg ? bg->lights.size() : 0);
-        if (bg)
+        // Scene lighting stays in world space when inspecting from another
+        // camera. Only isolated assets without a background need a headlight.
+        const auto lighting = _impl->background.get();
+        std::vector<br_light> lights(lighting ? lighting->lights.size() : 0);
+        if (lighting)
         {
             for (std::size_t i = 0; i < lights.size(); ++i)
             {
-                lights[i].type = static_cast<br_uint_8>(bg->lights[i].lt);
+                lights[i].type = static_cast<br_uint_8>(lighting->lights[i].lt);
                 lights[i].colour = BR_COLOUR_RGB(255, 255, 255);
-                lights[i].attenuation_c = bg->lights[i].rIntensity;
+                lights[i].attenuation_c = lighting->lights[i].rIntensity;
                 auto actor = BrActorAllocate(BR_ACTOR_LIGHT, &lights[i]);
                 if (!actor)
                     return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene lighting.");
                 BrActorAdd(frame.world, actor);
                 actor->t.type = BR_TRANSFORM_MATRIX34;
-                actor->t.t.mat = bg->lights[i].bmat34;
+                actor->t.t.mat = lighting->lights[i].bmat34;
                 frame.lights.push_back(actor);
                 BrLightEnable(actor);
             }

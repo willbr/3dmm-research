@@ -4,6 +4,8 @@
 #include "three_mm/preview.h"
 #include "zb_capture.h"
 #include <SDL3/SDL.h>
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -270,6 +272,60 @@ int main(int argc, char **argv)
     // Optional content integration, without a window or UI input.
     if (argc == 4)
     {
+        // Compare BRender's lit actor vertices before rasterization/occlusion.
+        // The work camera must keep authored lighting when it leaves the
+        // bitmap-backed movie view, in both Fly and Orbit modes.
+        {
+            struct LightingProbe final : ThreeMM::PreviewRasterizer
+            {
+                std::vector<float> samples;
+                bool Begin(unsigned, unsigned, ThreeMM::Error &) override
+                {
+                    samples.clear();
+                    samples.reserve(1000000);
+                    return true;
+                }
+                void Triangle(const BrRasterTriangle &triangle) noexcept override
+                {
+                    if (!(triangle.flags & 1)) return; // BR_MATF_LIGHT; scenery is already shaded.
+                    for (const auto &vertex : triangle.vertices)
+                        if (samples.size() < samples.capacity()) samples.push_back(vertex.intensity);
+                }
+                bool End(unsigned char *, int, unsigned char *, int, ThreeMM::Error &) override { return true; }
+            } probe;
+            ThreeMM::Preview preview;
+            CHECK(preview.Open(argv[1], argv[2], error));
+            for (const char *file : {"tmpls.3cn", "bkgds.3cn", "tdfs.3cn", "mtrls.3cn"})
+                CHECK(preview.AddContent(2, (std::filesystem::u8path(argv[3]) / file).u8string(), error));
+            CHECK(preview.Select({0x5343454e, 0}, error));
+            for (bool freeCamera : {true, false})
+            {
+                CHECK(preview.SetFrame(10, error));
+                ThreeMM::PreviewView view;
+                view.width = 544; view.height = 306;
+                view.renderAtOutputResolution = true;
+                view.rasterizer = &probe;
+                ThreeMM::PreviewImage image;
+                CHECK(preview.Render(view, image, error));
+                CHECK(!probe.samples.empty());
+                auto authored = probe.samples;
+                std::sort(authored.begin(), authored.end());
+                ThreeMM::PreviewCamera camera;
+                CHECK(preview.MatchSceneCamera(544.f / 306, camera, error));
+                view.authoredCamera = false;
+                view.freeCamera = freeCamera;
+                view.stableOrbit = view.frameSceneCamera = true;
+                view.nearClip = .1f;
+                view.cameraX = camera.x; view.cameraY = camera.y; view.cameraZ = camera.z;
+                view.yaw = camera.yaw; view.pitch = camera.pitch; view.roll = camera.roll;
+                view.verticalFov = camera.verticalFov;
+                CHECK(preview.Render(view, image, error));
+                std::sort(probe.samples.begin(), probe.samples.end());
+                CHECK(authored.size() == probe.samples.size());
+                for (std::size_t i = 0; i < authored.size(); ++i)
+                    CHECK(std::abs(authored[i] - probe.samples[i]) < .1f);
+            }
+        }
         unsigned sourceWidth = 0, sourceHeight = 0;
         {
             // Inspect the actual raster size and seeded background/depth,
