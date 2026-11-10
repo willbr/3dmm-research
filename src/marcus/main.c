@@ -20,6 +20,9 @@
 #define SCENE_NAV_X 432
 #define NAV_STEP 32
 #define VIEW_STRIP_WIDTH 20
+#define TIMELINE_HANDLE_HEIGHT 8
+#define TIMELINE_MIN_HEIGHT 168
+#define VIEWPORT_MIN_BOTTOM 320
 #define FLY_FORWARD 1
 #define FLY_BACK 2
 #define FLY_LEFT 4
@@ -47,6 +50,7 @@ typedef struct App
     SDL_Texture *picture;
     SDL_Texture *movie_picture;
     SDL_Cursor *split_cursor;
+    SDL_Cursor *timeline_cursor;
     MarcusUI ui;
     MarcusPlayer *player;
     MarcusMovieInput *movie_input, *zip_input;
@@ -67,6 +71,8 @@ typedef struct App
     int row_scroll, object_scroll, width, height;
     int sound_sheet, sound_scroll, selected_sound, selected_sound_track;
     int second_view, second_mode, resizing_view, movie_dirty;
+    int resizing_timeline;
+    float timeline_height, timeline_drag_offset;
     float split_fraction, split_x;
     float sidebar, viewport_bottom, timeline_y, grid_x, grid_width;
     float yaw, pitch, zoom, pixels_per_frame;
@@ -135,7 +141,7 @@ static int inside_movie(const App *app, float x, float y)
 static void toggle_second_view(App *app)
 {
     release_fly(app);
-    app->dragging = app->orbiting = app->panning = app->resizing_view = 0;
+    app->dragging = app->orbiting = app->panning = app->resizing_view = app->resizing_timeline = 0;
     if (app->second_view)
     {
         app->second_mode = app->authored;
@@ -160,6 +166,7 @@ static void fail(App *app, const char *message)
     marcus_stop(app->player);
     app->dragging = app->orbiting = app->panning = 0;
     app->resizing_view = 0;
+    app->resizing_timeline = 0;
     release_fly(app);
 }
 static void refresh(App *app)
@@ -178,13 +185,19 @@ static void refresh(App *app)
 }
 static void layout(App *app)
 {
+    int rows;
+    float height;
     SDL_GetRenderOutputSize(app->renderer, &app->width, &app->height);
     app->sidebar = (float)app->width - 300;
-    app->timeline_y = (float)app->height - 300;
-    app->viewport_bottom = app->timeline_y - 7;
+    height = (float)maximum(TIMELINE_MIN_HEIGHT, minimum(app->height - VIEWPORT_MIN_BOTTOM, app->timeline_height));
+    app->timeline_y = (float)app->height - height;
+    app->viewport_bottom = app->timeline_y - TIMELINE_HANDLE_HEIGHT;
     app->grid_x = 218;
     app->grid_width = app->sidebar - app->grid_x - 8;
     app->split_x = (float)maximum(330, minimum(view_right(app) - 330, view_right(app) * app->split_fraction));
+    rows = (int)((height - 112) / ROW_HEIGHT);
+    app->row_scroll = (int)maximum(0, minimum(app->row_scroll, app->info.object_count - rows));
+    app->sound_scroll = (int)maximum(0, minimum(app->sound_scroll, app->info.sound_track_count - rows));
 }
 static void fit_timeline(App *app)
 {
@@ -582,6 +595,7 @@ static void select_timeline_row(App *app, float x, float y, int grid)
 static void open_settings(App *app)
 {
     release_fly(app);
+    app->resizing_view = app->resizing_timeline = 0;
     app->playing = app->dragging = app->orbiting = app->panning = 0;
     app->edited_shortcuts = app->shortcuts;
     app->binding_capture = -1;
@@ -693,6 +707,14 @@ static void mouse_down(App *app, float x, float y, int button)
     {
         if (button == SDL_BUTTON_LEFT)
             settings_click(app, x, y);
+        return;
+    }
+    if (button == SDL_BUTTON_LEFT &&
+        ui_inside(x, y, 0, app->viewport_bottom, app->sidebar, TIMELINE_HANDLE_HEIGHT))
+    {
+        app->resizing_timeline = 1;
+        app->timeline_drag_offset = y - app->viewport_bottom;
+        app->resizing_view = app->orbiting = app->panning = app->dragging = 0;
         return;
     }
     if (button == SDL_BUTTON_LEFT &&
@@ -1010,15 +1032,30 @@ static void handle_event(App *app, const SDL_Event *event)
             app->flight.pitch = (float)minimum(85, maximum(-85, app->flight.pitch + event->motion.yrel * 0.15));
             app->dirty = 1;
         }
+        if (app->resizing_timeline)
+        {
+            app->timeline_height = (float)maximum(TIMELINE_MIN_HEIGHT, minimum(app->height - VIEWPORT_MIN_BOTTOM,
+                app->height - event->motion.y + app->timeline_drag_offset - TIMELINE_HANDLE_HEIGHT));
+            layout(app);
+        }
         if (app->resizing_view)
         {
             app->split_x = (float)maximum(330, minimum(view_right(app) - 330, event->motion.x));
             app->split_fraction = app->split_x / view_right(app);
         }
-        if (!app->flying && app->split_cursor)
-            SDL_SetCursor(app->second_view && (app->resizing_view ||
-                ui_inside(event->motion.x, event->motion.y, app->split_x - 4, 89, 8, app->viewport_bottom - 89))
-                ? app->split_cursor : SDL_GetDefaultCursor());
+        if (!app->flying)
+        {
+            if (app->timeline_cursor && (app->resizing_timeline ||
+                ui_inside(event->motion.x, event->motion.y, 0, app->viewport_bottom,
+                          app->sidebar, TIMELINE_HANDLE_HEIGHT)))
+                SDL_SetCursor(app->timeline_cursor);
+            else if (app->split_cursor && app->second_view &&
+                     (app->resizing_view || ui_inside(event->motion.x, event->motion.y, app->split_x - 4,
+                                                       89, 8, app->viewport_bottom - 89)))
+                SDL_SetCursor(app->split_cursor);
+            else
+                SDL_SetCursor(SDL_GetDefaultCursor());
+        }
         if (app->dragging)
             seek(app, frame_at(app, event->motion.x));
         if (app->orbiting)
@@ -1052,6 +1089,7 @@ static void handle_event(App *app, const SDL_Event *event)
         {
             app->dragging = app->orbiting = 0;
             app->resizing_view = 0;
+            app->resizing_timeline = 0;
         }
     }
     else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->zip_input && !app->error[0])
@@ -1128,6 +1166,7 @@ static void handle_event(App *app, const SDL_Event *event)
         release_fly(app);
         app->dragging = app->orbiting = app->panning = 0;
         app->resizing_view = 0;
+        app->resizing_timeline = 0;
         if (app->shortcuts.pause_on_focus_loss)
             app->playing = 0;
     }
@@ -1572,6 +1611,14 @@ static void draw_timeline(App *app)
     unsigned long tint;
     ui = &app->ui;
     y = app->timeline_y;
+    ui_fill(ui, 0, y - TIMELINE_HANDLE_HEIGHT, app->sidebar, TIMELINE_HANDLE_HEIGHT,
+            app->resizing_timeline || ui_inside(ui->mouse_x, ui->mouse_y, 0, app->viewport_bottom,
+                                                app->sidebar, TIMELINE_HANDLE_HEIGHT) ? 0x3b4650 : PANEL);
+    ui_line(ui, app->sidebar / 2 - 22, y - 5, app->sidebar / 2 + 22, y - 5, MUTED);
+    ui_line(ui, app->sidebar / 2 - 22, y - 3, app->sidebar / 2 + 22, y - 3, MUTED);
+    if (app->resizing_timeline || ui_inside(ui->mouse_x, ui->mouse_y, 0, app->viewport_bottom,
+                                          app->sidebar, TIMELINE_HANDLE_HEIGHT))
+        ui->hint = "Drag up or down to resize the dope sheets";
     ui_fill(ui, 0, y, app->sidebar, (float)app->height - y - 24, PANEL);
     ui_line(ui, 0, y, app->sidebar, y, LINE);
     ui_navigation_button(ui, FRAME_NAV_X, y + 8, 0, app->loaded && app->info.frame > app->info.first_frame,
@@ -1996,6 +2043,7 @@ int main(int argc, char **argv)
     app.pixels_per_frame = 12;
     app.zoom = 1;
     app.split_fraction = 0.5f;
+    app.timeline_height = 300;
     app.second_mode = 2;
     app.movie_dirty = 1;
     find_defaults(&app);
@@ -2113,6 +2161,7 @@ int main(int argc, char **argv)
     SDL_SetWindowResizable(app.window, 1);
     SDL_SetWindowMinimumSize(app.window, 1080, 820);
     app.split_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_EW_RESIZE);
+    app.timeline_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NS_RESIZE);
     SDL_SetRenderVSync(app.renderer, 1);
     if (!ui_init(&app.ui, app.renderer, font))
     {
@@ -2224,6 +2273,7 @@ cleanup:
     SDL_DestroyTexture(app.picture);
     SDL_DestroyTexture(app.movie_picture);
     SDL_DestroyCursor(app.split_cursor);
+    SDL_DestroyCursor(app.timeline_cursor);
     marcus_destroy(app.player);
     marcus_input_destroy(app.movie_input);
     marcus_input_destroy(app.zip_input);

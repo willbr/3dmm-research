@@ -95,6 +95,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Camera / Orbit / Fly, or C | Switch authored camera / orbit / first-person flight |
 | Arrow strip beside the properties panel | Expand or collapse the work camera viewport |
 | Divider between viewports | Drag to resize the movie and work views |
+| Handle above the dope sheets | Drag up/down to change track-area height; both sheets share the height |
 | Left drag in Orbit / wheel | Orbit / zoom |
 | Right drag in Orbit | Pan the view |
 | Hold right mouse in Fly | Capture the mouse for first-person look and movement |
