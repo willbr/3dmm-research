@@ -37,6 +37,9 @@ struct PreviewView
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
     bool fitSceneDepth = false;    // Fit inspection clip distances to visible scene geometry.
+    int displayMode = 0;           // Host-selected built-in material/edge mode; zero preserves authored materials.
+    bool orthographic = false;
+    int axisView = 0;              // 0 free, 1 front, 2 side, 3 top.
     PreviewRasterizer *rasterizer = nullptr; // Borrowed for this Render call; null uses BRender CPU.
 };
 struct PreviewCamera
@@ -51,6 +54,8 @@ struct PreviewProjection
     float transform[12] = {}; // Camera-to-world: right, up, backward, position rows.
     float verticalFov = 0, aspect = 0, nearClip = 0, farClip = 0;
     float displayDepth = 0; // Camera marker length, independent of the clip distances above.
+    bool orthographic = false;
+    float orthoHeight = 0;
 };
 struct PreviewImage
 {

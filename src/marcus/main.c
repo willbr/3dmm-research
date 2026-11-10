@@ -28,7 +28,8 @@
 #define MOVIE_IDLE_MS 2500
 #define RESOLUTION_COLUMNS 3
 #define RESOLUTION_GRID_HEIGHT (((MARCUS_RESOLUTION_COUNT + RESOLUTION_COLUMNS - 1) / RESOLUTION_COLUMNS) * 40)
-#define RENDER_SETTINGS_HEIGHT (274 + RESOLUTION_GRID_HEIGHT)
+#define RENDER_SETTINGS_WIDTH 760
+#define RENDER_SETTINGS_HEIGHT 620
 #define SETTINGS_HEIGHT 728
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
@@ -224,6 +225,7 @@ static void release_camera(App *app)
 }
 static void view_mode(App *app, int mode)
 {
+    if (mode != 1) app->shortcuts.work_view.axis_view = 0;
     release_camera(app);
     if (mode == 2 && app->authored != 2)
     {
@@ -440,6 +442,11 @@ static void reset_view(App *app)
     app->fly_ready = app->camera_ready = 0;
     app->dragging = app->orbiting = app->panning = 0;
     app->dirty = 1;
+}
+static void reset_camera_view(App *app)
+{
+    app->shortcuts.work_view.axis_view = 0;
+    reset_view(app);
 }
 static int select_scene(App *app, int index)
 {
@@ -859,7 +866,7 @@ static void perform_action(App *app, int action)
         view_mode(app, app->second_view ? (app->authored == 2 ? 0 : 2) : (app->authored + 1) % 3);
     else if (action == MARCUS_RESET_VIEW)
     {
-        reset_view(app);
+        reset_camera_view(app);
         fit_timeline(app);
     }
 }
@@ -1032,6 +1039,14 @@ static void open_settings(App *app)
     app->rendering_settings = 0;
     app->settings_open = 1;
 }
+static void normalize_camera_options(int renderer, MarcusRenderOptions *view)
+{
+    if (renderer == MARCUS_RENDERER_BRENDER)
+    {
+        if (view->display_mode >= MARCUS_DISPLAY_DEPTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
+        view->wire_overlay = view->antialias = view->texture_filter = 0;
+    }
+}
 static void open_rendering_settings(App *app, int work)
 {
     open_settings(app);
@@ -1050,11 +1065,30 @@ static void cancel_settings(App *app)
 }
 static void apply_settings(App *app)
 {
-    int rendering_changed;
+    int rendering_changed, work_changed, i, scale;
+    const MarcusRenderResolution *resolution;
+    MarcusRenderOptions *view;
+    normalize_camera_options(app->edited_shortcuts.renderer, &app->edited_shortcuts.movie_view);
+    normalize_camera_options(app->edited_shortcuts.work_renderer, &app->edited_shortcuts.work_view);
+    for (i = 0; i < 2; ++i)
+    {
+        view = i ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
+        resolution = marcus_render_resolution(i ? app->edited_shortcuts.work_render_resolution : app->edited_shortcuts.render_resolution);
+        scale = 1 << view->antialias;
+        if (resolution->width * scale > 4096 || resolution->height * scale > 4096)
+        {
+            SDL_strlcpy(app->settings_message, "Choose a smaller resolution or turn AA off (4096-pixel render limit).", sizeof(app->settings_message));
+            return;
+        }
+    }
+    work_changed = app->shortcuts.work_view.orthographic != app->edited_shortcuts.work_view.orthographic ||
+                   app->shortcuts.work_view.axis_view != app->edited_shortcuts.work_view.axis_view;
     rendering_changed = app->shortcuts.renderer != app->edited_shortcuts.renderer ||
                         app->shortcuts.render_resolution != app->edited_shortcuts.render_resolution ||
                         app->shortcuts.work_renderer != app->edited_shortcuts.work_renderer ||
-                        app->shortcuts.work_render_resolution != app->edited_shortcuts.work_render_resolution;
+                        app->shortcuts.work_render_resolution != app->edited_shortcuts.work_render_resolution ||
+                        memcmp(&app->shortcuts.movie_view, &app->edited_shortcuts.movie_view, sizeof(MarcusRenderOptions)) ||
+                        memcmp(&app->shortcuts.work_view, &app->edited_shortcuts.work_view, sizeof(MarcusRenderOptions));
     if (!marcus_set_renderer(app->player, app->edited_shortcuts.renderer) ||
         !marcus_set_renderer(app->player, app->edited_shortcuts.work_renderer))
     {
@@ -1065,6 +1099,19 @@ static void apply_settings(App *app)
                         sizeof(app->settings_message)))
         return;
     app->shortcuts = app->edited_shortcuts;
+    if (work_changed)
+    {
+        app->work_matched = app->work_needs_match = 0;
+        if (app->shortcuts.work_view.axis_view)
+        {
+            app->fly_ready = 0;
+            app->yaw = app->shortcuts.work_view.axis_view == 2 ? 90.0f : 0;
+            app->pitch = app->shortcuts.work_view.axis_view == 3 ? 90.0f : 0;
+            if (app->second_view || app->authored != 1) app->authored = 0;
+        }
+    }
+    if (app->shortcuts.work_view.display_mode || app->shortcuts.work_view.wire_overlay)
+        app->work_matched = app->work_needs_match = 0;
     if (rendering_changed)
     {
         app->dirty = 1;
@@ -1076,18 +1123,21 @@ static void apply_settings(App *app)
 static void settings_click(App *app, float x, float y)
 {
     float left, top;
-    int renderer, resolution, *edited_renderer, *edited_resolution;
+    int renderer, resolution, i, gpu, *edited_renderer, *edited_resolution;
+    MarcusRenderOptions *view;
     edited_renderer = app->settings_work_camera ? &app->edited_shortcuts.work_renderer : &app->edited_shortcuts.renderer;
     edited_resolution = app->settings_work_camera ? &app->edited_shortcuts.work_render_resolution :
                                                    &app->edited_shortcuts.render_resolution;
+    view = app->settings_work_camera ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
+    gpu = *edited_renderer != MARCUS_RENDERER_BRENDER;
     if (app->rendering_settings)
     {
-        left = app->width / 2.0f - 240;
+        left = (app->width - RENDER_SETTINGS_WIDTH) / 2.0f;
         top = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
-        if (ui_inside(x, y, left + 438, top + 16, 28, 28) ||
-            ui_inside(x, y, left + 256, top + RENDER_SETTINGS_HEIGHT - 48, 88, 28))
+        if (ui_inside(x, y, left + 718, top + 16, 28, 28) ||
+            ui_inside(x, y, left + 536, top + RENDER_SETTINGS_HEIGHT - 48, 88, 28))
             cancel_settings(app);
-        else if (ui_inside(x, y, left + 360, top + RENDER_SETTINGS_HEIGHT - 48, 96, 28))
+        else if (ui_inside(x, y, left + 636, top + RENDER_SETTINGS_HEIGHT - 48, 96, 28))
             apply_settings(app);
         else
         {
@@ -1095,8 +1145,30 @@ static void settings_click(App *app, float x, float y)
                 if (ui_inside(x, y, left + 24 + renderer * 144, top + 86, 136, 32))
                 {
                     *edited_renderer = renderer;
+                    normalize_camera_options(renderer, view);
                     app->settings_message[0] = 0;
                     break;
+                }
+            if (ui_inside(x, y, left + 480, top + 80, 256, 28))
+            {
+                view->display_mode = (view->display_mode + 1) % MARCUS_DISPLAY_COUNT;
+                if (!gpu && view->display_mode >= MARCUS_DISPLAY_DEPTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
+            }
+            if (gpu && ui_inside(x, y, left + 620, top + 120, 116, 28)) view->wire_overlay = !view->wire_overlay;
+            for (i = 0; i < 3; ++i)
+                if (gpu && ui_inside(x, y, left + 480 + i * 88, top + 190, 80, 28))
+                    view->antialias = i;
+            for (i = 0; i < 2; ++i)
+            {
+                if (gpu && ui_inside(x, y, left + 480 + i * 132, top + 258, 124, 28)) view->texture_filter = i;
+                if (app->settings_work_camera && ui_inside(x, y, left + 480 + i * 132, top + 328, 124, 28))
+                    view->orthographic = i;
+            }
+            for (i = 0; i < 4; ++i)
+                if (app->settings_work_camera && ui_inside(x, y, left + 480 + i * 66, top + 396, 58, 28))
+                {
+                    view->axis_view = i;
+                    if (i) view->orthographic = 1;
                 }
             for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
                 if (ui_inside(x, y, left + 24 + (resolution % RESOLUTION_COLUMNS) * 146,
@@ -1127,6 +1199,7 @@ static void settings_click(App *app, float x, float y)
     else if (ui_inside(x, y, left + 430, top + 508, 204, 28))
     {
         app->edited_shortcuts.renderer = (app->edited_shortcuts.renderer + 1) % MARCUS_RENDERER_COUNT;
+        normalize_camera_options(app->edited_shortcuts.renderer, &app->edited_shortcuts.movie_view);
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
@@ -1139,6 +1212,7 @@ static void settings_click(App *app, float x, float y)
     else if (ui_inside(x, y, left + 430, top + 580, 204, 28))
     {
         app->edited_shortcuts.work_renderer = (app->edited_shortcuts.work_renderer + 1) % MARCUS_RENDERER_COUNT;
+        normalize_camera_options(app->edited_shortcuts.work_renderer, &app->edited_shortcuts.work_view);
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
@@ -1389,7 +1463,7 @@ static void mouse_down(App *app, float x, float y, int button)
     else if (app->second_view && ui_inside(x, y, right - 140, 96, 60, 28))
         view_mode(app, 2);
     else if (app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
-        reset_view(app);
+        reset_camera_view(app);
     else if (!app->second_view && ui_inside(x, y, right - 312, 96, 84, 28))
         view_mode(app, 1);
     else if (!app->second_view && ui_inside(x, y, right - 220, 96, 72, 28))
@@ -1397,7 +1471,7 @@ static void mouse_down(App *app, float x, float y, int button)
     else if (!app->second_view && ui_inside(x, y, right - 140, 96, 60, 28))
         view_mode(app, 2);
     else if (!app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
-        reset_view(app);
+        reset_camera_view(app);
     else if (ui_inside(x, y, FRAME_NAV_X, app->timeline_y + FRAME_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
         action = (int)((x - FRAME_NAV_X) / NAV_STEP);
@@ -1728,6 +1802,7 @@ static void handle_event(App *app, const SDL_Event *event)
             seek(app, frame_at(app, event->motion.x));
         if (app->orbiting)
         {
+            if (event->motion.xrel != 0 || event->motion.yrel != 0) app->shortcuts.work_view.axis_view = 0;
             if (event->motion.xrel != 0 || event->motion.yrel != 0)
                 app->work_matched = 0;
             app->yaw -= event->motion.xrel * 0.4f;
@@ -1743,7 +1818,9 @@ static void handle_event(App *app, const SDL_Event *event)
             if (event->motion.xrel != 0 || event->motion.yrel != 0)
                 app->work_matched = 0;
             viewport = viewport_rect(app, 0);
-            if (!marcus_pan_orbit(app->player, -event->motion.xrel / viewport.w,
+            if (!marcus_set_renderer(app->player, app->shortcuts.work_renderer) ||
+                !marcus_set_render_options(app->player, &app->shortcuts.work_view) ||
+                !marcus_pan_orbit(app->player, -event->motion.xrel / viewport.w,
                                   event->motion.yrel / viewport.h, app->yaw, app->pitch, app->zoom))
                 fail(app, marcus_error(app->player));
             app->dirty = 1;
@@ -1959,6 +2036,7 @@ static void draw_movie_view(App *app)
         app->movie_dirty = 0;
         resolution = marcus_render_resolution(app->shortcuts.render_resolution);
         if (!marcus_set_renderer(app->player, app->shortcuts.renderer) ||
+            !marcus_set_render_options(app->player, &app->shortcuts.movie_view) ||
             !marcus_render(app->player, resolution->width, resolution->height, 1, 0, 0, 1, &image))
             fail(app, marcus_error(app->player));
         else
@@ -2042,6 +2120,13 @@ static void draw_view(App *app)
     right = view_right(app);
     width = right - left;
     work = app->second_view || app->authored != 1;
+    if (work && app->loaded && app->work_needs_match &&
+        (app->shortcuts.work_view.orthographic || app->shortcuts.work_view.axis_view))
+        match_work_camera(app);
+    if (work && app->shortcuts.work_view.axis_view) app->authored = 0;
+    if (work && (app->shortcuts.work_view.orthographic || app->shortcuts.work_view.axis_view ||
+                 app->shortcuts.work_view.display_mode || app->shortcuts.work_view.wire_overlay))
+        app->work_matched = app->work_needs_match = 0;
     resolution = marcus_render_resolution(work ? app->shortcuts.work_render_resolution : app->shortcuts.render_resolution);
     render_width = resolution->width;
     render_height = resolution->height;
@@ -2078,7 +2163,8 @@ static void draw_view(App *app)
     if (app->dirty)
     {
         app->dirty = 0;
-        if (!marcus_set_renderer(app->player, work ? app->shortcuts.work_renderer : app->shortcuts.renderer))
+        if (!marcus_set_renderer(app->player, work ? app->shortcuts.work_renderer : app->shortcuts.renderer) ||
+            !marcus_set_render_options(app->player, work ? &app->shortcuts.work_view : &app->shortcuts.movie_view))
             rendered = 0;
         else if (app->authored != 1 && (app->work_matched || app->work_needs_match))
         {
@@ -2112,6 +2198,11 @@ static void draw_view(App *app)
             app->work_image = image;
             app->work_image.rgba = NULL;
             app->camera = image.camera;
+            if (work && app->shortcuts.work_view.axis_view)
+            {
+                app->yaw = image.camera.yaw;
+                app->pitch = image.camera.pitch;
+            }
             app->projection = image.projection;
             app->scene_camera = image.scene_camera;
             app->camera_ready = 1;
@@ -2816,21 +2907,26 @@ static void draw_error(App *app)
 static void draw_rendering_settings(App *app)
 {
     static const char *names[MARCUS_RENDERER_COUNT] = {"BRender CPU", "BRender compute", "SDL GPU"};
+    static const char *aa[3] = {"Off", "2x SSAA", "4x SSAA"};
+    static const char *axes[4] = {"Free", "Front", "Side", "Top"};
     float x, y;
-    int renderer, resolution, edited_renderer, edited_resolution;
+    int renderer, resolution, edited_renderer, edited_resolution, i, gpu;
+    const MarcusRenderOptions *view;
     edited_renderer = app->settings_work_camera ? app->edited_shortcuts.work_renderer : app->edited_shortcuts.renderer;
     edited_resolution = app->settings_work_camera ? app->edited_shortcuts.work_render_resolution :
                                                   app->edited_shortcuts.render_resolution;
-    x = app->width / 2.0f - 240;
+    view = app->settings_work_camera ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
+    gpu = edited_renderer != MARCUS_RENDERER_BRENDER;
+    x = (app->width - RENDER_SETTINGS_WIDTH) / 2.0f;
     y = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
     ui_opacity(&app->ui, 0.45f);
     ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
     ui_opacity(&app->ui, 1);
-    ui_fill(&app->ui, x - 1, y - 1, 482, RENDER_SETTINGS_HEIGHT + 2, LINE);
-    ui_fill(&app->ui, x, y, 480, RENDER_SETTINGS_HEIGHT, PANEL);
+    ui_fill(&app->ui, x - 1, y - 1, RENDER_SETTINGS_WIDTH + 2, RENDER_SETTINGS_HEIGHT + 2, LINE);
+    ui_fill(&app->ui, x, y, RENDER_SETTINGS_WIDTH, RENDER_SETTINGS_HEIGHT, PANEL);
     ui_text(&app->ui, x + 24, y + 20,
             app->settings_work_camera ? "Work camera settings" : "Movie camera settings", TEXT);
-    ui_button(&app->ui, x + 438, y + 16, 28, "x", 0, 1);
+    ui_button(&app->ui, x + 718, y + 16, 28, "x", 0, 1);
     ui_text(&app->ui, x + 24, y + 56, "RENDERER", ACCENT);
     for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
         ui_button_sized(&app->ui, x + 24 + renderer * 144, y + 86, 136, 32, names[renderer],
@@ -2841,11 +2937,32 @@ static void draw_rendering_settings(App *app)
                         y + 160 + (resolution / RESOLUTION_COLUMNS) * 40, 138, 32,
                         marcus_render_resolution(resolution)->label,
                         edited_resolution == resolution, 1);
+    ui_text(&app->ui, x + 480, y + 56, "DISPLAY MODE", ACCENT);
+    ui_button(&app->ui, x + 480, y + 80, 256, marcus_display_mode_name(view->display_mode), 0, 1);
+    ui_text(&app->ui, x + 480, y + 125, "Wire overlay", TEXT);
+    ui_button(&app->ui, x + 620, y + 120, 116, view->wire_overlay ? "On" : "Off", view->wire_overlay, gpu);
+    ui_text(&app->ui, x + 480, y + 166, "ANTI-ALIASING", ACCENT);
+    for (i = 0; i < 3; ++i)
+        ui_button(&app->ui, x + 480 + i * 88, y + 190, 80, aa[i], view->antialias == i, gpu);
+    ui_text(&app->ui, x + 480, y + 234, "TEXTURE FILTER", ACCENT);
+    ui_button(&app->ui, x + 480, y + 258, 124, "Nearest", !view->texture_filter, gpu);
+    ui_button(&app->ui, x + 612, y + 258, 124, "Bilinear", view->texture_filter, gpu);
+    if (app->settings_work_camera)
+    {
+        ui_text(&app->ui, x + 480, y + 304, "PROJECTION", ACCENT);
+        ui_button(&app->ui, x + 480, y + 328, 124, "Perspective", !view->orthographic, 1);
+        ui_button(&app->ui, x + 612, y + 328, 124, "Orthographic", view->orthographic, 1);
+        ui_text(&app->ui, x + 480, y + 372, "VIEW PRESET", ACCENT);
+        for (i = 0; i < 4; ++i)
+            ui_button(&app->ui, x + 480 + i * 66, y + 396, 58, axes[i], view->axis_view == i, 1);
+    }
+    ui_text(&app->ui, x + 24, y + 452, "BRender: built-in shading, wireframe and orthographic projection.", MUTED);
+    ui_text(&app->ui, x + 24, y + 477, "GPU: depth / face normals, wire overlay, SSAA and bilinear textures.", MUTED);
     ui_text(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 106,
             app->settings_work_camera ? "Applies to the work camera." : "Applies to the movie camera and expanded player.", MUTED);
-    ui_label(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 80, 432, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + 256, y + RENDER_SETTINGS_HEIGHT - 48, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 360, y + RENDER_SETTINGS_HEIGHT - 48, 96, "Apply", 1, 1);
+    ui_label(&app->ui, x + 24, y + RENDER_SETTINGS_HEIGHT - 80, 712, app->settings_message, 0xf2ae9b);
+    ui_button(&app->ui, x + 536, y + RENDER_SETTINGS_HEIGHT - 48, 88, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 636, y + RENDER_SETTINGS_HEIGHT - 48, 96, "Apply", 1, 1);
 }
 static void draw_settings(App *app)
 {
@@ -3267,6 +3384,8 @@ int main(int argc, char **argv)
                      marcus_error(app.player));
         app.shortcuts.work_renderer = MARCUS_RENDERER_BRENDER;
     }
+    normalize_camera_options(app.shortcuts.renderer, &app.shortcuts.movie_view);
+    normalize_camera_options(app.shortcuts.work_renderer, &app.shortcuts.work_view);
     SDL_SetWindowResizable(app.window, 1);
     SDL_SetWindowMinimumSize(app.window, 1080, 820);
     app.split_cursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_EW_RESIZE);

@@ -17,8 +17,8 @@ class PreviewDepthRange
 {
   public:
     using Point = std::array<double, 3>; // Camera X/Y, positive forward distance.
-    PreviewDepthRange(double xSlope, double ySlope, double nearClip, double farClip)
-        : xSlope(xSlope), ySlope(ySlope), nearClip(nearClip), farClip(farClip) {}
+    PreviewDepthRange(double xSlope, double ySlope, double nearClip, double farClip, bool parallel = false)
+        : xSlope(xSlope), ySlope(ySlope), nearClip(nearClip), farClip(farClip), parallel(parallel) {}
 
     void Include(const std::array<Point, 3> &triangle)
     {
@@ -80,15 +80,16 @@ class PreviewDepthRange
     {
         switch (plane)
         {
-        case 0: return point[2] * xSlope + point[0];
-        case 1: return point[2] * xSlope - point[0];
-        case 2: return point[2] * ySlope + point[1];
-        case 3: return point[2] * ySlope - point[1];
+        case 0: return (parallel ? 1 : point[2]) * xSlope + point[0];
+        case 1: return (parallel ? 1 : point[2]) * xSlope - point[0];
+        case 2: return (parallel ? 1 : point[2]) * ySlope + point[1];
+        case 3: return (parallel ? 1 : point[2]) * ySlope - point[1];
         case 4: return point[2] - nearClip;
         default: return farClip - point[2];
         }
     }
     double xSlope, ySlope, nearClip, farClip;
+    bool parallel;
     double nearest = std::numeric_limits<double>::infinity(), farthest = 0;
 };
 }

@@ -146,7 +146,8 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     char *data, *line, *cursor, id[64], extra;
     unsigned long key;
     unsigned int modifiers, seen;
-    int i, j, valid, pause_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work;
+    int i, j, valid, pause_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work, view_seen;
+    MarcusRenderOptions *view;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
         return 1;
@@ -168,10 +169,26 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     resolution_seen = 0;
     work_renderer_seen = 0;
     work_resolution_seen = 0;
+    view_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
     {
+        if (SDL_sscanf(line, "%63s", id) == 1 && (!strcmp(id, "movie_view") || !strcmp(id, "work_view")))
+        {
+            work = !strcmp(id, "work_view");
+            view = work ? &loaded.work_view : &loaded.movie_view;
+            if ((view_seen & (1 << work)) ||
+                SDL_sscanf(line, "%63s %d %d %d %d %d %d %c", id, &view->display_mode, &view->wire_overlay,
+                           &view->antialias, &view->texture_filter, &view->orthographic, &view->axis_view, &extra) != 7 ||
+                !marcus_render_options_valid(view) || (!work && (view->orthographic || view->axis_view)))
+            {
+                valid = 0;
+                break;
+            }
+            view_seen |= 1 << work;
+            continue;
+        }
         if (SDL_sscanf(line, "%63s", id) == 1 &&
             (!strcmp(id, "render_resolution") || !strcmp(id, "work_render_resolution")))
         {
@@ -286,6 +303,13 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         SDL_strlcpy(message, "The render resolution is invalid.", capacity);
         return 0;
     }
+    if (!marcus_render_options_valid(&shortcuts->movie_view) ||
+        !marcus_render_options_valid(&shortcuts->work_view) ||
+        shortcuts->movie_view.orthographic || shortcuts->movie_view.axis_view)
+    {
+        SDL_strlcpy(message, "Camera settings are invalid.", capacity);
+        return 0;
+    }
     if (!path[0] || SDL_snprintf(temporary, sizeof(temporary), "%s.tmp", path) >= (int)sizeof(temporary))
     {
         SDL_strlcpy(message, "The settings location is unavailable.", capacity);
@@ -296,6 +320,14 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
                  shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer), resolution->name,
                  marcus_renderer_id(shortcuts->work_renderer), work_resolution->name);
     length = strlen(data);
+    for (i = 0; i < 2; ++i)
+    {
+        const MarcusRenderOptions *view;
+        view = i ? &shortcuts->work_view : &shortcuts->movie_view;
+        length += SDL_snprintf(data + length, sizeof(data) - length, "%s %d %d %d %d %d %d\n",
+                               i ? "work_view" : "movie_view", view->display_mode, view->wire_overlay,
+                               view->antialias, view->texture_filter, view->orthographic, view->axis_view);
+    }
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         length += SDL_snprintf(data + length, sizeof(data) - length, "%s %lu %u\n", action_ids[i],
                                (unsigned long)shortcuts->binding[i].key, shortcuts->binding[i].modifiers);

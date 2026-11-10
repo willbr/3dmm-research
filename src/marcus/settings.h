@@ -1,6 +1,7 @@
 #ifndef MARCUS_SETTINGS_H
 #define MARCUS_SETTINGS_H
 #include <SDL3/SDL.h>
+#include "player.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,6 +40,7 @@ typedef struct MarcusShortcuts
     int render_resolution;
     int work_renderer;
     int work_render_resolution;
+    MarcusRenderOptions movie_view, work_view;
 } MarcusShortcuts;
 
 #define MARCUS_NATIVE_WIDTH 544

@@ -1,6 +1,7 @@
 #include "gpu_renderer.h"
 #include "zb_capture.h"
 #include "gpu_shaders.h"
+#include "three_mm/preview.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
 #include <cmath>
@@ -31,13 +32,17 @@ static_assert(sizeof(RasterTriangle) == 128, "HLSL triangle layout");
 struct Parameters
 {
     Uint32 width, height, tilesX, background;
+    Uint32 mode, overlay, filter, palette;
+    float nearClip, farClip, tangentX, tangentY;
+    Uint32 orthographic, opaqueBackground;
+    float orthoHeight, wireWidth;
 };
 struct Resources
 {
     SDL_GPUDevice *device;
     std::vector<SDL_GPUBuffer *> buffers;
     std::vector<SDL_GPUTransferBuffer *> transfers;
-    SDL_GPUTexture *colour = nullptr, *depth = nullptr;
+    SDL_GPUTexture *colour = nullptr, *rgba = nullptr, *depth = nullptr;
     ~Resources()
     {
         for (auto buffer : buffers)
@@ -46,6 +51,8 @@ struct Resources
             SDL_ReleaseGPUTransferBuffer(device, buffer);
         if (colour)
             SDL_ReleaseGPUTexture(device, colour);
+        if (rgba)
+            SDL_ReleaseGPUTexture(device, rgba);
         if (depth)
             SDL_ReleaseGPUTexture(device, depth);
     }
@@ -81,6 +88,11 @@ class Renderer final : public ThreeMM::PreviewRasterizer
     std::vector<Uint32> texels;
     using MapKey = std::tuple<const unsigned char *, int, int, int>;
     std::map<MapKey, Uint32> maps;
+    MarcusRenderOptions options = {};
+    ThreeMM::PreviewProjection projection;
+    Uint32 palette[256] = {};
+    bool opaqueBackground = false;
+    std::vector<unsigned char> rgba;
 
     Uint32 Map(const BrRasterMap &map)
     {
@@ -132,6 +144,16 @@ class Renderer final : public ThreeMM::PreviewRasterizer
     }
 
   public:
+    void Configure(const MarcusRenderOptions &value) { options = value; }
+    void Frame(const ThreeMM::PreviewProjection &value, const unsigned char *colours, bool opaque) override
+    {
+        projection = value;
+        opaqueBackground = opaque;
+        for (unsigned i = 0; i < 256; ++i)
+            palette[i] = Uint32(colours[i*4]) | (Uint32(colours[i*4+1]) << 8) |
+                         (Uint32(colours[i*4+2]) << 16) | 0xff000000u;
+    }
+    const unsigned char *RGBA() const override { return rgba.empty() ? nullptr : rgba.data(); }
     explicit Renderer(bool value) : compute(value)
     {
     }
@@ -211,10 +233,18 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         info.depth_stencil_state.enable_depth_test = true;
         info.depth_stencil_state.enable_depth_write = true;
         info.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS_OR_EQUAL;
-        SDL_GPUColorTargetDescription target = {};
-        target.format = SDL_GPU_TEXTUREFORMAT_R32_UINT;
-        info.target_info.color_target_descriptions = &target;
-        info.target_info.num_color_targets = 1;
+        SDL_GPUColorTargetDescription targets[2] = {};
+        targets[0].format = SDL_GPU_TEXTUREFORMAT_R32_UINT;
+        targets[1].format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+        targets[1].blend_state.enable_blend = true;
+        targets[1].blend_state.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+        targets[1].blend_state.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        targets[1].blend_state.color_blend_op = SDL_GPU_BLENDOP_ADD;
+        targets[1].blend_state.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE;
+        targets[1].blend_state.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA;
+        targets[1].blend_state.alpha_blend_op = SDL_GPU_BLENDOP_ADD;
+        info.target_info.color_target_descriptions = targets;
+        info.target_info.num_color_targets = 2;
         info.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
         info.target_info.has_depth_stencil_target = true;
         graphicsPipeline = SDL_CreateGPUGraphicsPipeline(device, &info);
@@ -230,6 +260,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         triangles.clear();
         texels.clear();
         maps.clear();
+        rgba.clear();
         return true;
     }
     void Triangle(const BrRasterTriangle &input) noexcept override
@@ -273,7 +304,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             return false;
         }
         const Uint32 pixelBytes = width * height * 4;
-        std::vector<Uint32> seed(width * height);
+        std::vector<Uint32> seed(width * height * 2);
         for (unsigned y = 0; y < height; ++y)
             for (unsigned x = 0; x < width; ++x)
             {
@@ -281,6 +312,8 @@ class Renderer final : public ThreeMM::PreviewRasterizer
                 std::memcpy(&z, depth + y * depthStride + x * 2, 2);
                 seed[y * width + x] = (Uint32(z) << 8) | colour[y * colourStride + x];
             }
+        const Uint32 paletteOffset = static_cast<Uint32>(texels.size());
+        texels.insert(texels.end(), palette, palette + 256);
         auto bins = compute ? Bins() : std::vector<Uint32>();
         Resources resources{device};
         const SDL_GPUBufferUsageFlags read =
@@ -288,8 +321,8 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         auto triangleBuffer = resources.Buffer(static_cast<Uint32>(triangles.size() * sizeof(RasterTriangle)), read);
         auto texelBuffer = resources.Buffer(static_cast<Uint32>(texels.size() * 4), read);
         auto thirdBuffer = resources.Buffer(compute ? static_cast<Uint32>(bins.size() * 4) : pixelBytes, read);
-        auto resultBuffer = compute ? resources.Buffer(pixelBytes, SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE) : nullptr;
-        auto download = resources.Transfer(pixelBytes, SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD);
+        auto resultBuffer = compute ? resources.Buffer(pixelBytes * 2, SDL_GPU_BUFFERUSAGE_COMPUTE_STORAGE_WRITE) : nullptr;
+        auto download = resources.Transfer(pixelBytes * 2, SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD);
         if (!triangleBuffer || !texelBuffer || !thirdBuffer || !download || (compute && !resultBuffer))
             return Fail(error, "Cannot allocate GPU buffers");
         struct Upload
@@ -305,7 +338,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             {thirdBuffer, compute ? bins.data() : seed.data(),
              compute ? static_cast<Uint32>(bins.size() * 4) : pixelBytes, nullptr}};
         if (compute)
-            uploads.push_back({resultBuffer, seed.data(), pixelBytes, nullptr});
+            uploads.push_back({resultBuffer, seed.data(), pixelBytes * 2, nullptr});
         for (auto &upload : uploads)
         {
             if (!upload.size)
@@ -328,10 +361,12 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             info.layer_count_or_depth = info.num_levels = 1;
             info.sample_count = SDL_GPU_SAMPLECOUNT_1;
             resources.colour = SDL_CreateGPUTexture(device, &info);
+            info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+            resources.rgba = SDL_CreateGPUTexture(device, &info);
             info.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
             info.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET;
             resources.depth = SDL_CreateGPUTexture(device, &info);
-            if (!resources.colour || !resources.depth)
+            if (!resources.colour || !resources.rgba || !resources.depth)
                 return Fail(error, "Cannot allocate GPU render targets");
         }
         auto commands = SDL_AcquireGPUCommandBuffer(device);
@@ -358,7 +393,13 @@ class Renderer final : public ThreeMM::PreviewRasterizer
                 SDL_UploadToGPUBuffer(copy, &source, &target, false);
             }
         SDL_EndGPUCopyPass(copy);
-        Parameters parameters{width, height, (width + 15) / 16, 0};
+        Parameters parameters{width, height, (width + 15) / 16, 0,
+            Uint32(options.display_mode), Uint32(options.wire_overlay), Uint32(options.texture_filter), paletteOffset,
+            projection.nearClip, projection.farClip,
+            std::tan(projection.verticalFov * .00872664626f) * projection.aspect,
+            std::tan(projection.verticalFov * .00872664626f),
+            Uint32(projection.orthographic), Uint32(opaqueBackground), projection.orthoHeight,
+            float(1 << options.antialias) * .7f};
         SDL_GPUBuffer *storage[] = {triangleBuffer, texelBuffer, thirdBuffer};
         if (compute)
         {
@@ -374,10 +415,14 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         }
         else
         {
-            SDL_GPUColorTargetInfo target = {};
-            target.texture = resources.colour;
-            target.load_op = SDL_GPU_LOADOP_DONT_CARE;
-            target.store_op = SDL_GPU_STOREOP_STORE;
+            SDL_GPUColorTargetInfo targets[2] = {};
+            targets[0].texture = resources.colour;
+            targets[1].texture = resources.rgba;
+            for (auto &target : targets)
+            {
+                target.load_op = SDL_GPU_LOADOP_CLEAR;
+                target.store_op = SDL_GPU_STOREOP_STORE;
+            }
             SDL_GPUDepthStencilTargetInfo z = {};
             z.texture = resources.depth;
             z.clear_depth = 1;
@@ -385,7 +430,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             z.store_op = SDL_GPU_STOREOP_DONT_CARE;
             z.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE;
             z.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
-            auto pass = SDL_BeginGPURenderPass(commands, &target, 1, &z);
+            auto pass = SDL_BeginGPURenderPass(commands, targets, 2, &z);
             if (!pass)
                 return Fail(error, "Cannot begin GPU render pass");
             SDL_BindGPUGraphicsPipeline(pass, graphicsPipeline);
@@ -407,7 +452,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             return Fail(error, "Cannot begin GPU download pass");
         if (compute)
         {
-            SDL_GPUBufferRegion source = {resultBuffer, 0, pixelBytes};
+            SDL_GPUBufferRegion source = {resultBuffer, 0, pixelBytes * 2};
             SDL_GPUTransferBufferLocation target = {download, 0};
             SDL_DownloadFromGPUBuffer(copy, &source, &target);
         }
@@ -423,6 +468,9 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             target.pixels_per_row = width;
             target.rows_per_layer = height;
             SDL_DownloadFromGPUTexture(copy, &source, &target);
+            source.texture = resources.rgba;
+            target.offset = pixelBytes;
+            SDL_DownloadFromGPUTexture(copy, &source, &target);
         }
         SDL_EndGPUCopyPass(copy);
         auto fence = SDL_SubmitGPUCommandBufferAndAcquireFence(commands);
@@ -436,6 +484,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         auto pixels = static_cast<const Uint32 *>(SDL_MapGPUTransferBuffer(device, download, false));
         if (!pixels)
             return Fail(error, "Cannot read GPU frame");
+        rgba.resize(pixelBytes);
         for (unsigned y = 0; y < height; ++y)
             for (unsigned x = 0; x < width; ++x)
             {
@@ -443,6 +492,12 @@ class Renderer final : public ThreeMM::PreviewRasterizer
                 colour[y * colourStride + x] = static_cast<unsigned char>(value);
                 const Uint16 z = static_cast<Uint16>(value >> 8);
                 std::memcpy(depth + y * depthStride + x * 2, &z, 2);
+                const Uint32 rgbaPixel = pixels[width * height + y * width + x];
+                auto target = &rgba[(std::size_t(y) * width + x) * 4];
+                const unsigned alpha = rgbaPixel >> 24;
+                for (unsigned channel = 0; channel < 3; ++channel)
+                    target[channel] = alpha ? static_cast<unsigned char>(std::min(255u, ((rgbaPixel >> (channel*8)) & 255u) * 255 / alpha)) : 0;
+                target[3] = static_cast<unsigned char>(alpha);
             }
         SDL_UnmapGPUTransferBuffer(device, download);
         return true;
@@ -455,4 +510,8 @@ std::unique_ptr<ThreeMM::PreviewRasterizer> MarcusCreateGPURenderer(bool compute
     if (!result->Init(error))
         return nullptr;
     return result;
+}
+void MarcusConfigureGPURenderer(ThreeMM::PreviewRasterizer *renderer, const MarcusRenderOptions &options)
+{
+    static_cast<Renderer *>(renderer)->Configure(options);
 }

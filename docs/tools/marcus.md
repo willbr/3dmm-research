@@ -164,6 +164,29 @@ work cameras save independent renderer and resolution choices. The top-right
 **cog** in the movie-only view edits the movie camera's settings without leaving
 the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and select
 a **render resolution**, then click **Apply** to save that camera's choices.
+The same dialog offers **Textured**, **Solid**, **Flat shading**, **Smooth
+shading**, and **Wireframe** display modes using BRender's existing APIs.
+GPU backends also offer **Depth** and **Face normals**, an independent **Wire
+overlay**, **Nearest / Bilinear** texture filtering, and **Off / 2x / 4x SSAA**.
+Filtering interpolates resolved palette colours, including transparent texels;
+it does not interpolate palette indices. Diagnostic display modes hide the
+original background bitmap; Depth also visualizes its authored depth map.
+Flat/smooth shading affects geometry, since
+background lighting is already baked into the artwork.
+
+SSAA renders at twice or four times the chosen width and height, then averages
+the completed frame back to the chosen resolution. It must fit within BRender's
+4096-pixel limit in both dimensions; Apply explains incompatible combinations.
+The CPU renderer disables GPU-only settings when selected. No BRender engine,
+driver or vendor source changes are needed for these controls.
+
+The work camera additionally offers **Perspective / Orthographic** projection
+and **Free / Front / Side / Top** presets. Front, Side and Top select
+orthographic views around the current inspection focus. Orbiting releases the
+axis preset while retaining the projection. Reset clears the axis preset and
+matches the movie pose while keeping the selected projection. Picking, camera
+guides, object outlines and caption planes use that same projection.
+
 The native 3DMM movie canvas is **544x306**. Its scale presets are **1/2x
 (272x153)**, **1x / 3DMM (544x306, default)**, **2x (1088x612)**, **3x
 (1632x918)**, and **4x (2176x1224)**. All presets use the movie's **16:9** ratio.

@@ -6,6 +6,7 @@
 typedef struct GuideView
 {
     double inverse[3][3], origin[3], tangent_x, tangent_y, near_clip, far_clip;
+    int orthographic;
 } GuideView;
 
 static int finite_value(double value)
@@ -19,6 +20,8 @@ static int valid_projection(const MarcusProjection *projection)
         projection->vertical_fov >= 179 || !finite_value(projection->aspect) || projection->aspect <= 0 ||
         !finite_value(projection->near_clip) || projection->near_clip <= 0 || !finite_value(projection->far_clip) ||
         projection->far_clip <= projection->near_clip)
+        return 0;
+    if (projection->orthographic && (!finite_value(projection->ortho_height) || projection->ortho_height <= 0))
         return 0;
     for (i = 0; i < 12; ++i)
         if (!finite_value(projection->transform[i]))
@@ -52,6 +55,8 @@ static int make_view(const MarcusProjection *projection, GuideView *view)
     for (axis = 0; axis < 3; ++axis)
         view->origin[axis] = matrix[9 + axis];
     view->tangent_y = tan(projection->vertical_fov * 0.008726646259971648);
+    view->orthographic = projection->orthographic;
+    if (view->orthographic) view->tangent_y = projection->ortho_height * .5;
     view->tangent_x = view->tangent_y * projection->aspect;
     view->near_clip = projection->near_clip;
     view->far_clip = projection->far_clip;
@@ -70,6 +75,8 @@ static void view_point(const GuideView *view, const double world[3], double poin
 }
 static double plane_distance(const GuideView *view, const double point[3], int plane)
 {
+    double factor;
+    factor = view->orthographic ? 1 : point[2];
     switch (plane)
     {
     case 0:
@@ -77,13 +84,13 @@ static double plane_distance(const GuideView *view, const double point[3], int p
     case 1:
         return view->far_clip - point[2];
     case 2:
-        return point[2] * view->tangent_x + point[0];
+        return factor * view->tangent_x + point[0];
     case 3:
-        return point[2] * view->tangent_x - point[0];
+        return factor * view->tangent_x - point[0];
     case 4:
-        return point[2] * view->tangent_y + point[1];
+        return factor * view->tangent_y + point[1];
     default:
-        return point[2] * view->tangent_y - point[1];
+        return factor * view->tangent_y - point[1];
     }
 }
 static float coordinate(double value)
@@ -131,10 +138,10 @@ static void add_line(const GuideView *view, const double world_a[3], const doubl
         end[axis] = a[axis] + (b[axis] - a[axis]) * high;
     }
     line = &guide->lines[guide->line_count++];
-    line->x1 = coordinate(0.5 + start[0] / (2 * start[2] * view->tangent_x));
-    line->y1 = coordinate(0.5 - start[1] / (2 * start[2] * view->tangent_y));
-    line->x2 = coordinate(0.5 + end[0] / (2 * end[2] * view->tangent_x));
-    line->y2 = coordinate(0.5 - end[1] / (2 * end[2] * view->tangent_y));
+    line->x1 = coordinate(0.5 + start[0] / (2 * (view->orthographic ? 1 : start[2]) * view->tangent_x));
+    line->y1 = coordinate(0.5 - start[1] / (2 * (view->orthographic ? 1 : start[2]) * view->tangent_y));
+    line->x2 = coordinate(0.5 + end[0] / (2 * (view->orthographic ? 1 : end[2]) * view->tangent_x));
+    line->y2 = coordinate(0.5 - end[1] / (2 * (view->orthographic ? 1 : end[2]) * view->tangent_y));
 }
 void camera_guide_build(const MarcusProjection *projection, const MarcusProjection *camera, MarcusCameraGuide *guide)
 {
@@ -176,8 +183,8 @@ void camera_guide_build(const MarcusProjection *projection, const MarcusProjecti
         if (inside)
         {
             guide->has_label = 1;
-            guide->label_x = coordinate(0.5 + point[0] / (2 * point[2] * view.tangent_x));
-            guide->label_y = coordinate(0.5 - point[1] / (2 * point[2] * view.tangent_y));
+            guide->label_x = coordinate(0.5 + point[0] / (2 * (view.orthographic ? 1 : point[2]) * view.tangent_x));
+            guide->label_y = coordinate(0.5 - point[1] / (2 * (view.orthographic ? 1 : point[2]) * view.tangent_y));
         }
     }
 }

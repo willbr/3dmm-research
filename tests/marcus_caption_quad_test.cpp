@@ -116,6 +116,25 @@ int main()
     camera.transform[0] = camera.transform[1] = camera.transform[3] = camera.transform[4] = 0;
     marcus_caption_quad(texture, camera, scene);
     CHECK(scene.rgba == original); // Singular authored transform.
+    camera = Camera();
+    scene = Scene();
+    scene.projection.orthographic = true;
+    scene.projection.orthoHeight = 20;
+    marcus_caption_quad(texture, camera, scene);
+    CHECK(Pixel(scene, 4, 4)[0] == 255 && Pixel(scene, 27, 4)[1] == 255);
+    const auto orthographic = scene.rgba;
+    scene = Scene();
+    scene.projection.orthographic = true;
+    scene.projection.orthoHeight = 20;
+    scene.projection.transform[11] = 20;
+    marcus_caption_quad(texture, camera, scene);
+    CHECK(scene.rgba == orthographic); // Parallel rays retain apparent size as the viewer moves back.
+    scene = Scene();
+    scene.projection.orthographic = true;
+    scene.projection.orthoHeight = 20;
+    std::fill(scene.depth.begin(), scene.depth.end(), 5.f);
+    marcus_caption_quad(texture, camera, scene);
+    CHECK(scene.rgba == original);
     std::puts(
         "Caption quad: perspective, transparency, depth occlusion, roll, back face and near/far clipping passed.");
     return 0;

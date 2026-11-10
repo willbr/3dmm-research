@@ -52,6 +52,7 @@ struct MarcusPlayer
     // Keep devices alive when movie and work cameras use different backends.
     std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizers[MARCUS_RENDERER_COUNT];
     int renderer = MARCUS_RENDERER_BRENDER;
+    MarcusRenderOptions renderOptions = {};
     ThreeMM::PreviewImage image;
     ThreeMM::PreviewImage movieImage;
     int movieImageScene = -1;
@@ -196,6 +197,8 @@ MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
     result.near_clip = source.nearClip;
     result.far_clip = source.farClip;
     result.display_depth = source.displayDepth;
+    result.orthographic = source.orthographic;
+    result.ortho_height = source.orthoHeight;
     return result;
 }
 ThreeMM::PreviewProjection ReadProjection(const MarcusProjection &source)
@@ -208,6 +211,8 @@ ThreeMM::PreviewProjection ReadProjection(const MarcusProjection &source)
     result.nearClip = source.near_clip;
     result.farClip = source.far_clip;
     result.displayDepth = source.display_depth;
+    result.orthographic = source.orthographic != 0;
+    result.orthoHeight = source.ortho_height;
     return result;
 }
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
@@ -215,12 +220,59 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
     auto options = view;
     options.renderAtOutputResolution = true;
     options.fitSceneDepth = true;
+    const auto &settings = player->renderOptions;
+    const int scale = player->renderer == MARCUS_RENDERER_BRENDER ? 1 : 1 << settings.antialias;
+    if (view.width > ThreeMM::PreviewMaxDimension / scale || view.height > ThreeMM::PreviewMaxDimension / scale)
+    {
+        error.message = "Supersampling exceeds the 4096-pixel render limit. Choose a smaller resolution or turn AA off.";
+        return false;
+    }
+    options.width *= scale;
+    options.height *= scale;
+    options.displayMode = settings.display_mode;
+    options.orthographic = !view.authoredCamera && settings.orthographic;
+    options.axisView = !view.authoredCamera ? settings.axis_view : 0;
+    if (options.axisView) { options.roll = 0; options.verticalFov = 45; }
     options.rasterizer = player->rasterizers[player->renderer].get();
+    if (options.rasterizer) MarcusConfigureGPURenderer(options.rasterizer, settings);
     options.includeDepth = !view.authoredCamera || view.freeCamera;
     if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
         return false;
     if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error))
         return false;
+    if (scale > 1)
+    {
+        ThreeMM::PreviewImage reduced;
+        reduced.camera = player->image.camera;
+        reduced.projection = player->image.projection;
+        reduced.sceneCamera = player->image.sceneCamera;
+        reduced.width = view.width; reduced.height = view.height;
+        reduced.rgba.assign(std::size_t(view.width) * view.height * 4, 0);
+        reduced.depth.clear();
+        const bool depth = !player->image.depth.empty();
+        if (depth) reduced.depth.assign(std::size_t(view.width) * view.height, std::numeric_limits<float>::infinity());
+        reduced.coveredPixels = 0;
+        for (unsigned y = 0; y < view.height; ++y)
+            for (unsigned x = 0; x < view.width; ++x)
+            {
+                unsigned alpha = 0, colour[3] = {};
+                const auto target = std::size_t(y) * view.width + x;
+                for (int sy = 0; sy < scale; ++sy)
+                    for (int sx = 0; sx < scale; ++sx)
+                    {
+                        const auto source = std::size_t(y * scale + sy) * player->image.width + x * scale + sx;
+                        const auto pixel = &player->image.rgba[source * 4];
+                        alpha += pixel[3];
+                        for (int channel = 0; channel < 3; ++channel) colour[channel] += pixel[channel] * pixel[3];
+                        if (depth) reduced.depth[target] = std::min(reduced.depth[target], player->image.depth[source]);
+                    }
+                for (int channel = 0; channel < 3; ++channel)
+                    reduced.rgba[target * 4 + channel] = alpha ? static_cast<unsigned char>(colour[channel] / alpha) : 0;
+                reduced.rgba[target * 4 + 3] = static_cast<unsigned char>(alpha / (scale * scale));
+                reduced.coveredPixels += reduced.rgba[target * 4 + 3] != 0;
+            }
+        player->image = std::move(reduced);
+    }
     if (view.authoredCamera && !view.freeCamera)
     {
         player->movieImage = player->image;
@@ -368,6 +420,24 @@ extern "C"
                 player->rasterizers[renderer] = std::move(replacement);
             }
             player->renderer = renderer;
+            return true;
+        });
+    }
+    int marcus_set_render_options(MarcusPlayer *player, const MarcusRenderOptions *options)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!marcus_render_options_valid(options))
+            {
+                error.message = "Camera render settings are invalid.";
+                return false;
+            }
+            if (player->renderer == MARCUS_RENDERER_BRENDER &&
+                (options->display_mode >= MARCUS_DISPLAY_DEPTH || options->wire_overlay || options->antialias || options->texture_filter))
+            {
+                error.message = "Depth, normals, wire overlay, AA and filtering require a GPU renderer.";
+                return false;
+            }
+            player->renderOptions = *options;
             return true;
         });
     }
@@ -928,6 +998,7 @@ extern "C"
             view.yaw = yaw;
             view.pitch = pitch;
             view.zoom = zoom;
+            view.orthographic = player->renderOptions.orthographic != 0;
             if (player->inspectionMatched)
             {
                 view.roll = player->inspectionRoll;

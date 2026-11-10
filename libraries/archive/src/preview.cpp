@@ -37,8 +37,18 @@ struct Frame
     br_pixelmap *colour = nullptr, *depth = nullptr;
     br_actor *world = nullptr, *light = nullptr;
     std::vector<br_actor *> lights;
+    struct MaterialState { br_material *material; br_uint_32 flags; br_pixelmap *map; br_uint_8 base, range; };
+    std::vector<MaterialState> materials;
     ~Frame()
     {
+        for (const auto &state : materials)
+        {
+            state.material->flags = state.flags;
+            state.material->colour_map = state.map;
+            state.material->index_base = state.base;
+            state.material->index_range = state.range;
+            BrMaterialUpdate(state.material, BR_MATU_ALL);
+        }
         if (light)
             BrLightDisable(light);
         for (auto value : lights)
@@ -76,12 +86,13 @@ struct PickState
     const std::map<br_actor *, int> &owners;
     float nearClip, closest;
     int candidate = -1, object = -1;
+    float distanceScale = 1, distanceOrigin = 0;
 };
 int BR_CALLBACK PickFace(br_model *, br_material *material, br_vector3 *, br_vector3 *, br_scalar distance, int, int,
                          int, br_vector3 *, br_vector2 *map, void *context)
 {
     auto &pick = *static_cast<PickState *>(context);
-    const float depth = BrScalarToFloat(distance);
+    const float depth = BrScalarToFloat(distance) * pick.distanceScale + pick.distanceOrigin;
     if (depth < pick.nearClip || depth > pick.closest)
         return 0;
     // Indexed texture zero is transparent unless the material makes it opaque.
@@ -415,7 +426,8 @@ bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &er
                     "Render an orbit view with valid camera values before panning.");
     const float aspect = float(view.width) / view.height;
     const float distance = _impl->orbitRadius * 2.8f / std::min(1.f, aspect) / view.zoom;
-    const float height = 2 * distance * std::tan(view.verticalFov * .00872664626f);
+    const float height = view.orthographic ? 2 * _impl->orbitRadius * 1.15f / view.zoom :
+                         2 * distance * std::tan(view.verticalFov * .00872664626f);
     const float yaw = std::fmod(view.yaw, 360.f) * .01745329252f, pitch = view.pitch * .01745329252f;
     const float sy = std::sin(yaw), cy = std::cos(yaw), sp = std::sin(pitch), cp = std::cos(pitch);
     const float backward[3] = {sy * cp, sp, cy * cp};
@@ -537,6 +549,15 @@ try
     frame.world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
     br_camera camera = {};
     camera.type = BR_CAMERA_PERSPECTIVE_FOV;
+    if (projection.orthographic)
+    {
+        if (!std::isfinite(projection.orthoHeight) || projection.orthoHeight <= 0 || projection.orthoHeight > 60000 ||
+            !std::isfinite(projection.orthoHeight * projection.aspect) || projection.orthoHeight * projection.aspect > 60000)
+            return Fail(error, ErrorCode::invalid_argument, "Invalid orthographic pick span.");
+        camera.type = BR_CAMERA_PARALLEL;
+        camera.height = BrFloatToScalar(projection.orthoHeight * .5f);
+        camera.width = BrFloatToScalar(projection.orthoHeight * projection.aspect * .5f);
+    }
     camera.field_of_view = BR_ANGLE_DEG(projection.verticalFov);
     camera.aspect = BrFloatToScalar(projection.aspect);
     camera.hither_z = BrFloatToScalar(projection.nearClip);
@@ -558,6 +579,11 @@ try
         (!bg && _impl->background && !_impl->background->Mesh().AddToScene(frame.world)))
         return Fail(error, ErrorCode::out_of_memory, "Cannot prepare scene picking.");
     PickState pick{owners, projection.nearClip, projection.farClip};
+    if (projection.orthographic)
+    {
+        pick.distanceScale = projection.farClip - projection.nearClip;
+        pick.distanceOrigin = projection.nearClip;
+    }
     if (bg)
     {
         const auto sourceX = std::uint32_t(std::uint64_t(x) * bg->width / renderWidth);
@@ -1055,7 +1081,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         !std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
         view.verticalFov <= 0 || view.verticalFov >= 179 || !std::isfinite(view.nearClip) || view.nearClip < 0 ||
         view.nearClip > 100 || !std::isfinite(view.zoom) || view.pitch < -90 || view.pitch > 90 ||
-        view.zoom < .1f || view.zoom > 10 ||
+        view.zoom < .1f || view.zoom > 10 || view.displayMode < 0 || view.displayMode > 6 || view.axisView < 0 || view.axisView > 3 ||
         (view.freeCamera && (!std::isfinite(view.cameraX) || !std::isfinite(view.cameraY) ||
                              !std::isfinite(view.cameraZ) || std::abs(view.cameraX) > 32700 ||
                              std::abs(view.cameraY) > 32700 || std::abs(view.cameraZ) > 32700)))
@@ -1065,7 +1091,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         Frame frame;
         const auto bg = view.authoredCamera && !view.freeCamera ? _impl->background.get() : nullptr;
         const auto mesh = !bg && _impl->background ? &_impl->background->Mesh() : nullptr;
-        const auto infinite = mesh && !mesh->InfiniteColours().empty() ? &mesh->InfiniteColours() : nullptr;
+        const bool diagnostic = view.displayMode == 1 || view.displayMode >= 4;
+        const auto infinite = !diagnostic && mesh && !mesh->InfiniteColours().empty() ? &mesh->InfiniteColours() : nullptr;
         const auto rasterSize = bg && view.renderAtOutputResolution
             ? FittedSize(bg->width, bg->height, view.width, view.height)
             : std::make_pair(bg ? bg->width : view.width, bg ? bg->height : view.height);
@@ -1089,7 +1116,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                     static_cast<byte *>(frame.depth->pixels) + y * frame.depth->row_bytes);
                 if (width == bg->width && height == bg->height)
                 {
-                    std::memcpy(colours, bg->colours.data() + y * width, width);
+                    if (!diagnostic) std::memcpy(colours, bg->colours.data() + y * width, width);
                     std::memcpy(depths, bg->depths.data() + y * width, width * sizeof(*depths));
                     continue;
                 }
@@ -1098,7 +1125,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 {
                     const auto sourceX = columns[x];
                     const auto source = std::size_t(sourceY) * bg->width + sourceX;
-                    colours[x] = bg->colours[source];
+                    if (!diagnostic) colours[x] = bg->colours[source];
                     depths[x] = bg->depths[source];
                 }
             }
@@ -1246,9 +1273,12 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         if (!cam)
             return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview camera.");
         BrActorAdd(frame.world, cam);
-        const float yaw = std::fmod(view.yaw, 360.f) * .01745329252f, pitch = view.pitch * .01745329252f;
+        const bool axisView = !bg && view.axisView > 0;
+        const float yawDegrees = axisView ? (view.axisView == 2 ? 90.f : 0.f) : view.yaw;
+        const float pitchDegrees = axisView ? (view.axisView == 3 ? 90.f : 0.f) : view.pitch;
+        const float yaw = std::fmod(yawDegrees, 360.f) * .01745329252f, pitch = pitchDegrees * .01745329252f;
         const float sy = std::sin(yaw), cy = std::cos(yaw), sp = std::sin(pitch), cp = std::cos(pitch);
-        const float roll = view.roll * .01745329252f, cr = std::cos(roll), sr = std::sin(roll);
+        const float roll = (axisView ? 0 : view.roll) * .01745329252f, cr = std::cos(roll), sr = std::sin(roll);
         const float basis[3][3] = {{cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr},
                                  {-sy * sp * cr - cy * sr, cp * cr, -cy * sp * cr + sy * sr},
                                  {sy * cp, sp, cy * cp}};
@@ -1259,7 +1289,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         for (int axis = 0; axis < 3; ++axis)
         {
             const float explicitPosition[3] = {view.cameraX, view.cameraY, view.cameraZ};
-            const float position = view.freeCamera ? explicitPosition[axis] : center[axis] + basis[2][axis] * distance;
+            const float position = view.freeCamera && !axisView ? explicitPosition[axis] : center[axis] + basis[2][axis] * distance;
             if (!bg && (position < -32767.f || position > 32767.f))
                 return Fail(error, ErrorCode::unsupported_format,
                             "Camera position exceeds the fixed-point renderer range.");
@@ -1268,6 +1298,12 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         }
         if (bg)
             cam->t.t.mat = bg->camera.bmat34Cam;
+        if (!bg && view.orthographic)
+        {
+            camera.type = BR_CAMERA_PARALLEL;
+            camera.height = BrFloatToScalar(std::min(15000.f, radius * 1.15f / view.zoom));
+            camera.width = BrFloatToScalar(std::min(30000.f, BrScalarToFloat(camera.height) * aspect));
+        }
         br_light light = {};
         light.type = BR_LIGHT_DIRECT;
         light.colour = BR_COLOUR_RGB(255, 255, 255);
@@ -1306,12 +1342,48 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview model instance.");
         if (mesh && !mesh->AddToScene(frame.world))
             return Fail(error, ErrorCode::out_of_memory, "Cannot prepare background scenery models.");
+        if (view.displayMode == 1 || view.displayMode == 2 || view.displayMode == 3 || (view.displayMode == 4 && !view.rasterizer))
+        {
+            std::map<br_material *, bool> changed;
+            const auto overrideMaterial = [&](br_material *material) {
+                if (!material || !changed.emplace(material, true).second) return;
+                frame.materials.push_back({material, material->flags, material->colour_map,
+                                           material->index_base, material->index_range});
+                if (view.displayMode == 2) material->flags &= ~BR_MATF_SMOOTH;
+                if (view.displayMode == 3) material->flags |= BR_MATF_SMOOTH;
+                if (view.displayMode == 1 || view.displayMode == 4)
+                {
+                    material->colour_map = nullptr;
+                    material->flags &= ~(BR_MATF_LIGHT | BR_MATF_PRELIT);
+                    const auto &palette = _impl->background ? _impl->background->palette : _impl->palette;
+                    unsigned best = ~0u;
+                    for (unsigned i = 0; i < 256; ++i)
+                    {
+                        const int r = int(palette[i].bRed) - 160, g = int(palette[i].bGreen) - 160, b = int(palette[i].bBlue) - 160;
+                        const unsigned delta = r*r + g*g + b*b;
+                        if (delta < best) { best = delta; material->index_base = static_cast<br_uint_8>(i); }
+                    }
+                    material->index_range = 0;
+                }
+                BrMaterialUpdate(material, BR_MATU_ALL);
+            };
+            for (auto actor = frame.world->children; actor; actor = actor->next)
+                if (actor->model)
+                {
+                    overrideMaterial(actor->material);
+                    for (unsigned i = 0; i < actor->model->nface_groups; ++i)
+                        overrideMaterial(actor->model->face_groups[i].material);
+                }
+        }
+        if (view.displayMode == 4 && !view.rasterizer)
+            frame.world->render_style = BR_RSTYLE_EDGES;
         if (!bg && _impl->background && view.fitSceneDepth)
         {
             const double ySlope = std::tan(float(camera.field_of_view) * (6.283185307179586 / 65536) * .5);
-            Internal::PreviewDepthRange range(ySlope * BrScalarToFloat(camera.aspect) * (1 + 2.0 / width),
-                                             ySlope * (1 + 2.0 / height),
-                                             BrScalarToFloat(camera.hither_z), BrScalarToFloat(camera.yon_z));
+            const bool parallel = camera.type == BR_CAMERA_PARALLEL;
+            Internal::PreviewDepthRange range((parallel ? BrScalarToFloat(camera.width) : ySlope * BrScalarToFloat(camera.aspect)) * (1 + 2.0 / width),
+                                             (parallel ? BrScalarToFloat(camera.height) : ySlope) * (1 + 2.0 / height),
+                                             BrScalarToFloat(camera.hither_z), BrScalarToFloat(camera.yon_z), parallel);
             for (auto actor = frame.world->children; actor; actor = actor->next)
             {
                 if (actor->type != BR_ACTOR_MODEL || !actor->model) continue;
@@ -1345,6 +1417,19 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         } rasterScope;
         if (view.rasterizer)
         {
+            const auto projection = Projection(cam->t.t.mat, camera.field_of_view, BrScalarToFloat(camera.aspect),
+                                                camera.hither_z, camera.yon_z);
+            auto context = projection;
+            context.orthographic = camera.type == BR_CAMERA_PARALLEL;
+            context.orthoHeight = context.orthographic ? BrScalarToFloat(camera.height) * 2 : 0;
+            unsigned char palette[1024];
+            const auto colours = _impl->background ? _impl->background->palette : _impl->palette;
+            for (unsigned i = 0; i < 256; ++i)
+            {
+                palette[i*4] = colours[i].bRed; palette[i*4+1] = colours[i].bGreen;
+                palette[i*4+2] = colours[i].bBlue; palette[i*4+3] = 255;
+            }
+            view.rasterizer->Frame(context, palette, bg || infinite);
             if (!view.rasterizer->Begin(width, height, error))
                 return false;
             BrZbSetTriangleSink([](void *context, const BrRasterTriangle *triangle) {
@@ -1373,8 +1458,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             // Keep the requested angles when round-tripping an explicit pose.
             // Re-extracting them from the fixed-point matrix would accumulate
             // quantization drift when a host reuses the returned camera.
-            rendered.camera.yaw = std::fmod(view.yaw, 360.f);
-            rendered.camera.pitch = view.pitch;
+            rendered.camera.yaw = std::fmod(yawDegrees, 360.f);
+            rendered.camera.pitch = pitchDegrees;
         }
         rendered.camera.moveSpeed = std::max(1.f, std::min(1000.f, radius));
         rendered.camera.roll = view.roll;
@@ -1393,16 +1478,19 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         rendered.camera.verticalFov = float(camera.field_of_view) * (360.f / 65536.f);
         rendered.projection = Projection(cam->t.t.mat, camera.field_of_view, BrScalarToFloat(camera.aspect),
                                          camera.hither_z, camera.yon_z);
+        rendered.projection.orthographic = camera.type == BR_CAMERA_PARALLEL;
+        rendered.projection.orthoHeight = rendered.projection.orthographic ? BrScalarToFloat(camera.height) * 2 : 0;
         rendered.sceneCamera = sceneCamera;
         rendered.rgba.resize(std::size_t(view.width) * view.height * 4);
         br_matrix4 depthProjection = {};
         if (view.includeDepth)
         {
             rendered.depth.assign(std::size_t(view.width) * view.height, std::numeric_limits<float>::infinity());
-            BrMatrix4Perspective(&depthProjection, camera.field_of_view, camera.aspect, -camera.hither_z, -camera.yon_z);
+            BrActorToScreenMatrix4(&depthProjection, cam, cam);
         }
         const double depthScale = BrScalarToFloat(depthProjection.m[2][2]);
         const double depthOffset = BrScalarToFloat(depthProjection.m[3][2]);
+        const auto gpuRGBA = view.rasterizer ? view.rasterizer->RGBA() : nullptr;
         // Fit the completed authored view into the requested image, preserving
         // its aspect ratio and background/actor depth relationship.
         const float scale = std::min(float(view.width) / width, float(view.height) / height);
@@ -1432,6 +1520,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 out[1] = colour.bGreen;
                 out[2] = colour.bBlue;
                 out[3] = !bg && !infinite && depths[sourceX] == 0xffff ? 0 : 255;
+                if (gpuRGBA && !(infinite && depths[sourceX] == 0xffff))
+                    std::memcpy(out, gpuRGBA + (std::size_t(sourceY) * width + sourceX) * 4, 4);
                 if (out[3])
                     ++rendered.coveredPixels;
                 if (view.includeDepth && depths[sourceX] != 0xffff)
@@ -1440,7 +1530,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                     // projected Z fraction. Invert the same fixed-point camera
                     // matrix instead of approximating its near/far coefficients.
                     const double denominator = depthScale - static_cast<std::int16_t>(depths[sourceX]) / 32768.0;
-                    const double distance = depthOffset / denominator;
+                    const double distance = rendered.projection.orthographic ?
+                        (static_cast<std::int16_t>(depths[sourceX]) / 32768.0 + depthOffset) / depthScale : depthOffset / denominator;
                     if (std::isfinite(distance) && distance > 0)
                         rendered.depth[std::size_t(y + top) * view.width + x + left] = static_cast<float>(distance);
                 }

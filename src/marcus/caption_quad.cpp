@@ -10,6 +10,8 @@ bool Valid(const ThreeMM::PreviewProjection &camera)
         !std::isfinite(camera.aspect) || camera.aspect <= 0 || !std::isfinite(camera.nearClip) ||
         camera.nearClip <= 0 || !std::isfinite(camera.farClip) || camera.farClip <= camera.nearClip)
         return false;
+    if (camera.orthographic && (!std::isfinite(camera.orthoHeight) || camera.orthoHeight <= 0))
+        return false;
     for (auto value : camera.transform)
         if (!std::isfinite(value))
             return false;
@@ -46,7 +48,7 @@ void marcus_caption_quad(const ThreeMM::PreviewImage &texture, const ThreeMM::Pr
         }
     const auto halfHeight = std::tan(camera.verticalFov * .008726646259971648) * camera.displayDepth;
     const auto halfWidth = halfHeight * camera.aspect;
-    const auto tangentY = std::tan(view.verticalFov * .008726646259971648);
+    const auto tangentY = view.orthographic ? view.orthoHeight * .5 : std::tan(view.verticalFov * .008726646259971648);
     const auto tangentX = tangentY * view.aspect;
     const auto hasDepth = scene.depth.size() == std::size_t(scene.width) * scene.height;
     // Intersect inspection-camera rays with the authored image plane. This
@@ -58,19 +60,23 @@ void marcus_caption_quad(const ThreeMM::PreviewImage &texture, const ThreeMM::Pr
         for (std::uint32_t x = 0; x < scene.width; ++x)
         {
             const auto rayX = (2 * (x + .5) / scene.width - 1) * tangentX;
-            const double direction[3] = {basis[0][0] * rayX + basis[0][1] * rayY - basis[0][2],
-                                         basis[1][0] * rayX + basis[1][1] * rayY - basis[1][2],
-                                         basis[2][0] * rayX + basis[2][1] * rayY - basis[2][2]};
+            double rayOrigin[3], direction[3];
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                const auto offset = basis[axis][0] * rayX + basis[axis][1] * rayY;
+                rayOrigin[axis] = origin[axis] + (view.orthographic ? offset : 0);
+                direction[axis] = -basis[axis][2] + (view.orthographic ? 0 : offset);
+            }
             if (std::abs(direction[2]) < 1e-12)
                 continue;
-            const auto distance = (-camera.displayDepth - origin[2]) / direction[2];
+            const auto distance = (-camera.displayDepth - rayOrigin[2]) / direction[2];
             if (!std::isfinite(distance) || distance < view.nearClip || distance > view.farClip)
                 continue;
             const auto pixel = std::size_t(y) * scene.width + x;
             if (hasDepth && distance > scene.depth[pixel] + .001)
                 continue;
-            const auto u = .5 + (origin[0] + direction[0] * distance) / (2 * halfWidth);
-            const auto v = .5 - (origin[1] + direction[1] * distance) / (2 * halfHeight);
+            const auto u = .5 + (rayOrigin[0] + direction[0] * distance) / (2 * halfWidth);
+            const auto v = .5 - (rayOrigin[1] + direction[1] * distance) / (2 * halfHeight);
             if (u < 0 || u >= 1 || v < 0 || v >= 1)
                 continue;
             const auto tx = static_cast<std::uint32_t>(u * texture.width);

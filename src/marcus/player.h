@@ -141,7 +141,24 @@ extern "C"
         float transform[12]; /* Camera-to-world right/up/backward/position rows. */
         float vertical_fov, aspect, near_clip, far_clip;
         float display_depth; /* Camera marker length, independent of clip planes. */
+        int orthographic;
+        float ortho_height; /* Full vertical span in world units. */
     } MarcusProjection;
+
+    enum MarcusDisplayMode
+    {
+        MARCUS_DISPLAY_TEXTURED, MARCUS_DISPLAY_SOLID, MARCUS_DISPLAY_FLAT,
+        MARCUS_DISPLAY_SMOOTH, MARCUS_DISPLAY_WIREFRAME, MARCUS_DISPLAY_DEPTH,
+        MARCUS_DISPLAY_NORMALS, MARCUS_DISPLAY_COUNT
+    };
+    typedef struct MarcusRenderOptions
+    {
+        int display_mode, wire_overlay, antialias, texture_filter;
+        int orthographic, axis_view; /* 0 free, 1 front, 2 side, 3 top. */
+    } MarcusRenderOptions;
+    const char *marcus_display_mode_name(int mode);
+    int marcus_render_options_valid(const MarcusRenderOptions *options);
+    int marcus_set_render_options(MarcusPlayer *player, const MarcusRenderOptions *options);
 
     typedef struct MarcusImage
     {

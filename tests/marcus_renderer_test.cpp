@@ -41,6 +41,10 @@ int main(int argc, char **argv)
     CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(shortcuts.work_renderer == MARCUS_RENDERER_BRENDER);
     CHECK(shortcuts.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
+    MarcusRenderOptions invalidOptions = {};
+    CHECK(marcus_render_options_valid(&invalidOptions));
+    invalidOptions.antialias = 3;
+    CHECK(!marcus_render_options_valid(&invalidOptions));
     CHECK(marcus_render_resolution(MARCUS_DEFAULT_RESOLUTION)->width == 544 &&
           marcus_render_resolution(MARCUS_DEFAULT_RESOLUTION)->height == 306);
     CHECK(!marcus_render_resolution(-1) && !marcus_render_resolution(MARCUS_RESOLUTION_COUNT));
@@ -63,6 +67,12 @@ int main(int argc, char **argv)
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_SDL_GPU);
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
+    shortcuts.movie_view = {MARCUS_DISPLAY_FLAT, 1, 1, 1, 0, 0};
+    shortcuts.work_view = {MARCUS_DISPLAY_NORMALS, 0, 2, 1, 1, 3};
+    CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+    CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+    CHECK(!std::memcmp(&loaded.movie_view, &shortcuts.movie_view, sizeof(MarcusRenderOptions)));
+    CHECK(!std::memcmp(&loaded.work_view, &shortcuts.work_view, sizeof(MarcusRenderOptions)));
     constexpr int nativeSizes[][2] = {{272, 153}, {544, 306}, {1088, 612}, {1632, 918}, {2176, 1224}};
     for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
     {
@@ -137,7 +147,12 @@ int main(int argc, char **argv)
           "marcus-shortcuts 1\nwork_renderer sdl-gpu\nwork_renderer brender\n",
           "marcus-shortcuts 1\nwork_render_resolution 1920x1081\n",
           "marcus-shortcuts 1\nwork_render_resolution 320x240\nwork_render_resolution 640x480\n",
-          "marcus-shortcuts 1\nwork_render_resolution 640x480 extra\n"})
+          "marcus-shortcuts 1\nwork_render_resolution 640x480 extra\n",
+          "marcus-shortcuts 1\nmovie_view 0 0 0 0 1 0\n",
+          "marcus-shortcuts 1\nwork_view 0 0 3 0 0 0\n",
+          "marcus-shortcuts 1\nwork_view 0 0 0 0 0 4\n",
+          "marcus-shortcuts 1\nwork_view 0 0 0 0 0 0 extra\n",
+          "marcus-shortcuts 1\nwork_view 0 0 0 0 0 0\nwork_view 0 0 0 0 0 0\n"})
     {
         CHECK(SDL_SaveFile(path.u8string().c_str(), invalid, std::strlen(invalid)));
         CHECK(!shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
@@ -203,6 +218,47 @@ int main(int argc, char **argv)
         reset();
         CHECK(renderer->End(colour.data(), stride, depth.data(), stride * 2, error));
         CHECK(colour[20 * stride + 20] == 9 && zAt(20, 20) == 65535);
+        // GPU-only enhancements preserve indexed depth while resolving actual
+        // palette colours; interpolation must not blend palette indices.
+        unsigned char palette[1024] = {};
+        for (unsigned i = 0; i < 256; ++i)
+        {
+            palette[i*4] = palette[i*4+1] = palette[i*4+2] = static_cast<unsigned char>(i);
+            palette[i*4+3] = 255;
+        }
+        palette[8] = 255; palette[9] = palette[10] = 0; // Index 2 red.
+        palette[12] = palette[13] = 0; palette[14] = 255; // Index 3 blue.
+        ThreeMM::PreviewProjection projection;
+        projection.nearClip = 1; projection.farClip = 100;
+        projection.aspect = 1; projection.verticalFov = 45;
+        renderer->Frame(projection, palette, false);
+        MarcusRenderOptions options = {};
+        unsigned char checker[] = {2, 3, 3, 2};
+        auto filtered = triangle;
+        filtered.texture = {checker, 2, 2, 2}; filtered.flags = 0x10000;
+        filtered.vertices[1].u = 2; filtered.vertices[2].v = 2;
+        reset();
+        MarcusConfigureGPURenderer(renderer.get(), options);
+        CHECK(renderer->Begin(size,size,error)); renderer->Triangle(filtered);
+        CHECK(renderer->End(colour.data(),stride,depth.data(),stride*2,error));
+        const auto sample = (20 * size + 20) * 4;
+        CHECK(renderer->RGBA()[sample] == 255 && renderer->RGBA()[sample+2] == 0);
+        options.texture_filter = 1;
+        reset(); MarcusConfigureGPURenderer(renderer.get(),options);
+        CHECK(renderer->Begin(size,size,error)); renderer->Triangle(filtered);
+        CHECK(renderer->End(colour.data(),stride,depth.data(),stride*2,error));
+        CHECK(renderer->RGBA()[sample] > 0 && renderer->RGBA()[sample+2] > 0 && renderer->RGBA()[sample+1] == 0);
+        options = {}; options.display_mode = MARCUS_DISPLAY_WIREFRAME;
+        reset(); MarcusConfigureGPURenderer(renderer.get(),options);
+        CHECK(renderer->Begin(size,size,error)); renderer->Triangle(triangle);
+        CHECK(renderer->End(colour.data(),stride,depth.data(),stride*2,error));
+        CHECK(colour[20 * stride + 20] == 9 && zAt(20,20) == 65535);
+        CHECK(renderer->RGBA()[(20 * size + 10)*4+1] > 180);
+        options = {}; options.display_mode = MARCUS_DISPLAY_NORMALS;
+        reset(); MarcusConfigureGPURenderer(renderer.get(),options);
+        CHECK(renderer->Begin(size,size,error)); renderer->Triangle(triangle);
+        CHECK(renderer->End(colour.data(),stride,depth.data(),stride*2,error));
+        CHECK(renderer->RGBA()[sample+2] > 250 && renderer->RGBA()[sample] > 120 && renderer->RGBA()[sample] < 135);
         textured.flags = 0x10000 | 0x20;
         CHECK(renderer->Begin(size, size, error));
         renderer->Triangle(textured);
@@ -394,6 +450,78 @@ int main(int argc, char **argv)
         for (int backend : {MARCUS_RENDERER_BRENDER_COMPUTE, MARCUS_RENDERER_SDL_GPU, MARCUS_RENDERER_BRENDER})
         {
             CHECK(marcus_set_renderer(player, backend));
+            MarcusRenderOptions settings = {};
+            for (int mode = 0; mode < (backend == MARCUS_RENDERER_BRENDER ? MARCUS_DISPLAY_DEPTH : MARCUS_DISPLAY_COUNT); ++mode)
+            {
+                settings.display_mode = mode;
+                CHECK(marcus_set_render_options(player, &settings));
+                CHECK(marcus_render(player, 320, 180, 1, 0, 0, 1, &image));
+                CHECK(image.rgba && image.width == 320 && image.height == 180);
+                CHECK(marcus_render(player, 320, 180, 0, 25, 10, 1, &image));
+                CHECK(image.rgba);
+            }
+            settings = {};
+            if (backend != MARCUS_RENDERER_BRENDER)
+            {
+                settings.texture_filter = settings.wire_overlay = 1;
+                CHECK(marcus_set_render_options(player, &settings));
+                CHECK(marcus_render(player, 320, 180, 1, 0, 0, 1, &image));
+                const std::vector<unsigned char> aliased(image.rgba, image.rgba + image.pitch * image.height);
+                for (int aa : {1, 2})
+                {
+                    settings.antialias = aa;
+                    CHECK(marcus_set_render_options(player, &settings));
+                    CHECK(marcus_render(player, 320, 180, 1, 0, 0, 1, &image));
+                    CHECK(image.width == 320 && image.height == 180 && image.pitch == 1280);
+                    CHECK(std::memcmp(aliased.data(), image.rgba, aliased.size()));
+                }
+                CHECK(!marcus_render(player, 4096, 2304, 1, 0, 0, 1, &image));
+            }
+            settings = {};
+            MarcusCamera matched;
+            CHECK(marcus_match_camera(player, 320, 180, &matched));
+            for (int axis : {1, 2, 3})
+            {
+                settings.orthographic = 1; settings.axis_view = axis;
+                CHECK(marcus_set_render_options(player, &settings));
+                CHECK(marcus_render(player, 320, 180, 0, 25, 10, 1, &image));
+                CHECK(image.projection.orthographic && image.projection.ortho_height > 0);
+                CHECK(std::abs(image.camera.pitch - (axis == 3 ? 90.f : 0.f)) < .01f);
+                int picked = -1;
+                CHECK(marcus_pick(player, &image, 160, 90, &picked));
+                bool hit = false;
+                for (int object = 0; object < 4 && !hit; ++object)
+                {
+                    MarcusBounds bounds;
+                    CHECK(marcus_object_bounds(player, object, &bounds));
+                    if (!bounds.valid) continue;
+                    float center[3] = {};
+                    for (unsigned corner = 0; corner < 8; ++corner)
+                        for (unsigned component = 0; component < 3; ++component)
+                            center[component] += bounds.corners[corner*3+component] / 8;
+                    float x = 0, y = 0;
+                    for (unsigned component = 0; component < 3; ++component)
+                    {
+                        const auto delta = center[component] - image.projection.transform[9+component];
+                        x += delta * image.projection.transform[component];
+                        y += delta * image.projection.transform[3+component];
+                    }
+                    const int px = int((.5f + x / (image.projection.ortho_height * image.projection.aspect)) * image.width);
+                    const int py = int((.5f - y / image.projection.ortho_height) * image.height);
+                    for (int dy = -2; dy <= 2 && !hit; ++dy)
+                        for (int dx = -2; dx <= 2 && !hit; ++dx)
+                            if (px+dx >= 0 && px+dx < image.width && py+dy >= 0 && py+dy < image.height)
+                            {
+                                CHECK(marcus_pick(player, &image, px+dx, py+dy, &picked));
+                                hit = picked >= 0;
+                            }
+                }
+                CHECK(hit);
+            }
+            settings = {};
+            CHECK(marcus_set_render_options(player, &settings));
+            CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
+            if (backend == MARCUS_RENDERER_BRENDER) CHECK(!std::memcmp(cpu.data(), image.rgba, cpu.size()));
             CHECK(marcus_get_renderer(player) == backend && marcus_info(player, &after));
             CHECK(before.scene == after.scene && before.frame == after.frame && before.camera == after.camera);
             CHECK(!marcus_set_renderer(player, -1) && marcus_get_renderer(player) == backend);
