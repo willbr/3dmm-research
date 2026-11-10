@@ -64,6 +64,14 @@ typedef struct DialogRequest
     char *path;
 } DialogRequest;
 
+typedef struct CameraPerformance
+{
+    double render_ms[DEBUG_HISTORY], fps[DEBUG_HISTORY];
+    unsigned char rendered[DEBUG_HISTORY];
+    double last_ms, pending_ms;
+    int pending_rendered;
+} CameraPerformance;
+
 typedef struct App
 {
     SDL_Window *window;
@@ -88,6 +96,7 @@ typedef struct App
     MarcusShortcuts shortcuts, edited_shortcuts;
     double frame_ms[DEBUG_HISTORY];
     int frame_next, frame_count;
+    CameraPerformance camera_performance[2]; /* Movie, work; sampled on the app's frame clock. */
     char settings_path[1024], settings_message[256];
     int settings_open, rendering_settings, settings_work_camera, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
@@ -1103,6 +1112,12 @@ static void apply_settings(App *app)
     if (!shortcuts_save(app->settings_path, &app->edited_shortcuts, app->settings_message,
                         sizeof(app->settings_message)))
         return;
+    if (!app->shortcuts.debug_overlay && app->edited_shortcuts.debug_overlay)
+    {
+        app->frame_next = app->frame_count = 0;
+        memset(app->camera_performance, 0, sizeof(app->camera_performance));
+        app->movie_dirty = app->dirty = 1;
+    }
     app->shortcuts = app->edited_shortcuts;
     if (work_changed)
     {
@@ -2037,22 +2052,34 @@ static void draw_selection(App *app, const MarcusImage *image, const SDL_FRect *
     }
     SDL_SetRenderClipRect(app->renderer, NULL);
 }
+static void record_camera_render(App *app, int work, Uint64 started)
+{
+    CameraPerformance *performance;
+    if (!app->shortcuts.debug_overlay)
+        return;
+    performance = &app->camera_performance[work];
+    performance->pending_ms += (double)(SDL_GetTicksNS() - started) / 1000000.0;
+    performance->pending_rendered = 1;
+}
 static void draw_movie_view(App *app)
 {
     const MarcusRenderResolution *resolution;
     MarcusImage image;
     SDL_FRect destination;
     SDL_FRect settings;
+    Uint64 started;
     if (app->movie_dirty)
     {
         app->movie_dirty = 0;
         resolution = marcus_render_resolution(app->shortcuts.render_resolution);
+        started = app->shortcuts.debug_overlay ? SDL_GetTicksNS() : 0;
         if (!marcus_set_renderer(app->player, app->shortcuts.renderer) ||
             !marcus_set_render_options(app->player, &app->shortcuts.movie_view) ||
             !marcus_render(app->player, resolution->width, resolution->height, 1, 0, 0, 1, &image))
             fail(app, marcus_error(app->player));
         else
         {
+            record_camera_render(app, 0, started);
             app->movie_image = image;
             app->movie_image.rgba = NULL;
             if (!update_picture(app, &app->movie_picture, &image))
@@ -2127,6 +2154,7 @@ static void draw_view(App *app)
     int rendered, render_width, render_height, work;
     float left, width, right;
     MarcusUI *ui;
+    Uint64 started;
     ui = &app->ui;
     left = work_left(app);
     right = view_right(app);
@@ -2175,6 +2203,7 @@ static void draw_view(App *app)
     if (app->dirty)
     {
         app->dirty = 0;
+        started = app->shortcuts.debug_overlay ? SDL_GetTicksNS() : 0;
         if (!marcus_set_renderer(app->player, work ? app->shortcuts.work_renderer : app->shortcuts.renderer) ||
             !marcus_set_render_options(app->player, work ? &app->shortcuts.work_view : &app->shortcuts.movie_view))
             rendered = 0;
@@ -2207,6 +2236,7 @@ static void draw_view(App *app)
                               app->yaw, app->pitch, app->zoom, &image);
         if (rendered)
         {
+            record_camera_render(app, work, started);
             app->work_image = image;
             app->work_image.rgba = NULL;
             app->camera = image.camera;
@@ -3124,19 +3154,54 @@ static void draw_movie_controls(App *app)
 }
 static void record_frame(App *app, double milliseconds)
 {
+    CameraPerformance *performance;
+    double elapsed;
+    int camera, i, index, renders;
     if (!app->shortcuts.debug_overlay)
     {
+        if (app->frame_count)
+            memset(app->camera_performance, 0, sizeof(app->camera_performance));
         app->frame_next = app->frame_count = 0;
         return;
     }
     if (milliseconds <= 0)
         return;
     app->frame_ms[app->frame_next] = milliseconds;
+    for (camera = 0; camera < 2; ++camera)
+    {
+        performance = &app->camera_performance[camera];
+        performance->render_ms[app->frame_next] = performance->pending_ms;
+        performance->rendered[app->frame_next] = (unsigned char)performance->pending_rendered;
+        if (performance->pending_rendered)
+            performance->last_ms = performance->pending_ms;
+        performance->pending_ms = 0;
+        performance->pending_rendered = 0;
+    }
     app->frame_next = (app->frame_next + 1) % DEBUG_HISTORY;
     if (app->frame_count < DEBUG_HISTORY)
         ++app->frame_count;
+    for (camera = 0; camera < 2; ++camera)
+    {
+        performance = &app->camera_performance[camera];
+        elapsed = 0;
+        renders = 0;
+        for (i = 0; i < app->frame_count && elapsed < 1000; ++i)
+        {
+            index = (app->frame_next - 1 - i + DEBUG_HISTORY) % DEBUG_HISTORY;
+            elapsed += app->frame_ms[index];
+            renders += performance->rendered[index];
+        }
+        index = (app->frame_next - 1 + DEBUG_HISTORY) % DEBUG_HISTORY;
+        performance->fps[index] = renders * 1000.0 / elapsed;
+    }
 }
-static void draw_debug_graph(App *app, float x, float y, int fps)
+static double debug_value(const App *app, int index, int fps, int camera)
+{
+    if (camera < 0)
+        return fps ? 1000.0 / app->frame_ms[index] : app->frame_ms[index];
+    return fps ? app->camera_performance[camera].fps[index] : app->camera_performance[camera].render_ms[index];
+}
+static void draw_debug_graph(App *app, float x, float y, int fps, int camera)
 {
     double value, limit;
     float px, py, previous_x, previous_y;
@@ -3148,7 +3213,7 @@ static void draw_debug_graph(App *app, float x, float y, int fps)
     for (i = 0; i < app->frame_count; ++i)
     {
         index = (app->frame_next - app->frame_count + i + DEBUG_HISTORY) % DEBUG_HISTORY;
-        value = fps ? 1000.0 / app->frame_ms[index] : app->frame_ms[index];
+        value = debug_value(app, index, fps, camera);
         limit = maximum(limit, value);
     }
     limit = ceil(limit / (fps ? 30 : 10)) * (fps ? 30 : 10);
@@ -3161,7 +3226,7 @@ static void draw_debug_graph(App *app, float x, float y, int fps)
     for (i = 0; i < app->frame_count; ++i)
     {
         index = (app->frame_next - app->frame_count + i + DEBUG_HISTORY) % DEBUG_HISTORY;
-        value = fps ? 1000.0 / app->frame_ms[index] : app->frame_ms[index];
+        value = debug_value(app, index, fps, camera);
         px = x + (DEBUG_HISTORY - app->frame_count + i) * 271.0f / (DEBUG_HISTORY - 1);
         py = y + 43 - (float)(value / limit * 43);
         if (i)
@@ -3172,42 +3237,75 @@ static void draw_debug_graph(App *app, float x, float y, int fps)
         previous_y = py;
     }
 }
-static void draw_debug_overlay(App *app)
+static void draw_debug_panel(App *app, float x, float y, int camera)
 {
-    float x, y;
-    double total, average;
-    int count, index;
+    const CameraPerformance *performance;
+    double total, average, render_total, fps;
+    int count, index, renders;
     char label[96];
-    if (!app->shortcuts.debug_overlay)
-        return;
-    x = 24;
-    y = app->movie_only ? 24.0f : 132.0f;
+    performance = camera < 0 ? NULL : &app->camera_performance[camera];
     total = 0;
+    render_total = 0;
+    renders = 0;
     count = 0;
     /* Average the latest second; graph points retain individual frame spikes. */
     while (count < app->frame_count && total < 1000)
     {
         index = (app->frame_next - 1 - count + DEBUG_HISTORY) % DEBUG_HISTORY;
         total += app->frame_ms[index];
+        if (performance)
+        {
+            render_total += performance->render_ms[index];
+            renders += performance->rendered[index];
+        }
         ++count;
     }
     average = count ? total / count : 0;
+    fps = average > 0 ? 1000.0 / average : 0;
+    if (performance)
+    {
+        fps = total > 0 ? renders * 1000.0 / total : 0;
+        average = renders ? render_total / renders : performance->last_ms;
+    }
     ui_fill(&app->ui, x - 1, y - 1, 306, 222, LINE);
     ui_fill(&app->ui, x, y, 304, 220, PANEL);
-    ui_text(&app->ui, x + 16, y + 12, "DISPLAY PERFORMANCE", MUTED);
+    ui_text(&app->ui, x + 16, y + 12,
+            camera < 0 ? "APP / DISPLAY" : camera ? "WORK CAMERA" : "MOVIE CAMERA", MUTED);
     if (count)
-        SDL_snprintf(label, sizeof(label), "FPS  %.1f", 1000.0 / average);
+        SDL_snprintf(label, sizeof(label), "%s  %.1f", performance ? "Render FPS" : "FPS", fps);
     else
         SDL_strlcpy(label, "FPS  --", sizeof(label));
     ui_text(&app->ui, x + 16, y + 38, label, ACCENT);
-    draw_debug_graph(app, x + 16, y + 62, 1);
-    if (count)
-        SDL_snprintf(label, sizeof(label), "Frame time  %.2f ms", average);
+    draw_debug_graph(app, x + 16, y + 62, 1, camera);
+    if (average > 0)
+        SDL_snprintf(label, sizeof(label), "%s  %.2f ms", performance ? "Render time" : "Frame time", average);
     else
         SDL_strlcpy(label, "Frame time  -- ms", sizeof(label));
     ui_text(&app->ui, x + 16, y + 116, label, 0xe6ba78);
-    draw_debug_graph(app, x + 16, y + 140, 0);
-    ui_text(&app->ui, x + 16, y + 194, "180 frames / includes display wait", MUTED);
+    draw_debug_graph(app, x + 16, y + 140, 0, camera);
+    ui_text(&app->ui, x + 16, y + 194,
+            !performance ? "180 frames / includes display wait"
+            : renders ? "Actual renders / excludes display wait"
+            : average > 0 ? "Cached / showing last render time" : "Waiting for a camera render", MUTED);
+}
+static void draw_debug_overlay(App *app)
+{
+    float x, y;
+    if (!app->shortcuts.debug_overlay)
+        return;
+    x = 24;
+    y = app->movie_only ? 24.0f : 132.0f;
+    draw_debug_panel(app, x, y, -1);
+    if (!app->loaded)
+        return;
+    x += 316;
+    if (app->movie_only || app->second_view || app->authored == 1)
+    {
+        draw_debug_panel(app, x, y, 0);
+        x += 316;
+    }
+    if (!app->movie_only && (app->second_view || app->authored != 1))
+        draw_debug_panel(app, x, y, 1);
 }
 static void draw(App *app)
 {

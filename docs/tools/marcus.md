@@ -308,7 +308,16 @@ graph for each, in both editor and expanded movie views. The values average the
 latest second and the graphs retain the last 180 individual frames, with an
 automatic scale shown above each graph. Timing includes rendering, presentation
 and frame pacing; it measures Marcus's display loop, not the movie's authored
-frame rate. The toggle is saved with the other settings.
+frame rate. Separate **Movie camera** and **Work camera** panels appear for the
+visible cameras. Their **Render FPS** counts actual image renders per second;
+reusing a cached image does not count as a render. **Render time** averages the
+image generation calls for that camera, including renderer setup and synchronous
+GPU completion, but excluding texture upload, display wait and frame pacing.
+Each camera has its own FPS and render time graphs, sampled on the app frame
+clock; a zero render time point means the cached image was reused. After a second
+without renders, the panel shows **Cached** and retains the last render time.
+Enabling the overlay requests a fresh render of the visible cameras so paused
+views also have a measurement. The toggle is saved with the other settings.
 
 **Apply** activates and saves the edited settings; **Cancel** discards edits.
 **Restore defaults** resets all settings, which still needs Apply to save.
