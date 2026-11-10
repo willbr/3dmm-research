@@ -274,7 +274,7 @@ static SDL_FRect viewport_rect(const App *app, int movie)
     }
     left = movie ? 0 : work_left(app);
     right = movie ? app->split_x : view_right(app);
-    height = app->viewport_bottom - 172;
+    height = app->viewport_bottom - 148;
     scale = (float)minimum((right - left - 32) / resolution->width, height / resolution->height);
     rect.w = resolution->width * scale;
     rect.h = resolution->height * scale;
@@ -1954,7 +1954,6 @@ static void draw_movie_view(App *app)
     MarcusImage image;
     SDL_FRect destination;
     SDL_FRect settings;
-    char label[128];
     if (app->movie_dirty)
     {
         app->movie_dirty = 0;
@@ -1988,9 +1987,6 @@ static void draw_movie_view(App *app)
         SDL_RenderTexture(app->renderer, app->movie_picture, NULL, &destination);
         draw_selection(app, &app->movie_image, &destination);
     }
-    SDL_snprintf(label, sizeof(label), "CAMERA %02lu  |  FRAME %.0f", app->info.camera + 1,
-                 display_frame(app, app->info.frame));
-    ui_label(&app->ui, 20, app->viewport_bottom - 25, app->split_x - 36, label, MUTED);
     ui_fill(&app->ui, app->split_x - 1, 89, 2, app->viewport_bottom - 89, LINE);
     ui_fill(&app->ui, app->split_x - 2, (app->viewport_bottom + 89) / 2 - 15, 4, 30, MUTED);
 }
@@ -2173,12 +2169,6 @@ static void draw_view(App *app)
         ui_line(ui, left + width / 2, destination.y + destination.h / 2 - 6, left + width / 2,
                 destination.y + destination.h / 2 + 6, ACCENT);
     }
-    SDL_snprintf(label, sizeof(label), "%s %02lu    |    FRAME %.0f    |    6 FPS",
-                 app->authored == 2 ? "FLY"
-                 : app->authored    ? "CAMERA"
-                                    : "ORBIT",
-                 app->info.camera + 1, display_frame(app, app->info.frame));
-    ui_label(ui, left + 20, app->viewport_bottom - 25, width - 36, label, MUTED);
     if (app->second_view)
     {
         draw_movie_view(app);
@@ -2190,15 +2180,6 @@ static void draw_view(App *app)
         if (app->resizing_view || ui_inside(ui->mouse_x, ui->mouse_y, app->split_x - 4, 89, 8,
                                            app->viewport_bottom - 89))
             ui->hint = "Drag to resize the movie and work camera views";
-    }
-    else if (!app->authored)
-        ui_label(ui, app->sidebar - 495, app->viewport_bottom - 25, 475,
-                 "Click select / RMB orbit / Shift + RMB pan / wheel zoom", MUTED);
-    else if (app->authored == 2)
-    {
-        SDL_snprintf(label, sizeof(label), "Hold RMB + WASD / Q E / Shift    Speed: %.1f",
-                     (double)app->flight.move_speed);
-        ui_label(ui, app->sidebar - 415, app->viewport_bottom - 25, 395, label, MUTED);
     }
 }
 static void property(App *app, float y, const char *label, const char *value)
