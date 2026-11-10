@@ -121,10 +121,12 @@ Use `--second-view` to launch in this layout (`--orbit` starts its work view in
 Orbit). These are resizable panes in Marcus's SDL interface.
 
 The sound sheet groups authored cues into scene and actor lanes, with separate
-music, speech and effects tracks. Rectangles mark frame cues; diamonds mark
-motion-match bindings. A dot denotes a queued sound and an underline denotes a
-loop. Queued sounds share their authored frame; their eventual playback time
-depends on preceding sounds. Repeated clicks cycle overlapping markers.
+music, speech and effects tracks. Sampled clips use their clickable waveform
+without square cue overlays. Diamonds mark motion-match bindings; sounds without
+waveforms retain a thin cue line. Looping waveforms have an underline, and queue
+settings are shown in the inspector. Queued sounds share their authored frame;
+their eventual playback time depends on preceding sounds. Repeated clicks cycle
+overlapping sounds.
 Motion bindings can produce repeated sounds when the actor reaches the matching
 cel. Sound identities are shown as source ID and chunk number.
 Selecting or scrubbing a cue is silent; Play uses the existing audio playback.

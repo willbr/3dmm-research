@@ -527,6 +527,15 @@ static void zoom_timeline(App *app, float factor, float anchor)
     if (app->timeline_start < app->info.first_frame)
         app->timeline_start = app->info.first_frame;
 }
+static int sound_has_marker(App *app, int index, const MarcusSound *sound)
+{
+    MarcusWaveformInfo waveform;
+    MarcusWaveformColumn peak;
+    if (sound->carried || sound->motion)
+        return 1;
+    return !marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) ||
+           waveform.kind != MARCUS_WAVEFORM_SAMPLED;
+}
 static void select_timeline_row(App *app, float x, float y, int grid)
 {
     int row, index, previous, closest, fallback;
@@ -554,7 +563,7 @@ static void select_timeline_row(App *app, float x, float y, int grid)
     /* Stagger coincident cues vertically so queued entries can be selected. */
     closest = fallback = -1;
     for (index = app->info.sound_count - 1; index >= 0; --index)
-        if (marcus_sound(app->player, index, &sound) && sound.track == row)
+        if (marcus_sound(app->player, index, &sound) && sound.track == row && sound_has_marker(app, index, &sound))
         {
             center = frame_x(app, sound.frame + 0.5);
             marker_y = app->timeline_y + 87 + (row - app->sound_scroll) * ROW_HEIGHT + (index % 3) * 5;
@@ -1595,6 +1604,8 @@ static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, i
     }
     if (sound->loop)
         ui_line(&app->ui, start, center + 11, right, center + 11, tint);
+    if (ui_inside(app->ui.mouse_x, app->ui.mouse_y, start, center - 11, right - start, 23))
+        app->ui.hint = "Click waveform to select and scrub / repeat to cycle overlapping sounds";
 }
 static void draw_timeline(App *app)
 {
@@ -1738,7 +1749,7 @@ static void draw_timeline(App *app)
         }
         if (app->sound_sheet)
         {
-            /* Draw envelopes first, keeping every authored marker visible. */
+            /* Draw the selected waveform last so it remains visible in overlaps. */
             for (index = 0; index < app->info.sound_count; ++index)
             {
                 if (!marcus_sound(app->player, index, &sound))
@@ -1759,7 +1770,7 @@ static void draw_timeline(App *app)
                     continue;
                 row = sound.track - app->sound_scroll;
                 if (row < 0 || row >= rows || sound.frame < app->info.first_frame ||
-                    sound.frame > app->info.last_frame)
+                    sound.frame > app->info.last_frame || !sound_has_marker(app, index, &sound))
                     continue;
                 x = frame_x(app, sound.frame + 0.5);
                 left = y + 87 + row * ROW_HEIGHT + (index % 3) * 5;
@@ -1779,17 +1790,10 @@ static void draw_timeline(App *app)
                     ui_line(ui, x + 4, left, x, left + 4, tint);
                     ui_line(ui, x, left + 4, x - 4, left, tint);
                 }
-                else
-                    ui_fill(ui, x - 4, left - 3, 8, 6, tint);
-                if (sound.queue)
-                    ui_fill(ui, x + 6, left - 1, 2, 2, tint);
-                if (sound.loop)
-                    ui_line(ui, x - 4, left + 5, x + 4, left + 5, tint);
                 if (x >= app->grid_x && x < app->grid_x + app->grid_width &&
                     ui_inside(ui->mouse_x, ui->mouse_y, x - 6, left - 4, 12, 8))
                     ui->hint = sound.carried ? "Continues from an earlier scene / click to inspect its source"
-                               : "Click cue to inspect (repeat to cycle overlaps) / rectangle: frame / "
-                                 "diamond: motion / dot: queue / underline: loop";
+                               : "Click cue to inspect (repeat to cycle overlaps) / diamond: motion binding";
             }
         }
         /* The boundary follows the whole final frame, matching clip extents.
