@@ -36,6 +36,9 @@ paths. Original content is not bundled or downloaded by Marcus.
 
 Open a movie with **Open movie**, **Ctrl+O**, or drag and drop. Selecting
 Resources or Content reloads that movie.
+Opening a movie or changing scenes clears object and sound selection, including
+scene changes during playback. Objects are selected only by explicit input,
+such as a click or the `--object` command-line option.
 
 ZIP files can be opened through the same controls or passed on the command line.
 Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring

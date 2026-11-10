@@ -315,6 +315,7 @@ static void refresh(App *app)
         app->selected = -1;
     if (!app->loaded || previous_scene != app->info.scene)
     {
+        app->selected = -1;
         app->selected_sound = app->selected_sound_track = -1;
         app->sound_scroll = app->both_scroll = 0;
     }
@@ -381,7 +382,7 @@ static int select_scene(App *app, int index)
         app->fly_ready = app->camera_ready = 0;
         app->work_matched = app->work_needs_match = 1;
     }
-    app->selected = app->info.object_count ? 0 : -1;
+    app->selected = -1;
     app->row_scroll = app->object_scroll = 0;
     app->sound_scroll = app->both_scroll = 0;
     app->selected_sound = app->selected_sound_track = -1;
@@ -432,7 +433,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
         SDL_snprintf(title, sizeof(title), "Marcus - %s", path);
     SDL_SetWindowTitle(app->window, title);
     refresh(app);
-    app->selected = app->info.object_count ? 0 : -1;
+    app->selected = -1;
     app->camera_ready = 0;
     app->row_scroll = app->object_scroll = 0;
     app->sound_scroll = app->both_scroll = 0;
@@ -2517,7 +2518,7 @@ int main(int argc, char **argv)
     input = font = capture = NULL;
     result = have_frame = show_settings = 0;
     requested_scene = 1;
-    requested_object = 0;
+    requested_object = -1;
     requested_zip = 0;
     requested_frame = 0;
     requested_renderer = -1;
@@ -2683,7 +2684,7 @@ int main(int argc, char **argv)
             else
                 seek(&app, (long)((double)app.info.first_frame + requested_frame - 1));
         }
-        if (app.loaded)
+        if (app.loaded && requested_object >= 0)
         {
             if (requested_object >= app.info.object_count && app.info.object_count)
                 fail(&app, "Requested object does not exist.");
@@ -2724,7 +2725,7 @@ int main(int argc, char **argv)
                 }
                 if (app.playback.scene_changed)
                 {
-                    app.selected = app.info.object_count ? 0 : -1;
+                    app.selected = -1;
                     app.row_scroll = app.object_scroll = 0;
                     fit_timeline(&app);
                 }
