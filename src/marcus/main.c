@@ -80,7 +80,7 @@ typedef struct App
     MarcusCameraGuide camera_guide;
     MarcusShortcuts shortcuts, edited_shortcuts;
     char settings_path[1024], settings_message[256];
-    int settings_open, binding_capture;
+    int settings_open, rendering_settings, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
     int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
     int continue_click, muted;
@@ -342,11 +342,12 @@ static void update_movie_controls(App *app, double now, double elapsed)
     int visible, hide_cursor;
     float change;
     visible = app->movie_only && (!app->playing || app->playback.wait == 1 || app->movie_scrubbing ||
-                                  app->error[0] || now - app->movie_activity_tick < MOVIE_IDLE_MS);
+                                  app->error[0] || app->settings_open ||
+                                  now - app->movie_activity_tick < MOVIE_IDLE_MS);
     change = (float)(maximum(0, elapsed) / (visible ? 180 : 350));
     app->movie_overlay_alpha = (float)maximum(0, minimum(1,
         app->movie_overlay_alpha + (visible ? change : -change)));
-    hide_cursor = app->movie_only && !app->movie_scrubbing && !app->error[0] &&
+    hide_cursor = app->movie_only && !app->movie_scrubbing && !app->error[0] && !app->settings_open &&
                   SDL_GetMouseFocus() == app->window && now - app->movie_activity_tick >= MOVIE_IDLE_MS;
     if (hide_cursor != app->cursor_hidden)
     {
@@ -484,6 +485,14 @@ static int seek(App *app, long frame)
     refresh(app);
     app->dirty = 1;
     return 1;
+}
+static SDL_FRect movie_settings_rect(const App *app)
+{
+    SDL_FRect rect;
+    rect.x = (float)app->width - UI_SETTINGS_SIZE - 24;
+    rect.y = 24;
+    rect.w = rect.h = UI_SETTINGS_SIZE;
+    return rect;
 }
 static SDL_FRect movie_controls_rect(const App *app)
 {
@@ -983,13 +992,23 @@ static void open_settings(App *app)
     app->playing = app->dragging = app->orbiting = app->panning = 0;
     app->edited_shortcuts = app->shortcuts;
     app->binding_capture = -1;
+    app->rendering_settings = 0;
     app->settings_open = 1;
+}
+static void open_rendering_settings(App *app)
+{
+    open_settings(app);
+    app->rendering_settings = 1;
+    movie_activity(app);
 }
 static void cancel_settings(App *app)
 {
     app->settings_open = 0;
+    app->rendering_settings = 0;
     app->binding_capture = -1;
     app->settings_message[0] = 0;
+    if (app->movie_only)
+        movie_activity(app);
 }
 static void apply_settings(App *app)
 {
@@ -1016,6 +1035,26 @@ static void apply_settings(App *app)
 static void settings_click(App *app, float x, float y)
 {
     float left, top;
+    int renderer;
+    if (app->rendering_settings)
+    {
+        left = app->width / 2.0f - 240;
+        top = app->height / 2.0f - 120;
+        if (ui_inside(x, y, left + 438, top + 16, 28, 28) ||
+            ui_inside(x, y, left + 256, top + 192, 88, 28))
+            cancel_settings(app);
+        else if (ui_inside(x, y, left + 360, top + 192, 96, 28))
+            apply_settings(app);
+        else
+            for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
+                if (ui_inside(x, y, left + 24 + renderer * 144, top + 86, 136, 32))
+                {
+                    app->edited_shortcuts.renderer = renderer;
+                    app->settings_message[0] = 0;
+                    break;
+                }
+        return;
+    }
     left = app->width / 2.0f - 330;
     top = app->height / 2.0f - 310;
     if (ui_inside(x, y, left + 618, top + 16, 28, 28))
@@ -1106,6 +1145,7 @@ static void pick_object(App *app, float x, float y)
 }
 static void mouse_down(App *app, float x, float y, int button)
 {
+    SDL_FRect settings;
     int row, action;
     float right;
     right = view_right(app);
@@ -1130,7 +1170,13 @@ static void mouse_down(App *app, float x, float y, int button)
     if (app->movie_only)
     {
         if (button == SDL_BUTTON_LEFT)
-            movie_controls_click(app, x, y);
+        {
+            settings = movie_settings_rect(app);
+            if (ui_inside(x, y, settings.x, settings.y, settings.w, settings.h))
+                open_rendering_settings(app);
+            else
+                movie_controls_click(app, x, y);
+        }
         return;
     }
     if (app->sheet_menu)
@@ -1327,6 +1373,11 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         set_fullscreen(app, !app->fullscreen);
         return;
     }
+    if (app->settings_open)
+    {
+        settings_key(app, key, modifiers);
+        return;
+    }
     if (key == SDLK_ESCAPE && (app->movie_only || app->fullscreen))
     {
         editor_view(app);
@@ -1343,11 +1394,6 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     if (app->zip_input)
     {
         zip_key(app, key);
-        return;
-    }
-    if (app->settings_open)
-    {
-        settings_key(app, key, modifiers);
         return;
     }
     if (app->sheet_menu)
@@ -1368,7 +1414,9 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     }
     if (key == SDLK_COMMA && (modifiers & (SDL_KMOD_CTRL | SDL_KMOD_GUI)))
     {
-        if (!app->movie_only)
+        if (app->movie_only)
+            open_rendering_settings(app);
+        else
             open_settings(app);
         return;
     }
@@ -2593,11 +2641,39 @@ static void draw_error(App *app)
     }
     ui_button(&app->ui, x + 270, y + 211, 100, "Dismiss", 1, 1);
 }
+static void draw_rendering_settings(App *app)
+{
+    static const char *names[MARCUS_RENDERER_COUNT] = {"BRender CPU", "BRender compute", "SDL GPU"};
+    float x, y;
+    int renderer;
+    x = app->width / 2.0f - 240;
+    y = app->height / 2.0f - 120;
+    ui_opacity(&app->ui, 0.45f);
+    ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
+    ui_opacity(&app->ui, 1);
+    ui_fill(&app->ui, x - 1, y - 1, 482, 242, LINE);
+    ui_fill(&app->ui, x, y, 480, 240, PANEL);
+    ui_text(&app->ui, x + 24, y + 20, "Rendering settings", TEXT);
+    ui_button(&app->ui, x + 438, y + 16, 28, "x", 0, 1);
+    ui_text(&app->ui, x + 24, y + 56, "MOVIE RENDERER", ACCENT);
+    for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
+        ui_button_sized(&app->ui, x + 24 + renderer * 144, y + 86, 136, 32, names[renderer],
+                        app->edited_shortcuts.renderer == renderer, 1);
+    ui_text(&app->ui, x + 24, y + 134, "Applies to the movie and work camera views.", MUTED);
+    ui_label(&app->ui, x + 24, y + 160, 432, app->settings_message, 0xf2ae9b);
+    ui_button(&app->ui, x + 256, y + 192, 88, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 360, y + 192, 96, "Apply", 1, 1);
+}
 static void draw_settings(App *app)
 {
     float x, y, row_y;
     int row;
     char label[128];
+    if (app->rendering_settings)
+    {
+        draw_rendering_settings(app);
+        return;
+    }
     x = app->width / 2.0f - 330;
     y = app->height / 2.0f - 310;
     ui_fill(&app->ui, x - 1, y - 1, 662, 622, 0x606670);
@@ -2670,7 +2746,7 @@ static void movie_control_label(MarcusUI *ui, float x, float y, float width, con
 }
 static void draw_movie_controls(App *app)
 {
-    SDL_FRect rect;
+    SDL_FRect rect, settings;
     MarcusScene scene;
     MarcusSceneTime scene_time;
     MarcusUI *ui;
@@ -2691,6 +2767,10 @@ static void draw_movie_controls(App *app)
     seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
     fraction = available && app->movie_time.duration_seconds > 0 ? seconds / app->movie_time.duration_seconds : 0;
     ui_opacity(ui, app->movie_overlay_alpha);
+    settings = movie_settings_rect(app);
+    ui_settings_button(ui, settings.x, settings.y, app->settings_open);
+    if (!app->settings_open && ui_inside(ui->mouse_x, ui->mouse_y, settings.x, settings.y, settings.w, settings.h))
+        movie_control_label(ui, settings.x - 112, settings.y + settings.h + 8, 152, "Rendering settings", TEXT);
     status = app->movie_scrubbing ? "SEEKING" : !app->playing ? "PAUSED"
              : app->playback.wait == 1 ? "CONTINUE" : "PLAYING";
     movie_control_label(ui, left, rect.y + 16, 100, status, ACCENT);
@@ -2750,6 +2830,8 @@ static void draw(App *app)
         ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
         draw_movie_view(app);
         draw_movie_controls(app);
+        if (app->settings_open)
+            draw_settings(app);
         if (app->error[0])
             draw_error(app);
         return;

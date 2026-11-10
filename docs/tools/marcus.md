@@ -150,6 +150,13 @@ scene, ten-second skip, play/pause, mute, fullscreen and editor buttons are also
 available. Clicking the movie itself pauses or resumes it, or continues an
 authored click wait.
 
+The top-right **cog** in the movie-only view opens rendering settings without
+leaving the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and
+click **Apply** to save the renderer choice. Opening settings pauses playback;
+Cancel or Escape closes the dialog and keeps the expanded view. The cog fades
+with the playback controls, and the cursor stays visible while settings are open.
+Ctrl/Command+comma also opens this dialog in the movie-only view.
+
 The **arrow strip** beside the properties panel opens an authored movie camera on the left and an independent
 work camera on the right, both showing the same movie frame during playback.
 Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
