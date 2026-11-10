@@ -36,7 +36,17 @@ typedef struct MarcusShortcuts
     MarcusShortcut binding[MARCUS_ACTION_COUNT];
     int pause_on_focus_loss;
     int renderer;
+    int render_resolution;
 } MarcusShortcuts;
+
+#define MARCUS_RESOLUTION_COUNT 4
+#define MARCUS_DEFAULT_RESOLUTION 2
+typedef struct MarcusRenderResolution
+{
+    int width, height;
+    const char *name;
+} MarcusRenderResolution;
+const MarcusRenderResolution *marcus_render_resolution(int index);
 
 void shortcuts_defaults(MarcusShortcuts *shortcuts);
 const char *shortcuts_action_name(int action);

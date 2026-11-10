@@ -152,8 +152,13 @@ authored click wait.
 
 The top-right **cog** in the movie-only view opens rendering settings without
 leaving the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and
-click **Apply** to save the renderer choice. Opening settings pauses playback;
-Cancel or Escape closes the dialog and keeps the expanded view. The cog fades
+select a **render resolution**, then click **Apply** to save both choices.
+Resolutions are **320x240**, **640x480**, **960x720** (default), and **1024x768**.
+They control the output frame size for the movie and work camera views while
+keeping the movie's 4:3 proportions. Authored backgrounds retain their original
+detail. The editor's Settings dialog also offers the resolution choice.
+Opening settings pauses playback; Cancel or Escape closes the dialog and keeps
+the expanded view. The cog fades
 with the playback controls, and the cursor stays visible while settings are open.
 Ctrl/Command+comma also opens this dialog in the movie-only view.
 

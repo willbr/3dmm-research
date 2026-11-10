@@ -35,6 +35,8 @@ int main(int argc, char **argv)
     MarcusShortcuts shortcuts = {}, loaded = {};
     shortcuts_defaults(&shortcuts);
     CHECK(shortcuts.renderer == MARCUS_RENDERER_BRENDER);
+    CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
+    CHECK(!marcus_render_resolution(-1) && !marcus_render_resolution(MARCUS_RESOLUTION_COUNT));
     const auto path =
         std::filesystem::temp_directory_path() / ("marcus-renderer-" + std::to_string(SDL_GetTicksNS()) + ".cfg");
     struct RemoveSettings
@@ -52,17 +54,34 @@ int main(int argc, char **argv)
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_SDL_GPU);
+    for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
+    {
+        const auto *resolution = marcus_render_resolution(index);
+        CHECK(resolution && resolution->width <= 1024 && resolution->width * 3 == resolution->height * 4);
+        shortcuts.render_resolution = index;
+        CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+        shortcuts_defaults(&loaded);
+        CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+        CHECK(loaded.render_resolution == index && loaded.renderer == MARCUS_RENDERER_SDL_GPU);
+    }
+    shortcuts.render_resolution = -1;
+    CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     const char oldSettings[] = "marcus-shortcuts 1\npause_on_focus_loss 1\n";
     CHECK(SDL_SaveFile(path.u8string().c_str(), oldSettings, sizeof(oldSettings) - 1));
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
+    CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     for (const char *invalid :
-         {"marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n"})
+         {"marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n",
+          "marcus-shortcuts 1\nrender_resolution 1920x1080\n",
+          "marcus-shortcuts 1\nrender_resolution 320x240\nrender_resolution 640x480\n",
+          "marcus-shortcuts 1\nrender_resolution 640x480 extra\n"})
     {
         CHECK(SDL_SaveFile(path.u8string().c_str(), invalid, std::strlen(invalid)));
         CHECK(!shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
         CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
+        CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     }
 
     constexpr int size = 64, stride = 72;
@@ -204,11 +223,18 @@ int main(int argc, char **argv)
             CHECK(marcus_get_renderer(player) == backend && marcus_info(player, &after));
             CHECK(before.scene == after.scene && before.frame == after.frame && before.camera == after.camera);
             CHECK(!marcus_set_renderer(player, -1) && marcus_get_renderer(player) == backend);
-            for (int authored : {1, 0})
+            for (int index = 0; index < MARCUS_RESOLUTION_COUNT; ++index)
             {
-                CHECK(marcus_render(player, 320, 240, authored, -18, 12, 1, &image));
-                MarcusCamera camera = image.camera;
-                CHECK(marcus_render_fly(player, 320, 240, &camera, &image));
+                const auto *resolution = marcus_render_resolution(index);
+                for (int authored : {1, 0})
+                {
+                    CHECK(marcus_render(player, resolution->width, resolution->height, authored, -18, 12, 1, &image));
+                    CHECK(image.width == resolution->width && image.height == resolution->height);
+                    MarcusCamera camera = image.camera;
+                    CHECK(marcus_render_fly(player, resolution->width, resolution->height, &camera, &image));
+                    CHECK(image.width == resolution->width && image.height == resolution->height);
+                    CHECK(marcus_match_camera(player, resolution->width, resolution->height, &camera));
+                }
             }
         }
         CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));

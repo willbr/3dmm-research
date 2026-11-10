@@ -26,6 +26,8 @@
 #define NAV_STEP 32
 #define MOVIE_CONTROLS_HEIGHT 140
 #define MOVIE_IDLE_MS 2500
+#define RENDER_SETTINGS_HEIGHT 314
+#define SETTINGS_HEIGHT 656
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
 #define TIMELINE_MIN_HEIGHT 168
@@ -1012,15 +1014,17 @@ static void cancel_settings(App *app)
 }
 static void apply_settings(App *app)
 {
-    int renderer_changed;
-    renderer_changed = marcus_get_renderer(app->player) != app->edited_shortcuts.renderer;
+    int rendering_changed;
+    rendering_changed = marcus_get_renderer(app->player) != app->edited_shortcuts.renderer ||
+                        app->shortcuts.render_resolution != app->edited_shortcuts.render_resolution;
     if (!marcus_set_renderer(app->player, app->edited_shortcuts.renderer))
     {
         SDL_strlcpy(app->settings_message, marcus_error(app->player), sizeof(app->settings_message));
         return;
     }
     app->shortcuts.renderer = app->edited_shortcuts.renderer;
-    if (renderer_changed)
+    app->shortcuts.render_resolution = app->edited_shortcuts.render_resolution;
+    if (rendering_changed)
     {
         app->dirty = 1;
         app->movie_dirty = 1;
@@ -1035,17 +1039,18 @@ static void apply_settings(App *app)
 static void settings_click(App *app, float x, float y)
 {
     float left, top;
-    int renderer;
+    int renderer, resolution;
     if (app->rendering_settings)
     {
         left = app->width / 2.0f - 240;
-        top = app->height / 2.0f - 120;
+        top = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
         if (ui_inside(x, y, left + 438, top + 16, 28, 28) ||
-            ui_inside(x, y, left + 256, top + 192, 88, 28))
+            ui_inside(x, y, left + 256, top + 266, 88, 28))
             cancel_settings(app);
-        else if (ui_inside(x, y, left + 360, top + 192, 96, 28))
+        else if (ui_inside(x, y, left + 360, top + 266, 96, 28))
             apply_settings(app);
         else
+        {
             for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
                 if (ui_inside(x, y, left + 24 + renderer * 144, top + 86, 136, 32))
                 {
@@ -1053,10 +1058,18 @@ static void settings_click(App *app, float x, float y)
                     app->settings_message[0] = 0;
                     break;
                 }
+            for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
+                if (ui_inside(x, y, left + 24 + resolution * 110, top + 160, 102, 32))
+                {
+                    app->edited_shortcuts.render_resolution = resolution;
+                    app->settings_message[0] = 0;
+                    break;
+                }
+        }
         return;
     }
     left = app->width / 2.0f - 330;
-    top = app->height / 2.0f - 310;
+    top = (app->height - SETTINGS_HEIGHT) / 2.0f;
     if (ui_inside(x, y, left + 618, top + 16, 28, 28))
         cancel_settings(app);
     else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * 30))
@@ -1076,15 +1089,21 @@ static void settings_click(App *app, float x, float y)
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 24, top + 560, 148, 28))
+    else if (ui_inside(x, y, left + 430, top + 544, 204, 28))
+    {
+        app->edited_shortcuts.render_resolution = (app->edited_shortcuts.render_resolution + 1) % MARCUS_RESOLUTION_COUNT;
+        app->binding_capture = -1;
+        app->settings_message[0] = 0;
+    }
+    else if (ui_inside(x, y, left + 24, top + 596, 148, 28))
     {
         shortcuts_defaults(&app->edited_shortcuts);
         app->binding_capture = -1;
         SDL_strlcpy(app->settings_message, "Defaults restored. Apply to save them.", sizeof(app->settings_message));
     }
-    else if (ui_inside(x, y, left + 438, top + 560, 88, 28))
+    else if (ui_inside(x, y, left + 438, top + 596, 88, 28))
         cancel_settings(app);
-    else if (ui_inside(x, y, left + 538, top + 560, 96, 28))
+    else if (ui_inside(x, y, left + 538, top + 596, 96, 28))
         apply_settings(app);
 }
 static void settings_key(App *app, SDL_Keycode key, SDL_Keymod modifiers)
@@ -1832,13 +1851,15 @@ static void draw_selection(App *app, const MarcusImage *image, const SDL_FRect *
 }
 static void draw_movie_view(App *app)
 {
+    const MarcusRenderResolution *resolution;
     MarcusImage image;
     SDL_FRect destination;
     char label[128];
     if (app->movie_dirty)
     {
         app->movie_dirty = 0;
-        if (!marcus_render(app->player, 960, 720, 1, 0, 0, 1, &image))
+        resolution = marcus_render_resolution(app->shortcuts.render_resolution);
+        if (!marcus_render(app->player, resolution->width, resolution->height, 1, 0, 0, 1, &image))
             fail(app, marcus_error(app->player));
         else
         {
@@ -1886,10 +1907,12 @@ static void draw_view_strip(App *app)
 }
 static int match_work_camera(App *app)
 {
+    const MarcusRenderResolution *resolution;
     MarcusCamera camera;
     float speed;
     speed = app->fly_ready && !app->work_needs_match ? app->flight.move_speed : 0;
-    if (!marcus_match_camera(app->player, 960, 720, &camera))
+    resolution = marcus_render_resolution(app->shortcuts.render_resolution);
+    if (!marcus_match_camera(app->player, resolution->width, resolution->height, &camera))
     {
         fail(app, marcus_error(app->player));
         return 0;
@@ -1906,6 +1929,7 @@ static int match_work_camera(App *app)
 }
 static void draw_view(App *app)
 {
+    const MarcusRenderResolution *resolution;
     MarcusImage image;
     SDL_FRect destination;
     char label[256];
@@ -1916,8 +1940,9 @@ static void draw_view(App *app)
     left = work_left(app);
     right = view_right(app);
     width = right - left;
-    render_width = 960;
-    render_height = 720;
+    resolution = marcus_render_resolution(app->shortcuts.render_resolution);
+    render_width = resolution->width;
+    render_height = resolution->height;
     ui_fill(ui, 0, 89, app->sidebar, app->viewport_bottom - 89, BG);
     draw_view_strip(app);
     ui_text(ui, left + 20, 102, app->second_view ? "Work camera" : "Camera viewport", MUTED);
@@ -2645,24 +2670,29 @@ static void draw_rendering_settings(App *app)
 {
     static const char *names[MARCUS_RENDERER_COUNT] = {"BRender CPU", "BRender compute", "SDL GPU"};
     float x, y;
-    int renderer;
+    int renderer, resolution;
     x = app->width / 2.0f - 240;
-    y = app->height / 2.0f - 120;
+    y = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
     ui_opacity(&app->ui, 0.45f);
     ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
     ui_opacity(&app->ui, 1);
-    ui_fill(&app->ui, x - 1, y - 1, 482, 242, LINE);
-    ui_fill(&app->ui, x, y, 480, 240, PANEL);
+    ui_fill(&app->ui, x - 1, y - 1, 482, RENDER_SETTINGS_HEIGHT + 2, LINE);
+    ui_fill(&app->ui, x, y, 480, RENDER_SETTINGS_HEIGHT, PANEL);
     ui_text(&app->ui, x + 24, y + 20, "Rendering settings", TEXT);
     ui_button(&app->ui, x + 438, y + 16, 28, "x", 0, 1);
     ui_text(&app->ui, x + 24, y + 56, "MOVIE RENDERER", ACCENT);
     for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
         ui_button_sized(&app->ui, x + 24 + renderer * 144, y + 86, 136, 32, names[renderer],
                         app->edited_shortcuts.renderer == renderer, 1);
-    ui_text(&app->ui, x + 24, y + 134, "Applies to the movie and work camera views.", MUTED);
-    ui_label(&app->ui, x + 24, y + 160, 432, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + 256, y + 192, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 360, y + 192, 96, "Apply", 1, 1);
+    ui_text(&app->ui, x + 24, y + 134, "RENDER RESOLUTION", ACCENT);
+    for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
+        ui_button_sized(&app->ui, x + 24 + resolution * 110, y + 160, 102, 32,
+                        marcus_render_resolution(resolution)->name,
+                        app->edited_shortcuts.render_resolution == resolution, 1);
+    ui_text(&app->ui, x + 24, y + 208, "Applies to the movie and work camera views.", MUTED);
+    ui_label(&app->ui, x + 24, y + 234, 432, app->settings_message, 0xf2ae9b);
+    ui_button(&app->ui, x + 256, y + 266, 88, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 360, y + 266, 96, "Apply", 1, 1);
 }
 static void draw_settings(App *app)
 {
@@ -2675,9 +2705,9 @@ static void draw_settings(App *app)
         return;
     }
     x = app->width / 2.0f - 330;
-    y = app->height / 2.0f - 310;
-    ui_fill(&app->ui, x - 1, y - 1, 662, 622, 0x606670);
-    ui_fill(&app->ui, x, y, 660, 620, PANEL);
+    y = (app->height - SETTINGS_HEIGHT) / 2.0f;
+    ui_fill(&app->ui, x - 1, y - 1, 662, SETTINGS_HEIGHT + 2, 0x606670);
+    ui_fill(&app->ui, x, y, 660, SETTINGS_HEIGHT, PANEL);
     ui_text(&app->ui, x + 24, y + 20, "Settings", TEXT);
     ui_button(&app->ui, x + 618, y + 16, 28, "x", 0, 1);
     ui_text(&app->ui, x + 24, y + 53, "KEYBOARD SHORTCUTS", ACCENT);
@@ -2700,10 +2730,13 @@ static void draw_settings(App *app)
               app->edited_shortcuts.pause_on_focus_loss, 1);
     ui_text(&app->ui, x + 28, y + 513, "Movie renderer", TEXT);
     ui_button(&app->ui, x + 430, y + 508, 204, marcus_renderer_name(app->edited_shortcuts.renderer), 0, 1);
-    ui_label(&app->ui, x + 24, y + 538, 610, app->settings_message, 0xf2ae9b);
-    ui_button(&app->ui, x + 24, y + 560, 148, "Restore defaults", 0, 1);
-    ui_button(&app->ui, x + 438, y + 560, 88, "Cancel", 0, 1);
-    ui_button(&app->ui, x + 538, y + 560, 96, "Apply", 1, 1);
+    ui_text(&app->ui, x + 28, y + 549, "Render resolution", TEXT);
+    ui_button(&app->ui, x + 430, y + 544, 204,
+              marcus_render_resolution(app->edited_shortcuts.render_resolution)->name, 0, 1);
+    ui_label(&app->ui, x + 24, y + 574, 610, app->settings_message, 0xf2ae9b);
+    ui_button(&app->ui, x + 24, y + 596, 148, "Restore defaults", 0, 1);
+    ui_button(&app->ui, x + 438, y + 596, 88, "Cancel", 0, 1);
+    ui_button(&app->ui, x + 538, y + 596, 96, "Apply", 1, 1);
 }
 static void draw_zip(App *app)
 {

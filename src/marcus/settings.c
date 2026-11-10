@@ -10,6 +10,12 @@ static const char *action_names[MARCUS_ACTION_COUNT] = {"First frame",  "Previou
 static const char *action_ids[MARCUS_ACTION_COUNT] = {"first_frame", "prev_frame", "next_frame", "last_frame",
                                                       "first_scene", "prev_scene", "next_scene", "last_scene",
                                                       "play",        "view",       "reset_view", "open"};
+const MarcusRenderResolution *marcus_render_resolution(int index)
+{
+    static const MarcusRenderResolution resolutions[MARCUS_RESOLUTION_COUNT] = {
+        {320, 240, "320x240"}, {640, 480, "640x480"}, {960, 720, "960x720"}, {1024, 768, "1024x768"}};
+    return index >= 0 && index < MARCUS_RESOLUTION_COUNT ? &resolutions[index] : NULL;
+}
 static SDL_Keycode normalize_key(SDL_Keycode key)
 {
     return key >= 'A' && key <= 'Z' ? key + ('a' - 'A') : key;
@@ -20,6 +26,7 @@ void shortcuts_defaults(MarcusShortcuts *shortcuts)
                                                           SDLK_G, SDLK_G, SDLK_SPACE, SDLK_C, SDLK_R, SDLK_O};
     int i;
     memset(shortcuts, 0, sizeof(*shortcuts));
+    shortcuts->render_resolution = MARCUS_DEFAULT_RESOLUTION;
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         shortcuts->binding[i].key = keys[i];
     shortcuts->binding[MARCUS_FIRST_FRAME].modifiers = MARCUS_MOD_SHIFT;
@@ -117,7 +124,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     char *data, *line, *cursor, id[64], extra;
     unsigned long key;
     unsigned int modifiers, seen;
-    int i, j, valid, pause_seen, renderer_seen;
+    int i, j, valid, pause_seen, renderer_seen, resolution_seen;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
         return 1;
@@ -136,10 +143,30 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     seen = 0;
     pause_seen = 0;
     renderer_seen = 0;
+    resolution_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
     {
+        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "render_resolution"))
+        {
+            if (resolution_seen || SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2)
+            {
+                valid = 0;
+                break;
+            }
+            for (i = 0; i < MARCUS_RESOLUTION_COUNT; ++i)
+                if (!strcmp(renderer_id, marcus_render_resolution(i)->name))
+                    break;
+            if (i == MARCUS_RESOLUTION_COUNT)
+            {
+                valid = 0;
+                break;
+            }
+            loaded.render_resolution = i;
+            resolution_seen = 1;
+            continue;
+        }
         if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "renderer"))
         {
             if (renderer_seen || SDL_sscanf(line, "%63s %63s %c", id, renderer_id, &extra) != 2 ||
@@ -199,16 +226,23 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
 }
 int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *message, size_t capacity)
 {
+    const MarcusRenderResolution *resolution;
     char data[2048], temporary[1100];
     size_t length;
     int i;
+    resolution = marcus_render_resolution(shortcuts->render_resolution);
+    if (!resolution)
+    {
+        SDL_strlcpy(message, "The render resolution is invalid.", capacity);
+        return 0;
+    }
     if (!path[0] || SDL_snprintf(temporary, sizeof(temporary), "%s.tmp", path) >= (int)sizeof(temporary))
     {
         SDL_strlcpy(message, "The settings location is unavailable.", capacity);
         return 0;
     }
-    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\nrenderer %s\n",
-                 shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer));
+    SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\nrenderer %s\nrender_resolution %s\n",
+                 shortcuts->pause_on_focus_loss != 0, marcus_renderer_id(shortcuts->renderer), resolution->name);
     length = strlen(data);
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
         length += SDL_snprintf(data + length, sizeof(data) - length, "%s %lu %u\n", action_ids[i],
