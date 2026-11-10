@@ -6,8 +6,10 @@
 #include <fstream>
 #include <vector>
 #include "player.h"
+#include "waveform.h"
 #include "soc_core.h"
 #include <SDL3/SDL.h>
+#include <limits>
 #undef size
 ASSERTNAME
 namespace
@@ -22,6 +24,49 @@ void Check(bool value, int line)
     }
 }
 #define CHECK(value) Check((value), __LINE__)
+void WaveformPeaks()
+{
+    // Preserve transients and opposing stereo channels at both coarse and
+    // zoomed-in scales. Tail padding and out-of-clip windows stay silent.
+    std::vector<float> samples(1025 * 2, 0);
+    samples[256 * 2] = .75f;
+    samples[256 * 2 + 1] = -.5f;
+    samples[1024 * 2 + 1] = -1;
+    MarcusWaveformEnvelope envelope;
+    envelope.Build(samples.data(), 1025);
+    MarcusWaveformColumn columns[6];
+    envelope.Read(0, 256.0 / 48000, 6, columns);
+    CHECK(columns[0].minimum == 0 && columns[0].maximum == 0);
+    CHECK(columns[1].minimum == -.5f && columns[1].maximum == .75f);
+    CHECK(columns[2].minimum == 0 && columns[2].maximum == 0);
+    CHECK(columns[4].minimum == -1 && columns[4].maximum == 0);
+    CHECK(columns[5].minimum == 0 && columns[5].maximum == 0);
+    envelope.Read(256.0 / 48000, 1.0 / 48000, 1, columns);
+    CHECK(columns[0].minimum == -.5f && columns[0].maximum == .75f);
+    envelope.Read(0, 1, 1, columns);
+    CHECK(columns[0].minimum == -1 && columns[0].maximum == .75f);
+    CHECK(std::abs(envelope.Seconds() - 1025.0 / 48000) < 1e-9);
+    envelope.Build(nullptr, 0);
+    envelope.Read(0, 1, 6, columns);
+    for (const auto &column : columns)
+        CHECK(column.minimum == 0 && column.maximum == 0);
+
+    ThreeMM::Preview unopened;
+    ThreeMM::PreviewSoundCue cue;
+    MarcusWaveformCache cache;
+    MarcusWaveformInfo info;
+    cue.silent = true;
+    cache.Read(unopened, cue, 0, 1, 6, columns, info);
+    CHECK(info.kind == MARCUS_WAVEFORM_SILENT);
+    cue.silent = false;
+    for (int attempt = 0; attempt < 2; ++attempt)
+    {
+        cache.Read(unopened, cue, 0, 1, 6, columns, info);
+        CHECK(info.kind == MARCUS_WAVEFORM_UNAVAILABLE && info.message[0]);
+        for (const auto &column : columns)
+            CHECK(column.minimum == 0 && column.maximum == 0);
+    }
+}
 std::vector<byte> Bytes(const char *path)
 {
     std::ifstream input(path, std::ios::binary);
@@ -287,6 +332,7 @@ int main(int argc, char **argv)
     }
     if (argc != 4)
         return 2;
+    WaveformPeaks();
     Fixture(argv[1]);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     player = marcus_create();
@@ -310,6 +356,32 @@ int main(int argc, char **argv)
     CHECK(!std::strcmp(soundTrack.name, "Scene / Effects"));
     CHECK(Info().frame == -2);
     MarcusAudioStats sheetStats;
+    CHECK(marcus_audio_stats(player, &sheetStats) && !sheetStats.wave_sounds && !sheetStats.midi_sounds);
+    MarcusWaveformInfo waveform;
+    MarcusWaveformColumn peaks[16], repeated[16];
+    CHECK(marcus_sound_waveform(player, 0, 0, .01, 16, peaks, &waveform));
+    CHECK(waveform.kind == MARCUS_WAVEFORM_MIDI && waveform.message[0]);
+    CHECK(marcus_sound_waveform(player, 1, 0, .01, 16, peaks, &waveform));
+    CHECK(waveform.kind == MARCUS_WAVEFORM_SAMPLED && std::abs(waveform.seconds - .1) < 1e-6);
+    CHECK(peaks[0].minimum < -.2f && peaks[0].maximum > .2f);
+    CHECK(peaks[15].minimum == 0 && peaks[15].maximum == 0);
+    CHECK(marcus_sound_waveform(player, 2, 0, .01, 16, repeated, &waveform));
+    CHECK(!std::memcmp(peaks, repeated, sizeof(peaks))); // Shared queued sample.
+    CHECK(marcus_sound_waveform(player, 1, .2, .01, 16, repeated, &waveform));
+    for (const auto &peak : repeated)
+        CHECK(peak.minimum == 0 && peak.maximum == 0);
+    CHECK(!marcus_sound_waveform(nullptr, 1, 0, .01, 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, -1, 0, .01, 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 3, 0, .01, 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, -1, .01, 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, 0, 0, 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, std::numeric_limits<double>::infinity(), .01, 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, 0, std::numeric_limits<double>::quiet_NaN(), 16, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, 0, .01, 0, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, 0, .01, 4097, peaks, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, 0, .01, 16, nullptr, &waveform));
+    CHECK(!marcus_sound_waveform(player, 1, 0, .01, 16, peaks, nullptr));
+    CHECK(Info().frame == -2);
     CHECK(marcus_audio_stats(player, &sheetStats) && !sheetStats.wave_sounds && !sheetStats.midi_sounds);
     const auto title = Image();
     CHECK(std::count(title.begin(), title.end(), byte(255)) > 1000);
@@ -411,6 +483,8 @@ int main(int argc, char **argv)
     CHECK(cue.track == queued.track && marcus_sound_track(player, cue.track, &soundTrack));
     CHECK(!std::strcmp(soundTrack.name, "Actor 42 / Effects") && soundTrack.cue_count == 2);
     CHECK(Info().frame == -2 && marcus_audio_stats(player, &sheetStats) && sheetStats.wave_sounds == soundsBefore);
+    CHECK(marcus_sound_waveform(player, 0, 0, .01, 16, repeated, &waveform));
+    CHECK(waveform.kind == MARCUS_WAVEFORM_SAMPLED && !std::memcmp(peaks, repeated, sizeof(peaks)));
     Tick(0);
     CHECK(marcus_audio_stats(player, &stats) && stats.wave_sounds == soundsBefore + 1);
     Tick(170);

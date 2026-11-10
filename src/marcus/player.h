@@ -62,6 +62,23 @@ extern "C"
         unsigned long chunk, child;
         int track, actor_sound, loop, queue, silent, motion;
     } MarcusSound;
+    enum MarcusWaveformKind
+    {
+        MARCUS_WAVEFORM_SAMPLED = 1,
+        MARCUS_WAVEFORM_MIDI,
+        MARCUS_WAVEFORM_SILENT,
+        MARCUS_WAVEFORM_UNAVAILABLE
+    };
+    typedef struct MarcusWaveformColumn
+    {
+        float minimum, maximum; /* Both channels, relative to full scale. */
+    } MarcusWaveformColumn;
+    typedef struct MarcusWaveformInfo
+    {
+        double seconds; /* One clip iteration, independent of cue volume. */
+        int kind;
+        char message[192];
+    } MarcusWaveformInfo;
 
     typedef struct MarcusCamera
     {
@@ -135,6 +152,12 @@ extern "C"
      * queued cues share their authored start. Reading never seeks or plays. */
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track);
     int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound);
+    /* Lazy, cached, silent decoding. Sampled peaks cover successive clip-relative
+     * windows; out-of-clip columns are zero. MIDI/silence/unavailable have zero
+     * columns and an explanatory kind/message. count is 1..4096; first_seconds
+     * must be nonnegative and seconds_per_column positive, both finite. */
+    int marcus_sound_waveform(MarcusPlayer *player, int index, double first_seconds, double seconds_per_column,
+                              int count, MarcusWaveformColumn *columns, MarcusWaveformInfo *info);
     int marcus_seek(MarcusPlayer *player, long frame);
     /* Call once per host update, with elapsed milliseconds. Playback preserves
      * authored waits/scrolling; a click/Space continues a click wait. Manual

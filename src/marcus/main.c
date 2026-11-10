@@ -469,7 +469,10 @@ static void select_timeline_row(App *app, float x, float y, int grid)
 {
     int row, index, previous, closest, fallback;
     MarcusSound sound;
+    MarcusWaveformInfo waveform;
+    MarcusWaveformColumn peak;
     float center, marker_y;
+    double clip_seconds;
     row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT);
     if (!app->sound_sheet)
     {
@@ -503,7 +506,28 @@ static void select_timeline_row(App *app, float x, float y, int grid)
         }
     app->selected_sound = closest >= 0 ? closest : fallback;
     if (marcus_sound(app->player, app->selected_sound, &sound))
+    {
         seek(app, sound.frame);
+        return;
+    }
+    /* Clicking a waveform selects its cue while scrubbing to the pointer. */
+    closest = fallback = -1;
+    for (index = app->info.sound_count - 1; index >= 0; --index)
+        if (marcus_sound(app->player, index, &sound) && sound.track == row)
+        {
+            clip_seconds = (app->timeline_start + (x - app->grid_x) / app->pixels_per_frame - sound.frame) / 6;
+            if (clip_seconds >= 0 && marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) &&
+                waveform.kind == MARCUS_WAVEFORM_SAMPLED && clip_seconds < waveform.seconds)
+            {
+                if (fallback < 0)
+                    fallback = index;
+                if (closest < 0 && index < previous)
+                    closest = index;
+            }
+        }
+    app->selected_sound = closest >= 0 ? closest : fallback;
+    if (app->selected_sound >= 0)
+        seek(app, frame_at(app, x));
 }
 static void open_settings(App *app)
 {
@@ -1192,6 +1216,8 @@ static void draw_sound_properties(App *app)
 {
     MarcusSound sound;
     MarcusSoundTrack track;
+    MarcusWaveformInfo waveform;
+    MarcusWaveformColumn peak;
     char label[192];
     ui_text(&app->ui, app->sidebar + 18, 340, "SOUND PROPERTIES", MUTED);
     if (!app->loaded || !marcus_sound(app->player, app->selected_sound, &sound))
@@ -1204,7 +1230,7 @@ static void draw_sound_properties(App *app)
         }
         else
             ui_text(&app->ui, app->sidebar + 18, 377, "Select a sound track", TEXT);
-        ui_text(&app->ui, app->sidebar + 18, 435, "Click a cue marker to inspect.", MUTED);
+        ui_text(&app->ui, app->sidebar + 18, 435, "Click a cue or waveform.", MUTED);
         ui_text(&app->ui, app->sidebar + 18, 463, "Markers show authored events.", MUTED);
         ui_text(&app->ui, app->sidebar + 18, 487, "Motion cues mark cel bindings.", MUTED);
         return;
@@ -1228,7 +1254,17 @@ static void draw_sound_properties(App *app)
     property(app, 646, "Sound", label);
     SDL_snprintf(label, sizeof(label), "%lu", sound.child);
     property(app, 674, "Child ID", label);
-    ui_text(&app->ui, app->sidebar + 18, 710, "Scrubbing is silent.", MUTED);
+    if (marcus_sound_waveform(app->player, app->selected_sound, 0, 1, 1, &peak, &waveform))
+    {
+        if (waveform.kind == MARCUS_WAVEFORM_SAMPLED)
+        {
+            SDL_snprintf(label, sizeof(label), "%.3f s (one play)", waveform.seconds);
+            property(app, 702, "Duration", label);
+        }
+        else
+            ui_label(&app->ui, app->sidebar + 18, 702, 264, waveform.message, MUTED);
+    }
+    ui_text(&app->ui, app->sidebar + 18, 738, "Scrubbing is silent.", MUTED);
 }
 static void draw_sidebar(App *app)
 {
@@ -1306,6 +1342,47 @@ static void draw_sidebar(App *app)
     property(app, 666, "Lifetime", object.has_lifetime ? label : "No entrance");
     SDL_snprintf(label, sizeof(label), "%ld : %08lX", object.source_id, object.template_chunk);
     property(app, 692, "Template", label);
+}
+static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, int row)
+{
+    MarcusWaveformColumn columns[4096];
+    MarcusWaveformInfo waveform;
+    int column, count;
+    float start, right, center, amplitude, gain, top, bottom, column_width;
+    double first, step;
+    unsigned long tint;
+    /* Source audio is aligned to the six-fps ruler. Show one iteration even
+     * for loops and motion bindings; live waits/matches are playback-dependent. */
+    start = frame_x(app, sound->frame);
+    if (start > app->grid_x + app->grid_width)
+        return;
+    start = (float)maximum(ceil(start), app->grid_x);
+    first = maximum(0, (app->timeline_start + (start - app->grid_x) / app->pixels_per_frame - sound->frame) / 6);
+    right = (float)minimum(app->grid_x + app->grid_width, frame_x(app, (double)app->info.last_frame + 1));
+    column_width = (float)maximum(1, (right - start) / 4096);
+    step = column_width / (app->pixels_per_frame * 6);
+    count = (int)minimum(4096, ceil((right - start) / column_width));
+    if (count < 1 || !marcus_sound_waveform(app->player, index, first, step, count, columns, &waveform) ||
+        waveform.kind != MARCUS_WAVEFORM_SAMPLED || waveform.seconds <= first)
+        return;
+    right = (float)minimum(right, start + (waveform.seconds - first) / step * column_width);
+    center = app->timeline_y + 94 + row * ROW_HEIGHT;
+    amplitude = 10;
+    gain = (float)maximum(0, minimum(1, sound->volume / 65536.0));
+    tint = index == app->selected_sound ? 0xf4ca8e : sound->motion ? 0xa28ac3 : 0xc79b5f;
+    ui_fill(&app->ui, start, center - 11, right - start, 23,
+            index == app->selected_sound ? 0x504332 : 0x38332c);
+    ui_line(&app->ui, start, center, right, center, 0x66533c);
+    for (column = 0; column < count && start + column * column_width < right; ++column)
+    {
+        top = center - (float)minimum(1, columns[column].maximum * gain) * amplitude;
+        bottom = center - (float)maximum(-1, columns[column].minimum * gain) * amplitude;
+        ui_fill(&app->ui, start + column * column_width, top,
+                (float)minimum(column_width, right - start - column * column_width),
+                (float)maximum(1, bottom - top), tint);
+    }
+    if (sound->loop)
+        ui_line(&app->ui, start, center + 11, right, center + 11, tint);
 }
 static void draw_timeline(App *app)
 {
@@ -1440,6 +1517,22 @@ static void draw_timeline(App *app)
                 ui_fill(ui, left + 2, y + 91 + row * ROW_HEIGHT, 4, 6, TEXT);
         }
         if (app->sound_sheet)
+        {
+            /* Draw envelopes first, keeping every authored marker visible. */
+            for (index = 0; index < app->info.sound_count; ++index)
+            {
+                if (!marcus_sound(app->player, index, &sound))
+                    continue;
+                row = sound.track - app->sound_scroll;
+                if (row >= 0 && row < rows && index != app->selected_sound)
+                    draw_sound_waveform(app, index, &sound, row);
+            }
+            if (marcus_sound(app->player, app->selected_sound, &sound))
+            {
+                row = sound.track - app->sound_scroll;
+                if (row >= 0 && row < rows)
+                    draw_sound_waveform(app, app->selected_sound, &sound, row);
+            }
             for (index = 0; index < app->info.sound_count; ++index)
             {
                 if (!marcus_sound(app->player, index, &sound))
@@ -1471,6 +1564,7 @@ static void draw_timeline(App *app)
                     ui->hint = "Click cue to inspect (repeat to cycle overlaps) / rectangle: frame / "
                                "diamond: motion / dot: queue / underline: loop";
             }
+        }
         x = frame_x(app, app->info.frame + 0.5);
         ui_line(ui, x, y + 48, x, (float)app->height - 32, 0xf28b76);
         ui_fill(ui, x - 4, y + 48, 9, 5, 0xf28b76);

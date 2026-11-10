@@ -87,6 +87,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Click an object name or track | Select the actor/prop and inspect its evaluated metadata |
 | Objects / Sounds tabs | Switch the bottom dope sheet; both share the ruler, playhead and zoom |
 | Click a sound cue marker | Seek silently to its frame and inspect its owner, volume, loop, queue and trigger |
+| Click or drag a waveform | Select its sound and scrub silently at the pointer |
 | Timeline `-`, `+`, Fit | Zoom out, zoom in, fit the scene |
 | Timeline wheel | Scroll tracks in the active dope sheet |
 | Shift+wheel, horizontal wheel, or wheel over ruler | Pan frames |
@@ -112,10 +113,20 @@ motion-match bindings. A dot denotes a queued sound and an underline denotes a
 loop. Queued sounds share their authored frame; their eventual playback time
 depends on preceding sounds. Repeated clicks cycle overlapping markers.
 Motion bindings can produce repeated sounds when the actor reaches the matching
-cel. Markers represent events rather than audio
-duration or waveforms. Sound identities are shown as source ID and chunk number.
+cel. Sound identities are shown as source ID and chunk number.
 Selecting or scrubbing a cue is silent; Play uses the existing audio playback.
 Use `--sounds` to open directly on the sound sheet, including with `--screenshot`.
+
+Sampled sounds show a waveform from their decoded audio, scaled by cue volume;
+the inspector includes the clip duration. Peaks from both stereo channels are
+preserved as you zoom. Decoding is lazy and silent, with a scene-local 32 MiB
+peak cache; decoded sample buffers are released after building the peaks.
+Waveforms show one clip iteration from the authored cue on the six-fps ruler,
+clipped to the scene. Queued starts, repeated loops, motion matches and authored
+waits still follow live playback, so these are source previews rather than a
+rendered soundtrack. MIDI keeps its cue markers because it contains notes rather
+than sampled audio. Silent or unavailable sounds keep their markers; the
+inspector explains when a waveform cannot be displayed.
 
 Click a binding in Settings and press a key combination to replace it. Shift,
 Ctrl, Alt and Command modifiers are supported. Escape cancels capture; Backspace

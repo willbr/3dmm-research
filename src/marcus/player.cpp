@@ -3,6 +3,7 @@
 #include "movie_input.h"
 #include "playback.h"
 #include "gpu_renderer.h"
+#include "waveform.h"
 #include "three_mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -56,6 +57,8 @@ struct MarcusPlayer
     std::vector<ThreeMM::PreviewObject> objects;
     std::vector<MarcusSound> sounds;
     std::vector<MarcusSoundTrack> soundTracks;
+    std::vector<ThreeMM::PreviewSoundCue> soundCues;
+    MarcusWaveformCache waveforms;
     std::map<std::int32_t, std::string> names;
     char error[1024] = {};
     int selected = -1;
@@ -64,6 +67,8 @@ namespace
 {
 bool ReadSoundSheet(MarcusPlayer *player, ThreeMM::Error &error)
 {
+    player->waveforms.Clear();
+    player->soundCues.clear();
     std::vector<ThreeMM::PreviewSoundCue> cues;
     if (!player->preview.ReadSoundCues(cues, error))
         return false;
@@ -112,6 +117,7 @@ bool ReadSoundSheet(MarcusPlayer *player, ThreeMM::Error &error)
         ++player->soundTracks[sound.track].cue_count;
         player->sounds.push_back(sound);
     }
+    player->soundCues = std::move(cues);
     return true;
 }
 MarcusProjection CopyProjection(const ThreeMM::PreviewProjection &source)
@@ -460,6 +466,22 @@ extern "C"
             return 0;
         *sound = player->sounds[index];
         return 1;
+    }
+    int marcus_sound_waveform(MarcusPlayer *player, int index, double first, double step, int count,
+                              MarcusWaveformColumn *columns, MarcusWaveformInfo *info)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (player->selected < 0 || index < 0 || static_cast<std::size_t>(index) >= player->soundCues.size() ||
+                !columns || !info || count < 1 || count > 4096 || !std::isfinite(first) || first < 0 ||
+                !std::isfinite(step) || step <= 0)
+            {
+                error.code = ThreeMM::ErrorCode::invalid_argument;
+                error.message = "Waveforms require a sound cue, output columns and a finite clip-relative range.";
+                return false;
+            }
+            player->waveforms.Read(player->preview, player->soundCues[index], first, step, count, columns, *info);
+            return true;
+        });
     }
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object)
     {
