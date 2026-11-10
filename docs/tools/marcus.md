@@ -194,7 +194,7 @@ The native 3DMM movie canvas is **544x306**. Its scale presets are **1/2x
 (272x153)**, **1x / 3DMM (544x306, default)**, **2x (1088x612)**, **3x
 (1632x918)**, and **4x (2176x1224)**. All presets use the movie's **16:9** ratio.
 Other available sizes are **320x180**, **640x360**, **960x540**, **1024x576**,
-**1600x900**, **1920x1080**, **2560x1440**, **2880x1620**, **3840x2160**, and
+**1280x720 (720p)**, **1600x900**, **1920x1080**, **2560x1440**, **2880x1620**, **3840x2160**, and
 **4096x2304**. Saved 4:3 presets migrate to the same width at 16:9, independently
 for each camera. The bundled BRender build supports up to
 **4096x4096** output.

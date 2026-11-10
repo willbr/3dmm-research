@@ -116,6 +116,8 @@ int main(int argc, char **argv)
           !std::strcmp(marcus_render_resolution(loaded.work_render_resolution)->name, "320x180"));
     const char *legacyResolutions[] = {"320x240", "640x480", "960x720", "1024x768", "1600x1200",
                                        "1920x1440", "2560x1920", "2880x2160", "3840x2880", "4096x3072"};
+    const char *migratedResolutions[] = {"320x180", "640x360", "960x540", "1024x576", "1600x900",
+                                         "1920x1080", "2560x1440", "2880x1620", "3840x2160", "4096x2304"};
     for (int index = 0; index < 10; ++index)
     {
         char legacy[256];
@@ -124,7 +126,8 @@ int main(int argc, char **argv)
         CHECK(SDL_SaveFile(path.u8string().c_str(), legacy, std::strlen(legacy)));
         shortcuts_defaults(&loaded);
         CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
-        CHECK(loaded.render_resolution == index + 5 && loaded.work_render_resolution == 14 - index);
+        CHECK(!std::strcmp(marcus_render_resolution(loaded.render_resolution)->name, migratedResolutions[index]) &&
+              !std::strcmp(marcus_render_resolution(loaded.work_render_resolution)->name, migratedResolutions[9 - index]));
         CHECK(shortcuts_save(path.u8string().c_str(), &loaded, message, sizeof(message)));
         auto saved = static_cast<char *>(SDL_LoadFile(path.u8string().c_str(), nullptr));
         CHECK(saved && std::strstr(saved, marcus_render_resolution(loaded.render_resolution)->name) &&

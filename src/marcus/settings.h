@@ -45,7 +45,7 @@ typedef struct MarcusShortcuts
 
 #define MARCUS_NATIVE_WIDTH 544
 #define MARCUS_NATIVE_HEIGHT 306
-#define MARCUS_RESOLUTION_COUNT 15
+#define MARCUS_RESOLUTION_COUNT 16
 #define MARCUS_DEFAULT_RESOLUTION 1
 typedef struct MarcusRenderResolution
 {

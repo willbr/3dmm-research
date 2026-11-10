@@ -20,6 +20,7 @@ const MarcusRenderResolution *marcus_render_resolution(int index)
         {MARCUS_NATIVE_WIDTH * 4, MARCUS_NATIVE_HEIGHT * 4, "2176x1224", "4x 2176x1224"},
         {320, 180, "320x180", "320x180"}, {640, 360, "640x360", "640x360"},
         {960, 540, "960x540", "960x540"}, {1024, 576, "1024x576", "1024x576"},
+        {1280, 720, "1280x720", "1280x720 (720p)"},
         {1600, 900, "1600x900", "1600x900"}, {1920, 1080, "1920x1080", "1920x1080"},
         {2560, 1440, "2560x1440", "2560x1440"}, {2880, 1620, "2880x1620", "2880x1620"},
         {3840, 2160, "3840x2160", "3840x2160"}, {4096, 2304, "4096x2304", "4096x2304"}};
@@ -29,7 +30,7 @@ static int resolution_from_name(const char *name)
 {
     /* Migrate old 4:3 presets to the same width on the 16:9 movie canvas. */
     static const char *legacy[MARCUS_RESOLUTION_COUNT] = {
-        NULL, NULL, NULL, NULL, NULL, "320x240", "640x480", "960x720", "1024x768", "1600x1200",
+        NULL, NULL, NULL, NULL, NULL, "320x240", "640x480", "960x720", "1024x768", NULL, "1600x1200",
         "1920x1440", "2560x1920", "2880x2160", "3840x2880", "4096x3072"};
     int i;
     for (i = 0; i < MARCUS_RESOLUTION_COUNT; ++i)
