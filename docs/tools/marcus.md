@@ -192,6 +192,12 @@ work camera on the right, both showing the same movie frame during playback.
 Orbit and Fly keep the movie scene's authored lights in world space, so moving
 the work camera does not move the lighting. Isolated assets without a background
 use a preview light; reconstructed scenery retains its original baked colours.
+The work view fits its near/far depth range to visible scene geometry each frame
+to reduce 16-bit depth fighting. It leaves clearance around those surfaces and
+adapts as you fly closer. The movie camera retains its authored projection.
+This improves precision without moving surfaces or changing their draw order;
+truly coincident faces can still fight. Picking and caption occlusion use the
+same fitted projection as the rendered work view.
 Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
 fly while the movie continues. C switches that work view between Orbit and Fly.
 Drag the divider to resize either viewport. The strip's arrow collapses and

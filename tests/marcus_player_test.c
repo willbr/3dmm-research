@@ -170,10 +170,13 @@ int main(int argc, char **argv)
         CHECK(marcus_seek(player, frames[index]));
         CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
         CHECK(!memcmp(orbit.transform, image.projection.transform, sizeof(orbit.transform)));
-        CHECK(orbit.near_clip == image.projection.near_clip && orbit.far_clip == image.projection.far_clip);
+        CHECK(image.projection.near_clip > 0 && image.projection.far_clip > image.projection.near_clip &&
+              image.projection.far_clip <= 30000);
         CHECK(marcus_info(player, &info));
         CHECK(image.scene_camera.display_depth == guide_depth[info.camera]);
     }
+    /* Rewinding restores the fitted interval as well as the camera pose. */
+    CHECK(orbit.near_clip == image.projection.near_clip && orbit.far_clip == image.projection.far_clip);
     CHECK(marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
     manual = image.projection;
     CHECK(memcmp(orbit.transform, manual.transform, sizeof(orbit.transform)));
@@ -184,7 +187,7 @@ int main(int argc, char **argv)
     panned = image.projection;
     CHECK(!memcmp(manual.transform, panned.transform, 9 * sizeof(float)));
     CHECK(memcmp(manual.transform + 9, panned.transform + 9, 3 * sizeof(float)));
-    CHECK(manual.near_clip == panned.near_clip && manual.far_clip == panned.far_clip);
+    CHECK(panned.near_clip > 0 && panned.far_clip > panned.near_clip && panned.far_clip <= 30000);
     CHECK(marcus_seek(player, 25) && marcus_render(player, 480, 360, 0, 65, 5, 1.5f, &image));
     CHECK(!memcmp(panned.transform, image.projection.transform, sizeof(panned.transform)));
     CHECK(marcus_seek(player, 1));
@@ -214,12 +217,16 @@ int main(int argc, char **argv)
     CHECK(marcus_seek(player, 10));
     CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
     CHECK(fabs(image.camera.x - camera.x) < 0.001 && fabs(image.camera.z - camera.z) < 0.001);
-    CHECK(flight.near_clip == image.projection.near_clip && flight.far_clip == image.projection.far_clip);
+    CHECK(image.projection.near_clip > 0 && image.projection.far_clip > image.projection.near_clip &&
+          image.projection.far_clip <= 30000);
     CHECK(image.scene_camera.display_depth == guide_depth[0]);
     CHECK(marcus_seek(player, 20) && marcus_render_fly(player, 480, 360, &camera, &image));
-    CHECK(flight.near_clip == image.projection.near_clip && flight.far_clip == image.projection.far_clip);
+    CHECK(image.projection.near_clip > 0 && image.projection.far_clip > image.projection.near_clip &&
+          image.projection.far_clip <= 30000);
     CHECK(image.scene_camera.display_depth == guide_depth[1]);
     CHECK(marcus_seek(player, 1));
+    CHECK(marcus_render_fly(player, 480, 360, &camera, &image));
+    CHECK(flight.near_clip == image.projection.near_clip && flight.far_clip == image.projection.far_clip);
     /* Both views share a frame, but moving the work camera must not alter the
      * movie camera, its pixels, or the authored camera selection. */
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
@@ -243,7 +250,7 @@ int main(int argc, char **argv)
     manual = image.projection;
     for (index = 0; index < 12; ++index)
         CHECK(fabs(manual.transform[index] - authored.transform[index]) < .02);
-    CHECK(manual.far_clip == 30000);
+    CHECK(manual.near_clip > 0 && manual.far_clip > manual.near_clip && manual.far_clip <= 30000);
     CHECK(fabs(manual.vertical_fov - 2 * atan(tan(authored.vertical_fov * .00872664626) *
                (authored.aspect > 4.0 / 3 ? authored.aspect / (4.0 / 3) : 1)) * 57.2957795) < .02);
     CHECK(marcus_render_fly(player, 480, 360, &camera, &image));

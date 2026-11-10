@@ -36,6 +36,7 @@ struct PreviewView
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
+    bool fitSceneDepth = false;    // Fit inspection clip distances to visible scene geometry.
     PreviewRasterizer *rasterizer = nullptr; // Borrowed for this Render call; null uses BRender CPU.
 };
 struct PreviewCamera

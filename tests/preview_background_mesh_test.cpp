@@ -1,4 +1,5 @@
 #include "preview_background_mesh.h"
+#include "preview_depth_range.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -84,6 +85,30 @@ struct Target
 };
 int main()
 {
+    // A tight interval separates nearby surfaces that quantize to the same
+    // 16-bit value in the old 0.1..30000 inspection range.
+    PreviewDepthRange fitted(1, 1, .1, 30000);
+    fitted.Include({{{-1, -1, 100}, {1, -1, 100}, {0, 1, 100}}});
+    fitted.Include({{{-1, -1, 100.05}, {1, -1, 100.05}, {0, 1, 100.05}}});
+    const auto interval = fitted.Fit();
+    CHECK(interval.first == 50 && interval.second > 100.05 && interval.second < 106);
+    const auto depth = [](double z, double near, double far) {
+        return std::floor(65535 * far / (far - near) * (1 - near / z));
+    };
+    CHECK(depth(100, .1, 30000) == depth(100.05, .1, 30000));
+    CHECK(depth(100, interval.first, interval.second) < depth(100.05, interval.first, interval.second));
+    PreviewDepthRange close(1, 1, .1, 30000);
+    close.Include({{{-100, -100, 1}, {100, -100, 1}, {0, 100, 1}}});
+    CHECK(close.Fit().first == .5); // A visible face with all vertices outside the viewport.
+    PreviewDepthRange crossing(1, 1, .1, 30000);
+    crossing.Include({{{.01, -1, -1}, {.01, 1, -1}, {.01, 0, 2}}});
+    CHECK(crossing.Fit().first == .1); // Keep surfaces crossing the original near plane.
+    PreviewDepthRange empty(1, 1, .1, 30000);
+    empty.Include({{{100, 0, 1}, {101, 0, 1}, {100, 1, 1}}});
+    CHECK(empty.Fit() == std::make_pair(.1, 30000.0));
+    PreviewDepthRange boundary(1, 1, .1, 30000);
+    boundary.Include({{{-1, -1, 1}, {2, -1, 1}, {-1, 2, 1}}});
+    CHECK(boundary.Fit() == std::make_pair(.5, 1.05)); // Vertices exactly on clipping planes.
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
     const auto initialModels = BrModelCount(nullptr);

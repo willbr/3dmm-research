@@ -324,6 +324,17 @@ int main(int argc, char **argv)
                 CHECK(authored.size() == probe.samples.size());
                 for (std::size_t i = 0; i < authored.size(); ++i)
                     CHECK(std::abs(authored[i] - probe.samples[i]) < .1f);
+                // Depth fitting must retain the same visible actor triangles
+                // and lighting, and expose its clip planes for picking/captions.
+                const auto original = probe.samples;
+                view.fitSceneDepth = true;
+                CHECK(preview.Render(view, image, error));
+                CHECK(image.projection.nearClip >= .099f && image.projection.farClip <= 30000);
+                CHECK(image.projection.nearClip > .101f || image.projection.farClip < 29999);
+                std::sort(probe.samples.begin(), probe.samples.end());
+                CHECK(original.size() == probe.samples.size());
+                for (std::size_t i = 0; i < original.size(); ++i)
+                    CHECK(std::abs(original[i] - probe.samples[i]) < .1f);
             }
         }
         unsigned sourceWidth = 0, sourceHeight = 0;

@@ -3,6 +3,7 @@
 #include "three_mm/preview_rasterizer.h"
 #include "zb_capture.h"
 #include "preview_background_mesh.h"
+#include "preview_depth_range.h"
 #include "diagnostics.h"
 #include <algorithm>
 #include <cmath>
@@ -1305,6 +1306,38 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview model instance.");
         if (mesh && !mesh->AddToScene(frame.world))
             return Fail(error, ErrorCode::out_of_memory, "Cannot prepare background scenery models.");
+        if (!bg && _impl->background && view.fitSceneDepth)
+        {
+            const double ySlope = std::tan(float(camera.field_of_view) * (6.283185307179586 / 65536) * .5);
+            Internal::PreviewDepthRange range(ySlope * BrScalarToFloat(camera.aspect) * (1 + 2.0 / width),
+                                             ySlope * (1 + 2.0 / height),
+                                             BrScalarToFloat(camera.hither_z), BrScalarToFloat(camera.yon_z));
+            for (auto actor = frame.world->children; actor; actor = actor->next)
+            {
+                if (actor->type != BR_ACTOR_MODEL || !actor->model) continue;
+                const auto model = actor->model;
+                br_matrix34 transform;
+                BrActorToActorMatrix34(&transform, actor, cam);
+                std::vector<Internal::PreviewDepthRange::Point> vertices(model->nprepared_vertices);
+                for (unsigned i = 0; i < model->nprepared_vertices; ++i)
+                    for (unsigned axis = 0; axis < 3; ++axis)
+                    {
+                        double value = BrScalarToFloat(transform.m[3][axis]);
+                        for (unsigned source = 0; source < 3; ++source)
+                            value += double(BrScalarToFloat(model->prepared_vertices[i].p.v[source])) *
+                                     BrScalarToFloat(transform.m[source][axis]);
+                        vertices[i][axis] = axis == 2 ? -value : value;
+                    }
+                for (unsigned i = 0; i < model->nprepared_faces; ++i)
+                {
+                    const auto &face = model->prepared_faces[i];
+                    range.Include({vertices[face.vertices[0]], vertices[face.vertices[1]], vertices[face.vertices[2]]});
+                }
+            }
+            const auto fitted = range.Fit();
+            camera.hither_z = BrFloatToScalar(fitted.first);
+            camera.yon_z = BrFloatToScalar(fitted.second);
+        }
         // Keep the process-wide sink scoped to this call, including failures.
         struct RasterScope
         {

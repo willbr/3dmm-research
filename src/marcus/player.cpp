@@ -214,6 +214,7 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
 {
     auto options = view;
     options.renderAtOutputResolution = true;
+    options.fitSceneDepth = true;
     options.rasterizer = player->rasterizers[player->renderer].get();
     options.includeDepth = !view.authoredCamera || view.freeCamera;
     if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
