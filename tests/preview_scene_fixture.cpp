@@ -1,8 +1,10 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "soc_core.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
+#include <vector>
+#include "soc_core.h"
 #include "rich_text_data.h"
 ASSERTNAME
 void WarnProc(schar *, LegacyLong, schar *)
@@ -122,21 +124,80 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number)
            file->FAdoptChild(kctgTbox, *number, rich.ctg, rich.cno, 0);
 }
 
+// Audible regression cues have distinct frequencies and silence between them.
+// Store explicit little-endian PCM bytes rather than host-dependent structs.
+static bool AudioCues(PChunkyFile file, ChunkNumber scene, PGeneralGroup frames)
+{
+    for (int cue = 0; cue < 2; ++cue)
+    {
+        struct Header
+        {
+            int16_t bo, osk;
+            int32_t style, volume, invalid;
+        } header = {kboCur, koskCur, cue ? 2 : 3, 0x10000, 0};
+        std::vector<byte> bytes;
+        const auto word = [&](std::uint32_t value, int count) {
+            for (int i = 0; i < count; ++i)
+                bytes.push_back(static_cast<byte>(value >> (i * 8)));
+        };
+        const unsigned samples = 5512, rate = 11025;
+        bytes.insert(bytes.end(), {'R', 'I', 'F', 'F'});
+        word(36 + samples * 2, 4);
+        bytes.insert(bytes.end(), {'W', 'A', 'V', 'E', 'f', 'm', 't', ' '});
+        word(16, 4);
+        word(1, 2);
+        word(1, 2);
+        word(rate, 4);
+        word(rate * 2, 4);
+        word(2, 2);
+        word(16, 2);
+        bytes.insert(bytes.end(), {'d', 'a', 't', 'a'});
+        word(samples * 2, 4);
+        for (unsigned i = 0; i < samples; ++i)
+            word(static_cast<std::uint16_t>(
+                     static_cast<std::int16_t>(2048 * std::sin(6.283185307179586 * (cue ? 1300 : 600) * i / rate))),
+                 2);
+        ChunkNumber sound, wave;
+        if (!file->FAddPv(&header, sizeof(header), kctgMsnd, &sound) ||
+            !file->FAddPv(bytes.data(), static_cast<LegacyLong>((bytes.size)()), kctgWave, &wave) ||
+            !file->FAdoptChild(kctgMsnd, sound, kctgWave, wave, 0) ||
+            !file->FAdoptChild(kctgScen, scene, kctgMsnd, sound, cue))
+            return false;
+        String name;
+        name.SetSzs(cue ? PszLit("Regression effect 1300 Hz") : PszLit("Regression speech 600 Hz"));
+        if (!file->FSetName(kctgMsnd, sound, &name))
+            return false;
+        SceneEvent event = {cue ? 25 : 1, sevtPlaySnd};
+        std::int32_t data[] = {0x10000, cue ? 2 : 3, 0, 1, cue, 0, 0, kctgMsnd, static_cast<std::int32_t>(sound)};
+        LegacyLong insertion = 0;
+        for (; insertion < frames->IvMac(); ++insertion)
+        {
+            SceneEvent existing;
+            frames->GetFixed(insertion, &existing);
+            if (existing.nfrm > event.nfrm)
+                break;
+        }
+        if (!frames->FInsert(insertion, sizeof(data), data, &event))
+            return false;
+    }
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 4 && argc != 5 &&
         !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0 ||
-                        std::strcmp(argv[5], "--events") == 0)))
+                        std::strcmp(argv[5], "--events") == 0 || std::strcmp(argv[5], "--audio") == 0)))
     {
-        std::fprintf(
-            stderr,
-            "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES [--batch|--dissolve|--events]]\n");
+        std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES "
+                             "[--batch|--dissolve|--events|--audio]]\n");
         return 2;
     }
     const bool movie = argc >= 5;
     const bool batch = argc == 6 && std::strcmp(argv[5], "--batch") == 0;
     const bool dissolve = argc == 6 && std::strcmp(argv[5], "--dissolve") == 0;
     const bool events = argc == 6 && std::strcmp(argv[5], "--events") == 0;
+    const bool audio = argc == 6 && std::strcmp(argv[5], "--audio") == 0;
     const int source = movie ? 2 : 1;
     String backgroundPath;
     backgroundPath.SetSzs(argv[2]);
@@ -165,6 +226,10 @@ int main(int argc, char **argv)
     ChunkNumber sceneNumber;
     scene.firstFrame = batch ? -2 : 1;
     scene.lastFrame = movie ? 30 : 10;
+    // Transitions belong to the outgoing scene. Put the dissolve on the
+    // first scene so ordinary playback actually exercises the compositor.
+    if (dissolve)
+        scene.transition = transDissolve;
     bool ok = scene.FCreate(file, &sceneNumber);
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
     auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
@@ -341,12 +406,13 @@ int main(int argc, char **argv)
              file->FAdoptChild(kctgScen, sceneNumber, kctgTbox, credits, slot) &&
              starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &start);
     }
+    if (audio)
+        ok = ok && AudioCues(file, sceneNumber, frames);
     ok = ok && SceneData::FWriteEvents(file, sceneNumber, frames, starts) && file->FSave(kctgMvie);
     // Preview mode compares against a background-only scene. Movie mode keeps
     // the actors and authors a different camera sequence in the second scene.
     ChunkNumber emptyScene;
-    if (dissolve)
-        scene.transition = transDissolve;
+    scene.transition = transCut;
     ok = ok && scene.FCreate(file, &emptyScene);
     if (!movie)
         for (int i = 0; i < 5; ++i)
@@ -365,6 +431,8 @@ int main(int argc, char **argv)
              secondFrames->FInsert(1, sizeof(laterCamera), &laterCamera, &later);
         if (batch)
             ok = ok && BatchPauses(secondFrames, 1);
+        if (audio)
+            ok = ok && AudioCues(file, emptyScene, secondFrames);
     }
     ok =
         ok && SceneData::FWriteEvents(file, emptyScene, movie ? secondFrames : frames, starts) && file->FSave(kctgMvie);

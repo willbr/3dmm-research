@@ -1524,6 +1524,9 @@ if(BUILD_TESTING)
     add_test(NAME reference-trace COMMAND "${Python3_EXECUTABLE}" -B
       "${PROJECT_SOURCE_DIR}/tests/reference_trace_test.py")
     set_tests_properties(reference-trace PROPERTIES TIMEOUT 15)
+    add_test(NAME playback-regression COMMAND "${Python3_EXECUTABLE}" -B
+      "${PROJECT_SOURCE_DIR}/tests/playback_regression_test.py")
+    set_tests_properties(playback-regression PROPERTIES TIMEOUT 30)
     set_tests_properties(mcp-rig PROPERTIES TIMEOUT 15
       ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
     if(BUILD_STUDIO)

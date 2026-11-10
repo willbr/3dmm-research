@@ -15,6 +15,12 @@ add_executable(marcus-playback EXCLUDE_FROM_ALL ../../tools/marcus_playback.c)
 set_target_properties(marcus-playback PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_link_libraries(marcus-playback PRIVATE marcus-player)
 
+# Playback-quality capture through the C API; never creates an application UI.
+add_executable(marcus-regression EXCLUDE_FROM_ALL ../../tools/marcus_regression.cpp)
+target_compile_features(marcus-regression PRIVATE cxx_std_17)
+target_link_libraries(marcus-regression PRIVATE marcus-player SDL3::SDL3-static)
+kauai_copy_midi_assets(marcus-regression)
+
 add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

@@ -28,6 +28,7 @@ glossary of old Hungarian-style class names.
 
 - [Native V3DMM support](tools/v3dmm.md): Portable VXP installation, source-6 content and bundled VMM movies.
 - [Original v3dmm regression oracle](tools/v3dmm-oracle.md): frame/state comparisons, native sound requests and per-process PCM recordings.
+- [Playback regression corpus](tools/playback-regression.md): four-player movie captures, SQLite observations and scoped fidelity comparisons.
 - [7gen / v3dmm research and integration plan](tools/v3dmm-research.md): Ghidra findings, VXP/VMM layouts, and remaining compatibility work.
 - [Movie-making manifesto](movie-making-manifesto.md): practical rules for modelling, staging, animation and reference review.
 - [`../README.md`](../README.md) — top-level project README (build,
