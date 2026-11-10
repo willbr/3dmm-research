@@ -302,22 +302,33 @@ action's name. Escape, Alt+Enter and Ctrl/Command+comma are reserved for the UI.
 window keeps the movie playing. Turn it on to pause when Marcus loses focus.
 Focus loss always releases flight controls and stops mouse drags.
 
-**Debug overlay (FPS / frame time graphs)** defaults to **Off**. Enable it and
+**App debug overlay (FPS / frame time)** defaults to **Off**. Enable it and
 Apply to show display FPS and frame time in milliseconds, with a separate live
 graph for each, in both editor and expanded movie views. The values average the
 latest second and the graphs retain the last 180 individual frames, with an
 automatic scale shown above each graph. Timing includes rendering, presentation
 and frame pacing; it measures Marcus's display loop, not the movie's authored
-frame rate. Separate **Movie camera** and **Work camera** panels appear for the
-visible cameras. Their **Render FPS** counts actual image renders per second;
+frame rate. Open a camera's **cog** to inspect its performance panel in that
+camera's rendering settings dialog. Each dialog also has a saved **Show stats
+over camera view** toggle, defaulting to **Off**, to display that camera's live
+stats and graphs over its view. The two camera toggles work independently of
+each other and of the app overlay. The app panel sits at the right of the window;
+camera panels sit inside their respective views. Their **Render FPS** counts
+actual image renders per second;
 reusing a cached image does not count as a render. **Render time** averages the
 image generation calls for that camera, including renderer setup and synchronous
 GPU completion, but excluding texture upload, display wait and frame pacing.
 Each camera has its own FPS and render time graphs, sampled on the app frame
 clock; a zero render time point means the cached image was reused. After a second
 without renders, the panel shows **Cached** and retains the last render time.
-Enabling the overlay requests a fresh render of the visible cameras so paused
-views also have a measurement. The toggle is saved with the other settings.
+Opening a camera's settings captures its recent stats and graphs before pausing
+playback. That snapshot stays visible until the dialog closes, and describes the
+applied settings rather than pending edits. Reopen the dialog after applying a
+change and playing the movie to capture fresh measurements.
+Camera measurements are recorded even when the overlays are off, so their
+settings dialogs always have recent stats. Enabling an overlay requests a fresh
+render of the visible cameras so paused views also have a measurement. The
+toggles are saved with the other settings.
 
 **Apply** activates and saves the edited settings; **Cancel** discards edits.
 **Restore defaults** resets all settings, which still needs Apply to save.

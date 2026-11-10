@@ -148,6 +148,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     unsigned long key;
     unsigned int modifiers, seen;
     int i, j, valid, pause_seen, debug_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work, view_seen;
+    int camera_debug_seen;
     MarcusRenderOptions *view;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
@@ -167,6 +168,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     seen = 0;
     pause_seen = 0;
     debug_seen = 0;
+    camera_debug_seen = 0;
     renderer_seen = 0;
     resolution_seen = 0;
     work_renderer_seen = 0;
@@ -239,6 +241,23 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
                 loaded.renderer = i;
                 renderer_seen = 1;
             }
+            continue;
+        }
+        if (SDL_sscanf(line, "%63s", id) == 1 &&
+            (!strcmp(id, "movie_debug_overlay") || !strcmp(id, "work_debug_overlay")))
+        {
+            work = !strcmp(id, "work_debug_overlay");
+            if ((camera_debug_seen & (1 << work)) ||
+                SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > 1)
+            {
+                valid = 0;
+                break;
+            }
+            if (work)
+                loaded.work_debug_overlay = (int)key;
+            else
+                loaded.movie_debug_overlay = (int)key;
+            camera_debug_seen |= 1 << work;
             continue;
         }
         if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "debug_overlay"))
@@ -329,10 +348,11 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         return 0;
     }
     SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\ndebug_overlay %d\nrenderer %s\nrender_resolution %s\n"
-                 "work_renderer %s\nwork_render_resolution %s\n",
+                 "work_renderer %s\nwork_render_resolution %s\nmovie_debug_overlay %d\nwork_debug_overlay %d\n",
                  shortcuts->pause_on_focus_loss != 0, shortcuts->debug_overlay != 0,
                  marcus_renderer_id(shortcuts->renderer), resolution->name,
-                 marcus_renderer_id(shortcuts->work_renderer), work_resolution->name);
+                 marcus_renderer_id(shortcuts->work_renderer), work_resolution->name,
+                 shortcuts->movie_debug_overlay != 0, shortcuts->work_debug_overlay != 0);
     length = strlen(data);
     for (i = 0; i < 2; ++i)
     {
