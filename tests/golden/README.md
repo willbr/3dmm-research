@@ -49,14 +49,17 @@ For visual comparisons or to inspect the old baseline without rebuilding an
 old renderer:
 
 ```powershell
-python tools/rasterizer_goldens.py restore --output tmp/bren-reference
+python tools/rasterizer_goldens.py restore --archive C:/local/golden-images.zip --output tmp/bren-reference
 python tools/rasterizer_goldens.py check --output tmp/bren-reference
 ```
 
-This reads the original image blobs from the manifest's `reference_revision`
-using `git show` and verifies every hash before writing. It requires that commit
-and its blobs to be available locally; shallow clones may need to fetch the
-recorded revision. It does not download or execute an old binary. The
+This reads the original images from a separately preserved ZIP and verifies
+every hash before writing. ZIP entries must use the capture filenames at the
+archive root. The history cleanup removed these image blobs from Git; neither
+cloning nor fetching an older revision restores them. An optional reference ZIP
+was preserved outside the repository during cleanup. New renders can always be
+generated without it, but exact historical captures require that archive.
+The command does not download or execute an old binary. The
 `captured_in` commit on each entry records when that particular image last
 changed; recipes describe the current harness's equivalent scenes.
 
@@ -76,5 +79,6 @@ tests can be run with:
 python -B -m unittest discover -s tests -p test_rasterizer_goldens.py
 ```
 
-Removing the files saves approximately 81 MiB in new checkouts. Their original
-blobs remain recoverable in Git history; this change does not rewrite history.
+Removing the files saves approximately 81 MiB in new checkouts. The subsequent
+history cleanup also removed their old blobs from Git. The reference hashes and
+renderer source history remain available independently of the external ZIP.

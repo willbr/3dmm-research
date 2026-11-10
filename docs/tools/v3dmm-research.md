@@ -15,8 +15,10 @@ directly without loading the old DLLs or patching its executable.
 
 ## Evidence and limits
 
-Inputs are the repository's [7gen archive](../../v3dmm/7gen03b.zip) and
-[v3dmm archive](../../v3dmm/v3dmm.zip). The former is an outer distribution ZIP
+Inputs are locally supplied `7gen03b.zip` and `v3dmm.zip`, kept under ignored
+`tmp/v3dmm-research/inputs/`. These third-party distributions are not bundled
+with the source or retained in its rewritten history. The former is an outer
+distribution ZIP
 containing another `7gen03b.zip`, Python 2.3.4 and pygame installers. The latter
 contains `v3dmm_014.exe`, an NSIS installer. Both layers were unpacked as data;
 no shipped code was executed for the static investigation below. The extracted
@@ -499,6 +501,12 @@ Resource activation and document save/lifetime changes should be separate,
 reviewable PRs after the collision/ordering evidence is settled.
 
 ## Reproducing the investigation
+
+Place your own copies of `7gen03b.zip` and `v3dmm.zip` in
+`tmp/v3dmm-research/inputs/` and check their SHA-256 values against the table
+above before extraction. These archives are developer inputs, not build
+dependencies. Native V3DMM support reads the formats directly; the original
+runtime is needed only for the optional reference-runtime comparisons.
 
 Use `tmp/v3dmm-research/` for extraction, the Ghidra project and exports. Extract
 the inner 7gen ZIP with Python's `zipfile`; use `7z x` on the NSIS executable.

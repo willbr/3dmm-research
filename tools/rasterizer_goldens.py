@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,17 +82,24 @@ def generate(manifest, records, executable, output, fixtures=DEFAULT_FIXTURES):
     print(f"Rendered {len(scenes)} scenes into {output}")
 
 
-def restore(manifest, records, output):
-    """Recover exact historical captures without running historical binaries."""
-    revision = manifest["reference_revision"]
-    for record in records:
-        result = subprocess.run(
-            ["git", "show", f"{revision}:tests/golden/{record['file']}"],
-            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
-        )
-        check_capture(record, result.stdout)
-        (output / record["file"]).write_bytes(result.stdout)
-    print(f"Recovered {len(records)} reference images from {revision[:12]} into {output}")
+def restore(records, output, archive):
+    """Recover exact historical captures from an external reference ZIP."""
+    with zipfile.ZipFile(archive) as source:
+        # Read named images only; never extract arbitrary archive paths.
+        images = []
+        for record in records:
+            try:
+                entry = source.getinfo(record["file"])
+            except KeyError:
+                raise ValueError(f"missing reference image in archive: {record['file']}") from None
+            if entry.file_size != record["bytes"]:
+                raise ValueError(f"wrong reference image size in archive: {record['file']}")
+            data = source.read(entry)
+            check_capture(record, data)
+            images.append((record["file"], data))
+        for name, data in images:
+            (output / name).write_bytes(data)
+    print(f"Recovered {len(records)} verified reference images from {archive} into {output}")
 
 
 def main(argv=None):
@@ -103,12 +111,14 @@ def main(argv=None):
     for name, help_text in (
         ("generate", "render scenes using a supplied harness executable"),
         ("check", "compare local images with the preserved hashes"),
-        ("restore", "recover exact reference images from Git history"),
+        ("restore", "recover exact reference images from an external ZIP"),
     ):
         command = commands.add_parser(name, help=help_text)
         command.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
         command.add_argument("--arch", choices=("x86", "x64"), required=name == "generate")
         command.add_argument("--scene", action="append", choices=sorted(manifest["recipes"]))
+        if name == "restore":
+            command.add_argument("--archive", type=Path, required=True)
         if name == "generate":
             command.add_argument("--exe", type=Path, required=True)
             command.add_argument("--fixtures", type=Path, default=DEFAULT_FIXTURES)
@@ -137,7 +147,7 @@ def main(argv=None):
         ], check=True)
     output.mkdir(parents=True, exist_ok=True)
     if args.command == "restore":
-        restore(manifest, records, output)
+        restore(records, output, args.archive.resolve())
         return 0
     generate(manifest, records, args.exe.resolve(), output, args.fixtures.resolve())
     return check(records, output) if args.check else 0
@@ -146,6 +156,6 @@ def main(argv=None):
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except (OSError, ValueError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, subprocess.SubprocessError, zipfile.BadZipFile) as error:
         print(f"error: {error}", file=sys.stderr)
         sys.exit(1)

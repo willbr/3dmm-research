@@ -3,8 +3,8 @@
 The 332 binary chunks and one generated text manifest formerly checked in here
 are reproducible from existing original assets. `manifest.json` preserves their
 byte counts and SHA-256 hashes, the input asset hashes, extraction recipes and
-the last repository revision containing the fixtures. Generated files live in
-ignored `tmp/bren-rasterizer-fixtures/`.
+the reference repository revision used for the fixture migration. Generated
+files live in ignored `tmp/bren-rasterizer-fixtures/`.
 
 ## Generate and verify
 
@@ -52,8 +52,9 @@ change that engine API or its callers.
 All 333 fixtures are reproduced for historical completeness. Only 36 are used
 by the current renderer recipes; the other 297 were captured as part of the
 complete template graphs during the port. None need separate binary storage in
-the source checkout. Removing them saves approximately 1.44 MiB per checkout;
-the old blobs remain in Git history.
+the source checkout. Removing them saves approximately 1.44 MiB per checkout.
+The subsequent history cleanup removed their old blobs from Git as well;
+regeneration uses the original source assets and the preserved hashes.
 
 The fixture generator and golden tool's tests can be run together:
 

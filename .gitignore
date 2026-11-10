@@ -16,6 +16,9 @@ build-x64/
 # Local test outputs and scratch files belong here.
 /tmp/
 
+# Third-party research distributions belong under ignored tmp/.
+/v3dmm/
+
 # BRender reference images are generated locally; keep only their manifest.
 /tests/golden/*.pgm
 /tests/golden/*.ppm

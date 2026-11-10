@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from unittest import mock
+import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,12 +85,25 @@ class GoldenChecks(unittest.TestCase):
                     goldens.generate(self.manifest, [self.record], Path("renderer"), Path(directory))
 
     def test_restore_rejects_corrupt_historical_bytes_before_writing(self):
-        result = subprocess.CompletedProcess([], 0, stdout=self.image[:-1] + b"\xfe")
-        with tempfile.TemporaryDirectory() as directory, \
-                mock.patch.object(goldens.subprocess, "run", return_value=result):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "references.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                output.writestr(self.record["file"], self.image[:-1] + b"\xfe")
             with self.assertRaises(ValueError):
-                goldens.restore(self.manifest, [self.record], Path(directory))
+                goldens.restore([self.record], Path(directory), archive)
             self.assertFalse((Path(directory) / self.record["file"]).exists())
+
+    def test_restore_reads_only_verified_named_images(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "references.zip"
+            with zipfile.ZipFile(archive, "w") as output:
+                output.writestr(self.record["file"], self.image)
+                output.writestr("../unwanted.txt", b"never extract")
+            with contextlib.redirect_stdout(io.StringIO()):
+                goldens.restore([self.record], Path(directory), archive)
+            self.assertEqual((Path(directory) / self.record["file"]).read_bytes(), self.image)
+            self.assertEqual(sorted(path.name for path in Path(directory).iterdir()),
+                             ["references.zip", self.record["file"]])
 
 
 if __name__ == "__main__":
