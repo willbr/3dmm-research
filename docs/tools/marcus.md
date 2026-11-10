@@ -97,6 +97,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Four buttons in the Frame row | First / previous / next / last frame |
 | Four buttons in the Scene row | First / previous / next / last scene |
 | Click or drag the timeline | Scrub the current scene |
+| Click or drag the scrubber beside the scene name | Scrub across the entire movie; ticks mark scene boundaries |
 | Click an object name or track | Select the actor/prop and inspect its evaluated metadata |
 | Objects / Sounds / Both dropdown | Choose which tracks appear in the dope sheet |
 | Click a sound cue marker | Seek silently to its frame and inspect its owner, volume, loop, queue and trigger |
@@ -149,6 +150,12 @@ if it was playing before the drag, and keeps a paused movie paused. Previous/nex
 scene, ten-second skip, play/pause, mute, fullscreen and editor buttons are also
 available. Clicking the movie itself pauses or resumes it, or continues an
 authored click wait.
+
+The editor also has the movie-wide scrubber in the existing playback header,
+beside the scene name, with elapsed / total runtime directly above it. It uses
+the same scene ticks, hover-time preview and silent seeking as the expanded
+view. Releasing a drag resumes a previously playing movie and keeps a paused
+movie paused. The track ruler below continues to scrub within the current scene.
 
 The top-right **cog** in the movie-only view opens rendering settings without
 leaving the movie. Choose **BRender CPU**, **BRender compute**, or **SDL GPU** and
