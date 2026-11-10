@@ -152,7 +152,9 @@ available. Clicking the movie itself pauses or resumes it, or continues an
 authored click wait.
 
 The editor also has the movie-wide scrubber in the existing playback header,
-beside the scene name, with elapsed / total runtime directly above it. It uses
+beside the scene name and elapsed / total runtime. The scrubber fills the
+playback header's height, with the timeline's minus, plus and Fit controls on
+its right. It uses
 the same scene ticks, hover-time preview and silent seeking as the expanded
 view. Releasing a drag resumes a previously playing movie and keeps a paused
 movie paused. The track ruler below continues to scrub within the current scene.

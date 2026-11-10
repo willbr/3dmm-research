@@ -521,9 +521,9 @@ static SDL_FRect movie_scrubber_rect(const App *app)
     else
     {
         rect.x = LOOP_X + 200;
-        rect.y = app->timeline_y + SCENE_NAV_Y;
-        rect.w = app->sidebar - rect.x - 16;
-        rect.h = UI_NAVIGATION_HEIGHT;
+        rect.y = app->timeline_y + PLAY_Y;
+        rect.w = app->sidebar - rect.x - 148;
+        rect.h = UI_PLAY_HEIGHT;
     }
     return rect;
 }
@@ -1383,11 +1383,11 @@ static void mouse_down(App *app, float x, float y, int button)
     }
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         app->loop = !app->loop;
-    else if (ui_inside(x, y, app->sidebar - 132, app->timeline_y + FRAME_NAV_Y, 32, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, app->sidebar - 132, app->timeline_y + PLAY_Y, 32, UI_PLAY_HEIGHT))
         zoom_timeline(app, 0.8f, app->grid_x + app->grid_width / 2);
-    else if (ui_inside(x, y, app->sidebar - 94, app->timeline_y + FRAME_NAV_Y, 32, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, app->sidebar - 94, app->timeline_y + PLAY_Y, 32, UI_PLAY_HEIGHT))
         zoom_timeline(app, 1.25f, app->grid_x + app->grid_width / 2);
-    else if (ui_inside(x, y, app->sidebar - 56, app->timeline_y + FRAME_NAV_Y, 40, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, app->sidebar - 56, app->timeline_y + PLAY_Y, 40, UI_PLAY_HEIGHT))
         fit_timeline(app);
     else if (ui_inside(x, y, app->sidebar + 1, 126, 298, 168))
     {
@@ -2437,24 +2437,37 @@ static void draw_movie_scrubber(App *app, int available)
     MarcusUI *ui;
     char label[48];
     double seconds, fraction;
-    float center, x;
+    float center, x, tick_top, tick_bottom;
     int index, hovered;
     ui = &app->ui;
     rect = movie_scrubber_rect(app);
     center = rect.y + rect.h / 2;
     seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
     fraction = available && app->movie_time.duration_seconds > 0 ? seconds / app->movie_time.duration_seconds : 0;
-    ui_fill(ui, rect.x, center - 2, rect.w, 4, 0x46515b);
-    ui_fill(ui, rect.x, center - 2, (float)(rect.w * fraction), 4, ACCENT);
+    if (app->movie_only)
+    {
+        ui_fill(ui, rect.x, center - 2, rect.w, 4, 0x46515b);
+        ui_fill(ui, rect.x, center - 2, (float)(rect.w * fraction), 4, ACCENT);
+        tick_top = center - 7;
+        tick_bottom = center + 7;
+    }
+    else
+    {
+        ui_fill(ui, rect.x, rect.y, rect.w, rect.h, BG);
+        ui_fill(ui, rect.x, rect.y, (float)(rect.w * fraction), rect.h, 0x375e64);
+        tick_top = rect.y + 4;
+        tick_bottom = rect.y + rect.h - 4;
+    }
     if (available && app->movie_time.duration_seconds > 0)
         for (index = 0; index < app->info.scene_count; ++index)
             if (marcus_scene_time(app->player, index, &scene_time))
             {
                 x = rect.x + (float)(rect.w * scene_time.start_seconds / app->movie_time.duration_seconds);
-                ui_line(ui, x, center - 7, x, center + 7, index == app->info.scene ? TEXT : 0x87949e);
+                ui_line(ui, x, tick_top, x, tick_bottom, index == app->info.scene ? TEXT : 0x87949e);
             }
     x = rect.x + (float)(rect.w * fraction);
-    ui_fill(ui, x - 3, center - 9, 6, 18, available ? TEXT : MUTED);
+    ui_fill(ui, x - 3, app->movie_only ? center - 9 : rect.y, 6,
+            app->movie_only ? 18 : rect.h, available ? TEXT : MUTED);
     hovered = available && ui_inside(ui->mouse_x, ui->mouse_y, rect.x, rect.y, rect.w, rect.h);
     if (hovered || app->movie_scrubbing)
     {
@@ -2462,8 +2475,8 @@ static void draw_movie_scrubber(App *app, int available)
         format_time(label, sizeof(label), movie_scrub_time(app, ui->mouse_x),
                     app->movie_time.duration_seconds >= 3600);
         x = (float)maximum(rect.x, minimum(rect.x + rect.w - 88, ui->mouse_x - 36));
-        ui_fill(ui, x - 8, center - 37, 96, 24, 0x27343d);
-        ui_label(ui, x, center - 34, 80, label, TEXT);
+        ui_fill(ui, x - 8, rect.y - 29, 96, 24, 0x27343d);
+        ui_label(ui, x, rect.y - 26, 80, label, TEXT);
     }
 }
 static void draw_timeline(App *app)
@@ -2521,10 +2534,10 @@ static void draw_timeline(App *app)
     }
     else
         SDL_strlcpy(label, "--:-- / --:--", sizeof(label));
-    ui_label(ui, LOOP_X + 72, y + FRAME_NAV_Y + 1, app->sidebar - LOOP_X - 220, label,
+    ui_label(ui, LOOP_X + 72, y + FRAME_NAV_Y + 1, 112, label,
              app->movie_time_available ? TEXT : MUTED);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X + 72, y + FRAME_NAV_Y,
-                  app->sidebar - LOOP_X - 220, UI_NAVIGATION_HEIGHT))
+                  112, UI_NAVIGATION_HEIGHT))
         ui->hint = "Movie position / total duration; time waiting for a click is excluded";
     ui_navigation_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
     ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
@@ -2548,9 +2561,9 @@ static void draw_timeline(App *app)
         ui_text(ui, 76, y + FRAME_NAV_Y + 1, "- / -", MUTED);
         ui_text(ui, 76, y + SCENE_NAV_Y + 1, "- / -", MUTED);
     }
-    ui_button_sized(ui, app->sidebar - 132, y + FRAME_NAV_Y, 32, UI_NAVIGATION_HEIGHT, "-", 0, app->loaded);
-    ui_button_sized(ui, app->sidebar - 94, y + FRAME_NAV_Y, 32, UI_NAVIGATION_HEIGHT, "+", 0, app->loaded);
-    ui_button_sized(ui, app->sidebar - 56, y + FRAME_NAV_Y, 40, UI_NAVIGATION_HEIGHT, "Fit", 0, app->loaded);
+    ui_button_sized(ui, app->sidebar - 132, y + PLAY_Y, 32, UI_PLAY_HEIGHT, "-", 0, app->loaded);
+    ui_button_sized(ui, app->sidebar - 94, y + PLAY_Y, 32, UI_PLAY_HEIGHT, "+", 0, app->loaded);
+    ui_button_sized(ui, app->sidebar - 56, y + PLAY_Y, 40, UI_PLAY_HEIGHT, "Fit", 0, app->loaded);
     draw_movie_scrubber(app, movie_available);
     ui_fill(ui, 0, y + 48, app->sidebar, 32, 0x2c2f35);
     ui_button(ui, 10, y + 50, 194, sheet_name(app->sheet_mode), app->sheet_menu, app->loaded);
