@@ -175,6 +175,59 @@ void ui_button(MarcusUI *ui, float x, float y, float w, const char *text, int ac
 {
     ui_button_sized(ui, x, y, w, 28, text, active, enabled);
 }
+static void button_label(MarcusUI *ui, float x, float y, float w, float h, const char *text, unsigned long value)
+{
+    const unsigned char *p;
+    unsigned int code;
+    MarcusGlyph *glyph;
+    float advance, left, top, right, bottom, glyph_left, glyph_top, available;
+    int visible, length;
+    available = w - 18;
+    if (available <= 0)
+        return;
+    if (!ui->font)
+    {
+        length = (int)(available / 8);
+        if (length > 255)
+            length = 255;
+        if ((size_t)length > SDL_strlen(text))
+            length = (int)SDL_strlen(text);
+        ui_label(ui, SDL_floorf(x + (w - length * 8) / 2), SDL_floorf(y + (h - 8) / 2) - 4, (float)length * 8, text,
+                 value);
+        return;
+    }
+    /* Centre the visible glyph bounds, including single symbols such as + and -. */
+    advance = left = top = right = bottom = 0;
+    visible = 0;
+    p = (const unsigned char *)text;
+    while (*p)
+    {
+        code = next_character(&p);
+        if (code < 32 || code > 255)
+            code = '?';
+        glyph = &ui->glyphs[code - 32];
+        if (advance + glyph->advance > available)
+            break;
+        if (glyph->source.w > 0 && glyph->source.h > 0)
+        {
+            glyph_left = advance + glyph->bearing_x;
+            glyph_top = 14.0f - glyph->bearing_y;
+            if (!visible || glyph_left < left)
+                left = glyph_left;
+            if (!visible || glyph_top < top)
+                top = glyph_top;
+            if (!visible || glyph_left + glyph->source.w > right)
+                right = glyph_left + glyph->source.w;
+            if (!visible || glyph_top + glyph->source.h > bottom)
+                bottom = glyph_top + glyph->source.h;
+            visible = 1;
+        }
+        advance += glyph->advance;
+    }
+    if (visible)
+        ui_label(ui, SDL_floorf(x + (w - (right - left)) / 2 - left), SDL_floorf(y + (h - (bottom - top)) / 2 - top),
+                 advance, text, value);
+}
 void ui_button_sized(MarcusUI *ui, float x, float y, float w, float h, const char *text, int active, int enabled)
 {
     unsigned long background;
@@ -183,7 +236,7 @@ void ui_button_sized(MarcusUI *ui, float x, float y, float w, float h, const cha
         background = active ? 0x467c82 : 0x45494f;
     ui_fill(ui, x, y, w, h, background);
     ui_line(ui, x, y + h - 1, x + w, y + h - 1, active ? 0x71c6c0 : 0x45494f);
-    ui_label(ui, x + 9, y + (h - 18) / 2, w - 18, text, enabled ? 0xe3e5e8 : 0x737780);
+    button_label(ui, x, y, w, h, text, enabled ? 0xe3e5e8 : 0x737780);
 }
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint)
 {
