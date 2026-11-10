@@ -45,10 +45,49 @@ void PreviewBackgroundMesh::Build(unsigned width, unsigned height, const std::ve
     vertices.clear();
     triangles.clear();
     texture.clear();
+    infiniteColours.clear();
     textureWidth = textureHeight = 0;
     low = high = {};
-    if (width < 2 || height < 2 || width > 1024 || height > 1024 || colours.size() != std::size_t(width) * height ||
+    if (!width || !height || width > 1024 || height > 1024 || colours.size() != std::size_t(width) * height ||
         depths.size() != colours.size() || !projection[0] || !projection[5])
+        return;
+    if (std::find(depths.begin(), depths.end(), 0xffff) != depths.end())
+    {
+        // The original sky/solid backdrop has no geometry. Extend its nearest
+        // colours through finite scenery's mask, so moving that scenery never
+        // reveals a copy of the original ground or buildings behind it.
+        infiniteColours = colours;
+        std::vector<std::uint8_t> filled(colours.size(), 0);
+        std::vector<std::uint32_t> queue;
+        queue.reserve(colours.size());
+        for (std::uint32_t i = 0; i < depths.size(); ++i)
+            if (depths[i] == 0xffff)
+            {
+                filled[i] = 1;
+                queue.push_back(i);
+            }
+        for (std::size_t head = 0; head < queue.size(); ++head)
+        {
+            const auto index = queue[head];
+            const auto spread = [&](std::uint32_t next) {
+                if (!filled[next])
+                {
+                    infiniteColours[next] = infiniteColours[index];
+                    filled[next] = 1;
+                    queue.push_back(next);
+                }
+            };
+            if (index % width)
+                spread(index - 1);
+            if (index % width + 1 < width)
+                spread(index + 1);
+            if (index >= width)
+                spread(index - width);
+            if (index + width < colours.size())
+                spread(index + width);
+        }
+    }
+    if (width < 2 || height < 2)
         return;
     texture = colours;
     textureWidth = width;

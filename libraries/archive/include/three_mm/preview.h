@@ -27,7 +27,7 @@ struct PreviewView
     std::uint32_t width = 480, height = 360;
     float yaw = 0, pitch = 0, zoom = 1; // Degrees; zoom 1 frames the entire asset.
     float roll = 0, verticalFov = 45, nearClip = 0; // Zero nearClip uses the normal inspection default.
-    bool authoredCamera = true;         // Original image/depth; other views reconstruct a background mesh.
+    bool authoredCamera = true;         // Original image/depth; other views reconstruct scenery with a static backdrop.
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
@@ -52,10 +52,11 @@ struct PreviewImage
 {
     std::uint32_t width = 0, height = 0;
     // Top-down, tightly packed RGBA8. Empty pixels/letterboxing have alpha zero;
-    // authored backgrounds are opaque.
+    // Authored backgrounds and static infinite backdrops are opaque.
     std::vector<std::uint8_t> rgba;
     // Optional top-down camera-forward distances, one per pixel. Empty pixels
-    // and letterboxing have positive infinity. Requested with includeDepth.
+    // and letterboxing have positive infinity, as do static infinite backdrops.
+    // Requested with includeDepth.
     std::vector<float> depth;
     std::uint32_t coveredPixels = 0;
     PreviewCamera camera; // Actual rendered pose; useful when entering first-person navigation.

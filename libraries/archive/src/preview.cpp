@@ -1050,6 +1050,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         Frame frame;
         const auto bg = view.authoredCamera && !view.freeCamera ? _impl->background.get() : nullptr;
         const auto mesh = !bg && _impl->background ? &_impl->background->Mesh() : nullptr;
+        const auto infinite = mesh && !mesh->InfiniteColours().empty() ? &mesh->InfiniteColours() : nullptr;
         const auto width = bg ? bg->width : view.width, height = bg ? bg->height : view.height;
         frame.colour = BrPixelmapAllocate(BR_PMT_INDEX_8, width, height, nullptr, BR_PMAF_NORMAL);
         frame.depth = frame.colour ? BrPixelmapMatch(frame.colour, BR_PMMATCH_DEPTH_16) : nullptr;
@@ -1347,11 +1348,19 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             {
                 const auto sourceX = std::min(width - 1, static_cast<std::uint32_t>(x / scale));
                 auto out = &rendered.rgba[(std::size_t(y + top) * view.width + x + left) * 4];
-                const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[row[sourceX]];
+                auto index = row[sourceX];
+                if (infinite && depths[sourceX] == 0xffff)
+                {
+                    const auto &source = *_impl->background;
+                    const auto backdropX = std::uint32_t(std::uint64_t(sourceX) * source.width / width);
+                    const auto backdropY = std::uint32_t(std::uint64_t(sourceY) * source.height / height);
+                    index = (*infinite)[std::size_t(backdropY) * source.width + backdropX];
+                }
+                const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[index];
                 out[0] = colour.bRed;
                 out[1] = colour.bGreen;
                 out[2] = colour.bBlue;
-                out[3] = !bg && depths[sourceX] == 0xffff ? 0 : 255;
+                out[3] = !bg && !infinite && depths[sourceX] == 0xffff ? 0 : 255;
                 if (out[3])
                     ++rendered.coveredPixels;
                 if (view.includeDepth && depths[sourceX] != 0xffff)

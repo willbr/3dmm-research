@@ -96,6 +96,7 @@ int main()
     PreviewBackgroundMesh mesh;
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
     CHECK(!mesh.Empty() && mesh.TriangleCount() < 100);
+    CHECK(mesh.InfiniteColours().empty());
     CHECK(std::abs(mesh.low[2] + 10) < .01 && std::abs(mesh.high[2] + 10) < .01);
     Target same;
     same.Render(mesh, Projection());
@@ -219,8 +220,13 @@ int main()
     Target holes;
     holes.Render(mesh, Projection());
     CHECK(holes.Covered() && holes.Covered() < same.Covered());
+    CHECK(mesh.InfiniteColours().size() == colours.size());
     for (unsigned y = 0; y < Target::height; ++y)
+    {
         CHECK(holes.depth[y * Target::stride + 7] == 0xffff);
+        for (unsigned x = 0; x < Target::width; ++x)
+            CHECK(mesh.InfiniteColours()[y * Target::width + x] == colours[y * Target::width + 7]);
+    }
 
     // Two planes meet at a hard depth edge. A rotated inspection camera must
     // see an opening there rather than triangles stretched between the planes.
@@ -253,6 +259,7 @@ int main()
     std::vector<std::uint8_t> largeColours(1024 * 1024, 42);
     std::vector<std::uint16_t> largeDepths(largeColours.size(), 26214);
     mesh.Build(1024, 1024, largeColours, largeDepths, Identity(), Projection());
+    CHECK(mesh.InfiniteColours().empty());
     CHECK(mesh.TriangleCount() > 65535);
     Target large;
     large.Render(mesh, Projection());
@@ -266,10 +273,14 @@ int main()
     std::fill(depths.begin(), depths.end(), 0xffff);
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
     CHECK(mesh.Empty());
+    CHECK(mesh.InfiniteColours() == colours); // Includes opaque palette index zero.
     CHECK(BrModelCount(nullptr) == initialModels && BrMapCount(nullptr) == initialMaps &&
           BrMaterialCount(nullptr) == initialMaterials);
     mesh.Build(1025, 2, colours, depths, Identity(), Projection());
     CHECK(mesh.Empty());
+    CHECK(mesh.InfiniteColours().empty());
+    mesh.Build(1, 1, {0}, {0xffff}, Identity(), Projection());
+    CHECK(mesh.Empty() && mesh.InfiniteColours() == std::vector<std::uint8_t>{0});
     BrZbEnd();
     BrEnd();
     std::puts("Background mesh: reconstruction, parallax, transforms, depth, texture, gaps and clipping passed.");

@@ -356,6 +356,12 @@ Texture mapping preserves perspective and the background palette, without
 relighting the original artwork. Both sides of the reconstructed surface are
 visible. Camera mode continues to use the original image and depth directly.
 
+Pixels with infinite depth, including skies and solid black/white backgrounds,
+form a static backdrop behind the Orbit and Fly scenery. Nearby infinite pixels
+extend through the finite scenery's mask, keeping the original ground and walls
+out of that backdrop. It stays fixed during rotation and translation, with no
+depth or selectable geometry, across all three renderers.
+
 This is a reconstruction of one view, not the original environment model.
 Depth edges are split down to individual pixels and triangles across jumps are
 omitted; missing depth and surfaces hidden from the authored camera stay as
@@ -517,10 +523,12 @@ authored distances, catching a missing ZBMP copy independently of actor renderin
 It renders all 188 shipped cameras in Orbit and Fly, verifies unchanged authored
 images and deterministic reconstruction after cache eviction. All 184 cameras
 with finite depth produce visible scenery in both inspection modes.
+The 68 cameras containing infinite pixels retain opaque static backdrops; fully
+infinite backgrounds stay identical when the inspection camera moves or turns.
 `preview-background-mesh` checks reconstruction, analytic perspective texture
 mapping, camera transforms/parallax, palette index zero, depth ordering, back
-faces, missing depth, discontinuities, clipping and padded buffer strides without
-a window. These checks run through BRender's scene pipeline, including a
+faces, missing depth, backdrop mask extension, discontinuities, clipping and
+padded buffer strides without a window. These checks run through BRender's scene pipeline, including a
 1024-by-1024 depth fixture whose 131,072 triangles require multiple cached models;
 rebuilding the mesh releases its model, material and map registrations.
 `marcus-renderer` checks both GPU pipelines without creating an application

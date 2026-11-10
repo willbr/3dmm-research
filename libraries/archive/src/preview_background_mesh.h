@@ -24,6 +24,7 @@ class PreviewBackgroundMesh
     std::vector<Vertex> vertices;
     std::vector<std::array<std::uint32_t, 3>> triangles;
     std::vector<std::uint8_t> texture;
+    std::vector<std::uint8_t> infiniteColours;
     unsigned textureWidth = 0, textureHeight = 0;
 
   public:
@@ -42,6 +43,12 @@ class PreviewBackgroundMesh
     std::size_t TriangleCount() const
     {
         return triangles.size();
+    }
+    // Screen-fixed backdrop, extended only from pixels with infinite depth.
+    // Empty when this camera has no infinite background pixels.
+    const std::vector<std::uint8_t> &InfiniteColours() const
+    {
+        return infiniteColours;
     }
     // Cached BRender models/material; the frame owns only the attached actors.
     // All scenery goes through the same scene renderer as movie actors.

@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/preview.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -17,7 +18,7 @@ int main(int argc, char **argv)
     };
     if (!check(archive.Open(argv[2], error)) || !check(preview.Open(argv[2], argv[1], error)))
         return 1;
-    unsigned backgrounds = 0, cameras = 0, depthCameras = 0, meshCameras = 0;
+    unsigned backgrounds = 0, cameras = 0, depthCameras = 0, meshCameras = 0, backdropCameras = 0;
     ThreeMM::PreviewView view;
     view.width = 256;
     view.height = 192;
@@ -60,15 +61,26 @@ int main(int argc, char **argv)
                     break;
                 }
             const auto authored = image.rgba;
+            bool hasInfinite = false;
+            for (std::size_t i = 0; i < image.depth.size(); ++i)
+                if (image.rgba[i * 4 + 3] && !std::isfinite(image.depth[i]))
+                    hasInfinite = true;
+            const auto finiteDepth = [](const ThreeMM::PreviewImage &rendered) {
+                return std::any_of(rendered.depth.begin(), rendered.depth.end(),
+                                   [](float distance) { return std::isfinite(distance); });
+            };
             auto orbit = view;
             orbit.authoredCamera = false;
             orbit.frameSceneCamera = true;
             orbit.yaw = 20;
             orbit.pitch = 15;
-            if (!check(preview.Render(orbit, image, error)) || bool(image.coveredPixels) != hasDepth)
+            if (!check(preview.Render(orbit, image, error)) || finiteDepth(image) != hasDepth ||
+                (hasInfinite && image.coveredPixels != view.width * view.height))
                 return 1;
-            if (image.coveredPixels)
+            if (finiteDepth(image))
                 ++meshCameras;
+            if (hasInfinite)
+                ++backdropCameras;
             if (!camera)
                 firstOrbit = image;
             auto fly = orbit;
@@ -76,8 +88,20 @@ int main(int argc, char **argv)
             fly.cameraX = image.camera.x;
             fly.cameraY = image.camera.y;
             fly.cameraZ = image.camera.z;
-            if (!check(preview.Render(fly, image, error)) || bool(image.coveredPixels) != hasDepth ||
-                !check(preview.Render(view, image, error)) || image.rgba != authored)
+            if (!check(preview.Render(fly, image, error)) || finiteDepth(image) != hasDepth ||
+                (hasInfinite && image.coveredPixels != view.width * view.height))
+                return 1;
+            if (!hasDepth && hasInfinite)
+            {
+                const auto backdrop = image.rgba;
+                fly.yaw += 130;
+                fly.pitch = -30;
+                fly.cameraX += 100;
+                fly.cameraY -= 50;
+                if (!check(preview.Render(fly, image, error)) || image.rgba != backdrop || finiteDepth(image))
+                    return 1;
+            }
+            if (!check(preview.Render(view, image, error)) || image.rgba != authored)
                 return 1;
             ++cameras;
         }
@@ -94,12 +118,13 @@ int main(int argc, char **argv)
         if (preview.SetCamera(count, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
             return 1;
     }
-    if (!backgrounds || !cameras || !depthCameras || !meshCameras)
+    if (!backgrounds || !cameras || !depthCameras || !meshCameras || !backdropCameras)
     {
         std::fprintf(stderr, "Background cameras must supply authored depth.\n");
         return 1;
     }
-    std::printf("Background preview: %u backgrounds, %u cameras with palette, %u with finite depth, %u with meshes.\n",
-                backgrounds, cameras, depthCameras, meshCameras);
+    std::printf("Background preview: %u backgrounds, %u cameras with palette, %u with finite depth, %u with meshes, "
+                "%u with static backdrops.\n",
+                backgrounds, cameras, depthCameras, meshCameras, backdropCameras);
     return 0;
 }
