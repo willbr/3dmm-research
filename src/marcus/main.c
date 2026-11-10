@@ -24,6 +24,8 @@
 #define PLAY_Y 2
 #define LOOP_X 384
 #define NAV_STEP 32
+#define MOVIE_CONTROLS_HEIGHT 140
+#define MOVIE_IDLE_MS 2500
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
 #define TIMELINE_MIN_HEIGHT 168
@@ -91,6 +93,9 @@ typedef struct App
     int both_scroll, sound_inspector, sheet_menu, sheet_menu_choice;
     int second_view, second_mode, resizing_view, movie_dirty;
     int movie_only, fullscreen;
+    int movie_scrubbing, movie_resume, cursor_hidden;
+    float movie_overlay_alpha;
+    double movie_activity_tick, movie_scrub_seconds;
     int resizing_timeline;
     float timeline_height, timeline_drag_offset;
     float split_fraction, split_x;
@@ -319,7 +324,38 @@ static void fail(App *app, const char *message)
     app->dragging = app->orbiting = app->panning = 0;
     app->resizing_view = 0;
     app->resizing_timeline = 0;
+    app->movie_scrubbing = app->movie_resume = 0;
+    if (app->cursor_hidden)
+        SDL_ShowCursor();
+    app->cursor_hidden = 0;
     release_camera(app);
+}
+static void movie_activity(App *app)
+{
+    app->movie_activity_tick = (double)SDL_GetTicks();
+    if (app->cursor_hidden)
+        SDL_ShowCursor();
+    app->cursor_hidden = 0;
+}
+static void update_movie_controls(App *app, double now, double elapsed)
+{
+    int visible, hide_cursor;
+    float change;
+    visible = app->movie_only && (!app->playing || app->playback.wait == 1 || app->movie_scrubbing ||
+                                  app->error[0] || now - app->movie_activity_tick < MOVIE_IDLE_MS);
+    change = (float)(maximum(0, elapsed) / (visible ? 180 : 350));
+    app->movie_overlay_alpha = (float)maximum(0, minimum(1,
+        app->movie_overlay_alpha + (visible ? change : -change)));
+    hide_cursor = app->movie_only && !app->movie_scrubbing && !app->error[0] &&
+                  SDL_GetMouseFocus() == app->window && now - app->movie_activity_tick >= MOVIE_IDLE_MS;
+    if (hide_cursor != app->cursor_hidden)
+    {
+        if (hide_cursor)
+            SDL_HideCursor();
+        else
+            SDL_ShowCursor();
+        app->cursor_hidden = hide_cursor;
+    }
 }
 static int set_fullscreen(App *app, int fullscreen)
 {
@@ -338,6 +374,11 @@ static void editor_view(App *app)
     if (app->fullscreen && !set_fullscreen(app, 0))
         return;
     app->movie_only = 0;
+    if (app->movie_scrubbing)
+        app->playing = app->movie_resume;
+    app->movie_scrubbing = app->movie_resume = 0;
+    app->movie_overlay_alpha = 0;
+    movie_activity(app);
     release_camera(app);
     app->movie_dirty = app->dirty = 1;
 }
@@ -443,6 +484,55 @@ static int seek(App *app, long frame)
     refresh(app);
     app->dirty = 1;
     return 1;
+}
+static SDL_FRect movie_controls_rect(const App *app)
+{
+    SDL_FRect rect;
+    rect.w = (float)minimum(1000, app->width - 48);
+    rect.h = MOVIE_CONTROLS_HEIGHT;
+    rect.x = (app->width - rect.w) / 2;
+    rect.y = app->height - rect.h - 24;
+    return rect;
+}
+static double movie_scrub_time(App *app, float x)
+{
+    SDL_FRect rect;
+    rect = movie_controls_rect(app);
+    return maximum(0, minimum(1, (x - rect.x - 24) / (rect.w - 48))) * app->movie_time.duration_seconds;
+}
+static int seek_movie(App *app, double seconds)
+{
+    int previous_scene;
+    if (!app->movie_time_available)
+        return 0;
+    previous_scene = app->info.scene;
+    app->movie_scrub_seconds = maximum(0, minimum(app->movie_time.duration_seconds, seconds));
+    app->continue_click = 0;
+    if (!marcus_seek_time(app->player, app->movie_scrub_seconds))
+    {
+        fail(app, marcus_error(app->player));
+        return 0;
+    }
+    refresh(app);
+    app->playback.wait = app->playback.scrolling = app->playback.transition = 0;
+    if (app->movie_scrub_seconds >= app->movie_time.duration_seconds)
+        app->playing = 0;
+    if (previous_scene != app->info.scene)
+    {
+        app->row_scroll = app->object_scroll = 0;
+        fit_timeline(app);
+    }
+    app->dirty = 1;
+    return 1;
+}
+static void finish_movie_scrub(App *app)
+{
+    if (!app->movie_scrubbing)
+        return;
+    app->movie_scrubbing = 0;
+    app->playing = app->movie_resume && app->movie_scrub_seconds < app->movie_time.duration_seconds;
+    app->movie_resume = 0;
+    movie_activity(app);
 }
 static int open_input(App *app, MarcusMovieInput *input, int entry, const char *path)
 {
@@ -630,6 +720,54 @@ static void toggle_play(App *app)
             return;
     }
     app->playing = !app->playing;
+}
+static void movie_controls_click(App *app, float x, float y)
+{
+    SDL_FRect rect;
+    MarcusSceneTime scene_time;
+    int visible;
+    visible = app->movie_overlay_alpha > 0.1f || !app->playing || app->playback.wait == 1;
+    movie_activity(app);
+    rect = movie_controls_rect(app);
+    if (!ui_inside(x, y, rect.x, rect.y, rect.w, rect.h))
+    {
+        toggle_play(app);
+        return;
+    }
+    if (!visible)
+        return;
+    if (app->movie_time_available && ui_inside(x, y, rect.x + 18, rect.y + 44, rect.w - 36, 32))
+    {
+        app->movie_scrubbing = 1;
+        app->movie_resume = app->playing;
+        app->playing = 0;
+        seek_movie(app, movie_scrub_time(app, x));
+    }
+    else if (ui_inside(x, y, rect.x + 64, rect.y + 78, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
+        toggle_play(app);
+    else if (ui_inside(x, y, rect.x + 24, rect.y + 90, 28, UI_NAVIGATION_HEIGHT))
+    {
+        if (marcus_scene_time(app->player, app->info.scene - 1, &scene_time))
+            seek_movie(app, scene_time.start_seconds);
+    }
+    else if (ui_inside(x, y, rect.x + 116, rect.y + 90, 28, UI_NAVIGATION_HEIGHT))
+    {
+        if (marcus_scene_time(app->player, app->info.scene + 1, &scene_time))
+            seek_movie(app, scene_time.start_seconds);
+    }
+    else if (ui_inside(x, y, rect.x + 168, rect.y + 86, 56, 28))
+        seek_movie(app, app->movie_time.position_seconds - 10);
+    else if (ui_inside(x, y, rect.x + 232, rect.y + 86, 56, 28))
+        seek_movie(app, app->movie_time.position_seconds + 10);
+    else if (ui_inside(x, y, rect.x + 312, rect.y + 86, 64, 28))
+    {
+        app->muted = !app->muted;
+        marcus_set_muted(app->player, app->muted);
+    }
+    else if (ui_inside(x, y, rect.x + rect.w - 212, rect.y + 86, 96, 28))
+        set_fullscreen(app, !app->fullscreen);
+    else if (ui_inside(x, y, rect.x + rect.w - 108, rect.y + 86, 84, 28))
+        editor_view(app);
 }
 static void perform_action(App *app, int action)
 {
@@ -991,8 +1129,8 @@ static void mouse_down(App *app, float x, float y, int button)
     }
     if (app->movie_only)
     {
-        if (button == SDL_BUTTON_LEFT && app->playing && app->playback.wait == 1)
-            app->continue_click = 1;
+        if (button == SDL_BUTTON_LEFT)
+            movie_controls_click(app, x, y);
         return;
     }
     if (app->sheet_menu)
@@ -1134,6 +1272,7 @@ static void mouse_down(App *app, float x, float y, int button)
             app->dragging = app->resizing_view = app->resizing_timeline = 0;
             app->sheet_menu = 0;
             app->movie_only = app->movie_dirty = 1;
+            movie_activity(app);
             SDL_SetCursor(SDL_GetDefaultCursor());
             if (!app->playing || app->playback.wait == 1)
                 toggle_play(app);
@@ -1180,6 +1319,8 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
     long step;
     int action;
+    if (app->movie_only)
+        movie_activity(app);
     if ((key == SDLK_RETURN || key == SDLK_KP_ENTER) &&
         shortcuts_modifiers(modifiers) == MARCUS_MOD_ALT)
     {
@@ -1191,6 +1332,8 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
         editor_view(app);
         return;
     }
+    if (app->movie_scrubbing)
+        return;
     if (app->error[0])
     {
         if (key == SDLK_ESCAPE || key == SDLK_RETURN)
@@ -1375,6 +1518,12 @@ static void handle_event(App *app, const SDL_Event *event)
     {
         if (app->movie_only)
         {
+            if (event->motion.x != app->ui.mouse_x || event->motion.y != app->ui.mouse_y)
+                movie_activity(app);
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+            if (app->movie_scrubbing)
+                seek_movie(app, movie_scrub_time(app, event->motion.x));
             SDL_SetCursor(SDL_GetDefaultCursor());
             return;
         }
@@ -1455,11 +1604,18 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         if (event->button.button == SDL_BUTTON_LEFT)
         {
+            if (app->movie_scrubbing)
+            {
+                seek_movie(app, movie_scrub_time(app, event->button.x));
+                finish_movie_scrub(app);
+            }
             app->dragging = 0;
             app->resizing_view = 0;
             app->resizing_timeline = 0;
         }
     }
+    else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->movie_only)
+        movie_activity(app);
     else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->sheet_menu)
     {
         delta = event->wheel.y;
@@ -1547,6 +1703,7 @@ static void handle_event(App *app, const SDL_Event *event)
     }
     else if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
     {
+        finish_movie_scrub(app);
         app->sheet_menu = 0;
         release_camera(app);
         app->dragging = app->orbiting = app->panning = 0;
@@ -2505,6 +2662,83 @@ static void draw_zip(App *app)
     ui_button(&app->ui, x + 568, y + 432, 96, "Cancel", 0, 1);
     ui_button(&app->ui, x + 680, y + 432, 96, "Open", 1, 1);
 }
+static void draw_movie_controls(App *app)
+{
+    SDL_FRect rect;
+    MarcusScene scene;
+    MarcusSceneTime scene_time;
+    MarcusUI *ui;
+    char label[320], position[48], duration[48];
+    const char *status;
+    double seconds, fraction;
+    float left, top, width, x;
+    int index, available, hovered;
+    if (app->movie_overlay_alpha <= 0)
+        return;
+    ui = &app->ui;
+    ui->hint = NULL;
+    rect = movie_controls_rect(app);
+    left = rect.x + 24;
+    top = rect.y + 58;
+    width = rect.w - 48;
+    available = app->movie_time_available && marcus_movie_time(app->player, &app->movie_time);
+    seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
+    fraction = available && app->movie_time.duration_seconds > 0 ? seconds / app->movie_time.duration_seconds : 0;
+    ui_opacity(ui, app->movie_overlay_alpha * 0.94f);
+    ui_fill(ui, rect.x, rect.y, rect.w, rect.h, 0x11161c);
+    ui_opacity(ui, app->movie_overlay_alpha);
+    ui_line(ui, rect.x, rect.y, rect.x + rect.w, rect.y, 0x3c525b);
+    status = app->movie_scrubbing ? "SEEKING" : !app->playing ? "PAUSED"
+             : app->playback.wait == 1 ? "CONTINUE" : "PLAYING";
+    ui_text(ui, left, rect.y + 16, status, ACCENT);
+    if (marcus_scene(app->player, app->info.scene, &scene))
+    {
+        SDL_snprintf(label, sizeof(label), "Scene %d / %d    %s", app->info.scene + 1, app->info.scene_count, scene.name);
+        ui_label(ui, left + 100, rect.y + 16, rect.w - 400, label, TEXT);
+    }
+    if (available)
+    {
+        format_time(position, sizeof(position), seconds, app->movie_time.duration_seconds >= 3600);
+        format_time(duration, sizeof(duration), app->movie_time.duration_seconds,
+                    app->movie_time.duration_seconds >= 3600);
+        SDL_snprintf(label, sizeof(label), "%s / %s", position, duration);
+    }
+    else
+        SDL_strlcpy(label, "--:-- / --:--", sizeof(label));
+    ui_label(ui, rect.x + rect.w - 240, rect.y + 16, 216, label, TEXT);
+    ui_fill(ui, left, top - 2, width, 4, 0x46515b);
+    ui_fill(ui, left, top - 2, (float)(width * fraction), 4, ACCENT);
+    if (available && app->movie_time.duration_seconds > 0)
+        for (index = 0; index < app->info.scene_count; ++index)
+            if (marcus_scene_time(app->player, index, &scene_time))
+            {
+                x = left + (float)(width * scene_time.start_seconds / app->movie_time.duration_seconds);
+                ui_line(ui, x, top - 7, x, top + 7, index == app->info.scene ? TEXT : 0x87949e);
+            }
+    x = left + (float)(width * fraction);
+    ui_fill(ui, x - 3, top - 9, 6, 18, TEXT);
+    hovered = available && ui_inside(ui->mouse_x, ui->mouse_y, left - 6, top - 14, width + 12, 32);
+    if (hovered || app->movie_scrubbing)
+    {
+        format_time(label, sizeof(label), movie_scrub_time(app, ui->mouse_x),
+                    app->movie_time.duration_seconds >= 3600);
+        x = (float)maximum(left, minimum(left + width - 88, ui->mouse_x - 36));
+        ui_fill(ui, x - 8, top - 37, 96, 24, 0x27343d);
+        ui_label(ui, x, top - 34, 80, label, TEXT);
+    }
+    ui_navigation_button(ui, left, rect.y + 90, 1, app->info.scene > 0, "Previous scene");
+    ui_play_button(ui, rect.x + 64, rect.y + 78, app->playing, app->playback.wait == 1, app->loaded);
+    ui_navigation_button(ui, rect.x + 116, rect.y + 90, 2, app->info.scene + 1 < app->info.scene_count, "Next scene");
+    ui_button_sized(ui, rect.x + 168, rect.y + 86, 56, 28, "-10 s", 0, available);
+    ui_button_sized(ui, rect.x + 232, rect.y + 86, 56, 28, "+10 s", 0, available);
+    ui_button_sized(ui, rect.x + 312, rect.y + 86, 64, 28, app->muted ? "Unmute" : "Mute", app->muted, 1);
+    ui_label(ui, rect.x + 400, rect.y + 92, rect.w - 636,
+             app->movie_scrubbing ? "Release to finish seeking" : "Drag to seek / ticks mark scenes", MUTED);
+    ui_button_sized(ui, rect.x + rect.w - 212, rect.y + 86, 96, 28,
+                    app->fullscreen ? "Windowed" : "Fullscreen", app->fullscreen, 1);
+    ui_button_sized(ui, rect.x + rect.w - 108, rect.y + 86, 84, 28, "Editor", 0, 1);
+    ui_opacity(ui, 1);
+}
 static void draw(App *app)
 {
     char previous[64], next[64], previous_scene[64], next_scene[64], play[64], view[64], hint[512];
@@ -2512,6 +2746,7 @@ static void draw(App *app)
     {
         ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, 0);
         draw_movie_view(app);
+        draw_movie_controls(app);
         if (app->error[0])
             draw_error(app);
         return;
@@ -2860,6 +3095,7 @@ int main(int argc, char **argv)
                 app.timeline_start = app.info.frame;
         }
         app.continue_click = 0;
+        update_movie_controls(&app, now, now - previous_tick);
         previous_tick = now;
         draw(&app);
         if (capture && frames == 3)
@@ -2878,6 +3114,8 @@ int main(int argc, char **argv)
         SDL_Delay(10);
     }
 cleanup:
+    if (app.cursor_hidden)
+        SDL_ShowCursor();
     release_camera(&app);
     if (result && !app.error[0])
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());

@@ -16,10 +16,12 @@ typedef struct MarcusUI
     MarcusGlyph glyphs[224];
     float mouse_x, mouse_y;
     const char *hint;
+    float opacity;
 } MarcusUI;
 
 int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path);
 void ui_destroy(MarcusUI *ui);
+void ui_opacity(MarcusUI *ui, float opacity);
 void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long colour);
 void ui_line(MarcusUI *ui, float x, float y, float x2, float y2, unsigned long colour);
 void ui_text(MarcusUI *ui, float x, float y, const char *text, unsigned long colour);

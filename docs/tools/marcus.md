@@ -135,6 +135,21 @@ window. Playback shortcuts and click-to-continue pauses still work. **Escape**
 restores the windowed editor while keeping the current playback position and
 play/pause state. The work camera and editor layout are preserved.
 
+In the movie-only view, DVD-style controls fade in when the mouse moves and stay
+visible while paused, seeking or waiting for a click. During playback they fade
+out after 2.5 seconds without input. The cursor also hides after inactivity,
+including while paused; moving the mouse restores it. Returning to the editor
+restores normal cursor behavior.
+
+The controls show the current scene and movie-wide elapsed / total runtime.
+Click or drag the scrubber to preview frames anywhere in the movie; small ticks
+mark scene boundaries. Seeking is silent and snaps to authored frames, including
+frames held for scrolling text or waits. Releasing the scrubber resumes playback
+if it was playing before the drag, and keeps a paused movie paused. Previous/next
+scene, ten-second skip, play/pause, mute, fullscreen and editor buttons are also
+available. Clicking the movie itself pauses or resumes it, or continues an
+authored click wait.
+
 The **arrow strip** beside the properties panel opens an authored movie camera on the left and an independent
 work camera on the right, both showing the same movie frame during playback.
 Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to

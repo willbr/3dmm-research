@@ -45,6 +45,7 @@ int main(int argc, char **argv)
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);
+    CHECK(!marcus_seek_time(player, 0));
     CHECK(!marcus_seek(player, 1));
     CHECK(!marcus_scene(player, -1, &scene));
     CHECK(!marcus_object_bounds(player, 0, &bounds) && !bounds.valid);

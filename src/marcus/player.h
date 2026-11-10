@@ -47,6 +47,10 @@ extern "C"
     {
         double position_seconds, duration_seconds;
     } MarcusMovieTime;
+    typedef struct MarcusSceneTime
+    {
+        double start_seconds, end_seconds; /* Movie-wide, including the incoming transition. */
+    } MarcusSceneTime;
     typedef struct MarcusBounds
     {
         int valid;
@@ -200,6 +204,10 @@ extern "C"
      * transitions between scenes. Click waits assume immediate acknowledgement.
      * The first call silently analyzes and caches timing for all scenes. */
     int marcus_movie_time(MarcusPlayer *player, MarcusMovieTime *time);
+    int marcus_scene_time(MarcusPlayer *player, int scene, MarcusSceneTime *time);
+    /* Silent movie-wide seek, clamped to the movie. Holds and transitions
+     * resolve to their displayed frame. Inspection framing is preserved. */
+    int marcus_seek_time(MarcusPlayer *player, double seconds);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
     /* Evaluated, oriented bounds; off-stage actors have valid = 0. */
     int marcus_object_bounds(MarcusPlayer *player, int index, MarcusBounds *bounds);

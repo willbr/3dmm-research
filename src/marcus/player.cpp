@@ -571,6 +571,52 @@ extern "C"
             return true;
         });
     }
+    int marcus_scene_time(MarcusPlayer *player, int index, MarcusSceneTime *time)
+    {
+        if (time)
+            *time = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!time || player->selected < 0 || index < 0 ||
+                static_cast<std::size_t>(index) >= player->scenes.size() || !ReadSoundTimeline(player, index, error))
+                return false;
+            if (index)
+            {
+                const auto &previous = player->soundTimeline.Scene(index - 1);
+                time->start_seconds = previous.TimeAt(double(previous.info.last_frame) + 1);
+            }
+            const auto &scene = player->soundTimeline.Scene(index);
+            time->end_seconds = scene.TimeAt(double(scene.info.last_frame) + 1);
+            return true;
+        });
+    }
+    int marcus_seek_time(MarcusPlayer *player, double seconds)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (player->selected < 0 || !std::isfinite(seconds) ||
+                !ReadSoundTimeline(player, static_cast<int>(player->scenes.size()) - 1, error))
+                return false;
+            int index = 0;
+            while (static_cast<std::size_t>(index + 1) < player->scenes.size())
+            {
+                const auto &scene = player->soundTimeline.Scene(index);
+                if (seconds < scene.TimeAt(double(scene.info.last_frame) + 1))
+                    break;
+                ++index;
+            }
+            const auto &scene = player->soundTimeline.Scene(index);
+            const double end = scene.TimeAt(double(scene.info.last_frame) + 1);
+            const auto frame = static_cast<long>(std::clamp(std::floor(scene.FrameAt(
+                std::clamp(seconds, scene.start, end)) + 1e-7),
+                double(scene.info.first_frame), double(scene.info.last_frame)));
+            if ((index != player->selected && !SelectScene(player, index, true)) || !marcus_seek(player, frame))
+            {
+                error.message = player->error;
+                return false;
+            }
+            player->finished = static_cast<std::size_t>(index + 1) == player->scenes.size() && seconds >= end;
+            return true;
+        });
+    }
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track)
     {
         if (!player || player->selected < 0 || !track || index < 0 ||

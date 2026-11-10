@@ -6,7 +6,7 @@
 static void colour(MarcusUI *ui, unsigned long value)
 {
     SDL_SetRenderDrawColor(ui->renderer, (unsigned char)(value >> 16), (unsigned char)(value >> 8),
-                           (unsigned char)value, 255);
+                           (unsigned char)value, (unsigned char)(255 * ui->opacity));
 }
 int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 {
@@ -19,6 +19,7 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
     MarcusGlyph *glyph;
     memset(ui, 0, sizeof(*ui));
     ui->renderer = renderer;
+    ui->opacity = 1;
     candidates[0] = font_path ? font_path : "";
     candidates[1] = "C:/Windows/Fonts/segoeui.ttf";
     candidates[2] = "/System/Library/Fonts/Supplemental/Arial.ttf";
@@ -90,6 +91,13 @@ void ui_destroy(MarcusUI *ui)
 {
     SDL_DestroyTexture(ui->font);
     ui->font = NULL;
+}
+void ui_opacity(MarcusUI *ui, float opacity)
+{
+    ui->opacity = opacity < 0 ? 0 : opacity > 1 ? 1 : opacity;
+    SDL_SetRenderDrawBlendMode(ui->renderer, ui->opacity < 1 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+    if (ui->font)
+        SDL_SetTextureAlphaMod(ui->font, (unsigned char)(255 * ui->opacity));
 }
 void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long value)
 {
@@ -288,7 +296,7 @@ static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex
         vertices[i].color.r = red > 1 ? 1 : red;
         vertices[i].color.g = green > 1 ? 1 : green;
         vertices[i].color.b = blue > 1 ? 1 : blue;
-        vertices[i].color.a = 1;
+        vertices[i].color.a = ui->opacity;
         vertices[i].tex_coord.x = vertices[i].tex_coord.y = 0;
     }
     SDL_RenderGeometry(ui->renderer, NULL, vertices, count, NULL, 0);

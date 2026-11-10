@@ -804,6 +804,39 @@ int main(int argc, char **argv)
     Image();
     Tick(0);
     CHECK(Tick(170).scene_changed && Info().scene == 3);
+    // The movie-wide scrubber resolves presentation time across chapter cuts,
+    // transitions and held frames without starting any audio voices.
+    MarcusAudioStats beforeSeek, afterSeek;
+    CHECK(marcus_audio_stats(player, &beforeSeek));
+    MarcusSceneTime chapter;
+    CHECK(!marcus_scene_time(player, -1, &chapter) && !marcus_scene_time(player, 5, &chapter));
+    CHECK(!marcus_scene_time(player, 0, nullptr));
+    double previousEnd = 0;
+    for (int scene = 0; scene < 5; ++scene)
+    {
+        CHECK(marcus_scene_time(player, scene, &chapter));
+        CHECK(std::abs(chapter.start_seconds - previousEnd) < 1e-6);
+        CHECK(chapter.end_seconds > chapter.start_seconds);
+        CHECK(marcus_seek_time(player, chapter.start_seconds));
+        CHECK(Info().scene == scene && Info().frame == Info().first_frame);
+        CHECK(marcus_seek_time(player, chapter.end_seconds - .01));
+        CHECK(Info().scene == scene && Info().frame == Info().last_frame);
+        previousEnd = chapter.end_seconds;
+    }
+    CHECK(std::abs(previousEnd - movieSeconds) < 1e-6);
+    CHECK(marcus_seek_time(player, -100) && Info().scene == 0 && Info().frame == -2);
+    CHECK(MovieTime().position_seconds == 0);
+    CHECK(marcus_seek_time(player, 1.0 / 3 + authoredTiming.scrolling.at(0) / 2));
+    CHECK(Info().scene == 0 && Info().frame == 0); // Mid-scroll seeks to its displayed frame.
+    CHECK(marcus_seek_time(player, movieSeconds + 100));
+    CHECK(Info().scene == 4 && Info().frame == 4);
+    CHECK(MovieTime().position_seconds == MovieTime().duration_seconds);
+    CHECK(std::abs(MovieTime().position_seconds - movieSeconds) < 1e-6);
+    CHECK(!marcus_seek_time(player, std::numeric_limits<double>::infinity()));
+    CHECK(!marcus_seek_time(player, std::numeric_limits<double>::quiet_NaN()));
+    CHECK(Info().scene == 4 && Info().frame == 4);
+    CHECK(marcus_audio_stats(player, &afterSeek) && afterSeek.wave_sounds == beforeSeek.wave_sounds &&
+          afterSeek.midi_sounds == beforeSeek.midi_sounds);
     CHECK(!marcus_update(player, 1, 0, -1, 0, nullptr));
     marcus_destroy(player);
     player = nullptr;
