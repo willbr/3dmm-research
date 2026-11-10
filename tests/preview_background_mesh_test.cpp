@@ -1,5 +1,6 @@
 #include "preview_background_mesh.h"
 #include "preview_depth_range.h"
+#include "preview_background.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -85,6 +86,15 @@ struct Target
 };
 int main()
 {
+    // Raw movie indices must resolve like the original Windows Studio palette.
+    Color display[256] = {};
+    display[10] = {91, 114, 128, 231};
+    display[11] = {128, 128, 128, 0};
+    display[12] = {127, 127, 0, 0};
+    ResolveDisplayPalette(display);
+    CHECK(display[10].bRed == 127 && display[10].bGreen == 114 && display[10].bBlue == 91);
+    CHECK(display[11].bRed == 127 && display[12].bRed == 1);
+    CHECK(display[0].bRed == 0 && display[255].bRed == 255 && display[10].bZero == 0);
     // A tight interval separates nearby surfaces that quantize to the same
     // 16-bit value in the old 0.1..30000 inspection range.
     PreviewDepthRange fitted(1, 1, .1, 30000);

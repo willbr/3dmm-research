@@ -9,6 +9,8 @@ namespace ThreeMM
 {
 namespace Internal
 {
+// Resolve indexed movie colours using Studio's truecolour display policy.
+void ResolveDisplayPalette(Color *palette);
 class PreviewBackground
 {
     PChunkyResourceFile source = nullptr; // Borrowed from the preview's source set.

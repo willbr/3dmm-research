@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <intrin.h>
 using namespace RetailOracle;
 namespace
 {
@@ -62,6 +63,14 @@ struct FrameObservation
     int scene, frame, first, last;
     std::uint64_t nanoseconds;
 };
+constexpr DWORD FrameCommitReturnRva = 0x000a1131;
+struct CallbackObservation
+{
+    int scene, frame;
+    DWORD caller;
+    std::uint64_t nanoseconds;
+};
+std::vector<CallbackObservation> callbackTrace;
 std::vector<FrameObservation> frameTrace;
 bool traceOverflow = false;
 DWORD *traceSlot = nullptr;
@@ -417,14 +426,29 @@ void Refresh(void *movie, bool render)
 }
 void __fastcall ObserveTimeline(void *mcc, void *)
 {
-    // Same commit point as SDL's DisplayFrame: immediately before the original
-    // timeline callback, followed by the movie's queued sound dispatch.
+    // The hash-pinned EXEs also refresh this callback from Play and scene
+    // preload. Only FCmdRender's DisplayFrame call is a presentation commit.
+    // Its return RVA was verified against both original runtime profiles.
+    const auto caller = DWORD(reinterpret_cast<std::uintptr_t>(_ReturnAddress()) - base);
     try
     {
         auto movie = Movie();
         auto scene = Scene(movie);
         const int index = Read<int>(movie, 0x150), frame = Read<int>(scene, 8);
-        if ((Read<DWORD>(movie, 0x154) & 4) &&
+        if (Read<DWORD>(movie, 0x154) & 4)
+        {
+            LARGE_INTEGER now, frequency;
+            QueryPerformanceCounter(&now);
+            QueryPerformanceFrequency(&frequency);
+            if (callbackTrace.size() == 100000)
+                traceOverflow = true;
+            else
+                callbackTrace.push_back(
+                    {index, frame, caller,
+                     std::uint64_t(now.QuadPart / frequency.QuadPart) * 1000000000 +
+                         std::uint64_t(now.QuadPart % frequency.QuadPart) * 1000000000 / frequency.QuadPart});
+        }
+        if (caller == FrameCommitReturnRva && (Read<DWORD>(movie, 0x154) & 4) &&
             (frameTrace.empty() || frameTrace.back().scene != index || frameTrace.back().frame != frame))
         {
             LARGE_INTEGER now, frequency;
@@ -478,6 +502,8 @@ void TraceHook(bool enable)
         realTimelineUpdate = reinterpret_cast<TimelineUpdate>(*traceSlot);
         frameTrace.clear();
         frameTrace.reserve(100000);
+        callbackTrace.clear();
+        callbackTrace.reserve(100000);
         traceOverflow = false;
         soundSlot = static_cast<DWORD *>(Pointer(sound, 0)) + 10;
         realPlaySound = reinterpret_cast<PlaySound>(*soundSlot);
@@ -518,7 +544,8 @@ std::string Process(const Request &job)
     {
         TraceHook(false);
         std::ostringstream out;
-        out << "{\"overflow\":" << (traceOverflow ? "true" : "false") << ",\"frames\":[";
+        out << "{\"trace_version\":2,\"frame_commit_caller_rva\":" << FrameCommitReturnRva
+            << ",\"overflow\":" << (traceOverflow ? "true" : "false") << ",\"frames\":[";
         for (unsigned i = 0; i < frameTrace.size(); ++i)
         {
             if (i)
@@ -526,6 +553,15 @@ std::string Process(const Request &job)
             const auto &frame = frameTrace[i];
             out << "{\"scene\":" << frame.scene << ",\"frame\":" << frame.frame << ",\"first\":" << frame.first
                 << ",\"last\":" << frame.last << ",\"monotonic_ns\":" << frame.nanoseconds << '}';
+        }
+        out << "],\"callbacks\":[";
+        for (unsigned i = 0; i < callbackTrace.size(); ++i)
+        {
+            if (i)
+                out << ',';
+            const auto &callback = callbackTrace[i];
+            out << "{\"scene\":" << callback.scene << ",\"frame\":" << callback.frame
+                << ",\"caller_rva\":" << callback.caller << ",\"monotonic_ns\":" << callback.nanoseconds << '}';
         }
         out << "],\"sounds\":[";
         for (unsigned i = 0; i < soundTrace.size(); ++i)

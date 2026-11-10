@@ -6,6 +6,9 @@ comparisons go into `playback.sqlite`; PNGs, WAVs, logs and original capture
 journals stay alongside it. Nothing from the movie corpus is committed or
 saved over. This is playback-quality evidence, not a declaration of parity.
 
+The default comparison targets are **retail, v3dmm and SDL**, with SDL parity
+the current priority. Add `--players retail,v3dmm,sdl,marcus` to include Marcus.
+
 The initial generated corpus contains four two-scene movies (60 authored frames
 each): general rendering/animation, actor event changes, a dissolve transition,
 and sampled speech/effects with distinct quiet 600 Hz and 1300 Hz cues. The
@@ -48,7 +51,6 @@ python -B tools/playback_regression.py run `
   --bridge tmp/v3dmm-oracle/build `
   --v3dmm tmp/v3dmm-research/unpacked/Virtual3DMM `
   --sdl tmp/studio-batch-release/3dmovie-sdl.exe `
-  --marcus build/marcus-x64/src/marcus/marcus-regression.exe `
   --output tmp/playback-regression `
   --environment-notes 'Record GPU/driver, audio endpoint, MIDI mapper/bank and fonts here'
 ```
@@ -58,6 +60,8 @@ passes, each repeated in two fresh processes. Seek inspection never precedes
 Play in the playback process. `--case NAME` is repeatable; `--players`, `--modes`
 and `--preparations` accept comma-separated selections. `--repeat 1` is useful
 for a smoke run but does not establish original repeatability.
+When including Marcus, supply
+`--marcus build/marcus-x64/src/marcus/marcus-regression.exe` as well.
 
 `--preparations fresh-process,replay` additionally plays the complete movie once
 before the recorded pass in the **same process**. Its warm-up artifacts are kept
@@ -95,11 +99,19 @@ Available observations include:
   peak channel error, the first differing frame, its bounding box and a diff PNG.
 - Continuous ordered frame coverage, QPC timestamps, frame intervals, maximum
   and p95 timing difference and final drift relative to the first commit.
+  Native bridge trace version 2 selects the actual `FCmdRender` presentation
+  callback. Play refreshes and scene preloads are retained as raw callbacks in
+  the capture journal, but do not count as presented frames. Older bridge
+  versions are rejected rather than silently mixing different observation points.
 - Native/SDL requested sound identities, queue, volume, repeats, offset, priority
   and class; unavailable timestamps remain null.
 - Per-process 48 kHz stereo signed-16-bit PCM, packet validity and an anchor
   sample tied to the first frame commit. The original oracle rejects capture
   discontinuities, timestamp errors and incomplete playback.
+  Capture requests float mixer output and converts deterministically to PCM16,
+  avoiding Windows' random one-LSB conversion dither. Before Play, it requires
+  250 ms of consecutive zero PCM, allowing startup sounds to finish. The full
+  pre-roll is retained; a ten-second silence timeout fails capture.
 - Marcus composed images during animated presentation, wait/scroll/transition
   state, render duration and image-copy/enqueue overhead. A bounded asynchronous
   writer avoids filesystem writes on the player thread; queue overflow or write
@@ -132,7 +144,7 @@ Current gaps are explicit:
   not establish whether a trailing voice completed; tail state is unavailable.
 - Actual monitor presentation timestamps are unavailable. Marcus timestamps
   observe its host update after authored evaluation; original/SDL timestamps
-  observe the engine timeline callback. These are not identical instrumentation
+  observe the `FCmdRender` presentation callback. These are not identical instrumentation
   points, and image-copy overhead can affect timing. Use optimized capture
   builds when assessing performance.
 - Initial movies do not cover all text, waits, transitions, audio combinations,
@@ -141,6 +153,57 @@ Current gaps are explicit:
   remain future work. SQLite observations/review do not depend on Windows APIs.
 
 These gaps deliberately prevent a full playback-parity pass.
+
+## Windows 11 parity fixes, 10 November 2026
+
+Studio's Windows host now installs `GetTickCount` through the core's existing
+tick-source interface, preserving the master clock's epoch. Retail's coarse
+tick boundaries affect the legacy frame-delay rounding: replacing them with a
+high-resolution clock had made SDL run ahead. The portable core remains free
+of Windows APIs; other hosts retain their existing clock source.
+
+On the generated 60-frame `features` case, SDL's final drift against retail
+changed from **206–353 ms early** to **3–19 ms late** across two runs. One new
+run matched the existing 25 ms frame policy throughout; the other exceeded it
+on four frames (34 ms maximum). Native v3dmm also varied against retail, so
+this is evidence of reduced drift, not a claim of deterministic scheduling.
+The local SQLite evidence is in `tmp/parity-fixes/windows-clock/playback.sqlite`.
+The separate sampled-audio repeat check still ended 72–114 ms late in SDL;
+retail's own repeated frame times differed by up to 76 ms, leaving timing
+attribution inconclusive under the same policy. Its sound requests matched in
+all three players. Those observations are in
+`tmp/parity-fixes/windows-clock-audio/playback.sqlite`.
+
+The portable untextured Gouraud scanner now follows the original x86 integer
+edges, reciprocal gradients, half-pixel parameter bias and strict depth ties.
+Independent original-assembly runs pin colour-plus-depth hashes for 1,536
+triangle cases per scanner, including all vertex permutations. Both portable
+untextured and existing textured scanners match those hashes. On the `features`
+seek capture, SDL improved from 3,393 changed pixels over 30 differing frames
+to **3,162 pixels over 29 frames**, with its first frame now exact. Remaining
+geometry/pixel differences still fail exact comparison.
+
+The final four-case seek sweep captured all **720 images** successfully.
+Original v3dmm matched retail on all 240 frames. SDL matched exactly on 128 of
+240; the other 112 still differed. SDL's changed-pixel totals were 3,162 for
+`features`, 1,627 for `actor-events`, and 3,162 each for `dissolve` and
+`sampled-audio`. These count absolute-seek images, including the dissolve case;
+they do not establish continuously rendered transition parity. The database is
+`tmp/parity-fixes/final-seek/playback.sqlite`.
+
+Marcus preview now applies the same Windows display-palette policy as Studio.
+On this fixture its changed-pixel count dropped from 221,896 over 60 differing
+frames to 4,268 over 30 frames. These seek observations are in
+`tmp/parity-fixes/visual/playback.sqlite`; Marcus remains an optional target.
+
+The corrected frame observer also removed an apparent 161 ms Marcus scene-boundary
+error: the old reference had counted scene preload as presentation. With the
+actual presentation callback the observed boundary difference was about 15 ms.
+Silent controls now record exact zero PCM in all four players. The independent
+audio calibration still detects each process's own tone, excludes the other
+process's tone, and captures MIDI. Audible original runs still vary in onset,
+so exact mixed-waveform parity remains unestablished. Do not increase tolerances
+or align individual cues to turn those recordings into passes.
 
 ## Review and recomparison
 

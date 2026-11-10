@@ -100,6 +100,21 @@ The complete frame sequence and sound request records must also match. Frame
 commit times are compared relative to the first commit, with a stated default
 allowance of **25 ms** for scheduling jitter.
 
+Native trace version 2 distinguishes the actual `FCmdRender` presentation
+callback (return RVA `0x000a1131`, checked in both hash-pinned executables) from
+the same callback's Play refresh and scene-preload callers. All callbacks remain
+in the raw journal; only presentation commits anchor comparisons. Rebuild old
+bridges: the recorder rejects the earlier trace contract, whose scene preload
+could falsely appear to be a very early first frame in the next scene.
+
+The capture helper requests 32-bit float mixer samples, then deterministically
+rounds/clamps them to the stored 48 kHz stereo PCM16 WAV. This removes random
+one-LSB dither introduced by Windows' PCM conversion without changing comparison
+tolerances. Before Play, capture waits for 250 ms of consecutive zero PCM
+(ten-second timeout), so startup sounds have finished. The full pre-roll and
+measured wait are retained. Silence is judged at the stored PCM16 precision;
+it does not prove that audible output works.
+
 Explicit controls are `--max-different-pixels`, `--audio-sample-tolerance`,
 `--audio-alignment-ms` (one global shift, default zero) and
 `--frame-time-tolerance-ms`. There is no gain normalization, per-cue alignment,
@@ -136,7 +151,8 @@ python -B tests/v3dmm_oracle_workflow.py --sdl tmp/studio-oracle-release/3dmovie
 The metrics tests reject silence, channel swaps, missing/moved later cues and
 unmatched tails. The capture calibration runs two simultaneous wave children,
 proves each PID excludes the other's tone, and separately proves native MIDI
-appears in process loopback. The movie workflow authors a 60-frame custom-prop
+appears in process loopback. It also checks float capture and exact-zero silent
+pre-roll. The movie workflow authors a 60-frame custom-prop
 movie with two quiet speech cues and checks native/port frame coverage, cue
 semantics, audible recordings and unchanged source/preferences.
 

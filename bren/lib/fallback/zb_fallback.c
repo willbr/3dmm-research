@@ -3,7 +3,7 @@
  * Used on non-x86 builds where the .ASM files cannot be assembled.
  *
  * Status:
- *   - TriangleRenderPIZ2I: ported (naive scanline rasterizer below).
+ *   - TriangleRenderPIZ2I: integer Gouraud scanner in triangle_i.h.
  *     Verified against asm path via tests/bren_rasterizer_test.cpp.
  *   - TrapezoidRenderPIZ2TIA, TrapezoidRenderPIZ2TIANT: portable textured
  *     scan converters, with viewport clipping for rounded edge vertices.
@@ -210,137 +210,8 @@ void TrapezoidRenderPIZ2TIANT(void) /* non-transparent */
     render_trapezoid_tia(0);
 }
 
-/* Naive scanline port of TriangleRenderPIZ2I (zb/ti8_piz.asm).
- *
- * Renders one flat-shaded z-buffered triangle into zb.colour_buffer at
- * 8 bits per pixel, with intensity interpolated per-vertex (no texture).
- * Z is interpolated and tested against the 16-bit zb.depth_buffer.
- *
- * The asm version keeps its X coordinates in a 16.16 fixed-point edge
- * walker with explicit carry/no-carry deltas; here we just lerp once per
- * scanline and round to nearest. That's not byte-identical to the asm
- * rasterizer at sub-pixel boundaries, but it should agree on the bulk
- * of the interior, which is what the test harness compares.
- *
- * Inputs:
- *   v[0..2] of each temp_vertex_fixed are X, Y, Z in 16.16 fixed.
- *   comp[C_I] is the per-vertex intensity in 16.16 fixed; the integer
- *     part (>>16) is what gets written to the colour buffer.
- *
- * Reads from zb global:
- *   colour_buffer, depth_buffer, row_width.
- */
-void TriangleRenderPIZ2I(struct temp_vertex_fixed *v0, struct temp_vertex_fixed *v1, struct temp_vertex_fixed *v2)
-{
-    struct temp_vertex_fixed *vs[3] = {v0, v1, v2};
-    struct temp_vertex_fixed *t;
-
-    /* Sort by Y ascending. */
-    if (vs[0]->v[1] > vs[1]->v[1]) { t = vs[0]; vs[0] = vs[1]; vs[1] = t; }
-    if (vs[1]->v[1] > vs[2]->v[1]) { t = vs[1]; vs[1] = vs[2]; vs[2] = t; }
-    if (vs[0]->v[1] > vs[1]->v[1]) { t = vs[0]; vs[0] = vs[1]; vs[1] = t; }
-
-    /* Truncate vertex screen coords to integer pixel units (matches asm
-     * `sar eax,16`). The asm seeds the X edge walker with a 0x80000000
-     * (half-pixel) fraction; we approximate by rounding the lerp endpoints
-     * to nearest. */
-    int32_t x0 = (int32_t)(vs[0]->v[0] >> 16);
-    int32_t y0 = (int32_t)(vs[0]->v[1] >> 16);
-    int32_t x1 = (int32_t)(vs[1]->v[0] >> 16);
-    int32_t y1 = (int32_t)(vs[1]->v[1] >> 16);
-    int32_t x2 = (int32_t)(vs[2]->v[0] >> 16);
-    int32_t y2 = (int32_t)(vs[2]->v[1] >> 16);
-
-    if (y0 == y2)
-        return; /* zero-height triangle */
-
-    /* Z and intensity at each vertex (16.16). */
-    int64_t z0 = vs[0]->v[2], z1 = vs[1]->v[2], z2 = vs[2]->v[2];
-    int64_t i0 = vs[0]->comp[C_I], i1 = vs[1]->comp[C_I], i2 = vs[2]->comp[C_I];
-
-    int32_t row_width = zb.row_width;
-    if (!fw.output || row_width <= 0)
-        return;
-    const int32_t left = fw.output->base_x;
-    const int32_t right = left + fw.output->width;
-    const int32_t first_y = y0 < 0 ? 0 : y0;
-    const int32_t last_y = y2 > fw.output->height ? fw.output->height : y2;
-    uint8_t *colour = (uint8_t *)zb.colour_buffer;
-    uint16_t *depth = (uint16_t *)zb.depth_buffer;
-
-    /* Long edge: vs[0] -> vs[2] spans the full Y range. */
-    int32_t long_dy = y2 - y0;
-
-    /* For each scanline, find the X intersection on the long edge and on
-     * the appropriate short edge, plus the Z and intensity at each. */
-    for (int32_t y = first_y; y < last_y; y++)
-    {
-        int32_t yf = y - y0;
-        int32_t xL = x0 + (int32_t)(((int64_t)(x2 - x0) * yf) / long_dy);
-        int64_t zL = z0 + ((z2 - z0) * yf) / long_dy;
-        int64_t iL = i0 + ((i2 - i0) * yf) / long_dy;
-
-        int32_t xS;
-        int64_t zS, iS;
-        if (y < y1)
-        {
-            int32_t dy = y1 - y0;
-            if (dy == 0)
-                continue;
-            xS = x0 + (int32_t)(((int64_t)(x1 - x0) * yf) / dy);
-            zS = z0 + ((z1 - z0) * yf) / dy;
-            iS = i0 + ((i1 - i0) * yf) / dy;
-        }
-        else
-        {
-            int32_t dy = y2 - y1;
-            int32_t yfb = y - y1;
-            if (dy == 0)
-                continue;
-            xS = x1 + (int32_t)(((int64_t)(x2 - x1) * yfb) / dy);
-            zS = z1 + ((z2 - z1) * yfb) / dy;
-            iS = i1 + ((i2 - i1) * yfb) / dy;
-        }
-
-        int32_t xa, xb;
-        int64_t za, zb_, ia, ib;
-        if (xL <= xS) { xa = xL; xb = xS; za = zL; zb_ = zS; ia = iL; ib = iS; }
-        else          { xa = xS; xb = xL; za = zS; zb_ = zL; ia = iS; ib = iL; }
-
-        int32_t span = xb - xa;
-        if (span <= 0)
-            continue;
-
-        int64_t z = za;
-        int64_t i = ia;
-        int64_t dz = (zb_ - za) / span;
-        int64_t di = (ib - ia) / span;
-
-        /* Rounded projected vertices can extend beyond the viewport. Preserve
-         * the original interpolants while clipping both colour and depth writes. */
-        const int32_t start = xa < left ? left : xa;
-        const int32_t end = xb > right ? right : xb;
-        if (start >= end)
-            continue;
-        z += dz * (start - xa);
-        i += di * (start - xa);
-
-        uint8_t *cptr = colour + (size_t)y * row_width + start;
-        uint16_t *zptr = depth + (size_t)y * row_width + start;
-
-        for (int32_t x = 0; x < end - start; x++)
-        {
-            uint16_t z16 = (uint16_t)((uint64_t)z >> 16);
-            if (z16 < zptr[x])
-            {
-                zptr[x] = z16;
-                cptr[x] = (uint8_t)((uint64_t)i >> 16);
-            }
-            z += dz;
-            i += di;
-        }
-    }
-}
+/* Integer scan conversion shared with the original x86 algorithm. */
+#include "triangle_i.h"
 
 /* sar16: arithmetic shift right by 16 bits (sign-extending). The x86 asm
  * uses `sar eax,16` directly. */

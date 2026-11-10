@@ -120,10 +120,20 @@ class Capture:
                 str(destination.resolve()), name, str(seconds)], stdout=subprocess.PIPE, stderr=self.log,
                 text=True, encoding='utf-8', creationflags=subprocess.CREATE_NO_WINDOW)
             self.replies = queue.Queue()
+            self.meter = None
+            self.meter_changed = threading.Condition()
             def read():
-                for line in self.process.stdout:
-                    self.replies.put(json.loads(line))
-                self.replies.put(None)
+                try:
+                    for line in self.process.stdout:
+                        value = json.loads(line)
+                        if value.get('meter'):
+                            with self.meter_changed:
+                                self.meter = value
+                                self.meter_changed.notify_all()
+                        else:
+                            self.replies.put(value)
+                finally:
+                    self.replies.put(None)
             self.reader = threading.Thread(target=read, daemon=True)
             self.reader.start()
             self.ready = self.replies.get(timeout=15)
@@ -132,6 +142,17 @@ class Capture:
         except BaseException:
             self.close()
             raise
+
+    def wait_for_quiet(self, timeout=10, quiet_frames=12000):
+        """Wait for real zero PCM before Play; retain the complete pre-roll."""
+        deadline, started = time.monotonic() + timeout, time.monotonic()
+        with self.meter_changed:
+            while not self.meter or self.meter['quiet_frames'] < quiet_frames:
+                if self.process.poll() is not None or time.monotonic() >= deadline:
+                    raise OracleError('Audio did not settle to silence before Play')
+                self.meter_changed.wait(timeout=min(.1, max(0, deadline-time.monotonic())))
+            return {'waited_seconds': time.monotonic()-started, 'quiet_frames': self.meter['quiet_frames'],
+                    'required_quiet_frames': quiet_frames, 'threshold': 0}
 
     def finish(self):
         self.api.SetEvent(self.event)
@@ -166,10 +187,10 @@ def record(session, helper, output, limit):
         json.loads(session.studio.call('playback_trace', action=action)['content'][0]['text']) if action == 'end' else
         session.studio.call('playback_trace', action=action))
     trace('begin')
-    capture = Capture(helper, pid, output / 'audio.wav', limit + 5)
+    capture = Capture(helper, pid, output / 'audio.wav', min(3600, limit + 15))
     report = {'observations': [], 'complete': False, 'expected_scene_count': original['movie_scene_count']}
     try:
-        time.sleep(.5) # Capture startup discontinuities precede the movie.
+        report['preplay_silence'] = capture.wait_for_quiet()
         report['command_before_ns'] = time.perf_counter_ns()
         if native: session.oracle.command(50005)
         else: session.studio.call('send_command', cid=50005)
@@ -191,6 +212,9 @@ def record(session, helper, output, limit):
                 break
             time.sleep(.25) # Frequent bridge RPCs can starve the retail idle renderer.
         report['trace'] = trace('end')
+        if native and (report['trace'].get('trace_version') != 2 or
+                       report['trace'].get('frame_commit_caller_rva') != 0xa1131):
+            raise OracleError('Rebuild the native bridge: frame presentation trace version 2 is required')
         report['capture_end_before_ns'] = time.perf_counter_ns()
         while state['movie_sound_playing'] and time.monotonic() < deadline:
             time.sleep(.25)

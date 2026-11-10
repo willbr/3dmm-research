@@ -1209,6 +1209,7 @@ target_sources(studio
     "${PROJECT_SOURCE_DIR}/src/studio/tatr.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/tgob.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/utest.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/src/studio/timing_win.cpp>
     $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:${PROJECT_SOURCE_DIR}/src/studio/utest.rc>
     $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:${PROJECT_SOURCE_DIR}/src/studio/utest.rc2>
     "${STUDIO_BUILD_STAMP_SRC}"
@@ -1614,10 +1615,19 @@ if(BUILD_TESTING)
     endif()
   endif()
   add_test(NAME damage-map COMMAND damage-map-test)
+  if(WIN32)
+    add_executable(studio-timing-test EXCLUDE_FROM_ALL tests/studio_timing_win_test.cpp src/studio/timing_win.cpp)
+    target_include_directories(studio-timing-test PRIVATE "${PROJECT_SOURCE_DIR}/inc" "${PROJECT_SOURCE_DIR}/kauai/src")
+    target_link_libraries(studio-timing-test PRIVATE kauai-core)
+    add_dependencies(core-checks studio-timing-test)
+    add_test(NAME studio-timing COMMAND studio-timing-test)
+  endif()
   if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     add_dependencies(core-checks bren-rasterizer-test)
     add_test(NAME brender-clipped-edges COMMAND bren-rasterizer-test clipped-edges -)
     add_test(NAME brender-flat-shading COMMAND bren-rasterizer-test flat-faces -)
+    add_test(NAME brender-integer-parity COMMAND bren-rasterizer-test integer-parity -)
+    add_test(NAME brender-textured-parity COMMAND bren-rasterizer-test textured-parity -)
   endif()
   add_test(NAME studio-content COMMAND studio-content-test)
   add_test(NAME studio-iso-cache COMMAND studio-iso-cache-test "${PROJECT_SOURCE_DIR}/tmp/iso-cache-unit")

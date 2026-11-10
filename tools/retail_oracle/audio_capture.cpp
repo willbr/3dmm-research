@@ -9,6 +9,7 @@
 #include <wrl.h>
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -122,12 +123,14 @@ int wmain(int argc, wchar_t **argv)
         Check(activation->result, "Complete process loopback activation");
         auto client = activation->client;
         WAVEFORMATEX format{};
-        format.wFormatTag = WAVE_FORMAT_PCM;
+        // Capture the mixer in float, then quantize deterministically ourselves.
+        // Windows' float-to-PCM conversion adds random one-LSB dither to silence.
+        format.wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
         format.nChannels = 2;
         format.nSamplesPerSec = 48000;
-        format.wBitsPerSample = 16;
-        format.nBlockAlign = 4;
-        format.nAvgBytesPerSec = 48000 * 4;
+        format.wBitsPerSample = 32;
+        format.nBlockAlign = 8;
+        format.nAvgBytesPerSec = 48000 * 8;
         Check(client->Initialize(AUDCLNT_SHAREMODE_SHARED,
                                  AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK |
                                      AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
@@ -146,11 +149,13 @@ int wmain(int argc, wchar_t **argv)
         QueryPerformanceFrequency(&frequency);
         QueryPerformanceCounter(&start);
         Check(client->Start(), "Start process capture");
-        std::cout << "{\"ready\":true,\"pid\":" << pid << ",\"created\":" << created
-                  << ",\"rate\":48000,\"channels\":2,\"bits\":16,\"qpc\":" << start.QuadPart
-                  << ",\"qpc_frequency\":" << frequency.QuadPart << "}" << std::endl;
+        std::cout
+            << "{\"ready\":true,\"pid\":" << pid << ",\"created\":" << created
+            << ",\"rate\":48000,\"channels\":2,\"bits\":16,\"source_bits\":32,\"source_format\":\"float\",\"qpc\":"
+            << start.QuadPart << ",\"qpc_frequency\":" << frequency.QuadPart << "}" << std::endl;
         std::uint32_t bytes = 0;
         unsigned discontinuities = 0, packetCount = 0, timestampsMissing = 0;
+        std::uint64_t quietFrames = 0, lastMeter = 0;
         bool limited = false, exited = false;
         const auto wallStart = GetTickCount64();
         HANDLE events[] = {stop.value, ready.value, process.value};
@@ -190,6 +195,7 @@ int wmain(int argc, wchar_t **argv)
                     ++discontinuities;
                 if (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)
                     ++timestampsMissing;
+                int peak = 0;
                 if (flags & AUDCLNT_BUFFERFLAGS_SILENT)
                 {
                     char silence[4096]{};
@@ -201,10 +207,34 @@ int wmain(int argc, wchar_t **argv)
                     }
                 }
                 else
-                    wave.write(reinterpret_cast<const char *>(data), std::size_t(frames) * 4);
+                {
+                    const auto source = reinterpret_cast<const float *>(data);
+                    std::vector<std::int16_t> samples(std::size_t(frames) * 2);
+                    for (std::size_t i = 0; i < samples.size(); ++i)
+                    {
+                        if (!std::isfinite(source[i]))
+                            throw std::runtime_error("Non-finite mixer sample");
+                        const auto value = std::max(-1.0, std::min(1.0, double(source[i])));
+                        const auto integer = std::max(-32768L, std::min(32767L, std::lround(value * 32768)));
+                        samples[i] = static_cast<std::int16_t>(integer);
+                        peak = std::max(peak, int(std::abs(integer)));
+                    }
+                    wave.write(reinterpret_cast<const char *>(samples.data()), std::size_t(frames) * 4);
+                }
+                quietFrames =
+                    peak || (flags & (AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY | AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR))
+                        ? 0
+                        : quietFrames + frames;
                 bytes += frames * 4;
                 ++packetCount;
                 Check(capture->ReleaseBuffer(frames), "Release audio packet");
+                const auto meterTime = GetTickCount64();
+                if (meterTime - lastMeter >= 100)
+                {
+                    std::cout << "{\"meter\":true,\"quiet_frames\":" << quietFrames << ",\"peak\":" << peak << "}"
+                              << std::endl;
+                    lastMeter = meterTime;
+                }
                 if (!wave || !packets)
                     throw std::runtime_error("Audio capture write failed");
                 Check(capture->GetNextPacketSize(&count), "Query next audio packet");

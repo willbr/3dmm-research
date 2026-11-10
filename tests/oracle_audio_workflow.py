@@ -33,13 +33,17 @@ def main():
         for name, process in (('target', a), ('other', b)):
             capture = Capture(args.bridge / 'oracle-audio-capture.exe', process.pid, output / (name+'.wav'), 15)
             captures.append(capture)
-        time.sleep(.5)
+        for capture in captures:
+            assert capture.ready.get('source_format') == 'float', 'Rebuild the deterministic float capture helper'
+            quiet = capture.wait_for_quiet()
+            assert quiet['threshold'] == 0 and quiet['quiet_frames'] >= 12000
         for process in (a, b): process.stdin.write('p'); process.stdin.flush()
         for process in (a, b): assert process.stdout.readline().strip() == 'played'
         time.sleep(.3)
         for capture in captures:
             result = capture.finish()
             samples = pcm(capture.path)
+            assert not np.any(samples[:12000]), 'Idle capture contains conversion noise before either tone starts'
             assert np.count_nonzero(samples) > 48000, 'Wave loopback captured silence'
             spectrum = np.abs(np.fft.rfft(samples[:, 0].astype(np.float64)))
             frequencies = np.fft.rfftfreq(len(samples), 1/48000)

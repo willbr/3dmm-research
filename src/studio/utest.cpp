@@ -18,6 +18,9 @@
 ***************************************************************************/
 #include "dialog_resource.h"
 #include "studio_startup.h"
+#ifdef _WIN32
+#include "studio_timing.h"
+#endif
 #include "studio_content.h"
 #ifdef KAUAI_SDL3
 #include "studio_iso.h"
@@ -368,6 +371,9 @@ static_assert(sizeof(DBINFO) == 4, "debug preference layout must remain 32-bit")
 ***************************************************************************/
 bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
+#ifdef _WIN32
+    StudioTiming::UseLegacyWindowsTicks();
+#endif
     AssertBaseThis(0);
 
     ulong tsHomeLogo;

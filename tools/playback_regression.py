@@ -25,6 +25,7 @@ from playback_store import Store, digest, encode, frame_coverage, timing_metrics
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAYERS = ('retail', 'v3dmm', 'sdl', 'marcus')
+DEFAULT_PLAYERS = ('retail', 'v3dmm', 'sdl')
 FEATURES = (
     'background', 'depth-occlusion', 'camera-cuts', 'actor-animation', 'routes',
     'rotation', 'scale', 'stretch', 'freeze', 'entrance-exit', 'costume', 'props',
@@ -167,7 +168,7 @@ def capabilities(player, mode):
             'sound_requests': mode == 'playback' and player != 'marcus',
             'mixed_pcm': mode == 'playback', 'voice_positions': False,
             'actual_display_times': False, 'audio_tail_state': player != 'marcus',
-            'frame_commit_semantics': 'host update after authored evaluation' if player == 'marcus' else 'engine timeline callback',
+            'frame_commit_semantics': 'host update after authored evaluation' if player == 'marcus' else 'FCmdRender frame presentation callback',
             'capture_scope': 'headless C API' if player == 'marcus' else
                              'headless SDL Studio' if player == 'sdl' else 'original desktop process'}
 
@@ -653,7 +654,7 @@ def main():
         run.add_argument('--' + name, type=Path, required=True)
     for name in ('sdl', 'marcus', 'v3dmm', 'resources', 'content-dir'):
         run.add_argument('--' + name, type=Path)
-    run.add_argument('--players', default=','.join(PLAYERS))
+    run.add_argument('--players', default=','.join(DEFAULT_PLAYERS), help='Defaults to retail,v3dmm,sdl; include marcus explicitly when needed')
     run.add_argument('--modes', default='seek,playback')
     run.add_argument('--preparations', default='fresh-process', help='Comma-separated fresh-process,replay; replay first plays the whole movie in the same process')
     run.add_argument('--case', action='append')

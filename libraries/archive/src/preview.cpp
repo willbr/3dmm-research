@@ -743,6 +743,8 @@ try
         std::memcpy(opened->palette, colours->QvGet(0), sizeof(opened->palette));
     }
     ReleasePpo(&colours);
+    if (paletteOk)
+        Internal::ResolveDisplayPalette(opened->palette);
     if (!paletteOk || !file->FFind(kctgTmap, 0))
         return Fail(error, ErrorCode::unsupported_format,
                     "Resources require a 256-colour GLCR/0 palette and TMAP/0 shade table.");

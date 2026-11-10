@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "preview_background.h"
 #include "zbmp.h"
+#include "palette_state.h"
 #include <cstring>
 #undef size
 ASSERTNAME
@@ -8,6 +9,12 @@ namespace ThreeMM
 {
 namespace Internal
 {
+void ResolveDisplayPalette(Color *palette)
+{
+    KauaiPixels::PaletteState display;
+    display.Set(palette, 256, KauaiPixels::paletteIdentity);
+    std::memcpy(palette, display.Colors(), 256 * sizeof(Color));
+}
 bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette)
 {
     source = file;
@@ -42,6 +49,7 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
         if (!valid)
             return false;
     }
+    ResolveDisplayPalette(palette);
     if (!chunky->FGetKidChidCtg(kctgBkgd, background, 0, kctgGllt, &child) ||
         !chunky->FFind(child.cki.ctg, child.cki.cno, &block))
         return false;

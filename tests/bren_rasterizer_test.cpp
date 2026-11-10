@@ -1999,6 +1999,72 @@ static int save_pgm(const char *path)
     return 0;
 }
 
+// Independent oracle: run this same corpus against original ti8_piz.asm on
+// x86 and the portable scanner. Hash colour and depth, not just bulk coverage.
+static int integer_parity(bool textured = false)
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    uint32_t random = 0x31415926;
+    auto next = [&]() {
+        random = random * 1664525u + 1013904223u;
+        return random;
+    };
+    const int permutations[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+    for (unsigned trial = 0; trial < 256; ++trial)
+    {
+        temp_vertex_fixed vertices[3] = {};
+        for (auto &vertex : vertices)
+        {
+            vertex.v[0] = (next() % 60 + 2) * 65536 + (next() & 65535);
+            vertex.v[1] = (next() % 60 + 2) * 65536 + (next() & 65535);
+            vertex.v[2] = static_cast<int32_t>((next() % 50000 + 1000) << 16);
+            vertex.comp[C_I] = next() & 0xffffff;
+            if (textured)
+            {
+                vertex.comp[C_U] = next() % (TEX_W << 16);
+                vertex.comp[C_V] = next() % (TEX_H << 16);
+            }
+        }
+        if (!(trial % 4))
+            vertices[1].v[1] = vertices[0].v[1];
+        if (!(trial % 16))
+            vertices[2].v[1] = vertices[0].v[1];
+        for (const auto &order : permutations)
+        {
+            init_buffers();
+            install_zb();
+            g_output_pm.width = g_output_pm.height = 64;
+            if (textured)
+            {
+                for (unsigned i = 0; i < TEX_W * TEX_H; ++i)
+                    g_tex[i] = (i * 37 + (i / TEX_W) * 11) & 255;
+                for (unsigned i = 0; i < 65536; ++i)
+                    g_shade_id[i] = ((i & 255) + (i >> 8) / 2) & 255;
+            }
+            auto a = vertices[order[0]], b = vertices[order[1]], c = vertices[order[2]];
+            auto render = textured ? TriangleRenderPIZ2TIA : TriangleRenderPIZ2I;
+            render(&a, &b, &c);
+            // Exercise each native scanner's depth-tie and shading policy.
+            a.comp[C_I] = b.comp[C_I] = c.comp[C_I] = 201 << 16;
+            render(&a, &b, &c);
+            for (unsigned y = 0; y < 64; ++y)
+                for (unsigned x = 0; x < 64; ++x)
+                {
+                    const auto offset = y * WIDTH + x;
+                    const unsigned values[] = {g_colour[offset], g_depth[offset] & 255u,
+                                               unsigned(g_depth[offset] >> 8)};
+                    for (auto value : values)
+                        hash = (hash ^ value) * UINT64_C(1099511628211);
+                }
+        }
+    }
+    printf("%s oracle: 1536 cases, colour/depth hash %016llx\n", textured ? "Textured" : "Integer Gouraud",
+           (unsigned long long)hash);
+    // Captured from unchanged ti8_piz.asm in the Windows x86 build.
+    const uint64_t expected = textured ? UINT64_C(0xd27f9e672b4cf7ad) : UINT64_C(0x37be993391a62e46);
+    return hash == expected ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     const char *scene;
@@ -2120,6 +2186,10 @@ int main(int argc, char **argv)
     install_zb();
 
     scene = argv[1];
+    if (strcmp(scene, "integer-parity") == 0)
+        return integer_parity();
+    if (strcmp(scene, "textured-parity") == 0)
+        return integer_parity(true);
     if (strcmp(scene, "tri-piz2i") == 0)
         scene_tri_piz2i();
     else if (strcmp(scene, "tri-piz2tia") == 0)
