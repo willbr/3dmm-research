@@ -1,15 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 44" width="40" height="44">
   <title>Marcus transport frame</title>
   <desc>Original vector artwork paying tribute to 3D Movie Maker's inset transport button.</desc>
-  <rect x="0" y="0" width="40" height="44" fill="#20251f"/>
-  <polygon points="0,0 40,0 37,3 3,3" fill="#c4c8bd"/>
-  <polygon points="0,0 3,3 3,41 0,44" fill="#959c8e"/>
-  <polygon points="40,0 40,44 37,41 37,3" fill="#353c31"/>
-  <polygon points="0,44 3,41 37,41 40,44" fill="#252d22"/>
-  <rect x="3" y="3" width="34" height="38" fill="#737b6b"/>
-  <rect x="5" y="5" width="30" height="34" fill="#a2aa98"/>
-  <polygon points="5,5 35,5 33,7 7,7" fill="#30392b"/>
-  <polygon points="5,5 7,7 7,37 5,39" fill="#414b38"/>
-  <rect x="7" y="7" width="26" height="30" fill="#515b47"/>
-  <polygon points="7,7 33,7 33,17 7,27" fill="#58624d"/>
+  <rect x="0" y="0" width="40" height="44" fill="#202020"/>
+  <rect x="1" y="1" width="38" height="42" fill="#777777"/>
+  <polygon points="1,1 39,1 37,3 3,3" fill="#adadad"/>
+  <polygon points="1,1 3,3 3,41 1,43" fill="#8f8f8f"/>
+  <polygon points="39,1 39,43 37,41 37,3" fill="#3b3b3b"/>
+  <polygon points="1,43 3,41 37,41 39,43" fill="#333333"/>
+  <rect x="3" y="3" width="34" height="38" fill="#626262"/>
+  <rect x="4" y="4" width="32" height="36" fill="#929292"/>
+  <polygon points="4,4 36,4 34,6 6,6" fill="#c0c0c0"/>
+  <polygon points="4,4 6,6 6,38 4,40" fill="#a5a5a5"/>
+  <polygon points="36,4 36,40 34,38 34,6" fill="#494949"/>
+  <polygon points="4,40 6,38 34,38 36,40" fill="#444444"/>
+  <rect x="6" y="6" width="28" height="32" fill="#353535"/>
+  <polygon points="6,6 34,6 32,8 8,8" fill="#303030"/>
+  <polygon points="6,6 8,8 8,36 6,38" fill="#424242"/>
+  <polygon points="34,6 34,38 32,36 32,8" fill="#8b8b8b"/>
+  <polygon points="6,38 8,36 32,36 34,38" fill="#999999"/>
+  <rect x="8" y="8" width="24" height="28" fill="#555555"/>
+  <polygon points="8,8 32,8 32,16 8,26" fill="#5a5a5a"/>
+  <polygon points="8,28 32,20 32,36 8,36" fill="#525252"/>
 </svg>
