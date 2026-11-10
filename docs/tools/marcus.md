@@ -85,7 +85,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Four buttons beside the scene info | First / previous / next / last scene |
 | Click or drag the timeline | Scrub the current scene |
 | Click an object name or track | Select the actor/prop and inspect its evaluated metadata |
-| Objects / Sounds tabs | Switch the bottom dope sheet; both share the ruler, playhead and zoom |
+| Objects / Sounds / Both dropdown | Choose which tracks appear in the dope sheet |
 | Click a sound cue marker | Seek silently to its frame and inspect its owner, volume, loop, queue and trigger |
 | Click or drag a waveform | Select its sound and scrub silently at the pointer |
 | Timeline `-`, `+`, Fit | Zoom out, zoom in, fit the scene |
@@ -137,6 +137,15 @@ for Orbit rotation, like Fly look; release it or press Escape to release capture
 Use `--second-view` to launch in this layout (`--orbit` starts its work view in
 Orbit). These are resizable panes in Marcus's SDL interface.
 
+The dope sheet's mode dropdown offers **Objects**, **Sounds**, and **Both**.
+Both stacks an Objects section and a Sounds section on the same frame grid,
+sharing the ruler, playhead, zoom and vertical scrolling. Scroll down to reach
+sound tracks below the objects, or increase the track area's height with its
+resize handle. Object selection and picking keep Both active; the properties
+panel follows the last object or sound selected. Each mode retains its scroll
+position. The dropdown supports Up/Down and Enter; Escape or clicking outside
+closes it without changing the mode.
+
 The sound sheet groups authored cues into scene and actor lanes, with separate
 music, speech and effects tracks. Sampled clips use their clickable waveform
 without square cue overlays. Diamonds mark motion-match bindings; sounds without
@@ -147,7 +156,7 @@ overlapping sounds.
 Motion bindings can produce repeated sounds when the actor reaches the matching
 cel. Sound identities are shown as source ID and chunk number.
 Selecting or scrubbing a cue is silent; Play uses the existing audio playback.
-Use `--sounds` to open directly on the sound sheet, including with `--screenshot`.
+Use `--sounds` or `--both` to open in that mode, including with `--screenshot`.
 
 Both dope sheets mark the boundary after the final scene frame with a violet
 vertical line. It follows timeline zoom and pan; hovering identifies the boundary.

@@ -23,6 +23,13 @@
 #define TIMELINE_HANDLE_HEIGHT 8
 #define TIMELINE_MIN_HEIGHT 168
 #define VIEWPORT_MIN_BOTTOM 320
+#define SHEET_OBJECTS 0
+#define SHEET_SOUNDS 1
+#define SHEET_BOTH 2
+#define SHEET_OBJECT_ROW 1
+#define SHEET_SOUND_ROW 2
+#define SHEET_OBJECT_HEADER 3
+#define SHEET_SOUND_HEADER 4
 #define FLY_FORWARD 1
 #define FLY_BACK 2
 #define FLY_LEFT 4
@@ -73,7 +80,8 @@ typedef struct App
     int row_scroll, object_scroll, width, height;
     int animation_expanded;
     char animation_hint[640];
-    int sound_sheet, sound_scroll, selected_sound, selected_sound_track;
+    int sheet_mode, sound_scroll, selected_sound, selected_sound_track;
+    int both_scroll, sound_inspector, sheet_menu, sheet_menu_choice;
     int second_view, second_mode, resizing_view, movie_dirty;
     int resizing_timeline;
     float timeline_height, timeline_drag_offset;
@@ -101,6 +109,80 @@ static int object_at_row(const App *app, int row, int *lane)
         row -= 4;
     }
     return row;
+}
+static int *sheet_scroll(App *app)
+{
+    return app->sheet_mode == SHEET_BOTH     ? &app->both_scroll
+           : app->sheet_mode == SHEET_SOUNDS ? &app->sound_scroll
+                                             : &app->row_scroll;
+}
+static int sheet_row_count(const App *app)
+{
+    return app->sheet_mode == SHEET_BOTH     ? object_row_count(app) + app->info.sound_track_count + 2
+           : app->sheet_mode == SHEET_SOUNDS ? app->info.sound_track_count
+                                             : object_row_count(app);
+}
+static int sheet_row(const App *app, int row, int *index, int *lane)
+{
+    int objects;
+    *index = -1;
+    *lane = 0;
+    if (row < 0)
+        return 0;
+    objects = object_row_count(app);
+    if (app->sheet_mode == SHEET_BOTH)
+    {
+        if (!row)
+            return SHEET_OBJECT_HEADER;
+        --row;
+        if (row < objects)
+        {
+            *index = object_at_row(app, row, lane);
+            return SHEET_OBJECT_ROW;
+        }
+        row -= objects;
+        if (!row)
+            return SHEET_SOUND_HEADER;
+        --row;
+    }
+    else if (app->sheet_mode == SHEET_OBJECTS)
+    {
+        if (row >= objects)
+            return 0;
+        *index = object_at_row(app, row, lane);
+        return SHEET_OBJECT_ROW;
+    }
+    if (row >= app->info.sound_track_count)
+        return 0;
+    *index = row;
+    return SHEET_SOUND_ROW;
+}
+static int sound_sheet_row(App *app, int track)
+{
+    return track + (app->sheet_mode == SHEET_BOTH ? object_row_count(app) + 2 : 0) - *sheet_scroll(app);
+}
+static float sheet_menu_top(const App *app)
+{
+    float top;
+    top = app->timeline_y + 80;
+    return top + 88 > app->height - 24 ? app->timeline_y - 38 : top;
+}
+static const char *sheet_name(int mode)
+{
+    return mode == SHEET_BOTH ? "Both" : mode == SHEET_SOUNDS ? "Sounds" : "Objects";
+}
+static void set_sheet_mode(App *app, int mode)
+{
+    app->sheet_mode = mode;
+    app->sheet_menu = 0;
+    if (mode != SHEET_BOTH)
+        app->sound_inspector = mode == SHEET_SOUNDS;
+}
+static void show_object_tracks(App *app)
+{
+    if (app->sheet_mode == SHEET_SOUNDS)
+        app->sheet_mode = SHEET_OBJECTS;
+    app->sound_inspector = 0;
 }
 static int animation_lane(int kind)
 {
@@ -229,7 +311,7 @@ static void refresh(App *app)
     if (!app->loaded || previous_scene != app->info.scene)
     {
         app->selected_sound = app->selected_sound_track = -1;
-        app->sound_scroll = 0;
+        app->sound_scroll = app->both_scroll = 0;
     }
 }
 static void layout(App *app)
@@ -247,6 +329,8 @@ static void layout(App *app)
     rows = (int)((height - 112) / ROW_HEIGHT);
     app->row_scroll = (int)maximum(0, minimum(app->row_scroll, object_row_count(app) - rows));
     app->sound_scroll = (int)maximum(0, minimum(app->sound_scroll, app->info.sound_track_count - rows));
+    app->both_scroll =
+        (int)maximum(0, minimum(app->both_scroll, object_row_count(app) + app->info.sound_track_count + 2 - rows));
 }
 static void fit_timeline(App *app)
 {
@@ -294,7 +378,7 @@ static int select_scene(App *app, int index)
     }
     app->selected = app->info.object_count ? 0 : -1;
     app->row_scroll = app->object_scroll = 0;
-    app->sound_scroll = 0;
+    app->sound_scroll = app->both_scroll = 0;
     app->selected_sound = app->selected_sound_track = -1;
     fit_timeline(app);
     app->dirty = 1;
@@ -346,7 +430,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
     app->selected = app->info.object_count ? 0 : -1;
     app->camera_ready = 0;
     app->row_scroll = app->object_scroll = 0;
-    app->sound_scroll = 0;
+    app->sound_scroll = app->both_scroll = 0;
     app->selected_sound = app->selected_sound_track = -1;
     fit_timeline(app);
     reset_view(app);
@@ -365,6 +449,7 @@ static void confirm_zip(App *app)
 static void open_movie(App *app, const char *path)
 {
     MarcusMovieInput *input;
+    app->sheet_menu = 0;
     app->playing = 0;
     release_camera(app);
     app->dragging = app->orbiting = app->panning = 0;
@@ -613,7 +698,7 @@ static int animation_event_at(App *app, int object, int lane, int row, float x, 
 }
 static int select_timeline_row(App *app, float x, float y, int grid)
 {
-    int row, index, previous, closest, fallback, lane, object, rows;
+    int row, index, previous, closest, fallback, lane, object, rows, kind, visible_row, *scroll;
     MarcusAnimationEvent event;
     MarcusSound sound;
     MarcusWaveformInfo waveform;
@@ -621,19 +706,30 @@ static int select_timeline_row(App *app, float x, float y, int grid)
     float center, marker_y;
     double pointer_frame;
     row = (int)((y - app->timeline_y - 80) / ROW_HEIGHT);
-    if (!app->sound_sheet)
+    visible_row = row;
+    scroll = sheet_scroll(app);
+    kind = sheet_row(app, row + *scroll, &object, &lane);
+    if (kind == SHEET_OBJECT_HEADER || kind == SHEET_SOUND_HEADER)
     {
-        object = object_at_row(app, row + app->row_scroll, &lane);
+        app->dragging = 0;
+        return 1;
+    }
+    if (!kind)
+        return 0;
+    if (kind == SHEET_OBJECT_ROW)
+    {
         if (object >= 0 && object < app->info.object_count)
         {
             if (!grid && !lane && x < 30)
                 app->animation_expanded = app->selected == object ? !app->animation_expanded : 1;
             app->selected = object;
+            app->sound_inspector = 0;
             if (!grid && !lane && x < 30 && app->animation_expanded)
             {
                 rows = (int)((app->height - app->timeline_y - 112) / ROW_HEIGHT);
-                if (rows >= 5 && object + 4 >= app->row_scroll + rows)
-                    app->row_scroll = object + 5 - rows;
+                index = object + (app->sheet_mode == SHEET_BOTH ? 1 : 0);
+                if (rows >= 5 && index + 4 >= *scroll + rows)
+                    *scroll = index + 5 - rows;
             }
             index = grid ? animation_event_at(app, object, lane, row, x, y) : -1;
             if (index >= 0 && marcus_animation_event(app->player, object, index, &event))
@@ -644,7 +740,8 @@ static int select_timeline_row(App *app, float x, float y, int grid)
         }
         return 0;
     }
-    row += app->sound_scroll;
+    row = object;
+    app->sound_inspector = 1;
     previous = app->selected_sound;
     app->selected_sound = -1;
     if (row < 0 || row >= app->info.sound_track_count)
@@ -658,7 +755,7 @@ static int select_timeline_row(App *app, float x, float y, int grid)
         if (marcus_sound(app->player, index, &sound) && sound.track == row && sound_has_marker(app, index, &sound))
         {
             center = frame_x(app, sound.frame + 0.5);
-            marker_y = app->timeline_y + 87 + (row - app->sound_scroll) * ROW_HEIGHT + (index % 3) * 5;
+            marker_y = app->timeline_y + 87 + visible_row * ROW_HEIGHT + (index % 3) * 5;
             if (fabs(x - center) <= 6 && fabs(y - marker_y) <= 4)
             {
                 if (fallback < 0)
@@ -691,12 +788,16 @@ static int select_timeline_row(App *app, float x, float y, int grid)
         }
     app->selected_sound = closest >= 0 ? closest : fallback;
     if (app->selected_sound >= 0)
+    {
         seek(app, frame_at(app, x));
+        return 1;
+    }
     return 0;
 }
 static void open_settings(App *app)
 {
     release_camera(app);
+    app->sheet_menu = 0;
     app->resizing_view = app->resizing_timeline = 0;
     app->playing = app->dragging = app->orbiting = app->panning = 0;
     app->edited_shortcuts = app->shortcuts;
@@ -792,7 +893,7 @@ static void pick_object(App *app, float x, float y)
 {
     SDL_FRect rect;
     const MarcusImage *image;
-    int movie, index, rows;
+    int movie, index, rows, track_row, *scroll;
     movie = app->second_view && inside_movie(app, x, y);
     if (movie ? app->movie_dirty || !app->movie_picture : app->dirty || !app->picture)
         return;
@@ -809,16 +910,18 @@ static void pick_object(App *app, float x, float y)
     app->selected = index;
     if (index < 0)
         return;
-    app->sound_sheet = 0;
+    show_object_tracks(app);
     if (index < app->object_scroll)
         app->object_scroll = index;
     if (index >= app->object_scroll + 6)
         app->object_scroll = index - 5;
     rows = (int)maximum(1, (app->height - app->timeline_y - 112) / ROW_HEIGHT);
-    if (index < app->row_scroll)
-        app->row_scroll = index;
-    if (index >= app->row_scroll + rows)
-        app->row_scroll = index - rows + 1;
+    track_row = index + (app->sheet_mode == SHEET_BOTH ? 1 : 0);
+    scroll = sheet_scroll(app);
+    if (track_row < *scroll)
+        *scroll = track_row;
+    if (track_row >= *scroll + rows)
+        *scroll = track_row - rows + 1;
 }
 static void mouse_down(App *app, float x, float y, int button)
 {
@@ -841,6 +944,23 @@ static void mouse_down(App *app, float x, float y, int button)
     {
         if (button == SDL_BUTTON_LEFT)
             settings_click(app, x, y);
+        return;
+    }
+    if (app->sheet_menu)
+    {
+        if (button == SDL_BUTTON_LEFT && ui_inside(x, y, 10, sheet_menu_top(app) + 2, 194, 84))
+            set_sheet_mode(app, (int)((y - sheet_menu_top(app) - 2) / ROW_HEIGHT));
+        else
+            app->sheet_menu = 0;
+        return;
+    }
+    if (button == SDL_BUTTON_LEFT && app->loaded && !app->flying && !app->orbiting && !app->panning &&
+        ui_inside(x, y, 10, app->timeline_y + 50, 194, 28))
+    {
+        release_camera(app);
+        app->dragging = 0;
+        app->sheet_menu = 1;
+        app->sheet_menu_choice = app->sheet_mode;
         return;
     }
     if (button == SDL_BUTTON_LEFT &&
@@ -967,17 +1087,13 @@ static void mouse_down(App *app, float x, float y, int button)
         zoom_timeline(app, 1.25f, app->grid_x + app->grid_width / 2);
     else if (ui_inside(x, y, app->sidebar - 56, app->timeline_y + 8, 40, 28))
         fit_timeline(app);
-    else if (ui_inside(x, y, 10, app->timeline_y + 50, 94, 28))
-        app->sound_sheet = 0;
-    else if (ui_inside(x, y, 110, app->timeline_y + 50, 94, 28))
-        app->sound_sheet = 1;
     else if (ui_inside(x, y, app->sidebar + 1, 126, 298, 168))
     {
         row = (int)((y - 126) / ROW_HEIGHT) + app->object_scroll;
         if (row < app->info.object_count)
         {
             app->selected = row;
-            app->sound_sheet = 0;
+            show_object_tracks(app);
         }
     }
     else if (ui_inside(x, y, 0, app->timeline_y + 80, app->grid_x, app->height - app->timeline_y - 112))
@@ -993,8 +1109,7 @@ static void mouse_down(App *app, float x, float y, int button)
             if (select_timeline_row(app, x, y, 1))
                 return;
         }
-        if (!app->sound_sheet || app->selected_sound < 0 || y < app->timeline_y + 80)
-            seek(app, frame_at(app, x));
+        seek(app, frame_at(app, x));
     }
     else if (inside_movie(app, x, y) || inside_work(app, x, y))
         pick_object(app, x, y);
@@ -1017,6 +1132,22 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     if (app->settings_open)
     {
         settings_key(app, key, modifiers);
+        return;
+    }
+    if (app->sheet_menu)
+    {
+        if (key == SDLK_ESCAPE || key == SDLK_TAB)
+            app->sheet_menu = 0;
+        else if (key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_SPACE)
+            set_sheet_mode(app, app->sheet_menu_choice);
+        else if (key == SDLK_UP)
+            app->sheet_menu_choice = (app->sheet_menu_choice + 2) % 3;
+        else if (key == SDLK_DOWN)
+            app->sheet_menu_choice = (app->sheet_menu_choice + 1) % 3;
+        else if (key == SDLK_HOME)
+            app->sheet_menu_choice = SHEET_OBJECTS;
+        else if (key == SDLK_END)
+            app->sheet_menu_choice = SHEET_BOTH;
         return;
     }
     if (key == SDLK_COMMA && (modifiers & (SDL_KMOD_CTRL | SDL_KMOD_GUI)))
@@ -1126,7 +1257,7 @@ static void update_flight(App *app, double seconds)
 static void handle_event(App *app, const SDL_Event *event)
 {
     DialogRequest *request;
-    int rows, maximum_scroll;
+    int rows, maximum_scroll, *scroll;
     float x, y, delta;
     SDL_Keymod modifiers;
     if (event->type == SDL_EVENT_QUIT)
@@ -1170,6 +1301,8 @@ static void handle_event(App *app, const SDL_Event *event)
                 app->ui.mouse_x = event->motion.x;
                 app->ui.mouse_y = event->motion.y;
             }
+            if (app->sheet_menu && ui_inside(event->motion.x, event->motion.y, 10, sheet_menu_top(app) + 2, 194, 84))
+                app->sheet_menu_choice = (int)((event->motion.y - sheet_menu_top(app) - 2) / ROW_HEIGHT);
         }
         else
         {
@@ -1243,6 +1376,16 @@ static void handle_event(App *app, const SDL_Event *event)
             app->resizing_timeline = 0;
         }
     }
+    else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->sheet_menu)
+    {
+        delta = event->wheel.y;
+        if (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+            delta = -delta;
+        if (delta > 0)
+            app->sheet_menu_choice = (app->sheet_menu_choice + 2) % 3;
+        if (delta < 0)
+            app->sheet_menu_choice = (app->sheet_menu_choice + 1) % 3;
+    }
     else if (event->type == SDL_EVENT_MOUSE_WHEEL && app->zip_input && !app->error[0])
     {
         delta = event->wheel.y;
@@ -1293,13 +1436,11 @@ static void handle_event(App *app, const SDL_Event *event)
             else
             {
                 rows = (int)((app->height - app->timeline_y - 112) / ROW_HEIGHT);
-                maximum_scroll = (app->sound_sheet ? app->info.sound_track_count : object_row_count(app)) - rows;
+                maximum_scroll = sheet_row_count(app) - rows;
                 if (maximum_scroll < 0)
                     maximum_scroll = 0;
-                if (app->sound_sheet)
-                    app->sound_scroll = (int)maximum(0, minimum(maximum_scroll, app->sound_scroll - (int)delta));
-                else
-                    app->row_scroll = (int)maximum(0, minimum(maximum_scroll, app->row_scroll - (int)delta));
+                scroll = sheet_scroll(app);
+                *scroll = (int)maximum(0, minimum(maximum_scroll, *scroll - (int)delta));
             }
         }
         else if (!app->authored && inside_work(app, x, y))
@@ -1316,6 +1457,7 @@ static void handle_event(App *app, const SDL_Event *event)
     }
     else if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
     {
+        app->sheet_menu = 0;
         release_camera(app);
         app->dragging = app->orbiting = app->panning = 0;
         app->resizing_view = 0;
@@ -1722,7 +1864,7 @@ static void draw_sidebar(App *app)
         ui_text(ui, app->sidebar + 18, 300, label, MUTED);
     }
     ui_line(ui, app->sidebar, 326, (float)app->width, 326, LINE);
-    if (app->sound_sheet)
+    if (app->sheet_mode == SHEET_SOUNDS || (app->sheet_mode == SHEET_BOTH && app->sound_inspector))
     {
         draw_sound_properties(app);
         return;
@@ -1904,7 +2046,7 @@ static void draw_timeline(App *app)
     MarcusSoundTrack track;
     SDL_Rect clip;
     char label[320];
-    int row, index, rows, selected_row, lane;
+    int row, index, rows, selected_row, lane, kind, scroll, active;
     float x, y, left;
     double frame, tick, end;
     unsigned long tint;
@@ -1954,21 +2096,38 @@ static void draw_timeline(App *app)
     ui_button(ui, app->sidebar - 94, y + 8, 32, "+", 0, app->loaded);
     ui_button(ui, app->sidebar - 56, y + 8, 40, "Fit", 0, app->loaded);
     ui_fill(ui, 0, y + 48, app->sidebar, 32, 0x2c2f35);
-    ui_button(ui, 10, y + 50, 94, "Objects", !app->sound_sheet, app->loaded);
-    ui_button(ui, 110, y + 50, 94, "Sounds", app->sound_sheet, app->loaded);
+    ui_button(ui, 10, y + 50, 194, sheet_name(app->sheet_mode), app->sheet_menu, app->loaded);
+    ui_line(ui, 185, y + 62, 190, y + 67, app->loaded ? TEXT : MUTED);
+    ui_line(ui, 190, y + 67, 195, y + 62, app->loaded ? TEXT : MUTED);
+    if (ui_inside(ui->mouse_x, ui->mouse_y, 10, y + 50, 194, 28))
+        ui->hint = "Choose Objects, Sounds, or Both for the dope sheet";
     rows = (int)((app->height - y - 112) / ROW_HEIGHT);
+    scroll = *sheet_scroll(app);
     for (row = 0; row < rows; ++row)
     {
-        index = app->sound_sheet ? row + app->sound_scroll : object_at_row(app, row + app->row_scroll, &lane);
-        selected_row = app->sound_sheet ? app->selected_sound_track : app->selected;
+        kind = sheet_row(app, row + scroll, &index, &lane);
+        selected_row = kind == SHEET_SOUND_ROW ? app->selected_sound_track : app->selected;
+        active = app->sheet_mode != SHEET_BOTH || app->sound_inspector == (kind == SHEET_SOUND_ROW);
         ui_fill(ui, 0, y + 80 + row * ROW_HEIGHT, app->sidebar, ROW_HEIGHT,
-                app->loaded && index == selected_row ? 0x303f45
-                : row % 2                             ? 0x23262b
-                                                      : 0x272a30);
+                app->loaded && index >= 0 && index == selected_row && active ? 0x303f45
+                : row % 2                                                    ? 0x23262b
+                                                                             : 0x272a30);
         ui_line(ui, 0, y + 80 + (row + 1) * ROW_HEIGHT, app->sidebar, y + 80 + (row + 1) * ROW_HEIGHT, 0x30333a);
         if (!app->loaded)
             continue;
-        if (app->sound_sheet)
+        if (kind == SHEET_OBJECT_HEADER || kind == SHEET_SOUND_HEADER)
+        {
+            ui_fill(ui, 0, y + 80 + row * ROW_HEIGHT, app->sidebar, ROW_HEIGHT, 0x2c3239);
+            SDL_snprintf(label, sizeof(label), "%s  %d", kind == SHEET_OBJECT_HEADER ? "OBJECTS" : "SOUNDS",
+                         kind == SHEET_OBJECT_HEADER ? app->info.object_count : app->info.sound_track_count);
+            ui_text(ui, 18, y + 85 + row * ROW_HEIGHT, label, MUTED);
+            if (kind == SHEET_SOUND_HEADER && !app->info.sound_track_count)
+                ui_text(ui, app->grid_x + 18, y + 85 + row * ROW_HEIGHT, "No sound tracks in this scene.", MUTED);
+            continue;
+        }
+        if (!kind)
+            continue;
+        if (kind == SHEET_SOUND_ROW)
         {
             if (marcus_sound_track(app->player, index, &track))
             {
@@ -1996,7 +2155,7 @@ static void draw_timeline(App *app)
         if (ui_inside(ui->mouse_x, ui->mouse_y, 0, y + 80 + row * ROW_HEIGHT, 28, ROW_HEIGHT))
             ui->hint = "Click arrow to expand or collapse this actor's animation events";
     }
-    if (app->loaded && app->sound_sheet && !app->info.sound_count)
+    if (app->loaded && app->sheet_mode == SHEET_SOUNDS && !app->info.sound_count)
         ui_text(ui, app->grid_x + 18, y + 94, "No authored sound cues in this scene.", MUTED);
     clip.x = (int)app->grid_x;
     clip.y = (int)y + 48;
@@ -2026,27 +2185,28 @@ static void draw_timeline(App *app)
                 x = frame_x(app, frame);
                 ui_line(ui, x, y + 75, x, y + 80, 0x59606a);
             }
-        for (row = 0; !app->sound_sheet && row < rows; ++row)
+        for (row = 0; row < rows; ++row)
         {
-            index = object_at_row(app, row + app->row_scroll, &lane);
+            if (sheet_row(app, row + scroll, &index, &lane) != SHEET_OBJECT_ROW)
+                continue;
             if (index >= app->info.object_count || !marcus_object(app->player, index, &object))
-                break;
+                continue;
             draw_animation_row(app, index, row, lane);
         }
-        if (app->sound_sheet)
+        if (app->sheet_mode != SHEET_OBJECTS)
         {
             /* Draw the selected waveform last so it remains visible in overlaps. */
             for (index = 0; index < app->info.sound_count; ++index)
             {
                 if (!marcus_sound(app->player, index, &sound))
                     continue;
-                row = sound.track - app->sound_scroll;
+                row = sound_sheet_row(app, sound.track);
                 if (row >= 0 && row < rows && index != app->selected_sound)
                     draw_sound_waveform(app, index, &sound, row);
             }
             if (marcus_sound(app->player, app->selected_sound, &sound))
             {
-                row = sound.track - app->sound_scroll;
+                row = sound_sheet_row(app, sound.track);
                 if (row >= 0 && row < rows)
                     draw_sound_waveform(app, app->selected_sound, &sound, row);
             }
@@ -2054,7 +2214,7 @@ static void draw_timeline(App *app)
             {
                 if (!marcus_sound(app->player, index, &sound))
                     continue;
-                row = sound.track - app->sound_scroll;
+                row = sound_sheet_row(app, sound.track);
                 if (row < 0 || row >= rows || sound.frame < app->info.first_frame ||
                     sound.frame > app->info.last_frame || !sound_has_marker(app, index, &sound))
                     continue;
@@ -2099,6 +2259,26 @@ static void draw_timeline(App *app)
     SDL_SetRenderClipRect(app->renderer, NULL);
     ui_line(ui, app->grid_x, y + 48, app->grid_x, (float)app->height - 32, LINE);
     ui_line(ui, app->sidebar, y, app->sidebar, (float)app->height - 24, LINE);
+}
+static void draw_sheet_menu(App *app)
+{
+    float top;
+    int choice;
+    if (!app->sheet_menu || !app->loaded)
+        return;
+    top = sheet_menu_top(app);
+    ui_fill(&app->ui, 8, top - 2, 200, 92, 0x121519);
+    ui_fill(&app->ui, 10, top, 194, 88, LINE);
+    ui_fill(&app->ui, 11, top + 1, 192, 86, PANEL);
+    for (choice = 0; choice < 3; ++choice)
+    {
+        if (choice == app->sheet_menu_choice)
+            ui_fill(&app->ui, 12, top + 2 + choice * ROW_HEIGHT, 190, ROW_HEIGHT, 0x34464c);
+        if (choice == app->sheet_mode)
+            ui_text(&app->ui, 18, top + 7 + choice * ROW_HEIGHT, "*", ACCENT);
+        ui_text(&app->ui, 36, top + 7 + choice * ROW_HEIGHT, sheet_name(choice), TEXT);
+    }
+    app->ui.hint = "Choose a dope sheet mode / Up, Down, Enter / Escape to cancel";
 }
 static void draw_error(App *app)
 {
@@ -2212,6 +2392,7 @@ static void draw(App *app)
     draw_view(app);
     draw_sidebar(app);
     draw_timeline(app);
+    draw_sheet_menu(app);
     ui_fill(&app->ui, 0, (float)app->height - 24, (float)app->width, 24, 0x303339);
     ui_label(&app->ui, 16, (float)app->height - 21, (float)app->width - 235,
              app->ui.hint ? app->ui.hint
@@ -2295,7 +2476,7 @@ static void usage(void)
     puts("Marcus - read-only 3D Movie Maker player\n"
          "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
-         "              [--screenshot output.bmp] [--show-settings] [--sounds] [--second-view]\n"
+         "              [--screenshot output.bmp] [--show-settings] [--sounds|--both] [--second-view]\n"
          "              [--settings-file shortcuts.cfg] [--zip-movie N]\n"
          "              [--renderer brender|brender-compute|sdl-gpu]\n"
          "Scenes and scene-relative frames start at 1; object indices start at 0.");
@@ -2347,7 +2528,9 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--show-settings"))
             show_settings = 1;
         else if (!strcmp(argv[i], "--sounds"))
-            app.sound_sheet = 1;
+            set_sheet_mode(&app, SHEET_SOUNDS);
+        else if (!strcmp(argv[i], "--both"))
+            set_sheet_mode(&app, SHEET_BOTH);
         else if (!strcmp(argv[i], "--second-view"))
             app.second_view = 1;
         else if (!strcmp(argv[i], "--settings-file") && i + 1 < argc)
