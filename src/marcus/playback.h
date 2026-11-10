@@ -28,6 +28,9 @@ class MarcusPlayback
     int Wait() const;
     bool Scrolling() const;
     bool Transitioning() const;
+    // Elapsed presentation time within this frame, or a negative incoming
+    // transition remainder. User click-wait time is excluded.
+    double FrameSeconds() const;
     int Transition() const;
     void BeginTransition(int kind, const ThreeMM::PreviewImage &previous);
     bool Composite(ThreeMM::Preview &preview, bool authored, ThreeMM::PreviewImage &image, ThreeMM::Error &error);

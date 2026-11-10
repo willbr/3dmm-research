@@ -72,6 +72,7 @@ struct MarcusPlayer
     MarcusWaveformCache waveforms;
     MarcusSoundTimeline soundTimeline;
     bool restoreAudio = true;
+    bool finished = false;
     bool inspectionMatched = false;
     float inspectionRoll = 0, inspectionFov = 45;
     std::map<std::int32_t, std::string> names;
@@ -99,9 +100,8 @@ MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, ThreeM
     }
     return &found->second;
 }
-bool ReadSoundSheet(MarcusPlayer *player, int index, ThreeMM::Error &error)
+bool ReadSoundTimeline(MarcusPlayer *player, int index, ThreeMM::Error &error)
 {
-    player->soundCues.clear();
     while (player->soundTimeline.Size() <= static_cast<std::size_t>(index))
     {
         const auto next = player->soundTimeline.Size();
@@ -120,6 +120,13 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, ThreeMM::Error &error)
             return info;
         }, timing);
     }
+    return true;
+}
+bool ReadSoundSheet(MarcusPlayer *player, int index, ThreeMM::Error &error)
+{
+    player->soundCues.clear();
+    if (!ReadSoundTimeline(player, index, error))
+        return false;
     const auto &scene = player->soundTimeline.Scene(index);
     // Separate scene and actor lanes, including actor ID zero. Keep styles in
     // separate lanes so simultaneous speech and effects remain distinguishable.
@@ -284,6 +291,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             return false;
         }
         player->selected = index;
+        player->finished = false;
         player->restoreAudio = !preserveAudio;
         return true;
     });
@@ -507,6 +515,7 @@ extern "C"
             if (!ReadSoundSheet(player, 0, error))
                 return false;
             player->selected = 0;
+            player->finished = false;
             player->restoreAudio = true;
             return true;
         });
@@ -542,6 +551,25 @@ extern "C"
         info->sound_count = static_cast<int>(player->sounds.size());
         info->sound_track_count = static_cast<int>(player->soundTracks.size());
         return 1;
+    }
+    int marcus_movie_time(MarcusPlayer *player, MarcusMovieTime *time)
+    {
+        if (time)
+            *time = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (!time || player->selected < 0 ||
+                !ReadSoundTimeline(player, static_cast<int>(player->scenes.size()) - 1, error))
+                return false;
+            const auto &last = player->soundTimeline.Scene(player->scenes.size() - 1);
+            time->duration_seconds = last.TimeAt(double(last.info.last_frame) + 1);
+            const auto &scene = player->soundTimeline.Scene(player->selected);
+            const double frame = player->preview.Info().currentFrame;
+            const double start = scene.TimeAt(frame), end = scene.TimeAt(frame + 1);
+            time->position_seconds = player->finished ? time->duration_seconds
+                : std::clamp(start + std::min(player->playback.FrameSeconds(), end - start),
+                             0.0, time->duration_seconds);
+            return true;
+        });
     }
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track)
     {
@@ -704,6 +732,7 @@ extern "C"
             if (!player->preview.SetFrame(static_cast<std::int32_t>(frame), error))
                 return false;
             player->playback.Seek();
+            player->finished = false;
             player->restoreAudio = true;
             player->objects = player->preview.Objects();
             return true;
@@ -802,6 +831,7 @@ extern "C"
                 else
                 {
                     player->playback.Stop();
+                    player->finished = true;
                     state->playing = 0;
                 }
             }

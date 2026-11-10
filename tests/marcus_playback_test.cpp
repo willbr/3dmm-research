@@ -495,6 +495,13 @@ MarcusInfo Info()
     CHECK(marcus_info(player, &info));
     return info;
 }
+MarcusMovieTime MovieTime()
+{
+    MarcusMovieTime time;
+    CHECK(marcus_movie_time(player, &time));
+    CHECK(time.position_seconds >= 0 && time.position_seconds <= time.duration_seconds);
+    return time;
+}
 std::vector<byte> Image(int authored = 1, int width = 480, int height = 360)
 {
     MarcusImage image;
@@ -545,6 +552,11 @@ int main(int argc, char **argv)
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
     CHECK(Info().first_frame == -2 && Info().object_count == 0);
+    CHECK(!marcus_movie_time(nullptr, nullptr) && !marcus_movie_time(player, nullptr));
+    const double sceneSeconds = 7.0 / 6 + authoredTiming.scrolling.at(0) + .4 + .2;
+    const double movieSeconds = 5 * sceneSeconds + 12 + 1.0 / 6;
+    CHECK(MovieTime().position_seconds == 0);
+    CHECK(std::abs(MovieTime().duration_seconds - movieSeconds) < 1e-6);
     // Read-only dope sheet metadata must neither move the playhead nor start
     // audio. Queued entries retain their shared authored start frame.
     CHECK(Info().sound_count == 3 && Info().sound_track_count == 2);
@@ -619,15 +631,19 @@ int main(int argc, char **argv)
     Tick(170);
     CHECK(Info().frame == -1);
     CHECK(Tick(0).wait == 1);
+    const auto clickTime = MovieTime().position_seconds;
     Tick(10000);
     CHECK(Info().frame == -1);
+    CHECK(MovieTime().position_seconds == clickTime);
     Tick(0, false);
     CHECK(Tick(10000).wait == 1); // Resume does not consume a click pause.
     CHECK(Tick(0, true, true).wait == 0);
     Tick(170);
     CHECK(Info().frame == 0);
     CHECK(Tick(0).scrolling);
+    const auto scrollTime = MovieTime().position_seconds;
     Tick(100);
+    CHECK(std::abs(MovieTime().position_seconds - scrollTime - .1) < 1e-6);
     double scrollElapsed = 100;
     CHECK(Info().frame == 0 && Image() != credits);
     MarcusAudioStats stats;
@@ -645,7 +661,9 @@ int main(int argc, char **argv)
     CHECK(Tick(0).wait == 3);
     Tick(200);
     Tick(0, false);
+    const auto pausedTime = MovieTime().position_seconds;
     Tick(10000); // User pause freezes the remaining authored duration.
+    CHECK(MovieTime().position_seconds == pausedTime);
     CHECK(Info().frame == 1);
     CHECK(Tick(199).wait == 3);
     CHECK(Tick(1).wait == 0);
@@ -672,13 +690,17 @@ int main(int argc, char **argv)
         auto workCamera = inspection.camera;
         workCamera.x += workCamera.move_speed;
         CHECK(marcus_render_fly(player, 480, 360, &workCamera, &inspection));
+        const auto beforeTransition = MovieTime().position_seconds;
         auto state = Tick(170);
         CHECK(state.scene_changed && state.transition && Info().scene == scene + 1);
+        CHECK(std::abs(MovieTime().position_seconds - beforeTransition - 1.0 / 6) < 1e-6);
         CHECK(marcus_audio_stats(player, &stats) && stats.midi_sounds == musicBeforeTransition);
         const auto initial = Image();
         if (scene < 3)
             CHECK(initial == outgoing);
         Tick(scene == 3 ? 80 : 1000);
+        CHECK(std::abs(MovieTime().position_seconds - beforeTransition - 1.0 / 6 -
+                       (scene == 3 ? .08 : 1)) < 1e-6);
         const auto middle = Image();
         if (scene < 3)
             CHECK(middle != initial);
@@ -736,10 +758,13 @@ int main(int argc, char **argv)
     CHECK(marcus_select_scene(player, 4) && marcus_seek(player, 4));
     Tick(0);
     CHECK(!Tick(170).playing && Info().scene == 4 && Info().frame == 4);
+    CHECK(MovieTime().position_seconds == MovieTime().duration_seconds);
     Tick(0, true, false, true);
     auto wrap = Tick(170, true, false, true);
     CHECK(wrap.playing && wrap.changed && !wrap.scene_changed && !wrap.transition && Info().scene == 4 &&
           Info().frame == -2);
+    CHECK(std::abs(MovieTime().position_seconds - (4 * sceneSeconds + 12 + 1.0 / 6)) < 1e-6);
+    CHECK(std::abs(MovieTime().duration_seconds - movieSeconds) < 1e-6);
     // The loop applies to any current scene, including ones with successors.
     // Rewinding must preserve inspection framing and restart first-frame audio.
     for (int scene : {0, 2, 4})

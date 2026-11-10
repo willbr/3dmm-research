@@ -19,6 +19,7 @@ int main(int argc, char **argv)
     MarcusPlayer *player, *other;
     MarcusMovieInput *input;
     MarcusInfo info;
+    MarcusMovieTime movie_time;
     MarcusScene scene;
     MarcusObject first, later, prop, inactive;
     MarcusBounds first_bounds, bounds;
@@ -42,6 +43,8 @@ int main(int argc, char **argv)
     pixels = NULL;
     CHECK(player);
     CHECK(!marcus_info(player, &info));
+    CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
+          movie_time.duration_seconds == 0);
     CHECK(!marcus_seek(player, 1));
     CHECK(!marcus_scene(player, -1, &scene));
     CHECK(!marcus_object_bounds(player, 0, &bounds) && !bounds.valid);
@@ -50,6 +53,8 @@ int main(int argc, char **argv)
     scene_count = info.scene_count;
     CHECK(info.scene_count == 2 && info.object_count == 4 && info.first_frame == 1 && info.last_frame == 30);
     CHECK(info.sound_count == 0 && info.sound_track_count == 0);
+    CHECK(marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
+          fabs(movie_time.duration_seconds - 10) < 1e-6);
     CHECK(marcus_scene(player, 0, &scene) && scene.first_frame == 1 && scene.last_frame == 30);
     CHECK(marcus_object(player, 0, &first));
     CHECK(!strcmp(first.name, "Animated actor") && first.visible && !first.prop && first.has_lifetime);
@@ -150,6 +155,7 @@ int main(int argc, char **argv)
     CHECK(!memcmp(pixels, image.rgba, bytes));
     CHECK(!memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)));
     CHECK(marcus_seek(player, 16) && marcus_info(player, &info) && info.camera == 1);
+    CHECK(marcus_movie_time(player, &movie_time) && fabs(movie_time.position_seconds - 2.5) < 1e-6);
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(image.scene_camera.valid &&
           (memcmp(authored.transform, image.scene_camera.transform, sizeof(authored.transform)) ||
@@ -316,6 +322,8 @@ int main(int argc, char **argv)
     CHECK(marcus_render(player, 480, 360, 1, 0, 0, 1, &image));
     CHECK(marcus_info(player, &info) && info.object_count == 5);
     CHECK(marcus_open(player, argv[4], argv[2], argv[3]));
+    CHECK(marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
+          fabs(movie_time.duration_seconds - 20.0 / 6) < 1e-6);
     CHECK(marcus_object(player, 4, &inactive) && !inactive.visible && !inactive.has_lifetime);
     CHECK(marcus_object_bounds(player, 4, &bounds) && !bounds.valid);
     CHECK(marcus_animation_info(player, 4, &animation) && !animation.span_count && !animation.event_count);

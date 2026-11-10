@@ -370,7 +370,7 @@ struct MarcusPlayback::Impl
     Audio audio;
     bool entered = false, wasPlaying = false, scrolling = false, restoreMusic = true;
     int wait = 0, transition = 0;
-    double frameTime = 0, waitTime = 0, transitionTime = 0;
+    double frameTime = 0, waitTime = 0, transitionTime = 0, frameSeconds = 0;
     PreviewImage previous;
     void ResetTiming()
     {
@@ -379,6 +379,7 @@ struct MarcusPlayback::Impl
         scrolling = false;
         wait = 0;
         frameTime = waitTime = transitionTime = 0;
+        frameSeconds = 0;
         transition = 0;
         previous = {};
         for (auto &caption : captions)
@@ -652,6 +653,11 @@ bool MarcusPlayback::Transitioning() const
 {
     return impl->transition != 0;
 }
+double MarcusPlayback::FrameSeconds() const
+{
+    return impl->transition ? std::min(0.0, impl->transitionTime / 1000 - TransitionSeconds(impl->transition))
+                            : impl->frameSeconds;
+}
 void MarcusPlayback::BeginTransition(int kind, const ThreeMM::PreviewImage &previous)
 {
     if (kind < 1 || kind > 4 || previous.rgba.empty())
@@ -689,6 +695,7 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
     const auto frame = preview.Info().currentFrame;
     if (!impl->entered)
     {
+        impl->frameSeconds = 0;
         // Restore scene music on a seek; speech and effects only fire at their
         // authored frame, so scrubbing never produces a burst of old sounds.
         const PreviewSoundCue *music = nullptr;
@@ -733,6 +740,8 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
         impl->restoreMusic = false;
         elapsed = 0;
     }
+    if (impl->scrolling || impl->wait != 1)
+        impl->frameSeconds += elapsed / 1000;
     const bool wasScrolling = impl->scrolling;
     impl->scrolling = false;
     for (auto &caption : impl->captions)

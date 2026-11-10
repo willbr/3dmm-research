@@ -43,6 +43,10 @@ extern "C"
         unsigned long camera, camera_count;
         int sound_count, sound_track_count;
     } MarcusInfo;
+    typedef struct MarcusMovieTime
+    {
+        double position_seconds, duration_seconds;
+    } MarcusMovieTime;
     typedef struct MarcusBounds
     {
         int valid;
@@ -192,6 +196,10 @@ extern "C"
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */
     int marcus_select_scene_keep_view(MarcusPlayer *player, int index);
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
+    /* Movie-wide presentation time, including scrolling, timed/sound waits and
+     * transitions between scenes. Click waits assume immediate acknowledgement.
+     * The first call silently analyzes and caches timing for all scenes. */
+    int marcus_movie_time(MarcusPlayer *player, MarcusMovieTime *time);
     int marcus_object(MarcusPlayer *player, int index, MarcusObject *object);
     /* Evaluated, oriented bounds; off-stage actors have valid = 0. */
     int marcus_object_bounds(MarcusPlayer *player, int index, MarcusBounds *bounds);

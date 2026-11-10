@@ -70,6 +70,8 @@ typedef struct App
     char zip_path[1024];
     MarcusInfo info;
     MarcusPlaybackState playback;
+    MarcusMovieTime movie_time;
+    int movie_time_available;
     MarcusCamera camera, flight;
     MarcusImage work_image, movie_image; /* Retained camera metadata; no borrowed pixels. */
     MarcusProjection projection, scene_camera;
@@ -310,6 +312,7 @@ static void refresh(App *app)
     int previous_scene;
     previous_scene = app->info.scene;
     app->loaded = marcus_info(app->player, &app->info);
+    app->movie_time_available = app->loaded && marcus_movie_time(app->player, &app->movie_time);
     app->movie_dirty = 1;
     if (app->selected >= app->info.object_count)
         app->selected = -1;
@@ -2043,6 +2046,15 @@ static void draw_animation_row(App *app, int object, int row, int lane)
         }
     }
 }
+static void format_time(char *text, size_t size, double seconds, int hours)
+{
+    seconds = floor(maximum(0, seconds));
+    if (hours)
+        SDL_snprintf(text, size, "%.0f:%02.0f:%02.0f", floor(seconds / 3600),
+                     floor(fmod(seconds, 3600) / 60), fmod(seconds, 60));
+    else
+        SDL_snprintf(text, size, "%.0f:%02.0f", floor(seconds / 60), fmod(seconds, 60));
+}
 static void draw_timeline(App *app)
 {
     MarcusUI *ui;
@@ -2052,6 +2064,7 @@ static void draw_timeline(App *app)
     MarcusSoundTrack track;
     SDL_Rect clip;
     char label[320];
+    char position[48], duration[48];
     int row, index, rows, selected_row, lane, kind, scroll, active;
     float x, y, left;
     double frame, tick, end;
@@ -2084,6 +2097,21 @@ static void draw_timeline(App *app)
     ui_button_sized(ui, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT, "Loop", app->loop, app->loaded);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X, y + FRAME_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
         ui->hint = "Repeat the current scene from its first frame";
+    if (app->movie_time_available && marcus_movie_time(app->player, &app->movie_time))
+    {
+        format_time(position, sizeof(position), app->movie_time.position_seconds,
+                    app->movie_time.duration_seconds >= 3600);
+        format_time(duration, sizeof(duration), app->movie_time.duration_seconds,
+                    app->movie_time.duration_seconds >= 3600);
+        SDL_snprintf(label, sizeof(label), "%s / %s", position, duration);
+    }
+    else
+        SDL_strlcpy(label, "--:-- / --:--", sizeof(label));
+    ui_label(ui, LOOP_X + 72, y + FRAME_NAV_Y + 1, app->sidebar - LOOP_X - 220, label,
+             app->movie_time_available ? TEXT : MUTED);
+    if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X + 72, y + FRAME_NAV_Y,
+                  app->sidebar - LOOP_X - 220, UI_NAVIGATION_HEIGHT))
+        ui->hint = "Movie position / total duration; time waiting for a click is excluded";
     ui_navigation_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
     ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
                          "Previous scene");

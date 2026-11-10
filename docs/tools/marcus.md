@@ -40,6 +40,14 @@ Opening a movie or changing scenes clears object and sound selection, including
 scene changes during playback. Objects are selected only by explicit input,
 such as a click or the `--object` command-line option.
 
+The playback controls show the current movie position and total duration as
+`m:ss / m:ss`, or `h:mm:ss / h:mm:ss` for movies lasting an hour or more.
+Time spans all scenes and follows seeking, playback and scene looping. It includes
+scrolling text, timed pauses, sound waits and transitions between scenes. Click
+waits assume immediate acknowledgement, so time spent waiting for a click is
+excluded. Timing is analyzed silently when opening a movie. With no movie loaded,
+the display reads `--:-- / --:--`.
+
 ZIP files can be opened through the same controls or passed on the command line.
 Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring
 extension case. A single movie opens automatically. Multiple movies appear in a
