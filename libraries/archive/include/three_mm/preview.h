@@ -30,6 +30,7 @@ struct PreviewView
     float yaw = 0, pitch = 0, zoom = 1; // Degrees; zoom 1 frames the entire asset.
     float roll = 0, verticalFov = 45, nearClip = 0; // Zero nearClip uses the normal inspection default.
     bool authoredCamera = true;         // Original image/depth; other views reconstruct scenery with a static backdrop.
+    bool renderAtOutputResolution = false; // Rasterize authored geometry at the fitted output size.
     bool freeCamera = false;            // Explicit world position, independent of actor bounds.
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
@@ -216,8 +217,9 @@ class Preview
     // projection and current evaluated frame. Background scenery only occludes.
     // A successful miss returns object = -1; object indices match Objects().
     // Distance is camera-forward depth at the hit, or infinity on a miss.
+    // Authored views must use the same renderAtOutputResolution flag as Render.
     bool Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
-              int x, int y, int &object, float &distance, Error &error);
+              int x, int y, int &object, float &distance, Error &error, bool renderAtOutputResolution = false);
     // Dimensions 64..PreviewMaxDimension, finite camera values, pitch -90..90, zoom .1..10.
     // Free camera coordinates are limited to +/-32700 world units and take
     // precedence over authoredCamera. Returned images include the rendered pose.

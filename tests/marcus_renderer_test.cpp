@@ -212,11 +212,58 @@ int main(int argc, char **argv)
     // Optional content integration, without a window or UI input.
     if (argc == 4)
     {
+        unsigned sourceWidth = 0, sourceHeight = 0;
+        {
+            // Inspect the actual raster size and seeded background/depth,
+            // independently of the size of the returned RGBA image.
+            struct ResolutionProbe final : ThreeMM::PreviewRasterizer
+            {
+                unsigned width = 0, height = 0;
+                bool Begin(unsigned w, unsigned h, ThreeMM::Error &) override
+                {
+                    width = w; height = h;
+                    return true;
+                }
+                void Triangle(const BrRasterTriangle &) noexcept override {}
+                bool End(unsigned char *, int, unsigned char *, int, ThreeMM::Error &) override { return true; }
+            } probe;
+            ThreeMM::Preview preview;
+            const auto backgrounds = std::filesystem::u8path(argv[3]) / "bkgds.3cn";
+            CHECK(preview.Open(backgrounds.u8string(), argv[2], error));
+            CHECK(preview.Select({0x424b4744, 0}, error));
+            ThreeMM::PreviewView view;
+            view.includeDepth = true;
+            view.rasterizer = &probe;
+            ThreeMM::PreviewImage native, high;
+            CHECK(preview.Render(view, native, error));
+            sourceWidth = probe.width; sourceHeight = probe.height;
+            for (unsigned padding : {0u, 24u})
+            {
+                view.width = sourceWidth * 2;
+                view.height = sourceHeight * 2 + padding;
+                view.renderAtOutputResolution = false;
+                CHECK(preview.Render(view, native, error));
+                CHECK(probe.width == sourceWidth && probe.height == sourceHeight);
+                view.renderAtOutputResolution = true;
+                CHECK(preview.Render(view, high, error));
+                CHECK(probe.width == sourceWidth * 2 && probe.height == sourceHeight * 2);
+                CHECK(high.rgba == native.rgba && high.depth == native.depth);
+            }
+        }
         player = marcus_create();
         CHECK(marcus_open(player, argv[1], argv[2], argv[3]));
         MarcusImage image = {};
         MarcusInfo before = {}, after = {};
         CHECK(marcus_seek(player, 10) && marcus_info(player, &before));
+        CHECK(marcus_render(player, sourceWidth, sourceHeight, 1, 0, 0, 1, &image));
+        const std::vector<unsigned char> native(image.rgba, image.rgba + image.pitch * image.height);
+        CHECK(marcus_render(player, sourceWidth * 2, sourceHeight * 2, 1, 0, 0, 1, &image));
+        unsigned detailed = 0;
+        for (unsigned y = 0; y < sourceHeight * 2; ++y)
+            for (unsigned x = 0; x < sourceWidth * 2; ++x)
+                detailed += std::memcmp(image.rgba + y * image.pitch + x * 4,
+                                        native.data() + ((y / 2) * sourceWidth + x / 2) * 4, 4) != 0;
+        CHECK(detailed > 0); // Actors must be rerasterized, not enlarged with the background.
         CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
         const std::vector<unsigned char> cpu(image.rgba, image.rgba + image.pitch * image.height);
         for (int backend : {MARCUS_RENDERER_BRENDER_COMPUTE, MARCUS_RENDERER_SDL_GPU, MARCUS_RENDERER_BRENDER})

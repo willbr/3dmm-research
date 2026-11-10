@@ -10,6 +10,7 @@
 #include <functional>
 #include <limits>
 #include <map>
+#include <utility>
 #include "soc_core.h"
 #include "preview_actor.h"
 #include "preview_background.h"
@@ -49,6 +50,13 @@ struct Frame
             BrPixelmapFree(colour);
     }
 };
+std::pair<std::uint32_t, std::uint32_t> FittedSize(std::uint32_t sourceWidth, std::uint32_t sourceHeight,
+                                                std::uint32_t width, std::uint32_t height)
+{
+    if (std::uint64_t(width) * sourceHeight <= std::uint64_t(height) * sourceWidth)
+        return {width, std::max(1u, std::uint32_t(std::uint64_t(sourceHeight) * width / sourceWidth))};
+    return {std::max(1u, std::uint32_t(std::uint64_t(sourceWidth) * height / sourceHeight)), height};
+}
 PreviewProjection Projection(const br_matrix34 &transform, br_angle fov, float aspect, BRS nearClip, BRS farClip)
 {
     PreviewProjection result;
@@ -491,7 +499,7 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     return true;
 }
 bool Preview::Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
-                   int x, int y, int &object, float &distance, Error &error)
+                   int x, int y, int &object, float &distance, Error &error, bool renderAtOutputResolution)
 try
 {
     error = {};
@@ -511,7 +519,9 @@ try
     if (x < 0 || y < 0 || x >= static_cast<int>(width) || y >= static_cast<int>(height))
         return true;
     const auto bg = authoredCamera ? _impl->background.get() : nullptr;
-    const auto renderWidth = bg ? bg->width : width, renderHeight = bg ? bg->height : height;
+    const auto rasterSize = bg && renderAtOutputResolution ? FittedSize(bg->width, bg->height, width, height)
+        : std::make_pair(bg ? bg->width : width, bg ? bg->height : height);
+    const auto renderWidth = rasterSize.first, renderHeight = rasterSize.second;
     const float scale = std::min(float(width) / renderWidth, float(height) / renderHeight);
     const int fittedWidth = static_cast<int>(renderWidth * scale),
               fittedHeight = static_cast<int>(renderHeight * scale);
@@ -549,7 +559,9 @@ try
     PickState pick{owners, projection.nearClip, projection.farClip};
     if (bg)
     {
-        const auto depth = bg->depths[std::size_t(y) * renderWidth + x];
+        const auto sourceX = std::uint32_t(std::uint64_t(x) * bg->width / renderWidth);
+        const auto sourceY = std::uint32_t(std::uint64_t(y) * bg->height / renderHeight);
+        const auto depth = bg->depths[std::size_t(sourceY) * bg->width + sourceX];
         if (depth != 0xffff)
         {
             br_matrix4 matrix;
@@ -1053,7 +1065,10 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         const auto bg = view.authoredCamera && !view.freeCamera ? _impl->background.get() : nullptr;
         const auto mesh = !bg && _impl->background ? &_impl->background->Mesh() : nullptr;
         const auto infinite = mesh && !mesh->InfiniteColours().empty() ? &mesh->InfiniteColours() : nullptr;
-        const auto width = bg ? bg->width : view.width, height = bg ? bg->height : view.height;
+        const auto rasterSize = bg && view.renderAtOutputResolution
+            ? FittedSize(bg->width, bg->height, view.width, view.height)
+            : std::make_pair(bg ? bg->width : view.width, bg ? bg->height : view.height);
+        const auto width = rasterSize.first, height = rasterSize.second;
         frame.colour = BrPixelmapAllocate(BR_PMT_INDEX_8, width, height, nullptr, BR_PMAF_NORMAL);
         frame.depth = frame.colour ? BrPixelmapMatch(frame.colour, BR_PMMATCH_DEPTH_16) : nullptr;
         frame.world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
@@ -1062,13 +1077,31 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         BrPixelmapFill(frame.colour, 0);
         BrPixelmapFill(frame.depth, 0xffff);
         if (bg)
+        {
+            std::vector<std::uint32_t> columns(width);
+            for (std::uint32_t x = 0; x < width; ++x)
+                columns[x] = std::uint32_t(std::uint64_t(x) * bg->width / width);
             for (std::uint32_t y = 0; y < height; ++y)
             {
-                std::memcpy(static_cast<byte *>(frame.colour->pixels) + y * frame.colour->row_bytes,
-                            bg->colours.data() + y * width, width);
-                std::memcpy(static_cast<byte *>(frame.depth->pixels) + y * frame.depth->row_bytes,
-                            bg->depths.data() + y * width, width * 2);
+                auto colours = static_cast<byte *>(frame.colour->pixels) + y * frame.colour->row_bytes;
+                auto depths = reinterpret_cast<std::uint16_t *>(
+                    static_cast<byte *>(frame.depth->pixels) + y * frame.depth->row_bytes);
+                if (width == bg->width && height == bg->height)
+                {
+                    std::memcpy(colours, bg->colours.data() + y * width, width);
+                    std::memcpy(depths, bg->depths.data() + y * width, width * sizeof(*depths));
+                    continue;
+                }
+                const auto sourceY = std::uint32_t(std::uint64_t(y) * bg->height / height);
+                for (std::uint32_t x = 0; x < width; ++x)
+                {
+                    const auto sourceX = columns[x];
+                    const auto source = std::size_t(sourceY) * bg->width + sourceX;
+                    colours[x] = bg->colours[source];
+                    depths[x] = bg->depths[source];
+                }
             }
+        }
         float low[3] = {0, 0, 0}, high[3] = {1, 1, 1};
         auto bodies = _impl->Bodies();
         bool first = true;
@@ -1203,7 +1236,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             camera.hither_z = BR_SCALAR(.1);
         if (!bg && view.nearClip > 0)
             camera.hither_z = BrFloatToScalar(view.nearClip);
-        camera.aspect = BrFloatToScalar(aspect);
+        camera.aspect = BrFloatToScalar(bg ? float(bg->width) / bg->height : aspect);
         if (bg)
         {
             camera.field_of_view = bg->camera.aFov;

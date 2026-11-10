@@ -212,6 +212,7 @@ ThreeMM::PreviewProjection ReadProjection(const MarcusProjection &source)
 bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage *image, ThreeMM::Error &error)
 {
     auto options = view;
+    options.renderAtOutputResolution = true;
     options.rasterizer = player->rasterizer.get();
     options.includeDepth = !view.authoredCamera || view.freeCamera;
     if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
@@ -981,7 +982,7 @@ extern "C"
             float distance;
             const auto projection = ReadProjection(image->projection);
             if (!player->preview.Pick(projection, image->authored_camera != 0, image->width, image->height, x, y,
-                                      *object_index, distance, error))
+                                      *object_index, distance, error, true))
                 return false;
             if (*object_index < 0)
                 return true;

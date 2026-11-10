@@ -166,10 +166,13 @@ Resolutions are **320x240**, **640x480**, **960x720** (default), **1024x768**,
 **1600x1200**, **1920x1440**, **2560x1920**, **2880x2160**, **3840x2880**, and
 **4096x3072**. The bundled BRender build supports up to **4096x4096** output;
 Marcus's presets preserve 4:3 proportions within that limit.
-They control the output frame size for the movie and work camera views while
-keeping the movie's 4:3 proportions. Authored backgrounds retain their original
-detail. Applying a new size updates both viewports immediately. The editor's
-Settings dialog also offers the resolution choice.
+They control geometry rasterization for the movie and work camera views while
+keeping the movie's 4:3 proportions. In the movie camera, actors render at the
+selected size inside the authored shot's letterbox; the original background
+image and depth map scale together to preserve framing and occlusion. Background
+bitmap detail remains limited by the original artwork. Applying a new size
+updates both viewports immediately. The editor's Settings dialog also offers
+the resolution choice.
 Opening settings pauses playback; Cancel or Escape closes the dialog and keeps
 the expanded view. The cog fades
 with the playback controls, and the cursor stays visible while settings are open.
