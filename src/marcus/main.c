@@ -2662,6 +2662,12 @@ static void draw_zip(App *app)
     ui_button(&app->ui, x + 568, y + 432, 96, "Cancel", 0, 1);
     ui_button(&app->ui, x + 680, y + 432, 96, "Open", 1, 1);
 }
+static void movie_control_label(MarcusUI *ui, float x, float y, float width, const char *text,
+                                unsigned long colour)
+{
+    ui_label(ui, x + 1, y + 1, width, text, 0);
+    ui_label(ui, x, y, width, text, colour);
+}
 static void draw_movie_controls(App *app)
 {
     SDL_FRect rect;
@@ -2684,17 +2690,14 @@ static void draw_movie_controls(App *app)
     available = app->movie_time_available && marcus_movie_time(app->player, &app->movie_time);
     seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
     fraction = available && app->movie_time.duration_seconds > 0 ? seconds / app->movie_time.duration_seconds : 0;
-    ui_opacity(ui, app->movie_overlay_alpha * 0.94f);
-    ui_fill(ui, rect.x, rect.y, rect.w, rect.h, 0x11161c);
     ui_opacity(ui, app->movie_overlay_alpha);
-    ui_line(ui, rect.x, rect.y, rect.x + rect.w, rect.y, 0x3c525b);
     status = app->movie_scrubbing ? "SEEKING" : !app->playing ? "PAUSED"
              : app->playback.wait == 1 ? "CONTINUE" : "PLAYING";
-    ui_text(ui, left, rect.y + 16, status, ACCENT);
+    movie_control_label(ui, left, rect.y + 16, 100, status, ACCENT);
     if (marcus_scene(app->player, app->info.scene, &scene))
     {
         SDL_snprintf(label, sizeof(label), "Scene %d / %d    %s", app->info.scene + 1, app->info.scene_count, scene.name);
-        ui_label(ui, left + 100, rect.y + 16, rect.w - 400, label, TEXT);
+        movie_control_label(ui, left + 100, rect.y + 16, rect.w - 400, label, TEXT);
     }
     if (available)
     {
@@ -2705,7 +2708,7 @@ static void draw_movie_controls(App *app)
     }
     else
         SDL_strlcpy(label, "--:-- / --:--", sizeof(label));
-    ui_label(ui, rect.x + rect.w - 240, rect.y + 16, 216, label, TEXT);
+    movie_control_label(ui, rect.x + rect.w - 240, rect.y + 16, 216, label, TEXT);
     ui_fill(ui, left, top - 2, width, 4, 0x46515b);
     ui_fill(ui, left, top - 2, (float)(width * fraction), 4, ACCENT);
     if (available && app->movie_time.duration_seconds > 0)
@@ -2732,8 +2735,8 @@ static void draw_movie_controls(App *app)
     ui_button_sized(ui, rect.x + 168, rect.y + 86, 56, 28, "-10 s", 0, available);
     ui_button_sized(ui, rect.x + 232, rect.y + 86, 56, 28, "+10 s", 0, available);
     ui_button_sized(ui, rect.x + 312, rect.y + 86, 64, 28, app->muted ? "Unmute" : "Mute", app->muted, 1);
-    ui_label(ui, rect.x + 400, rect.y + 92, rect.w - 636,
-             app->movie_scrubbing ? "Release to finish seeking" : "Drag to seek / ticks mark scenes", MUTED);
+    movie_control_label(ui, rect.x + 400, rect.y + 92, rect.w - 636,
+                        app->movie_scrubbing ? "Release to finish seeking" : "Drag to seek / ticks mark scenes", MUTED);
     ui_button_sized(ui, rect.x + rect.w - 212, rect.y + 86, 96, 28,
                     app->fullscreen ? "Windowed" : "Fullscreen", app->fullscreen, 1);
     ui_button_sized(ui, rect.x + rect.w - 108, rect.y + 86, 84, 28, "Editor", 0, 1);
