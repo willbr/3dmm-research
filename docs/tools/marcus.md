@@ -62,6 +62,35 @@ paths. Original content is not bundled or downloaded by Marcus.
 
 Open a movie with **Open movie**, **Ctrl+O**, or drag and drop. Selecting
 Resources or Content reloads that movie.
+
+**Open movie** now opens Marcus's own movie browser. Filmstrip-style cards and
+a larger detail preview use saved scene thumbnails, with a list view available.
+The sidebar offers recent movies, the last movie folder, Home and up to twelve
+favourite folders. Recent entries remember the exact movie name inside a ZIP.
+The browser saves the last folder, selection, view, sort order and file filter
+in `movie-browser.cfg` beside the normal per-user Marcus preferences.
+
+Use the location field and **Go**, **Back**, **Up**, or double-click folders to
+navigate. Search filters names in the current location; the format button cycles
+between all supported files, `.3mm`, `.vmm` and ZIP. Sort by name or newest first.
+Arrow keys, Page Up/Down, Home/End and the wheel navigate the results. Enter opens,
+Escape cancels, Alt+Up goes to the parent, Alt+Left goes back, Ctrl+L focuses the
+location, Ctrl+F focuses search, Tab moves between the list and text fields, and
+F5 refreshes. Text fields support replacement, backspace and clipboard paste.
+Dropping a folder opens that location. `marcus --browse folder-or-zip` starts
+directly in the browser; selecting a movie still requires an explicit Open.
+
+Folder and ZIP listings run on a worker thread. Saved thumbnails and scene/frame
+counts are read incrementally on the main thread because the archive decoder
+shares engine globals. The selected movie has preview priority; other visible
+movies up to 32 MiB are inspected one at a time. ZIP previews may temporarily
+extract the inspected member using the existing size/CRC checks. A missing
+thumbnail displays a placeholder; first-frame rendering, duration analysis,
+dependency availability badges and bundled-font discovery are not implemented
+in the browser. Dependencies are resolved through the normal opening path.
+Previewing does not replace the active movie or play audio; cancel leaves it
+paused. The SDL Studio picker and movie format are unchanged.
+
 Opening a movie or changing scenes clears object and sound selection, including
 scene changes during playback. Objects are selected only by explicit input,
 such as a click or the `--object` command-line option.
@@ -76,9 +105,9 @@ the display reads `--:-- / --:--`.
 
 ZIP files can be opened through the same controls or passed on the command line.
 Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring
-extension case. A single movie opens automatically. Multiple movies appear in a
-chooser in archive order: select a row and click Open, or use Up/Down, Page
-Up/Page Down, Home/End and Enter. The wheel scrolls the list; Escape cancels and
+extension case. A single movie opens automatically. Multiple movies appear in
+the movie browser, with their internal paths visible: select a card or row and
+click Open, or use the keyboard. The wheel scrolls the results; Escape cancels and
 keeps the previous movie paused. The window title identifies the ZIP and selected
 member. Resources/Content reloads retain that selection.
 
@@ -86,12 +115,14 @@ member. Resources/Content reloads retain that selection.
 marcus movies.zip --zip-movie 2 --resources /path/to/3dmovie.chk --content-dir /path/to/content-files
 ```
 
-`--zip-movie` is a one-based movie-list index. Use it when combining a multi-movie
+`--zip-movie` is a one-based index in the ZIP's original archive order, independent
+of browser sorting. Use it when combining a multi-movie
 ZIP with command-line scene/frame selection or screenshot capture. The C API
 provides a separate listing/selection interface; ordinary `marcus_open` opens
 single-movie ZIPs and reports that an explicit selection is needed for multiples.
 
-Listing extracts nothing. Opening extracts only the selected movie into a private
+Listing extracts nothing; the visual browser can extract members to read saved
+previews as described above. Opening extracts only the selected movie into a private
 directory, verifies its declared size and CRC, and retains it while the player
 needs it. Reloading an already selected entry reuses that extraction. Closing or
 replacing the movie removes its private file, after renderer/content teardown.

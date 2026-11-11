@@ -3,6 +3,9 @@
 #include <SDL3/SDL.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct MarcusGlyph
 {
@@ -37,4 +40,7 @@ void ui_play_button(MarcusUI *ui, float x, float y, int playing, int waiting, in
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active);
 /* action: 0 first, 1 previous, 2 next, 3 last. */
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
+#ifdef __cplusplus
+}
+#endif
 #endif

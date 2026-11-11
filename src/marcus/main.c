@@ -2,6 +2,7 @@
 #include "ui.h"
 #include "settings.h"
 #include "camera_guide.h"
+#include "movie_browser.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,6 +83,7 @@ typedef struct App
     SDL_Cursor *timeline_cursor;
     MarcusUI ui;
     MarcusPlayer *player;
+    MarcusBrowser *browser;
     MarcusMovieInput *movie_input, *zip_input;
     int movie_entry, zip_selected, zip_scroll;
     char zip_path[1024];
@@ -361,13 +363,13 @@ static void update_movie_controls(App *app, double now, double elapsed)
     int visible, hide_cursor;
     float change;
     visible = app->movie_only && (!app->playing || app->playback.wait == 1 || app->movie_scrubbing ||
-                                  app->error[0] || app->settings_open ||
+                                  app->error[0] || app->settings_open || browser_visible(app->browser) ||
                                   now - app->movie_activity_tick < MOVIE_IDLE_MS);
     change = (float)(maximum(0, elapsed) / (visible ? 180 : 350));
     app->movie_overlay_alpha = (float)maximum(0, minimum(1,
         app->movie_overlay_alpha + (visible ? change : -change)));
     hide_cursor = app->movie_only && !app->movie_scrubbing && !app->error[0] && !app->settings_open &&
-                  SDL_GetMouseFocus() == app->window && now - app->movie_activity_tick >= MOVIE_IDLE_MS;
+                  !browser_visible(app->browser) && SDL_GetMouseFocus() == app->window && now - app->movie_activity_tick >= MOVIE_IDLE_MS;
     if (hide_cursor != app->cursor_hidden)
     {
         if (hide_cursor)
@@ -639,6 +641,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
     app->selected_sound = app->selected_sound_track = -1;
     fit_timeline(app);
     reset_view(app);
+    browser_remember(app->browser, path, entry);
     return 1;
 }
 static void cancel_zip(App *app)
@@ -759,9 +762,17 @@ static void SDLCALL dialog_callback(void *userdata, const char *const *files, in
 static void choose_file(App *app, int kind)
 {
     DialogRequest *request;
-    static const SDL_DialogFileFilter movies[] = {{"3D Movie Maker movies and ZIPs", "3mm;vmm;zip"}, {"All files", "*"}};
     static const SDL_DialogFileFilter resources[] = {{"3DMM resources", "chk"}};
     release_camera(app);
+    if (kind == 0)
+    {
+        app->playing = 0;
+        app->sheet_menu = 0;
+        app->dragging = app->orbiting = app->panning = 0;
+        cancel_zip(app);
+        browser_show(app->browser, NULL, app->resources, app->content);
+        return;
+    }
     request = (DialogRequest *)SDL_calloc(1, sizeof(*request));
     if (!request)
     {
@@ -774,8 +785,7 @@ static void choose_file(App *app, int kind)
     if (kind == 2)
         SDL_ShowOpenFolderDialog(dialog_callback, request, app->window, app->content, 0);
     else
-        SDL_ShowOpenFileDialog(dialog_callback, request, app->window, kind == 0 ? movies : resources, kind == 0 ? 2 : 1,
-                               kind == 0 ? NULL : app->resources, 0);
+        SDL_ShowOpenFileDialog(dialog_callback, request, app->window, resources, 1, app->resources, 0);
 }
 static void toggle_play(App *app)
 {
@@ -1740,9 +1750,26 @@ static void handle_event(App *app, const SDL_Event *event)
     SDL_FRect viewport;
     int rows, maximum_scroll, *scroll;
     float x, y, delta;
+    MarcusMovieInput *browser_input;
+    int browser_entry;
+    char browser_path[4096];
     SDL_Keymod modifiers;
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
+    else if (!app->error[0] && browser_event(app->browser, event))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+        browser_input = browser_take(app->browser, &browser_entry, browser_path, sizeof(browser_path));
+        if (browser_input && !open_input(app, browser_input, browser_entry, browser_path))
+        {
+            marcus_input_destroy(browser_input);
+            browser_show(app->browser, browser_path, app->resources, app->content);
+        }
+    }
     else if (event->type == app->dialog_event)
     {
         request = (DialogRequest *)event->user.data1;
@@ -1766,7 +1793,24 @@ static void handle_event(App *app, const SDL_Event *event)
     {
         if (app->movie_only)
             editor_view(app);
-        open_movie(app, event->drop.data);
+        {
+            SDL_PathInfo dropped;
+            if (SDL_GetPathInfo(event->drop.data, &dropped) && dropped.type == SDL_PATHTYPE_DIRECTORY)
+            {
+                app->playing = 0;
+                release_camera(app);
+                browser_show(app->browser, event->drop.data, app->resources, app->content);
+            }
+            else
+            {
+                open_movie(app, event->drop.data);
+                if (app->zip_input)
+                {
+                    browser_show(app->browser, app->zip_path, app->resources, app->content);
+                    cancel_zip(app);
+                }
+            }
+        }
     }
     else if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat)
     {
@@ -3334,6 +3378,7 @@ static void draw(App *app)
         draw_debug_overlay(app);
         if (app->settings_open)
             draw_settings(app);
+        browser_draw(app->browser, &app->ui, app->width, app->height);
         if (app->error[0])
             draw_error(app);
         return;
@@ -3373,6 +3418,7 @@ static void draw(App *app)
         draw_settings(app);
     if (app->zip_input)
         draw_zip(app);
+    browser_draw(app->browser, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
 }
@@ -3439,9 +3485,9 @@ static void usage(void)
          "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings] [--sounds|--both] [--second-view]\n"
-         "              [--settings-file shortcuts.cfg] [--zip-movie N]\n"
-         "              [--renderer brender|brender-compute|sdl-gpu]\n"
-         "Scenes and scene-relative frames start at 1; object indices start at 0.");
+         "              [--settings-file shortcuts.cfg] [--zip-movie N] [--browse folder-or-zip]\n"
+         "              [--renderer brender|brender-compute|sdl-gpu]");
+    puts("Scenes and scene-relative frames start at 1; object indices start at 0.");
 }
 static int number(const char *text, long *output)
 {
@@ -3457,14 +3503,14 @@ int main(int argc, char **argv)
 {
     App app;
     SDL_Event event;
-    const char *input, *font, *capture;
+    const char *input, *font, *capture, *browse;
     int i, result, frames, requested_scene, requested_object, requested_zip, have_frame, show_settings;
     int requested_renderer;
     long requested_frame, parsed;
     double now, previous_tick;
     Uint64 frame_tick, completed_tick;
     memset(&app, 0, sizeof(app));
-    input = font = capture = NULL;
+    input = font = capture = browse = NULL;
     result = have_frame = show_settings = 0;
     requested_scene = 1;
     requested_object = -1;
@@ -3488,6 +3534,8 @@ int main(int argc, char **argv)
             usage();
             return 0;
         }
+        else if (!strcmp(argv[i], "--browse") && i + 1 < argc)
+            browse = argv[++i];
         else if (!strcmp(argv[i], "--show-settings"))
             show_settings = 1;
         else if (!strcmp(argv[i], "--sounds"))
@@ -3615,6 +3663,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.browser = browser_create(app.window, app.renderer);
+    if (!app.browser)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.dialog_event = SDL_RegisterEvents(1);
     layout(&app);
     reset_view(&app);
@@ -3652,8 +3706,15 @@ int main(int argc, char **argv)
                 app.selected = app.info.object_count ? requested_object : -1;
         }
     }
+    if (app.zip_input && !requested_zip && !capture && !app.error[0])
+    {
+        browser_show(app.browser, app.zip_path, app.resources, app.content);
+        cancel_zip(&app);
+    }
     if (show_settings && !app.zip_input)
         open_settings(&app);
+    else if (browse && !app.zip_input)
+        browser_show(app.browser, browse, app.resources, app.content);
     frames = 0;
     previous_tick = (double)SDL_GetTicks();
     frame_tick = SDL_GetTicksNS();
@@ -3723,6 +3784,7 @@ cleanup:
     release_camera(&app);
     if (result && !app.error[0])
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
+    browser_destroy(app.browser);
     ui_destroy(&app.ui);
     SDL_DestroyTexture(app.picture);
     SDL_DestroyTexture(app.movie_picture);

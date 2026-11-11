@@ -21,10 +21,12 @@ target_compile_features(marcus-regression PRIVATE cxx_std_17)
 target_link_libraries(marcus-regression PRIVATE marcus-player SDL3::SDL3-static)
 kauai_copy_midi_assets(marcus-regression)
 
-add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c)
+add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c movie_browser.cpp browser_preview.cpp)
+find_package(Threads REQUIRED)
+target_compile_features(marcus PRIVATE cxx_std_17)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(marcus PRIVATE marcus-player SDL3::SDL3-static freetype)
+target_link_libraries(marcus PRIVATE marcus-player SDL3::SDL3-static freetype engine-core ThreeMM::Archive three-mm-content Threads::Threads)
 kauai_copy_midi_assets(marcus)
 add_custom_command(TARGET marcus POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -44,7 +46,7 @@ if(NOT WIN32)
   target_link_libraries(marcus PRIVATE m)
 endif()
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
-  target_compile_options(marcus PRIVATE -pedantic-errors -Werror=declaration-after-statement)
+  target_compile_options(marcus PRIVATE "$<$<COMPILE_LANGUAGE:C>:-pedantic-errors;-Werror=declaration-after-statement>")
 endif()
 if(BUILD_TESTING)
   # Native GPU rasterization checks; no application window or UI simulation.
