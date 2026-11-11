@@ -61,6 +61,23 @@ A file opened read-only (or with `fcflAddToExtra`) writes any newly-added
 chunks to a sidecar **temp file** until `FSave` is called, at which point
 everything is consolidated.
 
+## Shared C89 reader
+
+[`three_mm/chunky_file.h`](../../libraries/engine/include/three_mm/chunky_file.h)
+and [`chunky_file.c`](../../libraries/engine/src/chunky_file.c) decode the CHN2
+header and GG index, including compact/expanded entries and legacy byte orders.
+Kauai's `ChunkyFile` adapter supplies positional reads and materializes writable
+native storage. Chunk lookup, child enumeration and graph validation then query
+that live storage through C callbacks shared by Studio and Marcus.
+
+Free maps, writing, embedded-forest decoding, payload decompression and legacy
+name transcoding still use the existing C++ implementation. Compatibility
+checks retain historical acceptance rules, including expanded-to-compact
+pre-swap checks and aggregate graph reference totals.
+
+Build `engine-chunky-test` in the standalone `libraries/engine` CMake build,
+then run CTest. The test and implementation are included in `engine-c89-syntax`.
+
 ## Reading a chunk
 
 ```cpp

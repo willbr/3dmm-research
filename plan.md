@@ -69,11 +69,16 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C++ interfaces are migration inputs, not the final engine interface.
 - The first movie-data slice adds bounded decoded-chunk streams and C89 MVIE,
   roll-call and Archive GST-layout readers. Studio, Archive and Marcus call
-  these decoders. Container graph/storage, decompression, string transcoding,
+  these decoders. Mutable container storage, decompression, string transcoding,
   tag ownership and save/edit orchestration remain C++ dependencies.
 - The existing `marcus-c89`, `content-vfs-c89` and `review-c89` checks passed
   on 11 November. They check selected C sources, not a C89 engine backend.
-- Playback and the first movie-data slices are implemented; whole-engine conversion
+- The chunky-file slice now reads CHN2 headers and GG indexes in C89 and shares
+  live chunk/child lookup, enumeration and graph validation through `kauai-core`.
+  Writable groups, free maps, writes, embedded-forest decoding and legacy name
+  conversion remain C++. Next convert string-table storage and transcoding,
+  with load/save and playback regression checks before replacing callers.
+- Playback, movie-data and container-reading slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
   [dependency boundary and build commands](docs/code-map/library-split.md#c89-engine-backend).

@@ -73,6 +73,8 @@
     If the chunky files are closed and re-opened, no sharing will occur.
 
 ***************************************************************************/
+#include <vector>
+#include <new>
 #include "util.h"
 ASSERTNAME
 
@@ -290,6 +292,47 @@ const LegacyLong kckidMax = ksuMax;
 const ByteOrderMask kbomCrp = kbomCrpsm;
 
 #endif //! CHUNK_BIG_INDEX
+
+
+namespace
+{
+int ReadChunkFile(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+{
+    if (offset > 0x7fffffffUL || count > 0x7fffffffUL)
+        return 0;
+    return static_cast<PFileObject>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), static_cast<LegacyLong>(offset));
+}
+int ReadRuntimeChunk(void *context, ThreeMMU32 position, ThreeMMChunkEntry *entry)
+{
+    auto group = static_cast<PGeneralGroup>(context);
+    LegacyLong variable;
+    if (position >= static_cast<ThreeMMU32>(group->IvMac()))
+        return 0;
+    auto crp = static_cast<ChunkRepresentation *>(group->QvFixedGet(position, &variable));
+    *entry = {crp->cki.ctg, crp->cki.cno, static_cast<ThreeMMU32>(crp->fp),
+              static_cast<ThreeMMU32>(crp->Cb()), crp->Grfcrp(), static_cast<ThreeMMU32>(crp->ckid),
+              static_cast<ThreeMMU32>(crp->ccrpRef), static_cast<ThreeMMU32>(variable)};
+    return 1;
+}
+int ReadRuntimeChild(void *context, ThreeMMU32 parent, ThreeMMU32 position, ThreeMMChunkChild *child)
+{
+    auto group = static_cast<PGeneralGroup>(context);
+    LegacyLong variable;
+    if (parent >= static_cast<ThreeMMU32>(group->IvMac()))
+        return 0;
+    auto crp = static_cast<ChunkRepresentation *>(group->QvFixedGet(parent, &variable));
+    if (variable < 0 || position >= static_cast<ThreeMMU32>(crp->ckid) || position >= static_cast<ThreeMMU32>(variable) / 12)
+        return 0;
+    ChildChunkIdentification native;
+    group->GetRgb(parent, position * sizeof(native), sizeof(native), &native);
+    *child = {native.cki.ctg, native.cki.cno, native.chid};
+    return 1;
+}
+}
+ThreeMMChunkAccess ChunkyFile::_ChunkAccess()
+{
+    return {_pggcrp, static_cast<ThreeMMU32>(_pggcrp->IvMac()), ReadRuntimeChunk, ReadRuntimeChild};
+}
 
 #define _BvKid(ikid) LwMul(ikid, size(ChildChunkIdentification))
 
@@ -1197,134 +1240,16 @@ void ChunkyFile::MarkMem(void)
 ***************************************************************************/
 tribool ChunkyFile::_TValidIndex(void)
 {
-    // WARNING: this is called by a full ChunkyFile::AssertValid().
-    LegacyLong icrp, icrpT;
-    ChunkRepresentation *qcrp;
-    ChunkGraphEnumerator cge;
-    LegacyUlong grfcge, grfcgeIn;
-    ChildChunkIdentification kid;
-    LegacyLong cbVar;
-    LegacyLong ccrpRefTot;
-    LegacyLong ckidTot;
-
-    // first clear all fcrpMarkT fields
-    ccrpRefTot = ckidTot = 0;
-    for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
-        if (!FIn(qcrp->ckid, 0, cbVar / size(ChildChunkIdentification) + 1))
-            return tNo;
-        if (!FIn(qcrp->ccrpRef, 0, kckidMax + 1))
-            return tNo;
-        ccrpRefTot += qcrp->ccrpRef;
-        ckidTot += qcrp->ckid;
-        qcrp->ClearGrfcrp(fcrpMarkT);
-    }
-    if (ccrpRefTot != ckidTot)
-        return tNo;
-
+    // The C validator owns traversal state; only legacy scratch marks need clearing.
+    for (LegacyLong i = 0; i < _pggcrp->IvMac(); ++i)
+        static_cast<ChunkRepresentation *>(_pggcrp->QvFixedGet(i))->ClearGrfcrp(fcrpMarkT);
+    auto access = _ChunkAccess();
     SuspendAssertValid();
     SuspendCheckPointers();
-
-    // now enumerate over root level graphs, marking descendents on the
-    // pre-pass and unmarking on the post pass - this catches cycles
-    // NOTE: we must do this before checking for orphan subgraphs, so we don't
-    // end up in an infinite loop in the orphan check.
-    for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        if (qcrp->ccrpRef > 0 || qcrp->ckid == 0)
-            continue;
-
-        // this is not a child node and has children, so enum its subgraph
-        cge.Init(this, qcrp->cki.ctg, qcrp->cki.cno);
-        while (cge.FNextKid(&kid, pvNil, &grfcge, fcgeNil))
-        {
-            if (grfcge & fcgeError)
-            {
-                ResumeAssertValid();
-                ResumeCheckPointers();
-                return tMaybe;
-            }
-            if (!_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrpT))
-            {
-                ResumeAssertValid();
-                ResumeCheckPointers();
-                return tNo;
-            }
-            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpT);
-            if (grfcge & fcgePre)
-            {
-                if (qcrp->Grfcrp(fcrpMarkT))
-                {
-                    // has a cycle here
-                    ResumeAssertValid();
-                    ResumeCheckPointers();
-                    return tNo;
-                }
-                qcrp->SetGrfcrp(fcrpMarkT);
-            }
-            if (grfcge & fcgePost)
-            {
-                Assert(qcrp->Grfcrp(fcrpMarkT), "why isn't this marked?");
-                qcrp->ClearGrfcrp(fcrpMarkT);
-            }
-        }
-    }
-
-    // now enumerate over root level graphs, marking all descendents
-    // this will find orphan subgraphs and validate (ccrpRef > 0).
-    for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        if (qcrp->ccrpRef > 0 || qcrp->ckid == 0)
-            continue;
-
-        // this is not a child node and has some children, so enum its subgraph
-        cge.Init(this, qcrp->cki.ctg, qcrp->cki.cno);
-        grfcgeIn = fcgeNil;
-        while (cge.FNextKid(&kid, pvNil, &grfcge, grfcgeIn))
-        {
-            grfcgeIn = fcgeNil;
-            if (grfcge & fcgeError)
-            {
-                ResumeAssertValid();
-                ResumeCheckPointers();
-                return tMaybe;
-            }
-            if ((grfcge & fcgePre) && !(grfcge & fcgeRoot))
-            {
-                if (!_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrpT))
-                {
-                    ResumeAssertValid();
-                    ResumeCheckPointers();
-                    return tNo;
-                }
-                qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpT);
-                if (qcrp->Grfcrp(fcrpMarkT))
-                    grfcgeIn = fcgeSkipToSib;
-                else
-                    qcrp->SetGrfcrp(fcrpMarkT);
-            }
-        }
-    }
-
-    // make sure the fcrpMarkT fields are set iff (ccrpRef > 0)
-    for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        if ((qcrp->ccrpRef != 0) != FPure(qcrp->Grfcrp(fcrpMarkT)))
-        {
-            ResumeAssertValid();
-            ResumeCheckPointers();
-            return tNo;
-        }
-        qcrp->ClearGrfcrp(fcrpMarkT);
-    }
-
+    const int result = three_mm_chunk_validate_graph(&access, kckidMax);
     ResumeAssertValid();
     ResumeCheckPointers();
-    return tYes;
+    return result == THREE_MM_CHUNK_OK ? tYes : result == THREE_MM_CHUNK_MEMORY ? tMaybe : tNo;
 }
 
 /***************************************************************************
@@ -1338,246 +1263,101 @@ bool ChunkyFile::_FReadIndex(void)
     AssertBaseThis(0);
     AssertPo(_csto.pfil, 0);
     Assert(!_fInvalidMainFile, 0);
-
-    ChunkyFilePrefix cfp;
-    FilePosition fpMac;
-    short bo;
-    short osk;
-    LegacyLong cbVar;
-    LegacyLong cbRgch;
-    LegacyLong icrp, ccrp;
-    LegacyLong cbFixed;
-    ByteOrderMask bom;
-
-    // used for old name stuff
-    SZS szsName;
-    String stn;
-    bool fOldNames;
-
-    // used for old index stuff
-    bool fOldIndex;
-
     Assert(_pggcrp == pvNil && _csto.pglfsm == pvNil && _cstoExtra.pfil == pvNil && _cstoExtra.pglfsm == pvNil,
            "cfl has wrong non-nil entries");
-
-    // verify that this is a chunky file
-    if ((fpMac = _csto.pfil->FpMac()) < size(ChunkyFilePrefix))
+    static_assert(kcvnCur == THREE_MM_CHUNK_CURRENT_VERSION && kcvnBack == THREE_MM_CHUNK_BACKWARD_VERSION &&
+                  kcvnMin == 1 && sizeof(ChunkyFilePrefix) == THREE_MM_CHUNK_PREFIX_BYTES &&
+                  sizeof(ChildChunkIdentification) == sizeof(ThreeMMChunkChild), "Chunk C89 wire contract");
+    const auto end = _csto.pfil->FpMac();
+    if (end < size(ChunkyFilePrefix))
         return fFalse;
-
-    if (!_csto.pfil->FReadRgb(&cfp, size(cfp), 0))
+    const short nativeOrder = 1;
+    ThreeMMChunkPolicy policy = {};
+#ifdef CHUNK_BIG_INDEX
+    policy.expanded_runtime = 1;
+#endif
+    policy.native_big_endian = reinterpret_cast<const byte *>(&nativeOrder)[0] == 0;
+    policy.max_name_bytes = kcbMaxDataStn;
+    ThreeMMReadStream stream = {_csto.pfil, static_cast<ThreeMMU32>(end), ReadChunkFile};
+    ThreeMMChunkIndex *index = nullptr;
+    if (three_mm_chunk_index_open(&stream, &policy, &index) != THREE_MM_CHUNK_OK)
         return fFalse;
-
-    // check the magic number and byte order indicator
-    if (cfp.lwMagic != klwMagicChunky || cfp.bo != kboCur && cfp.bo != kboOther)
+    struct IndexOwner
     {
+        ThreeMMChunkIndex *value;
+        ~IndexOwner() { three_mm_chunk_index_close(value); }
+    } owner = {index};
+    const auto header = *three_mm_chunk_index_header(index);
+    auto access = three_mm_chunk_index_access(index);
+    PGeneralGroup group = GeneralGroup::PggNew(size(ChunkRepresentation), access.count);
+    if (!group)
         return fFalse;
-    }
-
-    if (cfp.bo == kboOther)
-        SwapBytesBom(&cfp, kbomCfp);
-
-    // check the version numbers
-    if (!cfp.dver.FReadable(kcvnCur, kcvnMin))
-        return fFalse;
-
-    // if the file has old style chunk names, translate them
-    fOldNames = cfp.dver._swCur < kcvnMinStnNames;
-
-    // whether the index needs converted
-    fOldIndex = cfp.dver._swCur < kcvnMinGrfcrp;
-
-    // verify the fp's and cb's
-    // the index and map should be last
-    if (!FIn(cfp.fpMac, size(cfp), fpMac + 1) || !FIn(cfp.fpIndex, size(cfp), cfp.fpMac + 1) ||
-        !FIn(cfp.cbIndex, 1, cfp.fpMac - cfp.fpIndex + 1) || cfp.fpMap != cfp.fpIndex + cfp.cbIndex ||
-        cfp.fpMap + cfp.cbMap != cfp.fpMac)
+    try
     {
-        return fFalse;
-    }
-
-    // read and validate the index
-    if ((_pggcrp = GeneralGroup::PggRead(_csto.pfil, cfp.fpIndex, cfp.cbIndex, &bo, &osk)) == pvNil)
-    {
-        return fFalse;
-    }
-
-    cbFixed = _pggcrp->CbFixed();
-    if (cbFixed != size(ChunkRepresentationBig) && (fOldIndex || cbFixed != size(ChunkRepresentationSmall)))
-        return fFalse;
-
-    // Clean the index
-    AssertBomRglw(kbomKid, size(ChildChunkIdentification));
-    _pggcrp->Lock();
-
-    if (cbFixed == size(ChunkRepresentationBig))
-    {
-        // Big index
-        ChunkRepresentationBig *pcrpbg;
-
-        bom = (bo != kboCur) ? (fOldIndex ? kbomCrpbgBytes : kbomCrpbgGrfcrp) : bomNil;
-
-        for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
+        for (ThreeMMU32 i = 0; i < access.count; ++i)
         {
-            pcrpbg = (ChunkRepresentationBig *)_pggcrp->QvFixedGet(icrp, &cbVar);
-#ifndef CHUNK_BIG_INDEX
-            // make sure we can convert this ChunkRepresentation to a small index ChunkRepresentation
-            if (pcrpbg->cb > kcbMaxCrpsm || pcrpbg->ckid > kckidMax || pcrpbg->ccrpRef > kckidMax)
+            ThreeMMChunkEntry entry;
+            const unsigned char *name;
+            ThreeMMU32 nameBytes;
+            if (three_mm_chunk_at(&access, i, &entry) != THREE_MM_CHUNK_OK ||
+                three_mm_chunk_index_name(index, i, &name, &nameBytes) != THREE_MM_CHUNK_OK)
+                goto LFail;
+            String converted;
+            std::vector<byte> oldName;
+            if (header.version < kcvnMinStnNames && nameBytes)
             {
-                goto LBadFile;
-            }
-#endif //! CHUNK_BIG_INDEX
-            if (!FIn(cbVar, 0, kcbMax))
-                goto LBadFile;
-            if (bomNil != bom)
-                SwapBytesBom(pcrpbg, bom);
-            if (!FIn(pcrpbg->ckid, 0, cbVar / size(ChildChunkIdentification) + 1) || (cbRgch = pcrpbg->CbRgch(cbVar)) > kcbMaxDataStn)
-            {
-                goto LBadFile;
-            }
-            if (bomNil != bom && pcrpbg->ckid > 0)
-            {
-                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpbg->ckid * (size(ChildChunkIdentification) / size(int32_t)));
-            }
-            pcrpbg->rti = rtiNil;
-
-            if (fOldIndex)
-            {
-                LegacyUlong grfcrp = fcrpNil;
-
-                if (pcrpbg->fLoner)
-                    grfcrp |= fcrpLoner;
-                if (pcrpbg->fPacked)
-                    grfcrp |= fcrpPacked;
-
-                pcrpbg->grfcrp = grfcrp;
-            }
-            else
-                pcrpbg->ClearGrfcrp(fcrpOnExtra);
-
-            if (pcrpbg->ccrpRef == 0)
-                pcrpbg->SetGrfcrp(fcrpLoner);
-
-            AssertIn(cbRgch, 0, kcbMaxDataStn + 1);
-            if (fOldNames && cbRgch > 0)
-            {
-                // translate the name
-                LegacyLong bvRgch = pcrpbg->BvRgch();
-
-                if (cbRgch < size(szsName))
+                // Keep retail's pre-v3 SZS conversion, including discarding oversized names.
+                SZS buffer;
+                if (nameBytes < sizeof(buffer))
                 {
-                    LegacyLong cbNew;
-
-                    CopyPb(PvAddBv(_pggcrp->QvGet(icrp), bvRgch), szsName, cbRgch);
-                    szsName[cbRgch] = 0;
-                    stn.SetSzs(szsName);
-                    cbNew = stn.CbData();
-                    if (cbRgch != cbNew)
-                    {
-                        _pggcrp->Unlock();
-                        if (cbRgch < cbNew)
-                        {
-                            if (!_pggcrp->FInsertRgb(icrp, bvRgch, cbNew - cbRgch, pvNil))
-                            {
-                                goto LNukeName;
-                            }
-                        }
-                        else
-                            _pggcrp->DeleteRgb(icrp, bvRgch, cbRgch - cbNew);
-                        _pggcrp->Lock();
-                    }
-                    stn.GetData(PvAddBv(_pggcrp->QvGet(icrp), bvRgch));
+                    CopyPb(const_cast<unsigned char *>(name), buffer, nameBytes);
+                    buffer[nameBytes] = 0;
+                    converted.SetSzs(buffer);
+                    oldName.resize(converted.CbData());
+                    converted.GetData(oldName.data());
+                    name = oldName.data();
+                    nameBytes = converted.CbData();
                 }
                 else
-                {
-                    // just nuke the name
-                    _pggcrp->Unlock();
-                LNukeName:
-                    _pggcrp->DeleteRgb(icrp, bvRgch, cbRgch);
-                    _pggcrp->Lock();
-                }
+                    nameBytes = 0;
             }
+            std::vector<byte> variable(entry.child_count * sizeof(ChildChunkIdentification) + nameBytes);
+            for (ThreeMMU32 childIndex = 0; childIndex < entry.child_count; ++childIndex)
+            {
+                ThreeMMChunkChild child;
+                if (three_mm_chunk_child_at(&access, i, childIndex, &child) != THREE_MM_CHUNK_OK)
+                    goto LFail;
+                ChildChunkIdentification native = {{child.type, child.number}, child.slot};
+                CopyPb(&native, variable.data() + childIndex * sizeof(native), sizeof(native));
+            }
+            if (nameBytes)
+                CopyPb(const_cast<unsigned char *>(name), variable.data() + entry.child_count * sizeof(ChildChunkIdentification), nameBytes);
+            ChunkRepresentation crp;
+            ClearPb(&crp, size(crp));
+            crp.cki = {entry.type, entry.number};
+            crp.fp = static_cast<LegacyLong>(entry.offset);
+            crp.SetCb(static_cast<LegacyLong>(entry.bytes));
+            crp.AssignGrfcrp(entry.flags);
+            crp.ckid = static_cast<CKID>(entry.child_count);
+            crp.ccrpRef = static_cast<CKID>(entry.parent_count);
+            if (!group->FInsert(i, entry.child_count * sizeof(ChildChunkIdentification) + nameBytes, variable.data(), &crp))
+                goto LFail;
         }
     }
-    else
+    catch (const std::bad_alloc &)
     {
-        // Small index
-        Assert(size(ChunkRepresentationSmall) == cbFixed, 0);
-        ChunkRepresentationSmall *pcrpsm;
-
-        bom = (bo != kboCur) ? kbomCrpsm : bomNil;
-        for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
-        {
-            pcrpsm = (ChunkRepresentationSmall *)_pggcrp->QvFixedGet(icrp, &cbVar);
-            if (!FIn(cbVar, 0, kcbMax))
-                goto LBadFile;
-            if (bomNil != bom)
-                SwapBytesBom(pcrpsm, bom);
-            if (!FIn(pcrpsm->ckid, 0, cbVar / size(ChildChunkIdentification) + 1) || (cbRgch = pcrpsm->CbRgch(cbVar)) > kcbMaxDataStn)
-            {
-                goto LBadFile;
-            }
-            if (pcrpsm->ckid > 0 && bomNil != bom)
-            {
-                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpsm->ckid * (size(ChildChunkIdentification) / size(int32_t)));
-            }
-
-            pcrpsm->ClearGrfcrp(fcrpOnExtra);
-            if (pcrpsm->ccrpRef == 0 && !pcrpsm->Grfcrp(fcrpLoner))
-            {
-            LBadFile:
-                _pggcrp->Unlock();
-                Bug("corrupt crp");
-                ReleasePpo(&_pggcrp);
-                return fFalse;
-            }
-        }
+        ReleasePpo(&group);
+        return fFalse;
     }
-
-    if (size(ChunkRepresentation) != cbFixed)
-    {
-        // need to convert the index (from big to small or small to big)
-        PGeneralGroup pggcrp;
-        ChunkRepresentationOther *pcrpOld;
-        ChunkRepresentation crp;
-
-        if (pvNil == (pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation), _pggcrp->IvMac())))
-            goto LFail;
-
-        for (ccrp = _pggcrp->IvMac(), icrp = 0; icrp < ccrp; icrp++)
-        {
-            pcrpOld = (ChunkRepresentationOther *)_pggcrp->QvFixedGet(icrp, &cbVar);
-            crp.cki = pcrpOld->cki;
-            crp.fp = pcrpOld->fp;
-            crp.SetCb(pcrpOld->Cb());
-            crp.ckid = (CKID)pcrpOld->ckid;
-            crp.ccrpRef = (CKID)pcrpOld->ccrpRef;
-            crp.AssignGrfcrp(pcrpOld->Grfcrp());
-#ifdef CHUNK_BIG_INDEX
-            crp.rti = rtiNil;
-#endif // CHUNK_BIG_INDEX
-
-            if (!pggcrp->FInsert(icrp, _pggcrp->Cb(icrp), _pggcrp->QvGet(icrp), &crp))
-            {
-                ReleasePpo(&pggcrp);
-            LFail:
-                _pggcrp->Unlock();
-                return fFalse;
-            }
-        }
-        _pggcrp->Unlock();
-        ReleasePpo(&_pggcrp);
-
-        _pggcrp = pggcrp;
-    }
-    else
-        _pggcrp->Unlock();
-
-    _cbFreeMap = cfp.cbMap;
-    _fpFreeMap = cfp.fpMap;
-    _fFreeMapNotRead = cfp.cbMap > 0;
-
-    _csto.fpMac = cfp.fpIndex;
+    _pggcrp = group;
+    _cbFreeMap = header.map_bytes;
+    _fpFreeMap = header.map_offset;
+    _fFreeMapNotRead = header.map_bytes > 0;
+    _csto.fpMac = header.index_offset;
     return fTrue;
+LFail:
+    ReleasePpo(&group);
+    return fFalse;
 }
 
 /***************************************************************************
@@ -2277,43 +2057,14 @@ bool ChunkyFile::_FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtr
 ***************************************************************************/
 bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picrp)
 {
-    // WARNING:  this is called by ChunkyFile::AssertValid, so be careful about
-    // asserting stuff in here
+    // Called during AssertValid; callbacks access GG directly without re-entering ChunkyFile.
     AssertBaseThis(0);
     AssertVarMem(picrp);
-    AssertPo(_pggcrp, 0);
-
-    LegacyLong ccrp, icrpMin, icrpLim, icrp;
-    ChunkIdentification cki;
-
-    if ((ccrp = _pggcrp->IvMac()) == 0)
-    {
-        *picrp = 0;
-        return fFalse;
-    }
-
-    for (icrpMin = 0, icrpLim = ccrp; icrpMin < icrpLim;)
-    {
-        icrp = (icrpMin + icrpLim) / 2;
-        cki = ((ChunkRepresentation *)_pggcrp->QvFixedGet(icrp))->cki;
-
-        if (cki.ctg < ctg)
-            icrpMin = icrp + 1;
-        else if (cki.ctg > ctg)
-            icrpLim = icrp;
-        else if (cki.cno < cno)
-            icrpMin = icrp + 1;
-        else if (cki.cno > cno)
-            icrpLim = icrp;
-        else
-        {
-            *picrp = icrp;
-            return fTrue;
-        }
-    }
-
-    *picrp = icrpMin;
-    return fFalse;
+    auto access = _ChunkAccess();
+    ThreeMMU32 position = 0;
+    const int result = three_mm_chunk_find(&access, ctg, cno, &position);
+    *picrp = static_cast<LegacyLong>(position);
+    return result == THREE_MM_CHUNK_OK;
 }
 
 /***************************************************************************
@@ -3434,24 +3185,22 @@ bool ChunkyFile::FGetCki(LegacyLong icki, ChunkIdentification *pcki, LegacyLong 
     AssertNilOrVarMem(pckid);
     AssertNilOrPo(pblck, 0);
     AssertIn(icki, 0, kcbMax);
-    ChunkRepresentation *qcrp;
-
-    if (!FIn(icki, 0, _pggcrp->IvMac()))
+    auto access = _ChunkAccess();
+    ThreeMMChunkEntry entry;
+    if (three_mm_chunk_at(&access, static_cast<ThreeMMU32>(icki), &entry) != THREE_MM_CHUNK_OK)
     {
         TrashVar(pcki);
         TrashVar(pckid);
-        if (pvNil != pblck)
+        if (pblck)
             pblck->Free();
         return fFalse;
     }
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icki);
-    if (pvNil != pcki)
-        *pcki = qcrp->cki;
-    if (pvNil != pckid)
-        *pckid = qcrp->ckid;
-    if (pvNil != pblck)
+    if (pcki)
+        *pcki = {entry.type, entry.number};
+    if (pckid)
+        *pckid = entry.child_count;
+    if (pblck)
         _GetBlck(icki, pblck);
-
     return fTrue;
 }
 
@@ -3501,35 +3250,23 @@ bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, LegacyLong icki, ChunkIdentifica
     AssertNilOrVarMem(pcki);
     AssertNilOrVarMem(pckid);
     AssertNilOrPo(pblck, 0);
-    ChunkRepresentation *qcrp;
-    LegacyLong icrpMac;
-    LegacyLong icrp;
-
-    if (!FIn(icki, 0, (icrpMac = _pggcrp->IvMac())))
-        goto LFail;
-
-    _FFindCtgCno(ctg, 0, &icrp);
-    icrp += icki;
-    if (!FIn(icrp, 0, icrpMac))
-        goto LFail;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    if (qcrp->cki.ctg != ctg)
+    auto access = _ChunkAccess();
+    ThreeMMChunkEntry entry;
+    ThreeMMU32 position;
+    if (three_mm_chunk_type_at(&access, ctg, static_cast<ThreeMMU32>(icki), &entry, &position) != THREE_MM_CHUNK_OK)
     {
-    LFail:
         TrashVar(pcki);
         TrashVar(pckid);
-        if (pvNil != pblck)
+        if (pblck)
             pblck->Free();
         return fFalse;
     }
-    if (pvNil != pcki)
-        *pcki = qcrp->cki;
-    if (pvNil != pckid)
-        *pckid = qcrp->ckid;
-    if (pvNil != pblck)
-        _GetBlck(icki, pblck);
-
+    if (pcki)
+        *pcki = {entry.type, entry.number};
+    if (pckid)
+        *pckid = entry.child_count;
+    if (pblck)
+        _GetBlck(icki, pblck); // Preserve the original type-relative payload argument pending a retail check.
     return fTrue;
 }
 
@@ -3561,24 +3298,22 @@ bool ChunkyFile::FGetKid(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong ikid, C
     AssertThis(0);
     AssertVarMem(pkid);
     AssertIn(ikid, 0, kcbMax);
-    ChunkRepresentation *qcrp;
-    LegacyLong icrp;
-
-    if (!_FFindCtgCno(ctg, cno, &icrp))
+    LegacyLong parent;
+    if (!_FFindCtgCno(ctg, cno, &parent))
     {
         Bug("chunk not found");
         TrashVar(pkid);
         return fFalse;
     }
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    if (!FIn(ikid, 0, qcrp->ckid))
+    auto access = _ChunkAccess();
+    ThreeMMChunkChild child;
+    if (three_mm_chunk_child_at(&access, parent, static_cast<ThreeMMU32>(ikid), &child) != THREE_MM_CHUNK_OK)
     {
         TrashVar(pkid);
         return fFalse;
     }
-    _pggcrp->GetRgb(icrp, _BvKid(ikid), size(ChildChunkIdentification), pkid);
-    Assert(_FFindCtgCno(pkid->cki.ctg, pkid->cki.cno, &icrp), "child not there");
+    *pkid = {{child.type, child.number}, child.slot};
+    Assert(_FFindCtgCno(pkid->cki.ctg, pkid->cki.cno, &parent), "child not there");
     Assert(pkid->cki.ctg != ctg || pkid->cki.cno != cno, "chunk is child of itself!");
     return fTrue;
 }
@@ -3623,52 +3358,22 @@ bool ChunkyFile::_FFindChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildC
 {
     AssertThis(0);
     AssertVarMem(pkid);
-    LegacyLong ikidMin, ikidLim, ikid;
-    ChunkRepresentation *qcrp;
-    ChildChunkIdentification *qrgkid, *qkid;
-    LegacyLong ckid, icrp;
-
-    if (!_FFindCtgCno(ctgPar, cnoPar, &icrp))
+    LegacyLong parent;
+    if (!_FFindCtgCno(ctgPar, cnoPar, &parent))
     {
         Bug("chunk not found");
-        goto LFail;
+        TrashVar(pkid);
+        return fFalse;
     }
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    if ((ckid = qcrp->ckid) <= 0)
+    auto access = _ChunkAccess();
+    ThreeMMChunkChild child;
+    if (three_mm_chunk_child_type(&access, parent, chid, ctg, &child) != THREE_MM_CHUNK_OK)
     {
-        Assert(0 == ckid, "bad crp");
-        goto LFail;
+        TrashVar(pkid);
+        return fFalse;
     }
-
-    qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp);
-    for (ikidMin = 0, ikidLim = ckid; ikidMin < ikidLim;)
-    {
-        ikid = (ikidMin + ikidLim) / 2;
-        qkid = &qrgkid[ikid];
-
-        if (qkid->chid < chid)
-            ikidMin = ikid + 1;
-        else if (qkid->chid > chid)
-            ikidLim = ikid;
-        else if (qkid->cki.ctg < ctg)
-            ikidMin = ikid + 1;
-        else
-            ikidLim = ikid;
-    }
-
-    if (ikidMin < qcrp->ckid)
-    {
-        qkid = &qrgkid[ikidMin];
-        if (qkid->chid == chid && qkid->cki.ctg >= ctg)
-        {
-            *pkid = *qkid;
-            return fTrue;
-        }
-    }
-LFail:
-    TrashVar(pkid);
-    return fFalse;
+    *pkid = {{child.type, child.number}, child.slot};
+    return fTrue;
 }
 
 /***************************************************************************
@@ -3701,47 +3406,11 @@ bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkN
 {
     AssertBaseThis(0);
     AssertVarMem(pikid);
-    AssertIn(icrpPar, 0, _pggcrp->IvMac());
-
-    LegacyLong ikidMin, ikidLim, ikid, ckid;
-    ChunkRepresentation *qcrp;
-    ChildChunkIdentification *qrgkid, *qkid;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
-    if ((ckid = qcrp->ckid) <= 0)
-    {
-        Assert(0 == ckid, "bad crp");
-        *pikid = 0;
-        return fFalse;
-    }
-
-    qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrpPar);
-    for (ikidMin = 0, ikidLim = ckid; ikidMin < ikidLim;)
-    {
-        ikid = (ikidMin + ikidLim) / 2;
-        qkid = &qrgkid[ikid];
-
-        if (qkid->chid < chid)
-            ikidMin = ikid + 1;
-        else if (qkid->chid > chid)
-            ikidLim = ikid;
-        else if (qkid->cki.ctg < ctgChild)
-            ikidMin = ikid + 1;
-        else if (qkid->cki.ctg > ctgChild)
-            ikidLim = ikid;
-        else if (qkid->cki.cno < cnoChild)
-            ikidMin = ikid + 1;
-        else if (qkid->cki.cno > cnoChild)
-            ikidLim = ikid;
-        else
-        {
-            *pikid = ikid;
-            return fTrue;
-        }
-    }
-
-    *pikid = ikidMin;
-    return fFalse;
+    auto access = _ChunkAccess();
+    ThreeMMU32 position = 0;
+    const int result = three_mm_chunk_find_child(&access, icrpPar, chid, ctgChild, cnoChild, &position);
+    *pikid = static_cast<LegacyLong>(position);
+    return result == THREE_MM_CHUNK_OK;
 }
 
 // cno map entry

@@ -599,3 +599,44 @@ The three standalone C-only checks pass, as do the ten focused native checks
 `marcus-player`, `marcus-playback`) and 25 Python harness checks. Headless
 Marcus cases now explicitly reject invalid MVIE version/byte-order headers.
 No Marcus UI tests were added.
+
+## C89 chunky container reading (11 November 2026)
+
+CHN2 header/GG index decoding, live chunk/child searches and graph validation
+now use the shared C89 backend through Kauai in both hosts. Writable groups,
+free maps, serialization, embedded-forest decoding and legacy name conversion
+remain C++. This slice changes no capture thresholds or player audio policy.
+
+Before/after CLI comparisons in `tmp/c89-chunky-baseline/comparison.json`
+match all 51 inputs: 13 movie/archive dumps (including a corrupt-file rejection),
+six asset indexes containing 20,568 entries, and 32 constructed legacy files.
+The legacy cases preserve all 20 acceptances and 12 rejections across version,
+layout, endian and old-name combinations. Successful outputs match exactly;
+rejected inputs retain their failure result. Typed enumeration and child-list
+checks also preserve the existing type-relative payload behavior.
+
+The four standalone C-only checks and eleven focused native checks pass:
+`engine-c89`, `engine-movie-data`, `engine-chunky`, `engine-c89-syntax`,
+`archive-api`, `movie-save-load`, `kauai-core-link`, `engine-core-link`,
+`marcus-c89`, `marcus-playback` and `marcus-player`. No Marcus UI tests were added.
+
+Suite `20261111T170550Z-0ec5aad2`, in the existing
+`tmp/c89-movie-data-regression/playback.sqlite`, runs `actor-events` in retail,
+SDL Studio and Marcus, seek and playback, with one repetition. Five captures
+complete. SDL playback fails before Play because audio does not settle to
+silence; that failed attempt is retained. The suite verdict is `inconclusive`,
+with four different and five inconclusive component comparisons.
+
+SDL-only retry `20261111T172015Z-40d77fc0` completes all 60 authored frames
+and 583 presentation samples. It has no reference run, so its comparison
+verdict remains `inconclusive`; it does not erase the first failure.
+
+Retail, SDL and Marcus playback retain the same 60 authored frame positions and
+60 ordered exact image changes as pre-container suite
+`20261111T155408Z-cbdea592`, collapsing only adjacent identical images.
+The local comparison is `tmp/c89-chunky-playback-comparison.json`.
+Raw timestamps and presentation samples remain preserved. Both suites' movie,
+ISO-resource and Marcus-content integrity checks remain unchanged. These
+checks establish neither full retail parity nor timing equivalence, and one
+repetition does not establish repeatability. Existing cross-player timing
+marker and presentation-alignment limits remain applicable.

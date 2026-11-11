@@ -17,6 +17,7 @@
 #define CHUNK_H
 
 #include <cstdint>
+#include "three_mm/chunky_file.h"
 
 namespace Chunky {
 
@@ -131,6 +132,7 @@ class ChunkyFile : public ChunkyFile_PAR
     static LegacyUlong _GrffilFromGrfcfl(LegacyUlong grfcfl);
 
     bool _FReadIndex(void);
+    ThreeMMChunkAccess _ChunkAccess();
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
     bool _FCreateExtra(void);

@@ -873,6 +873,7 @@ target_compile_definitions(kauai-core PUBLIC
 find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
   PUBLIC
+    three-mm-engine-c89
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>
     $<$<PLATFORM_ID:Windows>:mpr>
@@ -1433,7 +1434,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
-  engine-c89-test engine-movie-data-test
+  engine-c89-test engine-movie-data-test engine-chunky-test
   global-cleanup-test
   preview-checks
   mbmp-pixels-test

@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -93,7 +93,7 @@ version policy. Standalone scene fixtures remain supported.
 
 | Remaining dependency | Responsibility retained in C++ |
 | --- | --- |
-| `ChunkyFile`, `DataBlock`, codecs | Container index/graph, root/child discovery, decompression and payload storage. |
+| `ChunkyFile`, `DataBlock`, codecs | Mutable container storage, free maps, writes, embedded-forest decoding, decompression and payload storage. Index reading, graph validation and live chunk/child queries now use C89. |
 | `StringTable_GST`, platform text conversion | Dense string storage and legacy encoding conversion. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
 | `TagManager`, `ChunkyResourceFile` | Opening/closing runtime tags and resource references, including rollback after failed loads. |
 | `MovieData`, Studio document | Title/scene enumeration, transactional object replacement, editing and serialization. |
@@ -103,8 +103,33 @@ with `engine-c89-test` before CTest. Tests cover nested stream bounds and I/O
 failures, both endian encodings, the version matrix, historical negative actor
 IDs, ignored pointer bytes, transactional failures and malformed GST layouts.
 The existing Archive, engine-core, save/load and headless Marcus tests exercise
-the adapters and resource ownership. Next migrate the container index/child
-reader and string-table storage; the shared backend is still incomplete.
+the adapters and resource ownership. Next migrate string-table storage and
+transcoding; the shared backend is still incomplete.
+
+### Chunky container reading slice
+
+`three_mm/chunky_file.h` owns CHN2 header and GG index decoding, compact and
+expanded records, unsigned chunk/child searches, typed enumeration and graph
+validation. Both Studio and Marcus reach it through `kauai-core`. The C library
+has no dependency on Kauai. Its temporary owned wire index is copied into the
+host's writable `GeneralGroup`, then released. Subsequent queries use callbacks
+over that live group, including after edits; there is no second index cache.
+
+The decoder preserves separate header/index byte orders, old flag layouts,
+expanded-to-compact checks made before byte swapping, and legacy name bytes.
+The adapter still converts pre-v3 names and discards oversized names. Graph
+validation retains aggregate reference totals and reachability policy rather
+than imposing a new per-node reference-count rule. An iterative walk handles
+deep graphs without recursive stack growth.
+
+Mutable groups, free maps, writes, embedded-forest decoding, name transcoding
+and payload codecs remain C++. The existing type-relative `FGetCkiCtg` payload
+ordinal is preserved pending a separate retail behavior check.
+
+`engine-chunky-test` covers endian/version/layout combinations, malformed
+bounds, failed reads, transactional index replacement, unsigned keys, live
+mutations, DAGs, cycles, missing targets and a 10,000-node chain. It also runs
+under the strict C89 syntax check.
 
 ## Why the split exists
 

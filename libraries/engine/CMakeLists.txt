@@ -4,7 +4,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(CTest)
 endif()
 
-add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c)
+add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/chunky_file.c)
 target_include_directories(three-mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -21,6 +21,11 @@ add_executable(engine-movie-data-test EXCLUDE_FROM_ALL "${engine_movie_test_sour
 target_link_libraries(engine-movie-data-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-movie-data-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-movie-data COMMAND engine-movie-data-test)
+get_filename_component(engine_chunky_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_chunky_test.c" ABSOLUTE)
+add_executable(engine-chunky-test EXCLUDE_FROM_ALL "${engine_chunky_test_source}")
+target_link_libraries(engine-chunky-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-chunky-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-chunky COMMAND engine-chunky-test)
 find_program(ENGINE_C89_COMPILER NAMES clang gcc)
 if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
@@ -30,5 +35,6 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scroll.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/read_stream.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_data.c"
-    "${engine_test_source}" "${engine_movie_test_source}")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_file.c"
+    "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}")
 endif()
