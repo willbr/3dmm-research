@@ -1,0 +1,8 @@
+SQLite 3.50.4
+https://www.sqlite.org/
+
+SQLite is in the public domain. The amalgamation retains the SQLite authors'
+public-domain dedication. See https://www.sqlite.org/copyright.html.
+
+The package catalog uses an unmodified SQLite amalgamation downloaded from
+https://www.sqlite.org/2025/sqlite-amalgamation-3500400.zip.

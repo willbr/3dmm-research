@@ -52,7 +52,7 @@ struct MarcusContent::Impl
     {
         if (catalogRead)
             return;
-        if (fs::exists(root / "v3dmm/catalog.json"))
+        if (fs::exists(root / "v3dmm/catalog.sqlite3") || fs::exists(root / "v3dmm/catalog.json"))
             packages = std::make_unique<StudioV3dmm::Store>(root / "v3dmm");
         catalogRead = true;
     }
@@ -95,8 +95,8 @@ struct MarcusContent::Impl
                 if (V::Fold(entry.name) == V::Fold(dependency.name))
                 {
                     if (!repeatedName ||
-                        V::Fold(V::ReadPackage(V::WholeFile(entry.archive)).shortName) == V::Fold(metadata.shortName))
-                        return entry;
+                        V::Fold(entry.shortName) == V::Fold(metadata.shortName))
+                        return packages->Resolve(entry.hash);
                 }
         if (!repeatedName)
             metadata = V::ReadPackage(dependency.archive);
@@ -203,7 +203,7 @@ void MarcusContent::PrepareSource(const std::string &name)
     if (impl->packages)
         for (const auto &entry : impl->packages->Entries())
             if (entry.enabled)
-                selection.push_back(entry);
+                selection.push_back(impl->packages->Resolve(entry.hash));
     impl->Activate(files, selection);
     impl->defaultsRead = true;
 }

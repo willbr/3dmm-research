@@ -178,9 +178,10 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
         auto document = std::make_shared<Document>();
         document->previous = active;
         document->previousMounts = StudioPacks::Filesystem().Entries("v3dmm");
-        for (const auto &entry : store->Entries())
-            if (entry.enabled)
-                document->selection.push_back(entry);
+        if (!MovieContainer::IsVmm(original))
+            for (const auto &entry : store->Entries())
+                if (entry.enabled)
+                    document->selection.push_back(store->Resolve(entry.hash));
         // Preserve legacy library dependencies, even when a movie does not use
         // every enabled pack. Portable exports must never embed these packs.
         const char *libraryNames[] = {"Nickelodeon", "Doraemon", "3DMM Expansion Pack"};
@@ -212,7 +213,7 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
                 Installation package;
                 if (installed != store->Entries().end())
                 {
-                    package = *installed;
+                    package = store->Resolve(installed->hash);
                 }
                 else
                 {
@@ -261,7 +262,7 @@ void Initialize()
     active.clear();
     for (const auto &entry : store->Entries())
         if (entry.enabled)
-            active.push_back(entry);
+            active.push_back(store->Resolve(entry.hash));
     Activate(active);
     MovieContainer::prepare = Prepare;
 }
@@ -294,7 +295,7 @@ void SetAppliedPackages(PMovie movie, const std::vector<std::string> &hashes)
             std::find_if(entries.begin(), entries.end(), [&](const Installation &entry) { return entry.hash == hash; });
         if (installed == entries.end() || !seen.insert(hash).second)
             throw std::runtime_error("An applied package is missing or selected more than once.");
-        selection.push_back(*installed);
+        selection.push_back(store->Resolve(installed->hash));
     }
     if (SameSelection(selection, document->selection))
         return;

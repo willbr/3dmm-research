@@ -117,13 +117,16 @@ void Tests(const fs::path &root)
     // swallow the other embedded package. No new imports/catalog edits occur.
     StudioV3dmm::Store store(root / "packs/v3dmm");
     const auto installed = store.Install(first);
-    const auto catalog = Read(root / "packs/v3dmm/catalog.json");
+    Package(root / "unused.vxp", "unused", root / "first.3cn", "Unused");
+    const auto unused = store.Install(V::WholeFile(root / "unused.vxp"));
+    fs::remove(unused.archive); // An unrelated installed package must not block this VMM.
+    const auto catalog = Read(root / "packs/v3dmm/catalog.sqlite3");
     const auto archived = Read(installed.archive);
     Open(root / "movie.vmm", root / "first.3cn", root / "second.3cn", Read(root / "first.3cn"),
          installed.members.at("pkabj_stage.3cn"));
     V::WriteBundle(V::WholeFile(root / "movie.3mm"), {{"sTaGe", second}, {"Stage", first}}, root / "reverse.vmm");
     Open(root / "reverse.vmm", root / "first.3cn", root / "second.3cn", Read(root / "second.3cn"));
-    Check(Read(root / "packs/v3dmm/catalog.json") == catalog && Read(installed.archive) == archived);
+    Check(Read(root / "packs/v3dmm/catalog.sqlite3") == catalog && Read(installed.archive) == archived);
     Check(fs::exists(installed.members.at("pkabj_stage.3cn")));
     Check(Read(root / "first.vxp") == Read(installed.archive));
     // A repeated declaration must still validate its embedded CFG before it
@@ -140,7 +143,7 @@ void Tests(const fs::path &root)
     {
         rejected = std::string(error.what()) == "Embedded VXP name does not match its VMM dependency";
     }
-    Check(rejected && Read(root / "packs/v3dmm/catalog.json") == catalog);
+    Check(rejected && Read(root / "packs/v3dmm/catalog.sqlite3") == catalog);
     Check(Read(first.file) == firstBytes && Read(second.file) == secondBytes);
     Check(fs::exists(settings) == settingsExisted && Read(settings) == settingsBefore);
 }

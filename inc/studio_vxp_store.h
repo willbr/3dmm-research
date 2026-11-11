@@ -2,6 +2,7 @@
 #ifndef STUDIO_VXP_STORE_H
 #define STUDIO_VXP_STORE_H
 #include "three_mm/v3dmm.h"
+#include <memory>
 namespace StudioV3dmm
 {
 struct Installation
@@ -10,16 +11,20 @@ struct Installation
     bool enabled = true;
     std::filesystem::path archive;
     std::map<std::string, std::filesystem::path> members;
+    std::string shortName, error;
 };
 class Store
 {
     std::filesystem::path root;
     std::vector<Installation> entries;
-    Installation Read(const std::string &hash, bool enabled) const;
-    void Save(const std::vector<Installation> &next);
+    struct Catalog;
+    std::unique_ptr<Catalog> catalog;
 
   public:
     explicit Store(std::filesystem::path directory);
+    ~Store();
+    Store(const Store &) = delete;
+    Store &operator=(const Store &) = delete;
     const std::vector<Installation> &Entries() const
     {
         return entries;
@@ -29,6 +34,9 @@ class Store
         return root;
     }
     Installation Install(const ThreeMM::V3dmm::Range &source);
+    // Metadata listing performs no package I/O. Resolve only applied packages;
+    // unchanged, previously verified files reuse their persisted fingerprints.
+    Installation Resolve(const std::string &hash, bool forceValidation = false);
     void SetEnabled(const std::string &hash, bool enabled);
 };
 } // namespace StudioV3dmm

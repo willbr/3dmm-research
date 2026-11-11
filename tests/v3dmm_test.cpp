@@ -62,12 +62,13 @@ void Fixture(const fs::path &path)
     Check(file && file->FPutPv(bytes, sizeof(bytes), 'TEST', 0xf1234567) && file->FSave(kctgSoc));
     ReleasePpo(&file);
 }
-void Zip(const fs::path &path, const fs::path &content, const std::string &extra = {}, const std::string &settings = {})
+void Zip(const fs::path &path, const fs::path &content, const std::string &extra = {}, const std::string &settings = {},
+         const std::string &name = "Synthetic VXP")
 {
     auto data = Read(content);
     mz_zip_archive zip{};
     Check(mz_zip_writer_init_heap(&zip, 0, 0) != 0);
-    std::string cfg = "Name=Synthetic VXP\r\nAuthor=3DMMForever\r\nType=Portable\r\nUnknown=retained\r\n";
+    std::string cfg = "Name=" + name + "\r\nAuthor=3DMMForever\r\nType=Portable\r\nUnknown=retained\r\n";
     cfg += settings;
     Check(mz_zip_writer_add_mem(&zip, "fixture.cfg", cfg.data(), cfg.size(), MZ_BEST_COMPRESSION) != 0);
     for (auto name : {"fixture.3cn", "fixture.3th"})
@@ -124,6 +125,94 @@ void DuplicateTests(const fs::path &root)
         Reject([&] { V::ReadPackage(V::WholeFile(archive), small); });
     }
 }
+void CatalogTests(const fs::path &root)
+{
+    fs::create_directories(root);
+    Fixture(root / "content.3cn");
+    Zip(root / "one.vxp", root / "content.3cn", {}, {}, "One");
+    Zip(root / "two.vxp", root / "content.3cn", {}, {}, "Two");
+    StudioV3dmm::Store store(root / "store");
+    const auto one = store.Install(V::WholeFile(root / "one.vxp"));
+    const auto two = store.Install(V::WholeFile(root / "two.vxp"));
+    Check(fs::exists(store.Root() / "catalog.sqlite3") && !fs::exists(store.Root() / "catalog.json"));
+    // Migrate an old catalog without changing its order, enable flags or files.
+    const auto legacy = root / "legacy";
+    fs::create_directory(legacy);
+    for (const auto &entry : {one, two})
+    {
+        fs::create_directory(legacy / entry.hash);
+        for (const auto &file : fs::directory_iterator(entry.archive.parent_path()))
+            fs::copy_file(file.path(), legacy / entry.hash / file.path().filename());
+    }
+    const auto old =
+        "[{\"hash\":\"" + two.hash + "\",\"enabled\":false},{\"hash\":\"" + one.hash + "\",\"enabled\":true}]";
+    Write(legacy / "catalog.json", old);
+    {
+        StudioV3dmm::Store migrated(legacy);
+        Check(Read(legacy / "catalog.json") == old);
+        Check(migrated.Entries().size() == 2 && migrated.Entries()[0].hash == two.hash &&
+              !migrated.Entries()[0].enabled);
+        Check(migrated.Entries()[1].hash == one.hash && migrated.Entries()[1].shortName == "fixture");
+        Check(migrated.Resolve(one.hash).members.size() == 2);
+    }
+    // SQLite is authoritative after migration, including across connections.
+    Write(legacy / "catalog.json", "not JSON");
+    StudioV3dmm::Store a(legacy), b(legacy);
+    a.SetEnabled(one.hash, false);
+    b.SetEnabled(two.hash, true);
+    StudioV3dmm::Store current(legacy);
+    Check(current.Entries()[0].enabled && !current.Entries()[1].enabled);
+    // Missing/corrupt unrelated packages do not block metadata or a used package.
+    Write(legacy / two.hash / "package.vxp", "broken");
+    StudioV3dmm::Store unrelated(legacy);
+    Check(unrelated.Entries().size() == 2 && unrelated.Resolve(one.hash).name == "One");
+    Reject([&] { unrelated.Resolve(two.hash); });
+    // A changed used file invalidates the persisted verification fingerprint.
+    const auto member = unrelated.Resolve(one.hash).members.begin()->second;
+    const auto original = Read(member);
+    const auto stamp = fs::last_write_time(member);
+    auto changed = original;
+    changed.back() ^= 1;
+    Write(member, changed);
+    fs::last_write_time(member, stamp + std::chrono::seconds(2));
+    Reject([&] { unrelated.Resolve(one.hash); });
+    Write(member, original);
+    unrelated.Resolve(one.hash);
+    // Explicit verification also detects edits with preserved size/timestamp.
+    const auto verifiedStamp = fs::last_write_time(member);
+    Write(member, changed);
+    fs::last_write_time(member, verifiedStamp);
+    Reject([&] { unrelated.Resolve(one.hash, true); });
+    Write(member, original);
+    unrelated.Resolve(one.hash, true);
+    // Reject ambiguous installed names and leave the catalog unchanged.
+    Zip(root / "conflict.vxp", root / "content.3cn", "extra.3cn", {}, "One");
+    Reject([&] { store.Install(V::WholeFile(root / "conflict.vxp")); });
+    Check(StudioV3dmm::Store(store.Root()).Entries().size() == 2);
+    // A failed migration rolls back; correcting its input permits a clean retry.
+    const auto retry = root / "retry";
+    fs::create_directory(retry);
+    fs::create_directory(retry / one.hash);
+    for (const auto &file : fs::directory_iterator(one.archive.parent_path()))
+        fs::copy_file(file.path(), retry / one.hash / file.path().filename());
+    const auto row = "{\"hash\":\"" + one.hash + "\",\"enabled\":true}";
+    Write(retry / "catalog.json", "[" + row + "," + row + "]");
+    Reject([&] { StudioV3dmm::Store bad(retry); });
+    Write(retry / "catalog.json", "[" + row + "]");
+    Check(StudioV3dmm::Store(retry).Resolve(one.hash).name == "One");
+    const auto repair = root / "repair";
+    fs::create_directory(repair);
+    fs::create_directory(repair / one.hash);
+    for (const auto &file : fs::directory_iterator(one.archive.parent_path()))
+        if (file.path().filename() != "content.json")
+            fs::copy_file(file.path(), repair / one.hash / file.path().filename());
+    Write(repair / "catalog.json", "[" + row + "]");
+    StudioV3dmm::Store incomplete(repair);
+    Check(incomplete.Entries().front().name == "One" && !incomplete.Entries().front().error.empty());
+    Reject([&] { incomplete.Resolve(one.hash); });
+    fs::copy_file(one.archive.parent_path() / "content.json", repair / one.hash / "content.json");
+    Check(incomplete.Resolve(one.hash).members.size() == 2 && incomplete.Entries().front().error.empty());
+}
 void Tests(const fs::path &root)
 {
     DuplicateTests(root);
@@ -177,7 +266,9 @@ void Tests(const fs::path &root)
     Write(root / "crc.vxp", damaged);
     StudioV3dmm::Store crcStore(root / "crc-store");
     Reject([&] { crcStore.Install(V::WholeFile(root / "crc.vxp")); });
-    Check(crcStore.Entries().empty() && fs::is_empty(root / "crc-store"));
+    Check(crcStore.Entries().empty());
+    for (const auto &file : fs::directory_iterator(root / "crc-store"))
+        Check(file.is_regular_file() && file.path().filename().u8string().find("catalog.sqlite3") == 0);
     V::WriteBundle(bundle.movie, bundle.dependencies, root / "roundtrip.vmm");
     Check(Read(root / "roundtrip.vmm") == original);
     StudioV3dmm::Store store(root / "store");
@@ -192,7 +283,9 @@ void Tests(const fs::path &root)
     auto changed = Read(entry.members.begin()->second);
     changed.back() ^= 1;
     Write(entry.members.begin()->second, changed);
-    Reject([&] { StudioV3dmm::Store altered(root / "store"); });
+    StudioV3dmm::Store altered(root / "store");
+    Check(altered.Entries().size() == 1); // Listing does not read unused package content.
+    Reject([&] { altered.Resolve(entry.hash); });
     auto failed = root / "bad-publication";
     fs::create_directory(failed);
     Write(root / "candidate", "new data");
@@ -232,6 +325,7 @@ int main(int argc, char **argv)
         auto root = parent / ("run-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         fs::create_directory(root);
         Tests(root);
+        CatalogTests(root / "catalog-checks");
         std::cout << "V3DMM format/store tests passed: " << root << '\n';
         return 0;
     }

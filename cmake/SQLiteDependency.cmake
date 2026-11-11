@@ -1,0 +1,17 @@
+include_guard(GLOBAL)
+include(FetchContent)
+FetchContent_Declare(package_sqlite
+  URL https://www.sqlite.org/2025/sqlite-amalgamation-3500400.zip
+  URL_HASH SHA256=1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032)
+FetchContent_MakeAvailable(package_sqlite)
+add_library(package-sqlite STATIC "${package_sqlite_SOURCE_DIR}/sqlite3.c")
+target_include_directories(package-sqlite SYSTEM PUBLIC "${package_sqlite_SOURCE_DIR}")
+target_compile_definitions(package-sqlite PRIVATE SQLITE_THREADSAFE=1 SQLITE_OMIT_LOAD_EXTENSION)
+install(FILES "${PROJECT_SOURCE_DIR}/docs/licenses/sqlite-PUBLIC-DOMAIN.txt" DESTINATION licenses)
+if(UNIX)
+  find_package(Threads REQUIRED)
+  target_link_libraries(package-sqlite PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+  if(NOT APPLE)
+    target_link_libraries(package-sqlite PRIVATE m)
+  endif()
+endif()

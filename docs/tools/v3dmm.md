@@ -46,14 +46,14 @@ subdirectories are outside this implementation. Ancillary package files are
 retained in the original ZIP but are not executed or installed as programs.
 
 Package loading policy must follow the original v3dmm's observable behaviour.
-A future SQLite catalog or validation cache is an implementation detail: it
+The SQLite catalog and validation cache are implementation details: they
 must preserve legacy dependency-name matching, the separate role of CFG
 shortnames, applied-package order, filename/chunk collision precedence,
 embedded-package fallback and missing-dependency behaviour. Content hashes may
 identify cached installations internally; they must not turn legacy name-based
 dependency matching into a requirement for an identical package version.
-The current eager whole-catalog SHA-256 validation is our implementation policy,
-not a demonstrated v3dmm compatibility requirement. Optimize it without changing
+The former eager whole-catalog SHA-256 scan was our implementation policy,
+not a demonstrated v3dmm compatibility requirement. The optimized path preserves
 which packages a movie resolves to. Where reference behaviour remains uncertain,
 including automatic activation of ambiguous display names, use the original
 manager/VFS and oracle captures to establish it before changing resolution.
@@ -61,10 +61,29 @@ manager/VFS and oracle captures to establish it before changing resolution.
 The store is `content/packs/v3dmm` beside `settings.ini`, or below
 `THREEDMM_PACK_DIR` when set. It retains each original ZIP in a SHA-256 directory,
 materializes validated chunky content under generated filenames and records
-content hashes. `catalog.json` records installation order and legacy enabled
-flags, which provide defaults for ordinary `.3mm` movies. A VMM's declared
+content hashes. `catalog.sqlite3` records package metadata, CFG shortnames,
+selected member filenames, installation order and legacy enabled flags,
+which provide defaults for ordinary `.3mm` movies. A VMM's declared
 package set takes precedence over these defaults.
-Imports and catalog updates use staging and atomic publication. Movie inputs
+An existing `catalog.json` is migrated once in a SQLite transaction, retaining
+its order and enabled flags without hashing the whole library. The old JSON
+and all package files remain untouched; SQLite is authoritative afterward, so
+later edits to the old JSON do not change the active catalog. Invalid metadata
+for an unrelated package does not prevent listing or resolving a different pack.
+Repaired metadata is retried when that package is explicitly resolved.
+
+Catalog loading reads cached metadata, without opening each VXP. Marcus and SDL
+Studio call the shared store's `Resolve` only for applied packages. A newly
+imported package is fully checked; migrated packages are checked on first use.
+Verified archive/content files reuse persisted size and modification-time
+fingerprints. Changed files are hashed again and must match their installation
+hashes. `Resolve(hash, true)` forces verification, including same-size edits
+whose timestamps were deliberately preserved; fingerprints alone do not detect
+that case. Hash identity remains an internal installation/cache key, not a VMM
+dependency-version requirement. Database transactions and WAL allow helper
+processes and both hosts to share validation results and catalog updates.
+
+Imports use private staging and catalog updates use SQLite transactions. Movie inputs
 and original VXP files are read only. Decoding checks ZIP CRCs, chunky records
 and child links, with limits on counts and expansion sizes.
 
@@ -121,6 +140,16 @@ session-private materialization, without taking over Studio's package manager.
 `content-vfs` and `content-vfs-c89` validate the core and its C89 boundary.
 
 ## Validation
+
+The package-store build uses the pinned, public-domain SQLite 3.50.4 amalgamation
+through `cmake/SQLiteDependency.cmake`. No system SQLite installation is required.
+The store regression covers legacy migration, rollback/retry, preserved order
+and enable flags, independent updates from two connections, changed used files,
+forced verification and unreadable unused packages. `marcus-content` also checks
+that an unrelated missing installed archive does not prevent VMM resolution.
+The original PhysicsFS comparison passed again after this change: 60 generated
+packages, 120 content reads and all CFG choices matched the original DLL. This
+does not extend the previously documented limits on ambiguous manager activation.
 
 Build `v3dmm-test` and run it, or run CTest's `v3dmm` test. It covers embedded
 range parsing, byte-preserving round trips, materialization, malformed/truncated

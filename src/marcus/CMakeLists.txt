@@ -41,6 +41,7 @@ add_custom_command(TARGET marcus POST_BUILD
     "${PROJECT_SOURCE_DIR}/docs/licenses/libgsm-LICENSE.txt"
     "${PROJECT_SOURCE_DIR}/docs/licenses/freetype-FTL.txt"
     "${PROJECT_SOURCE_DIR}/docs/licenses/freetype-LICENSE.txt"
+    "${PROJECT_SOURCE_DIR}/docs/licenses/sqlite-PUBLIC-DOMAIN.txt"
     "$<TARGET_FILE_DIR:marcus>/licenses"
   VERBATIM)
 # SDL's headers use platform integer/bool extensions. Keep diagnostics on our

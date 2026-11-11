@@ -951,3 +951,19 @@ Local evidence is in `tmp/marcus-awards-profile/run-1.log`, `run-2.log`, their
 JSON summaries, `bundle.json`, and the temporary profiling sources. Both runs
 completed successfully. Instrumentation was compiled into separate profiling
 executables; the production playback sources were not edited for this audit.
+
+The shared installed-package store subsequently moved to a SQLite metadata and
+validation cache. Repeating the same Debug profile reduced VMM content setup to
+1.153 seconds on first migration and 0.292 seconds with the persisted cache,
+versus 43.366–45.499 seconds above. Opening before whole-movie timing took
+18.560/17.873 seconds; totals through analysis and first render were
+49.418/48.512 seconds. Both runs retained 1,435 scenes, 16 first-scene actors
+and the same 4,291.06-second nominal duration. The original JSON was retained;
+the first new run started without a SQLite catalog. Evidence is in
+`tmp/marcus-awards-profile/sqlite-run-1.log`, `sqlite-run-2.log` and
+`sqlite-runs.json`.
+
+This removes the eager whole-library hash scan. It does not remove the separate
+archive/index/metadata costs or the roughly 30-second synchronous duration pass
+for this movie. Package resolution still uses legacy names, CFG shortnames and
+mount order; selected unchanged files reuse their validation fingerprints.
