@@ -101,6 +101,30 @@ void Tests(const fs::path &root)
     CHECK(fs::exists(held->path)); // Input/list lifetime is independent of the selected movie lease.
     held.reset();
     CHECK(!fs::exists(directory) && Read(root / "one.zip") == original);
+    // Background preparation can be cancelled partway through decompression.
+    // Partial files disappear, the source stays intact, and retry still works.
+    Zip(root / "cancel.zip", {{"large.3mm", std::string(2 * 1024 * 1024, 'x')}});
+    {
+        MarcusMovieInput input;
+        input.Open((root / "cancel.zip").u8string());
+        const auto before = TemporaryMovies();
+        int polls = 0;
+        bool cancelled = false;
+        try { input.Materialize(0, [&] { return ++polls > 2; }); }
+        catch (const std::exception &) { cancelled = true; }
+        CHECK(cancelled && polls > 2 && TemporaryMovies() == before);
+        input.prepared = input.Materialize(0);
+        const auto extracted = input.prepared->path;
+        CHECK(Read(extracted).size() == 2 * 1024 * 1024);
+        CHECK(input.Materialize(0, [] { return false; })->path == extracted);
+        // Opening a different input releases the pinned preparation.
+        input.Open((root / "one.zip").u8string());
+        CHECK(!fs::exists(extracted));
+        bool listingCancelled = false;
+        try { input.Open((root / "cancel.zip").u8string(), [] { return true; }); }
+        catch (const std::exception &) { listingCancelled = true; }
+        CHECK(listingCancelled && input.Count() == 1 && std::string(input.Entry(0).name) == "sub folder/Movie.3MM");
+    }
     Zip(root / "multi.zip", {{"nested/one.3mm", "first"}, {"nested/two.VMM", "second"}, {"nested/one.3mm", "third"}});
     {
         MarcusMovieInput input;

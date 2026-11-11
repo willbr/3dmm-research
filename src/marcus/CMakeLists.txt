@@ -26,7 +26,7 @@ find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(marcus PRIVATE marcus-player SDL3::SDL3-static freetype engine-core ThreeMM::Archive three-mm-content Threads::Threads)
+target_link_libraries(marcus PRIVATE marcus-player SDL3::SDL3-static freetype engine-core ThreeMM::Archive three-mm-v3dmm Threads::Threads)
 kauai_copy_midi_assets(marcus)
 add_custom_command(TARGET marcus POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_if_different

@@ -77,18 +77,29 @@ in `movie-browser.cfg` beside the normal per-user Marcus preferences.
 Use the location field and **Go**, **Back**, **Up**, or double-click folders to
 navigate. Search filters names in the current location; the format button cycles
 between all supported files, `.3mm`, `.vmm` and ZIP. Sort by name or newest first.
-Arrow keys, Page Up/Down, Home/End and the wheel navigate the results. Enter opens,
+Arrow keys, Page Up/Down, Home/End and the wheel navigate the results. The results
+scrollbar has a draggable thumb; clicking its track scrolls one page. Enter opens,
 Escape cancels, Alt+Up goes to the parent, Alt+Left goes back, Ctrl+L focuses the
 location, Ctrl+F focuses search, Tab moves between the list and text fields, and
 F5 refreshes. Text fields support replacement, backspace and clipboard paste.
 Dropping a folder opens that location. `marcus --browse folder-or-zip` starts
 directly in the browser; selecting a movie still requires an explicit Open.
 
-Folder and ZIP listings run on a worker thread. Saved thumbnails and scene/frame
-counts are read incrementally on the main thread because the archive decoder
-shares engine globals. The selected movie has preview priority; other visible
-movies up to 32 MiB are inspected one at a time. ZIP previews may temporarily
-extract the inspected member using the existing size/CRC checks. A missing
+Folder/ZIP listing, ZIP extraction and preparation of preview files run on a
+worker thread. Navigating elsewhere or cancelling invalidates pending work;
+extraction checks cancellation between output blocks, including the legacy
+7-Zip helper path. Partial files are removed. Browser opens retain the verified
+extraction so the main thread does not decompress the same movie again.
+The footer shows **Preparing movie** while a chosen movie is unpacked.
+
+Saved thumbnails and scene/frame counts are still decoded incrementally on the
+main thread because the archive decoder shares engine globals. Engine loading,
+content resolution and timing analysis also remain on the main thread after an
+explicit Open; this change does not make all movie loading asynchronous.
+The selected movie has preview priority; other visible movies up to 32 MiB are
+inspected one at a time. ZIP previews may temporarily extract the inspected
+member using the existing size/CRC checks. VMM previews copy only the inner
+movie, without installing dependency packages. A missing
 thumbnail displays a placeholder; first-frame rendering, duration analysis,
 dependency availability badges and bundled-font discovery are not implemented
 in the browser. Dependencies are resolved through the normal opening path.
@@ -109,8 +120,10 @@ the display reads `--:-- / --:--`.
 
 ZIP files can be opened through the same controls or passed on the command line.
 Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring
-extension case. A single movie opens automatically. Multiple movies appear in
-the movie browser, with their internal paths visible: select a card or row and
+extension case. Interactive ZIP opens, including drag and drop, enter the movie
+browser even for a single movie. A single movie passed directly on the command
+line still opens automatically. ZIP members appear with their internal paths
+visible: select a card or row and
 click Open, or use the keyboard. The wheel scrolls the results; Escape cancels and
 keeps the previous movie paused. The window title identifies the ZIP and selected
 member. Resources/Content reloads retain that selection.

@@ -641,7 +641,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
     app->selected_sound = app->selected_sound_track = -1;
     fit_timeline(app);
     reset_view(app);
-    browser_remember(app->browser, path, entry);
+    browser_remember(app->browser, path, input, entry);
     return 1;
 }
 static void cancel_zip(App *app)
@@ -1750,9 +1750,6 @@ static void handle_event(App *app, const SDL_Event *event)
     SDL_FRect viewport;
     int rows, maximum_scroll, *scroll;
     float x, y, delta;
-    MarcusMovieInput *browser_input;
-    int browser_entry;
-    char browser_path[4096];
     SDL_Keymod modifiers;
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
@@ -1763,12 +1760,7 @@ static void handle_event(App *app, const SDL_Event *event)
             app->ui.mouse_x = event->motion.x;
             app->ui.mouse_y = event->motion.y;
         }
-        browser_input = browser_take(app->browser, &browser_entry, browser_path, sizeof(browser_path));
-        if (browser_input && !open_input(app, browser_input, browser_entry, browser_path))
-        {
-            marcus_input_destroy(browser_input);
-            browser_show(app->browser, browser_path, app->resources, app->content);
-        }
+
     }
     else if (event->type == app->dialog_event)
     {
@@ -1795,7 +1787,8 @@ static void handle_event(App *app, const SDL_Event *event)
             editor_view(app);
         {
             SDL_PathInfo dropped;
-            if (SDL_GetPathInfo(event->drop.data, &dropped) && dropped.type == SDL_PATHTYPE_DIRECTORY)
+            if ((SDL_GetPathInfo(event->drop.data, &dropped) && dropped.type == SDL_PATHTYPE_DIRECTORY) ||
+                (SDL_strlen(event->drop.data) >= 4 && !SDL_strcasecmp(event->drop.data + SDL_strlen(event->drop.data) - 4, ".zip")))
             {
                 app->playing = 0;
                 release_camera(app);
@@ -3505,7 +3498,9 @@ int main(int argc, char **argv)
     SDL_Event event;
     const char *input, *font, *capture, *browse;
     int i, result, frames, requested_scene, requested_object, requested_zip, have_frame, show_settings;
-    int requested_renderer;
+    int requested_renderer, browser_entry;
+    MarcusMovieInput *browser_input;
+    char browser_path[4096];
     long requested_frame, parsed;
     double now, previous_tick;
     Uint64 frame_tick, completed_tick;
@@ -3725,6 +3720,12 @@ int main(int argc, char **argv)
         {
             SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
             handle_event(&app, &event);
+        }
+        browser_input = browser_take(app.browser, &browser_entry, browser_path, sizeof(browser_path));
+        if (browser_input && !open_input(&app, browser_input, browser_entry, browser_path))
+        {
+            marcus_input_destroy(browser_input);
+            browser_show(app.browser, browser_path, app.resources, app.content);
         }
         now = (double)SDL_GetTicks();
         update_flight(&app, (now - previous_tick) / 1000.0);

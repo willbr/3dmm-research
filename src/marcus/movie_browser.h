@@ -15,7 +15,7 @@ int browser_event(MarcusBrowser *browser, const SDL_Event *event);
 void browser_draw(MarcusBrowser *browser, MarcusUI *ui, int width, int height);
 /* Transfers ownership of the chosen input to the caller. */
 MarcusMovieInput *browser_take(MarcusBrowser *browser, int *entry, char *path, size_t capacity);
-void browser_remember(MarcusBrowser *browser, const char *path, int entry);
+void browser_remember(MarcusBrowser *browser, const char *path, MarcusMovieInput *input, int entry);
 #ifdef __cplusplus
 }
 #endif

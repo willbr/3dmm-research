@@ -57,13 +57,15 @@ struct Sink
     std::ofstream stream;
     std::uint64_t written = 0, expected;
     mz_ulong crc = MZ_CRC32_INIT;
-    Sink(const fs::path &path, std::uint64_t expected) : stream(path, std::ios::binary), expected(expected)
+    std::function<bool()> cancelled;
+    Sink(const fs::path &path, std::uint64_t expected, std::function<bool()> cancelled)
+        : stream(path, std::ios::binary), expected(expected), cancelled(std::move(cancelled))
     {
         Require(bool(stream), "Cannot create the private movie file.");
     }
     std::size_t Write(std::uint64_t offset, const void *data, std::size_t bytes)
     {
-        if (offset != written || bytes > expected - written)
+        if ((cancelled && cancelled()) || offset != written || bytes > expected - written)
             return 0;
         stream.write(static_cast<const char *>(data), static_cast<std::streamsize>(bytes));
         if (!stream)
@@ -118,7 +120,7 @@ void LegacyExtract(const fs::path &archive, const Member &member, Sink &sink)
     const auto deadline = SDL_GetTicks() + 60000;
     for (;;)
     {
-        if (SDL_GetTicks() >= deadline)
+        if ((sink.cancelled && sink.cancelled()) || SDL_GetTicks() >= deadline)
         {
             good = false;
             SDL_KillProcess(process, true);
@@ -171,7 +173,7 @@ MarcusMovieInput::MarcusMovieInput() : impl(new Impl)
 {
 }
 MarcusMovieInput::~MarcusMovieInput() = default;
-void MarcusMovieInput::Open(const std::string &path)
+void MarcusMovieInput::Open(const std::string &path, const std::function<bool()> &cancelled)
 {
     auto opened = std::make_unique<Impl>();
     opened->path = fs::absolute(fs::u8path(path));
@@ -208,6 +210,7 @@ void MarcusMovieInput::Open(const std::string &path)
         Require(count <= 100000, "ZIP archives are limited to 100,000 members.");
         for (unsigned index = 0; index < count; ++index)
         {
+            Require(!cancelled || !cancelled(), "Movie preparation cancelled.");
             mz_zip_archive_file_stat stat = {};
             Require(mz_zip_reader_file_stat(&opened->zip, index, &stat) != 0, "Cannot read a ZIP member record.");
             if (stat.m_is_directory)
@@ -237,6 +240,7 @@ void MarcusMovieInput::Open(const std::string &path)
         Require(!opened->members.empty(), "This ZIP contains no .3MM or .VMM movies.");
     }
     impl = std::move(opened);
+    prepared.reset();
 }
 int MarcusMovieInput::Count() const
 {
@@ -252,8 +256,9 @@ MarcusMovieEntry MarcusMovieInput::Entry(int index) const
     result.zipped = impl->zipped;
     return result;
 }
-std::shared_ptr<MarcusMovieFile> MarcusMovieInput::Materialize(int index)
+std::shared_ptr<MarcusMovieFile> MarcusMovieInput::Materialize(int index, const std::function<bool()> &cancelled)
 {
+    Require(!cancelled || !cancelled(), "Movie preparation cancelled.");
     Require(index >= 0 && index < Count(), "Select a movie from this ZIP before opening it.");
     auto &member = impl->members[index];
     if (auto existing = member.extracted.lock())
@@ -272,7 +277,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMovieInput::Materialize(int index)
         }
         Require(!selected->directory.empty(), "Cannot create a private ZIP movie directory.");
         selected->path = selected->directory / ("movie" + Extension(member.name));
-        Sink sink(selected->path, member.bytes);
+        Sink sink(selected->path, member.bytes, cancelled);
         if (member.supported)
         {
             const auto callback = [](void *context, mz_uint64 offset, const void *data,

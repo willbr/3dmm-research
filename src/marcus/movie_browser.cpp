@@ -1,7 +1,9 @@
 #include "movie_browser.h"
 #include "movie_input.h"
 #include "browser_preview.h"
-#include "content.h"
+#include "three_mm/v3dmm.h"
+#include <random>
+#include <array>
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -31,6 +33,16 @@ struct Listing
     std::vector<Item> items;
     std::shared_ptr<MarcusMovieInput> input;
     unsigned generation = 0;
+};
+struct Prepared
+{
+    std::string key, path, movie, error;
+    unsigned serial = 0;
+    int entry = 0;
+    bool opening = false;
+    std::unique_ptr<MarcusMovieInput> input;
+    std::shared_ptr<MarcusMovieFile> file;
+    std::shared_ptr<MarcusMovieFile> inner;
 };
 struct Recent { std::string path, member; };
 struct Card
@@ -75,7 +87,9 @@ struct MarcusBrowser
     int focus = 0, selected = -1, scroll = 0, filter = 0;
     float x = 0, y = 0, w = 1000, h = 650, listW = 510;
     int rows = 3;
-    std::string location, movieFolder, address, search, filename, error, resources, content, statePath, lastPath, lastMember;
+    bool scrollbarDragging = false;
+    float scrollbarOffset = 0;
+    std::string location, movieFolder, address, search, filename, error, resources, statePath, lastPath, lastMember;
     std::vector<std::string> history, favourites;
     std::vector<Recent> recent;
     std::vector<int> filtered;
@@ -87,7 +101,13 @@ struct MarcusBrowser
     std::thread worker;
     std::mutex mutex;
     std::condition_variable condition;
-    bool stopping = false, requested = false;
+    bool stopping = false, requested = false, prepareRequested = false, opening = false;
+    Item prepareItem;
+    bool prepareOpening = false;
+    std::string preparingKey;
+    std::atomic<unsigned> prepareSerial{0};
+    unsigned prepareRequestSerial = 0;
+    std::unique_ptr<Prepared> preparedResult;
     std::string requestedPath;
     std::vector<Recent> requestedRecent;
     unsigned generation = 0;
@@ -120,7 +140,7 @@ struct MarcusBrowser
     ~MarcusBrowser()
     {
         try { if (visible) Close(); } catch (...) { }
-        { std::lock_guard<std::mutex> lock(mutex); stopping = true; ++latest; }
+        { std::lock_guard<std::mutex> lock(mutex); stopping = true; ++latest; ++prepareSerial; }
         condition.notify_one();
         worker.join();
         marcus_input_destroy(chosen);
@@ -166,12 +186,84 @@ struct MarcusBrowser
         {
             std::string path;
             std::vector<Recent> recents;
-            unsigned id;
+            unsigned id, serial = 0;
+            Item item;
+            bool preparing = false, forOpen = false;
             {
                 std::unique_lock<std::mutex> lock(mutex);
-                condition.wait(lock, [this] { return requested || stopping; });
+                condition.wait(lock, [this] { return requested || prepareRequested || stopping; });
                 if (stopping) return;
-                path = requestedPath; recents = requestedRecent; id = generation; requested = false;
+                id = generation;
+                if (requested) { path = requestedPath; recents = requestedRecent; requested = false; }
+                else
+                {
+                    preparing = true; item = prepareItem; forOpen = prepareOpening;
+                    serial = prepareRequestSerial; prepareRequested = false;
+                }
+            }
+            if (preparing)
+            {
+                auto ready = std::make_unique<Prepared>();
+                ready->serial = serial; ready->key = Key(item); ready->path = item.path; ready->opening = forOpen;
+                const auto cancelled = [this, serial] { return prepareSerial != serial; };
+                try
+                {
+                    ready->input = std::make_unique<MarcusMovieInput>();
+                    ready->input->Open(item.path, cancelled);
+                    int index = std::max(0, item.entry);
+                    if (!item.member.empty())
+                    {
+                        index = -1;
+                        for (int i = 0; i < ready->input->Count(); ++i)
+                            if (item.member == ready->input->Entry(i).name) { index = i; break; }
+                        if (index < 0) throw std::runtime_error("This movie is no longer in the ZIP.");
+                    }
+                    ready->entry = index;
+                    ready->file = ready->input->Materialize(index, cancelled);
+                    ready->input->prepared = ready->file;
+                    ready->movie = ready->file->path.u8string();
+                    if (!forOpen && !cancelled())
+                    {
+                        std::ifstream header(ready->file->path, std::ios::binary);
+                        char signature[6] = {};
+                        header.read(signature, sizeof(signature));
+                        if (header.gcount() == 6 && std::string(signature, 6) == std::string("v3dmm\1", 6))
+                        {
+                            // Read only the inner movie. Previewing must not install packs
+                            // or invoke engine archive validation on this worker.
+                            const auto range = ThreeMM::V3dmm::ReadBundle(ready->file->path).movie;
+                            if (range.length > 512ull * 1024 * 1024)
+                                throw std::runtime_error("The bundled movie exceeds the preview size limit.");
+                            ready->inner = std::make_shared<MarcusMovieFile>(fs::path{});
+                            for (int attempt = 0; attempt < 16 && ready->inner->directory.empty(); ++attempt)
+                            {
+                                const auto directory = fs::temp_directory_path() / ("marcus-movie-" + std::to_string(std::random_device{}()));
+                                if (fs::create_directory(directory)) ready->inner->directory = directory;
+                            }
+                            if (ready->inner->directory.empty()) throw std::runtime_error("Cannot create a preview directory.");
+                            ready->inner->path = ready->inner->directory / "movie.3mm";
+                            std::ifstream source(range.file, std::ios::binary);
+                            std::ofstream output(ready->inner->path, std::ios::binary);
+                            source.seekg(static_cast<std::streamoff>(range.offset));
+                            std::array<char, 65536> bytes;
+                            for (auto remaining = range.length; remaining;)
+                            {
+                                if (cancelled()) throw std::runtime_error("Movie preparation cancelled.");
+                                const auto count = static_cast<std::streamsize>(std::min<std::uint64_t>(remaining, bytes.size()));
+                                source.read(bytes.data(), count); output.write(bytes.data(), count);
+                                if (!source || !output) throw std::runtime_error("Cannot read the bundled movie preview.");
+                                remaining -= count;
+                            }
+                            output.close();
+                            if (!output) throw std::runtime_error("Cannot finish the bundled movie preview.");
+                            ready->movie = ready->inner->path.u8string();
+                        }
+                    }
+                }
+                catch (const std::exception &e) { ready->error = e.what(); }
+                std::lock_guard<std::mutex> lock(mutex);
+                if (!cancelled()) preparedResult = std::move(ready);
+                continue;
             }
             auto result = std::make_unique<Listing>();
             result->location = path; result->generation = id;
@@ -194,7 +286,7 @@ struct MarcusBrowser
                 else if (Extension(path) == ".zip" && !fs::is_directory(fs::u8path(path)))
                 {
                     result->input = std::make_shared<MarcusMovieInput>();
-                    result->input->Open(path);
+                    result->input->Open(path, [this, id] { return latest != id; });
                     for (int i = 0; i < result->input->Count(); ++i)
                     {
                         const auto member = result->input->Entry(i);
@@ -233,12 +325,14 @@ struct MarcusBrowser
         if (remember) history.push_back(recentView ? "" : listing.location);
         recentView = path.empty(); address = path; search.clear(); filename.clear(); error.clear();
         selected = -1; scroll = 0; cards.clear(); filtered.clear(); listing = {};
-        loading = true; focus = 0; replaceText = false;
+        loading = true; focus = 0; replaceText = false; scrollbarDragging = false;
         if (Extension(path) == ".zip" && filter == 3) filter = 0;
         {
             std::lock_guard<std::mutex> lock(mutex);
             requestedPath = path; requestedRecent = recent;
             ++generation; latest = generation; completed.reset(); requested = true;
+            ++prepareSerial; prepareRequested = false; preparedResult.reset();
+            preparingKey.clear(); opening = false;
         }
         condition.notify_one();
     }
@@ -269,7 +363,10 @@ struct MarcusBrowser
     std::string Key(const Item &item) const { return item.path + "\n" + item.member; }
     void Select(int index)
     {
-        selected = filtered.empty() ? -1 : std::clamp(index, 0, static_cast<int>(filtered.size()) - 1);
+        const auto next = filtered.empty() ? -1 : std::clamp(index, 0, static_cast<int>(filtered.size()) - 1);
+        if (selected != next && !preparingKey.empty())
+        { ++prepareSerial; preparingKey.clear(); opening = false; }
+        selected = next;
         selectedAt = SDL_GetTicks();
         if (const auto item = Selected()) filename = item->entry >= 0 ? item->member : item->path;
         else filename.clear();
@@ -284,28 +381,27 @@ struct MarcusBrowser
     void Close()
     {
         if (const auto item = Selected()) { lastPath = item->path; lastMember = item->member; }
-        visible = false; SDL_StopTextInput(window); Save();
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            ++prepareSerial; prepareRequested = false; preparedResult.reset();
+            preparingKey.clear(); opening = false;
+        }
+        visible = false; scrollbarDragging = false; SDL_StopTextInput(window); Save();
+    }
+    void Prepare(const Item &item, bool forOpen)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        prepareRequestSerial = ++prepareSerial; preparedResult.reset(); prepareItem = item;
+        prepareOpening = forOpen; prepareRequested = true;
+        preparingKey = Key(item); opening = forOpen; error.clear();
+        condition.notify_one();
     }
     void Choose(const Item &item)
     {
-        if (item.directory) { Navigate(item.path); return; }
-        try
-        {
-            auto input = std::make_unique<MarcusMovieInput>();
-            input->Open(item.path);
-            int entry = item.entry;
-            if (!item.member.empty())
-            {
-                entry = -1;
-                for (int i = 0; i < input->Count(); ++i)
-                    if (item.member == input->Entry(i).name) { entry = i; break; }
-                if (entry < 0) throw std::runtime_error("This movie is no longer in the ZIP. Browse the archive again.");
-            }
-            if (entry < 0 && input->Count() > 1) { Navigate(item.path); return; }
-            chosenEntry = std::max(0, entry); chosenPath = item.path;
-            chosen = input.release(); Close();
-        }
-        catch (const std::exception &e) { error = e.what(); }
+        if (opening) return;
+        if (item.directory || (Extension(item.path) == ".zip" && item.member.empty()))
+        { Navigate(item.path); return; }
+        Prepare(item, true);
     }
     void Open()
     {
@@ -342,6 +438,45 @@ struct MarcusBrowser
     }
     void Tick()
     {
+        std::unique_ptr<Prepared> ready;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            ready = std::move(preparedResult);
+        }
+        if (ready && ready->serial == prepareSerial)
+        {
+            preparingKey.clear(); opening = false;
+            if (ready->opening)
+            {
+                if (ready->error.empty())
+                {
+                    chosenPath = ready->path; chosenEntry = ready->entry;
+                    chosen = ready->input.release(); Close(); return;
+                }
+                error = ready->error;
+            }
+            else
+            {
+                auto card = std::make_unique<Card>();
+                try
+                {
+                    if (ready->error.empty()) card->preview = ReadBrowserPreview(ready->movie, resources);
+                    else card->preview.error = ready->error;
+                    auto &preview = card->preview;
+                    if (!preview.rgba.empty())
+                    {
+                        auto surface = SDL_CreateSurfaceFrom(preview.width, preview.height, SDL_PIXELFORMAT_RGBA32,
+                                                             preview.rgba.data(), preview.width * 4);
+                        if (surface) { card->texture = SDL_CreateTextureFromSurface(renderer, surface); SDL_DestroySurface(surface); }
+                        if (card->texture) SDL_SetTextureScaleMode(card->texture, SDL_SCALEMODE_NEAREST);
+                        preview.rgba.clear();
+                    }
+                }
+                catch (const std::exception &e) { card->preview.error = e.what(); }
+                if (cards.size() >= 96) cards.clear();
+                cards[ready->key] = std::move(card);
+            }
+        }
         {
             std::lock_guard<std::mutex> lock(mutex);
             if (completed)
@@ -360,7 +495,7 @@ struct MarcusBrowser
                 }
             }
         }
-        if (loading || SDL_GetTicks() - selectedAt < 200 || SDL_GetTicks() - previewAt < 100) return;
+        if (loading || !preparingKey.empty() || SDL_GetTicks() - selectedAt < 200 || SDL_GetTicks() - previewAt < 100) return;
         const Item *item = Selected();
         auto eligible = [&](const Item *candidate) {
             return candidate && !candidate->directory && !Preview(*candidate) &&
@@ -379,50 +514,9 @@ struct MarcusBrowser
         }
         if (!item) return;
         previewAt = SDL_GetTicks();
-        auto card = std::make_unique<Card>();
-        try
-        {
-            std::shared_ptr<MarcusMovieFile> materialized;
-            if (listing.input && item->entry >= 0) materialized = listing.input->Materialize(item->entry);
-            else
-            {
-                MarcusMovieInput input;
-                input.Open(item->path);
-                int index = 0;
-                if (!item->member.empty())
-                {
-                    index = -1;
-                    for (int i = 0; i < input.Count(); ++i) if (item->member == input.Entry(i).name) { index = i; break; }
-                    if (index < 0) throw std::runtime_error("The movie is no longer in this ZIP.");
-                }
-                materialized = input.Materialize(index);
-            }
-            auto movie = materialized->path;
-            std::ifstream header(movie, std::ios::binary);
-            char signature[6] = {};
-            header.read(signature, sizeof(signature));
-            std::unique_ptr<MarcusContent> document;
-            if (header.gcount() == 6 && std::string(signature, 6) == std::string("v3dmm\1", 6))
-            {
-                document = std::make_unique<MarcusContent>(materialized, content);
-                movie = document->movie;
-            }
-            header.close();
-            card->preview = ReadBrowserPreview(movie.u8string(), resources);
-            auto &preview = card->preview;
-            if (!preview.rgba.empty())
-            {
-                auto surface = SDL_CreateSurfaceFrom(preview.width, preview.height, SDL_PIXELFORMAT_RGBA32,
-                                                     preview.rgba.data(), preview.width * 4);
-                if (surface) { card->texture = SDL_CreateTextureFromSurface(renderer, surface); SDL_DestroySurface(surface); }
-                if (card->texture) SDL_SetTextureScaleMode(card->texture, SDL_SCALEMODE_NEAREST);
-                preview.rgba.clear();
-            }
-        }
-        catch (const std::exception &e) { card->preview.error = e.what(); }
-        if (cards.size() >= 96) cards.clear();
-        cards[Key(*item)] = std::move(card);
+        Prepare(*item, false);
     }
+
     void Image(MarcusUI *ui, const Item &item, SDL_FRect box)
     {
         ui_fill(ui, box.x, box.y, box.w, box.h, 0x17191c);
@@ -447,15 +541,38 @@ struct MarcusBrowser
                 ui_fill(ui, at, box.y + box.h - 7, 7, 4, 0x555b63);
             }
     }
+    int MaximumScroll() const
+    {
+        const int columns = grid ? 3 : 1;
+        return std::max(0, (static_cast<int>(filtered.size()) + columns - 1) / columns - rows);
+    }
+    SDL_FRect ScrollTrack() const { return {x + 180 + listW - 14, y + 132, 12, rows * (grid ? 120.0f : 32.0f) - 6}; }
+    SDL_FRect ScrollThumb() const
+    {
+        auto track = ScrollTrack();
+        const int maximum = MaximumScroll();
+        const float size = maximum ? std::max(28.0f, track.h * rows / (maximum + rows)) : track.h;
+        track.y += maximum ? (track.h - size) * scroll / maximum : 0;
+        track.h = size;
+        return track;
+    }
+    void DragScrollbar(float mouseY)
+    {
+        const auto track = ScrollTrack(), thumb = ScrollThumb();
+        const auto travel = track.h - thumb.h;
+        if (travel > 0)
+            scroll = std::clamp(static_cast<int>((mouseY - scrollbarOffset - track.y) * MaximumScroll() / travel + 0.5f), 0, MaximumScroll());
+    }
     void Draw(MarcusUI *ui, int width, int height)
     {
         Tick();
+        if (!visible) return;
         w = std::min(1180.0f, width - 40.0f); h = std::min(730.0f, height - 60.0f);
         x = (width - w) / 2; y = (height - h) / 2; listW = w - 492;
         const float listX = x + 180, top = y + 132, bottom = y + h - 116;
         rows = std::max(1, static_cast<int>((bottom - top) / (grid ? 120 : 32)));
         const int columns = grid ? 3 : 1;
-        const int maximum = std::max(0, (static_cast<int>(filtered.size()) + columns - 1) / columns - rows);
+        const int maximum = MaximumScroll();
         scroll = std::clamp(scroll, 0, maximum);
         ui_opacity(ui, 0.75f); ui_fill(ui, 0, 0, static_cast<float>(width), static_cast<float>(height), 0x090a0c); ui_opacity(ui, 1);
         ui_fill(ui, x - 1, y - 1, w + 2, h + 2, 0x606670);
@@ -490,7 +607,7 @@ struct MarcusBrowser
                 const int index = (row + scroll) * columns + col;
                 if (index >= static_cast<int>(filtered.size())) continue;
                 const auto &item = listing.items[filtered[index]];
-                const float cellW = listW / columns, cellH = grid ? 120.0f : 32.0f;
+                const float cellW = (listW - 22) / columns, cellH = grid ? 120.0f : 32.0f;
                 const float left = listX + col * cellW, cellY = top + row * cellH;
                 ui_fill(ui, left, cellY, cellW - 6, cellH - 6, index == selected ? 0x344c50 : 0x2e3238);
                 if (grid)
@@ -506,6 +623,10 @@ struct MarcusBrowser
                     ui_label(ui, left + cellW - 82, cellY + 6, 70, item.directory ? "" : Size(item.bytes).c_str(), muted);
                 }
             }
+        const auto track = ScrollTrack(), thumb = ScrollThumb();
+        ui_fill(ui, track.x, track.y, track.w, track.h, 0x191c20);
+        ui_fill(ui, thumb.x + 1, thumb.y, thumb.w - 2, thumb.h,
+                !maximum ? 0x363a40 : scrollbarDragging ? accent : 0x64717a);
         if (loading || filtered.empty())
             ui_label(ui, listX + 12, top + 36, listW - 24, loading ? "Finding movies..." : "No matching movies in this location.", muted);
         ui_text(ui, listX, bottom + 8, (std::to_string(filtered.size()) + " items / Scroll or Page Up / Down").c_str(), muted);
@@ -533,12 +654,21 @@ struct MarcusBrowser
         field(listX, y + h - 84, listW, filename, 3);
         static const char *filters[] = {"All movies + ZIPs", "3MM movies", "VMM movies", "ZIP archives"};
         ui_button(ui, detailX, y + h - 84, 270, filters[filter], 0, 1);
-        ui_label(ui, x + 20, y + h - 38, w - 260, error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
+        ui_label(ui, x + 20, y + h - 38, w - 260, opening ? "Preparing movie... / Esc to cancel" : error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
         ui_button(ui, x + w - 228, y + h - 44, 96, "Cancel", 0, 1);
-        ui_button(ui, x + w - 116, y + h - 44, 96, "Open", 1, !loading && (!filename.empty() || Selected()));
+        ui_button(ui, x + w - 116, y + h - 44, 96, "Open", 1, !loading && !opening && (!filename.empty() || Selected()));
     }
     void Click(float px, float py)
     {
+        const auto track = ScrollTrack(), thumb = ScrollThumb();
+        if (ui_inside(px, py, track.x, track.y, track.w, track.h))
+        {
+            if (!MaximumScroll()) return;
+            if (ui_inside(px, py, thumb.x, thumb.y, thumb.w, thumb.h))
+            { scrollbarDragging = true; scrollbarOffset = py - thumb.y; }
+            else scroll = std::clamp(scroll + (py < thumb.y ? -rows : rows), 0, MaximumScroll());
+            return;
+        }
         auto hit = [&](float left, float top, float width, float height = 28) { return ui_inside(px, py, x + left, y + top, width, height) != 0; };
         if (hit(16, 50, 68)) { if (!history.empty()) { auto path = history.back(); history.pop_back(); Navigate(path, false); } }
         else if (hit(92, 50, 68)) Up();
@@ -563,12 +693,12 @@ struct MarcusBrowser
         else if (hit(w - 292, h - 84, 270)) { filter = (filter + 1) % 4; Refilter(); }
         else if (hit(w - 228, h - 44, 96)) Close();
         else if (hit(w - 116, h - 44, 96)) Open();
-        else if (hit(180, 132, listW, static_cast<float>(rows) * (grid ? 120 : 32)))
+        else if (hit(180, 132, listW - 22, static_cast<float>(rows) * (grid ? 120 : 32)))
         {
             focus = 0;
             const int columns = grid ? 3 : 1;
             const int index = (static_cast<int>((py - y - 132) / (grid ? 120 : 32)) + scroll) * columns +
-                              (grid ? static_cast<int>((px - x - 180) / (listW / 3)) : 0);
+                              (grid ? static_cast<int>((px - x - 180) / ((listW - 22) / 3)) : 0);
             if (index >= static_cast<int>(filtered.size())) return;
             Select(index);
             const auto item = Selected();
@@ -627,7 +757,7 @@ void browser_show(MarcusBrowser *browser, const char *path, const char *resource
     try
     {
         browser->resources = resources ? resources : "";
-        browser->content = content ? content : "";
+        (void)content;
         browser->error.clear(); browser->visible = true;
         std::string location = browser->location;
         if (path && *path)
@@ -660,6 +790,10 @@ int browser_event(MarcusBrowser *browser, const SDL_Event *event)
         }
         else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
             browser->Click(event->button.x, event->button.y);
+        else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
+            browser->scrollbarDragging = false;
+        else if (event->type == SDL_EVENT_MOUSE_MOTION && browser->scrollbarDragging)
+            browser->DragScrollbar(event->motion.y);
         else if (event->type == SDL_EVENT_MOUSE_WHEEL)
             browser->scroll = std::max(0, browser->scroll - static_cast<int>(event->wheel.y *
                 (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1) * (browser->grid ? 1 : 3)));
@@ -688,13 +822,13 @@ MarcusMovieInput *browser_take(MarcusBrowser *browser, int *entry, char *path, s
     *entry = browser->chosenEntry; SDL_strlcpy(path, browser->chosenPath.c_str(), capacity);
     return chosen;
 }
-void browser_remember(MarcusBrowser *browser, const char *path, int entry)
+void browser_remember(MarcusBrowser *browser, const char *path, MarcusMovieInput *input, int entry)
 {
     if (!browser || !path || !*path) return;
     try
     {
-        MarcusMovieInput input; input.Open(path);
-        const auto member = input.Entry(entry);
+        if (!input) return;
+        const auto member = input->Entry(entry);
         const auto absolute = fs::absolute(fs::u8path(path)).u8string();
         const std::string name = member.zipped ? member.name : "";
         auto &recent = browser->recent;
