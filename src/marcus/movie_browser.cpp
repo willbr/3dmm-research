@@ -65,6 +65,8 @@ std::string Extension(const std::string &path) { return Lower(fs::u8path(path).e
 const char *Kind(const Item &item)
 {
     const auto extension = Extension(item.member.empty() ? item.path : item.member);
+    if (!item.member.empty() && Extension(item.path) == ".zip")
+        return extension == ".vmm" ? "VMM / ZIP" : "3MM / ZIP";
     return item.directory ? "FOLDER" : extension == ".zip" ? "ZIP" : extension == ".vmm" ? "VMM" : "3MM";
 }
 std::string Size(double bytes)
@@ -323,6 +325,24 @@ struct MarcusBrowser
                         item.directory = directory;
                         if (!directory) { item.bytes = static_cast<double>(entry.file_size(ec)); if (ec) item.bytes = 0; }
                         item.modified = entry.last_write_time(ec);
+                        if (!directory && extension == ".zip")
+                        {
+                            // Inspect the directory only: no extraction while listing.
+                            // A sole movie behaves like a loose movie; collections
+                            // retain the ZIP card and their separate member browser.
+                            try
+                            {
+                                MarcusMovieInput zip;
+                                zip.Open(item.path, [this, id] { return latest != id; });
+                                if (zip.Count() == 1)
+                                {
+                                    const auto movie = zip.Entry(0);
+                                    item.member = movie.name; item.entry = 0; item.bytes = movie.bytes;
+                                    item.name = fs::u8path(item.member).filename().u8string();
+                                }
+                            }
+                            catch (const std::exception &) { /* Keep unreadable ZIPs browseable for their error message. */ }
+                        }
                         result->items.push_back(std::move(item));
                         if (result->items.size() == 20000) { result->error = "Showing the first 20,000 entries. Choose a smaller folder."; break; }
                     }
@@ -361,9 +381,10 @@ struct MarcusBrowser
         for (int i = 0; i < static_cast<int>(listing.items.size()); ++i)
         {
             const auto &item = listing.items[i];
-            const auto ext = Extension(item.member.empty() ? item.path : item.member);
+            const auto ext = Extension(filter == 3 || item.member.empty() ? item.path : item.member);
             if (!item.directory && filter && ext != (filter == 1 ? ".3mm" : filter == 2 ? ".vmm" : ".zip")) continue;
-            if (Lower(item.name).find(query) != std::string::npos) filtered.push_back(i);
+            if (Lower(item.name + " " + fs::u8path(item.path).filename().u8string()).find(query) != std::string::npos)
+                filtered.push_back(i);
         }
         if (!recentView)
             std::stable_sort(filtered.begin(), filtered.end(), [this](int a, int b) {

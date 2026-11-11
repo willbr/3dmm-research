@@ -159,9 +159,14 @@ the display reads `--:-- / --:--`.
 
 ZIP files can be opened through the same controls or passed on the command line.
 Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring
-extension case. Interactive ZIP opens, including drag and drop, enter the movie
-browser even for a single movie. A single movie passed directly on the command
-line still opens automatically. ZIP members appear with their internal paths
+extension case. While listing a folder, the browser inspects ZIP directories
+without extracting their contents. A ZIP containing one movie appears as that
+movie's card with a **3MM / ZIP** or **VMM / ZIP** label, supports saved previews
+and opens the movie directly. Search matches both movie and archive filenames;
+the detail pane retains the archive path. ZIPs with several movies remain
+collection cards. Explicitly browsing a ZIP (including drag and drop) shows its
+members; a single movie passed directly on the command line still opens
+automatically. ZIP members appear with their internal paths
 visible: select a card or row and
 click Open, or use the keyboard. The wheel scrolls the results; Escape cancels and
 keeps the previous movie paused. The window title identifies the ZIP and selected
