@@ -524,6 +524,23 @@ void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char 
         pen += digit->advance * scale;
     }
 }
+void ui_dialog_button(MarcusUI *ui, float x, float y, int confirm, int enabled, const char *hint)
+{
+    int hovered, pressed;
+    float brightness, offset;
+    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT);
+    pressed = enabled && hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
+    brightness = !enabled ? 0.55f : pressed ? 0.80f : hovered ? 1.15f : 1;
+    offset = pressed ? 1 : 0;
+    draw_vector_scaled(ui, x, y, marcus_vector_dialog_frame, MARCUS_VECTOR_DIALOG_FRAME_COUNT,
+                       1, 1, brightness, enabled);
+    draw_vector_scaled(ui, x + offset, y + offset,
+                       confirm ? marcus_vector_dialog_ok : marcus_vector_dialog_cancel,
+                       confirm ? MARCUS_VECTOR_DIALOG_OK_COUNT : MARCUS_VECTOR_DIALOG_CANCEL_COUNT,
+                       1, 1, brightness, enabled);
+    if (hovered)
+        ui->hint = hint;
+}
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {
     float angle, next, radius, next_radius, center_x, center_y, scale;

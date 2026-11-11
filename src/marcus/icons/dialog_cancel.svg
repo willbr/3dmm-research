@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 43" width="46" height="43">
+  <title>Cancel: red X</title>
+  <polygon points="10,12 14,9 36,31 32,35" fill="#161414"/>
+  <polygon points="32,9 36,13 13,35 9,31" fill="#161414"/>
+  <polygon points="12,12 14,11 34,31 32,33" fill="#e34224"/>
+  <polygon points="32,11 34,13 13,33 11,31" fill="#e34224"/>
+  <polygon points="12,11 15,11 33,30 31,30" fill="#ff7950"/>
+  <polygon points="31,11 34,13 28,20 28,17" fill="#ff7950"/>
+</svg>

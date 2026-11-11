@@ -724,9 +724,10 @@ struct MarcusBrowser
         field(listX, y + h - 84, listW, filename, 3);
         static const char *filters[] = {"All movies + ZIPs", "3MM movies", "VMM movies", "ZIP archives"};
         ui_button(ui, detailX, y + h - 84, 270, filters[filter], 0, 1);
-        ui_label(ui, x + 20, y + h - 38, w - 260, opening ? "Preparing movie... / Esc to cancel" : calculating ? "Calculating duration... / Esc to cancel" : error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
-        ui_button(ui, x + w - 228, y + h - 44, 96, "Cancel", 0, 1);
-        ui_button(ui, x + w - 116, y + h - 44, 96, "Open", 1, !loading && !opening && (!filename.empty() || Selected()));
+        ui_label(ui, x + 20, y + h - 40, w - 160, opening ? "Preparing movie... / Esc to cancel" : calculating ? "Calculating duration... / Esc to cancel" : error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
+        ui_dialog_button(ui, x + w - 120, y + h - 53, 0, 1, "Cancel / Esc");
+        ui_dialog_button(ui, x + w - 66, y + h - 53, 1,
+                         !loading && !opening && (!filename.empty() || Selected()), "Open selected movie or folder / Enter");
     }
     void Click(float px, float py)
     {
@@ -768,8 +769,8 @@ struct MarcusBrowser
         }
         else if (hit(180, h - 84, listW)) { focus = 3; replaceText = true; }
         else if (hit(w - 292, h - 84, 270)) { filter = (filter + 1) % 4; Refilter(); }
-        else if (hit(w - 228, h - 44, 96)) Close();
-        else if (hit(w - 116, h - 44, 96)) Open();
+        else if (hit(w - 120, h - 53, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT)) Close();
+        else if (hit(w - 66, h - 53, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT)) Open();
         else if (hit(180, 132, listW - 22, static_cast<float>(rows) * (grid ? 120 : 32)))
         {
             focus = 0;

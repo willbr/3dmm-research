@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 43" width="46" height="43">
+  <title>Confirm: green OK</title>
+  <polygon points="12,9 17,9 21,13 20,29 16,34 10,33 7,29 8,14" fill="#15200f"/>
+  <polygon points="12,11 17,11 19,14 18,28 15,32 11,31 9,28 10,15" fill="#78bf40"/>
+  <polygon points="12,15 16,14 17,17 16,27 14,29 11,28 11,18" fill="#1a2916"/>
+  <polygon points="13,17 15,16 15,26 13,27" fill="#435468"/>
+  <polygon points="24,9 29,9 27,34 22,34" fill="#15200f"/>
+  <polygon points="34,8 39,11 29,22 26,20" fill="#15200f"/>
+  <polygon points="26,18 30,19 37,32 33,35 24,22" fill="#15200f"/>
+  <polygon points="25,11 27,11 25,32 24,32" fill="#8dce4b"/>
+  <polygon points="35,10 37,11 27,22 25,21" fill="#8dce4b"/>
+  <polygon points="26,20 28,21 35,32 34,33 25,22" fill="#6bad31"/>
+</svg>

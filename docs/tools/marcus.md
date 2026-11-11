@@ -64,6 +64,10 @@ paths. Original content is not bundled or downloaded by Marcus.
 
 Open a movie with **Open movie**, **Ctrl+O**, or drag and drop. Selecting
 Resources or Content reloads that movie.
+The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
+X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape
+retain their open/cancel actions, with hover, pressed and disabled feedback.
+Editable SVGs are `src/marcus/icons/dialog_{frame,cancel,ok}.svg`.
 
 **Open movie** now opens Marcus's own movie browser. Filmstrip-style cards and
 a larger detail preview use saved scene thumbnails, with a list view available.

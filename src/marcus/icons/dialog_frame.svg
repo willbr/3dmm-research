@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 46 43" width="46" height="43">
+  <title>3DMM dialog button surround</title>
+  <rect x="0" y="0" width="46" height="43" fill="#1d1e21"/>
+  <rect x="1" y="1" width="44" height="41" fill="#686b70"/>
+  <polygon points="1,1 45,1 42,4 4,4" fill="#a4a7aa"/>
+  <polygon points="1,1 4,4 4,39 1,42" fill="#92969a"/>
+  <polygon points="45,1 45,42 42,39 42,4" fill="#34373b"/>
+  <polygon points="1,42 4,39 42,39 45,42" fill="#303237"/>
+  <rect x="4" y="4" width="38" height="35" fill="#303b4a"/>
+  <polygon points="4,4 42,4 39,7 7,7" fill="#252c37"/>
+  <polygon points="4,4 7,7 7,36 4,39" fill="#353a44"/>
+  <polygon points="42,4 42,39 39,36 39,7" fill="#8b8e92"/>
+  <polygon points="4,39 7,36 39,36 42,39" fill="#a0a2a4"/>
+  <rect x="7" y="7" width="32" height="29" fill="#3b4a5c"/>
+  <polygon points="7,7 39,7 39,16 7,29" fill="#435468"/>
+  <polygon points="7,30 39,21 39,36 7,36" fill="#344252"/>
+</svg>
