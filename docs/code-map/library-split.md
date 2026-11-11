@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -94,7 +94,7 @@ version policy. Standalone scene fixtures remain supported.
 | Remaining dependency | Responsibility retained in C++ |
 | --- | --- |
 | `ChunkyFile`, `DataBlock`, codecs | Mutable container storage, free maps, writes, embedded-forest decoding, decompression and payload storage. Index reading, graph validation and live chunk/child queries now use C89. |
-| `StringTable_GST`, platform text services | HQ allocation, object lifetime, GST header/read/write adapters and native code-page/locale services. Mutation, packed storage conversion and portable text rules now use C89. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
+| `StringTable_GST`, platform text services | Object lifetime, GST header adapters and native code-page/locale services. Storage ownership, ordered I/O, mutation, packed storage conversion and portable text rules now use C89. The host still supplies memory diagnostics and DataBlock callbacks. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
 | `TagManager`, `ChunkyResourceFile` | Opening/closing runtime tags and resource references, including rollback after failed loads. |
 | `MovieData`, Studio document | Title/scene enumeration, transactional object replacement, editing and serialization. |
 
@@ -140,9 +140,9 @@ retain midpoint and insertion-position behavior through the existing comparison
 callback. Offset byte swapping never touches extras.
 
 `VirtualStringTable` supplies borrowed buffers and a reserve callback over the
-existing HQ allocator. C owns mutation rules and updates the logical counts;
-the adapter retains object lifetime, allocation, duplication, GST header checks
-and `DataBlock` I/O. A failed ordinary mutation retains data/counts, even if one
+C-owned collection storage described below. C owns mutation rules and updates
+the logical counts; the adapter retains object lifetime, GST header checks and
+`DataBlock` callbacks. A failed ordinary mutation retains data/counts, even if one
 allocation grew. As before, a failed loading translation can leave partial
 state and the loader discards that object. No stricter Archive GST acceptance
 policy is applied to Studio.
@@ -164,10 +164,46 @@ Mac/Windows encodings, UTF-16BE loading and duplicate independence. Text-service
 checks compare native callbacks directly with Win32 and force portable policy
 on Windows. The standalone platform-check project links the same C text module.
 
-Next convert the shared collection/allocation foundation so string tables and
-chunk indexes can retire their HQ and mutable-group adapters, then move the
-remaining container persistence and codec services. Whole-engine conversion
-remains incomplete.
+### Collection storage foundation
+
+`three_mm/collection_storage.h` owns the two buffers underneath `GroupBase`,
+covering arrays, groups, string tables and the chunky-file live index. It handles
+allocation lifetime, growth hints, nested pointer locks, duplication and ordered
+header/first-section/second-section transfers. `GroupBase` no longer stores HQ
+handles. Its adapters pass plain buffers, allocator callbacks and bounded
+`DataBlock` read/write callbacks into C89.
+
+The standalone C default uses the C heap. Existing hosts instead supply the
+fixed-memory allocator to retain memory-liberation callbacks, request priorities,
+debug poisoning, allocation failure injection and the `dmaglHq` diagnostic
+category. Those host diagnostics and fixed-memory services remain C++ migration
+work; this does not mark all of Kauai's allocator converted. Debug marking now
+marks the fixed allocations directly, without an HQ prefix.
+
+The C growth policy first attempts the larger growth-hint allocation at speed
+priority, then the exact request at normal priority. Two-section operations
+retain successful first-section changes if growing the second fails. Shrinking
+is best effort and precedes growth. A failed shrink now retains its actual
+capacity; the old wrapper incorrectly updated the recorded size after ignoring
+the failed resize. Oversized speculative requests are skipped using checked
+arithmetic. No collection header or movie wire layout is changed.
+
+Locks protect a section's address from resizing. Ordered I/O locks each active
+section only for its callback and releases that lock on failure. Completed
+transfers remain visible when a later callback fails. Copies preserve only the
+requested prefixes and inherit source growth hints after successful allocation.
+
+`engine-storage-test` exercises a relocating allocator, speculative fallback,
+partial two-section failures, failed shrink, limits, locks, independent copies,
+wire order and each I/O failure boundary. Core link tests check the actual host
+failure hooks, capacity accounting, lock lifecycle, group duplicate independence
+and balanced allocation statistics. Standalone C and C++ host builds include
+the same public header.
+
+Next migrate `DynamicArray`/`AllocatedArray` and `GeneralGroup`/`AllocatedGroup`
+mutation and serialized-header rules into C89 over this storage. Their C++
+algorithms, remaining allocator services, container persistence and codecs still
+prevent a complete C-only backend.
 
 ## Why the split exists
 

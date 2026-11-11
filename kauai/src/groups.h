@@ -28,6 +28,7 @@
 #ifndef GROUPS_H
 #define GROUPS_H
 #include "three_mm/string_table.h"
+#include "three_mm/collection_storage.h"
 
 namespace Group {
 
@@ -50,12 +51,8 @@ class GroupBase : public GroupBase_PAR
     MARKMEM
 
   private:
-    LegacyLong _cb1;
-    LegacyLong _cb2;
-    HQ _hqData1;
-    HQ _hqData2;
-
-    bool _FEnsureHqCb(HQ *phq, LegacyLong cb, LegacyLong cbMinGrow, LegacyLong *pcb);
+    ThreeMMCollectionStorage _storage;
+    void _SetStorageGrowth();
 
   protected:
     LegacyLong _cbMinGrow1;
@@ -64,42 +61,32 @@ class GroupBase : public GroupBase_PAR
 
     byte *_Qb1(LegacyLong ib)
     {
-        return (byte *)QvFromHq(_hqData1) + ib;
+        return _storage.buffers[0].data ? _storage.buffers[0].data + ib : nullptr;
     }
     byte *_Qb2(LegacyLong ib)
     {
-        return (byte *)QvFromHq(_hqData2) + ib;
+        return _storage.buffers[1].data ? _storage.buffers[1].data + ib : nullptr;
     }
     LegacyLong _Cb1(void)
     {
-        return _cb1;
+        return _storage.buffers[0].capacity;
     }
     LegacyLong _Cb2(void)
     {
-        return _cb2;
+        return _storage.buffers[1].capacity;
     }
     bool _FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong grfgrp);
     bool _FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2);
-    bool _FReadData(PDataBlock pblck, LegacyLong ib, LegacyLong cb1, LegacyLong cb2);
+    bool _FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib);
     bool _FDup(PGroupBase pgrpbDst, LegacyLong cb1, LegacyLong cb2);
 
-    GroupBase(void)
-    {
-    }
+    GroupBase(void);
 
   public:
     ~GroupBase(void);
 
-    void Lock(void)
-    {
-        if (_hqData1 != hqNil)
-            PvLockHq(_hqData1);
-    }
-    void Unlock(void)
-    {
-        if (_hqData1 != hqNil)
-            UnlockHq(_hqData1);
-    }
+    void Lock(void);
+    void Unlock(void);
     LegacyLong IvMac(void)
     {
         return _ivMac;

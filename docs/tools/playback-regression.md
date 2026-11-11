@@ -681,3 +681,48 @@ are rechecked after space recovery and remain unchanged; its summary records
 that recovery explicitly. The retry's normal integrity checks also pass.
 SQLite's `quick_check` returns `ok`. Old capture evidence remains on C:; no
 files from this task remain on D:.
+
+## C89 collection storage foundation (11 November 2026)
+
+`GroupBase` now uses C89-owned buffers for arrays, groups, string tables and
+chunk indexes. Allocation lifetime, growth hints and fallback priority, nested
+pointer locks, independent copies and ordered two-section I/O share one C
+implementation. Host callbacks retain fixed-memory diagnostics/failure hooks
+and DataBlock access. Array/group mutations and their stored headers remain
+C++; the whole backend conversion is still incomplete.
+
+The six standalone C-only checks and seventeen focused native checks pass.
+`engine-storage` adds a relocating/failing allocator and exercises speculative
+fallback, partial two-section failures, failed shrink, size limits, locks,
+independent copies, wire order and read/write callback failures. Core link
+checks verify the real allocation-failure hooks and balanced allocation counts.
+All 45 stored movie/archive and legacy-file CLI comparisons retain exact output
+or the same rejection result (`tmp/c89-storage-dump-comparison.json`). Studio
+and Marcus are rebuilt; no Marcus UI tests are added.
+
+Evidence in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261111T210623Z-1beefe45` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261111T211008Z-843d3a11` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against the pre-storage string-conversion captures
+(`20261111T200557Z-e569664c`, with Marcus live retry
+`20261111T201650Z-c357edf5`), all 180 scrolling-text seek images match exactly.
+Each player retains the same 60 authored playback positions and ordered exact
+image changes: retail/SDL 328, Marcus 321. Only adjacent identical images are
+collapsed; raw presentation samples and timestamps remain preserved. The local
+report is `tmp/c89-storage-playback-comparison.json`.
+
+Sampled-audio playback retains the same 60 authored positions and 60 ordered
+exact image changes for each player as `20261111T155408Z-cbdea592`. Observed
+PCM16 peak magnitudes remain 2380 for retail and 2176 for SDL and Marcus.
+This establishes audible capture, not exact PCM parity. The local report is
+`tmp/c89-storage-audio-comparison.json`.
+
+All nine runs retain unchanged movie, ISO-resource and Marcus-content hashes.
+There are no new timing/retail-parity claims: existing cross-player marker,
+presentation-alignment and audio differences remain. One new repetition per
+case does not establish repeatability. Regenerable resource caches were
+recreated on C: after cleanup; no data is relocated to another drive.

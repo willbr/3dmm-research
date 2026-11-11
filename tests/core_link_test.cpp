@@ -173,6 +173,77 @@ static void TestFailedResize()
 #endif
 }
 
+class CollectionStorageProbe : public DynamicArray
+{
+  public:
+    CollectionStorageProbe() : DynamicArray(1) {}
+    bool Ensure(LegacyLong first, LegacyLong second, LegacyUlong flags = fgrpNil)
+    {
+        return _FEnsureSizes(first, second, flags);
+    }
+    LegacyLong Capacity(unsigned section) { return section ? _Cb2() : _Cb1(); }
+    byte *Bytes(unsigned section) { return section ? _Qb2(0) : _Qb1(0); }
+    void Growth(LegacyLong first, LegacyLong second) { _cbMinGrow1 = first; _cbMinGrow2 = second; }
+};
+
+static void TestCollectionStorage()
+{
+#ifdef DEBUG
+    const auto initialAllocations = vdmglob.dmaglHq.cv;
+#endif
+    auto probe = NewObj CollectionStorageProbe();
+    Check(probe != pvNil);
+    probe->Growth(16, 8);
+    Check(probe->Ensure(4, 2));
+    Check(probe->Capacity(0) == 16 && probe->Capacity(1) == 8);
+    probe->Bytes(0)[0] = 37;
+    probe->Bytes(1)[0] = 91;
+#ifdef DEBUG
+    vdmglob.dmaglHq.cactDo = 0;
+    vdmglob.dmaglHq.cactFail = 1;
+    const bool fallback = probe->Ensure(20, 2);
+    const bool fallbackConsumed = vdmglob.dmaglHq.cactFail == 0;
+    vdmglob.dmaglHq.cactFail = 0;
+    Check(fallback && fallbackConsumed && probe->Capacity(0) == 20);
+    probe->Growth(0, 0);
+    vdmglob.dmaglHq.cactDo = 1;
+    vdmglob.dmaglHq.cactFail = 1;
+    const bool secondFailed = !probe->Ensure(40, 12);
+    const bool failureConsumed = vdmglob.dmaglHq.cactFail == 0;
+    vdmglob.dmaglHq.cactFail = vdmglob.dmaglHq.cactDo = 0;
+    Check(secondFailed && failureConsumed);
+    Check(probe->Capacity(0) == 40 && probe->Capacity(1) == 8);
+#endif
+    Check(probe->Bytes(0)[0] == 37 && probe->Bytes(1)[0] == 91);
+    probe->Lock();
+    Check(probe->Bytes(0)[0] == 37);
+    probe->Unlock();
+    Check(probe->Ensure(4, 2, fgrpShrink));
+    Check(probe->Capacity(0) == 4 && probe->Capacity(1) == 2);
+    ReleasePpo(&probe);
+
+    auto group = GeneralGroup::PggNew(sizeof(LegacyLong));
+    Check(group != pvNil);
+    LegacyLong fixed = 17;
+    byte variable[] = {1, 2, 3};
+    Check(group->FAdd(sizeof(variable), pvNil, variable, &fixed));
+    auto duplicate = group->PggDup();
+    Check(duplicate != pvNil);
+    byte changed[] = {8, 9, 10, 11, 12};
+    Check(duplicate->FPut(0, sizeof(changed), changed));
+    Check(group->Cb(0) == 3 && duplicate->Cb(0) == 5);
+    byte observed[3];
+    group->Get(0, observed);
+    Check(!std::memcmp(observed, variable, sizeof(variable)));
+    duplicate->GetFixed(0, &fixed);
+    Check(fixed == 17);
+    ReleasePpo(&duplicate);
+    ReleasePpo(&group);
+#ifdef DEBUG
+    Check(vdmglob.dmaglHq.cv == initialAllocations);
+#endif
+}
+
 static uint32_t s_systemTicks;
 static uint32_t ControlledSystemTicks()
 {
@@ -2758,6 +2829,7 @@ int main()
 {
     TestPortableClockAndMemory();
     TestFailedResize();
+    TestCollectionStorage();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();
     vpcex = CommandExecutionManager::PcexNew(20, 20);

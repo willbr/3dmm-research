@@ -37,7 +37,7 @@ RTCLASS(AllocatedGroup)
 
 /***************************************************************************
     GroupBase:  Manages two sections of data.  Currently the two sections are
-    in two separate hq's, but they could be in one without affecting the
+    in two C-owned buffers, but they could be in one without affecting the
     clients.  The actual data in the two sections is determined by the
     subclass (client).  This class just manages resizing the data sections.
 ***************************************************************************/
@@ -50,14 +50,59 @@ RTCLASS(AllocatedGroup)
 // with the 32-bit on-disk alignment on every architecture.
 static constexpr LegacyLong kcbAlignVar = 4;
 
+namespace {
+void *ResizeCollection(void *, void *data, ThreeMMU32 oldBytes, ThreeMMU32 newBytes, int priority)
+{
+    void *result = data;
+    const LegacyLong mpr = priority == THREE_MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
+    const bool ok = data ? _FResizePpvDebug(&result, newBytes, oldBytes, fmemNil, mpr, &vdmglob.dmaglHq) :
+        FAllocPvDebug(&result, newBytes, fmemNil, mpr, __szsFile, __LINE__, &vdmglob.dmaglHq);
+    if (!ok) PushErc(ercOomHq);
+    return ok ? result : nullptr;
+}
+void FreeCollection(void *, void *data, ThreeMMU32)
+{
+    FreePpvDebug(&data, &vdmglob.dmaglHq);
+}
+int ReadCollectionBlock(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+{
+    if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
+    return static_cast<PDataBlock>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), offset);
+}
+int WriteCollectionBlock(void *context, ThreeMMU32 offset, const void *bytes, size_t count)
+{
+    if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
+    return static_cast<PDataBlock>(context)->FWriteRgb(const_cast<void *>(bytes), static_cast<LegacyLong>(count), offset);
+}
+} // namespace
+
+GroupBase::GroupBase() : _cbMinGrow1(0), _cbMinGrow2(0), _ivMac(0)
+{
+    const ThreeMMStorageAllocator allocator = {nullptr, ResizeCollection, FreeCollection};
+    AssertDo(three_mm_storage_init(&_storage, &allocator) == THREE_MM_STORAGE_OK, "invalid collection allocator");
+}
+void GroupBase::_SetStorageGrowth()
+{
+    _storage.min_grow[0] = _cbMinGrow1;
+    _storage.min_grow[1] = _cbMinGrow2;
+}
+void GroupBase::Lock()
+{
+    AssertDo(three_mm_storage_lock(&_storage, 0) == THREE_MM_STORAGE_OK, "collection lock overflow");
+}
+void GroupBase::Unlock()
+{
+    AssertDo(three_mm_storage_unlock(&_storage, 0) == THREE_MM_STORAGE_OK, "collection not locked");
+}
+
+
 /***************************************************************************
-    Destructor for GroupBase.  Frees the hq.
+    Destructor for GroupBase. Releases the C-owned storage.
 ***************************************************************************/
 GroupBase::~GroupBase(void)
 {
     AssertThis(0);
-    FreePhq(&_hqData1);
-    FreePhq(&_hqData2);
+    AssertDo(three_mm_storage_dispose(&_storage) == THREE_MM_STORAGE_OK, "freeing locked collection storage");
 }
 
 /***************************************************************************
@@ -68,89 +113,18 @@ bool GroupBase::_FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong 
 {
     AssertThis(0);
     Assert(cbMin1 >= 0 && cbMin2 >= 0, "negative sizes");
-
-    if (grfgrp & fgrpShrink)
+    _SetStorageGrowth();
+    const int result = three_mm_storage_ensure(&_storage, cbMin1, cbMin2, (grfgrp & fgrpShrink) != 0);
+    if (result == THREE_MM_STORAGE_LOCKED)
     {
-        // shrink anything that's too big
-        if (cbMin1 == 0)
-        {
-            FreePhq(&_hqData1);
-            _cb1 = 0;
-        }
-        else if (cbMin1 < _cb1)
-        {
-            FResizePhq(&_hqData1, cbMin1, fmemNil, mprNormal);
-            _cb1 = cbMin1;
-        }
-
-        if (cbMin2 == 0)
-        {
-            FreePhq(&_hqData2);
-            _cb2 = 0;
-        }
-        else if (cbMin2 < _cb2)
-        {
-            FResizePhq(&_hqData2, cbMin2, fmemNil, mprNormal);
-            _cb2 = cbMin2;
-        }
+        Bug("resizing locked collection storage");
+        PushErc(ercOomHq);
     }
-
-    if (cbMin1 > _cb1 && !_FEnsureHqCb(&_hqData1, cbMin1, _cbMinGrow1, &_cb1))
-        return fFalse;
-    if (cbMin2 > _cb2 && !_FEnsureHqCb(&_hqData2, cbMin2, _cbMinGrow2, &_cb2))
-        return fFalse;
-
     AssertThis(0);
-    return fTrue;
+    return result == THREE_MM_STORAGE_OK;
 }
 
-/***************************************************************************
-    Ensure that the given HQ is large enough.
-***************************************************************************/
-bool GroupBase::_FEnsureHqCb(HQ *phq, LegacyLong cb, LegacyLong cbMinGrow, LegacyLong *pcb)
-{
-    AssertVarMem(phq);
-    AssertIn(cbMinGrow, 0, kcbMax);
-    AssertVarMem(pcb);
-    AssertIn(*pcb, 0, kcbMax);
 
-    // limit the size
-    if ((LegacyUlong)cb >= kcbMax)
-        return fFalse;
-
-    AssertIn(cb, *pcb + 1, kcbMax);
-    if (hqNil != *phq)
-    {
-        // resize an existing hq
-        AssertHq(*phq);
-
-        if ((cbMinGrow += *pcb) > cb && FResizePhq(phq, cbMinGrow, fmemNil, mprForSpeed))
-        {
-            *pcb = cbMinGrow;
-            return fTrue;
-        }
-        else if (FResizePhq(phq, cb, fmemNil, mprNormal))
-        {
-            *pcb = cb;
-            return fTrue;
-        }
-        return fFalse;
-    }
-
-    // just allocate the thing
-    Assert(*pcb == 0, "bad cb");
-    if (cbMinGrow > cb && FAllocHq(phq, cbMinGrow, fmemNil, mprForSpeed))
-    {
-        *pcb = cbMinGrow;
-        return fTrue;
-    }
-    else if (FAllocHq(phq, cb, fmemNil, mprNormal))
-    {
-        *pcb = cb;
-        return fTrue;
-    }
-    return fFalse;
-}
 
 /***************************************************************************
     Make the given GroupBase a duplicate of this one.
@@ -159,21 +133,13 @@ bool GroupBase::_FDup(PGroupBase pgrpbDst, LegacyLong cb1, LegacyLong cb2)
 {
     AssertThis(0);
     AssertPo(pgrpbDst, 0);
-    AssertIn(cb1, 0, kcbMax);
-    AssertIn(cb2, 0, kcbMax);
-
-    if (!pgrpbDst->_FEnsureSizes(cb1, cb2, fgrpShrink))
+    _SetStorageGrowth();
+    pgrpbDst->_SetStorageGrowth();
+    if (three_mm_storage_copy(&pgrpbDst->_storage, &_storage, cb1, cb2) != THREE_MM_STORAGE_OK)
         return fFalse;
-
-    if (cb1 > 0)
-        CopyPb(_Qb1(0), pgrpbDst->_Qb1(0), cb1);
-    if (cb2 > 0)
-        CopyPb(_Qb2(0), pgrpbDst->_Qb2(0), cb2);
-
     pgrpbDst->_cbMinGrow1 = _cbMinGrow1;
     pgrpbDst->_cbMinGrow2 = _cbMinGrow2;
     pgrpbDst->_ivMac = _ivMac;
-
     AssertPo(pgrpbDst, 0);
     return fTrue;
 }
@@ -194,37 +160,8 @@ bool GroupBase::FWriteFlo(PFileLocation pflo, short bo, short osk)
 bool GroupBase::_FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2)
 {
     AssertPo(pblck, 0);
-    AssertIn(cb, 1, kcbMax);
-    AssertPvCb(pv, cb);
-    AssertIn(cb1, 0, _cb1 + 1);
-    AssertIn(cb2, 0, _cb2 + 1);
-
-    bool fRet = fFalse;
-
-    if (pblck->Cb() != cb + cb1 + cb2)
-    {
-        Bug("blck wrong size");
-        return fFalse;
-    }
-    if (!pblck->FWriteRgb(pv, cb, 0))
-        return fFalse;
-
-    if (cb1 > 0)
-    {
-        fRet = pblck->FWriteRgb(PvLockHq(_hqData1), cb1, cb);
-        UnlockHq(_hqData1);
-        if (!fRet)
-            return fFalse;
-    }
-    if (cb2 > 0)
-    {
-        fRet = pblck->FWriteRgb(PvLockHq(_hqData2), cb2, cb + cb1);
-        UnlockHq(_hqData2);
-        if (!fRet)
-            return fFalse;
-    }
-
-    return fTrue;
+    const ThreeMMStorageWriter writer = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), WriteCollectionBlock};
+    return three_mm_storage_write(&_storage, &writer, pv, cb, cb1, cb2) == THREE_MM_STORAGE_OK;
 }
 
 /***************************************************************************
@@ -234,32 +171,9 @@ bool GroupBase::_FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb
 bool GroupBase::_FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib)
 {
     AssertPo(pblck, fblckUnpacked);
-    AssertIn(cb1, 0, kcbMax);
-    AssertIn(cb2, 0, kcbMax);
-
-    bool fRet;
-
-    if (cb1 == 0 && cb2 == 0)
-        return fTrue;
-    if (!_FEnsureSizes(cb1, cb2, fgrpNil))
-        return fFalse;
-
-    if (cb1 > 0)
-    {
-        fRet = pblck->FReadRgb(PvLockHq(_hqData1), cb1, ib);
-        UnlockHq(_hqData1);
-        if (!fRet)
-            return fFalse;
-    }
-    if (cb2 > 0)
-    {
-        fRet = pblck->FReadRgb(PvLockHq(_hqData2), cb2, ib + cb1);
-        UnlockHq(_hqData2);
-        if (!fRet)
-            return fFalse;
-    }
-
-    return fTrue;
+    _SetStorageGrowth();
+    const ThreeMMReadStream reader = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), ReadCollectionBlock};
+    return three_mm_storage_read(&_storage, &reader, ib, cb1, cb2) == THREE_MM_STORAGE_OK;
 }
 
 #ifdef DEBUG
@@ -269,23 +183,23 @@ bool GroupBase::_FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, Leg
 void GroupBase::AssertValid(LegacyUlong grfobj)
 {
     GroupBase_PAR::AssertValid(grfobj | fobjAllocated);
-    AssertIn(_cb1, 0, kcbMax);
-    AssertIn(_cb2, 0, kcbMax);
-    Assert((_cb1 == 0) == (_hqData1 == hqNil), "cb's don't match _hqData1");
-    Assert((_cb2 == 0) == (_hqData2 == hqNil), "cb's don't match _hqData2");
-    Assert(_hqData1 == hqNil || CbOfHq(_hqData1) == _cb1, "_hqData1 wrong size");
-    Assert(_hqData2 == hqNil || CbOfHq(_hqData2) == _cb2, "_hqData2 wrong size");
+    for (const auto &buffer : _storage.buffers)
+    {
+        Assert(buffer.capacity < THREE_MM_STORAGE_LIMIT, "collection storage too large");
+        Assert((buffer.capacity == 0) == (buffer.data == nullptr), "collection storage size/pointer mismatch");
+        if (buffer.data) AssertPvAlloced(buffer.data, buffer.capacity);
+    }
 }
 
 /***************************************************************************
-    Mark the _hqData blocks.
+    Mark the host allocator blocks owned by C storage.
 ***************************************************************************/
 void GroupBase::MarkMem(void)
 {
     AssertThis(0);
     GroupBase_PAR::MarkMem();
-    MarkHq(_hqData1);
-    MarkHq(_hqData2);
+    MarkPv(_storage.buffers[0].data);
+    MarkPv(_storage.buffers[1].data);
 }
 #endif // DEBUG
 

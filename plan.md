@@ -79,10 +79,14 @@ priority over the older Project 0-4 ordering wherever they conflict.
   adapters remain C++.
 - Dense/allocated string-table mutation, searches, packed-string reconstruction,
   legacy byte maps and portable encoding conversion now use C89. Kauai supplies
-  allocation/object/I/O adapters; Windows supplies native code-page and locale
-  services. Next convert the shared collection/allocation foundation to retire
-  HQ and mutable-group adapters, then remaining container persistence and codecs.
-- Playback, movie-data, container-reading and string-storage slices are implemented; whole-engine conversion
+  object/header adapters; Windows supplies native code-page and locale services.
+- The collection storage foundation now owns `GroupBase`'s two buffers in C89,
+  including allocation lifetime, growth/fallback policy, locks, duplication and
+  ordered I/O. Arrays, groups, string tables and chunk indexes no longer use HQ
+  handles through `GroupBase`. Host fixed-memory diagnostics and DataBlock
+  callbacks remain C++. Next convert array/group mutations and header rules,
+  then the remaining allocator services, container persistence and codecs.
+- Playback, movie-data, container-reading, string-storage and collection-storage slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
   [dependency boundary and build commands](docs/code-map/library-split.md#c89-engine-backend).
