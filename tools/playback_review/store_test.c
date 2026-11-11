@@ -15,7 +15,7 @@ int main(void)
     ReviewStore s;
     sqlite3 *db;
     char body[256];
-    int resolved;
+    int resolved, timed;
     double delta;
     const char *path = "review-store-test.sqlite";
     remove(path);
@@ -38,10 +38,11 @@ int main(void)
               NULL, NULL, NULL) == SQLITE_OK);
     sqlite3_close(db);
     CHECK(review_open(&s, path));
-    CHECK(review_presentation_pair(&s, 1, 2, 5, &delta) == 19 && delta == 10.0);
-    CHECK(review_presentation_pair(&s, 1, 2, 6, &delta) == -1);
-    CHECK(review_presentation_pair(&s, 1, 2, 7, &delta) == -1);
-    CHECK(review_presentation_pair(&s, 3, 2, 5, &delta) == -1);
+    CHECK(review_presentation_pair(&s, 1, 2, 5, &delta, &timed) == 19 && delta == 10.0 && timed);
+    CHECK(review_presentation_pair(&s, 1, 2, 6, &delta, &timed) == 19 && delta == -790.0 && timed);
+    CHECK(review_presentation_pair(&s, 1, 2, 7, &delta, &timed) == 0 && !timed);
+    CHECK(review_presentation_pair(&s, 3, 2, 5, &delta, &timed) == -1);
+    CHECK(review_presentation_pair(&s, 2, 1, 99, &delta, &timed) == -1); /* Never cross scenes. */
     CHECK(sqlite3_db_readonly(s.results, "main") == 1);
     CHECK(review_note_load(&s, 1, -1, body, sizeof(body), &resolved) && !body[0] && !resolved);
     CHECK(review_note_save(&s, 1, -1, "Whole run: apostrophe ' and UTF-8 \xc3\xa9", 0));

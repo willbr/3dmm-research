@@ -13,6 +13,8 @@ void review_close(ReviewStore *s);
 int review_note_load(ReviewStore *s, int run, int sequence, char *body, size_t capacity, int *resolved);
 int review_note_save(ReviewStore *s, int run, int sequence, const char *body, int resolved);
 /* Pair presentations by scene/frame and time since that authored frame commit.
-   Sequence numbers are local to each renderer and must not be equated. */
-int review_presentation_pair(ReviewStore *s, int reference, int candidate, int sequence, double *delta_ms);
+   Sequence numbers are local to each renderer and must not be equated.
+   Timing mismatch never hides evidence. If timing is unavailable, use the
+   first same-scene/frame image and set timed=0. */
+int review_presentation_pair(ReviewStore *s, int reference, int candidate, int sequence, double *delta_ms, int *timed);
 #endif

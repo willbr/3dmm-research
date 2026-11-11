@@ -50,11 +50,13 @@ while a note has unsaved edits; save or discard those edits first.
   pixels. Zoom uses nearest-neighbour sampling; horizontal scrolling supports
   large images. Seek pairing requires matching sequence, scene and authored frame.
   Playback pairs the nearest reference image at the same scene/authored frame,
-  using elapsed time relative to that frame's commit, within 50 ms. The actual
-  offset is displayed. This is a review aid, not a parity verdict: native blits,
+  using elapsed time relative to that frame's commit. The actual offset is
+  displayed; offsets exceeding 50 ms are flagged without hiding the reference.
+  If timestamps are unavailable, the first reference image at that scene/frame
+  is shown with a timing-unavailable label. This is a review aid, not a parity verdict: native blits,
   SDL presents and Marcus updates have different boundaries and rates.
   Missing captures or unequal dimensions have an explicit unavailable message.
-  A playback image with no reference within that time window remains viewable
+  A playback image with no captured reference at that scene/frame remains viewable
   on its own. Older databases retain their original missing-image limitations.
 - Expand recorded comparisons for verdicts, metrics and policies. These are the
   latest stored comparisons per reference/candidate/component; the browser does

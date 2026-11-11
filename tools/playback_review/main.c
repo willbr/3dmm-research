@@ -31,6 +31,7 @@ static float zoom = 1.0f;
 static int differences = -1;
 static int playback_mode, paired_sequence = -1;
 static double pair_delta_ms;
+static int pair_timed;
 static const char *run_columns[] = {"player", "mode", "status", "repetition", "case_name", "id", "preparation"};
 static int run_sort = 5, run_descending = 1;
 
@@ -292,7 +293,8 @@ static void load_images(void)
     seq = atoi(cell(&frames, cursor, 0));
     scene = atoi(cell(&frames, cursor, 1));
     frame = atoi(cell(&frames, cursor, 2));
-    paired_sequence = playback_mode ? review_presentation_pair(&store, reference, selected, seq, &pair_delta_ms) : seq;
+    paired_sequence =
+        playback_mode ? review_presentation_pair(&store, reference, selected, seq, &pair_delta_ms, &pair_timed) : seq;
     for (i = 0; i < 2; ++i)
     {
         sql = sqlite3_mprintf("SELECT path FROM images WHERE run_id=%d AND sequence=%d AND scene=%d AND frame=%d",
@@ -301,7 +303,8 @@ static void load_images(void)
         sqlite3_free(sql);
         load_picture(&pictures[i], t.rows ? cell(&t, 0, 0) : "");
         if (!i && playback_mode && paired_sequence < 0)
-            SDL_strlcpy(pictures[i].error, "No temporally aligned reference image", sizeof(pictures[i].error));
+            SDL_strlcpy(pictures[i].error, "No reference image captured for this scene/frame",
+                        sizeof(pictures[i].error));
         clear_table(&t);
     }
     p = &pictures[2];
@@ -422,13 +425,17 @@ static void details(void)
         load_images();
     if (playback_mode)
     {
-        if (paired_sequence >= 0)
+        if (paired_sequence >= 0 && pair_timed)
             igText("Playback pairing: reference image %d, offset %.2f ms relative to the frame commit (review aid, not "
                    "a parity verdict).",
                    paired_sequence, pair_delta_ms);
+        else if (paired_sequence >= 0)
+            igText("Reference image %d: same scene/frame; timing unavailable.", paired_sequence);
         else
+            igTextWrapped("No reference image captured at the same scene/frame; candidate remains available.");
+        if (paired_sequence >= 0 && pair_timed && (pair_delta_ms < -50 || pair_delta_ms > 50))
             igTextWrapped(
-                "No reference presentation within 50 ms at the same scene/frame phase; candidate remains available.");
+                "Timing offset exceeds 50 ms. Reference shown for visual review; this is not a timing match.");
     }
     igBeginDisabled(!note_ok);
     if (igInputTextMultiline("Review note", note, sizeof(note), vec(-1, 85), 0, NULL, NULL))

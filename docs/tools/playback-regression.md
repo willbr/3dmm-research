@@ -157,7 +157,7 @@ Current gaps are explicit:
 
 - Blits, host presents and Marcus updates have different presentation boundaries.
   `continuous_pixels` remains inconclusive until a validated temporal comparison
-  policy exists. Playback Review offers same-frame phase alignment within 50 ms
+  policy exists. Playback Review offers nearest same-frame phase alignment
   for manual inspection; it does not compare raw image sequence numbers. Capture
   timestamps are not physical display timestamps, and capture adds overhead.
 - Marcus sound-request and per-voice playback-position observers are missing.
@@ -460,8 +460,9 @@ Acid validation preceded the 60 Hz burst limit added for dissolves.
 
 The new reviewer navigates presentation images rather than confusing them with
 authored-frame observations. Same-scene/frame images are paired by phase since
-the corresponding authored commit, with the offset visible and a 50 ms limit.
-Missing or too-distant references remain unpaired. In the first SDL typography
+the corresponding authored commit, with the offset visible. Offsets over 50 ms
+are flagged but no longer hide the reference image; missing timestamps fall
+back to the first same-scene/frame reference. In the first SDL typography
 image, retail is 3.19 ms earlier in frame phase and the images differ by 10 RGB
 pixels. This diagnostic pairing does not establish continuous playback parity.
 
@@ -480,7 +481,7 @@ renders in the capture adapter. The earlier unbounded-blit attempts in
 Validation also includes the writer's pixel conversion, duplicate reuse and
 write-error handling; Python import retains repeated timestamps; C89 reviewer
 tests check phase pairing across independent clocks, mismatched sequence
-numbers, absent timestamps and out-of-window references.
+numbers, absent timestamps and large timing offsets without hiding references.
 
 The coloured grid on the generated feature/dissolve actor is an intentional test
 material, not a missing-texture fallback. The fixture writes texture pixels to
