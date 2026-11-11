@@ -111,7 +111,7 @@ The capture helper requests 32-bit float mixer samples, then deterministically
 rounds/clamps them to the stored 48 kHz stereo PCM16 WAV. This removes random
 one-LSB dither introduced by Windows' PCM conversion without changing comparison
 tolerances. Before Play, capture waits for 250 ms of consecutive zero PCM
-(ten-second timeout), so startup sounds have finished. The full pre-roll and
+(ten-second timeout), confirming quiet output. The full pre-roll and
 measured wait are retained. Silence is judged at the stored PCM16 precision;
 it does not prove that audible output works.
 
@@ -184,3 +184,11 @@ The audio backend uses Microsoft's
 as demonstrated by its
 [application loopback sample](https://github.com/microsoft/Windows-classic-samples/tree/main/Samples/ApplicationLoopback).
 It never opens a microphone or a system-wide audio capture stream.
+
+Startup/loading and Studio UI sounds are muted in oracle test processes.
+The native bridge installs its filter before the application starts, then
+allows movie sound classes 0?2 after the first ready state. SDL uses private
+`MuteStartupSound` and `MuteStudioSounds` settings. The adapters verify the
+policy, so rebuild old native bridges. Movie speech, effects and music remain
+enabled; personal preferences are not modified. Native provenance includes
+suppressed-request counts and the applied audio policy.

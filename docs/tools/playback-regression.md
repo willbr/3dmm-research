@@ -110,7 +110,7 @@ Available observations include:
   discontinuities, timestamp errors and incomplete playback.
   Capture requests float mixer output and converts deterministically to PCM16,
   avoiding Windows' random one-LSB conversion dither. Before Play, it requires
-  250 ms of consecutive zero PCM, allowing startup sounds to finish. The full
+  250 ms of consecutive zero PCM, confirming quiet output before the movie. The full
   pre-roll is retained; a ten-second silence timeout fails capture.
 - Marcus composed images during animated presentation, wait/scroll/transition
   state, render duration and image-copy/enqueue overhead. A bounded asynchronous
@@ -330,3 +330,18 @@ pixels and v3dmm by zero. The original scrolling runs held frame 3 for about
 repeatability evidence. The earlier 24-line draft exceeded the 120-second
 limit and is retained separately in `tmp/playback-text`; the final fixture
 uses eight lines.
+
+## Test-only startup and UI audio policy
+
+The original-runtime bridge suppresses sound requests during startup/loading
+until the first successful state observation. It then permits only movie
+classes 0, 1 and 2 (non-looping sounds, looping WAVE, looping MIDI). The filter
+is installed before the original application resumes, remains active outside
+recording, and is shared by retail and v3dmm. Provenance records the policy and
+suppressed-request counts. Old bridges without this policy are rejected.
+
+SDL's private test settings explicitly enable `MuteStartupSound` and
+`MuteStudioSounds`; the adapter checks both effective preferences. Movie audio
+remains enabled. These changes affect oracle/regression processes only, and do
+not change personal settings. Marcus's headless regression player has no Studio
+startup/UI sounds. The pre-Play silence check remains a capture validity check.

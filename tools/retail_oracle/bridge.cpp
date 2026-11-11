@@ -84,8 +84,29 @@ struct SoundObservation
 std::vector<SoundObservation> soundTrace;
 DWORD *soundSlot = nullptr;
 void *soundCache = nullptr;
-using PlaySound = int(__thiscall *)(void *, void *, DWORD, DWORD, int, int, int, DWORD, int, int);
-PlaySound realPlaySound;
+using SoundDispatchFunction = int(__thiscall *)(void *, void *, DWORD, DWORD, int, int, int, DWORD, int, int);
+SoundDispatchFunction realPlaySound;
+SoundDispatchFunction originalSoundDispatch;
+std::atomic<bool> movieAudioReady{false};
+std::atomic<unsigned> mutedStartupSounds{0}, mutedUISounds{0};
+int __fastcall TestSoundDispatch(void *device, void *, void *resource, DWORD type, DWORD number, int queue, int volume,
+                                int plays, DWORD start, int priority, int category)
+{
+    // Before the first successful State request, only loading/startup is being
+    // exercised. Thereafter retain movie non-looping, looping WAVE and MIDI.
+    if (!movieAudioReady)
+    {
+        ++mutedStartupSounds;
+        return 0; // siiNil
+    }
+    if (category < 0 || category > 2)
+    {
+        ++mutedUISounds;
+        return 0;
+    }
+    return originalSoundDispatch(device, resource, type, number, queue, volume, plays, start, priority, category);
+}
+
 std::string Quote(const std::string &text)
 {
     std::ostringstream out;
@@ -282,6 +303,7 @@ std::string StateJSON()
         << ",\"scene_textbox_count\":" << Count(Pointer(scene, 0x124)) << ",\"scene_actors\":";
     Actors(out, scene);
     out << '}';
+    movieAudioReady = true;
     return out.str();
 }
 LSTATUS WINAPI QueryRegistry(HKEY key, LPCSTR value, LPDWORD reserved, LPDWORD type, LPBYTE data, LPDWORD bytes)
@@ -529,7 +551,7 @@ void TraceHook(bool enable)
         callbackTrace.reserve(100000);
         traceOverflow = false;
         soundSlot = static_cast<DWORD *>(Pointer(sound, 0)) + 10;
-        realPlaySound = reinterpret_cast<PlaySound>(*soundSlot);
+        realPlaySound = reinterpret_cast<SoundDispatchFunction>(*soundSlot);
         soundTrace.clear();
         soundTrace.reserve(10000);
     }
@@ -698,6 +720,9 @@ std::string HelloJSON()
         << (config.profile ? V3dmmSHA256 : ExeSHA256) << "\",\"backend\":\""
         << (config.profile ? "v3dmm-014-us" : "retail-iso") << "\",\"content_root\":" << Quote(AnsiUtf8(rootPath))
         << ",\"render_policy\":\"windowed, better quality, textures, no wireframe\""
+        << ",\"test_audio_policy\":\"startup and UI muted; movie classes 0..2 enabled\""
+        << ",\"muted_startup_sounds\":" << mutedStartupSounds.load()
+        << ",\"muted_ui_sounds\":" << mutedUISounds.load()
         << ",\"registry_redirects\":" << registryRedirects.load() << ",\"opened_assets\":[";
     EnterCriticalSection(&filesLock);
     bool first = true;
@@ -878,6 +903,14 @@ extern "C" __declspec(dllexport) DWORD WINAPI OracleStart(void *argument)
         !PatchImport(reinterpret_cast<void *>(realFindFile), reinterpret_cast<void *>(&FindFileTracked)) ||
         !PatchImport(reinterpret_cast<void *>(realSemaphore), reinterpret_cast<void *>(&CreatePrivateSemaphore)))
         return 13;
+    // Install before the launcher resumes the original application's UI thread.
+    auto dispatchSlot = reinterpret_cast<DWORD *>(base + SoundManagerVtable) + 10;
+    DWORD oldProtection;
+    if (!VirtualProtect(dispatchSlot, sizeof(DWORD), PAGE_READWRITE, &oldProtection))
+        return 21;
+    originalSoundDispatch = reinterpret_cast<SoundDispatchFunction>(*dispatchSlot);
+    *dispatchSlot = reinterpret_cast<DWORD>(&TestSoundDispatch);
+    VirtualProtect(dispatchSlot, sizeof(DWORD), oldProtection, &oldProtection);
     done = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!done)
         return 14;

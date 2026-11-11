@@ -128,6 +128,8 @@ class RetailSession:
                     if str(error) not in ('native_object_not_ready', 'scene_not_ready') or time.monotonic() > deadline:
                         raise
                     time.sleep(.1)
+            if self.oracle.hello().get('test_audio_policy') != 'startup and UI muted; movie classes 0..2 enabled':
+                raise OracleError('Rebuild the native bridge: muted startup/UI test audio policy is required')
             self.validate_assets()
         except BaseException:
             self.close()

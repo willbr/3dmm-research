@@ -30,7 +30,8 @@ class SDLSession:
         preferences = pack_settings or {key: {'generation': '', 'enabled': False, 'remove': False, 'source': sid}
                                        for key, sid in (('nickelodeon', 3), ('doraemon', 4), ('frankie', 5))}
         (settings / 'settings.ini').write_text('[User]\nExpansionPacks=' + json.dumps(json.dumps(preferences)) +
-            '\nSkipSplashScreen=1\n[User.Types]\nExpansionPacks=string\nSkipSplashScreen=number\n', encoding='utf-8')
+            '\nSkipSplashScreen=1\nMuteStartupSound=1\nMuteStudioSounds=1\n[User.Types]\n'
+            'ExpansionPacks=string\nSkipSplashScreen=number\nMuteStartupSound=byte\nMuteStudioSounds=byte\n', encoding='utf-8')
         args = SimpleNamespace(exe=executable, content=output, artifacts=output,
             launch_arguments=['--iso', str(iso.resolve())], environment={
                 'THREEDMM_CONTENT_ROOT': None, 'THREEDMM_ISO': None, 'KAUAI_TEST_FAIL_FAST': None,
@@ -42,7 +43,11 @@ class SDLSession:
         self.output = output
 
     def state(self):
-        return json.loads(self.studio.call('get_state', movie_details=True)['content'][0]['text'])
+        state = json.loads(self.studio.call('get_state', movie_details=True)['content'][0]['text'])
+        preferences = state.get('preferences', {})
+        if not all(preferences.get(key) for key in ('mute_startup_sound', 'mute_studio_sounds')):
+            raise OracleError('SDL test settings did not mute startup and UI sounds')
+        return state
 
     def seek(self, scene, frame):
         result = json.loads(self.studio.call('seek_movie', scene=scene, frame=frame)['content'][0]['text'])
