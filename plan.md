@@ -84,9 +84,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
   including allocation lifetime, growth/fallback policy, locks, duplication and
   ordered I/O. Arrays, groups, string tables and chunk indexes no longer use HQ
   handles through `GroupBase`. Host fixed-memory diagnostics and DataBlock
-  callbacks remain C++. Next convert array/group mutations and header rules,
-  then the remaining allocator services, container persistence and codecs.
-- Playback, movie-data, container-reading, string-storage and collection-storage slices are implemented; whole-engine conversion
+  callbacks remain C++.
+- Dense/allocated array and group mutations and GL/AL/GG wire-header policy now
+  use C89, including slot reuse, padded byte transfers and merges. The native
+  classes retain object/pointer/diagnostic adapters. Next convert GST headers
+  and byte-stream/DataBlock decoding, then codecs, remaining allocator services
+  and container persistence.
+- Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
   [dependency boundary and build commands](docs/code-map/library-split.md#c89-engine-backend).

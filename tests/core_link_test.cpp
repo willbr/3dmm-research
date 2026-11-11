@@ -244,6 +244,93 @@ static void TestCollectionStorage()
 #endif
 }
 
+static void TestCollectionWireAndMutations()
+{
+    auto file = ChunkyFile::PcflCreateTemp();
+    Check(file != pvNil);
+    auto list = DynamicArray::PglNew(sizeof(LegacyLong));
+    auto allocated = AllocatedArray::PalNew(sizeof(LegacyLong));
+    auto group = GeneralGroup::PggNew(1);
+    Check(list && allocated && group);
+    LegacyLong values[] = {11, 22, 33, 44};
+    Check(list->FInsert(0, values, 4));
+    list->Move(0, 4);
+    list->Delete(1, 2);
+    LegacyLong value;
+    list->Get(0, &value); Check(value == 22);
+    list->Get(1, &value); Check(value == 11);
+    for (LegacyLong i = 0; i < 12; ++i) Check(allocated->FAdd(&i));
+    allocated->Delete(8);
+    allocated->Delete(3);
+    LegacyLong position;
+    Check(allocated->FAdd(values, &position) && position == 3);
+    byte first = 1, second = 2;
+    byte sourceBytes[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+    byte targetBytes[] = {'1', '2', '3'};
+    Check(group->FAdd(sizeof(sourceBytes), pvNil, sourceBytes, &first));
+    Check(group->FAdd(sizeof(targetBytes), pvNil, targetBytes, &second));
+    Check(group->FMoveRgb(0, 1, 1, 1, 5));
+    byte bytes[12];
+    Check(group->Cb(0) == 3 && group->Cb(1) == 8);
+    group->Get(0, bytes); Check(!std::memcmp(bytes, "agh", 3));
+    group->Get(1, bytes); Check(!std::memcmp(bytes, "1bcdef23", 8));
+    group->Merge(1, 0);
+    Check(group->IvMac() == 1 && group->Cb(0) == 11);
+    group->Get(0, bytes); Check(!std::memcmp(bytes, "agh1bcdef23", 11));
+    for (int foreign = 0; foreign < 2; ++foreign)
+    {
+        const short order = foreign ? kboOther : kboCur;
+        for (int kind = 0; kind < 3; ++kind)
+        {
+            PGroupBase source = kind == 0 ? static_cast<PGroupBase>(list) :
+                                kind == 1 ? static_cast<PGroupBase>(allocated) : static_cast<PGroupBase>(group);
+            DataBlock block;
+            ChunkNumber number;
+            Check(file->FAdd(source->CbOnFile(), 'COLL', &number, &block));
+            Check(source->FWrite(&block, order, koskSbMac));
+            short observedOrder, observedSystem;
+            if (kind == 0)
+            {
+                auto copy = DynamicArray::PglRead(&block, &observedOrder, &observedSystem);
+                Check(copy != pvNil && copy->IvMac() == 2);
+                copy->Get(1, &value); Check(value == 11);
+                ReleasePpo(&copy);
+            }
+            else if (kind == 1)
+            {
+                auto copy = AllocatedArray::PalRead(&block, &observedOrder, &observedSystem);
+                Check(copy != pvNil && copy->IvMac() == 12 && copy->FFree(8));
+                copy->Get(3, &value); Check(value == 11);
+                ReleasePpo(&copy);
+            }
+            else
+            {
+                auto copy = GeneralGroup::PggRead(&block, &observedOrder, &observedSystem);
+                Check(copy != pvNil && copy->Cb(0) == 11);
+                copy->Get(0, bytes); Check(!std::memcmp(bytes, "agh1bcdef23", 11));
+                copy->GetFixed(0, &first); Check(first == 1);
+                ReleasePpo(&copy);
+            }
+            Check(observedOrder == order && observedSystem == koskSbMac);
+        }
+    }
+    // Foreign-endian header, opaque payload, and deliberately non-invariant OS
+    // marker: the legacy API returns its raw native interpretation before swap.
+    byte wire[] = {0,1,0x12,0x34, 0,0,0,1, 0,0,0,1, 0x7f};
+    ChunkNumber number;
+    Check(file->FAddPv(wire, sizeof(wire), 'COLL', &number));
+    DataBlock block;
+    Check(file->FFind('COLL', number, &block));
+    short order, system;
+    auto decoded = DynamicArray::PglRead(&block, &order, &system);
+    Check(decoded != pvNil);
+    short expectedSystem;
+    std::memcpy(&expectedSystem, wire + 2, sizeof(expectedSystem));
+    Check(system == expectedSystem);
+    ReleasePpo(&decoded);
+    ReleasePpo(&list); ReleasePpo(&allocated); ReleasePpo(&group); ReleasePpo(&file);
+}
+
 static uint32_t s_systemTicks;
 static uint32_t ControlledSystemTicks()
 {
@@ -2830,6 +2917,7 @@ int main()
     TestPortableClockAndMemory();
     TestFailedResize();
     TestCollectionStorage();
+    TestCollectionWireAndMutations();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();
     vpcex = CommandExecutionManager::PcexNew(20, 20);

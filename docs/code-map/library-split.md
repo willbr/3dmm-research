@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -93,7 +93,7 @@ version policy. Standalone scene fixtures remain supported.
 
 | Remaining dependency | Responsibility retained in C++ |
 | --- | --- |
-| `ChunkyFile`, `DataBlock`, codecs | Mutable container storage, free maps, writes, embedded-forest decoding, decompression and payload storage. Index reading, graph validation and live chunk/child queries now use C89. |
+| `ChunkyFile`, `DataBlock`, codecs | Chunk graph mutation/save policy, free maps, embedded-forest decoding, decompression and payload storage. Index reading, graph validation, live chunk/child queries and the underlying array/group algorithms now use C89. |
 | `StringTable_GST`, platform text services | Object lifetime, GST header adapters and native code-page/locale services. Storage ownership, ordered I/O, mutation, packed storage conversion and portable text rules now use C89. The host still supplies memory diagnostics and DataBlock callbacks. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
 | `TagManager`, `ChunkyResourceFile` | Opening/closing runtime tags and resource references, including rollback after failed loads. |
 | `MovieData`, Studio document | Title/scene enumeration, transactional object replacement, editing and serialization. |
@@ -200,10 +200,44 @@ failure hooks, capacity accounting, lock lifecycle, group duplicate independence
 and balanced allocation statistics. Standalone C and C++ host builds include
 the same public header.
 
-Next migrate `DynamicArray`/`AllocatedArray` and `GeneralGroup`/`AllocatedGroup`
-mutation and serialized-header rules into C89 over this storage. Their C++
-algorithms, remaining allocator services, container persistence and codecs still
-prevent a complete C-only backend.
+### Array/group mutation and wire headers
+
+`three_mm/collections.h` and `collections.c` implement dense/allocated arrays
+and groups over the C storage foundation. The native classes publish logical
+counts from borrowed views; mutation inputs must not alias the storage being
+edited. C owns insert/delete, replacement, resize/pop, moves/swaps, first-free
+slot reuse, tail trimming, variable-byte insert/delete/transfer, merge and group
+entry copying. Fixed bytes and variable bytes remain opaque to these algorithms.
+Group locations retain the native two-word layout and four-byte data padding.
+
+Allocated arrays retain unused bitmap bits. Dense null insertion retains the
+existing untouched-byte behavior; debug poisoning remains distinct from release
+storage. Group reservation keeps the legacy conservative budget. Failed
+reservations retain logical contents and counts, even if a first buffer grew.
+The original physical byte-transfer and padding algorithm is preserved. The
+tests do not establish retail behavior for the inherited zero-fixed,
+empty-destination aligned-block-transfer edge case.
+
+`collection_headers.c` decodes/encodes GL12, AL16 and GG20 headers in either byte
+order with checked products and bounds. It retains the existing header policy:
+AL negative free counts pass header decoding, dense/allocated GG modes must
+match, and an empty allocated GG can be written but its reader rejects it.
+Header decoding adds no bitmap or location-graph validator. The native facade
+retains the raw pre-swap OS-marker output. Array contents and GG fixed/variable
+payloads are not byte-swapped; GG location words are swapped and restored around
+writes, including failure paths. GST header handling remains a separate path.
+
+`engine-collections-test` uses independent wire encodings, bitmap boundary/slot
+reuse checks, allocation failures and 12,800 deterministic model steps across
+dense/allocated groups with fixed prefixes from zero through seven bytes. The
+same test passes under MSVC AddressSanitizer. Native core checks exercise
+byte-transfer/merge, dense/sparse array state, both endian save/reopen paths,
+opaque payloads and the raw OS-marker result. C-only and strict C89 builds pass.
+
+Native collection objects, typed pointer access, diagnostics and callback
+adapters remain C++. Next convert the GST wire-header path and byte-stream/
+DataBlock decoding services, followed by codecs and chunk persistence. Remaining
+allocator services and engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

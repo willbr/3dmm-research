@@ -76,6 +76,89 @@ int WriteCollectionBlock(void *context, ThreeMMU32 offset, const void *bytes, si
 }
 } // namespace
 
+namespace {
+bool NativeBigEndian()
+{
+    const short value = 1;
+    return reinterpret_cast<const byte *>(&value)[0] == 0;
+}
+ThreeMMCollectionHeader CollectionHeader(int kind, LegacyLong width, LegacyLong count, LegacyLong bytes, LegacyLong freeCount)
+{
+    ThreeMMCollectionHeader header = {};
+    header.kind = kind; header.width = width; header.count = count; header.bytes = bytes; header.free_count = freeCount;
+    AssertDo(three_mm_collection_layout(&header) == THREE_MM_STORAGE_OK, "invalid collection layout");
+    return header;
+}
+LegacyLong CollectionSize(ThreeMMCollectionHeader header)
+{
+    return header.header_bytes + header.first_bytes + header.second_bytes;
+}
+} // namespace
+bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, ThreeMMCollectionHeader *header,
+                                short *order, short *system)
+{
+    if (!block->FUnpackData())
+    {
+        TrashVar(order); TrashVar(system);
+        return false;
+    }
+    ThreeMMReadStream reader = {block, static_cast<ThreeMMU32>(block->Cb()), ReadCollectionBlock};
+    if (three_mm_collection_header_read(&reader, kind, allocated, header) != THREE_MM_STORAGE_OK)
+    {
+        Warn("file corrupt or not the requested collection");
+        TrashVar(order); TrashVar(system);
+        return false;
+    }
+    if (order) *order = (header->big_endian != 0) == NativeBigEndian() ? kboCur : kboOther;
+    if (system)
+    {
+        auto value = static_cast<ushort>(header->system);
+        if ((header->big_endian != 0) != NativeBigEndian()) value = static_cast<ushort>((value >> 8) | (value << 8));
+        *system = static_cast<short>(value); // Preserve the original raw header output.
+    }
+    if (!_FReadData(block, header->first_bytes, header->second_bytes, header->header_bytes))
+    {
+        TrashVar(order); TrashVar(system);
+        return false;
+    }
+    return true;
+}
+bool GroupBase::_WriteCollection(PDataBlock block, ThreeMMCollectionHeader header, short order, short system)
+{
+    Assert(order == kboCur || order == kboOther, "bad byte order");
+    AssertOsk(system);
+    byte wire[20];
+    header.big_endian = order == kboCur ? NativeBigEndian() : !NativeBigEndian();
+    header.system = static_cast<ushort>(system);
+    if (three_mm_collection_header_write(&header, wire, sizeof(wire)) != THREE_MM_STORAGE_OK) return false;
+    return _FWrite(block, wire, header.header_bytes, header.first_bytes, header.second_bytes);
+}
+ThreeMMArray VirtualArray::_ArrayView(bool allocated, LegacyLong freeCount)
+{
+    ThreeMMArray view = {};
+    view.storage = _CollectionStorage(); view.width = _cbEntry; view.count = _ivMac;
+    view.allocated = allocated; view.free_count = freeCount;
+#ifdef DEBUG
+    view.trash_unused = 1;
+#endif
+    return view;
+}
+void VirtualArray::_ApplyArray(const ThreeMMArray &view) { _ivMac = view.count; }
+ThreeMMGroup VirtualGroup::_GroupView()
+{
+    ThreeMMGroup view = {};
+    view.storage = _CollectionStorage(); view.fixed_bytes = _cbFixed; view.count = _ivMac;
+    view.bytes = _bvMac; view.free_count = _clocFree;
+#ifdef DEBUG
+    view.trash_unused = 1;
+#endif
+    return view;
+}
+void VirtualGroup::_ApplyGroup(const ThreeMMGroup &view)
+{
+    _ivMac = view.count; _bvMac = view.bytes; _clocFree = view.free_count;
+}
+
 GroupBase::GroupBase() : _cbMinGrow1(0), _cbMinGrow2(0), _ivMac(0)
 {
     const ThreeMMStorageAllocator allocator = {nullptr, ResizeCollection, FreeCollection};
@@ -386,23 +469,13 @@ PDynamicArray DynamicArray::PglDup(void)
 // List on file. Fixed 12-byte wire format on every architecture; bare `long`
 // would silently widen on LP64 (Linux/Mac x64) and break the 1995 .3MM format
 // for every DynamicArray ever written by kauai.
-struct DynamicArrayOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t cbEntry;
-    int32_t ivMac;
-};
-static_assert(sizeof(DynamicArrayOnFile) == 12, "DynamicArrayOnFile wire format drift");
-const ByteOrderMask kbomGlf = 0x5F000000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the list.
 ***************************************************************************/
 LegacyLong DynamicArray::CbOnFile(void)
 {
-    AssertThis(0);
-    return size(DynamicArrayOnFile) + LwMul(_cbEntry, _ivMac);
+    return CollectionSize(CollectionHeader(THREE_MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1));
 }
 
 /***************************************************************************
@@ -410,24 +483,8 @@ LegacyLong DynamicArray::CbOnFile(void)
 ***************************************************************************/
 bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    Assert(kboCur == bo || kboOther == bo, "bad bo");
-    AssertOsk(osk);
-
-    DynamicArrayOnFile glf;
-
-    glf.bo = kboCur;
-    glf.osk = osk;
-    glf.cbEntry = _cbEntry;
-    glf.ivMac = _ivMac;
-    if (kboOther == bo)
-    {
-        SwapBytesBom(&glf, kbomGlf);
-        Assert(glf.bo == bo, "wrong bo");
-        Assert(glf.osk == osk, "osk not invariant under byte swapping");
-    }
-    return _FWrite(pblck, &glf, size(glf), LwMul(_cbEntry, _ivMac), 0);
+    AssertThis(fobjAssertFull);
+    return _WriteCollection(pblck, CollectionHeader(THREE_MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1), bo, osk);
 }
 
 /***************************************************************************
@@ -435,49 +492,10 @@ bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
 ***************************************************************************/
 bool DynamicArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(pbo);
-    AssertNilOrVarMem(posk);
-
-    DynamicArrayOnFile glf;
-    LegacyLong cb;
-    bool fRet = fFalse;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-
-    cb = pblck->Cb();
-    if (cb < size(glf))
-        goto LBug;
-
-    if (!pblck->FReadRgb(&glf, size(glf), 0))
-        goto LFail;
-
-    if (pbo != pvNil)
-        *pbo = glf.bo;
-    if (posk != pvNil)
-        *posk = glf.osk;
-
-    if (glf.bo == kboOther)
-        SwapBytesBom(&glf, kbomGlf);
-
-    cb -= size(glf);
-    if (glf.bo != kboCur || glf.cbEntry <= 0 || glf.ivMac < 0 || cb != glf.cbEntry * glf.ivMac)
-    {
-    LBug:
-        Warn("file corrupt or not a DynamicArray");
-        goto LFail;
-    }
-
-    _cbEntry = glf.cbEntry;
-    _ivMac = glf.ivMac;
-    fRet = _FReadData(pblck, cb, 0, size(glf));
-
-LFail:
-    TrashVarIf(!fRet, pbo);
-    TrashVarIf(!fRet, posk);
-    return fRet;
+    ThreeMMCollectionHeader header;
+    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_ARRAY, false, &header, pbo, posk)) return false;
+    _cbEntry = header.width; _ivMac = header.count;
+    return true;
 }
 
 /***************************************************************************
@@ -488,26 +506,11 @@ bool DynamicArray::FInsert(LegacyLong iv, void *pv, LegacyLong cv)
     AssertThis(0);
     AssertIn(iv, 0, _ivMac + 1);
     AssertIn(cv, 1, kcbMax);
-    AssertNilOrPvCb(pv, LwMul(cv, _cbEntry));
-
-    byte *qb;
-    LegacyLong cbTot, cbIns, ibIns;
-
-    cbTot = LwMul(_ivMac + cv, _cbEntry);
-    cbIns = LwMul(cv, _cbEntry);
-    ibIns = LwMul(iv, _cbEntry);
-    if (cbTot > _Cb1() && !_FEnsureSizes(cbTot, 0, fgrpNil))
-        return fFalse;
-
-    qb = _Qb1(ibIns);
-    if (iv < _ivMac)
-        BltPb(qb, qb + cbIns, cbTot - cbIns - ibIns);
-    if (pvNil != pv)
-        CopyPb(pv, qb, cbIns);
-    _ivMac += cv;
-
+    auto view = _ArrayView();
+    const bool ok = three_mm_array_insert(&view, iv, pv, cv) == THREE_MM_STORAGE_OK;
+    _ApplyArray(view);
     AssertThis(0);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -526,16 +529,11 @@ void DynamicArray::Delete(LegacyLong iv)
 ***************************************************************************/
 void DynamicArray::Delete(LegacyLong ivMin, LegacyLong cv)
 {
-    AssertThis(0);
     AssertIn(ivMin, 0, _ivMac);
     AssertIn(cv, 1, _ivMac - ivMin + 1);
-
-    if (ivMin < (_ivMac -= cv))
-    {
-        byte *qb = _Qb1(LwMul(ivMin, _cbEntry));
-        BltPb(qb + LwMul(cv, _cbEntry), qb, LwMul(_ivMac - ivMin, _cbEntry));
-    }
-    TrashPvCb(_Qb1(LwMul(_ivMac, _cbEntry)), LwMul(cv, _cbEntry));
+    auto view = _ArrayView();
+    AssertDo(three_mm_array_delete(&view, ivMin, cv) == THREE_MM_STORAGE_OK, "invalid array deletion");
+    _ApplyArray(view);
     AssertThis(0);
 }
 
@@ -550,10 +548,8 @@ void DynamicArray::Delete(LegacyLong ivMin, LegacyLong cv)
 void DynamicArray::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
-    AssertIn(ivSrc, 0, _ivMac);
-    AssertIn(ivTarget, 0, _ivMac + 1);
-
-    MoveElement(_Qb1(0), _cbEntry, ivSrc, ivTarget);
+    auto view = _ArrayView();
+    AssertDo(three_mm_array_move(&view, ivSrc, ivTarget) == THREE_MM_STORAGE_OK, "invalid array move");
     AssertThis(0);
 }
 
@@ -582,18 +578,11 @@ bool DynamicArray::FAdd(void *pv, LegacyLong *piv)
 bool DynamicArray::FPop(void *pv)
 {
     AssertThis(0);
-    AssertNilOrPvCb(pv, _cbEntry);
-
-    if (_ivMac == 0)
-    {
-        TrashPvCb(pv, _cbEntry);
-        return fFalse;
-    }
-    if (pv != pvNil)
-        Get(_ivMac - 1, pv);
-    _ivMac--;
-    TrashPvCb(_Qb1(LwMul(_ivMac, _cbEntry)), _cbEntry);
-    return fTrue;
+    auto view = _ArrayView();
+    const bool ok = three_mm_array_pop(&view, pv) == THREE_MM_STORAGE_OK;
+    _ApplyArray(view);
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -603,33 +592,11 @@ bool DynamicArray::FPop(void *pv)
 bool DynamicArray::FSetIvMac(LegacyLong ivMacNew)
 {
     AssertThis(0);
-    AssertIn(ivMacNew, 0, kcbMax);
-    LegacyLong cb;
-
-    if (ivMacNew > _ivMac)
-    {
-        if (ivMacNew > kcbMax / _cbEntry)
-        {
-            Bug("who's trying to allocate a list this big?");
-            return fFalse;
-        }
-
-        cb = LwMul(ivMacNew, _cbEntry);
-        if (cb > _Cb1() && !_FEnsureSizes(cb, 0, fgrpNil))
-            return fFalse;
-        TrashPvCb(_Qb1(LwMul(_ivMac, _cbEntry)), LwMul(ivMacNew - _ivMac, _cbEntry));
-    }
-#ifdef DEBUG
-    else if (ivMacNew < _ivMac)
-    {
-        TrashPvCb(_Qb1(LwMul(ivMacNew, _cbEntry)), LwMul(_ivMac - ivMacNew, _cbEntry));
-    }
-#endif // DEBUG
-
-    _ivMac = ivMacNew;
-
+    auto view = _ArrayView();
+    const bool ok = three_mm_array_set_count(&view, ivMacNew) == THREE_MM_STORAGE_OK;
+    _ApplyArray(view);
     AssertThis(0);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -640,16 +607,11 @@ bool DynamicArray::FSetIvMac(LegacyLong ivMacNew)
 bool DynamicArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 {
     AssertThis(0);
-    AssertIn(cvAdd, 0, kcbMax);
-
-    // limit the size of the list
-    if (cvAdd > kcbMax / _cbEntry - _ivMac)
-    {
-        Bug("who's trying to allocate a list this big?");
-        return fFalse;
-    }
-
-    return _FEnsureSizes(LwMul(cvAdd + _ivMac, _cbEntry), 0, grfgrp);
+    auto view = _ArrayView();
+    const bool ok = three_mm_array_reserve(&view, cvAdd, (grfgrp & fgrpShrink) != 0) == THREE_MM_STORAGE_OK;
+    _ApplyArray(view);
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -737,25 +699,13 @@ PAllocatedArray AllocatedArray::PalDup(void)
 }
 
 // Allocated list on file. Fixed 16-byte wire format on every architecture.
-struct AllocatedArrayOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t cbEntry;
-    int32_t ivMac;
-    int32_t cvFree;
-};
-static_assert(sizeof(AllocatedArrayOnFile) == 16, "AllocatedArrayOnFile wire format drift");
-const ByteOrderMask kbomAlf = 0x5FC00000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the list.
 ***************************************************************************/
 LegacyLong AllocatedArray::CbOnFile(void)
 {
-    AssertThis(fobjAssertFull);
-
-    return size(AllocatedArrayOnFile) + LwMul(_cbEntry, _ivMac) + CbFromCbit(_ivMac);
+    return CollectionSize(CollectionHeader(THREE_MM_COLLECTION_ALLOCATED_ARRAY, _cbEntry, _ivMac, 0, _cvFree));
 }
 
 /***************************************************************************
@@ -764,24 +714,7 @@ LegacyLong AllocatedArray::CbOnFile(void)
 bool AllocatedArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
-    AssertPo(pblck, 0);
-    Assert(kboCur == bo || kboOther == bo, "bad bo");
-    AssertOsk(osk);
-
-    AllocatedArrayOnFile alf;
-
-    alf.bo = kboCur;
-    alf.osk = osk;
-    alf.cbEntry = _cbEntry;
-    alf.ivMac = _ivMac;
-    alf.cvFree = _cvFree;
-    if (kboOther == bo)
-    {
-        SwapBytesBom(&alf, kbomAlf);
-        Assert(alf.bo == bo, "wrong bo");
-        Assert(alf.osk == osk, "osk not invariant under byte swapping");
-    }
-    return _FWrite(pblck, &alf, size(alf), LwMul(_cbEntry, _ivMac), CbFromCbit(_ivMac));
+    return _WriteCollection(pblck, CollectionHeader(THREE_MM_COLLECTION_ALLOCATED_ARRAY, _cbEntry, _ivMac, 0, _cvFree), bo, osk);
 }
 
 /***************************************************************************
@@ -789,53 +722,10 @@ bool AllocatedArray::FWrite(PDataBlock pblck, short bo, short osk)
 ***************************************************************************/
 bool AllocatedArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(pbo);
-    AssertNilOrVarMem(posk);
-
-    AllocatedArrayOnFile alf;
-    LegacyLong cbT;
-    LegacyLong cb;
-    bool fRet = fFalse;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-
-    cb = pblck->Cb();
-    if (cb < size(alf))
-        goto LBug;
-
-    if (!pblck->FReadRgb(&alf, size(alf), 0))
-        goto LFail;
-
-    if (pbo != pvNil)
-        *pbo = alf.bo;
-    if (posk != pvNil)
-        *posk = alf.osk;
-
-    if (alf.bo == kboOther)
-        SwapBytesBom(&alf, kbomAlf);
-
-    cb -= size(alf);
-    cbT = alf.cbEntry * alf.ivMac;
-    if (alf.bo != kboCur || alf.cbEntry <= 0 || alf.ivMac < 0 || cb != cbT + CbFromCbit(alf.ivMac) ||
-        alf.cvFree >= LwMax(1, alf.ivMac))
-    {
-    LBug:
-        Warn("file corrupt or not an AllocatedArray");
-        goto LFail;
-    }
-
-    _cbEntry = alf.cbEntry;
-    _ivMac = alf.ivMac;
-    _cvFree = alf.cvFree;
-    fRet = _FReadData(pblck, cbT, cb - cbT, size(alf));
-
-LFail:
-    TrashVarIf(!fRet, pbo);
-    TrashVarIf(!fRet, posk);
-    return fRet;
+    ThreeMMCollectionHeader header;
+    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_ALLOCATED_ARRAY, false, &header, pbo, posk)) return false;
+    _cbEntry = header.width; _ivMac = header.count; _cvFree = header.free_count;
+    return true;
 }
 
 /***************************************************************************
@@ -864,18 +754,8 @@ bool AllocatedArray::FFree(LegacyLong iv)
 ***************************************************************************/
 bool AllocatedArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 {
-    AssertIn(cvAdd, 0, kcbMax);
-    AssertThis(0);
-
-    // limit the size of the list
-    cvAdd = LwMax(0, cvAdd - _cvFree);
-    if (cvAdd > kcbMax / _cbEntry - _ivMac)
-    {
-        Bug("who's trying to allocate a list this big?");
-        return fFalse;
-    }
-
-    return _FEnsureSizes(LwMul(cvAdd + _ivMac, _cbEntry), CbFromCbit(cvAdd + _ivMac), grfgrp);
+    auto view = _ArrayView(true, _cvFree);
+    return three_mm_array_reserve(&view, cvAdd, (grfgrp & fgrpShrink) != 0) == THREE_MM_STORAGE_OK;
 }
 
 /***************************************************************************
@@ -884,44 +764,14 @@ bool AllocatedArray::FEnsureSpace(LegacyLong cvAdd, LegacyUlong grfgrp)
 bool AllocatedArray::FAdd(void *pv, LegacyLong *piv)
 {
     AssertThis(fobjAssertFull);
-    AssertPvCb(pv, _cbEntry);
-    AssertNilOrVarMem(piv);
-
-    LegacyLong iv;
-
-    if (_cvFree > 0)
-    {
-        /* find the first free one */
-        byte grfbit;
-        byte *qgrfbit, *qrgb;
-
-        for (qgrfbit = qrgb = _Qgrfbit(0); *qgrfbit == 0xFF; qgrfbit++)
-            ;
-        iv = (qgrfbit - qrgb) * 8;
-        for (grfbit = *qgrfbit; grfbit & 1; iv++, grfbit >>= 1)
-            ;
-        _cvFree--;
-    }
-    else
-    {
-        if (!FEnsureSpace(1, fgrpNil))
-        {
-            TrashVar(piv);
-            return fFalse;
-        }
-        iv = _ivMac++;
-    }
-    AssertIn(iv, 0, _ivMac);
-
-    /* mark the item used */
-    *_Qgrfbit(iv) |= Fbit(iv);
-    Assert(!FFree(iv), "why is this marked free?");
-    Put(iv, pv);
-    if (piv != pvNil)
-        *piv = iv;
-
+    auto view = _ArrayView(true, _cvFree);
+    ThreeMMU32 position;
+    const bool ok = three_mm_array_add(&view, pv, &position) == THREE_MM_STORAGE_OK;
+    _ApplyArray(view); _cvFree = view.free_count;
+    if (ok && piv) *piv = position;
+    TrashVarIf(!ok, piv);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -930,51 +780,9 @@ bool AllocatedArray::FAdd(void *pv, LegacyLong *piv)
 void AllocatedArray::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(iv, 0, _ivMac);
-    Assert(!FFree(iv), "already free!");
-
-    // trash the thing
-    TrashPvCb(QvGet(iv), _cbEntry);
-
-    *_Qgrfbit(iv) &= ~Fbit(iv);
-    _cvFree++;
-
-    if (iv != _ivMac - 1)
-    {
-        AssertThis(fobjAssertFull);
-        return;
-    }
-
-    // the last element was deleted, find the new _ivMac
-    if (_ivMac <= _cvFree)
-    {
-        // none left, just nuke everything
-        _ivMac = _cvFree = 0;
-    }
-    else
-    {
-        // find the new _ivMac
-        byte fbit;
-        byte *qgrfbit = _Qgrfbit(iv);
-
-        while (iv >= 0)
-        {
-            fbit = Fbit(iv);
-            if ((*qgrfbit & ((fbit << 1) - 1)) == 0) // check all bits from fbit on down
-            {
-                iv = (iv & ~0x0007L) - 1;
-                qgrfbit--;
-            }
-            else if (!(*qgrfbit & fbit)) // check for the ith bit
-                iv--;
-            else
-                break;
-        }
-        iv++;
-        Assert(_cvFree >= _ivMac - iv, "everything is free!?");
-        _cvFree -= _ivMac - iv;
-        _ivMac = iv;
-    }
+    auto view = _ArrayView(true, _cvFree);
+    AssertDo(three_mm_array_delete(&view, iv, 1) == THREE_MM_STORAGE_OK, "invalid allocated-array deletion");
+    _ApplyArray(view); _cvFree = view.free_count;
     AssertThis(fobjAssertFull);
 }
 
@@ -1037,25 +845,13 @@ bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
 }
 
 // group on file. Fixed 20-byte wire format on every architecture.
-struct GeneralGroupOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t ilocMac;
-    int32_t bvMac;
-    int32_t clocFree;
-    int32_t cbFixed;
-};
-static_assert(sizeof(GeneralGroupOnFile) == 20, "GeneralGroupOnFile wire format drift");
-const ByteOrderMask kbomGgf = 0x5FF00000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the group.
 ***************************************************************************/
 LegacyLong VirtualGroup::CbOnFile(void)
 {
-    AssertThis(fobjAssertFull);
-    return size(GeneralGroupOnFile) + LwMul(_ivMac, size(LogicalOffsetAndCount)) + _bvMac;
+    return CollectionSize(CollectionHeader(THREE_MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree));
 }
 
 /***************************************************************************
@@ -1065,37 +861,11 @@ LegacyLong VirtualGroup::CbOnFile(void)
 bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
-    AssertPo(pblck, 0);
-    Assert(kboCur == bo || kboOther == bo, "bad bo");
-    AssertOsk(osk);
-
-    GeneralGroupOnFile ggf;
-    bool fRet;
-
-    ggf.bo = kboCur;
-    ggf.osk = osk;
-    ggf.ilocMac = _ivMac;
-    ggf.bvMac = _bvMac;
-    ggf.clocFree = _clocFree;
-    ggf.cbFixed = _cbFixed;
-    AssertBomRglw(kbomLoc, size(int32_t) * 2); // kbomLoc swaps 2 int32 fields per LogicalOffsetAndCount
-    if (kboOther == bo)
-    {
-        // swap the stuff
-        SwapBytesBom(&ggf, kbomGgf);
-        Assert(ggf.bo == bo, "wrong bo");
-        Assert(ggf.osk == osk, "osk not invariant under byte swapping");
-        // SwapBytesRglw counts 4-byte words; LogicalOffsetAndCount has 2 such per entry.
-        SwapBytesRglw(_Qb2(0), LwMul(_ivMac, 2));
-    }
-    fRet = _FWrite(pblck, &ggf, size(ggf), _bvMac, LwMul(_ivMac, size(LogicalOffsetAndCount)));
-    if (kboOther == bo)
-    {
-        // swap the rgloc back
-        // SwapBytesRglw counts 4-byte words; LogicalOffsetAndCount has 2 such per entry.
-        SwapBytesRglw(_Qb2(0), LwMul(_ivMac, 2));
-    }
-    return fRet;
+    auto view = _GroupView();
+    if (bo == kboOther) three_mm_group_swap_locations(&view);
+    const bool ok = _WriteCollection(pblck, CollectionHeader(THREE_MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree), bo, osk);
+    if (bo == kboOther) three_mm_group_swap_locations(&view);
+    return ok;
 }
 
 /***************************************************************************
@@ -1103,63 +873,15 @@ bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
 ***************************************************************************/
 bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(pbo);
-    AssertNilOrVarMem(posk);
-
-    GeneralGroupOnFile ggf;
-    LegacyLong cbT;
-    short bo;
-    LegacyLong cb;
-    bool fRet = fFalse;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-
-    cb = pblck->Cb();
-    if (cb < size(ggf))
-        goto LBug;
-
-    if (!pblck->FReadRgb(&ggf, size(ggf), 0))
-        goto LFail;
-
-    if (pbo != pvNil)
-        *pbo = ggf.bo;
-    if (posk != pvNil)
-        *posk = ggf.osk;
-
-    if ((bo = ggf.bo) == kboOther)
-        SwapBytesBom(&ggf, kbomGgf);
-
-    cb -= size(ggf);
-    cbT = ggf.ilocMac * size(LogicalOffsetAndCount);
-    if (ggf.bo != kboCur || ggf.bvMac < 0 || ggf.ilocMac < 0 || cb != cbT + ggf.bvMac || ggf.cbFixed < 0 ||
-        ggf.cbFixed >= kcbMax || (ggf.clocFree == cvNil) != (_clocFree == cvNil) ||
-        ggf.clocFree != cvNil && (ggf.clocFree < 0 || ggf.clocFree >= ggf.ilocMac))
+    ThreeMMCollectionHeader header;
+    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_GROUP, _clocFree != cvNil, &header, pbo, posk)) return false;
+    _cbFixed = header.width; _ivMac = header.count; _bvMac = header.bytes; _clocFree = header.free_count;
+    if ((header.big_endian != 0) != NativeBigEndian())
     {
-    LBug:
-        Warn("file corrupt or not a VirtualGroup");
-        goto LFail;
+        auto view = _GroupView();
+        three_mm_group_swap_locations(&view);
     }
-
-    _ivMac = ggf.ilocMac;
-    _bvMac = ggf.bvMac;
-    _clocFree = ggf.clocFree;
-    _cbFixed = ggf.cbFixed;
-    fRet = _FReadData(pblck, cb - cbT, cbT, size(ggf));
-    AssertBomRglw(kbomLoc, size(int32_t) * 2); // kbomLoc swaps 2 int32 fields per LogicalOffsetAndCount
-    if (bo == kboOther && fRet)
-    {
-        // adjust the byte order on the loc's.
-        // SwapBytesRglw counts 4-byte words; LogicalOffsetAndCount has 2 such per entry.
-        SwapBytesRglw(_Qb2(0), LwMul(_ivMac, 2));
-    }
-
-LFail:
-    TrashVarIf(!fRet, pbo);
-    TrashVarIf(!fRet, posk);
-    return fRet;
+    return true;
 }
 
 /***************************************************************************
@@ -1189,27 +911,11 @@ bool VirtualGroup::FFree(LegacyLong iv)
 bool VirtualGroup::FEnsureSpace(LegacyLong cvAdd, LegacyLong cbAdd, LegacyUlong grfgrp)
 {
     AssertThis(0);
-    AssertIn(cvAdd, 0, kcbMax);
-    AssertIn(cbAdd, 0, kcbMax);
-
-    LegacyLong clocAdd;
-
-    if (cvNil == _clocFree)
-        clocAdd = cvAdd;
-    else
-        clocAdd = LwMax(0, cvAdd - _clocFree);
-
-    // we waste at most (kcbAlignVar - 1) bytes per element
-    if (clocAdd > kcbMax / size(LogicalOffsetAndCount) - _ivMac ||
-        cvAdd > (kcbMax / (_cbFixed + kcbAlignVar - 1)) - _bvMac ||
-        cbAdd > kcbMax - _bvMac - cvAdd * (_cbFixed + kcbAlignVar - 1))
-    {
-        Bug("why is this group growing so large?");
-        return fFalse;
-    }
-
-    return _FEnsureSizes(_bvMac + cbAdd + LwMul(cvAdd, _cbFixed + kcbAlignVar - 1),
-                         LwMul(_ivMac + clocAdd, size(LogicalOffsetAndCount)), grfgrp);
+    auto view = _GroupView();
+    const bool ok = three_mm_group_reserve(&view, cvAdd, cbAdd, (grfgrp & fgrpShrink) != 0) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(view);
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -1225,52 +931,9 @@ void VirtualGroup::SetMinGrow(LegacyLong cvAdd, LegacyLong cbAdd)
     _cbMinGrow2 = LwMul(cvAdd, size(LogicalOffsetAndCount));
 }
 
-/***************************************************************************
-    Private api to remove a block of bytes.
-***************************************************************************/
-void VirtualGroup::_RemoveRgb(LegacyLong bv, LegacyLong cb)
-{
-    AssertBaseThis(0);
-    AssertIn(bv, 0, _bvMac);
-    AssertIn(cb, 1, _bvMac - bv + 1);
-    Assert(cb == CbRoundToLong(cb), "cb not aligned to kcbAlignVar");
-    byte *qb;
 
-    if (bv + cb < _bvMac)
-    {
-        qb = _Qb1(bv);
-        BltPb(qb + cb, qb, _bvMac - bv - cb);
-        _AdjustLocs(bv + 1, _bvMac + 1, -cb);
-    }
-    else
-        _bvMac -= cb;
-    TrashPvCb(_Qb1(_bvMac), cb);
-}
 
-/***************************************************************************
-    Private api to remove a block of bytes.
-***************************************************************************/
-void VirtualGroup::_AdjustLocs(LegacyLong bvMin, LegacyLong bvLim, LegacyLong dcb)
-{
-    AssertBaseThis(0);
-    AssertIn(bvMin, 0, _bvMac + 2);
-    AssertIn(bvLim, bvMin, _bvMac + 2);
-    AssertIn(dcb, -_bvMac, kcbMax);
-    Assert((dcb % kcbAlignVar) == 0, "dcb not aligned to kcbAlignVar");
-    LegacyLong cloc;
-    LogicalOffsetAndCount *qloc;
 
-    if (FIn(_bvMac, bvMin, bvLim))
-        _bvMac += dcb;
-    for (qloc = _Qloc(0), cloc = _ivMac; cloc > 0; cloc--, qloc++)
-    {
-        if (bvNil == qloc->bv)
-            continue;
-        if (FIn(qloc->bv, bvMin, bvLim))
-            qloc->bv += dcb;
-        AssertIn(qloc->bv, 0, _bvMac);
-    }
-}
 
 /***************************************************************************
     Returns a volative pointer the the fixed sized data in the element.
@@ -1424,28 +1087,11 @@ void VirtualGroup::Put(LegacyLong iv, void *pv)
 bool VirtualGroup::FPut(LegacyLong iv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
-    AssertIn(iv, 0, _ivMac);
-    Assert(!FFree(iv), "element free!");
-    AssertIn(cb, 0, kcbMax);
-
-    LegacyLong cbCur = Cb(iv);
-
-    if (cb > cbCur)
-    {
-        if (!FInsertRgb(iv, cbCur, cb - cbCur, pvNil))
-            return fFalse;
-    }
-    else if (cb < cbCur)
-        DeleteRgb(iv, cb, cbCur - cb);
-
-    if (pv != pvNil && cb > 0)
-    {
-        AssertPvCb(pv, cb);
-        CopyPb(pv, QvGet(iv), cb);
-    }
-
+    auto view = _GroupView();
+    const bool ok = three_mm_group_put(&view, iv, cb, pv) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(view);
     AssertThis(0);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1495,37 +1141,9 @@ void VirtualGroup::PutRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv)
 void VirtualGroup::DeleteRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb)
 {
     AssertThis(0);
-    AssertIn(iv, 0, _ivMac);
-    Assert(!FFree(iv), "element free!");
-
-    LogicalOffsetAndCount loc;
-    LogicalOffsetAndCount *qloc;
-    LegacyLong cbDel;
-    byte *qb;
-
-    bv += _cbFixed;
-    loc = *_Qloc(iv);
-    AssertIn(bv, _cbFixed, loc.cb);
-    AssertIn(cb, 1, loc.cb - bv + 1);
-
-    if (bv + cb < loc.cb)
-    {
-        // shift usable stuff down
-        qb = _Qb1(loc.bv + bv);
-        BltPb(qb + cb, qb, loc.cb - bv - cb);
-    }
-
-    // determine the number of bytes to nuke
-    cbDel = CbRoundToLong(loc.cb) - CbRoundToLong(loc.cb - cb);
-    if (cbDel > 0)
-        _RemoveRgb(loc.bv + loc.cb - cb, cbDel);
-
-    qloc = _Qloc(iv);
-    if (0 == (qloc->cb -= cb))
-    {
-        Assert(_cbFixed == 0, "oops!");
-        qloc->bv = 0; // empty element
-    }
+    auto view = _GroupView();
+    AssertDo(three_mm_group_delete_bytes(&view, iv, bv, cb) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    _ApplyGroup(view);
     AssertThis(0);
 }
 
@@ -1536,61 +1154,12 @@ void VirtualGroup::DeleteRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb)
 bool VirtualGroup::FInsertRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void *pv)
 {
     AssertThis(0);
-    AssertIn(iv, 0, _ivMac);
-    Assert(!FFree(iv), "element free!");
     AssertIn(cb, 1, kcbMax);
-
-    LogicalOffsetAndCount loc;
-    LegacyLong cbAdd;
-    byte *qb;
-
-    bv += _cbFixed;
-    loc = *_Qloc(iv);
-    AssertIn(bv, _cbFixed, loc.cb + 1);
-    if (loc.cb == 0)
-        loc.bv = _bvMac;
-
-    // need to add this many bytes to _bvMac
-    cbAdd = CbRoundToLong(loc.cb + cb) - CbRoundToLong(loc.cb);
-    if (cbAdd > 0)
-    {
-        LegacyLong bvT;
-
-        if (!_FEnsureSizes(_bvMac + cbAdd, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
-            return fFalse;
-
-        // move later entries back
-        bvT = loc.bv + CbRoundToLong(loc.cb);
-        if (bvT < _bvMac)
-        {
-            qb = _Qb1(bvT);
-            BltPb(qb, qb + cbAdd, _bvMac - bvT);
-            _AdjustLocs(loc.bv + 1, _bvMac + 1, cbAdd);
-        }
-        else
-            _bvMac += cbAdd;
-    }
-
-    // move data within this element
-    if (bv < loc.cb)
-    {
-        qb = _Qb1(loc.bv + bv);
-        BltPb(qb, qb + cb, loc.cb - bv);
-    }
-
-    if (pv != pvNil)
-    {
-        AssertPvCb(pv, cb);
-        CopyPb(pv, _Qb1(loc.bv + bv), cb);
-    }
-    else
-        TrashPvCb(_Qb1(loc.bv + bv), cb);
-
-    // copy the entire loc in case loc.bv got set to _bvMac (if the item was empty)
-    loc.cb += cb;
-    *_Qloc(iv) = loc;
+    auto view = _GroupView();
+    const bool ok = three_mm_group_insert_bytes(&view, iv, bv, cb, pv) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(view);
     AssertThis(0);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1601,76 +1170,11 @@ bool VirtualGroup::FInsertRgb(LegacyLong iv, LegacyLong bv, LegacyLong cb, void 
 bool VirtualGroup::FMoveRgb(LegacyLong ivSrc, LegacyLong bvSrc, LegacyLong ivDst, LegacyLong bvDst, LegacyLong cb)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(ivSrc, 0, _ivMac);
-    Assert(!FFree(ivSrc), "element free!");
-    AssertIn(ivDst, 0, _ivMac);
-    Assert(!FFree(ivDst), "element free!");
-    AssertIn(bvSrc, 0, Cb(ivSrc) + 1);
-    AssertIn(cb, 0, Cb(ivSrc) + 1 - bvSrc);
-    AssertIn(bvDst, 0, Cb(ivDst) + 1);
-
-    LogicalOffsetAndCount *qloc;
-    LogicalOffsetAndCount locSrc, locDst;
-    LegacyLong cbMove, cbT;
-
-    locSrc = *_Qloc(ivSrc);
-    locDst = *_Qloc(ivDst);
-
-    // determine the number of bytes to resize by
-    cbT = (CbRoundToLong(locDst.cb + cb) - CbRoundToLong(locDst.cb)) -
-          (CbRoundToLong(locSrc.cb) - CbRoundToLong(locSrc.cb - cb));
-    if (cbT > 0)
-    {
-        Assert(cb % kcbAlignVar != 0, "why are we here when cb is a multiple of kcbAlignVar?");
-        if (!_FEnsureSizes(_bvMac + cbT, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
-            return fFalse;
-    }
-
-    // move most of the bytes
-    cbMove = LwRoundToward(cb, kcbAlignVar);
-    AssertIn(cb, cbMove, cbMove + kcbAlignVar);
-    if (cbMove > 0)
-    {
-        LegacyLong bv1 = locSrc.bv + bvSrc + _cbFixed;
-        LegacyLong bv2 = locDst.bv + bvDst + _cbFixed;
-
-        qloc = _Qloc(ivSrc);
-        if (0 == (qloc->cb -= cbMove))
-        {
-            Assert(_cbFixed == 0, "what?");
-            qloc->bv = 0;
-        }
-        qloc = _Qloc(ivDst);
-        if (qloc->cb == 0)
-        {
-            Assert(_cbFixed == 0, "what?");
-            bv2 = qloc->bv = _bvMac;
-        }
-        qloc->cb += cbMove;
-        if (bv1 < bv2)
-        {
-            SwapBlocks(_Qb1(bv1), cbMove, bv2 - bv1 - cbMove);
-            _AdjustLocs(locSrc.bv + 1, locDst.bv + 1, -cbMove);
-        }
-        else
-        {
-            SwapBlocks(_Qb1(bv2), bv1 - bv2, cbMove);
-            _AdjustLocs(locDst.bv + 1, locSrc.bv + 1, cbMove);
-        }
-        AssertThis(fobjAssertFull);
-    }
-
-    // move the last few bytes
-    if (cb > cbMove)
-    {
-        byte rgb[kcbAlignVar];
-
-        GetRgb(ivSrc, bvSrc, cb - cbMove, rgb);
-        DeleteRgb(ivSrc, bvSrc, cb - cbMove);
-        AssertDo(FInsertRgb(ivDst, bvDst + cbMove, cb - cbMove, rgb), "logic error caused failure");
-    }
+    auto view = _GroupView();
+    const bool ok = three_mm_group_move_bytes(&view, ivSrc, bvSrc, ivDst, bvDst, cb) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(view);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1684,37 +1188,9 @@ bool VirtualGroup::FMoveRgb(LegacyLong ivSrc, LegacyLong bvSrc, LegacyLong ivDst
 void VirtualGroup::Merge(LegacyLong ivSrc, LegacyLong ivDst)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(ivSrc, 0, _ivMac);
-    Assert(!FFree(ivSrc), "element free!");
-    AssertIn(ivDst, 0, _ivMac);
-    Assert(!FFree(ivDst), "element free!");
-    Assert(ivSrc != ivDst, "can't merge an element with itself!");
-    LegacyLong cb, cbMove, bv;
-    byte rgb[kcbAlignVar];
-
-    cb = Cb(ivSrc);
-    cbMove = LwRoundToward(cb, kcbAlignVar);
-    if (cb > cbMove)
-        GetRgb(ivSrc, cbMove, cb - cbMove, rgb); // get the tail bytes
-
-    bv = Cb(ivDst);
-    if (cbMove > 0)
-    {
-        // move the main section
-        AssertDo(FMoveRgb(ivSrc, 0, ivDst, bv, cbMove), "why did FMoveRgb fail?");
-    }
-
-    // delete the source item
-    Delete(ivSrc);
-    if (ivSrc < ivDst)
-        ivDst--;
-
-    if (cb > cbMove)
-    {
-        // insert the remaining few bytes - there should already be room
-        // for these
-        AssertDo(FInsertRgb(ivDst, bv + cbMove, cb - cbMove, rgb), "why did FInsertRgb fail?");
-    }
+    auto view = _GroupView();
+    AssertDo(three_mm_group_merge(&view, ivSrc, ivDst) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    _ApplyGroup(view);
     AssertThis(fobjAssertFull);
 }
 
@@ -1842,51 +1318,11 @@ PGeneralGroup GeneralGroup::PggDup(void)
 bool GeneralGroup::FInsert(LegacyLong iv, LegacyLong cb, void *pv, void *pvFixed)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(cb, 0, kcbMax);
-    AssertIn(iv, 0, _ivMac + 1);
-
-    byte *qb;
-    LogicalOffsetAndCount loc;
-    LogicalOffsetAndCount *qloc;
-
-    cb += _cbFixed;
-    loc.cb = cb;
-    loc.bv = cb == 0 ? 0 : _bvMac;
-    cb = CbRoundToLong(cb);
-
-    if (!_FEnsureSizes(_bvMac + cb, LwMul(_ivMac + 1, size(LogicalOffsetAndCount)), fgrpNil))
-        return fFalse;
-
-    // make room for the entry
-    qloc = _Qloc(iv);
-    if (iv < _ivMac)
-        BltPb(qloc, qloc + 1, LwMul(_ivMac - iv, size(LogicalOffsetAndCount)));
-    *qloc = loc;
-
-    if (pvNil != pv && cb > 0)
-    {
-        AssertPvCb(pv, cb - _cbFixed);
-        qb = _Qb1(loc.bv);
-        TrashPvCb(qb, _cbFixed);
-        CopyPb(pv, qb + _cbFixed, loc.cb - _cbFixed);
-        TrashPvCb(qb + loc.cb, cb - loc.cb);
-    }
-    else
-        TrashPvCb(_Qb1(loc.bv), cb);
-
-    if (pvNil != pvFixed)
-    {
-        Assert(_cbFixed > 0, "why is pvFixed not nil?");
-        AssertPvCb(pvFixed, _cbFixed);
-        qb = _Qb1(loc.bv);
-        CopyPb(pvFixed, qb, _cbFixed);
-    }
-
-    _bvMac += cb;
-    _ivMac++;
-
+    auto view = _GroupView();
+    const bool ok = three_mm_group_insert(&view, iv, cb, pv, pvFixed) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(view);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1896,43 +1332,12 @@ bool GeneralGroup::FInsert(LegacyLong iv, LegacyLong cb, void *pv, void *pvFixed
 bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, LegacyLong ivSrc, LegacyLong ivDst, LegacyLong cv)
 {
     AssertThis(fobjAssertFull);
-    AssertPo(pggSrc, 0);
-    AssertIn(cv, 0, pggSrc->IvMac() + 1);
-    AssertIn(ivSrc, 0, pggSrc->IvMac() + 1 - cv);
-    AssertIn(ivDst, 0, _ivMac + 1);
-    LegacyLong cb, cbFixed, iv, ivLim;
-    LogicalOffsetAndCount loc;
-    byte *pb;
-
-    if ((cbFixed = pggSrc->CbFixed()) != CbFixed())
-    {
-        Bug("Groups have different fixed sizes");
-        return fFalse;
-    }
-    if (pggSrc == this)
-    {
-        Bug("Cant insert from same group");
-        return fFalse;
-    }
-
-    cb = 0;
-    for (iv = ivSrc, ivLim = ivSrc + cv; iv < ivLim; iv++)
-        cb += pggSrc->Cb(iv);
-
-    if (!FEnsureSpace(cv, cb))
-        return fFalse;
-
-    pggSrc->Lock();
-    for (iv = ivSrc; iv < ivLim; iv++)
-    {
-        loc = *pggSrc->_Qloc(iv);
-        pb = pggSrc->_Qb1(loc.bv);
-        AssertDo(FInsert(ivDst + iv - ivSrc, loc.cb - cbFixed, pb + cbFixed, cbFixed == 0 ? pvNil : pb), 0);
-    }
-    pggSrc->Unlock();
-
+    auto destination = _GroupView();
+    auto source = pggSrc->_GroupView();
+    const bool ok = three_mm_group_copy_entries(&destination, &source, ivSrc, ivDst, cv) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(destination);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1959,17 +1364,9 @@ bool GeneralGroup::FAdd(LegacyLong cb, LegacyLong *piv, void *pv, void *pvFixed)
 void GeneralGroup::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(iv, 0, _ivMac);
-    LogicalOffsetAndCount *qloc;
-    LogicalOffsetAndCount loc;
-
-    qloc = _Qloc(iv);
-    loc = *qloc;
-    if (iv < --_ivMac)
-        BltPb(qloc + 1, qloc, LwMul(_ivMac - iv, size(LogicalOffsetAndCount)));
-    TrashPvCb(_Qloc(_ivMac), size(LogicalOffsetAndCount));
-    if (loc.cb > 0)
-        _RemoveRgb(loc.bv, CbRoundToLong(loc.cb));
+    auto view = _GroupView();
+    AssertDo(three_mm_group_delete(&view, iv) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    _ApplyGroup(view);
     AssertThis(fobjAssertFull);
 }
 
@@ -1984,10 +1381,9 @@ void GeneralGroup::Delete(LegacyLong iv)
 void GeneralGroup::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
-    AssertIn(ivSrc, 0, _ivMac);
-    AssertIn(ivTarget, 0, _ivMac + 1);
-
-    MoveElement(_Qloc(0), size(LogicalOffsetAndCount), ivSrc, ivTarget);
+    auto view = _GroupView();
+    AssertDo(three_mm_group_move(&view, ivSrc, ivTarget) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    _ApplyGroup(view);
     AssertThis(0);
 }
 
@@ -1997,10 +1393,9 @@ void GeneralGroup::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 void GeneralGroup::Swap(LegacyLong iv1, LegacyLong iv2)
 {
     AssertThis(0);
-    AssertIn(iv1, 0, _ivMac);
-    AssertIn(iv2, 0, _ivMac);
-
-    SwapPb(_Qloc(iv1), _Qloc(iv2), size(LogicalOffsetAndCount));
+    auto view = _GroupView();
+    AssertDo(three_mm_group_swap(&view, iv1, iv2) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    _ApplyGroup(view);
     AssertThis(0);
 }
 
@@ -2096,75 +1491,14 @@ PAllocatedGroup AllocatedGroup::PagDup(void)
 bool AllocatedGroup::FAdd(LegacyLong cb, LegacyLong *piv, void *pv, void *pvFixed)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(cb, 0, kcbMax);
-    AssertNilOrVarMem(piv);
-
-    LegacyLong iloc;
-    byte *qb;
-    LogicalOffsetAndCount loc;
-    LogicalOffsetAndCount *qloc;
-
-    cb += _cbFixed;
-    AssertIn(cb, 0, kcbMax);
-
-    if (0 < _clocFree)
-    {
-        // find the first free element
-        qloc = _Qloc(0);
-        for (iloc = 0; iloc < _ivMac; iloc++, qloc++)
-        {
-            if (qloc->bv == bvNil)
-                break;
-        }
-        Assert(iloc < _ivMac - 1, "_clocFree wrong");
-        _clocFree--;
-    }
-    else
-        iloc = _ivMac;
-    if (iloc == _ivMac)
-        _ivMac++;
-
-    loc.cb = cb;
-    loc.bv = cb == 0 ? 0 : _bvMac;
-    cb = CbRoundToLong(cb);
-
-    if (!_FEnsureSizes(_bvMac + cb, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
-    {
-        if (iloc == _ivMac - 1)
-            _ivMac--;
-        else
-            _clocFree++;
-        TrashVar(piv);
-        return fFalse;
-    }
-
-    // fill in the loc and copy the data
-    *_Qloc(iloc) = loc;
-    if (pv != pvNil)
-    {
-        AssertPvCb(pv, cb - _cbFixed);
-        qb = _Qb1(loc.bv);
-        TrashPvCb(qb, _cbFixed);
-        CopyPb(pv, qb + _cbFixed, loc.cb - _cbFixed);
-        TrashPvCb(qb + loc.cb, cb - loc.cb);
-    }
-    else
-        TrashPvCb(_Qb1(loc.bv), cb);
-
-    if (pvNil != pvFixed)
-    {
-        Assert(_cbFixed > 0, "why is pvFixed not nil?");
-        AssertPvCb(pvFixed, _cbFixed);
-        qb = _Qb1(loc.bv);
-        CopyPb(pvFixed, qb, _cbFixed);
-    }
-
-    _bvMac += cb;
-    if (pvNil != piv)
-        *piv = iloc;
-
+    auto view = _GroupView();
+    ThreeMMU32 position;
+    const bool ok = three_mm_group_add(&view, cb, pv, pvFixed, &position) == THREE_MM_STORAGE_OK;
+    _ApplyGroup(view);
+    if (ok && piv) *piv = position;
+    TrashVarIf(!ok, piv);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -2173,30 +1507,9 @@ bool AllocatedGroup::FAdd(LegacyLong cb, LegacyLong *piv, void *pv, void *pvFixe
 void AllocatedGroup::Delete(LegacyLong iv)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(iv, 0, _ivMac);
-    Assert(!FFree(iv), "entry already free!");
-
-    LogicalOffsetAndCount *qloc;
-    LogicalOffsetAndCount loc;
-
-    qloc = _Qloc(iv);
-    loc = *qloc;
-
-    if (iv == _ivMac - 1)
-    {
-        // move _ivMac back past any free entries on the end
-        while (--_ivMac > 0 && (--qloc)->bv == bvNil)
-            _clocFree--;
-        TrashPvCb(_Qloc(_ivMac), LwMul(iv - _ivMac + 1, size(LogicalOffsetAndCount)));
-    }
-    else
-    {
-        qloc->bv = bvNil;
-        qloc->cb = 0;
-        _clocFree++;
-    }
-    if (loc.cb > 0)
-        _RemoveRgb(loc.bv, CbRoundToLong(loc.cb));
+    auto view = _GroupView();
+    AssertDo(three_mm_group_delete(&view, iv) == THREE_MM_STORAGE_OK, "invalid group mutation");
+    _ApplyGroup(view);
     AssertThis(fobjAssertFull);
 }
 

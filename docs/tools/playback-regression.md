@@ -726,3 +726,51 @@ There are no new timing/retail-parity claims: existing cross-player marker,
 presentation-alignment and audio differences remain. One new repetition per
 case does not establish repeatability. Regenerable resource caches were
 recreated on C: after cleanup; no data is relocated to another drive.
+
+## C89 array/group mutations and wire headers (11 November 2026)
+
+Dense/allocated arrays and groups now use C89 mutation algorithms, including
+free slots, bitmap state, four-byte padding, byte transfers, merges and entry
+copying. GL12/AL16/GG20 headers use shared C decoders/encoders. Native adapters
+retain object lifetime, pointer access and diagnostics, including the original
+debug assertion levels. GST headers, DataBlock/stream services, codecs and
+chunk-save policy remain further migration work.
+
+All seven standalone C checks and eighteen focused native checks pass. The new
+`engine-collections` check includes independent wire fixtures and 12,800 model
+steps covering dense/allocated groups with fixed prefixes from zero through
+seven bytes. It also passes under MSVC AddressSanitizer. Native core checks
+exercise byte transfer/merge, sparse/dense array edits, both endian save/reopen,
+opaque payloads and the raw OS-marker output. Header tests retain the negative
+AL free-count and empty allocated GG acceptance/rejection rules. The documented
+legacy edge-case boundary is in the [collection map](../code-map/library-split.md#arraygroup-mutation-and-wire-headers).
+No Marcus UI tests were added.
+
+All 51 CLI baselines match: 45 movie/archive/constructed-legacy comparisons
+retain exact output or the same rejection, and six asset indexes retain all
+20,568 entries. Reports are `tmp/c89-collections-dump-comparison.json` and
+`tmp/c89-collections-asset-comparison.json`.
+
+The final builds are captured in
+`tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261111T230920Z-3f3b70ad` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261111T231330Z-2dc96e5f` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Compared with storage-slice suites `20261111T210623Z-1beefe45` and
+`20261111T211008Z-843d3a11`, all 180 seek images match exactly and each player
+retains the same 60 authored playback positions. Scrolling-text ordered exact
+image changes remain retail/SDL 328 and Marcus 321; sampled audio remains 60
+for each player. Only adjacent identical image/position records are collapsed;
+raw timestamps and presentation samples remain available. PCM16 peaks remain
+2380 for retail and 2176 for SDL and Marcus. The local report is
+`tmp/c89-collections-playback-comparison.json`.
+
+All nine final captures retain unchanged movie, ISO-resource and Marcus-content
+hashes. Existing cross-player pixel/audio differences and timing/alignment
+limitations remain; these checks establish preservation against earlier builds,
+not complete retail parity. One repetition does not establish repeatability.
+Earlier captures made before the final native assertion-level review remain in
+the database, separately from the final suites listed above.

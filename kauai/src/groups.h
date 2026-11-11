@@ -28,7 +28,7 @@
 #ifndef GROUPS_H
 #define GROUPS_H
 #include "three_mm/string_table.h"
-#include "three_mm/collection_storage.h"
+#include "three_mm/collections.h"
 
 namespace Group {
 
@@ -75,6 +75,13 @@ class GroupBase : public GroupBase_PAR
     {
         return _storage.buffers[1].capacity;
     }
+    ThreeMMCollectionStorage *_CollectionStorage()
+    {
+        _SetStorageGrowth();
+        return &_storage;
+    }
+    bool _ReadCollection(PDataBlock, int kind, bool allocated, ThreeMMCollectionHeader *, short *, short *);
+    bool _WriteCollection(PDataBlock, ThreeMMCollectionHeader, short bo, short osk);
     bool _FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong grfgrp);
     bool _FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2);
     bool _FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib);
@@ -114,6 +121,8 @@ class VirtualArray : public VirtualArray_PAR
   protected:
     LegacyLong _cbEntry;
 
+    ThreeMMArray _ArrayView(bool allocated = false, LegacyLong freeCount = 0);
+    void _ApplyArray(const ThreeMMArray &);
     VirtualArray(LegacyLong cb);
 
   public:
@@ -249,6 +258,8 @@ class VirtualGroup : public VirtualGroup_PAR
     };
     static_assert(sizeof(LogicalOffsetAndCount) == 8, "LogicalOffsetAndCount wire format drift");
 
+    ThreeMMGroup _GroupView();
+    void _ApplyGroup(const ThreeMMGroup &);
     LegacyLong _bvMac;
     LegacyLong _clocFree;
     LegacyLong _cbFixed;
@@ -256,8 +267,6 @@ class VirtualGroup : public VirtualGroup_PAR
   protected:
     VirtualGroup(LegacyLong cbFixed, bool fAllowFree);
 
-    void _RemoveRgb(LegacyLong bv, LegacyLong cb);
-    void _AdjustLocs(LegacyLong bvMin, LegacyLong bvLim, LegacyLong dcb);
     LogicalOffsetAndCount *_Qloc(LegacyLong iloc)
     {
         return (LogicalOffsetAndCount *)_Qb2(LwMul(iloc, size(LogicalOffsetAndCount)));
