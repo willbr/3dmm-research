@@ -86,3 +86,25 @@
     * use Save As to write an ordinary `.3mm` or `.vmm`; leave the source ZIP unchanged
     * reuse miniz with extraction limits and CRC checks; avoid accumulating duplicate temporary files
     * consider loose VXP packages alongside `.3mm` movies as a follow-up
+
+* Marcus movie planning and animation tools inspired by Source Filmmaker
+    * storyboard panels with sketches, imported images, notes and links to scenes/frame ranges
+    * Grease Pencil-style viewport drawing with named layers, opacity, held drawings, keyframes and onion skinning; start in screen space and consider 3D strokes later
+    * shot timeline with storyboard thumbnails; trim, duplicate and reorder shots before animation is finished
+    * named object groups with a movable pivot, visibility, locking and solo controls
+    * save selections as reusable prefabs containing relative transforms, costumes and optional animation; start with independent copies and consider linked instances with overrides later
+    * pose bookmarks and a reusable pose/motion library for compatible actors and rigs
+    * parenting and constraints: hats follow heads, cups follow hands, look-at targets and timed attachment changes
+    * IK controls mapped to actor body-part hierarchies, with editable chains, targets, constraints and keyframes; investigate foot planting and hand contact
+    * pose-to-pose blocking with stepped timing, followed by interpolation and animation curves for easing and overshoot
+    * edit motion across a selected time range, with gradual blends at its boundaries
+    * record puppeteering by dragging controls or steering objects during playback, then refine the recorded motion
+    * keep the shot camera visible while navigating with an independent work camera
+    * frame bookmarks and review notes linked to drawing overlays
+    * performance prefabs combining props, actor placement, rig targets and reusable actions, such as a person typing at a desk
+    * prioritize groups/prefabs, the shot timeline, pose bookmarks and parenting as foundations for IK and curve editing
+    * store Marcus authoring data in separate versioned private chunks without changing standard movie records or file versions
+    * retail should ignore private chunks and play the underlying movie; verify this with a retail fixture before claiming compatibility
+    * loss of Marcus-only authoring data after saving in retail is acceptable
+    * bake IK, constraints and edited motion into supported movie events/actions for retail playback; prototype the animation encoding first
+    * investigate compatibility separately for animated cameras, 3D drawing and rendering effects, especially against prerendered backgrounds
