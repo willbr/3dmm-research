@@ -80,6 +80,8 @@ def compile_header():
     icons = {name: vertices(ICONS / (name + '.svg')) for name in ('frame', 'play', 'pause', 'continue')}
     icons.update({name: vertices(ICONS / (name + '.svg'), '0 0 28 20')
                   for name in ('first_frame', 'previous_frame', 'next_frame', 'last_frame')})
+    icons.update({name: vertices(ICONS / (name + '.svg'), '0 0 10 20')
+                  for name in ('frame_slider', 'scene_slider')})
     lines = [
         '/* Generated from src/marcus/icons/*.svg by tools/compile_marcus_vectors.py. */',
         '#ifndef MARCUS_UI_VECTORS_H', '#define MARCUS_UI_VECTORS_H',

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 20" width="10" height="20">
+  <title>Scene slider thumb</title>
+  <desc>Scalable beveled thumb inspired by the original 3D Movie Maker scrollbar.</desc>
+  <rect x="0" y="0" width="10" height="20" fill="#1a491d"/>
+  <polygon points="0,0 10,0 8,2 2,2" fill="#8bd17f"/>
+  <polygon points="0,0 2,2 2,18 0,20" fill="#8bd17f"/>
+  <rect x="2" y="2" width="6" height="16" fill="#348b35"/>
+  <rect x="4" y="4" width="1" height="12" fill="#8bd17f"/>
+</svg>

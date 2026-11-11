@@ -157,7 +157,18 @@ Frame and scene navigation, including the movie overlay, use scalable SVG redraw
 previous/next, and stop bars for first/last. Editable sources are in
 `src/marcus/icons/{first,previous,next,last}_frame.svg`; regenerate the compiled
 geometry with `python tools/compile_marcus_vectors.py`. Hover, pressed and
-disabled feedback retain the existing controls' bounds and actions.
+disabled feedback remain available.
+
+The playback header places a blue frame slider and a green scene slider between
+each row's backward and forward buttons, following 3DMM's frame/scene scrollbars.
+Their beveled SVG thumbs are `frame_slider.svg` and `scene_slider.svg` in the
+same artwork directory. Click or drag to seek within the current scene or select
+a scene; positions snap to whole frames/scenes and clamp at either end. A drag
+pauses playback and resumes it on release if it was already playing. Escape ends
+the drag. These controls do not require the background duration calculation.
+One-frame/one-scene ranges show a disabled thumb. The separate movie-wide
+scrubber remains available when the header has room, and in the expanded view.
+
 Time spans all scenes and follows seeking, playback and scene looping. It includes
 scrolling text, timed pauses, sound waits and transitions between scenes. Click
 waits assume immediate acknowledgement, so time spent waiting for a click is

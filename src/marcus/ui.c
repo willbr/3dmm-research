@@ -328,6 +328,26 @@ void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, co
     if (hovered)
         ui->hint = hint;
 }
+void ui_transport_slider(MarcusUI *ui, float x, float y, float width, double fraction,
+                         int scene, int enabled, int dragging)
+{
+    int hovered;
+    float thumb, brightness;
+    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, width, UI_NAVIGATION_HEIGHT);
+    fraction = fraction < 0 ? 0 : fraction > 1 ? 1 : fraction;
+    thumb = x + (float)((width - 10) * fraction);
+    ui_fill(ui, x, y + 5, width, 10, 0x151619);
+    ui_line(ui, x, y + 5, x + width, y + 5, 0x08090b);
+    ui_line(ui, x, y + 14, x + width, y + 14, 0x686b70);
+    ui_line(ui, x, y + 10, x + width, y + 10, 0x36393e);
+    brightness = !enabled ? 0.55f : dragging ? 0.85f : hovered ? 1.15f : 1;
+    draw_vector_scaled(ui, thumb, y, scene ? marcus_vector_scene_slider : marcus_vector_frame_slider,
+                       scene ? MARCUS_VECTOR_SCENE_SLIDER_COUNT : MARCUS_VECTOR_FRAME_SLIDER_COUNT,
+                       1, UI_NAVIGATION_HEIGHT / 20.0f, brightness, enabled);
+    if (hovered || dragging)
+        ui->hint = scene ? "Scene slider: drag to move from scene to scene"
+                         : "Frame slider: drag to move within the current scene";
+}
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {
     float angle, next, radius, next_radius, center_x, center_y, scale;

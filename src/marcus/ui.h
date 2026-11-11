@@ -41,6 +41,8 @@ void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active);
 /* action: 0 first, 1 previous, 2 next, 3 last. */
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
 void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
+void ui_transport_slider(MarcusUI *ui, float x, float y, float width, double fraction,
+                         int scene, int enabled, int dragging);
 #ifdef __cplusplus
 }
 #endif
