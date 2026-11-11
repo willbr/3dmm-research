@@ -19,6 +19,37 @@ from playback_regression import compare_runs, compare_suite, load_manifest, revi
 
 
 class Measurements(unittest.TestCase):
+    def test_text_fixture_requires_content_and_visibility_boundaries(self):
+        case = {'features': ['2d-text'], 'text_contract':
+                {'first_frame': 3, 'max_frame': 25, 'prefix': 'Static words'}}
+        observations = [{'scene': 0, 'frame': frame, 'count': 1,
+                         'boxes': [{'text': 'Static words 1', 'visible': 3 <= frame < 25}]}
+                        for frame in (2, 3, 24, 25)]
+        report = {'text_observations': observations}
+        verify_feature_observations(case, 'sdl', 'seek', report)
+        observations[-1]['boxes'][0]['visible'] = True
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'sdl', 'seek', report)
+        observations[-1]['boxes'][0]['visible'] = False
+        observations[1]['boxes'][0]['text'] = ''
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'sdl', 'seek', report)
+        observations[0]['count'] = 0
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'retail', 'seek', report)
+
+
+    def test_scrolling_fixture_cannot_silently_skip_credits(self):
+        case = {'features': ['2d-text', 'scrolling-text'],
+                'text_contract': {'first_frame': 3, 'minimum_scroll_hold_ms': 1000}}
+        report = {'expected_scene_count': 1, 'trace': {'frames': [
+            {'scene': 0, 'frame': 3, 'monotonic_ns': 100},
+            {'scene': 0, 'frame': 4, 'monotonic_ns': 1500000100}]}}
+        verify_feature_observations(case, 'retail', 'playback', report)
+        report['trace']['frames'][1]['monotonic_ns'] = 166000100
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'retail', 'playback', report)
+
     def test_declared_transition_needs_actual_transition_images(self):
         case = {'features': ['transition-dissolve']}
         with self.assertRaises(RuntimeError):

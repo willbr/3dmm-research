@@ -194,6 +194,7 @@ def seek_capture(store, run, session, output, player, viewport):
     for scene in ranges:
         store.insert('scenes', run_id=run, **scene)
     sequence = 0
+    text_observations = []
     for scene in ranges:
         for frame in range(scene['first_frame'], scene['last_frame'] + 1):
             result = session.seek(scene['scene'] + 1, frame - scene['first_frame'] + 1)
@@ -209,11 +210,14 @@ def seek_capture(store, run, session, output, player, viewport):
             path = output / (label + '-canvas.png')
             image.save(path)
             state = result['state']
+            text_observations.append({'scene': scene['scene'], 'frame': frame,
+                'count': state.get('scene_textbox_count'), 'boxes': state.get('scene_textboxes')})
             store.insert('frames', run_id=run, sequence=sequence, scene=scene['scene'], frame=frame,
                          timestamp_ns=None, state_json=encode(state))
             store.image(run, sequence, scene['scene'], frame, path, seek_result=state)
             sequence += 1
-    return {'expected_frames': sequence, 'scope': 'absolute seeks, not continuous presentation'}
+    return {'expected_frames': sequence, 'scope': 'absolute seeks, not continuous presentation',
+            'text_observations': text_observations}
 
 
 def playback_capture(store, run, session, output, audio_module, helper, limit):
@@ -256,6 +260,28 @@ def import_presentations(store, run, trace):
 
 
 def verify_feature_observations(case, player, mode, report):
+    if case.get('text_contract') and mode == 'seek' and player != 'marcus':
+        observations = report.get('text_observations', [])
+        if not observations or any(item['count'] != 1 for item in observations):
+            raise RuntimeError('Text fixture must load exactly one text box in every inspected frame')
+        if player == 'sdl':
+            contract = case['text_contract']
+            for item in observations:
+                boxes = item.get('boxes') or []
+                visible = contract['first_frame'] <= item['frame'] < contract['max_frame']
+                if (len(boxes) != 1 or not boxes[0]['text'].startswith(contract['prefix']) or
+                        boxes[0]['visible'] != visible):
+                    raise RuntimeError('Text content or visibility does not match the authored fixture')
+
+    minimum_hold = case.get('text_contract', {}).get('minimum_scroll_hold_ms')
+    if minimum_hold and mode == 'playback' and player != 'marcus':
+        frames = {(frame['scene'], frame['frame']): frame['monotonic_ns']
+                  for frame in report['trace']['frames']}
+        first = case['text_contract']['first_frame']
+        for scene in range(report['expected_scene_count']):
+            before, after = frames.get((scene, first)), frames.get((scene, first + 1))
+            if before is None or after is None or after - before < minimum_hold * 1000000:
+                raise RuntimeError('Scrolling fixture advanced before its credit hold was observed')
     if player == 'marcus' and mode == 'playback':
         animated = set(case['features']) & {'transition-fade', 'transition-dissolve', 'transition-black'}
         if animated and not any(event['transition'] for event in report['trace'].get('presentations', [])):
@@ -626,6 +652,8 @@ def prepare(args):
         ('actor-events', '--events', basic + ['rotation', 'scale', 'stretch', 'freeze', 'entrance-exit']),
         ('dissolve', '--dissolve', basic + ['transition-dissolve']),
         ('sampled-audio', '--audio', basic + ['sampled-speech', 'sampled-effects']),
+        ('static-text', '--static-text', basic + ['2d-text']),
+        ('scrolling-text', '--scrolling-text', basic + ['2d-text', 'scrolling-text']),
     ):
         movie = output / (name + '.3mm')
         command = [str(args.fixture.resolve()), str(movie), str(product / 'BKGDS.3CN'),
@@ -637,6 +665,11 @@ def prepare(args):
         cases.append({'name': name, 'path': movie.name, 'sha256': digest(movie),
                       'reference': 'retail', 'features': features, 'players': list(PLAYERS),
                       'expected_audio': 'audible' if option == '--audio' else 'silent'})
+        if name in ('static-text', 'scrolling-text'):
+            cases[-1]['text_contract'] = {'first_frame': 3, 'max_frame': 25 if name == 'static-text' else 31,
+                                         'prefix': 'Static words' if name == 'static-text' else 'Scrolling credits'}
+            if name == 'scrolling-text':
+                cases[-1]['text_contract']['minimum_scroll_hold_ms'] = 1000
     manifest_path.write_text(json.dumps({'schema': 1, 'cases': cases}, indent=2), encoding='utf-8')
     print('Prepared ' + str(manifest_path))
     return 0

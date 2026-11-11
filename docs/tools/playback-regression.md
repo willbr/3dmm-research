@@ -9,10 +9,10 @@ saved over. This is playback-quality evidence, not a declaration of parity.
 The default comparison targets are **retail, v3dmm and SDL**, with SDL parity
 the current priority. Add `--players retail,v3dmm,sdl,marcus` to include Marcus.
 
-The initial generated corpus contains four two-scene movies (60 authored frames
+The initial generated corpus contains six two-scene movies (60 authored frames
 each): general rendering/animation, actor event changes, a dissolve transition,
-and sampled speech/effects with distinct quiet 600 Hz and 1300 Hz cues. The
-feature catalog explicitly reports features that still lack cases. A feature
+sampled speech/effects with distinct quiet 600 Hz and 1300 Hz cues, static
+text boxes and scrolling credits. The feature catalog explicitly reports features that still lack cases. A feature
 tag says the fixture exercises it; it does not say that feature passes.
 
 ## Build and prepare
@@ -290,3 +290,43 @@ input pairs, pinned by `brender-divr-parity` to hash `76d7761ee6511c0c`.
 The four-case sweep in `tmp/parity-divr/playback.sqlite` completed all 720
 images but retained the previous pixel mismatches. Neither this arithmetic
 fix nor matching transforms establishes full rendered-image parity.
+
+## Text-box regression cases
+
+`prepare` now adds `static-text` and `scrolling-text`. Both contain a real 2D
+text box in each of their two scenes, using Arial at size 16 with a white
+background. `static-text` contains mixed-case words, digits and punctuation,
+explicit paragraph breaks and lines long enough to wrap. Its box is visible
+from frame 3 through 24 inclusive, providing before/after visibility checks.
+`scrolling-text` contains eight numbered credit lines in a 180 by 48 box, visible
+from frame 3 through the scene end. It runs through ordinary playback without
+batch-mode wait skipping.
+
+The manifest records a `text_contract`. Seek capture requires one loaded box
+on every frame; SDL additionally checks the expected text prefix and exact
+visibility boundaries. Missing content, early appearance or late disappearance
+fails capture. Scrolling playback must hold the first visible frame for at
+least one second in each scene, catching skipped credits. That minimum is a
+fixture-exercise check, not a timing-parity tolerance or proof of smooth scrolling.
+All players' pixels remain subject to exact comparison. Marcus
+is optional and does not yet expose this state contract.
+
+Run just these cases with `--case static-text --case scrolling-text`. Default
+modes capture all 60 absolute seeks and normal-speed playback for each player.
+The current original/SDL playback observer still lacks intermediate images,
+so scrolling speed, smoothness and exact moving glyph positions remain
+inconclusive; a successful seek pass cannot establish scrolling parity.
+These are initial Arial cases, not exhaustive font/style/alignment coverage.
+
+The final Windows 11 smoke sweep is in `tmp/playback-text-final/playback.sqlite`:
+12 complete captures (two cases, three players, seek/playback), 360 seek images,
+and no incomplete runs. All final text contracts passed when reapplied to the
+stored observations (`text-contract-checks.json`). Original v3dmm matched retail
+on all 120 seek frames. SDL differed on 51 static-text and 29 scrolling-text
+seek frames; those full-canvas counts also include existing actor differences.
+Within the static box's rectangle on scene 1/frame 3, SDL differed by eight
+pixels and v3dmm by zero. The original scrolling runs held frame 3 for about
+11.4 seconds per scene. One repetition is a smoke check, not reference
+repeatability evidence. The earlier 24-line draft exceeded the 120-second
+limit and is retained separately in `tmp/playback-text`; the final fixture
+uses eight lines.

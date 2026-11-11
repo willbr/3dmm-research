@@ -97,7 +97,7 @@ static bool BatchPauses(PGeneralGroup frames, LegacyLong insertion)
     }
     return true;
 }
-static bool BatchCredits(PChunkyFile file, ChunkNumber *number)
+static bool BatchCredits(PChunkyFile file, ChunkNumber *number, bool story = false, bool regression = false)
 {
     RichTextData text;
     text.fontName.SetSzs(PszLit("Arial"));
@@ -108,18 +108,20 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number)
     text.text.pfil = FileObject::PfilCreateTemp();
     char credits[4096];
     int count = 0;
-    for (int line = 0; line < 24; ++line)
-        count += std::snprintf(credits + count, sizeof(credits) - count, "Scrolling credits line %d\r", line + 1);
+    for (int line = 0; line < (story ? 3 : regression ? 8 : 24); ++line)
+        count += std::snprintf(credits + count, sizeof(credits) - count,
+                              story ? "Static words %d: Aa Zz 0123! Wrapping sentence across the box.\r"
+                                    : "Scrolling credits line %d\r", line + 1);
     text.text.cb = count;
     if (!text.properties || !text.text.pfil || !text.text.pfil->FSetFpMac(count) ||
         !text.text.FWriteRgb(credits, count, 0))
         return false;
     ChunkIdentification rich;
     TextBoxData box;
-    box.firstFrame = -2;
-    box.maxFrame = 31;
-    box.story = false; // Scrolling box, rather than a stationary story box.
-    box.bounds.Set(40, 24, 220, 72);
+    box.firstFrame = regression ? 3 : -2;
+    box.maxFrame = regression && story ? 25 : 31;
+    box.story = story;
+    box.bounds.Set(40, 24, 220, story ? 160 : 72);
     return text.FWrite(file, &rich) && file->FAdd(0, kctgTbox, number) && box.FWrite(file, *number) &&
            file->FAdoptChild(kctgTbox, *number, rich.ctg, rich.cno, 0);
 }
@@ -187,10 +189,11 @@ int main(int argc, char **argv)
 {
     if (argc != 4 && argc != 5 &&
         !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0 ||
-                        std::strcmp(argv[5], "--events") == 0 || std::strcmp(argv[5], "--audio") == 0)))
+                        std::strcmp(argv[5], "--events") == 0 || std::strcmp(argv[5], "--audio") == 0 ||
+                        std::strcmp(argv[5], "--static-text") == 0 || std::strcmp(argv[5], "--scrolling-text") == 0)))
     {
         std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES "
-                             "[--batch|--dissolve|--events|--audio]]\n");
+                             "[--batch|--dissolve|--events|--audio|--static-text|--scrolling-text]]\n");
         return 2;
     }
     const bool movie = argc >= 5;
@@ -198,6 +201,8 @@ int main(int argc, char **argv)
     const bool dissolve = argc == 6 && std::strcmp(argv[5], "--dissolve") == 0;
     const bool events = argc == 6 && std::strcmp(argv[5], "--events") == 0;
     const bool audio = argc == 6 && std::strcmp(argv[5], "--audio") == 0;
+    const bool staticText = argc == 6 && std::strcmp(argv[5], "--static-text") == 0;
+    const bool scrollingText = argc == 6 && std::strcmp(argv[5], "--scrolling-text") == 0;
     const int source = movie ? 2 : 1;
     String backgroundPath;
     backgroundPath.SetSzs(argv[2]);
@@ -398,11 +403,12 @@ int main(int argc, char **argv)
     SceneEvent change = {movie ? 15 : 5, sevtChngCamera};
     ok = ok && frames->FInsert(0, sizeof(nextCamera), &nextCamera, &change);
     ChunkNumber credits = 0;
-    if (batch)
+    if (batch || staticText || scrollingText)
     {
         std::uint32_t slot = 0;
         SceneEvent start = {1, sevtAddTbox};
-        ok = ok && BatchPauses(frames, 0) && BatchCredits(file, &credits) &&
+        ok = ok && (!batch || BatchPauses(frames, 0)) &&
+             BatchCredits(file, &credits, staticText, staticText || scrollingText) &&
              file->FAdoptChild(kctgScen, sceneNumber, kctgTbox, credits, slot) &&
              starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &start);
     }
@@ -420,7 +426,7 @@ int main(int argc, char **argv)
     else
         for (int i = 0; ok && i < count; ++i)
             ok = file->FAdoptChild(kctgScen, emptyScene, kctgActr, actors[i], i);
-    if (batch)
+    if (batch || staticText || scrollingText)
         ok = ok && file->FAdoptChild(kctgScen, emptyScene, kctgTbox, credits, 0);
     auto secondFrames = movie ? GeneralGroup::PggNew(sizeof(SceneEvent)) : pvNil;
     if (movie)
