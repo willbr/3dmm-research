@@ -967,3 +967,84 @@ This removes the eager whole-library hash scan. It does not remove the separate
 archive/index/metadata costs or the roughly 30-second synchronous duration pass
 for this movie. Package resolution still uses legacy names, CFG shortnames and
 mount order; selected unchanged files reuse their validation fingerprints.
+
+### Full-opening review after the SQLite change
+
+A deeper instrumented run on 11 November compared Debug (`build/marcus-x64`)
+with Release (`build/studio-portable-release-x64`) at `e2b6a2e3`. Both used the
+same awards ZIP, resources and content library, with a warm SQLite catalog.
+These are separate headless profiling executables following the player open,
+whole-movie timing and first CPU render path, not measurements of window/GPU
+startup. Each configuration was measured once; these are warm-cache observations,
+not cold-disk benchmarks.
+
+| Phase | Debug | Release |
+| --- | ---: | ---: |
+| ZIP extraction | 0.759 s | 0.612 s |
+| VMM content setup | 0.268 s | 0.177 s |
+| Movie archive index | 5.306 s | 0.387 s |
+| Movie metadata | 6.171 s | 1.041 s |
+| Preview runtime opening | 3.593 s | 0.277 s |
+| Content mounting | 1.484 s | 0.209 s |
+| Open total before whole-movie timing | 17.772 s | 2.731 s |
+| Whole-movie duration analysis | 30.287 s | 5.734 s |
+| First CPU render, 544x306 | 0.280 s | 0.152 s |
+| Total including setup and teardown | 48.577 s | 8.664 s |
+
+The main remaining cost is waveform generation during duration calculation.
+`main.c::refresh` synchronously calls `marcus_movie_time`; `ReadSoundTimeline`
+visits all 1,435 scenes. Its duration callback requests a waveform column solely
+to obtain `info.seconds`. The waveform cache nevertheless decodes/resamples the
+audio and constructs its envelope. There were 1,212 waveform requests, 965 cache
+misses, 204 hits, 794 decodes and 793 envelope builds. These counts do not establish
+how many distinct sounds were decoded again after eviction.
+
+| Nested cost across opening and timing | Debug | Release |
+| --- | ---: | ---: |
+| Sampled-audio decoding | 19.824 s | 3.602 s |
+| Waveform envelope construction | 7.434 s | 1.385 s |
+| Movie chunk enumeration, two snapshots | 6.658 s | 0.546 s |
+| Linear metadata chunk lookups | 1.547 s | 0.202 s |
+| Sound-cue presentation reads during timing | 2.451 s | 0.575 s |
+| Additional presentation reads during timing | 0.279 s | 0.070 s |
+| Caption layout during timing | 0.012 s | 0.001 s |
+
+These costs overlap the phases above and must not be added to their totals.
+Envelope construction processed 324,933,824 stereo sample frames, approximately
+2.42 GiB of float PCM, from 37.05 MiB of sound resources. MIDI duration comes
+from event timing; MIDI synthesis is not the cause here. Only one scrolling
+caption hold was found among 903 captions, and caption layout is negligible for
+this movie.
+
+The player and preview each build a complete archive snapshot, enumerating the
+same 193,880 movie chunks twice. Metadata loading also makes 1,437 linear chunk
+searches, totalling 247,399,531 comparisons. The existing chunk array is already
+sorted by unsigned type and number, so binary search can replace those scans.
+Timing reads each scene's presentation through both `ReadSoundCues` and
+`ReadPresentation`, another opportunity to share already-read data.
+
+Instrumented engine `ReadFile` calls took 0.670 seconds in Debug and 0.541 seconds
+in Release for 451.89 MiB across 269,169 reads. This counter excludes ZIP stream
+I/O, SQLite I/O and temporary-file writes, but supports CPU processing as the
+dominant measured cost. Outer ZIP decompression remains a small part of opening.
+
+The next changes, in priority order, are:
+
+1. Remove whole-movie timing from the first-frame path and calculate it lazily or
+   in an isolated worker. Removing only this pass projects about 2.9 seconds to
+   first CPU frame in this Release run; that altered path has not been measured.
+2. Give sound lengths a separate cache/API, without generating waveforms. Preserve
+   codec/resampling rounding and MIDI timing; generate envelopes when requested
+   for display. Merely deferring the existing work would otherwise move the stall.
+3. Share the movie archive snapshot and replace linear chunk searches with binary
+   searches. Reuse scene presentation reads during timing.
+
+Release substantially reduces the costs, but still spends about five seconds
+decoding audio and building waveforms for the duration display. Both builds
+reported 4,291.06 seconds and first-frame FNV64 pixel hash
+`13146854581947680197`, with 1,435 scenes and 16 first-scene actors. This checks
+the measured duration and one rendered frame, not full playback parity.
+
+Local evidence and instrumentation are in `tmp/marcus-full-open-review/`, including
+`debug.log`, `release.log`, `runs.json`, and `build_profiles.py`. Production
+playback sources were unchanged by this review.
