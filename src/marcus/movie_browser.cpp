@@ -668,8 +668,11 @@ struct MarcusBrowser
             if (const auto card = Preview(*item))
             {
                 ui_label(ui, detailX, top + 270, 270, card->preview.title.c_str(), text);
-                ui_label(ui, detailX, top + 296, 270, card->preview.details.c_str(), muted);
-                ui_label(ui, detailX, top + 326, 270, card->preview.error.empty() ?
+                const auto split = card->preview.details.find('\n');
+                ui_label(ui, detailX, top + 296, 270, card->preview.details.substr(0, split).c_str(), muted);
+                if (split != std::string::npos)
+                    ui_label(ui, detailX, top + 322, 270, card->preview.details.substr(split + 1).c_str(), accent);
+                ui_label(ui, detailX, top + 352, 270, card->preview.error.empty() ?
                          (card->texture ? "Saved scene thumbnail" : "No saved preview available") : card->preview.error.c_str(), muted);
             }
             else ui_label(ui, detailX, top + 270, 270, item->directory ? "Open to browse this folder." :

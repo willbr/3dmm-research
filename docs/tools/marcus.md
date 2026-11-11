@@ -107,8 +107,14 @@ thread after an explicit Open; not all movie loading is asynchronous.
 The selected movie has preview priority; other visible movies up to 32 MiB are
 inspected one at a time. ZIP previews may temporarily extract the inspected
 member using the existing size/CRC checks. VMM previews copy only the inner
-movie, without installing dependency packages. A missing
-thumbnail displays a placeholder; first-frame rendering, duration analysis,
+movie, without installing dependency packages.
+
+The details pane estimates duration from the summed scene frame counts at the
+engine's six frames per second, rounded to the nearest second and labelled
+**Est. ... (frames only)**. It excludes additional time for pauses, sound waits,
+scrolling captions and transitions. It uses metadata from the preview helper
+and does not load playback or add UI-thread file reads. A missing
+thumbnail displays a placeholder; first-frame rendering, full duration analysis,
 dependency availability badges and bundled-font discovery are not implemented
 in the browser. Dependencies are resolved through the normal opening path.
 Previewing does not replace the active movie or play audio; cancel leaves it

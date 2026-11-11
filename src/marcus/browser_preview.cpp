@@ -2,6 +2,7 @@
 #include "three_mm/archive.h"
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 #include "soc_core.h"
 #undef size
 ASSERTNAME
@@ -45,6 +46,13 @@ BrowserPreview ReadBrowserPreview(const std::string &movie, const std::string &r
                 break;
             }
     result.details = std::to_string(scenes.size()) + " scenes / " + std::to_string(frames) + " scene frames";
+    const auto seconds = (frames + kfps / 2) / kfps;
+    char duration[96];
+    if (seconds >= 3600)
+        std::snprintf(duration, sizeof(duration), "Est. %lld:%02lld:%02lld (frames only)", seconds / 3600, seconds / 60 % 60, seconds % 60);
+    else
+        std::snprintf(duration, sizeof(duration), "Est. %lld:%02lld (frames only)", seconds / 60, seconds % 60);
+    result.details += std::string("\n") + duration;
     if (scenes.empty())
     {
         result.error = "No movie scenes found.";
