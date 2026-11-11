@@ -253,3 +253,17 @@ ctest --test-dir build/marcus-x64 -R '^playback-regression$' --output-on-failure
 
 Pillow is required for the image checks. Without it, those individual checks
 skip explicitly while standard-library timing/database checks still run.
+
+## Actor-facing arithmetic, 11 November 2026
+
+The portable `BrFixedATan2` now interpolates the original assembly lookup
+table instead of using libm. A 513 by 513 direction sweep (all octants,
+axes and zero) produces the same colour-independent angle hash as unchanged
+x86 assembly: `a8b160126097ab95`. The registered `brender-atan-parity` test
+pins this result. This corrects one-angle-unit discrepancies in actor facing.
+
+The `features` seek rerun in `tmp/parity-atan/playback.sqlite` still has
+29 SDL frames and 3,162 pixels different from retail; v3dmm remains exact.
+Thus this arithmetic fix does not explain that fixture's remaining geometry
+mismatch. Vertex/projection tracing, continuous playback images, audible
+onset analysis and Organiser preparation remain outstanding.

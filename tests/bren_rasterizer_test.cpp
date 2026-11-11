@@ -2065,6 +2065,21 @@ static int integer_parity(bool textured = false)
     return hash == expected ? 0 : 1;
 }
 
+// Pin actor-facing angles against the original x86 assembly.
+static int atan_parity()
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (int x = -256; x <= 256; ++x)
+        for (int y = -256; y <= 256; ++y)
+        {
+            unsigned angle = BrFixedATan2(x * 65536, y * 65536);
+            hash = (hash ^ (angle & 255)) * UINT64_C(1099511628211);
+            hash = (hash ^ (angle >> 8)) * UINT64_C(1099511628211);
+        }
+    printf("Actor facing oracle: 263169 directions, hash %016llx\n", (unsigned long long)hash);
+    return hash == UINT64_C(0xa8b160126097ab95) ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     const char *scene;
@@ -2186,6 +2201,8 @@ int main(int argc, char **argv)
     install_zb();
 
     scene = argv[1];
+    if (strcmp(scene, "atan-parity") == 0)
+        return atan_parity();
     if (strcmp(scene, "integer-parity") == 0)
         return integer_parity();
     if (strcmp(scene, "textured-parity") == 0)
