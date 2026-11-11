@@ -21,11 +21,9 @@
 #define SCENE_NAV_X FRAME_NAV_X
 #define FRAME_NAV_Y 4
 #define SCENE_NAV_Y 26
-#define NAV_SLIDER_WIDTH 96
-#define NAV_SLIDER_SPACE 100
-#define PLAY_X (332 + NAV_SLIDER_SPACE)
+#define PLAY_X 332
 #define PLAY_Y 2
-#define LOOP_X (384 + NAV_SLIDER_SPACE)
+#define LOOP_X 384
 #define NAV_STEP 32
 #define MOVIE_CONTROLS_HEIGHT 140
 #define MOVIE_IDLE_MS 2500
@@ -120,7 +118,6 @@ typedef struct App
     int second_view, second_mode, resizing_view, movie_dirty;
     int movie_only, fullscreen;
     int movie_scrubbing, movie_resume, cursor_hidden;
-    int navigation_scrubbing, navigation_resume;
     float movie_overlay_alpha;
     double movie_activity_tick, movie_scrub_seconds;
     int resizing_timeline;
@@ -350,7 +347,6 @@ static void fail(App *app, const char *message)
     app->resizing_view = 0;
     app->resizing_timeline = 0;
     app->movie_scrubbing = app->movie_resume = 0;
-    app->navigation_scrubbing = app->navigation_resume = 0;
     if (app->cursor_hidden)
         SDL_ShowCursor();
     app->cursor_hidden = 0;
@@ -404,7 +400,6 @@ static void editor_view(App *app)
     if (app->movie_scrubbing)
         app->playing = app->movie_resume;
     app->movie_scrubbing = app->movie_resume = 0;
-    app->navigation_scrubbing = app->navigation_resume = 0;
     app->movie_overlay_alpha = 0;
     movie_activity(app);
     release_camera(app);
@@ -519,53 +514,6 @@ static int seek(App *app, long frame)
     app->dirty = 1;
     return 1;
 }
-static SDL_FRect navigation_slider_rect(const App *app, int scene)
-{
-    SDL_FRect rect;
-    rect.x = FRAME_NAV_X + NAV_STEP * 2;
-    rect.y = app->timeline_y + (scene ? SCENE_NAV_Y : FRAME_NAV_Y);
-    rect.w = NAV_SLIDER_WIDTH;
-    rect.h = UI_NAVIGATION_HEIGHT;
-    return rect;
-}
-static int navigation_action(float x)
-{
-    int action;
-    if (x >= FRAME_NAV_X + NAV_STEP * 2 && x < FRAME_NAV_X + NAV_STEP * 2 + NAV_SLIDER_SPACE)
-        return -1;
-    if (x >= FRAME_NAV_X + NAV_STEP * 2 + NAV_SLIDER_SPACE)
-        x -= NAV_SLIDER_SPACE;
-    action = (int)((x - FRAME_NAV_X) / NAV_STEP);
-    return action >= 0 && action < 4 && x - FRAME_NAV_X - action * NAV_STEP < 28 ? action : -1;
-}
-static void seek_navigation(App *app, float x)
-{
-    SDL_FRect rect;
-    double fraction;
-    int scene;
-    long frame;
-    rect = navigation_slider_rect(app, app->navigation_scrubbing == 2);
-    fraction = maximum(0, minimum(1, (x - rect.x - 5) / (rect.w - 10)));
-    if (app->navigation_scrubbing == 2)
-    {
-        scene = (int)floor(fraction * (app->info.scene_count - 1) + 0.5);
-        if (scene != app->info.scene)
-            select_scene(app, scene);
-    }
-    else
-    {
-        frame = (long)(app->info.first_frame +
-                       floor(fraction * ((double)app->info.last_frame - app->info.first_frame) + 0.5));
-        if (frame != app->info.frame)
-            seek(app, frame);
-    }
-}
-static void finish_navigation_scrub(App *app)
-{
-    app->navigation_scrubbing = 0;
-    app->playing = app->navigation_resume && app->loaded && !app->error[0];
-    app->navigation_resume = 0;
-}
 static SDL_FRect movie_settings_rect(const App *app)
 {
     SDL_FRect rect;
@@ -606,7 +554,7 @@ static SDL_FRect movie_scrubber_rect(const App *app)
     {
         rect.x = LOOP_X + 200;
         rect.y = app->timeline_y + PLAY_Y;
-        rect.w = (float)maximum(0, app->sidebar - rect.x - 148);
+        rect.w = app->sidebar - rect.x - 148;
         rect.h = UI_PLAY_HEIGHT;
     }
     return rect;
@@ -615,8 +563,6 @@ static double movie_scrub_time(App *app, float x)
 {
     SDL_FRect rect;
     rect = movie_scrubber_rect(app);
-    if (rect.w <= 0)
-        return app->movie_time.position_seconds;
     return maximum(0, minimum(1, (x - rect.x) / rect.w)) * app->movie_time.duration_seconds;
 }
 static int seek_movie(App *app, double seconds)
@@ -1400,7 +1346,7 @@ static void pick_object(App *app, float x, float y)
 static void mouse_down(App *app, float x, float y, int button)
 {
     SDL_FRect rect;
-    int row, action, scene_slider;
+    int row, action;
     float right;
     right = view_right(app);
     if (app->error[0])
@@ -1456,21 +1402,6 @@ static void mouse_down(App *app, float x, float y, int button)
             return;
         }
     }
-    if (button == SDL_BUTTON_LEFT && app->loaded && !app->movie_only && !app->flying && !app->orbiting && !app->panning)
-        for (scene_slider = 0; scene_slider < 2; ++scene_slider)
-        {
-            rect = navigation_slider_rect(app, scene_slider);
-            if (ui_inside(x, y, rect.x, rect.y, rect.w, rect.h) &&
-                (scene_slider ? app->info.scene_count > 1 : app->info.last_frame > app->info.first_frame))
-            {
-                release_camera(app);
-                app->navigation_scrubbing = scene_slider + 1;
-                app->navigation_resume = app->playing;
-                app->playing = app->dragging = 0;
-                seek_navigation(app, x);
-                return;
-            }
-        }
     rect = movie_scrubber_rect(app);
     if (button == SDL_BUTTON_LEFT && app->movie_time_available && !app->flying && !app->orbiting && !app->panning &&
         ui_inside(x, y, rect.x, rect.y, rect.w, rect.h))
@@ -1573,10 +1504,10 @@ static void mouse_down(App *app, float x, float y, int button)
         if (ui_inside(x, y, app->sidebar / 2 - 65, 280, 130, 28))
             choose_file(app, 0);
     }
-    else if (ui_inside(x, y, SCENE_NAV_X, app->timeline_y + SCENE_NAV_Y, NAV_STEP * 4 - 4 + NAV_SLIDER_SPACE, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, SCENE_NAV_X, app->timeline_y + SCENE_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
-        action = navigation_action(x);
-        if (action < 0)
+        action = (int)((x - SCENE_NAV_X) / NAV_STEP);
+        if (x - SCENE_NAV_X - action * NAV_STEP >= 28)
             return;
         perform_action(app, MARCUS_FIRST_SCENE + action);
     }
@@ -1594,10 +1525,10 @@ static void mouse_down(App *app, float x, float y, int button)
         view_mode(app, 2);
     else if (!app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
         reset_camera_view(app);
-    else if (ui_inside(x, y, FRAME_NAV_X, app->timeline_y + FRAME_NAV_Y, NAV_STEP * 4 - 4 + NAV_SLIDER_SPACE, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, FRAME_NAV_X, app->timeline_y + FRAME_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
-        action = navigation_action(x);
-        if (action < 0)
+        action = (int)((x - FRAME_NAV_X) / NAV_STEP);
+        if (x - FRAME_NAV_X - action * NAV_STEP >= 28)
             return;
         perform_action(app, MARCUS_FIRST_FRAME + action);
     }
@@ -1672,12 +1603,6 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
     if (key == SDLK_ESCAPE && (app->movie_only || app->fullscreen))
     {
         editor_view(app);
-        return;
-    }
-    if (app->navigation_scrubbing)
-    {
-        if (key == SDLK_ESCAPE)
-            finish_navigation_scrub(app);
         return;
     }
     if (app->movie_scrubbing)
@@ -1893,13 +1818,6 @@ static void handle_event(App *app, const SDL_Event *event)
         app->fly_keys &= ~flight_key(event->key.scancode);
     else if (event->type == SDL_EVENT_MOUSE_MOTION)
     {
-        if (app->navigation_scrubbing)
-        {
-            app->ui.mouse_x = event->motion.x;
-            app->ui.mouse_y = event->motion.y;
-            seek_navigation(app, event->motion.x);
-            return;
-        }
         if (app->movie_scrubbing)
         {
             app->ui.mouse_x = event->motion.x;
@@ -1999,11 +1917,6 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         if (event->button.button == SDL_BUTTON_LEFT)
         {
-            if (app->navigation_scrubbing)
-            {
-                seek_navigation(app, event->button.x);
-                finish_navigation_scrub(app);
-            }
             if (app->movie_scrubbing)
             {
                 seek_movie(app, movie_scrub_time(app, event->button.x));
@@ -2103,8 +2016,6 @@ static void handle_event(App *app, const SDL_Event *event)
     }
     else if (event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
     {
-        if (app->navigation_scrubbing)
-            finish_navigation_scrub(app);
         finish_movie_scrub(app);
         app->sheet_menu = 0;
         release_camera(app);
@@ -2746,40 +2657,36 @@ static void draw_movie_scrubber(App *app, int available)
     MarcusUI *ui;
     char label[48];
     double seconds, fraction;
-    float center, x, tick_top, tick_bottom;
+    float center, x, previous_tick;
     int index, hovered;
     ui = &app->ui;
     rect = movie_scrubber_rect(app);
-    if (rect.w <= 0)
-        return;
     center = rect.y + rect.h / 2;
     seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
     fraction = available && app->movie_time.duration_seconds > 0 ? seconds / app->movie_time.duration_seconds : 0;
-    if (app->movie_only)
-    {
-        ui_fill(ui, rect.x, center - 2, rect.w, 4, 0x46515b);
-        ui_fill(ui, rect.x, center - 2, (float)(rect.w * fraction), 4, ACCENT);
-        tick_top = center - 7;
-        tick_bottom = center + 7;
-    }
-    else
-    {
+    if (!app->movie_only)
         ui_fill(ui, rect.x, rect.y, rect.w, rect.h, BG);
-        ui_fill(ui, rect.x, rect.y, (float)(rect.w * fraction), rect.h, 0x375e64);
-        tick_top = rect.y + 4;
-        tick_bottom = rect.y + rect.h - 4;
-    }
+    ui_fill(ui, rect.x, center - 5, rect.w, 10, 0x151619);
+    ui_line(ui, rect.x, center - 5, rect.x + rect.w, center - 5, 0x08090b);
+    ui_line(ui, rect.x, center + 5, rect.x + rect.w, center + 5, 0x686b70);
+    previous_tick = rect.x - 4;
     if (available && app->movie_time.duration_seconds > 0)
         for (index = 0; index < app->info.scene_count; ++index)
             if (marcus_scene_time(app->player, index, &scene_time))
             {
                 x = rect.x + (float)(rect.w * scene_time.start_seconds / app->movie_time.duration_seconds);
-                ui_line(ui, x, tick_top, x, tick_bottom, index == app->info.scene ? TEXT : 0x87949e);
+                /* Dense chapter ticks must not obscure the track or thumb. */
+                if (x - previous_tick >= 4 || index == app->info.scene)
+                {
+                    ui_line(ui, x, center - 3, x, center + 3,
+                            index == app->info.scene ? 0x95a88e : 0x455348);
+                    previous_tick = x;
+                }
             }
     x = rect.x + (float)(rect.w * fraction);
-    ui_fill(ui, x - 3, app->movie_only ? center - 9 : rect.y, 6,
-            app->movie_only ? 18 : rect.h, available ? TEXT : MUTED);
     hovered = available && ui_inside(ui->mouse_x, ui->mouse_y, rect.x, rect.y, rect.w, rect.h);
+    ui_slider_thumb(ui, (float)maximum(rect.x, minimum(rect.x + rect.w - 10, x - 5)), center - 10,
+                    1, available, hovered || app->movie_scrubbing);
     if (hovered || app->movie_scrubbing)
     {
         ui->hint = "Movie scrubber: drag to seek across scenes; ticks mark scene boundaries";
@@ -2824,9 +2731,9 @@ static void draw_timeline(App *app)
                          "First frame");
     ui_frame_button(ui, FRAME_NAV_X + NAV_STEP, y + FRAME_NAV_Y, 1,
                          app->loaded && app->info.frame > app->info.first_frame, "Previous frame");
-    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 2 + NAV_SLIDER_SPACE, y + FRAME_NAV_Y, 2,
+    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 2, y + FRAME_NAV_Y, 2,
                          app->loaded && app->info.frame < app->info.last_frame, "Next frame");
-    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 3 + NAV_SLIDER_SPACE, y + FRAME_NAV_Y, 3,
+    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
     ui_play_button(ui, PLAY_X, y + PLAY_Y, app->playing, app->playback.wait == 1, app->loaded);
     if (app->loaded && ui_inside(ui->mouse_x, ui->mouse_y, PLAY_X, y + PLAY_Y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
@@ -2847,7 +2754,7 @@ static void draw_timeline(App *app)
     }
     else
         SDL_strlcpy(label, app->loaded && !app->movie_time_status ? "Calculating..." : "--:-- / --:--", sizeof(label));
-    ui_label(ui, LOOP_X + 72, y + FRAME_NAV_Y + 1, (float)minimum(112, app->sidebar - LOOP_X - 220), label,
+    ui_label(ui, LOOP_X + 72, y + FRAME_NAV_Y + 1, 112, label,
              app->movie_time_available ? TEXT : MUTED);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X + 72, y + FRAME_NAV_Y,
                   112, UI_NAVIGATION_HEIGHT))
@@ -2857,9 +2764,9 @@ static void draw_timeline(App *app)
     ui_frame_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
     ui_frame_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
                          "Previous scene");
-    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP * 2 + NAV_SLIDER_SPACE, y + SCENE_NAV_Y, 2,
+    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP * 2, y + SCENE_NAV_Y, 2,
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Next scene");
-    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP * 3 + NAV_SLIDER_SPACE, y + SCENE_NAV_Y, 3,
+    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP * 3, y + SCENE_NAV_Y, 3,
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Last scene");
     if (app->loaded)
     {
@@ -2869,7 +2776,7 @@ static void draw_timeline(App *app)
         SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
         ui_label(ui, 76, y + SCENE_NAV_Y + 1, 96, label, TEXT);
         if (marcus_scene(app->player, app->info.scene, &scene))
-            ui_label(ui, LOOP_X + 72, y + SCENE_NAV_Y + 1, (float)minimum(112, app->sidebar - LOOP_X - 220), scene.name, TEXT);
+            ui_label(ui, LOOP_X + 72, y + SCENE_NAV_Y + 1, 112, scene.name, TEXT);
     }
     else
     {
@@ -2879,16 +2786,6 @@ static void draw_timeline(App *app)
     ui_button_sized(ui, app->sidebar - 132, y + PLAY_Y, 32, UI_PLAY_HEIGHT, "-", 0, app->loaded);
     ui_button_sized(ui, app->sidebar - 94, y + PLAY_Y, 32, UI_PLAY_HEIGHT, "+", 0, app->loaded);
     ui_button_sized(ui, app->sidebar - 56, y + PLAY_Y, 40, UI_PLAY_HEIGHT, "Fit", 0, app->loaded);
-    ui_transport_slider(ui, FRAME_NAV_X + NAV_STEP * 2, y + FRAME_NAV_Y, NAV_SLIDER_WIDTH,
-                        app->loaded && app->info.last_frame > app->info.first_frame
-                            ? ((double)app->info.frame - app->info.first_frame) /
-                              ((double)app->info.last_frame - app->info.first_frame) : 0,
-                        0, app->loaded && app->info.last_frame > app->info.first_frame,
-                        app->navigation_scrubbing == 1);
-    ui_transport_slider(ui, SCENE_NAV_X + NAV_STEP * 2, y + SCENE_NAV_Y, NAV_SLIDER_WIDTH,
-                        app->loaded && app->info.scene_count > 1
-                            ? (double)app->info.scene / (app->info.scene_count - 1) : 0,
-                        1, app->loaded && app->info.scene_count > 1, app->navigation_scrubbing == 2);
     draw_movie_scrubber(app, movie_available);
     ui_fill(ui, 0, y + 48, app->sidebar, 32, 0x2c2f35);
     ui_button(ui, 10, y + 50, 194, sheet_name(app->sheet_mode), app->sheet_menu, app->loaded);
@@ -3048,8 +2945,9 @@ static void draw_timeline(App *app)
                 ui->hint = "End of scene / after the final frame";
         }
         x = frame_x(app, app->info.frame + 0.5);
-        ui_line(ui, x, y + 48, x, (float)app->height - 32, 0xf28b76);
-        ui_fill(ui, x - 4, y + 48, 9, 5, 0xf28b76);
+        ui_line(ui, x, y + 48, x, (float)app->height - 32, 0x6d77d0);
+        ui_slider_thumb(ui, x - 5, y + 48, 0, 1,
+                        app->dragging || ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 10, 20));
     }
     SDL_SetRenderClipRect(app->renderer, NULL);
     ui_line(ui, app->grid_x, y + 48, app->grid_x, (float)app->height - 32, LINE);

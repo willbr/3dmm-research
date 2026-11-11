@@ -159,15 +159,12 @@ previous/next, and stop bars for first/last. Editable sources are in
 geometry with `python tools/compile_marcus_vectors.py`. Hover, pressed and
 disabled feedback remain available.
 
-The playback header places a blue frame slider and a green scene slider between
-each row's backward and forward buttons, following 3DMM's frame/scene scrollbars.
-Their beveled SVG thumbs are `frame_slider.svg` and `scene_slider.svg` in the
-same artwork directory. Click or drag to seek within the current scene or select
-a scene; positions snap to whole frames/scenes and clamp at either end. A drag
-pauses playback and resumes it on release if it was already playing. Escape ends
-the drag. These controls do not require the background duration calculation.
-One-frame/one-scene ranges show a disabled thumb. The separate movie-wide
-scrubber remains available when the header has room, and in the expanded view.
+The existing timeline playhead uses a blue beveled SVG thumb; the existing
+movie-wide scrubber uses a green one, including in the expanded movie view.
+The artwork is `frame_slider.svg` and `scene_slider.svg` in the same directory.
+Their locations and seeking behavior are unchanged. No extra sliders sit between
+the frame/scene navigation buttons. The movie track has a recessed groove and
+spaces dense chapter ticks so they cannot obscure the thumb.
 
 Time spans all scenes and follows seeking, playback and scene looping. It includes
 scrolling text, timed pauses, sound waits and transitions between scenes. Click
