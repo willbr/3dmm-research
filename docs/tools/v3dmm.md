@@ -45,6 +45,19 @@ Library and Testing VXPs, custom mount/source overrides and archives with
 subdirectories are outside this implementation. Ancillary package files are
 retained in the original ZIP but are not executed or installed as programs.
 
+Package loading policy must follow the original v3dmm's observable behaviour.
+A future SQLite catalog or validation cache is an implementation detail: it
+must preserve legacy dependency-name matching, the separate role of CFG
+shortnames, applied-package order, filename/chunk collision precedence,
+embedded-package fallback and missing-dependency behaviour. Content hashes may
+identify cached installations internally; they must not turn legacy name-based
+dependency matching into a requirement for an identical package version.
+The current eager whole-catalog SHA-256 validation is our implementation policy,
+not a demonstrated v3dmm compatibility requirement. Optimize it without changing
+which packages a movie resolves to. Where reference behaviour remains uncertain,
+including automatic activation of ambiguous display names, use the original
+manager/VFS and oracle captures to establish it before changing resolution.
+
 The store is `content/packs/v3dmm` beside `settings.ini`, or below
 `THREEDMM_PACK_DIR` when set. It retains each original ZIP in a SHA-256 directory,
 materializes validated chunky content under generated filenames and records
