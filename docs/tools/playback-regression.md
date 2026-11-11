@@ -396,3 +396,39 @@ scene 4/frame 1 (zero changed pixels), while that full page differed by 11
 pixels elsewhere. All six recorded runs passed the final Acid contract checks
 stored in `text-acid-contract-checks.json`. These are Windows 11 smoke results,
 not proof of all-platform or continuously scrolling image parity.
+
+To include Marcus in a fresh, repeated Text Acid capture alongside the native
+references and SDL, run:
+
+```powershell
+python -B tools/playback_regression.py run `
+  --manifest tests/fixtures/textbox-acid.json --iso dist/3DMOVIE100.iso `
+  --bridge tmp/v3dmm-oracle/build --output tmp/textbox-acid-all-players-results `
+  --sdl tmp/studio-batch-release/3dmovie-sdl.exe `
+  --marcus build/marcus-x64/src/marcus/marcus-regression.exe `
+  --v3dmm tmp/v3dmm-research/unpacked/Virtual3DMM `
+  --resources build/studio-portable-x64/3dmovie/utest.chk --content-dir content-files `
+  --players retail,v3dmm,sdl,marcus --repeat 2 --max-seconds 180
+```
+
+Open `tmp/textbox-acid-all-players-results/playback.sqlite` in Playback Review.
+The older `textbox-acid-fonts-results` database contains no Marcus captures.
+Marcus uses the headless player adapter; its native text-box state contract is
+not exposed, so review its captured images and recorded comparisons rather than
+interpreting completion as a text-feature pass.
+
+Windows 11 suite `20261111T090157Z-d50b7175` completed all 16 captures in that
+database. Marcus seek runs 13/14 each contain 240 images; playback runs 15/16
+each contain 240 authored frame observations and 1,256 presentation images.
+Retail's repeated seek images match exactly. V3dmm matches all 240 retail seek
+images in both repeats; SDL differs on all 240 with 3,780 changed pixels per
+repeat. Marcus differs on all 240 with 18,978,540 changed pixels per repeat.
+The first Marcus typography image visibly differs in layout and clipping;
+these observations do not identify the underlying implementation cause.
+
+Marcus's authored frame sequence and expected silence match, but continuous
+playback fidelity remains inconclusive. Retail playback timing did not repeat
+within the 25 ms policy, so timing comparisons are gated as inconclusive, and
+native continuous-image evidence is still unavailable. This capture uses the
+existing binaries, with their hashes recorded in provenance; no Marcus rebuild
+or UI test was performed.
