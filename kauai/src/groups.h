@@ -27,6 +27,7 @@
 ***************************************************************************/
 #ifndef GROUPS_H
 #define GROUPS_H
+#include "three_mm/string_table.h"
 
 namespace Group {
 
@@ -407,6 +408,10 @@ class VirtualStringTable : public VirtualStringTable_PAR
     LegacyLong _bstMac;
     LegacyLong _cbstFree; // this is cvNil for non-allocated GSTBs
 
+    ThreeMMStringTable _StringStorage();
+    void _ApplyStringStorage(const ThreeMMStringTable &storage);
+    static int _ReserveStringStorage(void *, ThreeMMStringTable *, ThreeMMU32, ThreeMMU32);
+
   protected:
     VirtualStringTable(LegacyLong cbExtra, LegacyUlong grfgst);
 
@@ -419,8 +424,6 @@ class VirtualStringTable : public VirtualStringTable_PAR
         return (LegacyLong *)_Qb2(LwMul(ibst, _cbEntry));
     }
     PPascalString _Qst(LegacyLong ibst);
-    void _RemoveSt(LegacyLong bst);
-    void _AppendRgch(achar *prgch, LegacyLong cch);
     void _SwapBytesRgbst(void);
     void _TranslateGrst(short osk, bool fToCur);
     bool _FTranslateGrst(short osk);

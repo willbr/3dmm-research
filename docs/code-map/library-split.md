@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -94,7 +94,7 @@ version policy. Standalone scene fixtures remain supported.
 | Remaining dependency | Responsibility retained in C++ |
 | --- | --- |
 | `ChunkyFile`, `DataBlock`, codecs | Mutable container storage, free maps, writes, embedded-forest decoding, decompression and payload storage. Index reading, graph validation and live chunk/child queries now use C89. |
-| `StringTable_GST`, platform text conversion | Dense string storage and legacy encoding conversion. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
+| `StringTable_GST`, platform text services | HQ allocation, object lifetime, GST header/read/write adapters and native code-page/locale services. Mutation, packed storage conversion and portable text rules now use C89. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
 | `TagManager`, `ChunkyResourceFile` | Opening/closing runtime tags and resource references, including rollback after failed loads. |
 | `MovieData`, Studio document | Title/scene enumeration, transactional object replacement, editing and serialization. |
 
@@ -103,8 +103,7 @@ with `engine-c89-test` before CTest. Tests cover nested stream bounds and I/O
 failures, both endian encodings, the version matrix, historical negative actor
 IDs, ignored pointer bytes, transactional failures and malformed GST layouts.
 The existing Archive, engine-core, save/load and headless Marcus tests exercise
-the adapters and resource ownership. Next migrate string-table storage and
-transcoding; the shared backend is still incomplete.
+the adapters and resource ownership. The shared backend is still incomplete.
 
 ### Chunky container reading slice
 
@@ -122,7 +121,7 @@ validation retains aggregate reference totals and reachability policy rather
 than imposing a new per-node reference-count rule. An iterative walk handles
 deep graphs without recursive stack growth.
 
-Mutable groups, free maps, writes, embedded-forest decoding, name transcoding
+Mutable groups, free maps, writes, embedded-forest decoding, stored-name adapters
 and payload codecs remain C++. The existing type-relative `FGetCkiCtg` payload
 ordinal is preserved pending a separate retail behavior check.
 
@@ -130,6 +129,45 @@ ordinal is preserved pending a separate retail behavior check.
 bounds, failed reads, transactional index replacement, unsigned keys, live
 mutations, DAGs, cycles, missing targets and a 10,000-node chain. It also runs
 under the strict C89 syntax check.
+
+### String-table storage and text conversion slice
+
+`three_mm/string_table.h` implements dense and allocated string-table mutations:
+insert/add, length-changing replacement, delete, move, free-slot reuse and tail
+trimming. It preserves packed-string order, adjusts native 32-bit offsets and
+keeps caller extra bytes opaque. Exact searches skip free slots; sorted searches
+retain midpoint and insertion-position behavior through the existing comparison
+callback. Offset byte swapping never touches extras.
+
+`VirtualStringTable` supplies borrowed buffers and a reserve callback over the
+existing HQ allocator. C owns mutation rules and updates the logical counts;
+the adapter retains object lifetime, allocation, duplication, GST header checks
+and `DataBlock` I/O. A failed ordinary mutation retains data/counts, even if one
+allocation grew. As before, a failed loading translation can leave partial
+state and the loader discards that object. No stricter Archive GST acceptance
+policy is applied to Studio.
+
+`three_mm/text.h` owns fixed lossy Mac/Windows byte maps, portable CP1252/Mac
+Roman decoding, UTF-16 byte order, portable substitution/case/comparison rules,
+and conversion dispatch. `platform_text.cpp` supplies Windows `CP_ACP`/`CP_MACCP`
+callbacks and native locale/case services. It remains sensitive to the actual
+Windows ACP; fixed CP1252 is not substituted on that host. String-table physical
+walks and width-changing reconstruction are C89 and use the same conversion
+service as ordinary String readers. Internal length-first/signed-character
+sorting and user locale comparison remain distinct host comparison callbacks.
+
+`engine-strings-test` covers storage moves and edits, metadata, free-slot reuse,
+allocation failures, search positions, endian offsets, one/two-byte strings,
+legacy map hashes, surrogate substitution and short output buffers. Native
+`string-compat` adds dense/allocated save/reopen checks in both byte orders and
+Mac/Windows encodings, UTF-16BE loading and duplicate independence. Text-service
+checks compare native callbacks directly with Win32 and force portable policy
+on Windows. The standalone platform-check project links the same C text module.
+
+Next convert the shared collection/allocation foundation so string tables and
+chunk indexes can retire their HQ and mutable-group adapters, then move the
+remaining container persistence and codec services. Whole-engine conversion
+remains incomplete.
 
 ## Why the split exists
 

@@ -535,7 +535,7 @@ target_link_libraries(text-services-test PRIVATE kauai-core)
 add_executable(text-portable-test EXCLUDE_FROM_ALL tests/text_services_test.cpp kauai/src/platform_text.cpp kauai/src/text_utf8.cpp)
 target_include_directories(text-portable-test PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src")
 target_compile_definitions(text-portable-test PRIVATE KAUAI_PORTABLE_TEXT)
-target_link_libraries(text-portable-test PRIVATE Threads::Threads)
+target_link_libraries(text-portable-test PRIVATE Threads::Threads three-mm-engine-c89)
 add_executable(string-compat-test EXCLUDE_FROM_ALL tests/string_compat_test.cpp)
 target_link_libraries(string-compat-test PRIVATE kauai-core)
 add_executable(picture-data-test EXCLUDE_FROM_ALL tests/picture_data_test.cpp)
@@ -1434,7 +1434,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
-  engine-c89-test engine-movie-data-test engine-chunky-test
+  engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test
   global-cleanup-test
   preview-checks
   mbmp-pixels-test

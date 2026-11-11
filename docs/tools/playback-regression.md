@@ -640,3 +640,44 @@ ISO-resource and Marcus-content integrity checks remain unchanged. These
 checks establish neither full retail parity nor timing equivalence, and one
 repetition does not establish repeatability. Existing cross-player timing
 marker and presentation-alignment limits remain applicable.
+
+## C89 string-table storage and conversion (11 November 2026)
+
+Dense/allocated string-table mutation, packed-string reconstruction and searches
+now use the C89 backend. Fixed legacy byte maps, portable conversions and UTF-16
+byte-order handling share that backend. Kauai retains allocation/object and GST
+I/O adapters; native Windows code-page and locale services remain callbacks.
+Capture thresholds, silence checks and player timing/audio policies are unchanged.
+
+Five standalone C-only checks and fifteen focused native checks pass, including
+`engine-strings`, `string-compat`, `text-services` and `text-portable`. The native
+string checks now exercise dense/allocated save/reopen, holes, opaque metadata,
+both byte orders, Mac/Windows encoding, non-ASCII text, UTF-16BE input and
+duplicate independence. Native and forced-portable text checks also pass in
+both standalone ANSI and Unicode platform builds (four checks). No Marcus UI
+tests were added. All 45 saved movie/archive and constructed legacy CLI
+comparisons retain their exact output or rejection result; the local report
+is `tmp/c89-strings-dump-comparison.json`.
+
+Evidence remains in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Result |
+| --- | --- | --- |
+| `20261111T200557Z-e569664c` | `scrolling-text`, retail/SDL/Marcus, seek and playback, one repetition | Five complete; Marcus live capture fails while the drive fills. The initial comparison also encounters disk exhaustion. After space recovery, retained observations are recomputed: verdict `inconclusive`, six different and two inconclusive components. The failed run remains an error. |
+| `20261111T201650Z-c357edf5` | Marcus `scrolling-text` playback retry | One complete, 60 authored frames and 2,181 presentation samples. No reference in this suite; verdict `inconclusive`. |
+
+Compared with pre-string suite `20261111T154504Z-7563d577`, repetition zero,
+all 180 seek images match exactly. Each player retains the same 60 authored
+playback positions and ordered exact image changes: 328 for retail and SDL,
+321 for Marcus, collapsing only adjacent identical images. Raw presentation
+samples and timestamps remain available; no normalization of frame positions
+or pixels is applied. The local report is
+`tmp/c89-strings-playback-comparison.json`. These are before/after preservation
+checks, not a declaration of cross-player parity or timing equivalence. A
+single new repetition does not establish repeatability.
+
+The original suite's recorded movie, extracted ISO and Marcus-content hashes
+are rechecked after space recovery and remain unchanged; its summary records
+that recovery explicitly. The retry's normal integrity checks also pass.
+SQLite's `quick_check` returns `ok`. Old capture evidence remains on C:; no
+files from this task remain on D:.

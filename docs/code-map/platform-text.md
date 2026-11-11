@@ -5,6 +5,13 @@ including the Windows SDK, application framework or UI libraries. `utilstr.cpp`
 uses it for the existing String readers, user comparisons and case helpers.
 File paths remain a separate concern in `platform_files.h`.
 
+The shared C89 module `three_mm/text.h` now implements conversion dispatch,
+fixed byte maps, portable conversion/case/comparison and UTF-16 byte order.
+`platform_text.cpp` retains native Windows code-page, case and locale callbacks.
+Both Studio and Marcus reach the same C implementation through Kauai; the
+standalone platform checks link that C source too. String-table mutation and
+packed-string conversion are described in the [backend boundary](library-split.md#string-table-storage-and-text-conversion-slice).
+
 ## Stored text compatibility
 
 The existing encoding markers are unchanged: Mac single-byte `0x0202`, Windows
@@ -12,7 +19,8 @@ single-byte `0x0303`, big-endian UTF-16 `0x0404`, little-endian UTF-16 `0x0505`.
 There is no new file encoding, version, normalization pass or save-format change.
 
 - Mac-to-Windows single-byte translation and its reverse retain the original
-  intentionally lossy tables in `chtrans.h`. Tests pin every table entry. This
+  intentionally lossy tables now owned by `libraries/engine/src/legacy_byte_maps.h`.
+  Tests pin every table entry. This
   is distinct from decoding Mac Roman to Unicode.
 - On Windows, conversions retain `CP_ACP` and `CP_MACCP` and native substitution/
   best-fit behavior. UTF-8 ACP uses the supported conversion flags. Existing

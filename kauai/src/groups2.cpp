@@ -31,6 +31,62 @@ RTCLASS(VirtualStringTable)
 RTCLASS(StringTable_GST)
 RTCLASS(AllocatedStringTable)
 
+ThreeMMStringTable VirtualStringTable::_StringStorage()
+{
+    ThreeMMStringTable storage = {};
+    storage.strings = _Cb1() ? _Qb1(0) : nullptr;
+    storage.entries = _Cb2() ? _Qb2(0) : nullptr;
+    storage.bytes = _bstMac;
+    storage.count = _ivMac;
+    storage.stride = _cbEntry;
+    storage.free_count = _cbstFree;
+    storage.unit_bytes = sizeof(achar);
+    storage.string_capacity = _Cb1();
+    storage.entry_capacity = _Cb2();
+#ifdef DEBUG
+    storage.trash_unused = 1;
+#endif
+    storage.context = this;
+    storage.reserve = _ReserveStringStorage;
+    return storage;
+}
+void VirtualStringTable::_ApplyStringStorage(const ThreeMMStringTable &storage)
+{
+    _bstMac = storage.bytes;
+    _ivMac = storage.count;
+    _cbstFree = storage.free_count;
+}
+int VirtualStringTable::_ReserveStringStorage(void *context, ThreeMMStringTable *storage,
+                                             ThreeMMU32 strings, ThreeMMU32 entries)
+{
+    auto table = static_cast<VirtualStringTable *>(context);
+    table->_ApplyStringStorage(*storage);
+    const bool ok = table->_FEnsureSizes(strings, entries, fgrpNil);
+    // The first allocation may have grown even when the second one failed.
+    storage->strings = table->_Cb1() ? table->_Qb1(0) : nullptr;
+    storage->entries = table->_Cb2() ? table->_Qb2(0) : nullptr;
+    storage->string_capacity = table->_Cb1();
+    storage->entry_capacity = table->_Cb2();
+    return ok;
+}
+namespace {
+int CompareStringStorage(void *context, const void *left, ThreeMMU32 leftCount,
+                         const void *right, ThreeMMU32 rightCount)
+{
+    auto a = const_cast<achar *>(static_cast<const achar *>(left));
+    auto b = const_cast<achar *>(static_cast<const achar *>(right));
+    const auto flags = *static_cast<LegacyUlong *>(context);
+    const auto result = flags & fgstUserSorted ? FcmpCompareUserRgch(a, leftCount, b, rightCount) :
+                                               FcmpCompareRgch(a, leftCount, b, rightCount);
+    return result == fcmpLt ? -1 : result == fcmpGt ? 1 : 0;
+}
+size_t ConvertStringStorage(void *, const void *input, size_t bytes, int source, void *output, size_t capacity)
+{
+    return CchTranslateRgb(const_cast<void *>(input), bytes, source, static_cast<achar *>(output), capacity);
+}
+} // namespace
+
+
 /***************************************************************************
     Constructor for a base string table.
 ***************************************************************************/
@@ -273,37 +329,11 @@ bool VirtualStringTable::FAddStn(PString pstn, void *pvExtra, LegacyLong *pistn)
 bool VirtualStringTable::FPutRgch(LegacyLong istn, achar *prgch, LegacyLong cch)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(istn, 0, _ivMac);
-    Assert(!FFree(istn), "string entry is free!");
-    AssertIn(cch, 0, kcchMaxGst + 1);
-    AssertPvCb(prgch, cch * size(achar));
-
-    LegacyLong cchOld;
-    LegacyLong bstOld;
-    achar *qst;
-
-    qst = _Qst(istn);
-    if ((cchOld = CchSt(qst)) == cch)
-    {
-        CopyPb(prgch, PrgchSt(qst), cch * size(achar));
-        goto LDone;
-    }
-    if (cchOld < cch && !_FEnsureSizes(_bstMac + (cch - cchOld) * size(achar), LwMul(_ivMac, _cbEntry), fgrpNil))
-    {
-        return fFalse;
-    }
-
-    // remove the old one
-    bstOld = _Bst(istn);
-    _RemoveSt(bstOld);
-
-    // append the new one
-    *_Qbst(istn) = _bstMac;
-    _AppendRgch(prgch, cch);
-
-LDone:
+    auto storage = _StringStorage();
+    const bool ok = three_mm_strings_put(&storage, istn, prgch, cch) != 0;
+    _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -366,31 +396,11 @@ bool VirtualStringTable::FFindStn(PString pstn, LegacyLong *pistn, LegacyUlong g
 bool VirtualStringTable::FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pistn, LegacyUlong grfgst)
 {
     AssertThis(0);
-    AssertIn(cch, 0, kcchMaxGst + 1);
-    AssertPvCb(prgch, cch * size(achar));
-    AssertVarMem(pistn);
-    LegacyLong istn, bst;
-    PPascalString qst;
-
-    for (istn = 0; istn < _ivMac; istn++)
-    {
-        bst = _Bst(istn);
-        if (bvNil == bst)
-        {
-            AssertIn(_cbstFree, 0, _ivMac);
-            Assert(istn < _ivMac - 1, "last element free");
-            continue;
-        }
-        AssertIn(bst, 0, _bstMac);
-        qst = (achar *)_Qb1(bst);
-        if (CchSt(qst) == cch && FEqualRgb(PrgchSt(qst), prgch, cch * size(achar)))
-        {
-            *pistn = istn;
-            return fTrue;
-        }
-    }
-    *pistn = istn;
-    return fFalse;
+    auto storage = _StringStorage();
+    ThreeMMU32 position = storage.count;
+    const bool found = three_mm_strings_find(&storage, prgch, cch, nullptr, nullptr, &position) != 0;
+    *pistn = position;
+    return found;
 }
 
 /***************************************************************************
@@ -480,53 +490,9 @@ achar *VirtualStringTable::_Qst(LegacyLong ibst)
     return (achar *)_Qb1(bst);
 }
 
-/***************************************************************************
-    Private api to append the string.  It's assumed that the first block
-    is already big enough to accomodate the string.
-***************************************************************************/
-void VirtualStringTable::_AppendRgch(achar *prgch, LegacyLong cch)
-{
-    AssertIn(cch, 0, kcchMaxGst + 1);
-    AssertPvCb(prgch, cch * size(achar));
 
-    achar *qch;
 
-    Assert(_Cb1() >= _bstMac + (cch + 1) * size(achar), "first block not big enough");
-    qch = (achar *)_Qb1(_bstMac);
-    *qch++ = (achar)cch;
-    CopyPb(prgch, qch, cch * size(achar));
-    _bstMac += (cch + 1) * size(achar);
-}
 
-/***************************************************************************
-    Private api to remove the string.
-***************************************************************************/
-void VirtualStringTable::_RemoveSt(LegacyLong bst)
-{
-    AssertIn(bst, 0, _bstMac);
-
-    LegacyLong cb;
-    byte *qb;
-
-    qb = _Qb1(bst);
-    cb = CchTotSt((PPascalString)qb) * size(achar);
-    AssertIn(bst + cb, 0, _bstMac + 1);
-    if (bst + cb < _bstMac)
-    {
-        LegacyLong cv;
-
-        BltPb(qb + cb, qb, _bstMac - bst - cb);
-        for (qb = _Qb2(0), cv = _ivMac; cv-- > 0; qb += _cbEntry)
-        {
-            if (*(LegacyLong *)qb > bst)
-            {
-                Assert(*(LegacyLong *)qb >= bst + cb, "overlapping strings in VirtualStringTable");
-                *(LegacyLong *)qb -= cb;
-            }
-        }
-    }
-    _bstMac -= cb;
-}
 
 /***************************************************************************
     Swap the bytes in the BST values.  Note that each bst is followed
@@ -534,16 +500,8 @@ void VirtualStringTable::_RemoveSt(LegacyLong bst)
 ***************************************************************************/
 void VirtualStringTable::_SwapBytesRgbst(void)
 {
-    if (size(LegacyLong) == _cbEntry)
-        SwapBytesRglw(_Qb2(0), _ivMac);
-    else
-    {
-        LegacyLong cbst;
-        byte *qb;
-
-        for (cbst = _ivMac, qb = _Qb2(0); cbst-- > 0; qb += _cbEntry)
-            SwapBytesRglw(qb, 1);
-    }
+    auto storage = _StringStorage();
+    three_mm_strings_swap_offsets(&storage);
 }
 
 /***************************************************************************
@@ -552,22 +510,8 @@ void VirtualStringTable::_SwapBytesRgbst(void)
 ***************************************************************************/
 void VirtualStringTable::_TranslateGrst(short osk, bool fToCur)
 {
-    AssertOsk(osk);
-    LegacyLong bst;
-    byte *qb;
-
-    if (CbCharOsk(osk) != CbCharOsk(koskCur))
-    {
-        Bug("can't translate to this osk");
-        return;
-    }
-
-    qb = _Qb1(0);
-    for (bst = 0; bst < _bstMac;)
-    {
-        TranslateSt((achar *)(qb + bst), osk, fToCur);
-        bst += CchTotSt((PPascalString)(qb + bst)) * size(achar);
-    }
+    auto storage = _StringStorage();
+    AssertDo(three_mm_strings_translate_same(&storage, osk, koskCur, fToCur), "invalid string translation");
 }
 
 /***************************************************************************
@@ -575,77 +519,12 @@ void VirtualStringTable::_TranslateGrst(short osk, bool fToCur)
 ***************************************************************************/
 bool VirtualStringTable::_FTranslateGrst(short osk)
 {
-    AssertOsk(osk);
-    void *pvSrc;
-    LegacyLong cbSrc;
-    LegacyLong cbChar;
-    LegacyLong ibst, bstOld, cch;
-    LegacyLong *qbst;
-    achar rgch[kcchMaxSt];
-    bool fRet = fFalse;
-
-    if ((cbChar = CbCharOsk(osk)) == CbCharOsk(koskCur))
-    {
-        _TranslateGrst(osk, fTrue);
-        return fTrue;
-    }
-
-    if (cbChar != size(schar) && cbChar != size(wchar))
-    {
-        Bug("unknown osk");
-        return fFalse;
-    }
-
-    if (_bstMac == 0)
-        return fTrue;
-
-    if (!FAllocPv(&pvSrc, cbSrc = _bstMac, fmemNil, mprNormal))
-        return fFalse;
-
-    CopyPb(_Qb1(0), pvSrc, cbSrc);
-    _bstMac = 0;
-
-    for (ibst = 0; ibst < _ivMac; ibst++)
-    {
-        qbst = _Qbst(ibst);
-        bstOld = *qbst;
-        *qbst = _bstMac;
-
-        if (bstOld + cbChar > cbSrc)
-            goto LFail;
-
-        if (cbChar == size(schar))
-        {
-            schar chs = *(schar *)PvAddBv(pvSrc, bstOld);
-            cch = (LegacyLong)(byte)chs;
-        }
-        else
-        {
-            wchar chw;
-            CopyPb(PvAddBv(pvSrc, bstOld), &chw, size(wchar));
-            if (osk == MacWin(koskUniWin, koskUniMac))
-                SwapBytesRgsw(&chw, 1);
-            cch = (LegacyLong)(ushort)chw;
-        }
-
-        if (!FIn(cch, 0, kcchMaxSt + 1) || bstOld + (cch + 1) * cbChar > cbSrc)
-            goto LFail;
-
-        cch = CchTranslateRgb(PvAddBv(pvSrc, bstOld + cbChar), cch * cbChar, osk, rgch, kcchMaxSt);
-
-        if (!_FEnsureSizes(_bstMac + (cch + 1) * size(achar), LwMul(_ivMac, _cbEntry), fgrpNil))
-        {
-            goto LFail;
-        }
-        _AppendRgch(rgch, cch);
-    }
-
-    fRet = fTrue;
-    AssertDo(_FEnsureSizes(_bstMac, LwMul(_ivMac, _cbEntry), fgrpShrink), 0);
-
-LFail:
-    FreePpv(&pvSrc);
-    return fRet;
+    auto storage = _StringStorage();
+    const bool ok = three_mm_strings_translate(&storage, osk, koskCur, ConvertStringStorage, nullptr) != 0;
+    _ApplyStringStorage(storage);
+    if (ok && CbCharOsk(osk) != size(achar))
+        AssertDo(_FEnsureSizes(_bstMac, LwMul(_ivMac, _cbEntry), fgrpShrink), 0);
+    return ok;
 }
 
 /***************************************************************************
@@ -811,41 +690,13 @@ bool StringTable_GST::FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra, Lega
 bool StringTable_GST::FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pistn, LegacyUlong grfgst)
 {
     AssertThis(0);
-    AssertIn(cch, 0, kcchMaxGst);
-    AssertPvCb(prgch, cch * size(achar));
-    AssertVarMem(pistn);
-
-    if (!(grfgst & (fgstSorted | fgstUserSorted)))
-        return VirtualStringTable::FFindRgch(prgch, cch, pistn, grfgst);
-
-    // the table should be sorted, so do a binary search
-    LegacyLong ivMin, ivLim, iv;
-    LegacyUlong fcmp;
-    achar *qst;
-
-    for (ivMin = 0, ivLim = _ivMac; ivMin < ivLim;)
-    {
-        iv = (ivMin + ivLim) / 2;
-        qst = _Qst(iv);
-        if (grfgst & fgstUserSorted)
-            fcmp = FcmpCompareUserRgch(prgch, cch, PrgchSt(qst), CchSt(qst));
-        else
-            fcmp = FcmpCompareRgch(prgch, cch, PrgchSt(qst), CchSt(qst));
-
-        if (fcmp == fcmpLt)
-            ivLim = iv;
-        else if (fcmp == fcmpGt)
-            ivMin = iv + 1;
-        else
-        {
-            Assert(fcmp == fcmpEq, "bad fcmp");
-            *pistn = iv;
-            return fTrue;
-        }
-    }
-    // this is where it would be
-    *pistn = ivMin;
-    return fFalse;
+    auto storage = _StringStorage();
+    ThreeMMU32 position = storage.count;
+    const bool sorted = (grfgst & (fgstSorted | fgstUserSorted)) != 0;
+    const bool found = three_mm_strings_find(&storage, prgch, cch, sorted ? CompareStringStorage : nullptr,
+                                             &grfgst, &position) != 0;
+    *pistn = position;
+    return found;
 }
 
 /***************************************************************************
@@ -854,40 +705,11 @@ bool StringTable_GST::FFindRgch(achar *prgch, LegacyLong cch, LegacyLong *pistn,
 bool StringTable_GST::FInsertRgch(LegacyLong istn, achar *prgch, LegacyLong cch, void *pvExtra)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(istn, 0, _ivMac + 1);
-    AssertIn(cch, 0, kcchMaxGst + 1);
-    AssertPvCb(prgch, cch * size(achar));
-    AssertNilOrPvCb(pvExtra, _cbEntry - size(LegacyLong));
-
-    byte *qb;
-
-    if (!_FEnsureSizes(_bstMac + (cch + 1) * size(achar), LwMul(_ivMac + 1, _cbEntry), fgrpNil))
-    {
-        return fFalse;
-    }
-
-    // make room for the entry
-    qb = (byte *)_Qbst(istn);
-    if (istn < _ivMac)
-        BltPb(qb, qb + _cbEntry, LwMul(_ivMac - istn, _cbEntry));
-    *(LegacyLong *)qb = _bstMac;
-    if (size(LegacyLong) < _cbEntry)
-    {
-        qb += size(LegacyLong);
-        if (pvExtra != pvNil)
-            CopyPb(pvExtra, qb, _cbEntry - size(LegacyLong));
-        else
-            TrashPvCb(qb, _cbEntry - size(LegacyLong));
-    }
-    else
-        Assert(pvNil == pvExtra, "cbExtra is zero");
-
-    _ivMac++;
-    // put the string in
-    _AppendRgch(prgch, cch);
-
+    auto storage = _StringStorage();
+    const bool ok = three_mm_strings_insert(&storage, istn, prgch, cch, pvExtra) != 0;
+    _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -909,17 +731,9 @@ bool StringTable_GST::FInsertStn(LegacyLong istn, PString pstn, void *pvExtra)
 void StringTable_GST::Delete(LegacyLong istn)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(istn, 0, _ivMac);
-
-    byte *qb;
-    LegacyLong bst;
-
-    qb = (byte *)_Qbst(istn);
-    bst = *(LegacyLong *)qb;
-    if (istn < --_ivMac)
-        BltPb(qb + _cbEntry, qb, LwMul(_ivMac - istn, _cbEntry));
-    TrashPvCb(_Qbst(_ivMac), _cbEntry);
-    _RemoveSt(bst);
+    auto storage = _StringStorage();
+    AssertDo(three_mm_strings_delete(&storage, istn), "invalid string deletion");
+    _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
 }
 
@@ -934,10 +748,8 @@ void StringTable_GST::Delete(LegacyLong istn)
 void StringTable_GST::Move(LegacyLong ivSrc, LegacyLong ivTarget)
 {
     AssertThis(0);
-    AssertIn(ivSrc, 0, _ivMac);
-    AssertIn(ivTarget, 0, _ivMac + 1);
-
-    MoveElement(_Qbst(0), _cbEntry, ivSrc, ivTarget);
+    auto storage = _StringStorage();
+    AssertDo(three_mm_strings_move(&storage, ivSrc, ivTarget), "invalid string move");
     AssertThis(0);
 }
 
@@ -1033,60 +845,14 @@ PAllocatedStringTable AllocatedStringTable::PastDup(void)
 bool AllocatedStringTable::FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra, LegacyLong *pistn)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(cch, 0, kcchMaxGst + 1);
-    AssertPvCb(prgch, cch * size(achar));
-    AssertNilOrPvCb(pvExtra, _cbEntry - size(LegacyLong));
-    AssertNilOrVarMem(pistn);
-
-    LegacyLong ibst;
-    byte *qb;
-
-    if (_cbstFree > 0)
-    {
-        /* find the first free bst */
-        qb = _Qb2(0);
-        for (ibst = 0; ibst < _ivMac; ibst++, qb += _cbEntry)
-        {
-            if (*(LegacyLong *)qb == bvNil)
-                break;
-        }
-        Assert(ibst < _ivMac - 1, "_cbstFree is wrong");
-        _cbstFree--;
-    }
-    else
-        ibst = _ivMac++;
-
-    if (!_FEnsureSizes(_bstMac + (cch + 1) * size(achar), LwMul(_ivMac, _cbEntry), fgrpNil))
-    {
-        if (ibst == _ivMac - 1)
-            _ivMac--;
-        else
-            _cbstFree++;
-        TrashVar(pistn);
-        return fFalse;
-    }
-
-    // fill in the bst and extra data
-    qb = (byte *)_Qbst(ibst);
-    *(LegacyLong *)qb = _bstMac;
-    if (size(LegacyLong) < _cbEntry)
-    {
-        qb += size(LegacyLong);
-        if (pvExtra != pvNil)
-            CopyPb(pvExtra, qb, _cbEntry - size(LegacyLong));
-        else
-            TrashPvCb(qb, _cbEntry - size(LegacyLong));
-    }
-    else
-        Assert(pvNil == pvExtra, "cbExtra is zero");
-
-    // put the string in
-    _AppendRgch(prgch, cch);
-
-    if (pvNil != pistn)
-        *pistn = ibst;
+    auto storage = _StringStorage();
+    ThreeMMU32 position;
+    const bool ok = three_mm_strings_add(&storage, prgch, cch, pvExtra, &position) != 0;
+    _ApplyStringStorage(storage);
+    if (ok && pistn) *pistn = position;
+    TrashVarIf(!ok, pistn);
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1095,29 +861,9 @@ bool AllocatedStringTable::FAddRgch(achar *prgch, LegacyLong cch, void *pvExtra,
 void AllocatedStringTable::Delete(LegacyLong istn)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(istn, 0, _ivMac);
-    Assert(!FFree(istn), "entry already free!");
-
-    byte *qb;
-    LegacyLong bst;
-
-    qb = (byte *)_Qbst(istn);
-    bst = *(LegacyLong *)qb;
-
-    if (istn == _ivMac - 1)
-    {
-        // move _ivMac back past any free entries on the end
-        while (--_ivMac > 0 && *(LegacyLong *)(qb -= _cbEntry) == bvNil)
-            _cbstFree--;
-        TrashPvCb(_Qbst(_ivMac), LwMul(istn - _ivMac + 1, _cbEntry));
-    }
-    else
-    {
-        *(LegacyLong *)qb = bvNil;
-        TrashPvCb(qb + size(LegacyLong), _cbEntry - size(LegacyLong));
-        _cbstFree++;
-    }
-    _RemoveSt(bst);
+    auto storage = _StringStorage();
+    AssertDo(three_mm_strings_delete(&storage, istn), "invalid string deletion");
+    _ApplyStringStorage(storage);
     AssertThis(fobjAssertFull);
 }
 

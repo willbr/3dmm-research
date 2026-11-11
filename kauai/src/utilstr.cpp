@@ -16,7 +16,7 @@
 #include <cstdarg>
 ASSERTNAME
 
-#include "chtrans.h"
+#include "three_mm/text.h"
 
 const achar vrgchHex[] = PszLit("0123456789ABCDEF");
 
@@ -1238,13 +1238,7 @@ void TranslateRgch(achar *prgch, LegacyLong cch, short osk, bool fToCur)
     // for unicode, we just have to change the byte ordering
     SwapBytesRgsw(prgch, cch);
 #else  //! UNICODE
-    auto pmpchschs = MacWin(!fToCur, fToCur) ? _mpchschsMacToWin : _mpchschsWinToMac;
-
-    for (; cch > 0; cch--, prgch++)
-    {
-        if ((byte)*prgch >= (byte)0x80)
-            *prgch = pmpchschs[(byte)*prgch - (byte)0x80];
-    }
+    three_mm_text_map_bytes(prgch, cch, MacWin(!fToCur, fToCur));
 #endif //! UNICODE
 }
 
