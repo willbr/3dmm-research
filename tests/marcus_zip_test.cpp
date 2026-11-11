@@ -251,6 +251,16 @@ int main(int argc, char **argv)
         const auto root = fs::absolute(argc > 1 ? fs::u8path(argv[1]) : fs::path("tmp/marcus-zip")) /
                           ("run-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
         fs::create_directories(root);
+        // The browser may be preparing previews concurrently in the system
+        // temp folder. Check this test's leases in a private temp namespace.
+        const auto temporary = root / "temp";
+        fs::create_directories(temporary);
+#ifdef _WIN32
+        Environment("TMP", temporary.u8string());
+        Environment("TEMP", temporary.u8string());
+#else
+        Environment("TMPDIR", temporary.u8string());
+#endif
         Tests(root);
         return 0;
     }

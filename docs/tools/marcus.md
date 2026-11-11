@@ -46,6 +46,8 @@ cmake --build build/marcus --target marcus
 
 The executable is `build/marcus/src/marcus/marcus` (`marcus.exe` on Windows).
 The current development build in this workspace uses `build/marcus-x64`.
+Keep `marcus-preview` (`marcus-preview.exe` on Windows) beside the executable;
+the Marcus build target builds this headless preview helper automatically.
 
 ```console
 marcus movie.3mm --resources /path/to/3dmovie.chk --content-dir /path/to/content-files
@@ -92,10 +94,16 @@ extraction checks cancellation between output blocks, including the legacy
 extraction so the main thread does not decompress the same movie again.
 The footer shows **Preparing movie** while a chosen movie is unpacked.
 
-Saved thumbnails and scene/frame counts are still decoded incrementally on the
-main thread because the archive decoder shares engine globals. Engine loading,
-content resolution and timing analysis also remain on the main thread after an
-explicit Open; this change does not make all movie loading asynchronous.
+Saved thumbnails and scene/frame counts are decoded in a cancellable
+`marcus-preview` subprocess launched by the browser worker. The separate process
+isolates legacy archive globals from the active player. It returns bounded
+metadata and RGBA pixels; the main thread only creates the display texture.
+Preview file handles and temporary-file cleanup also stay on the worker.
+Scrolling pauses preview queuing until 250 ms after the last scroll input;
+dragging the scrollbar suspends it until release. A bounded cache evicts the
+least recently used thumbnail individually instead of clearing every preview.
+Engine loading, content resolution and timing analysis still run on the main
+thread after an explicit Open; not all movie loading is asynchronous.
 The selected movie has preview priority; other visible movies up to 32 MiB are
 inspected one at a time. ZIP previews may temporarily extract the inspected
 member using the existing size/CRC checks. VMM previews copy only the inner

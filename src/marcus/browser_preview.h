@@ -9,6 +9,7 @@ struct BrowserPreview
     int width = 0, height = 0;
     std::vector<std::uint8_t> rgba;
 };
-// Uses legacy archive globals: call only on the application's main thread.
+// Uses legacy archive globals. The browser calls this in an isolated helper
+// process; never run it concurrently with the live player in the same process.
 BrowserPreview ReadBrowserPreview(const std::string &movie, const std::string &resources);
 #endif

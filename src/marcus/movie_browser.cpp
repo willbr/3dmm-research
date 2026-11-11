@@ -1,6 +1,6 @@
 #include "movie_browser.h"
 #include "movie_input.h"
-#include "browser_preview.h"
+#include "preview_worker.h"
 #include "three_mm/v3dmm.h"
 #include <random>
 #include <array>
@@ -33,6 +33,7 @@ struct Listing
     std::vector<Item> items;
     std::shared_ptr<MarcusMovieInput> input;
     unsigned generation = 0;
+    std::string folder;
 };
 struct Prepared
 {
@@ -40,6 +41,7 @@ struct Prepared
     unsigned serial = 0;
     int entry = 0;
     bool opening = false;
+    BrowserPreview preview;
     std::unique_ptr<MarcusMovieInput> input;
     std::shared_ptr<MarcusMovieFile> file;
     std::shared_ptr<MarcusMovieFile> inner;
@@ -49,6 +51,7 @@ struct Card
 {
     BrowserPreview preview;
     SDL_Texture *texture = nullptr;
+    Uint64 used = 0;
     ~Card() { SDL_DestroyTexture(texture); }
 };
 std::string Lower(std::string value)
@@ -95,7 +98,7 @@ struct MarcusBrowser
     std::vector<int> filtered;
     Listing listing;
     std::map<std::string, std::unique_ptr<Card>> cards;
-    Uint64 selectedAt = 0, previewAt = 0;
+    Uint64 selectedAt = 0, previewAt = 0, scrollAt = 0;
     std::string clicked;
     Uint64 clickedAt = 0;
     std::thread worker;
@@ -104,7 +107,7 @@ struct MarcusBrowser
     bool stopping = false, requested = false, prepareRequested = false, opening = false;
     Item prepareItem;
     bool prepareOpening = false;
-    std::string preparingKey;
+    std::string preparingKey, prepareResources;
     std::atomic<unsigned> prepareSerial{0};
     unsigned prepareRequestSerial = 0;
     std::unique_ptr<Prepared> preparedResult;
@@ -189,6 +192,7 @@ struct MarcusBrowser
             unsigned id, serial = 0;
             Item item;
             bool preparing = false, forOpen = false;
+            std::string resourcePath;
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 condition.wait(lock, [this] { return requested || prepareRequested || stopping; });
@@ -198,7 +202,7 @@ struct MarcusBrowser
                 else
                 {
                     preparing = true; item = prepareItem; forOpen = prepareOpening;
-                    serial = prepareRequestSerial; prepareRequested = false;
+                    serial = prepareRequestSerial; resourcePath = prepareResources; prepareRequested = false;
                 }
             }
             if (preparing)
@@ -259,8 +263,15 @@ struct MarcusBrowser
                             ready->movie = ready->inner->path.u8string();
                         }
                     }
+                    if (!forOpen && !cancelled()) ready->preview = RunPreviewWorker(ready->movie, resourcePath, cancelled);
                 }
                 catch (const std::exception &e) { ready->error = e.what(); }
+                if (!forOpen)
+                {
+                    // All preview file handles and temporary files stay on the
+                    // worker. Only bounded strings and RGBA pixels reach the UI.
+                    ready->input.reset(); ready->file.reset(); ready->inner.reset();
+                }
                 std::lock_guard<std::mutex> lock(mutex);
                 if (!cancelled()) preparedResult = std::move(ready);
                 continue;
@@ -316,6 +327,11 @@ struct MarcusBrowser
                 }
             }
             catch (const std::exception &e) { result->error = e.what(); }
+            if (!path.empty())
+            {
+                std::error_code ec;
+                result->folder = fs::is_directory(fs::u8path(path), ec) ? path : fs::u8path(path).parent_path().u8string();
+            }
             std::lock_guard<std::mutex> lock(mutex);
             if (id == generation) completed = std::move(result);
         }
@@ -392,7 +408,7 @@ struct MarcusBrowser
     {
         std::lock_guard<std::mutex> lock(mutex);
         prepareRequestSerial = ++prepareSerial; preparedResult.reset(); prepareItem = item;
-        prepareOpening = forOpen; prepareRequested = true;
+        prepareOpening = forOpen; prepareResources = resources; prepareRequested = true;
         preparingKey = Key(item); opening = forOpen; error.clear();
         condition.notify_one();
     }
@@ -434,7 +450,9 @@ struct MarcusBrowser
     Card *Preview(const Item &item)
     {
         auto found = cards.find(Key(item));
-        return found == cards.end() ? nullptr : found->second.get();
+        if (found == cards.end()) return nullptr;
+        found->second->used = SDL_GetTicks();
+        return found->second.get();
     }
     void Tick()
     {
@@ -460,7 +478,7 @@ struct MarcusBrowser
                 auto card = std::make_unique<Card>();
                 try
                 {
-                    if (ready->error.empty()) card->preview = ReadBrowserPreview(ready->movie, resources);
+                    if (ready->error.empty()) card->preview = std::move(ready->preview);
                     else card->preview.error = ready->error;
                     auto &preview = card->preview;
                     if (!preview.rgba.empty())
@@ -473,7 +491,12 @@ struct MarcusBrowser
                     }
                 }
                 catch (const std::exception &e) { card->preview.error = e.what(); }
-                if (cards.size() >= 96) cards.clear();
+                card->used = SDL_GetTicks();
+                if (cards.size() >= 128)
+                {
+                    auto oldest = std::min_element(cards.begin(), cards.end(), [](const auto &a, const auto &b) { return a.second->used < b.second->used; });
+                    if (oldest != cards.end()) cards.erase(oldest);
+                }
                 cards[ready->key] = std::move(card);
             }
         }
@@ -482,11 +505,7 @@ struct MarcusBrowser
             if (completed)
             {
                 listing = std::move(*completed); completed.reset(); loading = false; error = listing.error;
-                if (!recentView)
-                {
-                    std::error_code ec;
-                    location = fs::is_directory(fs::u8path(listing.location), ec) ? listing.location : fs::u8path(listing.location).parent_path().u8string();
-                }
+                if (!recentView) location = listing.folder;
                 Refilter();
                 for (int i = 0; i < static_cast<int>(filtered.size()); ++i)
                 {
@@ -495,7 +514,7 @@ struct MarcusBrowser
                 }
             }
         }
-        if (loading || !preparingKey.empty() || SDL_GetTicks() - selectedAt < 200 || SDL_GetTicks() - previewAt < 100) return;
+        if (loading || scrollbarDragging || SDL_GetTicks() - scrollAt < 250 || !preparingKey.empty() || SDL_GetTicks() - selectedAt < 200 || SDL_GetTicks() - previewAt < 100) return;
         const Item *item = Selected();
         auto eligible = [&](const Item *candidate) {
             return candidate && !candidate->directory && !Preview(*candidate) &&
@@ -556,8 +575,15 @@ struct MarcusBrowser
         track.h = size;
         return track;
     }
+    void ScrollActivity()
+    {
+        scrollAt = SDL_GetTicks();
+        if (!opening && !preparingKey.empty())
+        { ++prepareSerial; preparingKey.clear(); }
+    }
     void DragScrollbar(float mouseY)
     {
+        ScrollActivity();
         const auto track = ScrollTrack(), thumb = ScrollThumb();
         const auto travel = track.h - thumb.h;
         if (travel > 0)
@@ -664,6 +690,7 @@ struct MarcusBrowser
         if (ui_inside(px, py, track.x, track.y, track.w, track.h))
         {
             if (!MaximumScroll()) return;
+            ScrollActivity();
             if (ui_inside(px, py, thumb.x, thumb.y, thumb.w, thumb.h))
             { scrollbarDragging = true; scrollbarOffset = py - thumb.y; }
             else scroll = std::clamp(scroll + (py < thumb.y ? -rows : rows), 0, MaximumScroll());
@@ -795,8 +822,11 @@ int browser_event(MarcusBrowser *browser, const SDL_Event *event)
         else if (event->type == SDL_EVENT_MOUSE_MOTION && browser->scrollbarDragging)
             browser->DragScrollbar(event->motion.y);
         else if (event->type == SDL_EVENT_MOUSE_WHEEL)
+        {
+            browser->ScrollActivity();
             browser->scroll = std::max(0, browser->scroll - static_cast<int>(event->wheel.y *
                 (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1) * (browser->grid ? 1 : 3)));
+        }
         else if (event->type == SDL_EVENT_DROP_FILE)
         {
             const auto path = fs::absolute(fs::u8path(event->drop.data));
