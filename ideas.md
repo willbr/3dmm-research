@@ -130,3 +130,26 @@
         * https://docs.blender.org/manual/en/4.4/editors/asset_browser.html
         * https://docs.blender.org/manual/en/dev/animation/armatures/posing/editing/pose_library.html
         * https://developer.blender.org/docs/features/animation/nla/
+
+* Marcus performance and prefab tools inspired by Maya and 3ds Max
+    * Maya-style animation correction layers above stock actions, with mute, adjustable strength and additive/override behaviour for selected body parts
+    * driven keys for meaningful prefab controls: a door-opening slider moves the door and handle; a grip slider poses compatible finger parts
+    * actor ghosting at earlier/later frames with distinct colours, extending drawing onion skins to posed characters
+    * quick viewport review videos (playblasts) with optional frame numbers, shot names, notes and storyboard overlays
+    * 3ds Max-style motion mixing by body region, such as walking legs, a waving arm and a looking head, with blended transitions and foot-contact inspection
+    * ready-made Biped/CAT-style rig presets for compatible actors, with walk controls, footstep placement and foot planting
+    * parameter wiring to connect one prefab control to multiple objects, such as wheel rotation or an unfolding assembly
+    * editable modifier stacks for custom props, including scale, bend, mirror and material changes, followed by generation of the final retail-compatible asset
+    * named scene state sets for alternate costumes, prop visibility and camera choices; switch between takes without manually restoring each setting
+    * expose reusable prefab controls: car steering/wheels/doors/suspension, desk chair/monitor/seated actor targets, character grip/gaze/posture, and crowd spacing/facing/timing offsets
+    * prioritize actor ghosting, review videos, animation correction layers and prefab controls
+    * retain editable controls in Marcus private data; bake generated walks, mixed motion, corrections and modified geometry into supported assets/events and verify retail playback
+    * reference Autodesk's animation and scene tools:
+        * https://help.autodesk.com/cloudhelp/2024/ENU/Maya-Animation/files/GUID-BBCA0BC3-7608-4E86-8E9F-B4099C316156.htm
+        * https://help.autodesk.com/cloudhelp/2019/ENU/Maya-Animation/files/GUID-D2B1C7EF-F177-4B0E-9E41-B479CFF2AFD4.htm
+        * https://help.autodesk.com/cloudhelp/2022/ENU/Maya-Animation/files/GUID-1EC3357B-62DD-424F-9595-277C373D133C.htm
+        * https://help.autodesk.com/cloudhelp/2020/ENU/3DSMax-Animation/files/GUID-D2491163-80EB-49E7-8BFA-EFE5B41C07CD.htm
+        * https://help.autodesk.com/cloudhelp/2022/ENU/3DSMax-Character-Animation/files/GUID-55060A51-4C7A-4A51-B2D0-DC3F87C80784.htm
+        * https://help.autodesk.com/cloudhelp/2019/ENU/3DSMax-Animation/files/GUID-B084D14B-2925-4EA6-890F-4F2564BB9D9A.htm
+        * https://help.autodesk.com/cloudhelp/2024/ENU/3DSMax-Modifiers/files/GUID-911C535D-9003-4925-A064-52835C581DAA.htm
+        * https://help.autodesk.com/cloudhelp/2026/ENU/3DSMax-Manage-Scenes/files/GUID-6CA5DD56-9807-4E65-9A2E-14E6209B3062.htm
