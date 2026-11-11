@@ -95,7 +95,7 @@ resource paths retain the oracle's existing validation.
 ## Measurements and comparison
 
 SQLite stores runs and their capabilities/provenance, scene ranges, every
-observed authored-frame commit, seek images, Marcus presentation images, native
+observed authored-frame commit, seek images, all-player presentation images, native
 sound requests, actual mixed output recordings, and comparison policies/results.
 Available observations include:
 
@@ -139,11 +139,27 @@ their artifact journals and available trace observations. The command returns 0
 for matched requested comparisons, 1 for differences/inconclusive comparisons,
 and 2 for capture/infrastructure errors.
 
+Continuous image capture now records native GDI canvas blits and SDL host
+presents, alongside Marcus updates. The native observer mirrors blits to an
+off-screen DIB rather than reading an occluded desktop or forcing movie redraws.
+It seeds that surface once before playback. The SDL observer copies the canvas
+after a host present. All images carry scene/frame labels and monotonic times;
+multiple observations during an authored-frame hold are retained. Native and
+SDL observation rates differ: native snapshots are limited to 60 Hz between
+authored commits, while every blit still updates the mirror. This prevents tiny
+dissolve blits from flooding the writer. Native trace metadata records the
+sampling period and the number of blits not individually snapshotted. Native and
+SDL writes use a bounded asynchronous queue (128 unique images), with a 20,000
+observation limit. Consecutive identical pixels reuse one image file while
+retaining every timestamp. Overflow/write failure invalidates capture.
+
 Current gaps are explicit:
 
-- Original/SDL continuous composed-image observers are still missing. Seeked
-  images do not cover every transition/scrolling image. `continuous_pixels`
-  therefore remains inconclusive, including when all seek images match.
+- Blits, host presents and Marcus updates have different presentation boundaries.
+  `continuous_pixels` remains inconclusive until a validated temporal comparison
+  policy exists. Playback Review offers same-frame phase alignment within 50 ms
+  for manual inspection; it does not compare raw image sequence numbers. Capture
+  timestamps are not physical display timestamps, and capture adds overhead.
 - Marcus sound-request and per-voice playback-position observers are missing.
   Marcus recordings observe actual output until player stop, but the C API does
   not establish whether a trailing voice completed; tail state is unavailable.
@@ -318,9 +334,9 @@ is optional and does not yet expose this state contract.
 
 Run just these cases with `--case static-text --case scrolling-text`. Default
 modes capture all 60 absolute seeks and normal-speed playback for each player.
-The current original/SDL playback observer still lacks intermediate images,
-so scrolling speed, smoothness and exact moving glyph positions remain
-inconclusive; a successful seek pass cannot establish scrolling parity.
+Those original captures lacked intermediate images. New playback captures include
+them, but scrolling speed, smoothness and exact moving glyph parity still require
+temporal review; a successful seek pass cannot establish scrolling parity.
 These are initial Arial cases, not exhaustive font/style/alignment coverage.
 
 The final Windows 11 smoke sweep is in `tmp/playback-text-final/playback.sqlite`:
@@ -370,7 +386,7 @@ The `text_acid_contract` checks page/box counts, SDL paragraph alignment,
 mixed font runs, lifetime boundaries and preservation of the missing-font
 sample. Playback must exercise the credit hold. Exact viewport comparisons
 remain separate: passing the content contract is not a visual parity pass.
-Continuous moving-credit pixels still need the original-runtime image observer.
+New continuous captures include moving-credit pixels for temporal review.
 
 A movie file stores the **results** of authoring, not an editing history. To
 exercise editor operations, use a copy: move and resize a box, select and replace
@@ -429,6 +445,45 @@ these observations do not identify the underlying implementation cause.
 Marcus's authored frame sequence and expected silence match, but continuous
 playback fidelity remains inconclusive. Retail playback timing did not repeat
 within the 25 ms policy, so timing comparisons are gated as inconclusive, and
-native continuous-image evidence is still unavailable. This capture uses the
+native continuous-image evidence was unavailable in that historical suite. This capture uses the
 existing binaries, with their hashes recorded in provenance; no Marcus rebuild
 or UI test was performed.
+
+## Continuous image capture validation
+
+`tmp/text-acid-continuous-results/playback.sqlite`, suite
+`20261111T093115Z-0f7d26b9`, contains complete playback captures from all four
+players: retail 610 images, v3dmm 610, SDL 2,856 and Marcus 1,229. Each native
+capture contains 132 distinct moving-credit images at scene index 2/frame 3.
+These are new captures; earlier databases are not backfilled. The native Text
+Acid validation preceded the 60 Hz burst limit added for dissolves.
+
+The new reviewer navigates presentation images rather than confusing them with
+authored-frame observations. Same-scene/frame images are paired by phase since
+the corresponding authored commit, with the offset visible and a 50 ms limit.
+Missing or too-distant references remain unpaired. In the first SDL typography
+image, retail is 3.19 ms earlier in frame phase and the images differ by 10 RGB
+pixels. This diagnostic pairing does not establish continuous playback parity.
+
+`tmp/dissolve-continuous-final/playback.sqlite`, suite
+`20261111T094121Z-9281954c`, validates the final native sampling limit: all three
+captures complete, with 352 native images per player and 570 SDL images. Each
+native capture has 234 distinct images at the incoming scene's frame 1 during
+the dissolve. SDL has only one image at that scene/frame and 31 unique images
+over the entire movie, versus 264 native unique images. The SDL observer is on
+the host's present path; its transition loop currently flushes GDI operations
+without calling that path, so intermediate transition states are not presented
+there. This is evidence of an SDL playback gap, not a reason to force extra
+renders in the capture adapter. The earlier unbounded-blit attempts in
+`tmp/dissolve-continuous-results` failed capture and must not be treated as passes.
+
+Validation also includes the writer's pixel conversion, duplicate reuse and
+write-error handling; Python import retains repeated timestamps; C89 reviewer
+tests check phase pairing across independent clocks, mismatched sequence
+numbers, absent timestamps and out-of-window references.
+
+The coloured grid on the generated feature/dissolve actor is an intentional test
+material, not a missing-texture fallback. The fixture writes texture pixels to
+a `TMAP` chunk, a referencing `MTRL` chunk, and actor costume events into the
+`.3mm` file. Retail loads those through its ordinary movie format; its installed
+model/texture resources are not replaced.

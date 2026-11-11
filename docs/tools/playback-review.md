@@ -35,11 +35,19 @@ SQLite is public domain. No Marcus rebuild is required.
   used. The displayed run IDs identify the exact pair.
 - Step observations or use the slider. Scene numbers are zero-based, authored
   frame numbers retain their original values. **Next image difference** wraps
-  through candidate images with mismatched hashes/geometry or missing references.
+  through seek images with mismatched hashes/geometry or missing references.
+  Playback navigation follows presentation images, including multiple redraws
+  while one authored frame is held. The seek-only difference shortcut is disabled.
 - Reference and candidate PNGs appear beside a magenta mask of changed RGB
   pixels. Zoom uses nearest-neighbour sampling; horizontal scrolling supports
-  large images. Pairing requires matching sequence, scene and authored frame.
+  large images. Seek pairing requires matching sequence, scene and authored frame.
+  Playback pairs the nearest reference image at the same scene/authored frame,
+  using elapsed time relative to that frame's commit, within 50 ms. The actual
+  offset is displayed. This is a review aid, not a parity verdict: native blits,
+  SDL presents and Marcus updates have different boundaries and rates.
   Missing captures or unequal dimensions have an explicit unavailable message.
+  A playback image with no reference within that time window remains viewable
+  on its own. Older databases retain their original missing-image limitations.
 - Expand recorded comparisons for verdicts, metrics and policies. These are the
   latest stored comparisons per reference/candidate/component; the browser does
   not run new comparisons. Historical comparisons may name a different reference

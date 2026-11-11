@@ -24,6 +24,7 @@
 // legacy 3DMM convenience macro) which clobbers `std::vector::size()`,
 // `std::string::size()`, and friends if STL headers are processed under it.
 #include <string>
+#include "../../tools/presentation_capture.h"
 #include <vector>
 #include <map>
 #include <memory>
@@ -1766,6 +1767,26 @@ struct ObservedPlaybackFrame
 static std::vector<ObservedPlaybackFrame> playbackFrames;
 static bool playbackTraceOverflow = false;
 static Movie *observedMovie = nullptr;
+#ifdef KAUAI_SDL3
+static PlaybackCapture::Writer presentationWriter;
+static int presentationLeft = 48, presentationTop = 100, presentationRight = 592, presentationBottom = 406;
+static void ObservePresentation()
+{
+    auto studio = vpapp ? vpapp->Pstdio() : nullptr;
+    if (!observedMovie || !studio || studio->Pmvie() != observedMovie ||
+        !observedMovie->FPlaying() || !observedMovie->Pscen()) return;
+    std::vector<std::uint32_t> pixels;
+    int width, height;
+    if (!KauaiSDL::Main().CopyPixels(pixels, width, height) || width != 640 || height != 480) {
+        presentationWriter.failed = true;
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    presentationWriter.Add(reinterpret_cast<const unsigned char *>(pixels.data() + presentationTop * width + presentationLeft),
+        presentationRight-presentationLeft,presentationBottom-presentationTop,width*4,true,observedMovie->Iscen(),observedMovie->Pscen()->Nfrm(),
+        std::chrono::duration_cast<std::chrono::nanoseconds>(now).count());
+}
+#endif
 struct ObservedSound
 {
     ChunkTagOrType type;
@@ -1833,14 +1854,45 @@ static JVal Tool_PlaybackTrace(const JVal &args)
         playbackSounds.clear();
         playbackSounds.reserve(10000);
         observedMovie = movie;
+#ifdef KAUAI_SDL3
+        auto output = args.Get("image_directory");
+        auto crop = args.Get("viewport");
+        if (crop && crop->a && crop->a->size() == 4) {
+            presentationLeft = (*crop->a)[0].AsInt(); presentationTop = (*crop->a)[1].AsInt();
+            presentationRight = (*crop->a)[2].AsInt(); presentationBottom = (*crop->a)[3].AsInt();
+        }
+        if (presentationLeft < 0 || presentationTop < 0 || presentationRight > 640 || presentationBottom > 480 ||
+            presentationLeft >= presentationRight || presentationTop >= presentationBottom)
+            return ContentError("Invalid presentation viewport");
+        presentationWriter.Begin(output ? output->AsStr() : "");
+        KauaiSDL::Main().ObservePresentations(presentationWriter.active ? ObservePresentation : nullptr);
+#endif
         vpsndm->ObservePlays(ObserveSoundPlay);
         movie->ObservePlaybackFrames(ObservePlaybackFrame);
         return ContentText("armed");
     }
     movie->ObservePlaybackFrames(nullptr);
+#ifdef KAUAI_SDL3
+    KauaiSDL::Main().ObservePresentations(nullptr);
+    presentationWriter.End();
+#endif
     vpsndm->ObservePlays(nullptr);
     observedMovie = nullptr;
     JVal result = JVal::MkObj(), frames = JVal::MkArr();
+#ifdef KAUAI_SDL3
+    result.Set("presentation_scope", JVal::MkStr("SDL host presents"));
+    result.Set("presentation_error", JVal::MkBool(presentationWriter.failed));
+    JVal presentations = JVal::MkArr();
+    for (const auto &event : presentationWriter.events) {
+        JVal entry = JVal::MkObj();
+        entry.Set("scene", JVal::MkInt(event.scene));
+        entry.Set("frame", JVal::MkInt(event.frame));
+        entry.Set("monotonic_ns", JVal::MkInt(event.nanoseconds));
+        entry.Set("path", JVal::MkStr(event.path));
+        presentations.a->push_back(std::move(entry));
+    }
+    result.Set("presentations", std::move(presentations));
+#endif
     result.Set("overflow", JVal::MkBool(playbackTraceOverflow));
     for (const auto &frame : playbackFrames)
     {
@@ -2382,7 +2434,8 @@ static const ToolDef kTools[] = {
      "\"max_ms\":{\"type\":\"integer\"}},\"additionalProperties\":false}",
      &Tool_TestMoviePlayback, false},
     {"playback_trace", "Observe normal playback frame commits and monotonic timestamps; isolated test processes only.",
-     "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"begin\",\"end\"]}},\"required\":"
+     "{\"type\":\"object\",\"properties\":{\"action\":{\"type\":\"string\",\"enum\":[\"begin\",\"end\"]},"
+     "\"image_directory\":{\"type\":\"string\"},\"viewport\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"minItems\":4,\"maxItems\":4}},\"required\":"
      "[\"action\"]}",
      &Tool_PlaybackTrace, false},
     {"seek_movie", "Seek using one-based scene/frame UI numbers and return the engine's actual success status.",

@@ -166,7 +166,7 @@ class MarcusSession:
 
 def capabilities(player, mode):
     return {'seek_images': mode == 'seek', 'frame_commits': mode == 'playback',
-            'presentation_images': mode == 'playback' and player == 'marcus',
+            'presentation_images': mode == 'playback',
             'sound_requests': mode == 'playback' and player != 'marcus',
             'mixed_pcm': mode == 'playback', 'voice_positions': False,
             'actual_display_times': False, 'audio_tail_state': player != 'marcus',
@@ -222,10 +222,11 @@ def seek_capture(store, run, session, output, player, viewport):
             'text_observations': text_observations}
 
 
-def playback_capture(store, run, session, output, audio_module, helper, limit):
+def playback_capture(store, run, session, output, audio_module, helper, limit, viewport=(48, 100, 592, 406)):
     # record() uses normal Play, process-loopback PCM and every observed commit.
     # No scene traversal/seek screenshot warm-up happens in this process.
-    _, report = audio_module.record(session, helper, output / 'playback', limit)
+    _, report = audio_module.record(session, helper, output / 'playback', limit,
+                                   capture_images=not isinstance(session, MarcusSession), viewport=viewport)
     if isinstance(session, MarcusSession):
         report['sound_tail_complete'] = None
         report['sound_tail_observation'] = 'Unavailable in the Marcus C API; recording observes output until the player stops'
@@ -241,6 +242,8 @@ def playback_capture(store, run, session, output, audio_module, helper, limit):
         raise RuntimeError('Continuous playback did not visit every authored frame in order')
     if session_trace.get('error'):
         raise RuntimeError(session_trace['error'])
+    if session_trace.get('presentation_error') or not session_trace.get('presentations'):
+        raise RuntimeError('Presentation capture failed, overflowed, or produced no images')
     path = output / 'playback/audio.wav'
     store.insert('audio', run_id=run, path=store.relative(path), sha256=digest(path),
                  anchor_sample=report['audio_anchor_sample'], metadata_json=encode(report))
@@ -250,15 +253,18 @@ def playback_capture(store, run, session, output, audio_module, helper, limit):
 def import_presentations(store, run, trace):
     for index, event in enumerate(trace.get('presentations', [])):
         data = dict(event)
+        data['presentation_scope'] = trace.get('presentation_scope', 'headless C API host update')
+        data['sampling_period_ns'] = trace.get('presentation_sampling_period_ns')
         path = Path(data.pop('path'))
         scene, frame = data.pop('scene'), data.pop('frame')
         data['timestamp_ns'] = data.pop('monotonic_ns')
         png = path.with_suffix('.png')
         from PIL import Image
-        with Image.open(path) as source:
-            source.save(png)
+        if path.exists():
+            with Image.open(path) as source:
+                source.save(png)
+            path.unlink()
         store.image(run, index, scene, frame, png, **data)
-        path.unlink()
 
 
 def verify_text_acid(player, mode, report):
@@ -427,10 +433,12 @@ def compare_runs(store, reference, candidate, *, frame_tolerance_ms=25, sample_t
             results.append(result('mixed_pcm', **metrics))
         else:
             results.append(result('mixed_pcm', status='inconclusive', reason='Missing mixed audio recording'))
-        # Neither native reference currently observes every composed image.
-        # Do not compare seek images as if they covered transitions/scrolling.
+        # GDI blits and host presents occur at different boundaries and rates.
+        # Time-aligned reviewer pairs are diagnostic, not an exact parity proof.
         results.append(result('continuous_pixels', status='inconclusive',
-                              reason='Original-runtime presentation image observer not implemented'))
+                              reason='Presentation images require temporal alignment; raw image sequences are not equivalent',
+                              reference_images=len(rows('images', reference)),
+                              candidate_images=len(rows('images', candidate))))
     status = 'different' if any(r['status'] == 'different' for r in results) else (
         'inconclusive' if any(r['status'] != 'matched' for r in results) else 'matched')
     return result('seek_fidelity' if a['mode'] == 'seek' else 'playback_fidelity', status=status)
@@ -503,7 +511,7 @@ def run_suite(args):
                      environment_json=encode({'os': platform.platform(), 'python': platform.python_version(),
                          'machine': platform.machine(), 'os_file_cache': 'uncontrolled', 'run_order': players,
                          'viewport': args.viewport, 'notes': args.environment_notes, 'working_tree': dirty,
-                         'audio_format': '48000 Hz stereo signed 16-bit', 'capture_version': 1}), source_revision=revision)
+                         'audio_format': '48000 Hz stereo signed 16-bit', 'capture_version': 2}), source_revision=revision)
         product, iso_manifest = session_module.prepare_iso(args.iso, output / 'iso-package')
         resources = args.resources or product / '3DMOVIE.CHK'
         content = args.content_dir or product
@@ -514,7 +522,7 @@ def run_suite(args):
             identities['marcus_capture_sha256'] = digest(args.marcus)
         identities['bridge_sha256'] = digest(args.bridge / 'retail-oracle.dll')
         identities['capture_sources'] = {name: digest(ROOT / 'tools' / name) for name in
-            ('playback_regression.py', 'playback_store.py', 'marcus_regression.cpp')}
+            ('playback_regression.py', 'playback_store.py', 'marcus_regression.cpp', 'presentation_capture.h')}
         content_inputs = {str(resources.resolve()): digest(resources)}
         for path in content.iterdir():
             if path.is_file() and path.suffix.lower() == '.3cn':
@@ -584,14 +592,14 @@ def run_suite(args):
                                 report = seek_capture(store, run, active, directory, player, args.viewport)
                             else:
                                 report = playback_capture(store, run, active, directory, audio_module,
-                                                          args.bridge / 'oracle-audio-capture.exe', args.max_seconds)
+                                                          args.bridge / 'oracle-audio-capture.exe', args.max_seconds, args.viewport)
                             verify_feature_observations(case, player, mode, report)
                             provenance = dict(identities)
                             if hasattr(active, 'validate_assets'):
                                 provenance['runtime'] = active.validate_assets()
                             active.close()
                             active = None
-                            if player == 'marcus' and mode == 'playback':
+                            if mode == 'playback':
                                 import_presentations(store, run, report['trace'])
                             if digest(case['path']) != source_hash:
                                 raise RuntimeError('Source movie changed')

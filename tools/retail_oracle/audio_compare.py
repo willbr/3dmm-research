@@ -176,16 +176,20 @@ class Capture:
         self.log.close()
 
 
-def record(session, helper, output, limit):
+def record(session, helper, output, limit, *, capture_images=False, viewport=(48, 100, 592, 406)):
     output.mkdir(parents=True, exist_ok=False)
     first = session.seek(1, 1)
     if not first['success']: raise OracleError('Cannot rewind movie before audio playback')
     original = session.state()
     native = hasattr(session, 'oracle')
     pid = session.identity['pid'] if native else session.studio.process.pid
-    trace = lambda action: (session.oracle.request(5 if action == 'begin' else 6) if native else
+    image_directory = output.resolve() / 'presentations'
+    if capture_images:
+        image_directory.mkdir()
+    trace = lambda action: (session.oracle.request(5, *viewport, path=image_directory if capture_images else '') if native and action == 'begin' else
+        session.oracle.request(6) if native else
         json.loads(session.studio.call('playback_trace', action=action)['content'][0]['text']) if action == 'end' else
-        session.studio.call('playback_trace', action=action))
+        session.studio.call('playback_trace', action=action, **({'image_directory': str(image_directory), 'viewport': list(viewport)} if capture_images else {})))
     trace('begin')
     capture = Capture(helper, pid, output / 'audio.wav', min(3600, limit + 15))
     report = {'observations': [], 'complete': False, 'expected_scene_count': original['movie_scene_count']}

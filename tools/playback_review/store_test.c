@@ -16,6 +16,7 @@ int main(void)
     sqlite3 *db;
     char body[256];
     int resolved;
+    double delta;
     const char *path = "review-store-test.sqlite";
     remove(path);
     remove("review-store-test.sqlite.notes.sqlite");
@@ -26,7 +27,21 @@ int main(void)
               "INSERT INTO runs VALUES(1,'suite-a','text-acid','sdl','seek');",
               NULL, NULL, NULL) == SQLITE_OK);
     sqlite3_close(db);
+    CHECK(sqlite3_open(path, &db) == SQLITE_OK);
+    CHECK(sqlite3_exec(
+              db,
+              "CREATE TABLE frames(run_id INTEGER,scene INTEGER,frame INTEGER,timestamp_ns INTEGER);"
+              "CREATE TABLE images(run_id INTEGER,sequence INTEGER,scene INTEGER,frame INTEGER,timestamp_ns INTEGER);"
+              "INSERT INTO frames VALUES(1,0,3,1000000000),(2,0,3,9000000000),(1,1,3,9000000000);"
+              "INSERT INTO images VALUES(1,0,0,3,1000000000),(1,19,0,3,1110000000),(2,5,0,3,9100000000),"
+              "(1,99,1,3,9100000000),(2,6,0,3,9900000000),(2,7,0,3,NULL);",
+              NULL, NULL, NULL) == SQLITE_OK);
+    sqlite3_close(db);
     CHECK(review_open(&s, path));
+    CHECK(review_presentation_pair(&s, 1, 2, 5, &delta) == 19 && delta == 10.0);
+    CHECK(review_presentation_pair(&s, 1, 2, 6, &delta) == -1);
+    CHECK(review_presentation_pair(&s, 1, 2, 7, &delta) == -1);
+    CHECK(review_presentation_pair(&s, 3, 2, 5, &delta) == -1);
     CHECK(sqlite3_db_readonly(s.results, "main") == 1);
     CHECK(review_note_load(&s, 1, -1, body, sizeof(body), &resolved) && !body[0] && !resolved);
     CHECK(review_note_save(&s, 1, -1, "Whole run: apostrophe ' and UTF-8 \xc3\xa9", 0));

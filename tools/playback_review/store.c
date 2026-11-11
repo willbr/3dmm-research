@@ -3,6 +3,34 @@
 #include <stdlib.h>
 #include <string.h>
 
+int review_presentation_pair(ReviewStore *s, int reference, int candidate, int sequence, double *delta_ms)
+{
+    sqlite3_stmt *q;
+    int found;
+    const char *sql =
+        "SELECT r.sequence,((r.timestamp_ns-rf.timestamp_ns)-(c.timestamp_ns-cf.timestamp_ns))/1000000.0 delta "
+        "FROM images c JOIN frames cf ON cf.run_id=c.run_id AND cf.scene=c.scene AND cf.frame=c.frame "
+        "JOIN images r ON r.run_id=? AND r.scene=c.scene AND r.frame=c.frame "
+        "JOIN frames rf ON rf.run_id=r.run_id AND rf.scene=r.scene AND rf.frame=r.frame "
+        "WHERE c.run_id=? AND c.sequence=? AND delta IS NOT NULL "
+        "ORDER BY abs(delta),r.sequence LIMIT 1";
+    found = -1;
+    *delta_ms = 0;
+    if (sqlite3_prepare_v2(s->results, sql, -1, &q, NULL) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_int(q, 1, reference);
+    sqlite3_bind_int(q, 2, candidate);
+    sqlite3_bind_int(q, 3, sequence);
+    if (sqlite3_step(q) == SQLITE_ROW)
+    {
+        *delta_ms = sqlite3_column_double(q, 1);
+        if (*delta_ms >= -50.0 && *delta_ms <= 50.0)
+            found = sqlite3_column_int(q, 0);
+    }
+    sqlite3_finalize(q);
+    return found;
+}
+
 static int failure(ReviewStore *s, const char *message)
 {
     sqlite3_snprintf((int)sizeof(s->error), s->error, "%s", message);

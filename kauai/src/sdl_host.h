@@ -137,6 +137,8 @@ class Host
     void BindPixels(const void *pixels, int pitch);
     void UnbindPixels(const void *pixels);
     bool Present(bool force = false);
+    // Optional diagnostic observer; called after a successful host present.
+    void ObservePresentations(void (*observer)());
     bool Poll(Event &event, int timeoutMs = 0);
     void Mouse(float &x, float &y, bool &down) const;
     std::uint32_t Modifiers() const;

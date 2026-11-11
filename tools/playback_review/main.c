@@ -29,6 +29,8 @@ static Picture pictures[3];
 static SDL_Renderer *renderer;
 static float zoom = 1.0f;
 static int differences = -1;
+static int playback_mode, paired_sequence = -1;
+static double pair_delta_ms;
 
 static ImVec2 vec(float x, float y)
 {
@@ -128,6 +130,7 @@ static void choose_run(int row)
     char *sql;
     memset(&t, 0, sizeof(t));
     selected = atoi(cell(&runs, row, 0));
+    playback_mode = !strcmp(cell(&runs, row, 4), "playback");
     sql = sqlite3_mprintf("SELECT b.id FROM runs a JOIN cases c ON c.suite_id=a.suite_id AND c.name=a.case_name "
                           "JOIN runs b ON b.suite_id=a.suite_id AND b.case_name=a.case_name AND b.mode=a.mode "
                           "AND b.preparation=a.preparation AND b.repetition=a.repetition AND b.player=c.reference "
@@ -137,11 +140,19 @@ static void choose_run(int row)
     sqlite3_free(sql);
     reference = t.rows ? atoi(cell(&t, 0, 0)) : -1;
     clear_table(&t);
-    sql = sqlite3_mprintf("SELECT sequence,scene,frame FROM frames WHERE run_id=%d "
-                          "UNION SELECT sequence,scene,frame FROM images WHERE run_id=%d ORDER BY sequence",
-                          selected, selected);
+    sql = playback_mode
+              ? sqlite3_mprintf("SELECT sequence,scene,frame FROM images WHERE run_id=%d ORDER BY sequence", selected)
+              : sqlite3_mprintf("SELECT sequence,scene,frame FROM frames WHERE run_id=%d "
+                                "UNION SELECT sequence,scene,frame FROM images WHERE run_id=%d ORDER BY sequence",
+                                selected, selected);
     query(&frames, sql);
     sqlite3_free(sql);
+    if (playback_mode && !frames.rows)
+    {
+        sql = sqlite3_mprintf("SELECT sequence,scene,frame FROM frames WHERE run_id=%d ORDER BY sequence", selected);
+        query(&frames, sql);
+        sqlite3_free(sql);
+    }
     cursor = 0;
     loaded_cursor = -2;
     load_note();
@@ -163,13 +174,16 @@ static void load_images(void)
     seq = atoi(cell(&frames, cursor, 0));
     scene = atoi(cell(&frames, cursor, 1));
     frame = atoi(cell(&frames, cursor, 2));
+    paired_sequence = playback_mode ? review_presentation_pair(&store, reference, selected, seq, &pair_delta_ms) : seq;
     for (i = 0; i < 2; ++i)
     {
         sql = sqlite3_mprintf("SELECT path FROM images WHERE run_id=%d AND sequence=%d AND scene=%d AND frame=%d",
-                              i ? selected : reference, seq, scene, frame);
+                              i ? selected : reference, i ? seq : paired_sequence, scene, frame);
         query(&t, sql);
         sqlite3_free(sql);
         load_picture(&pictures[i], t.rows ? cell(&t, 0, 0) : "");
+        if (!i && playback_mode && paired_sequence < 0)
+            SDL_strlcpy(pictures[i].error, "No temporally aligned reference image", sizeof(pictures[i].error));
         clear_table(&t);
     }
     p = &pictures[2];
@@ -272,8 +286,10 @@ static void details(void)
         if (igButton("Next", vec(0, 0)) && cursor + 1 < frames.rows)
             ++cursor;
         igSameLine(0, -1);
+        igBeginDisabled(playback_mode);
         if (igButton("Next image difference", vec(0, 0)))
             next_difference();
+        igEndDisabled();
         igSameLine(0, -1);
         igSliderInt("Observation", &cursor, 0, frames.rows - 1, "%d", 0);
         igText("Sequence %s | Scene %s (zero-based) | Authored frame %s", cell(&frames, cursor, 0),
@@ -286,6 +302,16 @@ static void details(void)
     igEndDisabled();
     if (loaded_cursor != cursor)
         load_images();
+    if (playback_mode)
+    {
+        if (paired_sequence >= 0)
+            igText("Playback pairing: reference image %d, offset %.2f ms relative to the frame commit (review aid, not "
+                   "a parity verdict).",
+                   paired_sequence, pair_delta_ms);
+        else
+            igTextWrapped(
+                "No reference presentation within 50 ms at the same scene/frame phase; candidate remains available.");
+    }
     igBeginDisabled(!note_ok);
     if (igInputTextMultiline("Review note", note, sizeof(note), vec(-1, 85), 0, NULL, NULL))
         dirty = 1;
@@ -325,11 +351,16 @@ static void details(void)
     {
         sequence = atoi(cell(&frames, cursor, 0));
         sql = sqlite3_mprintf("SELECT run_id,sequence,scene,frame,timestamp_ns,duration_since_previous_ns FROM "
-                              "frame_timing WHERE run_id IN (%d,%d) AND sequence=%d",
-                              selected, reference, sequence);
+                              "frame_timing WHERE run_id IN (%d,%d) AND scene=%d AND frame=%d",
+                              selected, reference, atoi(cell(&frames, cursor, 1)), atoi(cell(&frames, cursor, 2)));
         show_query(sql);
         sqlite3_free(sql);
-        sql = sqlite3_mprintf("SELECT state_json FROM frames WHERE run_id=%d AND sequence=%d", selected, sequence);
+        sql = sqlite3_mprintf("SELECT state_json FROM frames WHERE run_id=%d AND scene=%d AND frame=%d", selected,
+                              atoi(cell(&frames, cursor, 1)), atoi(cell(&frames, cursor, 2)));
+        show_query(sql);
+        sqlite3_free(sql);
+        sql = sqlite3_mprintf("SELECT sequence,timestamp_ns,state_json FROM images WHERE run_id=%d AND sequence=%d",
+                              selected, sequence);
         show_query(sql);
         sqlite3_free(sql);
     }
@@ -517,6 +548,10 @@ int main(int argc, char **argv)
     for (i = 0; i < runs.rows; ++i)
         if (!strcmp(cell(&runs, i, 3), "sdl") && !strcmp(cell(&runs, i, 4), "seek"))
             break;
+    if (i == runs.rows)
+        for (i = 0; i < runs.rows; ++i)
+            if (!strcmp(cell(&runs, i, 3), "sdl"))
+                break;
     if (runs.rows)
         choose_run(i < runs.rows ? i : 0);
     running = 1;

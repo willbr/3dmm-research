@@ -131,6 +131,7 @@ std::uint32_t VirtualKey(SDL_Scancode key)
 } // namespace
 struct Host::Impl
 {
+    void (*presentationObserver)() = nullptr;
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
     SDL_Texture *texture = nullptr;
@@ -830,7 +831,12 @@ bool Host::Present(bool force)
         return false;
     SDL_RenderPresent(impl->renderer);
     impl->lastPresent = now;
+    if (impl->presentationObserver) impl->presentationObserver();
     return true;
+}
+void Host::ObservePresentations(void (*observer)())
+{
+    impl->presentationObserver = observer;
 }
 bool Host::SaveBMP(const char *path, bool includeCursor)
 {

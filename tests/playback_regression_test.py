@@ -15,10 +15,30 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from playback_store import Store, digest, frame_coverage, timing_metrics
-from playback_regression import compare_runs, compare_suite, load_manifest, review, capabilities, verify_feature_observations
+from playback_regression import compare_runs, compare_suite, load_manifest, review, capabilities, verify_feature_observations, import_presentations
 
 
 class Measurements(unittest.TestCase):
+    @unittest.skipIf(Image is None, 'Pillow required')
+    def test_repeated_presentations_reuse_pixels_without_losing_timestamps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'frame.ppm'
+            Image.new('RGB', (2, 1), (12, 34, 56)).save(path)
+            observations = []
+            class Sink:
+                def image(self, run, sequence, scene, frame, image, **metadata):
+                    self.assertions(image)
+                    observations.append((sequence, metadata['timestamp_ns'], str(image)))
+                @staticmethod
+                def assertions(image):
+                    with Image.open(image) as pixels:
+                        assert pixels.getpixel((0, 0)) == (12, 34, 56)
+            trace = {'presentations': [dict(path=str(path),scene=0,frame=3,monotonic_ns=t) for t in (10,20)]}
+            import_presentations(Sink(), 1, trace)
+            self.assertEqual([o[:2] for o in observations], [(0,10),(1,20)])
+            self.assertEqual(observations[0][2], observations[1][2])
+            self.assertFalse(path.exists())
+
     def test_checked_in_text_acid_manifest_is_hash_pinned(self):
         path = Path(__file__).parent / 'fixtures/textbox-acid.json'
         case = load_manifest(path)['cases'][0]

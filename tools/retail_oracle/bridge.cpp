@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "protocol.h"
+#include "../presentation_capture.h"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -76,6 +77,19 @@ bool traceOverflow = false;
 DWORD *traceSlot = nullptr;
 using TimelineUpdate = void(__thiscall *)(void *);
 TimelineUpdate realTimelineUpdate;
+PlaybackCapture::Writer presentationWriter;
+HWND presentationWindow = nullptr;
+HDC presentationDC = nullptr;
+HBITMAP presentationBitmap = nullptr;
+HGDIOBJ presentationOld = nullptr;
+unsigned char *presentationPixels = nullptr;
+RECT presentationCrop = {48, 100, 592, 406};
+std::uint64_t lastPresentationTime = 0, lastPresentationCommit = 0, sampledOutBlits = 0;
+int lastPresentationScene = -1, lastPresentationFrame = -1;
+using StretchFunction = BOOL(WINAPI *)(HDC,int,int,int,int,HDC,int,int,int,int,DWORD);
+StretchFunction realStretch = ::StretchBlt;
+using BlitFunction = BOOL(WINAPI *)(HDC,int,int,int,int,HDC,int,int,DWORD);
+BlitFunction realBlit = ::BitBlt;
 struct SoundObservation
 {
     DWORD type, number, start;
@@ -457,6 +471,104 @@ void CaptureBMP(const wchar_t *path)
     if (!file)
         throw std::runtime_error("cannot_write_capture");
 }
+void EndPresentations()
+{
+    presentationWriter.End();
+    if (presentationDC) {
+        SelectObject(presentationDC, presentationOld);
+        DeleteObject(presentationBitmap);
+        DeleteDC(presentationDC);
+    }
+    presentationDC = nullptr;
+    presentationWindow = nullptr;
+}
+void MirrorPresentation(HDC destination, int x, int y, int w, int h, HDC source,
+                        int sx, int sy, int sw, int sh, DWORD operation)
+{
+    if (!presentationWriter.active || WindowFromDC(destination) != presentationWindow) return;
+    try {
+        auto movie = Movie();
+        if (!(Read<DWORD>(movie, 0x154) & 4)) return;
+        const int saved = SaveDC(presentationDC);
+        POINT origin, viewport;
+        GetWindowOrgEx(destination, &origin); GetViewportOrgEx(destination, &viewport);
+        SetWindowOrgEx(presentationDC, origin.x, origin.y, nullptr);
+        SetViewportOrgEx(presentationDC, viewport.x, viewport.y, nullptr);
+        RECT clip;
+        GetClipBox(destination, &clip);
+        IntersectClipRect(presentationDC, clip.left, clip.top, clip.right, clip.bottom);
+        SetStretchBltMode(presentationDC, GetStretchBltMode(destination));
+        const bool copied = realStretch(presentationDC, x,y,w,h,source,sx,sy,sw,sh,operation) != FALSE;
+        POINT bounds[2] = {{x,y},{x+w,y+h}};
+        LPtoDP(destination, bounds, 2);
+        RestoreDC(presentationDC, saved);
+        if (!copied) { presentationWriter.failed = true; return; }
+        if (bounds[1].x <= presentationCrop.left || bounds[0].x >= presentationCrop.right ||
+            bounds[1].y <= presentationCrop.top || bounds[0].y >= presentationCrop.bottom) return;
+        GdiFlush();
+        LARGE_INTEGER now, frequency;
+        QueryPerformanceCounter(&now); QueryPerformanceFrequency(&frequency);
+        const auto ns = std::uint64_t(now.QuadPart / frequency.QuadPart) * 1000000000 +
+            std::uint64_t(now.QuadPart % frequency.QuadPart) * 1000000000 / frequency.QuadPart;
+        const int sceneIndex = Read<int>(movie,0x150), frameIndex = Read<int>(Scene(movie),8);
+        const auto commit = frameTrace.empty() ? 0 : frameTrace.back().nanoseconds;
+        // Dissolves can issue thousands of tiny blits in a single update.
+        // Keep the mirror exact, but sample it at 60 Hz between authored commits.
+        if (sceneIndex == lastPresentationScene && frameIndex == lastPresentationFrame &&
+            commit == lastPresentationCommit && ns-lastPresentationTime < 16666667) {
+            ++sampledOutBlits;
+            return;
+        }
+        lastPresentationTime = ns; lastPresentationCommit = commit;
+        lastPresentationScene = sceneIndex; lastPresentationFrame = frameIndex;
+        presentationWriter.Add(presentationPixels + (presentationCrop.top * 640 + presentationCrop.left) * 4,
+            presentationCrop.right-presentationCrop.left, presentationCrop.bottom-presentationCrop.top,
+            640*4, true, sceneIndex, frameIndex, ns);
+    } catch (...) { presentationWriter.failed = true; }
+}
+BOOL WINAPI ObserveStretch(HDC d,int x,int y,int w,int h,HDC s,int sx,int sy,int sw,int sh,DWORD op)
+{
+    const auto result = realStretch(d,x,y,w,h,s,sx,sy,sw,sh,op);
+    if (result) MirrorPresentation(d,x,y,w,h,s,sx,sy,sw,sh,op);
+    return result;
+}
+BOOL WINAPI ObserveBlit(HDC d,int x,int y,int w,int h,HDC s,int sx,int sy,DWORD op)
+{
+    const auto result = realBlit(d,x,y,w,h,s,sx,sy,op);
+    if (result) MirrorPresentation(d,x,y,w,h,s,sx,sy,w,h,op);
+    return result;
+}
+void BeginPresentations(const Request &job)
+{
+    EndPresentations();
+    presentationWriter.Begin("");
+    lastPresentationTime = lastPresentationCommit = sampledOutBlits = 0;
+    lastPresentationScene = lastPresentationFrame = -1;
+    if (!job.path[0]) return;
+    presentationCrop = {job.arguments[0],job.arguments[1],job.arguments[2],job.arguments[3]};
+    if (presentationCrop.left < 0 || presentationCrop.top < 0 || presentationCrop.right > 640 ||
+        presentationCrop.bottom > 480 || presentationCrop.right <= presentationCrop.left ||
+        presentationCrop.bottom <= presentationCrop.top) throw std::runtime_error("invalid_capture_viewport");
+    presentationWindow = MainWindow();
+    BITMAPINFO info = {};
+    info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth = 640; info.bmiHeader.biHeight = -480;
+    info.bmiHeader.biPlanes = 1; info.bmiHeader.biBitCount = 32;
+    presentationDC = CreateCompatibleDC(nullptr);
+    presentationBitmap = CreateDIBSection(presentationDC,&info,DIB_RGB_COLORS,
+        reinterpret_cast<void **>(&presentationPixels),nullptr,0);
+    if (!presentationDC || !presentationBitmap) throw std::runtime_error("capture_surface_failed");
+    presentationOld = SelectObject(presentationDC,presentationBitmap);
+    if (!PrintWindow(presentationWindow,presentationDC,PW_CLIENTONLY)) throw std::runtime_error("capture_seed_failed");
+    static bool installed = false;
+    if (!installed) {
+        if (!PatchImport(reinterpret_cast<void *>(realStretch),reinterpret_cast<void *>(&ObserveStretch)))
+            throw std::runtime_error("capture_blit_hook_failed");
+        PatchImport(reinterpret_cast<void *>(realBlit),reinterpret_cast<void *>(&ObserveBlit));
+        installed = true;
+    }
+    presentationWriter.Begin(Utf8(job.path));
+}
 void Refresh(void *movie, bool render)
 {
     using Action = void(__thiscall *)(void *);
@@ -583,11 +695,14 @@ std::string Process(const Request &job)
         if (Read<DWORD>(Movie(), 0x154) & 4)
             throw std::runtime_error("cannot_arm_trace_during_playback");
         TraceHook(true);
+        try { BeginPresentations(job); }
+        catch (...) { TraceHook(false); EndPresentations(); throw; }
         return "{\"armed\":true}";
     }
     if (job.operation == TraceEnd)
     {
         TraceHook(false);
+        EndPresentations();
         std::ostringstream out;
         out << "{\"trace_version\":2,\"frame_commit_caller_rva\":" << FrameCommitReturnRva
             << ",\"overflow\":" << (traceOverflow ? "true" : "false") << ",\"frames\":[";
@@ -618,6 +733,16 @@ std::string Process(const Request &job)
                 << ",\"volume\":" << sound.volume << ",\"plays\":" << sound.plays << ",\"start\":" << sound.start
                 << ",\"priority\":" << sound.priority << ",\"category\":" << sound.category
                 << ",\"scene\":" << sound.scene << ",\"frame\":" << sound.frame << '}';
+        }
+        out << "],\"presentation_scope\":\"native GDI canvas samples; 60 Hz between authored commits\","
+            << "\"presentation_sampling_period_ns\":16666667,\"sampled_out_blits\":" << sampledOutBlits
+            << ",\"presentation_error\":"
+            << (presentationWriter.failed ? "true" : "false") << ",\"presentations\":[";
+        for (unsigned i=0; i<presentationWriter.events.size(); ++i) {
+            if (i) out << ',';
+            const auto &event = presentationWriter.events[i];
+            out << "{\"scene\":" << event.scene << ",\"frame\":" << event.frame
+                << ",\"monotonic_ns\":" << event.nanoseconds << ",\"path\":" << Quote(event.path) << '}';
         }
         out << "]}";
         return out.str();
