@@ -222,6 +222,9 @@ extern "C"
      * transitions between scenes. Click waits assume immediate acknowledgement.
      * The first call silently analyzes and caches timing for all scenes. */
     int marcus_movie_time(MarcusPlayer *player, MarcusMovieTime *time);
+    /* Start/poll isolated background timing: 0 pending, 1 ready, -1 unavailable.
+     * Call on the player thread. Never reads other scenes on the caller thread. */
+    int marcus_movie_time_async(MarcusPlayer *player, MarcusMovieTime *time);
     int marcus_scene_time(MarcusPlayer *player, int scene, MarcusSceneTime *time);
     /* Silent movie-wide seek, clamped to the movie. Holds and transitions
      * resolve to their displayed frame. Inspection framing is preserved. */

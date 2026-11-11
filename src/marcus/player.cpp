@@ -5,6 +5,7 @@
 #include "gpu_renderer.h"
 #include "waveform.h"
 #include "sound_timeline.h"
+#include "timing_job.h"
 #include "three_mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -14,6 +15,7 @@
 #include <map>
 #include <tuple>
 #include <exception>
+#include <stdexcept>
 #include <cmath>
 
 namespace
@@ -81,7 +83,16 @@ struct MarcusPlayer
     char error[1024] = {};
     int selected = -1;
     unsigned long document = 0;
+    std::shared_ptr<MarcusMovieFile> timingInput;
+    std::string timingResources, timingContent;
+    bool timingStarted = false, timingFailed = false;
+    // Cancel/join before releasing movie/content leases and the live preview.
+    std::unique_ptr<MarcusTimingJob> timingJob;
 };
+bool MarcusWriteTiming(MarcusPlayer *player, std::ostream &output)
+{
+    return player && player->soundTimeline.Size() == player->scenes.size() && player->soundTimeline.Write(output);
+}
 namespace
 {
 MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, ThreeMM::Error &error)
@@ -107,19 +118,13 @@ bool ReadSoundTimeline(MarcusPlayer *player, int index, ThreeMM::Error &error)
     while (player->soundTimeline.Size() <= static_cast<std::size_t>(index))
     {
         const auto next = player->soundTimeline.Size();
-        std::vector<ThreeMM::PreviewSoundCue> cues;
-        if (!player->preview.ReadSoundCues(player->scenes[next], cues, error))
-            return false;
         ThreeMM::PreviewPresentation presentation;
         MarcusSoundTiming timing;
-        if (!player->preview.ReadPresentation(player->scenes[next], presentation, error) ||
+        if (!player->preview.ReadTimingPresentation(player->scenes[next], presentation, error) ||
             !MarcusPlayback::ReadTiming(presentation, timing, error))
             return false;
-        player->soundTimeline.Append(player->sceneInfo[next], cues, [&](const ThreeMM::PreviewSoundCue &cue) {
-            MarcusWaveformColumn column;
-            MarcusWaveformInfo info;
-            player->waveforms.Read(player->preview, cue, 0, 1, 1, &column, info);
-            return info;
+        player->soundTimeline.Append(player->sceneInfo[next], presentation.sounds, [&](const ThreeMM::PreviewSoundCue &cue) {
+            return player->waveforms.Length(player->preview, cue);
         }, timing);
     }
     return true;
@@ -354,10 +359,10 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
 std::size_t Find(const ThreeMM::Archive &archive, ThreeMM::Id id)
 {
     const auto &chunks = archive.Chunks();
-    for (std::size_t i = 0; i < chunks.size(); ++i)
-        if (chunks[i].id == id)
-            return i;
-    return chunks.size();
+    const auto found = std::lower_bound(chunks.begin(), chunks.end(), id, [](const auto &chunk, ThreeMM::Id key) {
+        return chunk.id.type < key.type || (chunk.id.type == key.type && chunk.id.number < key.number);
+    });
+    return found != chunks.end() && found->id == id ? static_cast<std::size_t>(found - chunks.begin()) : chunks.size();
 }
 bool Strings(ThreeMM::Archive &archive, ThreeMM::Id id, std::vector<ThreeMM::StringTableEntry> &entries, bool &big,
              ThreeMM::Error &error)
@@ -473,7 +478,8 @@ extern "C"
         return Guard(player, [&](ThreeMM::Error &error) {
             if (!input || !resources || !directory)
                 return false;
-            auto content = std::make_unique<MarcusContent>(input->Materialize(index), directory);
+            auto materialized = input->Materialize(index);
+            auto content = std::make_unique<MarcusContent>(materialized, directory);
             const auto document = content->movie.u8string();
             // Validate the graph and ordered scene list before replacing the live renderer.
             ThreeMM::Archive archive;
@@ -551,8 +557,13 @@ extern "C"
             }
             for (const auto &source : sources)
                 content->PrepareSource(source.second);
-            if (!player->preview.Open(document, resources, error))
+            if (!player->preview.Open(std::move(archive), resources, error))
                 return false;
+            player->timingJob.reset();
+            player->timingInput = std::move(materialized);
+            player->timingResources = resources;
+            player->timingContent = directory;
+            player->timingStarted = player->timingFailed = false;
             ++player->document;
             player->content = std::move(content);
             player->selected = -1;
@@ -622,6 +633,51 @@ extern "C"
         info->sound_count = static_cast<int>(player->sounds.size());
         info->sound_track_count = static_cast<int>(player->soundTracks.size());
         return 1;
+    }
+    int marcus_movie_time_async(MarcusPlayer *player, MarcusMovieTime *time)
+    {
+        if (time)
+            *time = {};
+        if (!player || !time || player->selected < 0)
+            return -1;
+        try
+        {
+            if (player->soundTimeline.Size() == player->scenes.size())
+                return marcus_movie_time(player, time) ? 1 : -1;
+            if (player->timingFailed)
+                return -1;
+            if (!player->timingStarted)
+            {
+                player->timingJob = std::make_unique<MarcusTimingJob>(player->timingInput, player->timingResources,
+                                                                     player->timingContent, player->sceneInfo);
+                player->timingStarted = true;
+            }
+            std::unique_ptr<MarcusSoundTimeline> timeline;
+            std::string failure;
+            if (!player->timingJob->Take(timeline, failure))
+                return 0;
+            player->timingJob.reset();
+            if (!timeline)
+            {
+                player->timingFailed = true;
+                Copy(player->error, failure.empty() ? "Invalid movie timing output." : failure);
+                return -1;
+            }
+            player->soundTimeline = std::move(*timeline);
+            player->sounds.clear();
+            player->soundTracks.clear();
+            ThreeMM::Error error;
+            if (!ReadSoundSheet(player, player->selected, error))
+                throw std::runtime_error(error.message);
+            return marcus_movie_time(player, time) ? 1 : -1;
+        }
+        catch (const std::exception &error)
+        {
+            player->timingJob.reset();
+            player->timingFailed = true;
+            Copy(player->error, error.what());
+            return -1;
+        }
     }
     int marcus_movie_time(MarcusPlayer *player, MarcusMovieTime *time)
     {

@@ -91,6 +91,7 @@ typedef struct App
     MarcusPlaybackState playback;
     MarcusMovieTime movie_time;
     int movie_time_available;
+    int movie_time_status;
     MarcusCamera camera, flight;
     MarcusImage work_image, movie_image; /* Retained camera metadata; no borrowed pixels. */
     MarcusProjection projection, scene_camera;
@@ -409,7 +410,8 @@ static void refresh(App *app)
     int previous_scene;
     previous_scene = app->info.scene;
     app->loaded = marcus_info(app->player, &app->info);
-    app->movie_time_available = app->loaded && marcus_movie_time(app->player, &app->movie_time);
+    app->movie_time_status = app->loaded ? marcus_movie_time_async(app->player, &app->movie_time) : -1;
+    app->movie_time_available = app->movie_time_status == 1;
     app->movie_dirty = 1;
     if (app->selected >= app->info.object_count)
         app->selected = -1;
@@ -2743,7 +2745,7 @@ static void draw_timeline(App *app)
         ui->hint = "Repeat the current scene from its first frame";
     ui_button_sized(ui, LOOP_X, y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT,
                     app->muted ? "Unmute" : "Mute", app->muted, 1);
-    movie_available = app->movie_time_available && marcus_movie_time(app->player, &app->movie_time);
+    movie_available = app->movie_time_available;
     if (movie_available)
     {
         format_time(position, sizeof(position), app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds,
@@ -2753,12 +2755,14 @@ static void draw_timeline(App *app)
         SDL_snprintf(label, sizeof(label), "%s / %s", position, duration);
     }
     else
-        SDL_strlcpy(label, "--:-- / --:--", sizeof(label));
+        SDL_strlcpy(label, app->loaded && !app->movie_time_status ? "Calculating..." : "--:-- / --:--", sizeof(label));
     ui_label(ui, LOOP_X + 72, y + FRAME_NAV_Y + 1, 112, label,
              app->movie_time_available ? TEXT : MUTED);
     if (ui_inside(ui->mouse_x, ui->mouse_y, LOOP_X + 72, y + FRAME_NAV_Y,
                   112, UI_NAVIGATION_HEIGHT))
-        ui->hint = "Movie position / total duration; time waiting for a click is excluded";
+        ui->hint = !app->movie_time_status ? "Calculating duration; you can use the current scene"
+                   : app->movie_time_status < 0 && app->loaded ? "Duration unavailable; scene playback is still available"
+                   : "Movie position / total duration; time waiting for a click is excluded";
     ui_navigation_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
     ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
                          "Previous scene");
@@ -3171,7 +3175,7 @@ static void draw_movie_controls(App *app)
     ui->hint = NULL;
     rect = movie_controls_rect(app);
     left = rect.x + 24;
-    available = app->movie_time_available && marcus_movie_time(app->player, &app->movie_time);
+    available = app->movie_time_available;
     seconds = app->movie_scrubbing ? app->movie_scrub_seconds : app->movie_time.position_seconds;
     ui_opacity(ui, app->movie_overlay_alpha);
     settings = movie_settings_rect(app);
@@ -3194,7 +3198,7 @@ static void draw_movie_controls(App *app)
         SDL_snprintf(label, sizeof(label), "%s / %s", position, duration);
     }
     else
-        SDL_strlcpy(label, "--:-- / --:--", sizeof(label));
+        SDL_strlcpy(label, app->loaded && !app->movie_time_status ? "Calculating duration..." : "--:-- / --:--", sizeof(label));
     movie_control_label(ui, rect.x + rect.w - 240, rect.y + 16, 216, label, TEXT);
     draw_movie_scrubber(app, available);
     ui_navigation_button(ui, left, rect.y + 90, 1, app->info.scene > 0, "Previous scene");
@@ -3758,6 +3762,8 @@ int main(int argc, char **argv)
                 app.timeline_start = app.info.frame;
         }
         app.continue_click = 0;
+        app.movie_time_status = app.loaded ? marcus_movie_time_async(app.player, &app.movie_time) : -1;
+        app.movie_time_available = app.movie_time_status == 1;
         update_movie_controls(&app, now, now - previous_tick);
         previous_tick = now;
         draw(&app);

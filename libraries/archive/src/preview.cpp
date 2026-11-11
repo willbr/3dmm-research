@@ -643,6 +643,27 @@ bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
 {
     return ReadSoundCues(_impl->info.asset, cues, error);
 }
+bool Preview::ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error)
+try
+{
+    error = {};
+    presentation = {};
+    if (!_impl->ready || scene.type != kctgScen ||
+        !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true, true))
+        return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
+    for (auto &cue : presentation.sounds)
+        cue.scene = scene;
+    std::stable_sort(presentation.sounds.begin(), presentation.sounds.end(),
+                     [](const PreviewSoundCue &a, const PreviewSoundCue &b) {
+                         return a.frame != b.frame ? a.frame < b.frame : a.actorSound < b.actorSound;
+                     });
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    presentation = {};
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for scene timing.");
+}
 bool Preview::ReadSoundCues(Id scene, std::vector<PreviewSoundCue> &cues, Error &error)
 try
 {
@@ -717,13 +738,23 @@ catch (const std::bad_alloc &)
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode movie audio.");
 }
 bool Preview::Open(const std::string &archivePath, const std::string &resourcesPath, Error &error)
+{
+    Archive archive;
+    if (!archive.Open(archivePath, error))
+        return false;
+    return Open(std::move(archive), resourcesPath, error);
+}
+bool Preview::Open(Archive &&archive, const std::string &resourcesPath, Error &error)
 try
 {
     error = {};
     Internal::ClearDiagnostic();
     // Validate both paths before touching the live renderer or session.
+    if (!archive.NativeFile())
+        return Fail(error, ErrorCode::invalid_argument, "Open the movie archive before transferring it to preview.");
     std::unique_ptr<Impl> opened(new Impl);
-    if (!opened->assets.Open(archivePath, error) || !opened->resources.Open(resourcesPath, error))
+    opened->assets._impl.swap(archive._impl);
+    if (!opened->resources.Open(resourcesPath, error))
         return false;
     if (!WithinBudget(opened->assets, static_cast<PChunkyFile>(opened->assets.NativeFile()), error) ||
         !WithinBudget(opened->resources, static_cast<PChunkyFile>(opened->resources.NativeFile()), error))

@@ -83,7 +83,7 @@ bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
     return true;
 }
 } // namespace
-bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out, bool soundSheet)
+bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out, bool soundSheet, bool includeCaptions)
 {
     out = {};
     SceneData metadata;
@@ -149,7 +149,7 @@ bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &
                 }
                 ReleasePpo(&events);
             }
-            else if (!soundSheet && event.sevt == sevtAddTbox)
+            else if ((!soundSheet || includeCaptions) && event.sevt == sevtAddTbox)
             {
                 std::uint32_t slot;
                 group->Get(i, &slot);

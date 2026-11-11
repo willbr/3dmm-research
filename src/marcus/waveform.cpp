@@ -88,8 +88,43 @@ void MarcusWaveformEnvelope::Read(double first, double step, int count, MarcusWa
 void MarcusWaveformCache::Clear()
 {
     entries.clear();
+    lengths.clear();
     bytes = 0;
     clock = 0;
+}
+MarcusWaveformInfo MarcusWaveformCache::Length(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue)
+{
+    MarcusWaveformInfo info = {};
+    if (cue.silent)
+    {
+        info.kind = MARCUS_WAVEFORM_SILENT;
+        return info;
+    }
+    const auto key = std::make_tuple(cue.source, cue.sound.type, cue.sound.number, cue.child,
+                                     cue.source == 0 ? cue.scene.number : 0);
+    const auto found = lengths.find(key);
+    if (found != lengths.end())
+        return found->second;
+    ThreeMM::PreviewAudio audio;
+    ThreeMM::Error error;
+    info.kind = MARCUS_WAVEFORM_UNAVAILABLE;
+    if (!preview.ReadSound(cue, audio, error))
+        std::snprintf(info.message, sizeof(info.message), "%s", error.message.c_str());
+    else if (audio.silent)
+        info.kind = MARCUS_WAVEFORM_SILENT;
+    else if (audio.midi)
+    {
+        info.kind = MARCUS_WAVEFORM_MIDI;
+        if (!audio.events.empty())
+            info.seconds = audio.events.back().milliseconds / 1000.0;
+    }
+    else if (KauaiAudio::WaveSeconds(audio.wave.data(), audio.wave.size(), info.seconds))
+        info.kind = MARCUS_WAVEFORM_SAMPLED;
+    info.resolved_source = audio.source;
+    info.resolved_type = audio.asset.type;
+    info.resolved_chunk = audio.asset.number;
+    lengths.emplace(key, info);
+    return info;
 }
 void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue, double first,
                                double step, int count, MarcusWaveformColumn *columns, MarcusWaveformInfo &info)
@@ -132,7 +167,8 @@ void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::Preview
             if (!KauaiAudio::DecodeWave(audio.wave.data(), audio.wave.size(), sample))
                 std::snprintf(entry.info.message, sizeof(entry.info.message), "Cannot decode sound waveform.");
             else if (sample->stereo.size() > 256u * 1024 * 1024 / sizeof(float))
-                std::snprintf(entry.info.message, sizeof(entry.info.message), "Sound exceeds the waveform decode budget.");
+                std::snprintf(entry.info.message, sizeof(entry.info.message),
+                              "Sound exceeds the waveform decode budget.");
             else
             {
                 entry.envelope.Build(sample->stereo.data(), sample->stereo.size() / 2);
@@ -146,9 +182,8 @@ void MarcusWaveformCache::Read(ThreeMM::Preview &preview, const ThreeMM::Preview
         const auto required = entry.envelope.Bytes();
         while (!entries.empty() && (bytes + required > cacheBudget || entries.size() >= 512))
         {
-            auto oldest = std::min_element(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
-                return a.second.used < b.second.used;
-            });
+            auto oldest = std::min_element(entries.begin(), entries.end(),
+                                           [](const auto &a, const auto &b) { return a.second.used < b.second.used; });
             bytes -= oldest->second.envelope.Bytes();
             entries.erase(oldest);
         }

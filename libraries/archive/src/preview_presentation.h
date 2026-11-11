@@ -6,7 +6,8 @@ namespace ThreeMM
 {
 namespace Internal
 {
-bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &output, bool soundSheet = false);
+bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &output, bool soundSheet = false,
+                      bool includeCaptions = false);
 bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber sound, PreviewAudio &output);
 } // namespace Internal
 } // namespace ThreeMM

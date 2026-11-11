@@ -6,6 +6,7 @@
 #include <memory>
 #include <map>
 #include <vector>
+#include <iosfwd>
 
 struct MarcusSoundSpan
 {
@@ -44,6 +45,9 @@ class MarcusSoundTimeline
 
   public:
     void Clear();
+    // Ephemeral IPC between matching Marcus/helper builds, never movie data.
+    bool Write(std::ostream &output) const;
+    bool Read(std::istream &input, const std::vector<MarcusScene> &expected);
     std::size_t Size() const { return scenes.size(); }
     const MarcusSoundScene &Scene(std::size_t index) const { return scenes.at(index); }
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;

@@ -103,6 +103,30 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
         return false;
     }
 }
+bool WaveSeconds(const void *data, std::size_t bytes, double &seconds)
+{
+    seconds = 0;
+    if (!data || bytes < 12 || bytes > INT_MAX)
+        return false;
+    WavePCM pcm;
+    if (!pcm.Load(data, bytes) || pcm.bytes > INT_MAX)
+        return false;
+    const SDL_AudioSpec destination = {SDL_AUDIO_F32, 2, SampleRate};
+    auto stream = SDL_CreateAudioStream(&pcm.source, &destination);
+    if (!stream)
+        return false;
+    // SDL computes the flushed output length without performing conversion.
+    // Use its accounting so compressed fact trimming and resampler rounding
+    // agree with DecodeWave, including non-integral rate ratios.
+    const bool ready = SDL_PutAudioStreamData(stream, pcm.Data(), static_cast<int>(pcm.bytes)) &&
+                       SDL_FlushAudioStream(stream);
+    const int available = ready ? SDL_GetAudioStreamAvailable(stream) : -1;
+    SDL_DestroyAudioStream(stream);
+    if (available < 0 || available % (2 * sizeof(float)))
+        return false;
+    seconds = double(available / (2 * sizeof(float))) / SampleRate;
+    return true;
+}
 bool DecodeWave(const void *data, std::size_t bytes, std::shared_ptr<const Sample> &sample)
 {
     if (!data || bytes < 12 || bytes > INT_MAX)

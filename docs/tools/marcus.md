@@ -102,8 +102,9 @@ Preview file handles and temporary-file cleanup also stay on the worker.
 Scrolling pauses preview queuing until 250 ms after the last scroll input;
 dragging the scrollbar suspends it until release. A bounded cache evicts the
 least recently used thumbnail individually instead of clearing every preview.
-Engine loading, content resolution and timing analysis still run on the main
-thread after an explicit Open; not all movie loading is asynchronous.
+Initial engine loading and content resolution still run on the main thread after
+an explicit Open. Whole-movie timing runs in an isolated background helper;
+not all movie loading is asynchronous.
 The selected movie has preview priority; other visible movies up to 32 MiB are
 inspected one at a time. ZIP previews may temporarily extract the inspected
 member using the existing size/CRC checks. VMM previews copy only the inner
@@ -154,8 +155,12 @@ The playback controls show the current movie position and total duration as
 Time spans all scenes and follows seeking, playback and scene looping. It includes
 scrolling text, timed pauses, sound waits and transitions between scenes. Click
 waits assume immediate acknowledgement, so time spent waiting for a click is
-excluded. Timing is analyzed silently when opening a movie. With no movie loaded,
-the display reads `--:-- / --:--`.
+excluded. Timing is analyzed silently in the background when opening a movie.
+The display shows **Calculating...** while the current scene remains usable for
+seeking, playback and inspection. Whole-movie scrubbing becomes available when
+the result arrives. A failed helper leaves scene playback available, without
+falling back to a blocking calculation. With no movie loaded, the display reads
+`--:-- / --:--`.
 
 ZIP files can be opened through the same controls or passed on the command line.
 Marcus searches every folder in the ZIP for `.3mm` and `.vmm` entries, ignoring
@@ -1048,3 +1053,51 @@ the measured duration and one rendered frame, not full playback parity.
 Local evidence and instrumentation are in `tmp/marcus-full-open-review/`, including
 `debug.log`, `release.log`, `runs.json`, and `build_profiles.py`. Production
 playback sources were unchanged by this review.
+
+### Opening optimizations and background timing
+
+The subsequent implementation transfers the player's already indexed archive to
+the preview, replaces linear chunk searches with binary search, and reads each
+scene's captions, pauses and scene/actor sound cues together. Clip lengths have
+a separate metadata cache. They use the existing source decoders and SDL's
+flushed-stream length accounting, without resampling to float PCM or building
+waveform envelopes. This retains compressed fact trimming, resampler rounding
+and MIDI event timing. Waveforms are built when requested for display.
+
+The UI starts/polls a timing job instead of calling the synchronous whole-movie
+API. The job launches `marcus-preview --timing` with a lease on the materialized
+movie, keeping ZIP/VMM inputs alive. Engine globals remain isolated in the child
+process. A host worker reads and validates the completed timing snapshot against
+the expected ordered scene IDs/frame ranges; the player adopts it on its owner
+thread, without seeking or restarting audio. Reopening a movie or destroying the
+player cancels and joins the old job, preventing stale results from replacing
+another movie's timeline. The helper has a five-minute timeout. Its ephemeral
+matching-build binary snapshot is capped at 64 MiB and one million timing
+records; it is never stored in the movie or read by SDL Studio.
+
+The awards ZIP was measured again with headless drivers linked against the
+updated production libraries, using the same warm catalog/resources/content:
+
+| Measurement | Debug | Release |
+| --- | ---: | ---: |
+| Synchronous open, then timing, then first CPU frame | 18.066 s | 3.821 s |
+| Open and first CPU frame with background timing | 12.264 s | 2.494 s |
+| Background timing ready, measured from opening start | 30.182 s | 5.506 s |
+| Slowest timing poll/handoff on the player thread | 0.050 ms | 0.040 ms |
+
+The background driver repeatedly sought and rendered scene one while polling.
+The worker opens its own engine session, so background completion includes that
+extra open cost; it does not reuse live native pointers across processes. Initial
+archive/content/first-scene loading remains synchronous. These are single
+warm-cache measurements of CPU rendering, not window/GPU startup benchmarks.
+All four runs retained the 4,291.06-second duration and first-frame FNV64 hash
+`13146854581947680197`. Evidence is in
+`tmp/marcus-full-open-review/optimized-{debug,release}-{sync,async}.log`, with
+`optimized_open.cpp` and `build_optimized.py` alongside them.
+
+Headless regressions cover asynchronous completion while seeking/rendering,
+unchanged scene/audio state, cancellation on reopen, terminal worker failure,
+snapshot round trips and truncated/trailing data, carried/queued sounds after
+import, and the existing scrolling/wait/transition clock checks. Audio tests
+compare length-only accounting with decoded PCM for fractional sample-rate
+ratios, short PCM/MS ADPCM clips, GSM and MP3. No Marcus UI tests were added.

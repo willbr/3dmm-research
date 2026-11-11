@@ -4,11 +4,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include "player.h"
 #include "waveform.h"
 #include "sound_timeline.h"
 #include "playback.h"
+#include "timing_job.h"
 #include "retail_scroll.h"
 #include "soc_core.h"
 #include <SDL3/SDL.h>
@@ -27,6 +29,43 @@ void Check(bool value, int line)
     }
 }
 #define CHECK(value) Check((value), __LINE__)
+void BackgroundTiming()
+{
+    MarcusMovieTime time;
+    MarcusInfo before, after;
+    MarcusAudioStats audioBefore, audioAfter;
+    CHECK(marcus_info(player, &before));
+    CHECK(marcus_audio_stats(player, &audioBefore));
+    int status = marcus_movie_time_async(player, &time);
+    CHECK(status == 0); // Starts the job without scanning the remaining scenes.
+    CHECK(marcus_seek(player, before.first_frame)); // Live scene remains usable.
+    MarcusImage image;
+    CHECK(marcus_render(player, 128, 96, 1, 0, 0, 1, &image));
+    const auto deadline = SDL_GetTicks() + 15000;
+    while (!status && SDL_GetTicks() < deadline)
+    {
+        SDL_Delay(5);
+        status = marcus_movie_time_async(player, &time);
+    }
+    CHECK(status == 1);
+    CHECK(marcus_info(player, &after));
+    CHECK(after.scene == before.scene && after.frame == before.first_frame);
+    CHECK(after.sound_count == before.sound_count && after.sound_track_count == before.sound_track_count);
+    CHECK(marcus_audio_stats(player, &audioAfter));
+    CHECK(audioBefore.wave_sounds == audioAfter.wave_sounds && audioBefore.midi_sounds == audioAfter.midi_sounds);
+}
+void FailedTiming()
+{
+    auto input = std::make_shared<MarcusMovieFile>("missing-timing-movie.3mm");
+    MarcusTimingJob job(input, "missing-timing-resources.chk", "", {});
+    std::unique_ptr<MarcusSoundTimeline> result;
+    std::string error;
+    const auto deadline = SDL_GetTicks() + 15000;
+    bool done = false;
+    while (!(done = job.Take(result, error)) && SDL_GetTicks() < deadline)
+        SDL_Delay(5);
+    CHECK(done && !result && !error.empty());
+}
 void RetailScrollSteps()
 {
     RetailScrollPlayback clock;
@@ -193,6 +232,34 @@ void CarryScheduling()
     music.frame = -5; music.silent = true;
     timeline.Append(later, {music}, read);
     CHECK(timeline.Scene(4).sounds.size() == 1 && timeline.Scene(4).sounds[0]->cue.silent);
+    std::ostringstream encoded(std::ios::binary);
+    CHECK(timeline.Write(encoded));
+    MarcusSoundTimeline imported;
+    const std::vector<MarcusScene> expected = {first, later, later, later, later};
+    std::istringstream complete(encoded.str(), std::ios::binary);
+    CHECK(imported.Read(complete, expected) && imported.Size() == timeline.Size());
+    for (std::size_t i = 0; i < imported.Size(); ++i)
+    {
+        CHECK(imported.Scene(i).start == timeline.Scene(i).start);
+        CHECK(imported.Scene(i).sounds.size() == timeline.Scene(i).sounds.size());
+        for (std::size_t j = 0; j < imported.Scene(i).sounds.size(); ++j)
+        {
+            CHECK(imported.Scene(i).sounds[j]->start == timeline.Scene(i).sounds[j]->start);
+            CHECK(imported.Scene(i).sounds[j]->end == timeline.Scene(i).sounds[j]->end);
+        }
+        const auto original = timeline.Resume(i, later.first_frame);
+        const auto restored = imported.Resume(i, later.first_frame);
+        CHECK(original.size() == restored.size());
+        for (std::size_t j = 0; j < original.size(); ++j)
+            CHECK(original[j].seconds == restored[j].seconds && original[j].cue.queue == restored[j].cue.queue);
+    }
+    for (std::size_t length : {std::size_t(0), std::size_t(7), encoded.str().size() - 1})
+    {
+        std::istringstream truncated(encoded.str().substr(0, length), std::ios::binary);
+        CHECK(!imported.Read(truncated, expected) && imported.Size() == expected.size());
+    }
+    std::istringstream trailing(encoded.str() + "x", std::ios::binary);
+    CHECK(!imported.Read(trailing, expected));
     timeline.Clear();
     loop.actorSound = false; loop.frame = 10;
     effect = loop; effect.loop = false; effect.queue = true; effect.sound.number = 5;
@@ -461,6 +528,7 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     ReleasePpo(&file);
     player = marcus_create();
     CHECK(player && marcus_open(player, path, resources, content));
+    BackgroundTiming();
     CHECK(marcus_select_scene(player, 2)); // Direct jump must reconstruct earlier tails.
     MarcusInfo info;
     MarcusSound sound;
@@ -572,6 +640,7 @@ int main(int argc, char **argv)
     if (argc != 4)
         return 2;
     WaveformPeaks();
+    FailedTiming();
     CarryScheduling();
     PresentationClock();
     Fixture(argv[1]);
@@ -579,6 +648,11 @@ int main(int argc, char **argv)
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
+    // Reopening cancels and joins a pending job before releasing its leases.
+    MarcusMovieTime pending;
+    CHECK(marcus_movie_time_async(player, &pending) == 0);
+    CHECK(marcus_open(player, argv[1], argv[2], argv[3]));
+    BackgroundTiming();
     CHECK(Info().first_frame == -2 && Info().object_count == 0);
     CHECK(!marcus_movie_time(nullptr, nullptr) && !marcus_movie_time(player, nullptr));
     const double sceneSeconds = 7.0 / 6 + authoredTiming.scrolling.at(0) + .4 + .2;

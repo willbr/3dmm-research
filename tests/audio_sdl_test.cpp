@@ -16,6 +16,27 @@
     } while (0)
 int main()
 {
+    // Length-only accounting must match the actual SDL conversion, including
+    // fractional rate ratios, short clips, fact trimming and malformed data.
+    for (unsigned rate : {8000u, 11025u, 22050u, 44100u, 48000u})
+        for (unsigned frames : {1u, 7u, 1001u})
+        {
+            const auto wave = WaveFixture::Pcm8(std::vector<std::uint8_t>(frames, 128), rate);
+            std::shared_ptr<const KauaiAudio::Sample> decoded;
+            double seconds = -1;
+            CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), decoded));
+            CHECK(KauaiAudio::WaveSeconds(wave.data(), wave.size(), seconds));
+            CHECK(seconds == double(decoded->stereo.size() / 2) / KauaiAudio::SampleRate);
+        }
+    {
+        const auto wave = WaveFixture::Adpcm();
+        std::shared_ptr<const KauaiAudio::Sample> decoded;
+        double seconds = -1;
+        CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), decoded));
+        CHECK(KauaiAudio::WaveSeconds(wave.data(), wave.size(), seconds));
+        CHECK(seconds == double(decoded->stereo.size() / 2) / KauaiAudio::SampleRate);
+        CHECK(!KauaiAudio::WaveSeconds("bad", 3, seconds) && seconds == 0);
+    }
     auto bytes = WaveFixture::Pcm({-32768, 0, 16384, 32767});
     std::shared_ptr<const KauaiAudio::Sample> sample;
     CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample->stereo.size() == 8);

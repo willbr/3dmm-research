@@ -30,12 +30,14 @@ class MarcusWaveformCache
         std::uint64_t used = 0;
     };
     std::map<Key, Entry> entries;
+    std::map<Key, MarcusWaveformInfo> lengths;
     std::size_t bytes = 0;
     std::uint64_t clock = 0;
 
   public:
     void Clear();
-    void Read(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue, double first, double step,
-              int count, MarcusWaveformColumn *columns, MarcusWaveformInfo &info);
+    MarcusWaveformInfo Length(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue);
+    void Read(ThreeMM::Preview &preview, const ThreeMM::PreviewSoundCue &cue, double first, double step, int count,
+              MarcusWaveformColumn *columns, MarcusWaveformInfo &info);
 };
 #endif

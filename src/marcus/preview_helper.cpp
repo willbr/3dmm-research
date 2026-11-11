@@ -1,5 +1,8 @@
 #include "preview_worker.h"
 #include "player.h"
+#include "timing_job.h"
+#include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <chrono>
 #include <cmath>
@@ -13,14 +16,15 @@
 int main(int argc, char **argv)
 {
     const bool duration = argc == 5 && !std::strcmp(argv[3], "--duration");
-    if (argc != 3 && !duration) return 2;
+    const bool timeline = argc == 6 && !std::strcmp(argv[3], "--timing");
+    if (argc != 3 && !duration && !timeline) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
 #endif
     BrowserPreview preview;
     try
     {
-        if (duration)
+        if (duration || timeline)
         {
             const auto started = std::chrono::steady_clock::now();
             auto player = marcus_create();
@@ -33,6 +37,14 @@ int main(int argc, char **argv)
                     preview.error = marcus_error(player);
                 else
                 {
+                    if (timeline)
+                    {
+                        std::ofstream output(std::filesystem::u8path(argv[5]), std::ios::binary);
+                        const bool written = MarcusWriteTiming(player, output);
+                        output.close();
+                        marcus_destroy(player);
+                        return written && !output.fail() ? 0 : 1;
+                    }
                     const auto seconds = static_cast<long long>(std::llround(timing.duration_seconds));
                     char value[192];
                     const auto elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
@@ -48,5 +60,6 @@ int main(int argc, char **argv)
         else preview = ReadBrowserPreview(argv[1], argv[2]);
     }
     catch (const std::exception &e) { preview.error = e.what(); }
+    if (timeline) return 1;
     return WritePreview(std::cout, preview) ? 0 : 1;
 }

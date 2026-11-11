@@ -2,6 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <istream>
+#include <ostream>
+#include <type_traits>
 
 namespace
 {
@@ -14,6 +17,81 @@ bool SameAudio(const MarcusWaveformInfo &a, const MarcusWaveformInfo &b)
     return a.resolved_type == b.resolved_type && a.resolved_chunk == b.resolved_chunk &&
            a.resolved_source == b.resolved_source;
 }
+} // namespace
+namespace
+{
+template <typename T> bool Put(std::ostream &out, const T &value)
+{
+    static_assert(std::is_trivially_copyable<T>::value, "IPC value must be flat");
+    return bool(out.write(reinterpret_cast<const char *>(&value), sizeof(value)));
+}
+template <typename T> bool Get(std::istream &in, T &value)
+{
+    static_assert(std::is_trivially_copyable<T>::value, "IPC value must be flat");
+    return bool(in.read(reinterpret_cast<char *>(&value), sizeof(value)));
+}
+constexpr std::uint32_t timingMagic = 0x31544d4d; // MMT1, matching-build ephemeral IPC.
+} // namespace
+bool MarcusSoundTimeline::Write(std::ostream &out) const
+{
+    if (!Put(out, timingMagic) || !Put(out, std::uint32_t(scenes.size())))
+        return false;
+    for (const auto &scene : scenes)
+    {
+        if (!Put(out, scene.info) || !Put(out, scene.start) || !Put(out, std::uint32_t(scene.holds.size())))
+            return false;
+        for (const auto &hold : scene.holds)
+            if (!Put(out, hold.first) || !Put(out, hold.second))
+                return false;
+        if (!Put(out, std::uint32_t(scene.sounds.size())))
+            return false;
+        for (const auto &span : scene.sounds)
+            if (!Put(out, *span))
+                return false;
+    }
+    return bool(out);
+}
+bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> &expected)
+{
+    MarcusSoundTimeline result;
+    std::uint32_t magic = 0, count = 0;
+    if (!Get(in, magic) || magic != timingMagic || !Get(in, count) || count != expected.size())
+        return false;
+    std::size_t records = 0;
+    for (const auto &info : expected)
+    {
+        MarcusSoundScene scene;
+        std::uint32_t holds = 0, sounds = 0;
+        if (!Get(in, scene.info) || scene.info.chunk != info.chunk || scene.info.first_frame != info.first_frame ||
+            scene.info.last_frame != info.last_frame || !Get(in, scene.start) || !std::isfinite(scene.start) ||
+            scene.start < 0 || !Get(in, holds) || (records += holds) > 1000000)
+            return false;
+        scene.info = info;
+        for (std::uint32_t i = 0; i < holds; ++i)
+        {
+            long frame;
+            double seconds;
+            if (!Get(in, frame) || !Get(in, seconds) || frame < info.first_frame || frame > info.last_frame ||
+                !std::isfinite(seconds) || seconds < 0 || !scene.holds.emplace(frame, seconds).second)
+                return false;
+        }
+        if (!Get(in, sounds) || (records += sounds) > 1000000)
+            return false;
+        for (std::uint32_t i = 0; i < sounds; ++i)
+        {
+            auto span = std::make_shared<MarcusSoundSpan>();
+            if (!Get(in, *span) || span->scene < 0 || static_cast<std::size_t>(span->scene) >= expected.size() ||
+                std::isnan(span->start) || std::isnan(span->end) || !std::isfinite(span->audio.seconds) ||
+                span->audio.seconds < 0)
+                return false;
+            scene.sounds.push_back(std::move(span));
+        }
+        result.scenes.push_back(std::move(scene));
+    }
+    if (in.peek() != std::char_traits<char>::eof())
+        return false;
+    *this = std::move(result);
+    return true;
 }
 void MarcusSoundTimeline::Clear()
 {

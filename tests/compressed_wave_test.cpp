@@ -54,6 +54,9 @@ static void Compare(const std::string &folder, const char *name, int channels, i
     std::shared_ptr<const KauaiAudio::Sample> sample;
     CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), sample));
     CHECK(!sample->stereo.empty());
+    double seconds = -1;
+    CHECK(KauaiAudio::WaveSeconds(wave.data(), wave.size(), seconds));
+    CHECK(seconds == double(sample->stereo.size() / 2) / KauaiAudio::SampleRate);
     for (float value : sample->stereo)
         CHECK(std::isfinite(value) && value >= -1.01f && value <= 1.01f);
     std::vector<std::uint8_t> imported;

@@ -184,6 +184,8 @@ class Preview
     // resourcesPath supplies TMAP/0 shading and GLCR/0 palette from 3dmovie.chk.
     // Failed Open retains the previous session.
     bool Open(const std::string &archivePath, const std::string &resourcesPath, Error &error);
+    // Consume an already indexed movie archive instead of scanning it again.
+    bool Open(Archive &&archive, const std::string &resourcesPath, Error &error);
     // Register an external source archive. Source IDs are preserved from TAGs;
     // 0 refers to the opened document and positive IDs identify content packs.
     bool AddContent(std::int32_t sourceId, const std::string &archivePath, Error &error);
@@ -201,6 +203,8 @@ class Preview
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
+    // Captions, pauses and all scene/actor cues in one read, without seeking.
+    bool ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error);
     // Authored scene cues and actor sound events, without seeking or playing.
     // Motion sounds mark the binding event, not every subsequent cel match.
     bool ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error);
