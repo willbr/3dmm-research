@@ -229,6 +229,29 @@ void Actors(std::ostringstream &out, void *scene)
             // This EXE uses BRender's signed 16.16 scalar build.
             out << std::setprecision(12) << Read<std::int32_t>(actor, 0xa4 + axis * 4) / 65536.0;
         }
+        out << "],\"root_matrix_fixed\":[";
+        // Hash-pinned x86 ACTR::_pbody and BODY::_prgbact layouts.
+        const auto body = Pointer(actor, 0x14);
+        const auto root = Pointer(body, 8);
+        if (Read<std::uint16_t>(root, 36) > 1)
+            throw std::runtime_error("unsupported_root_transform");
+        for (int component = 0; component < 12; ++component)
+        {
+            if (component) out << ',';
+            out << Read<std::int32_t>(root, 40 + component * 4);
+        }
+        out << "],\"part_matrices_fixed\":[";
+        // Original BACT is 92 bytes; its matrix starts at byte 40.
+        // Body slots 0 and 1 are the root and selection highlight.
+        const int parts = Read<int>(body, 24);
+        if (parts < 0 || parts > 2048)
+            throw std::runtime_error("invalid_body_part_count");
+        for (int part = 0; part < parts; ++part)
+            for (int component = 0; component < 12; ++component)
+            {
+                if (part || component) out << ',';
+                out << Read<std::int32_t>(root, (part + 2) * 92 + 40 + component * 4);
+            }
         out << "]}";
     }
     out << ']';

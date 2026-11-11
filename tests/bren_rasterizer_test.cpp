@@ -2080,6 +2080,21 @@ static int atan_parity()
     return hash == UINT64_C(0xa8b160126097ab95) ? 0 : 1;
 }
 
+static int divr_parity()
+{
+    uint64_t hash = UINT64_C(14695981039346656037);
+    for (int a = -256; a <= 256; ++a)
+        for (int b = -256; b <= 256; ++b)
+        {
+            if (!b) continue;
+            uint32_t result = BrFixedDivR(a * 65536 + 123, b * 65536);
+            for (unsigned shift = 0; shift < 32; shift += 8)
+                hash = (hash ^ ((result >> shift) & 255)) * UINT64_C(1099511628211);
+        }
+    printf("Clipping divide oracle: %016llx\n", (unsigned long long)hash);
+    return hash == UINT64_C(0x76d7761ee6511c0c) ? 0 : 1;
+}
+
 int main(int argc, char **argv)
 {
     const char *scene;
@@ -2201,6 +2216,8 @@ int main(int argc, char **argv)
     install_zb();
 
     scene = argv[1];
+    if (strcmp(scene, "divr-parity") == 0)
+        return divr_parity();
     if (strcmp(scene, "atan-parity") == 0)
         return atan_parity();
     if (strcmp(scene, "integer-parity") == 0)

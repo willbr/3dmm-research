@@ -267,3 +267,26 @@ The `features` seek rerun in `tmp/parity-atan/playback.sqlite` still has
 Thus this arithmetic fix does not explain that fixture's remaining geometry
 mismatch. Vertex/projection tracing, continuous playback images, audible
 onset analysis and Organiser preparation remain outstanding.
+
+## Transform diagnostics and clipping division, 11 November 2026
+
+Native and SDL state journals now include `root_matrix_fixed` (12 raw signed
+16.16 values) and `part_matrices_fixed` (12 values per body part, in body order).
+Rows are stored consecutively; the fourth row is translation. Native reads
+use the hash-pinned x86 actor/body layouts and reject unsupported root transform
+kinds or invalid part counts. These observations are available in SQLite's
+`frames.state_json`, without rounding to decimal positions.
+
+In `tmp/parity-part-matrices/playback.sqlite`, all 240 actor roots and 2,100
+body-part matrices across the 60-frame `features` case match retail exactly
+in both original v3dmm and SDL. This rules out root placement and local pose
+as the cause of this fixture's remaining pixels; projection, clipping, depth
+and rasterization still need investigation.
+
+The portable clipping divide `BrFixedDivR` incorrectly added half the divisor.
+It now follows the original signed numerator construction and division. The
+unchanged x86 assembly and portable implementation agree on 262,656 signed
+input pairs, pinned by `brender-divr-parity` to hash `76d7761ee6511c0c`.
+The four-case sweep in `tmp/parity-divr/playback.sqlite` completed all 720
+images but retained the previous pixel mismatches. Neither this arithmetic
+fix nor matching transforms establishes full rendered-image parity.

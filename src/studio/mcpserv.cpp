@@ -1304,9 +1304,13 @@ static JVal MovieDetails(PScene scene)
         std::uint64_t pose = UINT64_C(14695981039346656037), appearance = pose;
         const int parts = body ? body->Cbact() - 2 : 0;
         item.Set("parts", JVal::MkInt(parts));
+        JVal partMatrices = JVal::MkArr();
         for (int part = 0; part < parts; ++part)
         {
             auto bact = body->PbactPart(part);
+            for (int row = 0; row < 4; ++row)
+                for (int column = 0; column < 3; ++column)
+                    partMatrices.a->push_back(JVal::MkInt(bact->t.t.mat.m[row][column]));
             pose = HashMovieBytes(pose, &bact->t.t.mat, sizeof(bact->t.t.mat));
             if (bact->model)
             {
@@ -1331,6 +1335,7 @@ static JVal MovieDetails(PScene scene)
                 }
             }
         }
+        item.Set("part_matrices_fixed", std::move(partMatrices));
         item.Set("pose_hash", JVal::MkStr(std::to_string(pose)));
         item.Set("appearance_hash", JVal::MkStr(std::to_string(appearance)));
         item.Set("texture_hashes", std::move(textures));
@@ -1338,6 +1343,14 @@ static JVal MovieDetails(PScene scene)
             item.Set("position_hash", JVal::MkStr(std::to_string(HashMovieBytes(UINT64_C(14695981039346656037),
                                                                                 &body->PbactRoot()->t.t.mat,
                                                                                 sizeof(body->PbactRoot()->t.t.mat)))));
+        if (body)
+        {
+            JVal matrix = JVal::MkArr();
+            for (int row = 0; row < 4; ++row)
+                for (int column = 0; column < 3; ++column)
+                    matrix.a->push_back(JVal::MkInt(body->PbactRoot()->t.t.mat.m[row][column]));
+            item.Set("root_matrix_fixed", std::move(matrix));
+        }
         actors.a->push_back(std::move(item));
     }
     return actors;

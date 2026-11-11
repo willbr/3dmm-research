@@ -38,9 +38,10 @@ br_fixed_ls BrFixedDiv(br_fixed_ls a, br_fixed_ls b)
 
 br_fixed_ls BrFixedDivR(br_fixed_ls a, br_fixed_ls b)
 {
-    /* Rounded divide: add 0.5 to the high half before the divide. */
-    int64_t num = (int64_t)a * 65536;
-    return (br_fixed_ls)((num + (b >> 1)) / b);
+    /* fixed386.asm: cdq; xchg; shrd preserves sign bits in the low
+     * word before signed division. This is not nearest rounding. */
+    int64_t num = (int64_t)a * 65536 + (a < 0 ? 65535 : 0);
+    return (br_fixed_ls)(num / b);
 }
 
 br_fixed_ls BrFixedDivF(br_fixed_ls a, br_fixed_ls b)
