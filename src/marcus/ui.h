@@ -16,6 +16,7 @@ typedef struct MarcusUI
 {
     SDL_Renderer *renderer;
     SDL_Texture *font;
+    SDL_Texture *transport_labels[2];
     MarcusGlyph glyphs[224];
     float mouse_x, mouse_y;
     const char *hint;
@@ -28,6 +29,7 @@ void ui_opacity(MarcusUI *ui, float opacity);
 void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long colour);
 void ui_line(MarcusUI *ui, float x, float y, float x2, float y2, unsigned long colour);
 void ui_text(MarcusUI *ui, float x, float y, const char *text, unsigned long colour);
+void ui_transport_label(MarcusUI *ui, float x, float y, int scene, unsigned long colour);
 void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long colour);
 int ui_inside(float px, float py, float x, float y, float w, float h);
 void ui_button(MarcusUI *ui, float x, float y, float w, const char *text, int active, int enabled);

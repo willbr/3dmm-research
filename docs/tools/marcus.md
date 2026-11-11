@@ -709,6 +709,9 @@ the timeline.
   one-thread ownership rule. No Studio UI/runtime library is linked.
 - UI text uses FreeType and an available system font: Segoe UI on Windows,
   Arial on macOS, DejaVu/Liberation Sans on Linux. `--font file.ttf` overrides it.
+  The uppercase FRAME/SCENE labels separately use installed Arial Black at
+  11 pixels, with DejaVu/Liberation Sans Bold fallbacks on Linux. Their rendered
+  labels are cached at startup; no proprietary font file is bundled.
   The initial glyph atlas supports Latin-1; other characters display as `?`.
   SDL bitmap text is a fallback if no font can be opened.
 

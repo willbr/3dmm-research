@@ -8,6 +8,66 @@ static void colour(MarcusUI *ui, unsigned long value)
     SDL_SetRenderDrawColor(ui->renderer, (unsigned char)(value >> 16), (unsigned char)(value >> 8),
                            (unsigned char)value, (unsigned char)(255 * ui->opacity));
 }
+static void init_transport_labels(MarcusUI *ui, FT_Library library)
+{
+    const char *candidates[5];
+    const char *text;
+    FT_Face face;
+    FT_GlyphSlot glyph;
+    SDL_Surface *surface;
+    unsigned char pixels[64 * 20 * 4];
+    int candidate, label, pen, x, y, left, top, offset;
+    candidates[0] = "C:/Windows/Fonts/ariblk.ttf";
+    candidates[1] = "/System/Library/Fonts/Supplemental/Arial Black.ttf";
+    candidates[2] = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+    candidates[3] = "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf";
+    candidates[4] = NULL;
+    face = NULL;
+    for (candidate = 0; candidates[candidate]; ++candidate)
+        if (!FT_New_Face(library, candidates[candidate], 0, &face))
+            break;
+    if (!face)
+        return;
+    if (FT_Set_Pixel_Sizes(face, 0, 11))
+    {
+        FT_Done_Face(face);
+        return;
+    }
+    for (label = 0; label < 2; ++label)
+    {
+        memset(pixels, 0, sizeof(pixels));
+        pen = 0;
+        for (text = label ? "SCENE" : "FRAME"; *text; ++text)
+        {
+            if (FT_Load_Char(face, (unsigned char)*text, FT_LOAD_RENDER))
+                continue;
+            glyph = face->glyph;
+            left = pen + glyph->bitmap_left;
+            top = 14 - glyph->bitmap_top;
+            for (y = 0; y < (int)glyph->bitmap.rows; ++y)
+                for (x = 0; x < (int)glyph->bitmap.width; ++x)
+                    if (left + x >= 0 && left + x < 64 && top + y >= 0 && top + y < 20)
+                    {
+                        offset = ((top + y) * 64 + left + x) * 4;
+                        pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
+                        pixels[offset + 3] = glyph->bitmap.buffer[y * glyph->bitmap.pitch + x];
+                    }
+            pen += (int)(glyph->advance.x >> 6);
+        }
+        surface = SDL_CreateSurfaceFrom(64, 20, SDL_PIXELFORMAT_RGBA32, pixels, 64 * 4);
+        if (surface)
+        {
+            ui->transport_labels[label] = SDL_CreateTextureFromSurface(ui->renderer, surface);
+            SDL_DestroySurface(surface);
+            if (ui->transport_labels[label])
+            {
+                SDL_SetTextureBlendMode(ui->transport_labels[label], SDL_BLENDMODE_BLEND);
+                SDL_SetTextureScaleMode(ui->transport_labels[label], SDL_SCALEMODE_NEAREST);
+            }
+        }
+    }
+    FT_Done_Face(face);
+}
 int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 {
     FT_Library library;
@@ -28,6 +88,7 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
     candidates[5] = NULL;
     if (FT_Init_FreeType(&library))
         return 0;
+    init_transport_labels(ui, library);
     face = NULL;
     for (code = 0; candidates[code]; ++code)
         if (candidates[code][0] && !FT_New_Face(library, candidates[code], 0, &face))
@@ -89,8 +150,29 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 }
 void ui_destroy(MarcusUI *ui)
 {
+    SDL_DestroyTexture(ui->transport_labels[0]);
+    SDL_DestroyTexture(ui->transport_labels[1]);
+    ui->transport_labels[0] = ui->transport_labels[1] = NULL;
     SDL_DestroyTexture(ui->font);
     ui->font = NULL;
+}
+void ui_transport_label(MarcusUI *ui, float x, float y, int scene, unsigned long value)
+{
+    SDL_Texture *texture;
+    SDL_FRect rect;
+    texture = ui->transport_labels[scene ? 1 : 0];
+    if (!texture)
+    {
+        ui_text(ui, x, y, scene ? "SCENE" : "FRAME", value);
+        return;
+    }
+    SDL_SetTextureColorMod(texture, (unsigned char)(value >> 16), (unsigned char)(value >> 8), (unsigned char)value);
+    SDL_SetTextureAlphaMod(texture, (unsigned char)(255 * ui->opacity));
+    rect.x = x;
+    rect.y = y;
+    rect.w = 64;
+    rect.h = 20;
+    SDL_RenderTexture(ui->renderer, texture, NULL, &rect);
 }
 void ui_opacity(MarcusUI *ui, float opacity)
 {

@@ -2723,8 +2723,8 @@ static void draw_timeline(App *app)
         ui->hint = "Drag up or down to resize the dope sheets";
     ui_fill(ui, 0, y, app->sidebar, (float)app->height - y - 24, PANEL);
     ui_line(ui, 0, y, app->sidebar, y, LINE);
-    ui_text(ui, 16, y + FRAME_NAV_Y + 1, "Frame", MUTED);
-    ui_text(ui, 16, y + SCENE_NAV_Y + 1, "Scene", MUTED);
+    ui_transport_label(ui, 16, y + FRAME_NAV_Y, 0, MUTED);
+    ui_transport_label(ui, 16, y + SCENE_NAV_Y, 1, MUTED);
     ui_fill(ui, 68, y + FRAME_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
     ui_fill(ui, 68, y + SCENE_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
     ui_frame_button(ui, FRAME_NAV_X, y + FRAME_NAV_Y, 0, app->loaded && app->info.frame > app->info.first_frame,
