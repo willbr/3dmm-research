@@ -108,3 +108,25 @@
     * loss of Marcus-only authoring data after saving in retail is acceptable
     * bake IK, constraints and edited motion into supported movie events/actions for retail playback; prototype the animation encoding first
     * investigate compatibility separately for animated cameras, 3D drawing and rendering effects, especially against prerendered backgrounds
+
+* Marcus asset and animation workflow ideas inspired by Blender
+    * searchable asset browser with thumbnails and tags for actors, props, prefabs, materials, poses and actions; drag assets into scenes
+    * collection instances for reusable sets and object arrangements; edit shared prefab definitions or make individual instances independent
+    * pose assets for whole rigs or selected body parts, with mirroring and adjustable blend strength
+    * animation strips to trim, repeat, retime and blend actions; investigate combining locomotion with upper-body gestures on compatible rigs
+    * dope sheet for moving blocks of keyframes and shifting entire performances together
+    * motion paths with frame markers to inspect trajectories, speed changes and animation arcs
+    * axis-constrained move, rotate and scale operations in world/local space, with numeric input while dragging
+    * selectable transform pivots: selection centre, active object, individual origins or a placed cursor
+    * floor and attachment snapping, object alignment and evenly spaced distribution
+    * local view to temporarily isolate selected objects in crowded scenes
+    * explicit linked versus independent duplication
+    * searchable commands for finding tools without navigating menus
+    * adjust the last operation's parameters, including duplicate count, spacing and rotation
+    * simple procedural arrangements such as chairs around a table or fence sections along a path; retain editable recipes and generate ordinary props for retail playback
+    * prioritize the asset browser, collection instances, transform/snapping tools and dope sheet
+    * preserve editable animation strips, blends and procedural recipes in Marcus private data; bake playback results into supported retail data and verify animation-format limits
+    * reference Blender's asset browser, pose library and nonlinear animation system:
+        * https://docs.blender.org/manual/en/4.4/editors/asset_browser.html
+        * https://docs.blender.org/manual/en/dev/animation/armatures/posing/editing/pose_library.html
+        * https://developer.blender.org/docs/features/animation/nla/
