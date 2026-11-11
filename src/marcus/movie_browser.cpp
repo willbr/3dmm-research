@@ -75,7 +75,7 @@ struct MarcusBrowser
     int focus = 0, selected = -1, scroll = 0, filter = 0;
     float x = 0, y = 0, w = 1000, h = 650, listW = 510;
     int rows = 3;
-    std::string location, address, search, filename, error, resources, content, statePath, lastPath, lastMember;
+    std::string location, movieFolder, address, search, filename, error, resources, content, statePath, lastPath, lastMember;
     std::vector<std::string> history, favourites;
     std::vector<Recent> recent;
     std::vector<int> filtered;
@@ -105,6 +105,16 @@ struct MarcusBrowser
             SDL_free(pref);
             Load();
         }
+        std::error_code ec;
+        // Match SDL Studio's My movies location, including redirected Documents.
+        if (const auto documents = SDL_GetUserFolder(SDL_FOLDER_DOCUMENTS))
+        {
+            const auto directory = fs::u8path(documents) / "3DMMForever";
+            fs::create_directories(directory, ec);
+            if (!ec && fs::is_directory(directory, ec)) movieFolder = directory.u8string();
+        }
+        if (movieFolder.empty()) movieFolder = fs::current_path().u8string();
+        if (location.empty()) location = movieFolder;
         worker = std::thread([this] { Work(); });
     }
     ~MarcusBrowser()
@@ -122,6 +132,7 @@ struct MarcusBrowser
         while (file >> kind)
         {
             if (kind == "folder" && file >> std::quoted(value)) location = value;
+            else if (kind == "movie-folder" && file >> std::quoted(value)) { /* Obsolete development preference. */ }
             else if (kind == "selected" && file >> std::quoted(value) >> std::quoted(member))
             { lastPath = value; lastMember = member; }
             else if (kind == "view") file >> grid >> sortDate >> filter;
@@ -217,7 +228,7 @@ struct MarcusBrowser
             if (id == generation) completed = std::move(result);
         }
     }
-    void Navigate(const std::string &path, bool remember = true)
+    void Navigate(std::string path, bool remember = true)
     {
         if (remember) history.push_back(recentView ? "" : listing.location);
         recentView = path.empty(); address = path; search.clear(); filename.clear(); error.clear();
@@ -462,7 +473,7 @@ struct MarcusBrowser
         field(x + 180, y + 50, w - 300, recentView && focus != 1 ? "Recent movies" : address, 1);
         ui_button(ui, x + w - 108, y + 50, 88, "Go", 0, 1);
         ui_button(ui, x + 16, y + 100, 144, "Recent movies", recentView, 1);
-        ui_button(ui, x + 16, y + 138, 144, "Movie folder", !recentView, 1);
+        ui_button(ui, x + 16, y + 138, 144, "Movie folder", !recentView && listing.location == movieFolder, 1);
         ui_button(ui, x + 16, y + 176, 144, "Home", 0, 1);
         ui_text(ui, x + 20, y + 226, "FAVOURITES", muted);
         ui_button(ui, x + 16, y + 250, 144,
@@ -534,7 +545,7 @@ struct MarcusBrowser
         else if (hit(180, 50, w - 300)) { focus = 1; replaceText = true; }
         else if (hit(w - 108, 50, 88)) { focus = 1; Open(); }
         else if (hit(16, 100, 144)) Navigate("");
-        else if (hit(16, 138, 144)) Navigate(location);
+        else if (hit(16, 138, 144)) Navigate(movieFolder);
         else if (hit(16, 176, 144)) { if (auto home = SDL_GetUserFolder(SDL_FOLDER_HOME)) Navigate(home); }
         else if (hit(16, 250, 144) && !location.empty())
         {

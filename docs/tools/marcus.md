@@ -65,8 +65,12 @@ Resources or Content reloads that movie.
 
 **Open movie** now opens Marcus's own movie browser. Filmstrip-style cards and
 a larger detail preview use saved scene thumbnails, with a list view available.
-The sidebar offers recent movies, the last movie folder, Home and up to twelve
+The sidebar offers recent movies, a stable Movie folder shortcut, Home and up to twelve
 favourite folders. Recent entries remember the exact movie name inside a ZIP.
+Movie folder uses `Documents/3DMMForever`, matching SDL Studio's My movies
+location and following OS Documents redirection. Browsing or opening movies
+elsewhere does not change this shortcut. If Documents cannot be used, Marcus
+falls back to its working directory.
 The browser saves the last folder, selection, view, sort order and file filter
 in `movie-browser.cfg` beside the normal per-user Marcus preferences.
 
