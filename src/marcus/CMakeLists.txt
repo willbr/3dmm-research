@@ -23,7 +23,8 @@ kauai_copy_midi_assets(marcus-regression)
 
 add_executable(marcus-preview preview_helper.cpp browser_preview.cpp preview_protocol.cpp)
 target_compile_features(marcus-preview PRIVATE cxx_std_17)
-target_link_libraries(marcus-preview PRIVATE ThreeMM::Archive engine-core)
+target_link_libraries(marcus-preview PRIVATE marcus-player ThreeMM::Archive engine-core)
+kauai_copy_midi_assets(marcus-preview)
 
 add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c movie_browser.cpp preview_worker.cpp preview_protocol.cpp)
 add_dependencies(marcus marcus-preview)

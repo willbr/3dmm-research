@@ -35,8 +35,14 @@ int main()
         // Runs the actual isolated decoder, with no UI or player instance.
         const auto missing = RunPreviewWorker("missing-preview-movie.3mm", "missing-resources.chk", [] { return false; });
         Check(!missing.error.empty() && missing.rgba.empty());
+        const auto missingTiming = RunPreviewWorker("missing-preview-movie.3mm", "missing-resources.chk", [] { return false; }, "", true);
+        Check(!missingTiming.error.empty() && missingTiming.rgba.empty());
         bool cancelled = false;
         try { RunPreviewWorker("missing-preview-movie.3mm", "missing-resources.chk", [] { return true; }); }
+        catch (const std::exception &) { cancelled = true; }
+        Check(cancelled);
+        cancelled = false;
+        try { RunPreviewWorker("missing-preview-movie.3mm", "missing-resources.chk", [] { return true; }, "", true); }
         catch (const std::exception &) { cancelled = true; }
         Check(cancelled);
         SDL_Quit();

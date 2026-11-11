@@ -40,7 +40,7 @@ struct Prepared
     std::string key, path, movie, error;
     unsigned serial = 0;
     int entry = 0;
-    bool opening = false;
+    bool opening = false, calculating = false;
     BrowserPreview preview;
     std::unique_ptr<MarcusMovieInput> input;
     std::shared_ptr<MarcusMovieFile> file;
@@ -52,6 +52,7 @@ struct Card
     BrowserPreview preview;
     SDL_Texture *texture = nullptr;
     Uint64 used = 0;
+    std::string calculation;
     ~Card() { SDL_DestroyTexture(texture); }
 };
 std::string Lower(std::string value)
@@ -92,7 +93,7 @@ struct MarcusBrowser
     int rows = 3;
     bool scrollbarDragging = false;
     float scrollbarOffset = 0;
-    std::string location, movieFolder, address, search, filename, error, resources, statePath, lastPath, lastMember;
+    std::string location, movieFolder, address, search, filename, error, resources, content, statePath, lastPath, lastMember;
     std::vector<std::string> history, favourites;
     std::vector<Recent> recent;
     std::vector<int> filtered;
@@ -104,10 +105,10 @@ struct MarcusBrowser
     std::thread worker;
     std::mutex mutex;
     std::condition_variable condition;
-    bool stopping = false, requested = false, prepareRequested = false, opening = false;
+    bool stopping = false, requested = false, prepareRequested = false, opening = false, calculating = false;
     Item prepareItem;
-    bool prepareOpening = false;
-    std::string preparingKey, prepareResources;
+    bool prepareOpening = false, prepareCalculating = false;
+    std::string preparingKey, prepareResources, prepareContent;
     std::atomic<unsigned> prepareSerial{0};
     unsigned prepareRequestSerial = 0;
     std::unique_ptr<Prepared> preparedResult;
@@ -191,8 +192,8 @@ struct MarcusBrowser
             std::vector<Recent> recents;
             unsigned id, serial = 0;
             Item item;
-            bool preparing = false, forOpen = false;
-            std::string resourcePath;
+            bool preparing = false, forOpen = false, forCalculation = false;
+            std::string resourcePath, contentPath;
             {
                 std::unique_lock<std::mutex> lock(mutex);
                 condition.wait(lock, [this] { return requested || prepareRequested || stopping; });
@@ -202,13 +203,14 @@ struct MarcusBrowser
                 else
                 {
                     preparing = true; item = prepareItem; forOpen = prepareOpening;
-                    serial = prepareRequestSerial; resourcePath = prepareResources; prepareRequested = false;
+                    serial = prepareRequestSerial; resourcePath = prepareResources; contentPath = prepareContent;
+                    forCalculation = prepareCalculating; prepareRequested = false;
                 }
             }
             if (preparing)
             {
                 auto ready = std::make_unique<Prepared>();
-                ready->serial = serial; ready->key = Key(item); ready->path = item.path; ready->opening = forOpen;
+                ready->serial = serial; ready->key = Key(item); ready->path = item.path; ready->opening = forOpen; ready->calculating = forCalculation;
                 const auto cancelled = [this, serial] { return prepareSerial != serial; };
                 try
                 {
@@ -226,7 +228,7 @@ struct MarcusBrowser
                     ready->file = ready->input->Materialize(index, cancelled);
                     ready->input->prepared = ready->file;
                     ready->movie = ready->file->path.u8string();
-                    if (!forOpen && !cancelled())
+                    if (!forOpen && !forCalculation && !cancelled())
                     {
                         std::ifstream header(ready->file->path, std::ios::binary);
                         char signature[6] = {};
@@ -263,7 +265,7 @@ struct MarcusBrowser
                             ready->movie = ready->inner->path.u8string();
                         }
                     }
-                    if (!forOpen && !cancelled()) ready->preview = RunPreviewWorker(ready->movie, resourcePath, cancelled);
+                    if (!forOpen && !cancelled()) ready->preview = RunPreviewWorker(ready->movie, resourcePath, cancelled, contentPath, forCalculation);
                 }
                 catch (const std::exception &e) { ready->error = e.what(); }
                 if (!forOpen)
@@ -348,7 +350,7 @@ struct MarcusBrowser
             requestedPath = path; requestedRecent = recent;
             ++generation; latest = generation; completed.reset(); requested = true;
             ++prepareSerial; prepareRequested = false; preparedResult.reset();
-            preparingKey.clear(); opening = false;
+            preparingKey.clear(); opening = false; calculating = false;
         }
         condition.notify_one();
     }
@@ -381,7 +383,7 @@ struct MarcusBrowser
     {
         const auto next = filtered.empty() ? -1 : std::clamp(index, 0, static_cast<int>(filtered.size()) - 1);
         if (selected != next && !preparingKey.empty())
-        { ++prepareSerial; preparingKey.clear(); opening = false; }
+        { ++prepareSerial; preparingKey.clear(); opening = false; calculating = false; }
         selected = next;
         selectedAt = SDL_GetTicks();
         if (const auto item = Selected()) filename = item->entry >= 0 ? item->member : item->path;
@@ -400,16 +402,17 @@ struct MarcusBrowser
         {
             std::lock_guard<std::mutex> lock(mutex);
             ++prepareSerial; prepareRequested = false; preparedResult.reset();
-            preparingKey.clear(); opening = false;
+            preparingKey.clear(); opening = false; calculating = false;
         }
         visible = false; scrollbarDragging = false; SDL_StopTextInput(window); Save();
     }
-    void Prepare(const Item &item, bool forOpen)
+    void Prepare(const Item &item, bool forOpen, bool forCalculation = false)
     {
         std::lock_guard<std::mutex> lock(mutex);
         prepareRequestSerial = ++prepareSerial; preparedResult.reset(); prepareItem = item;
-        prepareOpening = forOpen; prepareResources = resources; prepareRequested = true;
-        preparingKey = Key(item); opening = forOpen; error.clear();
+        prepareOpening = forOpen; prepareCalculating = forCalculation;
+        prepareResources = resources; prepareContent = content; prepareRequested = true;
+        preparingKey = Key(item); opening = forOpen; calculating = forCalculation; error.clear();
         condition.notify_one();
     }
     void Choose(const Item &item)
@@ -463,8 +466,17 @@ struct MarcusBrowser
         }
         if (ready && ready->serial == prepareSerial)
         {
-            preparingKey.clear(); opening = false;
-            if (ready->opening)
+            preparingKey.clear(); opening = false; calculating = false;
+            if (ready->calculating)
+            {
+                auto found = cards.find(ready->key);
+                if (found != cards.end())
+                {
+                    const auto failure = ready->error.empty() ? ready->preview.error : ready->error;
+                    found->second->calculation = failure.empty() ? ready->preview.details : "Duration unavailable\n" + failure;
+                }
+            }
+            else if (ready->opening)
             {
                 if (ready->error.empty())
                 {
@@ -578,7 +590,7 @@ struct MarcusBrowser
     void ScrollActivity()
     {
         scrollAt = SDL_GetTicks();
-        if (!opening && !preparingKey.empty())
+        if (!opening && !calculating && !preparingKey.empty())
         { ++prepareSerial; preparingKey.clear(); }
     }
     void DragScrollbar(float mouseY)
@@ -674,6 +686,14 @@ struct MarcusBrowser
                     ui_label(ui, detailX, top + 322, 270, card->preview.details.substr(split + 1).c_str(), accent);
                 ui_label(ui, detailX, top + 352, 270, card->preview.error.empty() ?
                          (card->texture ? "Saved scene thumbnail" : "No saved preview available") : card->preview.error.c_str(), muted);
+                ui_button(ui, detailX, top + 382, 270, calculating ? "Cancel calculation" : "Calculate duration", calculating, !opening);
+                if (!card->calculation.empty())
+                {
+                    const auto line = card->calculation.find('\n');
+                    ui_label(ui, detailX, top + 418, 270, card->calculation.substr(0, line).c_str(), accent);
+                    if (line != std::string::npos)
+                        ui_label(ui, detailX, top + 442, 270, card->calculation.substr(line + 1).c_str(), muted);
+                }
             }
             else ui_label(ui, detailX, top + 270, 270, item->directory ? "Open to browse this folder." :
                           Extension(item->path) == ".zip" && item->member.empty() ? "Open movie or browse compilation." : "Reading saved preview...", muted);
@@ -683,7 +703,7 @@ struct MarcusBrowser
         field(listX, y + h - 84, listW, filename, 3);
         static const char *filters[] = {"All movies + ZIPs", "3MM movies", "VMM movies", "ZIP archives"};
         ui_button(ui, detailX, y + h - 84, 270, filters[filter], 0, 1);
-        ui_label(ui, x + 20, y + h - 38, w - 260, opening ? "Preparing movie... / Esc to cancel" : error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
+        ui_label(ui, x + 20, y + h - 38, w - 260, opening ? "Preparing movie... / Esc to cancel" : calculating ? "Calculating duration... / Esc to cancel" : error.empty() ? "Double-click to open / Enter to confirm / Esc to cancel" : error.c_str(), error.empty() ? muted : 0xf0ae8b);
         ui_button(ui, x + w - 228, y + h - 44, 96, "Cancel", 0, 1);
         ui_button(ui, x + w - 116, y + h - 44, 96, "Open", 1, !loading && !opening && (!filename.empty() || Selected()));
     }
@@ -719,6 +739,12 @@ struct MarcusBrowser
         else if (hit(180, 94, listW - 212)) { focus = 2; replaceText = true; }
         else if (hit(180 + listW - 204, 94, 96) && !recentView && !listing.input) { sortDate = !sortDate; Refilter(); }
         else if (hit(180 + listW - 100, 94, 100)) { grid = !grid; scroll = 0; }
+        else if (hit(w - 292, 514, 270))
+        {
+            if (calculating) { ++prepareSerial; calculating = false; preparingKey.clear(); }
+            else if (!opening)
+                if (const auto item = Selected(); item && Preview(*item)) Prepare(*item, false, true);
+        }
         else if (hit(180, h - 84, listW)) { focus = 3; replaceText = true; }
         else if (hit(w - 292, h - 84, 270)) { filter = (filter + 1) % 4; Refilter(); }
         else if (hit(w - 228, h - 44, 96)) Close();
@@ -787,7 +813,7 @@ void browser_show(MarcusBrowser *browser, const char *path, const char *resource
     try
     {
         browser->resources = resources ? resources : "";
-        (void)content;
+        browser->content = content ? content : "";
         browser->error.clear(); browser->visible = true;
         std::string location = browser->location;
         if (path && *path)

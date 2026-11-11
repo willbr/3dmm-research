@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &resources,
-                               const std::function<bool()> &cancelled)
+                               const std::function<bool()> &cancelled, const std::string &content, bool duration)
 {
     const auto base = SDL_GetBasePath();
     if (!base) throw std::runtime_error("Cannot locate the preview helper.");
@@ -14,7 +14,8 @@ BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &res
         ".exe"
 #endif
         ;
-    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), nullptr};
+    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), duration ? "--duration" : nullptr,
+                          content.c_str(), nullptr};
     const auto properties = SDL_CreateProperties();
     SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
     SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
@@ -33,7 +34,7 @@ BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &res
     std::unique_ptr<SDL_Process, decltype(destroy)> owner(process, destroy);
     const auto stream = SDL_GetProcessOutput(process);
     if (!stream) throw std::runtime_error("Cannot read the preview helper output.");
-    const auto deadline = SDL_GetTicks() + 30000;
+    const auto deadline = SDL_GetTicks() + (duration ? 300000 : 30000);
     std::vector<std::uint8_t> bytes;
     std::array<std::uint8_t, 65536> buffer;
     for (;;)

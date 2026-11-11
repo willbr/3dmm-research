@@ -114,9 +114,34 @@ engine's six frames per second, rounded to the nearest second and labelled
 **Est. ... (frames only)**. It excludes additional time for pauses, sound waits,
 scrolling captions and transitions. It uses metadata from the preview helper
 and does not load playback or add UI-thread file reads. A missing
-thumbnail displays a placeholder; first-frame rendering, full duration analysis,
+thumbnail displays a placeholder; first-frame rendering,
 dependency availability badges and bundled-font discovery are not implemented
 in the browser. Dependencies are resolved through the normal opening path.
+
+**Calculate duration** runs the same movie-wide timing analysis used by the
+player, on demand in the isolated helper. It includes timed pauses, scrolling
+captions, sound waits and transitions; click-to-continue waits assume immediate
+acknowledgement. This is nominal playback duration, not a guarantee of wall-clock
+time on a slow machine. The result shows both calculated duration and analysis
+time. It is cached with the movie's preview for this browser visit. Calculating
+is silent and leaves the active movie unchanged; **Cancel calculation**, closing
+the browser or selecting another movie cancels it. Scrolling stays available.
+Analysis requires the movie's normal content dependencies. The helper has a
+five-minute time limit, separate from the ordinary preview's thirty-second limit.
+
+On 11 November 2026, this workspace's debug build analyzed
+`3dMm DIReCTOrS WaR Part 2.3mm` in 3.8 seconds (5:52 nominal duration) and
+`Litterbug 2.3mm` in 12.2 seconds (11:19 nominal duration), including helper
+startup. These are single-run observations; archive extraction, content, audio
+decoding and font availability affect the time.
+
+The same headless calculation also passed for `iknow1.zip` (1.1 seconds,
+1:43 nominal duration), `A Special Announcement.vmm` (40.4 seconds, 3:55), and
+a temporary ZIP containing that VMM (42.9 seconds, also 3:55). The ZIP/VMM
+checks exercise archive extraction and the normal bundle/content loader, not
+simulated UI input. Their results are recorded locally in
+`tmp/marcus-duration-validation/results.json`.
+
 Previewing does not replace the active movie or play audio; cancel leaves it
 paused. The SDL Studio picker and movie format are unchanged.
 
