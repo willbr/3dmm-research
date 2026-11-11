@@ -68,6 +68,68 @@ static void init_transport_labels(MarcusUI *ui, FT_Library library)
     }
     FT_Done_Face(face);
 }
+static void init_transport_numbers(MarcusUI *ui, FT_Library library)
+{
+    const char *candidates[5];
+    FT_Face face;
+    FT_GlyphSlot glyph;
+    SDL_Surface *surface;
+    MarcusGlyph *digit;
+    unsigned char pixels[256 * 32 * 4];
+    int candidate, code, x, y, offset, column;
+    candidates[0] = "C:/Windows/Fonts/comic.ttf";
+    candidates[1] = "/System/Library/Fonts/Supplemental/Comic Sans MS.ttf";
+    candidates[2] = "/usr/share/fonts/truetype/msttcorefonts/Comic_Sans_MS.ttf";
+    candidates[3] = "/usr/share/fonts/truetype/msttcorefonts/comic.ttf";
+    candidates[4] = NULL;
+    face = NULL;
+    for (candidate = 0; candidates[candidate]; ++candidate)
+        if (!FT_New_Face(library, candidates[candidate], 0, &face))
+            break;
+    if (!face)
+        return;
+    if (FT_Set_Pixel_Sizes(face, 0, 12))
+    {
+        FT_Done_Face(face);
+        return;
+    }
+    ui->transport_space = !FT_Load_Char(face, ' ', FT_LOAD_RENDER) ? (int)(face->glyph->advance.x >> 6) : 4;
+    memset(pixels, 0, sizeof(pixels));
+    for (code = '-'; code <= '9'; ++code)
+    {
+        if (FT_Load_Char(face, (unsigned long)code, FT_LOAD_RENDER))
+            continue;
+        glyph = face->glyph;
+        column = (code - '-') * 16;
+        digit = &ui->transport_digits[code - '-'];
+        digit->source.x = (float)column;
+        digit->source.y = 0;
+        digit->source.w = (float)glyph->bitmap.width;
+        digit->source.h = (float)glyph->bitmap.rows;
+        digit->bearing_x = glyph->bitmap_left;
+        digit->bearing_y = glyph->bitmap_top;
+        digit->advance = (int)(glyph->advance.x >> 6);
+        for (y = 0; y < (int)glyph->bitmap.rows && y < 32; ++y)
+            for (x = 0; x < (int)glyph->bitmap.width && x < 16; ++x)
+            {
+                offset = (y * 256 + column + x) * 4;
+                pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
+                pixels[offset + 3] = glyph->bitmap.buffer[y * glyph->bitmap.pitch + x];
+            }
+    }
+    surface = SDL_CreateSurfaceFrom(256, 32, SDL_PIXELFORMAT_RGBA32, pixels, 256 * 4);
+    if (surface)
+    {
+        ui->transport_numbers = SDL_CreateTextureFromSurface(ui->renderer, surface);
+        SDL_DestroySurface(surface);
+        if (ui->transport_numbers)
+        {
+            SDL_SetTextureBlendMode(ui->transport_numbers, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(ui->transport_numbers, SDL_SCALEMODE_NEAREST);
+        }
+    }
+    FT_Done_Face(face);
+}
 int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 {
     FT_Library library;
@@ -89,6 +151,7 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
     if (FT_Init_FreeType(&library))
         return 0;
     init_transport_labels(ui, library);
+    init_transport_numbers(ui, library);
     face = NULL;
     for (code = 0; candidates[code]; ++code)
         if (candidates[code][0] && !FT_New_Face(library, candidates[code], 0, &face))
@@ -150,6 +213,8 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 }
 void ui_destroy(MarcusUI *ui)
 {
+    SDL_DestroyTexture(ui->transport_numbers);
+    ui->transport_numbers = NULL;
     SDL_DestroyTexture(ui->transport_labels[0]);
     SDL_DestroyTexture(ui->transport_labels[1]);
     ui->transport_labels[0] = ui->transport_labels[1] = NULL;
@@ -421,11 +486,43 @@ void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int
 void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char *text, int enabled)
 {
     unsigned long ink;
+    const char *character;
+    MarcusGlyph *digit;
+    SDL_FRect destination;
+    float width, pen, scale;
     ink = enabled ? 0x111111 : 0x626262;
     draw_vector_scaled(ui, x, y, marcus_vector_transport_readout, MARCUS_VECTOR_TRANSPORT_READOUT_COUNT,
                        1, 1, 1, 1);
     ui_transport_label(ui, x + 6, y, scene, ink);
-    button_label(ui, x + 54, y, 108, 20, text, ink);
+    if (!ui->transport_numbers)
+    {
+        button_label(ui, x + 54, y, 108, 20, text, ink);
+        return;
+    }
+    width = 0;
+    for (character = text; *character; ++character)
+        width += *character >= '-' && *character <= '9'
+                     ? ui->transport_digits[*character - '-'].advance : ui->transport_space;
+    scale = width > 100 ? 100 / width : 1;
+    pen = SDL_floorf(x + 54 + (108 - width * scale) / 2);
+    SDL_SetTextureColorMod(ui->transport_numbers, (unsigned char)(ink >> 16), (unsigned char)(ink >> 8), (unsigned char)ink);
+    SDL_SetTextureAlphaMod(ui->transport_numbers, (unsigned char)(255 * ui->opacity));
+    for (character = text; *character; ++character)
+    {
+        if (*character < '-' || *character > '9')
+        {
+            pen += ui->transport_space * scale;
+            continue;
+        }
+        digit = &ui->transport_digits[*character - '-'];
+        destination.x = pen + digit->bearing_x * scale;
+        destination.y = y + 10 + (4 - digit->bearing_y) * scale;
+        destination.w = digit->source.w * scale;
+        destination.h = digit->source.h * scale;
+        if (destination.w > 0 && destination.h > 0)
+            SDL_RenderTexture(ui->renderer, ui->transport_numbers, &digit->source, &destination);
+        pen += digit->advance * scale;
+    }
 }
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {

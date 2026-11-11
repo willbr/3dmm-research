@@ -17,6 +17,9 @@ typedef struct MarcusUI
     SDL_Renderer *renderer;
     SDL_Texture *font;
     SDL_Texture *transport_labels[2];
+    SDL_Texture *transport_numbers;
+    MarcusGlyph transport_digits[13]; /* '-' through '9'. */
+    int transport_space;
     MarcusGlyph glyphs[224];
     float mouse_x, mouse_y;
     const char *hint;

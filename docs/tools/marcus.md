@@ -715,6 +715,9 @@ the timeline.
   The uppercase FRAME/SCENE labels separately use installed Arial Black at
   11 pixels, with DejaVu/Liberation Sans Bold fallbacks on Linux. Their rendered
   labels are cached at startup; no proprietary font file is bundled.
+  Frame/scene numbers separately use installed Comic Sans MS at 12 pixels,
+  matching the original counters' default font. They fall back to the main UI
+  font when Comic Sans is unavailable; large counts shrink to fit their fields.
   The initial glyph atlas supports Latin-1; other characters display as `?`.
   SDL bitmap text is a fallback if no font can be opened.
 
