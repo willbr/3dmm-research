@@ -25,7 +25,7 @@ its portable GUI runtime; see the [current verification](../tools/studio-sdl.md)
 
 ## C89 engine backend
 
-`three-mm-engine-c89` in `libraries/engine/` is the first implementation slice
+`three-mm-engine-c89` in `libraries/engine/` contains the first implementation slices
 of the [shared C89 engine migration](../../plan.md#shared-c89-engine-migration).
 Its public header is `three_mm/playback.h`. It owns playback/startup command
 sequencing, wait/fade/scene-advance decisions, fractional movie-frame pacing,
@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -61,6 +61,50 @@ uses strict C89 diagnostics when Clang or GCC is present. Existing
 `engine-core-link`, `movie-save-load`, `marcus-player` and `marcus-playback`
 tests cover the facades and runtime integration. Playback corpus evidence and
 its limits are recorded in [playback regression](../tools/playback-regression.md).
+
+### Movie-data reading slice
+
+`three_mm/read_stream.h` adds borrowed, positional decoded-chunk input,
+checked memory input and bounded substreams. Every read checks offset and size
+without overflowing; nested slices retain their parent's bounds. Memory and
+slice contexts point to their caller-owned objects, which must remain in place
+and outlive their borrowers. Filesystem and content selection still use the
+existing VFS/host path; this API adds no separate filesystem or archive cache.
+
+`three_mm/movie_data.h` implements the following in C89:
+
+- Eight-byte MVIE prefix decoding in either byte order, with the existing
+  signed version predicate and separate bad-file/bad-version/I/O results.
+- Twenty-eight-byte roll-call record decoding, signed actor IDs, actor-limit
+  updates and source-ID validation. The stored pointer slot is ignored. Failed
+  decoding leaves the output and caller's actor limit unchanged.
+- Archive's existing dense GST layout checks: stride/count arithmetic, string
+  starts, length-prefixed strings, null code units, encoding and entry offsets.
+  A C89 bitset replaces the previous `vector<bool>`; no C99 or 64-bit arithmetic
+  is required. The caller's existing decode budget remains authoritative.
+
+The public records contain decoded values, not native structs to write to disk.
+`inc/engine_read_stream.h` temporarily adapts `DataBlock` to this C interface.
+`MovieData::FVerifyVersion` and `FReadRollCall` call the C decoders. Archive uses
+the returned movie header and C GST validator; Marcus uses those same version
+and actor-record checks when opening a movie. It now rejects unsupported MVIE
+versions and bad byte-order markers before selecting scenes, matching Studio's
+version policy. Standalone scene fixtures remain supported.
+
+| Remaining dependency | Responsibility retained in C++ |
+| --- | --- |
+| `ChunkyFile`, `DataBlock`, codecs | Container index/graph, root/child discovery, decompression and payload storage. |
+| `StringTable_GST`, platform text conversion | Dense string storage and legacy encoding conversion. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
+| `TagManager`, `ChunkyResourceFile` | Opening/closing runtime tags and resource references, including rollback after failed loads. |
+| `MovieData`, Studio document | Title/scene enumeration, transactional object replacement, editing and serialization. |
+
+The C-only build now includes `engine-movie-data-test`. Run that target along
+with `engine-c89-test` before CTest. Tests cover nested stream bounds and I/O
+failures, both endian encodings, the version matrix, historical negative actor
+IDs, ignored pointer bytes, transactional failures and malformed GST layouts.
+The existing Archive, engine-core, save/load and headless Marcus tests exercise
+the adapters and resource ownership. Next migrate the container index/child
+reader and string-table storage; the shared backend is still incomplete.
 
 ## Why the split exists
 

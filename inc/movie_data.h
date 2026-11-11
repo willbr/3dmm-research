@@ -5,6 +5,7 @@
 #include "kauai_core.h"
 #include "tagman.h"
 #include <cstdint>
+#include "three_mm/movie_data.h"
 
 struct MovieFilePrefix
 {
@@ -68,7 +69,7 @@ struct MovieData
     bool FSave(PFilename filename);
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
-    static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil);
+    static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, ThreeMMMovieHeader *header = pvNil);
     static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PStringTable_GST *actors,
                               LegacyLong *actorIdLimit = pvNil);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PStringTable_GST actors, ChunkNumber *written);

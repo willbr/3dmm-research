@@ -34,11 +34,13 @@ class Writer
     std::string directory;
     std::vector<unsigned char> previous;
     std::string previousPath;
+    int previousWidth = 0, previousHeight = 0;
 
   public:
     std::vector<Event> events;
     std::atomic<bool> failed{false};
     bool active = false;
+    std::size_t eventLimit = 20000;
     ~Writer()
     {
         End();
@@ -61,6 +63,7 @@ class Writer
         events.clear();
         previous.clear();
         previousPath.clear();
+        previousWidth = previousHeight = 0;
         failed = false;
         stopping = false;
         active = !path.empty();
@@ -93,7 +96,7 @@ class Writer
         if (!active || failed)
             return;
         std::lock_guard<std::mutex> lock(mutex);
-        if (events.size() >= 20000)
+        if (events.size() >= eventLimit)
         {
             failed = true;
             return;
@@ -112,7 +115,7 @@ class Writer
                 dest[1] = source[1];
                 dest[2] = source[bgra ? 0 : 2];
             }
-        if (job.rgb == previous)
+        if (width == previousWidth && height == previousHeight && job.rgb == previous)
         {
             events.push_back({scene, frame, ns, previousPath});
             return;
@@ -124,6 +127,8 @@ class Writer
         }
         previous = job.rgb;
         previousPath = job.path;
+        previousWidth = width;
+        previousHeight = height;
         events.push_back({scene, frame, ns, job.path});
         jobs.push_back(std::move(job));
         ready.notify_one();

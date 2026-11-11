@@ -1,4 +1,5 @@
 #include "player.h"
+#include "three_mm/movie_data.h"
 #include "content.h"
 #include "movie_input.h"
 #include "playback.h"
@@ -499,6 +500,9 @@ extern "C"
                 }
             if (root)
             {
+                ThreeMM::RecordHeader metadata;
+                if (!archive.ReadRecord(Find(archive, root->id), metadata, error))
+                    return false;
                 for (const auto &child : root->children)
                 {
                     if (child.target.type == sceneType)
@@ -518,8 +522,19 @@ extern "C"
                     if (!Strings(archive, child.target, entries, big, error))
                         return false;
                     for (const auto &entry : entries)
-                        if (child.slot == 0 && entry.extra.size() == 28)
-                            names[Word(entry.extra, big)] = entry.text;
+                        if (child.slot == 0 && entry.extra.size() == THREE_MM_MOVIE_ACTOR_BYTES)
+                        {
+                            ThreeMMMemoryStream memory;
+                            ThreeMMMovieActor actor;
+                            if (!three_mm_memory_stream_init(&memory, entry.extra.data(), entry.extra.size()) ||
+                                three_mm_movie_read_actor(&memory.stream, big, &actor, nullptr) != THREE_MM_MOVIE_OK)
+                            {
+                                error.code = ThreeMM::ErrorCode::corrupt_archive;
+                                error.message = "The movie roll-call record is invalid.";
+                                return false;
+                            }
+                            names[actor.actor_id] = entry.text;
+                        }
                         else if (child.slot == 1 && entry.extra.size() == 4)
                             sources.push_back({Word(entry.extra, big), entry.text});
                 }

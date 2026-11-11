@@ -412,6 +412,38 @@ void Actor(PChunkyFile file, ChunkNumber scene, ChunkNumber sound, PGeneralGroup
     SceneEvent start = {-2, sevtAddActr};
     CHECK(starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &start));
 }
+void InvalidMovieHeaders(const char *path, const char *resources, const char *content)
+{
+    const std::string invalidPath = std::string(path) + ".invalid-header.3mm";
+    String native;
+    native.SetSzs(const_cast<char *>(invalidPath.c_str()));
+    Filename filename;
+    CHECK(filename.FBuildFromPath(&native));
+    for (int variant = 0; variant < 2; ++variant)
+    {
+        auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
+        CHECK(file);
+        ChunkNumber root;
+        DataBlock block;
+        CHECK(MovieData::FCreateRoot(file, &root) && file->FFind(kctgMvie, root, &block));
+        MovieFilePrefix prefix;
+        CHECK(block.FReadRgb(&prefix, sizeof(prefix), 0));
+        if (variant == 0)
+            prefix.dver.Set(2, 3);
+        else
+            prefix.bo = 2;
+        CHECK(block.FWriteRgb(&prefix, sizeof(prefix), 0) && file->FSave(kctgSoc));
+        block.Free();
+        ReleasePpo(&file);
+        auto probe = marcus_create();
+        CHECK(probe && !marcus_open(probe, invalidPath.c_str(), resources, content));
+        if (!std::strstr(marcus_error(probe), "record header"))
+            std::fprintf(stderr, "Invalid-header diagnostic: %s\n", marcus_error(probe));
+        CHECK(std::strstr(marcus_error(probe), "record header") != nullptr);
+        marcus_destroy(probe);
+        CHECK(filename.FDelete());
+    }
+}
 void Fixture(const char *path)
 {
     String name;
@@ -643,6 +675,7 @@ int main(int argc, char **argv)
     FailedTiming();
     CarryScheduling();
     PresentationClock();
+    InvalidMovieHeaders(argv[1], argv[2], argv[3]);
     Fixture(argv[1]);
     const auto authoredTiming = FixtureTiming(argv[1], argv[2]);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);

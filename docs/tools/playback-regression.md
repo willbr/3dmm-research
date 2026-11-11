@@ -547,3 +547,55 @@ wrapping-clock calculations, including host state changes between replies.
 That check exercises policy equivalence; it does not replace the missing
 Marcus live-capture evidence or establish broader engine parity. No Marcus UI
 tests were added.
+
+## C89 movie-data reading and Marcus capture repair (11 November 2026)
+
+The next backend slice converts bounded decoded-chunk reads, MVIE version
+decoding, roll-call records and Archive's existing GST layout checks to C89.
+Studio and Marcus use the same movie-version and actor-record decoders. See
+the [remaining C++ dependencies](../code-map/library-split.md#movie-data-reading-slice).
+
+Marcus's observer now uses the shared bounded `PlaybackCapture::Writer` for
+live playback, reusing a file only when RGB bytes and image dimensions match.
+Every presentation retains its own scene/frame and timestamp. Queue overflow,
+event-limit exhaustion and write failures still fail capture. Same-process
+warm-up preservation moves each unique file once and updates every referring
+event; subsequent replay starts a fresh writer cache.
+
+Silent movies did not necessarily open Marcus's lazy audio device before Play,
+so process loopback could not establish measured pre-Play silence. The headless
+capture tool now opens a separate hardware-clocked zero-valued SDL stream.
+The movie player's audio and timing code are unchanged. Actual process PCM,
+including pre-roll, is still recorded and checked; the silence threshold and
+comparison policy are unchanged. Provenance explicitly records
+`silence_carrier` and `duplicate_images_reused`, and hashes the new helper.
+
+Evidence is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261111T154504Z-7563d577` | `scrolling-text`, retail/SDL/Marcus, seek and playback, two fresh-process repetitions | 12 complete, no capture failures; verdict `different`, with 10 different and 15 inconclusive component comparisons. |
+| `20261111T155408Z-cbdea592` | `actor-events` and `sampled-audio`, retail/SDL/Marcus playback, one repetition | Six complete, no capture failures; verdict `different`. One pass does not establish repeatability. |
+| `20261111T155940Z-9c908dcc` | Marcus `static-text`, same-process replay after a complete warm-up | One complete recorded run plus preserved warm-up; no reference comparison, verdict `inconclusive`. |
+
+Compared with the pre-data-conversion suite `20261111T150201Z-c1d94263`, all
+360 seek images match exactly across the three players and two repetitions.
+Retail and SDL each retain the same 60 authored frame positions and ordered
+328 exact image changes in each playback pass, collapsing only adjacent
+identical images. The local report is `tmp/c89-movie-data-comparison.json`.
+Marcus's earlier live passes were incomplete, so no before/after continuous
+Marcus verdict can be issued; both new passes now complete all authored frames.
+
+Sampled audio is present in all three players: observed PCM16 peak magnitudes
+are 2380 in retail and 2176 in SDL and Marcus. This confirms audible capture;
+it does not establish matching audio or attribute the differences. Existing
+marker-semantics limits still prevent an equivalent cross-player authored-frame
+timing verdict. Completed captures are not a declaration of playback parity.
+
+All 19 runs retain unchanged movie, ISO-resource and Marcus-content hashes.
+The three standalone C-only checks pass, as do the ten focused native checks
+(`engine-c89`, `engine-movie-data`, `engine-c89-syntax`, `engine-core-link`,
+`movie-save-load`, `archive-api`, `presentation-capture`, `marcus-c89`,
+`marcus-player`, `marcus-playback`) and 25 Python harness checks. Headless
+Marcus cases now explicitly reject invalid MVIE version/byte-order headers.
+No Marcus UI tests were added.

@@ -2,13 +2,13 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 #include "movie_data.h"
+#include "engine_read_stream.h"
 ASSERTNAME
 
 namespace
 {
-const short kcvnCur = 2;
-const short kcvnBack = 2;
-const short kcvnMin = 1;
+const short kcvnCur = THREE_MM_MOVIE_CURRENT_VERSION;
+const short kcvnBack = THREE_MM_MOVIE_BACKWARD_VERSION;
 } // namespace
 
 MovieData::~MovieData()
@@ -123,13 +123,12 @@ bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
     return fFalse;
 }
 
-bool MovieData::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
+bool MovieData::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno, ThreeMMMovieHeader *header)
 {
     AssertPo(pcfl, 0);
 
     ChildChunkIdentification kid;
     ChunkNumber cnoMvie = pcno != pvNil ? *pcno : cnoNil;
-    MovieFilePrefix mfp;
     DataBlock blck;
 
     // Get the cno of the first kid of the movie
@@ -146,30 +145,22 @@ bool MovieData::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
     }
 
     // Get version number of the file
-    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData() || (blck.Cb() != size(MovieFilePrefix)) ||
-        !blck.FReadRgb(&mfp, size(MovieFilePrefix), 0))
+    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData())
     {
         PushErc(ercSocBadFile);
         return fFalse;
     }
 
-    if (mfp.bo == kboOther)
+    const auto stream = EngineReadStream::FromBlock(blck);
+    ThreeMMMovieHeader decoded;
+    const int result = three_mm_movie_read_header(&stream, &decoded);
+    if (result != THREE_MM_MOVIE_OK)
     {
-        SwapBytesBom(&mfp, kbomMfp);
-    }
-
-    if (mfp.bo != kboCur)
-    {
-        PushErc(ercSocBadFile);
+        PushErc(result == THREE_MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
         return fFalse;
     }
-
-    // Check the version numbers
-    if (!mfp.dver.FReadable(kcvnCur, kcvnMin))
-    {
-        PushErc(ercSocBadVersion);
-        return fFalse;
-    }
+    if (header)
+        *header = decoded;
     return fTrue;
 }
 
@@ -214,20 +205,21 @@ bool MovieData::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PString
     {
         pgstOnFile->GetStn(imactr, &stn);
         pgstOnFile->GetExtra(imactr, &mactrOnFile);
-        if (bo == kboOther)
-            SwapBytesBom(&mactrOnFile, kbomMactr);
-
-        mactr.arid = mactrOnFile.arid;
-        mactr.cactRef = mactrOnFile.cactRef;
-        mactr.grfbrws = mactrOnFile.grfbrws;
-        TagFromOnFile(&mactr.tagTmpl, mactrOnFile.tagTmpl);
-
-        // Historical movies can contain negative actor IDs after scene merges.
-        // Only -1 is the absent-actor sentinel; keep other signed IDs intact.
-        if (mactr.arid == -1 || mactr.arid == INT32_MAX || mactr.tagTmpl.sid < 0)
+        ThreeMMMemoryStream memory;
+        ThreeMMMovieActor decoded;
+        ThreeMMI32 limit = aridLimit;
+        const auto order = reinterpret_cast<const unsigned char *>(&bo);
+        if (!three_mm_memory_stream_init(&memory, &mactrOnFile, sizeof(mactrOnFile)) ||
+            three_mm_movie_read_actor(&memory.stream, order[0] == 0, &decoded, &limit) != THREE_MM_MOVIE_OK)
             goto LFail;
-        if (mactr.arid >= aridLimit)
-            aridLimit = mactr.arid + 1;
+        mactr.arid = decoded.actor_id;
+        mactr.cactRef = decoded.reference_count;
+        mactr.grfbrws = decoded.browser_flags;
+        mactr.tagTmpl.sid = decoded.source_id;
+        mactr.tagTmpl.ctg = decoded.template_type;
+        mactr.tagTmpl.cno = decoded.template_number;
+        mactr.tagTmpl.pcrf = pvNil;
+        aridLimit = limit;
 
         // Open the tags, since they might be ThreeDTexts. FOpenTag may
         // populate mactr.tagTmpl.pcrf for ksidUseCrf tags; that pcrf is the

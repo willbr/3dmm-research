@@ -777,6 +777,10 @@ The shared playback/startup policy, frame pacer and retail scrolling evaluator
 now live in the C89 `three-mm-engine-c89` library. Marcus's scrolling facade
 and Studio's playback facades delegate to it; the remaining backend still uses
 C++. See the [engine boundary](../code-map/library-split.md#c89-engine-backend).
+Movie opening now also uses the shared C89 MVIE-version and roll-call record
+decoders. Archive's GST wire-layout validation runs through the C89 bounded
+stream interface; legacy string conversion and chunk/resource ownership remain
+behind the C++ host adapter.
 The audio callback uses decoded clips and synthesizers, never the renderer,
 archive readers or UI. The renderer and legacy readers retain their single-thread
 ownership rule.

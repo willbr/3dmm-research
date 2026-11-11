@@ -67,9 +67,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
   The `engine` target still owns further editing and playback functionality.
 - `ThreeMM::Archive` and `ThreeMM::Preview` provide useful separation, but their
   C++ interfaces are migration inputs, not the final engine interface.
+- The first movie-data slice adds bounded decoded-chunk streams and C89 MVIE,
+  roll-call and Archive GST-layout readers. Studio, Archive and Marcus call
+  these decoders. Container graph/storage, decompression, string transcoding,
+  tag ownership and save/edit orchestration remain C++ dependencies.
 - The existing `marcus-c89`, `content-vfs-c89` and `review-c89` checks passed
   on 11 November. They check selected C sources, not a C89 engine backend.
-- The first engine conversion slice is implemented; whole-engine conversion
+- Playback and the first movie-data slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
   [dependency boundary and build commands](docs/code-map/library-split.md#c89-engine-backend).
@@ -164,11 +168,12 @@ configuration and capture environment recorded with the evidence.
 The first slice moves the decisions in `movie_playback.cpp` and
 `retail_scroll.cpp` into C89; existing C++ callers use temporary facades over
 the same C state and evaluators. This is the start of full engine conversion.
-Next: inventory the remaining engine data-access dependencies, reuse the C89
-content VFS, and convert the stream/chunky-file foundations needed by the first
-movie-data slice. Extend the C API and regression coverage as each dependency
-is removed. Editing, actor evaluation, rendering integration and persistence
-remain on the sequence above.
+The following movie-data slice supplies bounded decoded-chunk streams and
+shared C89 header/roll-call/GST-layout decoding. Next convert container index
+and child-reference reading, then string-table storage/transcoding, reusing the
+existing content VFS. Extend the C API and regression coverage as each C++
+dependency is removed. Editing, actor evaluation, rendering integration and
+persistence remain on the sequence above.
 
 The migration is complete when Studio and Marcus use the same C89 engine for
 their engine operations, including Studio editing/saving, the backend builds

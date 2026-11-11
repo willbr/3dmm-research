@@ -113,6 +113,7 @@ class MarcusSession:
             ready = self.replies.get(timeout=45)
             if not ready or not ready.get('ready'):
                 raise RuntimeError('Marcus startup failed; inspect ' + str(output / 'runtime.log'))
+            self.capture_features = ready.get('capture_features', {})
         except BaseException:
             self.close()
             raise
@@ -487,6 +488,21 @@ def compare_suite(store, suite, *, frame_tolerance_ms=25, sample_tolerance=0):
     return review(store, suite)
 
 
+def preserve_warmup_presentations(trace, process_directory, warmup_directory):
+    """Move each unique raw image once while retaining all event timestamps."""
+    moved = {}
+    process_directory = Path(process_directory).resolve()
+    for index, event in enumerate(trace.get('presentations', [])):
+        source = Path(event['path']).resolve()
+        if not source.is_relative_to(process_directory):
+            raise RuntimeError('Warm-up image is outside its capture directory')
+        if source not in moved:
+            target = Path(warmup_directory) / ('presentation-%d.ppm' % index)
+            source.replace(target)
+            moved[source] = target
+        event['path'] = str(moved[source])
+
+
 def run_suite(args):
     if os.name != 'nt':
         raise ValueError('Live capture currently requires Windows; review and SQLite are portable')
@@ -529,7 +545,8 @@ def run_suite(args):
             identities['marcus_capture_sha256'] = digest(args.marcus)
         identities['bridge_sha256'] = digest(args.bridge / 'retail-oracle.dll')
         identities['capture_sources'] = {name: digest(ROOT / 'tools' / name) for name in
-            ('playback_regression.py', 'playback_store.py', 'marcus_regression.cpp', 'presentation_capture.h')}
+            ('playback_regression.py', 'playback_store.py', 'marcus_regression.cpp', 'presentation_capture.h',
+             'marcus_capture_audio.h')}
         content_inputs = {str(resources.resolve()): digest(resources)}
         for path in content.iterdir():
             if path.is_file() and path.suffix.lower() == '.3cn':
@@ -587,13 +604,7 @@ def run_suite(args):
                                                                  directory / 'warmup', args.max_seconds)
                                 # The adapter reuses its presentation filenames
                                 # on Begin. Preserve the first pass before replay.
-                                for index, event in enumerate(warmup['trace'].get('presentations', [])):
-                                    source = Path(event['path']).resolve()
-                                    if not source.is_relative_to(directory / 'process'):
-                                        raise RuntimeError('Warm-up image is outside its capture directory')
-                                    target = directory / 'warmup' / ('presentation-%d.ppm' % index)
-                                    source.replace(target)
-                                    event['path'] = str(target)
+                                preserve_warmup_presentations(warmup['trace'], directory / 'process', directory / 'warmup')
                                 (directory / 'warmup/playback.json').write_text(encode(warmup), encoding='utf-8')
                             if mode == 'seek':
                                 report = seek_capture(store, run, active, directory, player, args.viewport)
@@ -602,6 +613,8 @@ def run_suite(args):
                                                           args.bridge / 'oracle-audio-capture.exe', args.max_seconds, args.viewport)
                             verify_feature_observations(case, player, mode, report)
                             provenance = dict(identities)
+                            if player == 'marcus':
+                                provenance['capture_features'] = active.capture_features
                             if hasattr(active, 'validate_assets'):
                                 provenance['runtime'] = active.validate_assets()
                             active.close()
@@ -621,7 +634,10 @@ def run_suite(args):
                                 partial = json.loads(partial_path.read_text(encoding='utf-8'))
                                 if 'trace' in partial:
                                     store.trace(run, partial['trace'])
-                            store.finish(run, 'error', error=str(error), provenance=identities)
+                            failure_provenance = dict(identities)
+                            if active is not None and hasattr(active, 'capture_features'):
+                                failure_provenance['capture_features'] = active.capture_features
+                            store.finish(run, 'error', error=str(error), provenance=failure_provenance)
                             print('  ERROR: ' + str(error), flush=True)
                         finally:
                             if active:

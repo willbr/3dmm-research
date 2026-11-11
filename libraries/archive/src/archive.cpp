@@ -7,6 +7,7 @@
 #include <locale>
 #include <stdexcept>
 #include "soc_core.h"
+#include "engine_read_stream.h"
 #include "platform_text.h"
 #undef size
 ASSERTNAME
@@ -52,63 +53,13 @@ std::string Utf8(String &value)
 }
 bool ValidStringTable(DataBlock &block, std::uint32_t limit)
 {
-    // The legacy reader assumes offsets and length-prefixed strings are valid.
-    // Check the stored layout with wide arithmetic before handing it any bytes.
-    if (block.Cb() < 20 || static_cast<std::uint32_t>(block.Cb()) > limit)
-        return false;
-    std::vector<byte> bytes(block.Cb());
-    if (!block.FReadRgb(bytes.data(), block.Cb(), 0))
-        return false;
-    const bool big = bytes[0] == 0 && bytes[1] == 1;
-    if (!big && !(bytes[0] == 1 && bytes[1] == 0))
-        return false;
-    const auto word = [&](std::size_t offset) {
-        uint32_t value = 0;
-        for (int i = 0; i < 4; ++i)
-            value |= uint32_t(bytes[offset + i]) << (8 * (big ? 3 - i : i));
-        return value;
-    };
-    const uint64_t stride = word(4), count = word(8), stringBytes = word(12);
-    if (stride < 4 || stride > kcbMax || stride % 4 || count > kcbMax || stringBytes > kcbMax ||
-        word(16) != UINT32_MAX || 20 + stringBytes + count * stride != bytes.size())
-        return false;
-    const uint16_t encoding = uint16_t(bytes[2]) | (uint16_t(bytes[3]) << 8);
-    const bool wide = encoding == 0x0404 || encoding == 0x0505;
-    if (!wide && encoding != 0x0202 && encoding != 0x0303)
-        return false;
-    if (wide && stringBytes % 2)
-        return false;
-    std::vector<bool> starts(static_cast<std::size_t>(stringBytes));
-    for (uint64_t offset = 0; offset < stringBytes;)
-    {
-        starts[static_cast<std::size_t>(offset)] = true;
-        uint64_t length = bytes[20 + offset];
-        if (wide)
-        {
-            if (offset + 2 > stringBytes)
-                return false;
-            length =
-                encoding == 0x0404 ? (length << 8) | bytes[21 + offset] : length | (uint64_t(bytes[21 + offset]) << 8);
-        }
-        if (length > 255 || offset + (length + 1) * (wide ? 2 : 1) > stringBytes)
-            return false;
-        // Legacy Pascal strings forbid embedded null code units.
-        for (uint64_t j = 1; j <= length; ++j)
-        {
-            const auto at = 20 + offset + j * (wide ? 2 : 1);
-            if (bytes[at] == 0 && (!wide || bytes[at + 1] == 0))
-                return false;
-        }
-        offset += (length + 1) * (wide ? 2 : 1);
-    }
-    for (uint64_t i = 0; i < count; ++i)
-    {
-        const uint64_t offset = word(static_cast<std::size_t>(20 + stringBytes + i * stride));
-        if (offset >= stringBytes || !starts[static_cast<std::size_t>(offset)])
-            return false;
-    }
-    return true;
+    const auto stream = EngineReadStream::FromBlock(block);
+    const int result = three_mm_movie_validate_strings(&stream, limit);
+    if (result == THREE_MM_MOVIE_MEMORY)
+        throw std::bad_alloc();
+    return result == THREE_MM_MOVIE_OK;
 }
+
 bool NativePath(const std::string &input, String &path, std::string &error)
 {
     if (input.empty() || input.find('\0') != std::string::npos)
@@ -472,14 +423,12 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         if (id.type == kctgMvie)
         {
             result.kind = RecordKind::movie;
-            MovieFilePrefix prefix;
+            ThreeMMMovieHeader prefix;
             ChunkNumber number = id.number;
-            valid = MovieData::FVerifyVersion(_impl->file, &number) && block.FReadRgb(&prefix, sizeof(prefix), 0);
+            valid = MovieData::FVerifyVersion(_impl->file, &number, &prefix);
             if (valid)
             {
-                if (prefix.bo == kboOther)
-                    SwapBytesBom(&prefix, kbomMfp);
-                result.movie = {prefix.dver._swCur, prefix.dver._swBack};
+                result.movie = {static_cast<short>(prefix.current_version), static_cast<short>(prefix.backward_version)};
             }
         }
         else if (id.type == kctgScen)

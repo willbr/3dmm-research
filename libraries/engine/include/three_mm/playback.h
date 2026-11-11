@@ -2,18 +2,11 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef THREE_MM_ENGINE_PLAYBACK_H
 #define THREE_MM_ENGINE_PLAYBACK_H
-#include <limits.h>
+#include "types.h"
 
 /* C89 has no stdint.h. Fail at compile time rather than change wire/clock widths. */
-#if UINT_MAX == 0xffffffffUL && INT_MAX == 0x7fffffffL
-typedef unsigned int ThreeMMPlaybackU32;
-typedef int ThreeMMPlaybackI32;
-#elif ULONG_MAX == 0xffffffffUL && LONG_MAX == 0x7fffffffL
-typedef unsigned long ThreeMMPlaybackU32;
-typedef long ThreeMMPlaybackI32;
-#else
-#error Playback requires a 32-bit C integer type
-#endif
+typedef ThreeMMU32 ThreeMMPlaybackU32;
+typedef ThreeMMI32 ThreeMMPlaybackI32;
 
 #ifdef __cplusplus
 extern "C"

@@ -1433,7 +1433,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
-  engine-c89-test
+  engine-c89-test engine-movie-data-test
   global-cleanup-test
   preview-checks
   mbmp-pixels-test

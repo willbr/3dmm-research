@@ -1,5 +1,7 @@
 // Headless observation of the real Marcus player. No UI or synthetic clock.
 #include "player.h"
+#include "presentation_capture.h"
+#include "marcus_capture_audio.h"
 #include <SDL3/SDL.h>
 #include <condition_variable>
 #include <cstdlib>
@@ -50,95 +52,22 @@ void Check(MarcusPlayer *player, int success)
     if (!success)
         throw std::runtime_error(marcus_error(player));
 }
-// Bounded asynchronous writes keep filesystem latency out of the player loop.
-// A full queue is a capture failure, never permission to silently drop images.
-class Images
+// Absolute-seek capture is synchronous; playback uses the shared bounded
+// writer, which reuses exact duplicate pixels without losing observations.
+void SaveImage(const std::string &path, const MarcusImage &image)
 {
-    struct Job
-    {
-        std::string path;
-        int width, height;
-        std::vector<char> bytes;
-    };
-    std::deque<Job> jobs;
-    std::mutex mutex;
-    std::condition_variable wake;
-    bool stopping = false;
-    bool writing = false;
-    std::string failure;
-    std::thread worker;
-
-  public:
-    Images()
-        : worker([this]() {
-              for (;;)
-              {
-                  Job job;
-                  {
-                      std::unique_lock<std::mutex> lock(mutex);
-                      wake.wait(lock, [&]() { return stopping || !jobs.empty(); });
-                      if (jobs.empty())
-                          return;
-                      job = std::move(jobs.front());
-                      jobs.pop_front();
-                      writing = true;
-                  }
-                  std::ofstream file(job.path, std::ios::binary);
-                  file << "P6\n" << job.width << ' ' << job.height << "\n255\n";
-                  file.write(job.bytes.data(), job.bytes.size());
-                  file.close();
-                  {
-                      std::lock_guard<std::mutex> lock(mutex);
-                      if (!file)
-                          failure = "Cannot write captured image: " + job.path;
-                      writing = false;
-                  }
-                  wake.notify_all();
-              }
-          })
-    {
-    }
-    ~Images()
-    {
-        {
-            std::lock_guard<std::mutex> lock(mutex);
-            stopping = true;
-        }
-        wake.notify_all();
-        worker.join();
-    }
-    void Save(const std::string &path, const MarcusImage &image)
-    {
-        Job job = {path, image.width, image.height, {}};
-        job.bytes.resize(std::size_t(image.width) * image.height * 3);
-        for (int y = 0; y < image.height; ++y)
-        {
-            auto target = job.bytes.data() + std::size_t(y) * image.width * 3;
-            auto pixel = image.rgba + y * image.pitch;
-            for (int x = 0; x < image.width; ++x)
-            {
-                *target++ = *pixel++;
-                *target++ = *pixel++;
-                *target++ = *pixel++;
-                ++pixel;
-            }
-        }
-        std::lock_guard<std::mutex> lock(mutex);
-        if (!failure.empty())
-            throw std::runtime_error(failure);
-        if (jobs.size() >= 64)
-            throw std::runtime_error("Image capture queue overflow");
-        jobs.push_back(std::move(job));
-        wake.notify_one();
-    }
-    void Flush()
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        wake.wait(lock, [&]() { return jobs.empty() && !writing; });
-        if (!failure.empty())
-            throw std::runtime_error(failure);
-    }
-};
+    std::vector<char> pixels(std::size_t(image.width) * image.height * 3);
+    for (int y = 0; y < image.height; ++y)
+        for (int x = 0; x < image.width; ++x)
+            std::copy_n(image.rgba + y * image.pitch + x * 4, 3,
+                        pixels.data() + (std::size_t(y) * image.width + x) * 3);
+    std::ofstream file(path, std::ios::binary);
+    file << "P6\n" << image.width << ' ' << image.height << "\n255\n";
+    file.write(pixels.data(), pixels.size());
+    file.close();
+    if (!file)
+        throw std::runtime_error("Cannot write captured image: " + path);
+}
 std::string State(MarcusPlayer *player, bool playing)
 {
     MarcusInfo info;
@@ -169,7 +98,12 @@ int main(int argc, char **argv)
     try
     {
         Check(player, marcus_open(player, argv[1], argv[2], argv[3]));
-        std::cout << "REGRESSION {\"ready\":true}" << std::endl;
+        MarcusCaptureSilence silence;
+        if (!silence.Open())
+            throw std::runtime_error(std::string("Cannot prepare capture silence: ") + SDL_GetError());
+        std::cout << "REGRESSION {\"ready\":true,\"capture_features\":{\"silence_carrier\":true,"
+                     "\"duplicate_images_reused\":true}}"
+                  << std::endl;
         // The reader owns no player state. All engine calls stay on this thread.
         std::mutex mutex;
         std::deque<std::string> commands;
@@ -185,7 +119,8 @@ int main(int argc, char **argv)
             eof = true;
         });
         {
-            Images images;
+            PlaybackCapture::Writer images;
+            images.eventLimit = 100000;
             bool playing = false, tracing = false, overflow = false;
             int previousScene = -1;
             long previousFrame = 0;
@@ -235,12 +170,12 @@ int main(int argc, char **argv)
                             input >> std::quoted(path);
                             MarcusImage image;
                             Check(player, marcus_render(player, width, height, 1, 0, 0, 1, &image));
-                            images.Save(path, image);
-                            images.Flush();
+                            SaveImage(path, image);
                             result = "{\"captured\":true}";
                         }
                         else if (command == "begin")
                         {
+                            images.Begin(argv[4]);
                             frames.clear();
                             presentations.clear();
                             overflow = false;
@@ -252,7 +187,9 @@ int main(int argc, char **argv)
                         else if (command == "end")
                         {
                             tracing = false;
-                            images.Flush();
+                            images.End();
+                            if (images.failed)
+                                throw std::runtime_error("Presentation image capture failed");
                             std::ostringstream out;
                             out << "{\"overflow\":" << (overflow ? "true" : "false") << ",\"frames\":[";
                             for (std::size_t i = 0; i < frames.size(); ++i)
@@ -309,9 +246,11 @@ int main(int argc, char **argv)
                             const auto renderStart = Now();
                             Check(player, marcus_render(player, width, height, 1, 0, 0, 1, &image));
                             const auto renderEnd = Now();
-                            const auto path =
-                                std::string(argv[4]) + "/presentation-" + std::to_string(presentations.size()) + ".ppm";
-                            images.Save(path, image);
+                            images.Add(image.rgba, image.width, image.height, image.pitch, false, info.scene,
+                                       info.frame, renderEnd);
+                            if (images.failed)
+                                throw std::runtime_error("Presentation image capture failed or overflowed");
+                            const auto &path = images.events.back().path;
                             std::ostringstream presentation;
                             presentation << "{\"scene\":" << info.scene << ",\"frame\":" << info.frame
                                          << ",\"monotonic_ns\":" << renderEnd

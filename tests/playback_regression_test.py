@@ -16,9 +16,32 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from playback_store import Store, digest, frame_coverage, timing_metrics
 from playback_regression import compare_runs, compare_suite, load_manifest, review, capabilities, verify_feature_observations, import_presentations
+from playback_regression import preserve_warmup_presentations
 
 
 class Measurements(unittest.TestCase):
+    def test_warmup_reuses_images_and_retains_each_observation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            process = Path(directory) / 'process'
+            warmup = Path(directory) / 'warmup'
+            process.mkdir()
+            warmup.mkdir()
+            first, second = process / 'one.ppm', process / 'two.ppm'
+            first.write_bytes(b'first')
+            second.write_bytes(b'second')
+            trace = {'presentations': [dict(path=str(p),monotonic_ns=t)
+                                      for p,t in ((first,10),(first,20),(second,30))]}
+            preserve_warmup_presentations(trace, process, warmup)
+            events = trace['presentations']
+            self.assertEqual([e['monotonic_ns'] for e in events], [10,20,30])
+            self.assertEqual(events[0]['path'], events[1]['path'])
+            self.assertEqual(Path(events[0]['path']).read_bytes(), b'first')
+            self.assertEqual(Path(events[2]['path']).read_bytes(), b'second')
+            self.assertEqual(len(list(warmup.iterdir())), 2)
+            with self.assertRaisesRegex(RuntimeError, 'outside'):
+                preserve_warmup_presentations({'presentations':[dict(path=str(warmup / 'presentation-0.ppm'))]},
+                                             process, warmup)
+
     @unittest.skipIf(Image is None, 'Pillow required')
     def test_repeated_presentations_reuse_pixels_without_losing_timestamps(self):
         with tempfile.TemporaryDirectory() as directory:
