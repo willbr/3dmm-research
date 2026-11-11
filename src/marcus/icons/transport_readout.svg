@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 164 20" width="164" height="20">
+  <title>3DMM frame and scene readout surround</title>
+  <rect x="0" y="0" width="164" height="20" fill="#555555"/>
+  <rect x="1" y="1" width="162" height="18" fill="#ababab"/>
+  <polygon points="1,1 163,1 161,3 3,3" fill="#e1e1e1"/>
+  <polygon points="1,1 3,3 3,17 1,19" fill="#d1d1d1"/>
+  <polygon points="3,17 161,17 163,19 1,19" fill="#727272"/>
+  <rect x="3" y="3" width="48" height="14" fill="#b0b0b0"/>
+  <polygon points="3,3 51,3 51,7 3,13" fill="#b9b9b9"/>
+  <polygon points="3,14 51,9 51,17 3,17" fill="#a6a6a6"/>
+  <rect x="52" y="2" width="1" height="16" fill="#646464"/>
+  <rect x="53" y="2" width="109" height="16" fill="#d0d0d0"/>
+  <polygon points="54,3 161,3 161,7 54,14" fill="#d9d9d9"/>
+  <rect x="53" y="2" width="109" height="1" fill="#929292"/>
+  <rect x="53" y="2" width="1" height="16" fill="#929292"/>
+  <rect x="54" y="17" width="108" height="1" fill="#eeeeee"/>
+</svg>

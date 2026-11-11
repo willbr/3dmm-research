@@ -2723,10 +2723,6 @@ static void draw_timeline(App *app)
         ui->hint = "Drag up or down to resize the dope sheets";
     ui_fill(ui, 0, y, app->sidebar, (float)app->height - y - 24, PANEL);
     ui_line(ui, 0, y, app->sidebar, y, LINE);
-    ui_transport_label(ui, 16, y + FRAME_NAV_Y, 0, MUTED);
-    ui_transport_label(ui, 16, y + SCENE_NAV_Y, 1, MUTED);
-    ui_fill(ui, 68, y + FRAME_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
-    ui_fill(ui, 68, y + SCENE_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
     ui_frame_button(ui, FRAME_NAV_X, y + FRAME_NAV_Y, 0, app->loaded && app->info.frame > app->info.first_frame,
                          "First frame");
     ui_frame_button(ui, FRAME_NAV_X + NAV_STEP, y + FRAME_NAV_Y, 1,
@@ -2772,16 +2768,16 @@ static void draw_timeline(App *app)
     {
         SDL_snprintf(label, sizeof(label), "%.0f / %.0f", display_frame(app, app->info.frame),
                      display_frame(app, app->info.last_frame));
-        ui_label(ui, 76, y + FRAME_NAV_Y + 1, 96, label, TEXT);
+        ui_transport_readout(ui, 16, y + FRAME_NAV_Y, 0, label, 1);
         SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
-        ui_label(ui, 76, y + SCENE_NAV_Y + 1, 96, label, TEXT);
+        ui_transport_readout(ui, 16, y + SCENE_NAV_Y, 1, label, 1);
         if (marcus_scene(app->player, app->info.scene, &scene))
             ui_label(ui, LOOP_X + 72, y + SCENE_NAV_Y + 1, 112, scene.name, TEXT);
     }
     else
     {
-        ui_text(ui, 76, y + FRAME_NAV_Y + 1, "- / -", MUTED);
-        ui_text(ui, 76, y + SCENE_NAV_Y + 1, "- / -", MUTED);
+        ui_transport_readout(ui, 16, y + FRAME_NAV_Y, 0, "- / -", 0);
+        ui_transport_readout(ui, 16, y + SCENE_NAV_Y, 1, "- / -", 0);
     }
     ui_button_sized(ui, app->sidebar - 132, y + PLAY_Y, 32, UI_PLAY_HEIGHT, "-", 0, app->loaded);
     ui_button_sized(ui, app->sidebar - 94, y + PLAY_Y, 32, UI_PLAY_HEIGHT, "+", 0, app->loaded);

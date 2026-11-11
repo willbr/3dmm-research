@@ -418,6 +418,15 @@ void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int
                        scene ? MARCUS_VECTOR_SCENE_SLIDER_COUNT : MARCUS_VECTOR_FRAME_SLIDER_COUNT,
                        1, 1, brightness, enabled);
 }
+void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char *text, int enabled)
+{
+    unsigned long ink;
+    ink = enabled ? 0x111111 : 0x626262;
+    draw_vector_scaled(ui, x, y, marcus_vector_transport_readout, MARCUS_VECTOR_TRANSPORT_READOUT_COUNT,
+                       1, 1, 1, 1);
+    ui_transport_label(ui, x + 6, y, scene, ink);
+    button_label(ui, x + 54, y, 108, 20, text, ink);
+}
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {
     float angle, next, radius, next_radius, center_x, center_y, scale;

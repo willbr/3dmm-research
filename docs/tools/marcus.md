@@ -158,6 +158,9 @@ previous/next, and stop bars for first/last. Editable sources are in
 `src/marcus/icons/{first,previous,next,last}_frame.svg`; regenerate the compiled
 geometry with `python tools/compile_marcus_vectors.py`. Hover, pressed and
 disabled feedback remain available.
+The FRAME/SCENE readouts use black Arial Black labels on beveled silver panels,
+with centered counts in lighter inset fields. Their scalable surround is
+`src/marcus/icons/transport_readout.svg`.
 
 The existing timeline playhead uses a blue beveled SVG thumb; the existing
 movie-wide scrubber uses a green one, including in the expanded movie view.

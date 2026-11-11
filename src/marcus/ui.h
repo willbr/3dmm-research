@@ -44,6 +44,7 @@ void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active);
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
 void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
 void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int active);
+void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char *text, int enabled);
 #ifdef __cplusplus
 }
 #endif
