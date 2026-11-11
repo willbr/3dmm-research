@@ -32,15 +32,141 @@ These items are forward-pointers, not commitments. Listing them here makes it ea
 
 ## Scope decisions
 
-### Rejected: rewriting C++ to C
+### Accepted: convert the engine to a shared C89 backend
 
-Not worth doing.
+**Direction confirmed 11 November 2026:** convert the engine implementation
+from C++ to C89 and use the same backend from Studio and Marcus. This replaces
+the previous rejection of a C rewrite and the assumption that a C API over a
+permanent C++ engine is sufficient. The existing playback regression tests
+support the conversion and gate each migrated slice.
 
-- The C++ surface is shallow (no STL, no exceptions, no RTTI of consequence) but **deep where it matters**: Kauai's `BaseClass`/`RTCLASS` object model and the inheritance trees in `engine` (`Movie : DocumentBase`, `MovieView : DocumentDisplayGraphicsObject`, every `*Undo*`, every `gob`, every easel).
-- Mechanical hand-rolled-vtables-in-C conversion across ~190k LOC. High risk of silent regressions in the chunky-file format and undo system, both of which threaten the `.3MM` compat constraint.
-- Does not unlock either of the other goals (Python bindings can be C-shim around C++; SDL port doesn't care about C vs C++).
+The engine owns movie data, resource resolution, evaluation, playback policy,
+editing and serialization. Studio and Marcus remain host applications over
+that backend. Studio's controls, easels and other UI code can remain C++;
+Marcus keeps its C application code and host adapters. Convert the Kauai and
+BRender wrapper functionality needed by the engine, or replace those
+dependencies with C89 services. A C++ dependency hidden behind a C header is
+an intermediate migration state, not completion of the backend conversion.
 
-If specific files annoy you, do targeted modernization. The rename pass (Project 0) is the right level of investment.
+The detailed sequence and acceptance criteria follow below. This work takes
+priority over the older Project 0-4 ordering wherever they conflict.
+
+## Shared C89 engine migration
+
+### Current status (11 November 2026)
+
+- The shared content VFS core, `libraries/content/src/content_vfs.c`, is C89;
+  `content_vfs.cpp` remains a C++ adapter. Reuse the existing core.
+- Marcus has C89 application sources and a C API in `src/marcus/player.h`,
+  but its player, playback and Archive/Preview implementations remain C++.
+  Its browser and preview-process components also contain C++ host code.
+- `engine-core` already groups stored data, actor evaluation and playback
+  policy, but remains C++ and links `kauai-core` and `brender-core`.
+  The `engine` target still owns further editing and playback functionality.
+- `ThreeMM::Archive` and `ThreeMM::Preview` provide useful separation, but their
+  C++ interfaces are migration inputs, not the final engine interface.
+- The existing `marcus-c89`, `content-vfs-c89` and `review-c89` checks passed
+  on 11 November. They check selected C sources, not a C89 engine backend.
+- Whole-engine conversion remains to be implemented. Existing C89 frontend
+  work does not count as completion of engine conversion.
+
+### Backend contract
+
+- Build the shared backend as C89/C90 with extensions disabled. Check its own
+  sources and public headers with `-std=c89 -pedantic-errors` and mixed
+  declaration/statement diagnostics. Include the headers from both C and C++.
+- Use opaque handles, plain C records, explicit ownership and lifetime rules,
+  integer results and explicit error reporting. No C++ types or exceptions
+  cross the interface. Use explicit context creation/destruction rather than
+  relying on application globals and hidden initialization order.
+- Define portable integer types using C89 facilities and checked widths; do
+  not require `stdint.h`, `long long` or LP64/LLP64 assumptions. Preserve wire
+  widths, byte order, signed arithmetic semantics and chunk references.
+- Supply host services through C callbacks/interfaces for streams, content,
+  rendering, audio output, clocks, fonts and diagnostics. Keep SDL, native
+  windows, dialogs, registry access and application UI outside engine policy.
+  External libraries may use newer toolchains behind documented C interfaces;
+  that does not permit project-owned engine logic to stay in C++.
+- Both hosts call one implementation for each migrated operation. Temporary
+  C++ facades translate existing calls and records without retaining a second
+  evaluator or playback policy. No permanent Studio/Marcus engine forks.
+
+### Conversion sequence
+
+1. **Map dependencies and establish the C89 target.** Inventory `engine-core`,
+   `engine`, Archive/Preview, Marcus playback and the Kauai/BRender services
+   they use. Assign each responsibility to backend or host. Add a backend
+   target, public C header and strict checks, with ownership and error contracts
+   sufficient for the first migrated operation. Record remaining C++ backend
+   dependencies explicitly; a bridge does not mark them converted.
+2. **Convert the first shared behavior slice.** Start with playback policy in
+   `src/engine/movie_playback.cpp` and `retail_scroll.cpp`, after checking their
+   dependencies and current callers. Move state and decisions into C89 and
+   route both Studio and Marcus through it. Keep presentation and device
+   output in hosts. Retire the replaced C++ logic after regression validation.
+3. **Convert engine foundations and data access.** Move required memory,
+   collections, strings, errors, streams, codecs and chunky-file operations
+   to C89 services. Reuse the content VFS. Convert movie/scene/actor/text/sound
+   records, version checks and resource/tag lookup while preserving stored
+   formats and missing-content behavior. Migrate Archive callers through the
+   shared C interface instead of adding a separate Marcus reader.
+4. **Convert evaluation and playback.** Migrate actor routes/tracks, state,
+   poses, actions/cels, seeks, scene changes, sound queues, captions and
+   transitions in dependency order. Adapt Preview and Studio rendering to
+   consume the same evaluated state. Keep BRender behavior and host renderer
+   adapters compatible while converting the required project-owned wrappers.
+5. **Convert editing and persistence.** Move movie/scene/actor mutations,
+   undo/redo data and save/load operations into the backend. Keep Studio UI
+   commands as callers. Preserve retail file versions and references, including
+   embedded assets; retain existing VMM/VXP support through the shared services.
+6. **Finish host integration and remove legacy backend paths.** Switch all
+   Studio and Marcus engine operations to the C backend, remove converted C++
+   implementations and temporary facades, and verify the backend builds and
+   links with a C toolchain without project-owned C++ engine dependencies.
+   Record external runtime/toolchain requirements separately.
+
+Steps 3-5 are dependency groups, not single large rewrites. Land small,
+reviewable slices with both callers updated and validation recorded for each.
+
+### Regression gate for each slice
+
+Use the existing [playback regression corpus](docs/tools/playback-regression.md)
+and [Playback Review](docs/tools/playback-review.md) as the primary playback
+safety net. Run both SDL Studio and Marcus explicitly; the runner's default
+player set does not include Marcus. Keep movie/content hashes, player builds,
+configuration and capture environment recorded with the evidence.
+
+- Establish pre-conversion results for affected cases, then compare both hosts
+  after conversion with the same inputs. Preserve retail as the `.3MM`
+  behavioral reference and v3dmm as an additional baseline; VMM cases use
+  applicable v3dmm evidence. Shared bugs are not evidence of retail parity.
+- Exercise absolute seeks and normal playback, including replay where state
+  reuse matters. Check images, actor/camera state, captions/scrolling,
+  transitions, audio and timing as applicable to the migrated behavior.
+- Treat new failures or unexplained differences as blockers for retiring the
+  old implementation. Keep known pre-existing differences documented; do not
+  silently update baselines or relax comparisons to hide conversion defects.
+- Respect the corpus's marker-semantics and coverage limits. An inconclusive
+  timing result or an untested feature is not a pass. Add focused headless
+  coverage for affected gaps; do not add Marcus UI tests.
+- Also run relevant existing engine/format tests and the C89 checks. Playback
+  coverage is the foundation, not proof that every edit/save path is correct:
+  validate semantic edit/undo/save/reopen behavior, wire layouts and chunk
+  reference integrity, and verify saved movies in retail. Do not require
+  byte-identical saved containers where physical layout can legitimately vary.
+
+### Immediate next work and completion
+
+Next: inventory dependencies and current callers for `movie_playback.cpp` and
+`retail_scroll.cpp`, record affected corpus cases and coverage gaps, establish
+results for both hosts, then implement the first shared C89 slice and its build
+checks. This is the start of full engine conversion, not its final scope.
+
+The migration is complete when Studio and Marcus use the same C89 engine for
+their engine operations, including Studio editing/saving, the backend builds
+without project-owned C++ engine dependencies, and the regression and format
+gates above pass within explicitly recorded coverage. A C API or C89 frontend
+alone does not meet this criterion.
 
 ---
 
@@ -102,6 +228,11 @@ Three test buckets that need no Project 1/2/3 dependency. Set these up early; th
 
 ## Project 2: library extraction + Python bindings
 
+**Updated direction:** Python bindings are an optional consumer of the shared
+C89 engine. The older extraction tasks below describe transitional work only;
+they do not replace the engine conversion or require completing Python bindings
+before Studio and Marcus adopt the C89 backend.
+
 **Why:** Enables `.3MM` inspection, batch conversion, and headless tooling without spinning up the studio app. Validates that engine is separable from UI — prerequisite for the SDL port.
 
 **The friction is not C++.** It's that `engine` depends on Kauai for non-data reasons: error stack (`PushErc`), memory primitives (`HQ`, `PvAddBv`), `String`/`StringTable_GST`, `DataVersion`, the chunky-file API, and `TagManager` (which scans drives for content). You don't get a clean "engine without UI" by shaving off `studio` — you get "engine + a chunk of Kauai's runtime."
@@ -111,7 +242,7 @@ Three test buckets that need no Project 1/2/3 dependency. Set these up early; th
 1. **Pre-flight survey.** Before designing the shim, grep `src/engine/` for includes of `appb.h`, `gob.h`, `dlg.h`, `cmd.h`, `cursor.h`, `menu.h`. Catalogue every UI-leaning header that engine pulls. The result calibrates the headless-Kauai effort and may surface engine code that needs lifting into `studio` first.
 2. **Headless Kauai.** Add CMake option `KAUAI_HEADLESS`. When set, swap `appbwin.cpp`, `gobwin.cpp`, `gfxwin.cpp`, `dlgwin.cpp`, `menuwin.cpp`, `picwin.cpp` for stubs returning `fFalse`/no-op. Keep file/fni/mem/region as-is (they're mostly std-C already).
 3. **Lazy/skip TagManager.** `vptagm`'s drive-scan triggers UI prompts when content sources are missing. Add a "no-prompt, fail-fast" mode used by headless callers. Tags that fail to resolve return `pvNil` instead of triggering a CD-search dialog.
-4. **Define `engine_capi.h`** — narrow C-callable shim. Realistic surface: **100-150 functions** (open/close, scene enumeration, actor enumeration, roll-call read, tag enumeration, chunk-level metadata, save). Do not try to mirror every method of `Movie`. Implementation stays C++. Each shim function wraps Kauai's `String`/`HQ`/`DataBlock` types and copies into POD output buffers — so Python sees `bytes`/`str`/`int`/list-of-dict, never opaque C++ objects.
+4. **Define the shared engine C API** — open/close, scene and actor enumeration, roll-call and tag access, metadata, evaluation, editing and save. Grow the interface with converted slices rather than mirroring every `Movie` method at once. Temporary C++ adapters copy legacy types into plain C records; replace their engine implementation with C89 under the migration above. Python sees `bytes`/`str`/`int`/list-of-dict, never opaque C++ objects.
 5. **`libsoc` shared lib target.** Links `engine + brender + kauai (headless) + audioman (stub)`, exports only the shim. `__declspec(dllexport)` on Windows, visibility attrs elsewhere.
 6. **Python binding via `cffi`.** `cffi` against a flat C ABI sidesteps the static-CRT/MSVC-ABI mess. `pybind11` would force Python and engine to share the C++ runtime — annoying with `MultiThreaded` static CRT.
 7. **Reuse `movie-chomp`.** `src/tools/movie_chomp.cpp` already opens `.3MM`, walks chunks, dumps the prefix and per-scene structures. Treat it as the prototype for the read side of the shim — extract its calls.
@@ -125,7 +256,7 @@ Extend the C ABI (task 4) with a small test-driver surface that the existing eng
 - `soc_movie_advance_frame(handle)` — drive scene playback in headless mode without a render target
 - `soc_set_tag_resolver(callback)` — let test code stub tag resolution rather than hitting the real `TagManager`
 
-**Round-trip test suite as a Project 2 done-criterion:** for every sample `.3MM` in `cd3/SAMPLES/`, open → save to a temp file → byte-diff against the source. This is the most direct check of the `.3MM` compat constraint and runs entirely from Python via the C ABI — no UI driving needed.
+**Round-trip test suite as a Project 2 done-criterion:** for every sample `.3MM` in `cd3/SAMPLES/`, open, save to a temp file, reopen and compare movie semantics, stored versions and chunk-reference integrity. Physical layout and chunk numbering can legitimately change; byte-identical containers are not a general save criterion. Keep strict format checks separate from normalized semantic comparisons and verify saved movies in retail before claiming compatibility. The headless C API supports this without UI driving.
 
 Two further test categories that fall out for free once the C ABI exists:
 
@@ -535,6 +666,12 @@ Bundles into roughly five phases:
 Each item is independently shippable and independently revertible.
 
 ## Sequencing
+
+**11 November 2026 update:** the shared C89 engine migration above is the active
+backend roadmap. Its slices integrate with the existing Studio and Marcus
+builds and use the playback regression corpus throughout. The Project 0-4
+sequence below is historical modernization context, not a requirement to defer
+engine conversion until Python bindings, another UI port or WASM is finished.
 
 1. **Project 0 (renames)** — already in flight. Background task; can interleave with anything else.
 2. **Project 1 (64-bit build)** — first real project. **Hard prerequisite for 3 and 4.** Don't start Project 2 until at least task 4 (sized-types audit) is done; otherwise the shim ABI bakes in `long`-width assumptions you'll have to redo.
