@@ -21,10 +21,10 @@ def number(value):
     return result
 
 
-def vertices(path):
+def vertices(path, view_box='0 0 40 44'):
     root = ET.parse(path).getroot()
-    if root.tag != '{http://www.w3.org/2000/svg}svg' or root.get('viewBox') != '0 0 40 44':
-        raise ValueError(f'{path.name}: expected SVG with viewBox="0 0 40 44"')
+    if root.tag != '{http://www.w3.org/2000/svg}svg' or root.get('viewBox') != view_box:
+        raise ValueError(f'{path.name}: expected SVG with viewBox="{view_box}"')
     if set(root.attrib) - {'viewBox', 'width', 'height', 'version'}:
         raise ValueError(f'{path.name}: unsupported SVG root attributes')
     result = []
@@ -78,6 +78,8 @@ def literal(value):
 
 def compile_header():
     icons = {name: vertices(ICONS / (name + '.svg')) for name in ('frame', 'play', 'pause', 'continue')}
+    icons.update({name: vertices(ICONS / (name + '.svg'), '0 0 28 20')
+                  for name in ('first_frame', 'previous_frame', 'next_frame', 'last_frame')})
     lines = [
         '/* Generated from src/marcus/icons/*.svg by tools/compile_marcus_vectors.py. */',
         '#ifndef MARCUS_UI_VECTORS_H', '#define MARCUS_UI_VECTORS_H',

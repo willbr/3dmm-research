@@ -272,8 +272,8 @@ void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enable
     if (ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, UI_NAVIGATION_HEIGHT))
         ui->hint = hint;
 }
-static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex *source, int count, float brightness,
-                        int enabled)
+static void draw_vector_scaled(MarcusUI *ui, float x, float y, const MarcusVectorVertex *source, int count,
+                               float scale_x, float scale_y, float brightness, int enabled)
 {
     SDL_Vertex vertices[MARCUS_VECTOR_MAX_VERTICES];
     float red, green, blue, grey;
@@ -291,8 +291,8 @@ static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex
         red *= brightness;
         green *= brightness;
         blue *= brightness;
-        vertices[i].position.x = x + source[i].x * UI_PLAY_WIDTH / MARCUS_VECTOR_WIDTH;
-        vertices[i].position.y = y + source[i].y * UI_PLAY_HEIGHT / MARCUS_VECTOR_HEIGHT;
+        vertices[i].position.x = x + source[i].x * scale_x;
+        vertices[i].position.y = y + source[i].y * scale_y;
         vertices[i].color.r = red > 1 ? 1 : red;
         vertices[i].color.g = green > 1 ? 1 : green;
         vertices[i].color.b = blue > 1 ? 1 : blue;
@@ -300,6 +300,33 @@ static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex
         vertices[i].tex_coord.x = vertices[i].tex_coord.y = 0;
     }
     SDL_RenderGeometry(ui->renderer, NULL, vertices, count, NULL, 0);
+}
+static void draw_vector(MarcusUI *ui, float x, float y, const MarcusVectorVertex *source, int count, float brightness,
+                        int enabled)
+{
+    draw_vector_scaled(ui, x, y, source, count, UI_PLAY_WIDTH / MARCUS_VECTOR_WIDTH,
+                       UI_PLAY_HEIGHT / MARCUS_VECTOR_HEIGHT, brightness, enabled);
+}
+void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint)
+{
+    static const MarcusVectorVertex *const artwork[4] = {
+        marcus_vector_first_frame, marcus_vector_previous_frame, marcus_vector_next_frame, marcus_vector_last_frame
+    };
+    static const int counts[4] = {
+        MARCUS_VECTOR_FIRST_FRAME_COUNT, MARCUS_VECTOR_PREVIOUS_FRAME_COUNT,
+        MARCUS_VECTOR_NEXT_FRAME_COUNT, MARCUS_VECTOR_LAST_FRAME_COUNT
+    };
+    int hovered, pressed;
+    float brightness;
+    if (action < 0 || action > 3)
+        return;
+    hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, 28, UI_NAVIGATION_HEIGHT);
+    pressed = enabled && hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
+    brightness = !enabled ? 0.55f : pressed ? 0.80f : hovered ? 1.10f : 1;
+    draw_vector_scaled(ui, x, y, artwork[action], counts[action], 1, UI_NAVIGATION_HEIGHT / 20.0f,
+                       brightness, enabled);
+    if (hovered)
+        ui->hint = hint;
 }
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {

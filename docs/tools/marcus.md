@@ -152,6 +152,12 @@ such as a click or the `--object` command-line option.
 
 The playback controls show the current movie position and total duration as
 `m:ss / m:ss`, or `h:mm:ss / h:mm:ss` for movies lasting an hour or more.
+The four frame-navigation buttons use scalable SVG redrawings of 3DMM's
+`frwe`, `frw`, `ffw` and `ffwe` artwork: bevelled grey faces, double arrows for
+previous/next, and stop bars for first/last. Editable sources are in
+`src/marcus/icons/{first,previous,next,last}_frame.svg`; regenerate the compiled
+geometry with `python tools/compile_marcus_vectors.py`. Hover, pressed and
+disabled feedback retain the existing controls' bounds and actions.
 Time spans all scenes and follows seeking, playback and scene looping. It includes
 scrolling text, timed pauses, sound waits and transitions between scenes. Click
 waits assume immediate acknowledgement, so time spent waiting for a click is

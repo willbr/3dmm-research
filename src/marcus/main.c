@@ -2729,13 +2729,13 @@ static void draw_timeline(App *app)
     ui_text(ui, 16, y + SCENE_NAV_Y + 1, "Scene", MUTED);
     ui_fill(ui, 68, y + FRAME_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
     ui_fill(ui, 68, y + SCENE_NAV_Y, 112, UI_NAVIGATION_HEIGHT, BG);
-    ui_navigation_button(ui, FRAME_NAV_X, y + FRAME_NAV_Y, 0, app->loaded && app->info.frame > app->info.first_frame,
+    ui_frame_button(ui, FRAME_NAV_X, y + FRAME_NAV_Y, 0, app->loaded && app->info.frame > app->info.first_frame,
                          "First frame");
-    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP, y + FRAME_NAV_Y, 1,
+    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP, y + FRAME_NAV_Y, 1,
                          app->loaded && app->info.frame > app->info.first_frame, "Previous frame");
-    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 2, y + FRAME_NAV_Y, 2,
+    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 2, y + FRAME_NAV_Y, 2,
                          app->loaded && app->info.frame < app->info.last_frame, "Next frame");
-    ui_navigation_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
+    ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
     ui_play_button(ui, PLAY_X, y + PLAY_Y, app->playing, app->playback.wait == 1, app->loaded);
     if (app->loaded && ui_inside(ui->mouse_x, ui->mouse_y, PLAY_X, y + PLAY_Y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
