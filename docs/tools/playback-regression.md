@@ -501,3 +501,49 @@ material, not a missing-texture fallback. The fixture writes texture pixels to
 a `TMAP` chunk, a referencing `MTRL` chunk, and actor costume events into the
 `.3mm` file. Retail loads those through its ordinary movie format; its installed
 model/texture resources are not replaced.
+
+## C89 playback-policy conversion (11 November 2026)
+
+The first [C89 engine slice](../code-map/library-split.md#c89-engine-backend)
+moves the playback/startup command evaluators, frame pacing and retail scrolling
+into `libraries/engine/`. Studio and Marcus use that implementation through
+temporary C++ facades. Rendering, devices, movie readers and actor evaluation
+remain outside this converted slice.
+
+Before/after captures use `tmp/playback-corpus-text-final/suite.json`, case
+`scrolling-text`, players `retail,sdl,marcus`, modes `seek,playback`, preparation
+`fresh-process`, and two repetitions. Evidence stays in:
+
+- Before: `tmp/c89-policy-before/playback.sqlite`, suite
+  `20261111T145154Z-dc569437`.
+- After: `tmp/c89-policy-after/playback.sqlite`, suite
+  `20261111T150201Z-c1d94263`.
+- The local cross-database report is `tmp/c89-policy-comparison.json`.
+
+Both suites have ten complete and two incomplete runs and remain
+**inconclusive**, with ten different and nine inconclusive component comparisons
+against their references. These totals are not a parity claim. Comparing each
+player with its own pre-conversion capture gives:
+
+| Observation | Before/after result |
+| --- | --- |
+| Retail, SDL Studio and Marcus absolute seeks | All 60 frame images match exactly in both repetitions for each player. |
+| Retail and SDL Studio normal playback | All 60 authored frame positions retain their order in both repetitions. |
+| Retail and SDL Studio continuous pixels | Each pass has the same ordered 328 image changes before and after, comparing exact pixel hashes and scene/frame coordinates while collapsing only adjacent identical images. Raw duplicate samples and timing evidence are retained. |
+| Marcus normal playback | Incomplete on both sides. Before records an empty capture error and an image queue overflow; after records an image queue overflow and failure to settle audio to silence before Play. No continuous-playback verdict is issued. |
+
+Retail timing already varies between repetitions; existing marker-semantics
+restrictions still apply. Capture/environment failures are not changed to
+passes. The scrolling fixture does not cover every startup failure, pause or
+fade branch, nor editing/persistence.
+
+Focused validation supplements that evidence: `engine-c89`,
+`engine-c89-syntax`, `engine-core-link`, `movie-save-load`, `marcus-c89`,
+`marcus-player` and `marcus-playback` pass. The library also builds and passes
+its two standalone checks using a C-only Clang configuration. A one-off
+differential check against the C++ policy at `6f070a33` matched 50,000 seeded
+playback command/state traces, 50,000 startup command/state traces and 50,000
+wrapping-clock calculations, including host state changes between replies.
+That check exercises policy equivalence; it does not replace the missing
+Marcus live-capture evidence or establish broader engine parity. No Marcus UI
+tests were added.

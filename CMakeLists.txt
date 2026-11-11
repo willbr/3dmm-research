@@ -236,6 +236,7 @@ if(STUDIO_SDL3)
   target_link_libraries(window-lifecycle-sdl-test PRIVATE kauai SDL3::SDL3-static)
 endif()
 include(CTest)
+add_subdirectory(libraries/engine)
 
 cmake_dependent_option(3DMM_PACKAGE_WIX "Generate an MSI via WiX" ON "BUILD_PACKAGES AND DEFINED ENV{WIX}" OFF)
 cmake_dependent_option(3DMM_PACKAGE_ZIP "Generate a portable ZIP" ON "BUILD_PACKAGES" OFF)
@@ -1055,7 +1056,7 @@ target_include_directories(engine-core PUBLIC
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
-target_link_libraries(engine-core PUBLIC kauai-core brender-core)
+target_link_libraries(engine-core PUBLIC kauai-core brender-core three-mm-engine-c89)
 add_executable(script-name-test EXCLUDE_FROM_ALL tests/script_name_test.cpp)
 target_link_libraries(script-name-test PRIVATE kauai-core)
 add_executable(brender-list-test EXCLUDE_FROM_ALL tests/brender_list_test.c)
@@ -1432,6 +1433,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
+  engine-c89-test
   global-cleanup-test
   preview-checks
   mbmp-pixels-test

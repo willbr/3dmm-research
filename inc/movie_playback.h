@@ -3,6 +3,7 @@
 #ifndef MOVIE_PLAYBACK_H
 #define MOVIE_PLAYBACK_H
 #include <cstdint>
+#include "three_mm/playback.h"
 #include "scene_data.h"
 #include "socdef.h"
 
@@ -13,40 +14,46 @@ const LegacyLong kPlaybackFadeTicks = kdtimSecond / 4;
 
 // Movie-frame pacing only. Other alarms retain their authored timing. Negative
 // FPS selects the original clock; zero removes the frame delay, not pauses.
-struct MovieFramePacer
+struct MovieFramePacer : ThreeMMFramePacer
 {
-    double fps = -1, fraction = 0;
-    LegacyUlong due = 0, pausedAt = 0;
-    bool pending = false;
-    void Reset(double rate);
-    void Schedule(LegacyUlong frameStart);
-    bool TakeDue(LegacyUlong now);
-    void Pause(LegacyUlong now);
-    void Resume(LegacyUlong now);
+    MovieFramePacer()
+    {
+        three_mm_frame_pacer_init(this);
+    }
+    void Reset(double rate)
+    {
+        three_mm_frame_pacer_reset(this, rate);
+    }
+    void Schedule(LegacyUlong now)
+    {
+        three_mm_frame_pacer_schedule(this, now);
+    }
+    bool TakeDue(LegacyUlong now)
+    {
+        return three_mm_frame_pacer_take_due(this, now) != 0;
+    }
+    void Pause(LegacyUlong now)
+    {
+        three_mm_frame_pacer_pause(this, now);
+    }
+    void Resume(LegacyUlong now)
+    {
+        three_mm_frame_pacer_resume(this, now);
+    }
 };
 
-struct MoviePlaybackState
+// Transitional facade: all policy state and decisions live in the C backend.
+struct MoviePlaybackState : ThreeMMPlaybackState
 {
     MovieFramePacer framePacer;
-    bool unpaced = false; // Enabled only by the opt-in batch-test host.
-    LegacyLong skippedClickPauses = 0, skippedTimedPauses = 0, skippedSoundPauses = 0;
-    bool playing = false;
-    bool scrolling = false;
-    bool pausing = false;
-    bool idleSeen = false;
-    bool stopRequested = false;
-    bool soundsEnabled = false;
-    bool oldSoundsEnabled = false;
-    LegacyUlong startTimestamp = 0;
-    LegacyLong renderedFrames = 0;
-    WaitReason wait = witNil;
-    LegacyLong pauseTicks = 0;
-    TRANS transition = transNil;
-    LegacyLong fadeOriginalVolume = 0;
-    bool suppressAudioFades = false;
-    bool fadeChangedVolume = false;
-    LegacyLong fadeVolume = -1; // Logical progress while output volume is held constant.
-    bool FShouldRender(bool tracking);
+    MoviePlaybackState()
+    {
+        three_mm_playback_state_init(this);
+    }
+    bool FShouldRender(bool tracking)
+    {
+        return three_mm_playback_should_render(this, tracking) != 0;
+    }
 };
 
 struct MoviePlaybackTestProgress
@@ -70,23 +77,23 @@ struct MoviePlaybackPosition
 
 enum class MoviePlaybackCommandKind
 {
-    Stop,
-    ReadVolume,
-    SetVolume,
-    ScrollText,
-    PresentFrame,
-    DisplayFrame,
-    QueryScrolling,
-    SetClickPause,
-    QuerySound,
-    ReadTime,
-    SetAlarm,
-    ReadPosition, // Host first disables text-box evaluation, then supplies scene facts.
-    SwitchScene,
-    ReplayScene,
-    AdvanceFrame,
-    RenderWorld,
-    Finished
+    Stop = THREE_MM_PLAYBACK_STOP,
+    ReadVolume = THREE_MM_PLAYBACK_READ_VOLUME,
+    SetVolume = THREE_MM_PLAYBACK_SET_VOLUME,
+    ScrollText = THREE_MM_PLAYBACK_SCROLL_TEXT,
+    PresentFrame = THREE_MM_PLAYBACK_PRESENT_FRAME,
+    DisplayFrame = THREE_MM_PLAYBACK_DISPLAY_FRAME,
+    QueryScrolling = THREE_MM_PLAYBACK_QUERY_SCROLLING,
+    SetClickPause = THREE_MM_PLAYBACK_SET_CLICK_PAUSE,
+    QuerySound = THREE_MM_PLAYBACK_QUERY_SOUND,
+    ReadTime = THREE_MM_PLAYBACK_READ_TIME,
+    SetAlarm = THREE_MM_PLAYBACK_SET_ALARM,
+    ReadPosition = THREE_MM_PLAYBACK_READ_POSITION,
+    SwitchScene = THREE_MM_PLAYBACK_SWITCH_SCENE,
+    ReplayScene = THREE_MM_PLAYBACK_REPLAY_SCENE,
+    AdvanceFrame = THREE_MM_PLAYBACK_ADVANCE_FRAME,
+    RenderWorld = THREE_MM_PLAYBACK_RENDER_WORLD,
+    Finished = THREE_MM_PLAYBACK_FINISHED
 };
 
 struct MoviePlaybackCommand
@@ -101,8 +108,8 @@ struct MoviePlaybackReply
     // Checked for presentation, scene/frame advance and ordinary alarms.
     // Void effects and the legacy best-effort timed-pause alarm ignore it.
     bool success = true;
-    bool value = false; // Scrolling / non-loop sound queries.
-    LegacyLong number = 0;    // Current volume.
+    bool value = false;    // Scrolling / non-loop sound queries.
+    LegacyLong number = 0; // Current volume.
     LegacyUlong timestamp = 0;
     MoviePlaybackPosition position;
 };
@@ -124,62 +131,27 @@ class MoviePlaybackEvaluator
     static LegacyLong FrameDelay(LegacyUlong frameStart, LegacyUlong now);
 
   private:
-    enum class Phase
-    {
-        Start,
-        Stop,
-        ReadVolume,
-        SetVolume,
-        FadeAlarm,
-        Scroll,
-        ScrollAlarm,
-        Present,
-        Display,
-        QueryScrolling,
-        StartScrollAlarm,
-        CheckPause,
-        ClickOn,
-        QuerySound,
-        SoundAlarm,
-        TimedAlarm,
-        ClickOff,
-        ReadTime,
-        FrameAlarm,
-        ReadPosition,
-        SwitchScene,
-        ReplayScene,
-        AdvanceFrame,
-        Render,
-        Done
-    };
-    MoviePlaybackState &_state;
-    LegacyUlong _frameStart;
-    Phase _phase = Phase::Start;
-    bool _waiting = false;
-    LegacyLong _volume = 0;
-    LegacyLong _delay = 0;
-    MoviePlaybackPosition _position;
-    MoviePlaybackCommand _Command(MoviePlaybackCommandKind kind, LegacyLong value = 0, bool flag = false);
+    ThreeMMPlaybackEvaluator _backend;
 };
 
 enum class MoviePlayCommandKind
 {
-    RenderStop,
-    CheckScene,
-    ResetSounds,
-    QueryEnd,
-    Rewind,
-    ReadTime,
-    StartClock, // Host starts clock, publishes playing=true, then sets the initial alarm.
-    PrepareScene,
-    NotifyStopped,
-    StartupFailed, // flag=true requests deferred stop; false clears playing.
-    DisableAccelerators,
-    QueryOpening,
-    RefreshOpening,
-    BackgroundSound,
-    DispatchSounds, // flag selects play rather than flush.
-    Finished
+    RenderStop = THREE_MM_PLAY_RENDER_STOP,
+    CheckScene = THREE_MM_PLAY_CHECK_SCENE,
+    ResetSounds = THREE_MM_PLAY_RESET_SOUNDS,
+    QueryEnd = THREE_MM_PLAY_QUERY_END,
+    Rewind = THREE_MM_PLAY_REWIND,
+    ReadTime = THREE_MM_PLAY_READ_TIME,
+    StartClock = THREE_MM_PLAY_START_CLOCK,
+    PrepareScene = THREE_MM_PLAY_PREPARE_SCENE,
+    NotifyStopped = THREE_MM_PLAY_NOTIFY_STOPPED,
+    StartupFailed = THREE_MM_PLAY_STARTUP_FAILED,
+    DisableAccelerators = THREE_MM_PLAY_DISABLE_ACCELERATORS,
+    QueryOpening = THREE_MM_PLAY_QUERY_OPENING,
+    RefreshOpening = THREE_MM_PLAY_REFRESH_OPENING,
+    BackgroundSound = THREE_MM_PLAY_BACKGROUND_SOUND,
+    DispatchSounds = THREE_MM_PLAY_DISPATCH_SOUNDS,
+    Finished = THREE_MM_PLAY_FINISHED
 };
 
 struct MoviePlayCommand
@@ -203,31 +175,6 @@ class MoviePlayEvaluator
     void Complete(const MoviePlaybackReply &reply);
 
   private:
-    enum class Phase
-    {
-        Toggle,
-        RenderStop,
-        CheckScene,
-        ResetSounds,
-        QueryEnd,
-        Rewind,
-        Begin,
-        ReadTime,
-        StartClock,
-        PrepareScene,
-        NotifyStopped,
-        ClockFailed,
-        PrepareFailed,
-        DisableAccelerators,
-        QueryOpening,
-        RefreshOpening,
-        BackgroundSound,
-        DispatchSounds,
-        Done
-    };
-    MoviePlaybackState &_state;
-    Phase _phase = Phase::Toggle;
-    bool _waiting = false;
-    MoviePlayCommand _Command(MoviePlayCommandKind kind, bool flag = false);
+    ThreeMMPlayEvaluator _backend;
 };
 #endif

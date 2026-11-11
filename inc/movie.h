@@ -860,7 +860,7 @@ class Movie : public Movie_PAR
     void MarkViews(void);        // Marks all views on the movie.
     TRANS Trans(void)
     {
-        return _playback.transition;
+        return static_cast<TRANS>(_playback.transition);
     } // Current transition in effect.
     void SetTrans(TRANS trans)
     {

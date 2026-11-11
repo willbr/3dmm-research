@@ -23,6 +23,45 @@ inspector supplies a portable UI host. Studio also has
 SDL playback/editing and device adapters, with a Windows build that exercises
 its portable GUI runtime; see the [current verification](../tools/studio-sdl.md).
 
+## C89 engine backend
+
+`three-mm-engine-c89` in `libraries/engine/` is the first implementation slice
+of the [shared C89 engine migration](../../plan.md#shared-c89-engine-migration).
+Its public header is `three_mm/playback.h`. It owns playback/startup command
+sequencing, wait/fade/scene-advance decisions, fractional movie-frame pacing,
+the idle-render gate and retail scrolling policy. Its only library dependency
+is the C runtime; no Kauai, BRender, SDL, C++ or native platform headers enter
+the public interface or implementation.
+
+| Caller / dependency | Boundary after the first slice |
+| --- | --- |
+| Studio `Movie::Play`, `Movie::FCmdRender` | Apply commands through the `MoviePlayEvaluator` / `MoviePlaybackEvaluator` C++ facades; policy state is the shared C record. |
+| Marcus `playback.cpp` | Uses `RetailScrollPlayback`, a facade over the C scrolling adapter and the same C playback evaluator. Marcus's other presentation/audio logic remains C++. |
+| `movie_playback.cpp`, `retail_scroll.cpp` | Translate calls/replies only; the replaced policy implementation lives in C. |
+| Host clocks, views, audio and scene effects | Execute commands and supply facts at the existing query points; retain device and resource ownership. |
+| `engine-core`, `engine`, Archive/Preview, Kauai/BRender wrappers | Still require C++ outside the converted slice; these remain migration work. |
+
+The C interface has caller-owned stack records and explicit initialization.
+Evaluators borrow live playback state, so scene effects can change waits
+between command replies. Apply and acknowledge commands in order, then stop
+at `FINISHED`. Protocol misuse returns failure. Timestamps use checked-width
+32-bit C89 types with wrapping arithmetic, preserving legacy rounding without
+C99 integers or a dependency on the Kauai arithmetic runtime.
+
+Build and test this slice independently using only a C compiler:
+
+```console
+cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
+cmake --build build/engine-c89 --target engine-c89-test
+ctest --test-dir build/engine-c89 --output-on-failure
+```
+
+The root build also registers `engine-c89` and `engine-c89-syntax`; the latter
+uses strict C89 diagnostics when Clang or GCC is present. Existing
+`engine-core-link`, `movie-save-load`, `marcus-player` and `marcus-playback`
+tests cover the facades and runtime integration. Playback corpus evidence and
+its limits are recorded in [playback regression](../tools/playback-regression.md).
+
 ## Why the split exists
 
 The shared [public archive API](../../libraries/archive/README.md) now insulates

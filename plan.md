@@ -61,14 +61,18 @@ priority over the older Project 0-4 ordering wherever they conflict.
   but its player, playback and Archive/Preview implementations remain C++.
   Its browser and preview-process components also contain C++ host code.
 - `engine-core` already groups stored data, actor evaluation and playback
-  policy, but remains C++ and links `kauai-core` and `brender-core`.
+  policy. Its playback/startup command evaluators, frame pacer and scrolling
+  policy now delegate to `three-mm-engine-c89` in `libraries/engine/`.
+  The remaining core is C++ and links `kauai-core` and `brender-core`.
   The `engine` target still owns further editing and playback functionality.
 - `ThreeMM::Archive` and `ThreeMM::Preview` provide useful separation, but their
   C++ interfaces are migration inputs, not the final engine interface.
 - The existing `marcus-c89`, `content-vfs-c89` and `review-c89` checks passed
   on 11 November. They check selected C sources, not a C89 engine backend.
-- Whole-engine conversion remains to be implemented. Existing C89 frontend
-  work does not count as completion of engine conversion.
+- The first engine conversion slice is implemented; whole-engine conversion
+  remains incomplete. The new library builds independently with a C-only
+  toolchain and has strict C89 and standalone C API checks. See the
+  [dependency boundary and build commands](docs/code-map/library-split.md#c89-engine-backend).
 
 ### Backend contract
 
@@ -157,10 +161,14 @@ configuration and capture environment recorded with the evidence.
 
 ### Immediate next work and completion
 
-Next: inventory dependencies and current callers for `movie_playback.cpp` and
-`retail_scroll.cpp`, record affected corpus cases and coverage gaps, establish
-results for both hosts, then implement the first shared C89 slice and its build
-checks. This is the start of full engine conversion, not its final scope.
+The first slice moves the decisions in `movie_playback.cpp` and
+`retail_scroll.cpp` into C89; existing C++ callers use temporary facades over
+the same C state and evaluators. This is the start of full engine conversion.
+Next: inventory the remaining engine data-access dependencies, reuse the C89
+content VFS, and convert the stream/chunky-file foundations needed by the first
+movie-data slice. Extend the C API and regression coverage as each dependency
+is removed. Editing, actor evaluation, rendering integration and persistence
+remain on the sequence above.
 
 The migration is complete when Studio and Marcus use the same C89 engine for
 their engine operations, including Studio editing/saving, the backend builds

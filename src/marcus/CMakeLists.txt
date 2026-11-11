@@ -6,7 +6,7 @@ add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input
 target_compile_features(marcus-player PRIVATE cxx_std_17)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(marcus-player PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/bren/inc")
-target_link_libraries(marcus-player PRIVATE ThreeMM::Preview studio-pack-store studio-settings SDL3::SDL3-static
+target_link_libraries(marcus-player PRIVATE ThreeMM::Preview three-mm-engine-c89 studio-pack-store studio-settings SDL3::SDL3-static
   kauai-sdl-audio kauai-midi-synth kauai-font-host miniz Threads::Threads)
 target_compile_definitions(marcus-player PRIVATE MARCUS_MIDI_BANK="${KAUAI_MIDI_BANK_FILE}")
 

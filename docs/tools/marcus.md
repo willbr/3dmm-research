@@ -773,13 +773,18 @@ and borrowed RGBA pixels. No C++, native platform or SDL types escape that API.
 caption composition and presentation timing. `content.cpp` adapts the
 shared C89 VFS to the existing pack and bundle libraries. Exceptions stop at the
 C boundary. `Preview::Objects()` supplies evaluated actor state.
+The shared playback/startup policy, frame pacer and retail scrolling evaluator
+now live in the C89 `three-mm-engine-c89` library. Marcus's scrolling facade
+and Studio's playback facades delegate to it; the remaining backend still uses
+C++. See the [engine boundary](../code-map/library-split.md#c89-engine-backend).
 The audio callback uses decoded clips and synthesizers, never the renderer,
 archive readers or UI. The renderer and legacy readers retain their single-thread
 ownership rule.
 
 This is **C89 application source over modern libraries**, not a strict-C89 port
 of every dependency. SDL headers still use boolean/64-bit extensions; SDL and
-FreeType headers are system headers during C89 checking. The backend is C++.
+FreeType headers are system headers during C89 checking. Engine conversion is
+incremental; a C89 frontend does not establish whole-backend C89 compatibility.
 
 ```console
 cmake --build build/marcus --target marcus marcus-player-test marcus-playback-test marcus-content-test marcus-zip-test marcus-caption-quad-test marcus-renderer-test preview-scene-fixture
