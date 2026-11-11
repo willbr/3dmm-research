@@ -4,6 +4,8 @@
 #include <cstring>
 #include <cmath>
 #include <vector>
+#include <algorithm>
+#include <string>
 #include "soc_core.h"
 #include "rich_text_data.h"
 ASSERTNAME
@@ -185,15 +187,18 @@ static bool AudioCues(PChunkyFile file, ChunkNumber scene, PGeneralGroup frames)
     return true;
 }
 
+
+#include "textbox_acid_fixture.h"
+
 int main(int argc, char **argv)
 {
     if (argc != 4 && argc != 5 &&
         !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0 ||
                         std::strcmp(argv[5], "--events") == 0 || std::strcmp(argv[5], "--audio") == 0 ||
-                        std::strcmp(argv[5], "--static-text") == 0 || std::strcmp(argv[5], "--scrolling-text") == 0)))
+                        std::strcmp(argv[5], "--static-text") == 0 || std::strcmp(argv[5], "--scrolling-text") == 0 || std::strcmp(argv[5], "--text-acid") == 0)))
     {
         std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES "
-                             "[--batch|--dissolve|--events|--audio|--static-text|--scrolling-text]]\n");
+                             "[--batch|--dissolve|--events|--audio|--static-text|--scrolling-text|--text-acid]]\n");
         return 2;
     }
     const bool movie = argc >= 5;
@@ -227,6 +232,12 @@ int main(int argc, char **argv)
     auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
     if (!file)
         return 1;
+    if (argc == 6 && std::strcmp(argv[5], "--text-acid") == 0)
+    {
+        const bool ok = TextAcid::Write(file);
+        ReleasePpo(&file);
+        return ok ? 0 : 1;
+    }
     SceneData scene;
     ChunkNumber sceneNumber;
     scene.firstFrame = batch ? -2 : 1;

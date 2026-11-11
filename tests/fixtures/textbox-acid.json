@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "cases": [
+    {
+      "name": "text-acid",
+      "path": "textbox-acid.3mm",
+      "sha256": "b1e368d2c9c934c4c7f669a05c72ebac03ea32c9c416c630b4defa70cf9e3498",
+      "reference": "retail",
+      "features": [
+        "background",
+        "2d-text",
+        "scrolling-text",
+        "transition-cut"
+      ],
+      "players": [
+        "retail",
+        "v3dmm",
+        "sdl",
+        "marcus"
+      ],
+      "expected_audio": "silent",
+      "text_acid_contract": 1
+    }
+  ]
+}

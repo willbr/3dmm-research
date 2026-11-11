@@ -65,6 +65,8 @@ def load_manifest(path):
         unknown = set(case['features']) - set(FEATURES)
         if unknown:
             raise ValueError('Unknown features: ' + ', '.join(sorted(unknown)))
+        if 'text_acid_contract' in case and case['text_acid_contract'] != 1:
+            raise ValueError('Unsupported Text Acid contract version')
         case['path'] = (path.parent / case['path']).resolve()
         if not case['path'].is_file():
             raise ValueError('Missing movie: ' + str(case['path']))
@@ -259,7 +261,46 @@ def import_presentations(store, run, trace):
         path.unlink()
 
 
+def verify_text_acid(player, mode, report):
+    if player == 'marcus':
+        return # This adapter does not expose native text-box state yet.
+    if mode == 'playback':
+        frames = {(f['scene'], f['frame']): f['monotonic_ns'] for f in report['trace']['frames']}
+        if (report['expected_scene_count'] != 4 or (2, 3) not in frames or (2, 4) not in frames or
+                frames[2, 4] - frames[2, 3] < 1000000000):
+            raise RuntimeError('Text Acid did not exercise its four pages and scrolling hold')
+        return
+    observations = report.get('text_observations', [])
+    counts = [12, 11, 4, 4]
+    if {item['scene'] for item in observations} != set(range(4)):
+        raise RuntimeError('Text Acid page missing')
+    for item in observations:
+        page = item['scene']
+        if item['count'] != counts[page]:
+            raise RuntimeError('Text Acid box missing')
+        if player != 'sdl':
+            continue
+        boxes = item.get('boxes') or []
+        if len(boxes) != counts[page] or not boxes[0]['text'].startswith('TEXT ACID / '):
+            raise RuntimeError('Text Acid content missing')
+        if page == 0:
+            for prefix, alignment in [('LEFT', 'left'), ('CENTER', 'center'), ('RIGHT', 'right')]:
+                if not any(b['text'].startswith(prefix) and b['align'] == alignment for b in boxes):
+                    raise RuntimeError('Text Acid paragraph alignment changed')
+            if not any(b['text'].startswith('Normal |') and b['first_font'] == 'Arial' and
+                       b['last_font'] == 'Courier New' for b in boxes):
+                raise RuntimeError('Text Acid mixed font run missing')
+        if page == 1:
+            for label, first, end in [('Frames 1-19', 1, 20), ('Frames 20-39', 20, 40), ('Frames 40-60', 40, 61)]:
+                if not any(b['text'].strip() == label and b['visible'] == (first <= item['frame'] < end) for b in boxes):
+                    raise RuntimeError('Text Acid lifetime boundary changed')
+        if page == 3 and not any(b['text'].startswith('Missing font sample:') and b['visible'] for b in boxes):
+            raise RuntimeError('Text Acid lost the missing-font sample')
+
+
 def verify_feature_observations(case, player, mode, report):
+    if case.get('text_acid_contract'):
+        verify_text_acid(player, mode, report)
     if case.get('text_contract') and mode == 'seek' and player != 'marcus':
         observations = report.get('text_observations', [])
         if not observations or any(item['count'] != 1 for item in observations):
@@ -652,6 +693,7 @@ def prepare(args):
         ('actor-events', '--events', basic + ['rotation', 'scale', 'stretch', 'freeze', 'entrance-exit']),
         ('dissolve', '--dissolve', basic + ['transition-dissolve']),
         ('sampled-audio', '--audio', basic + ['sampled-speech', 'sampled-effects']),
+        ('text-acid', '--text-acid', ['background', '2d-text', 'scrolling-text', 'transition-cut']),
         ('static-text', '--static-text', basic + ['2d-text']),
         ('scrolling-text', '--scrolling-text', basic + ['2d-text', 'scrolling-text']),
     ):
@@ -665,6 +707,8 @@ def prepare(args):
         cases.append({'name': name, 'path': movie.name, 'sha256': digest(movie),
                       'reference': 'retail', 'features': features, 'players': list(PLAYERS),
                       'expected_audio': 'audible' if option == '--audio' else 'silent'})
+        if name == 'text-acid':
+            cases[-1]['text_acid_contract'] = 1
         if name in ('static-text', 'scrolling-text'):
             cases[-1]['text_contract'] = {'first_frame': 3, 'max_frame': 25 if name == 'static-text' else 31,
                                          'prefix': 'Static words' if name == 'static-text' else 'Scrolling credits'}

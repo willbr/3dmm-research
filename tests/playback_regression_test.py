@@ -19,6 +19,33 @@ from playback_regression import compare_runs, compare_suite, load_manifest, revi
 
 
 class Measurements(unittest.TestCase):
+    def test_checked_in_text_acid_manifest_is_hash_pinned(self):
+        path = Path(__file__).parent / 'fixtures/textbox-acid.json'
+        case = load_manifest(path)['cases'][0]
+        self.assertEqual(case['text_acid_contract'], 1)
+        self.assertEqual(case['reference'], 'retail')
+        self.assertIn('scrolling-text', case['features'])
+
+
+    def test_acid_requires_all_pages_boxes_and_credit_hold(self):
+        case = {'features': ['2d-text', 'scrolling-text'], 'text_acid_contract': 1}
+        report = {'text_observations': [{'scene': i, 'count': n} for i, n in enumerate((12, 11, 4, 4))]}
+        verify_feature_observations(case, 'retail', 'seek', report)
+        report['text_observations'][3]['count'] = 3
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'retail', 'seek', report)
+        report['text_observations'].pop()
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'retail', 'seek', report)
+        playback = {'expected_scene_count': 4, 'trace': {'frames': [
+            {'scene': 2, 'frame': 3, 'monotonic_ns': 0},
+            {'scene': 2, 'frame': 4, 'monotonic_ns': 166000000}]}}
+        with self.assertRaises(RuntimeError):
+            verify_feature_observations(case, 'retail', 'playback', playback)
+        playback['trace']['frames'][1]['monotonic_ns'] = 2000000000
+        verify_feature_observations(case, 'retail', 'playback', playback)
+
+
     def test_text_fixture_requires_content_and_visibility_boundaries(self):
         case = {'features': ['2d-text'], 'text_contract':
                 {'first_frame': 3, 'max_frame': 25, 'prefix': 'Static words'}}

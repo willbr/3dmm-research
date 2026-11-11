@@ -3,8 +3,8 @@
 `tools/playback_regression.py` runs a hash-pinned movie corpus serially through
 retail, original v3dmm, SDL Studio and Marcus on Windows. Observations and scoped
 comparisons go into `playback.sqlite`; PNGs, WAVs, logs and original capture
-journals stay alongside it. Nothing from the movie corpus is committed or
-saved over. This is playback-quality evidence, not a declaration of parity.
+journals stay alongside it. Imported movies are never committed or saved over;
+the small, project-authored Text Acid fixture is checked in for direct use. This is playback-quality evidence, not a declaration of parity.
 
 The default comparison targets are **retail, v3dmm and SDL**, with SDL parity
 the current priority. Add `--players retail,v3dmm,sdl,marcus` to include Marcus.
@@ -12,7 +12,8 @@ the current priority. Add `--players retail,v3dmm,sdl,marcus` to include Marcus.
 The initial generated corpus contains six two-scene movies (60 authored frames
 each): general rendering/animation, actor event changes, a dissolve transition,
 sampled speech/effects with distinct quiet 600 Hz and 1300 Hz cues, static
-text boxes and scrolling credits. The feature catalog explicitly reports features that still lack cases. A feature
+text boxes and scrolling credits. A separate four-scene, 240-frame Text Acid
+movie exercises text features together. The feature catalog explicitly reports features that still lack cases. A feature
 tag says the fixture exercises it; it does not say that feature passes.
 
 ## Build and prepare
@@ -345,3 +346,49 @@ SDL's private test settings explicitly enable `MuteStartupSound` and
 remains enabled. These changes affect oracle/regression processes only, and do
 not change personal settings. Marcus's headless regression player has no Studio
 startup/UI sounds. The pre-Play silence check remains a capture validity check.
+
+## Text Acid movie
+
+`prepare` also generates **`text-acid.3mm`** (`--text-acid` in the native
+fixture author). It has four labelled 60-frame scenes, no actors, and 31 text
+boxes in total. It references the standard retail background library; it does
+not bundle fonts or copyrighted background assets. Use `--case text-acid` in
+the existing run command to compare it in retail, v3dmm and SDL.
+
+| Scene | What to inspect |
+|---|---|
+| 1: Typography | Arial, Times New Roman and Courier New; sizes 12/16/20/24; plain, bold, italic and combined style; font, size, style and colour changes within one box; red/green/blue text; white/black/yellow fills; left/centre/right paragraphs; transparent background. |
+| 2: Geometry and lifetime | Narrow/wide wrapping examples, paragraphs, multiple spaces, a tab, long unbroken text, edge clipping, opaque overlapping boxes and a transparent overlay. The bottom-right box changes red ? green ? blue at frames 20 and 40, with exactly one label visible. |
+| 3: Credits | Two simultaneous scrolling boxes with different fonts/styles, centre/right alignment, opaque/transparent backgrounds, and clipping. Both appear at frame 3 and disappear at frame 31. Replaying should restart the credits. |
+| 4: Missing font | The deliberately absent `3DMM_Acid_Missing_7F5C2A` alongside an Arial control. Check legibility, metrics, fallback appearance and persistence. The test installs no substitute. |
+
+The `text_acid_contract` checks page/box counts, SDL paragraph alignment,
+mixed font runs, lifetime boundaries and preservation of the missing-font
+sample. Playback must exercise the credit hold. Exact viewport comparisons
+remain separate: passing the content contract is not a visual parity pass.
+Continuous moving-credit pixels still need the original-runtime image observer.
+
+A movie file stores the **results** of authoring, not an editing history. To
+exercise editor operations, use a copy: move and resize a box, select and replace
+a text range, cut/copy/paste, duplicate a box, switch story ? credits, undo and
+redo each operation, then save/reopen and compare content, formatting, bounds,
+type and lifetime. The paired-width boxes demonstrate reflow but do not prove
+interactive resize or undo correctness. These editor workflow checks are not
+claimed as automated by the Acid movie. Underlining and arbitrary Unicode/glyph
+coverage are also not claimed.
+
+The reusable authored file is `tests/fixtures/textbox-acid.3mm`, with its
+hash-pinned single-case manifest at `tests/fixtures/textbox-acid.json`. Use
+`--manifest tests/fixtures/textbox-acid.json` with the existing run command.
+Reference PNGs, recorded states, PCM and comparisons are retained together under
+`tmp/textbox-acid-fonts-results/`. The exact nonexistent font resolves to
+`System` in SDL on this Windows 11 host, while `font_fallbacks` stays zero;
+inspect the effective font and image instead of trusting that counter alone.
+
+The final four-scene run completed six captures and 720 seek images. V3dmm
+matched all 240 retail frames; SDL differed on all 240, totalling 3,780 changed
+pixels. The missing-font sample rectangle itself matched retail exactly on
+scene 4/frame 1 (zero changed pixels), while that full page differed by 11
+pixels elsewhere. All six recorded runs passed the final Acid contract checks
+stored in `text-acid-contract-checks.json`. These are Windows 11 smoke results,
+not proof of all-platform or continuously scrolling image parity.
