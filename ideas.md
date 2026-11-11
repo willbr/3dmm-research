@@ -153,3 +153,11 @@
         * https://help.autodesk.com/cloudhelp/2019/ENU/3DSMax-Animation/files/GUID-B084D14B-2925-4EA6-890F-4F2564BB9D9A.htm
         * https://help.autodesk.com/cloudhelp/2024/ENU/3DSMax-Modifiers/files/GUID-911C535D-9003-4925-A064-52835C581DAA.htm
         * https://help.autodesk.com/cloudhelp/2026/ENU/3DSMax-Manage-Scenes/files/GUID-6CA5DD56-9807-4E65-9A2E-14E6209B3062.htm
+
+* dedicated timing-only loader for Marcus's Calculate duration button
+    * avoid opening a full player just to calculate nominal movie duration; read the timeline, sound lengths, caption layout and transition timing without loading unrelated rendering assets or generating waveform displays
+    * retain shared playback timing policy, including timed pauses, sound waits, scrolling captions and transitions; explicitly exclude viewer-dependent click waits
+    * support ordinary movies, selected ZIP members and VMM dependencies while keeping calculation cancellable and off the UI thread
+    * evaluate bounded VFS or memory-backed reads to reduce temporary-file staging where the readers support them; retain file staging where required by existing engine readers
+    * profiling A Special Announcement.vmm on 11 November 2026 measured about 39.5 seconds in normal movie loading versus 0.85 seconds in the subsequent duration analysis; investigate loading phases before attributing the cost to decompression or disk access
+    * compare results against the current player calculation for plain .3mm, ZIP, VMM and zipped VMM inputs before replacing the existing path
