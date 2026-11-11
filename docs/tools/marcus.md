@@ -900,3 +900,54 @@ skipped because an earlier, different package has the same display name.
 `marcus-content` is a native adapter regression for same-name packages with
 different CFG basenames, installed-package reuse, ordered filename collisions,
 invalid metadata, cleanup and unchanged inputs/settings. It does not drive UI.
+
+## Opening profile: 2004 awards movie
+
+On 11 November 2026, two temporary instrumented executables linked the current
+`build/marcus-x64` Debug libraries and opened `movies/3dmmcom_awards2004.zip`.
+The ZIP contains one 101.45 MiB VMM, `2004 3dmm.com Awards Movie.vmm`. Its inner
+movie is 99.12 MiB with 1,435 scenes; the bundle declares 26 dependencies,
+including 23 embedded packages with 46 content files totalling 10.75 MiB.
+
+| Phase | Run 1 | Run 2 |
+| --- | ---: | ---: |
+| ZIP directory listing | 0.0015 s | 0.0015 s |
+| ZIP extraction | 0.780 s | 0.810 s |
+| VMM content setup | 43.366 s | 45.499 s |
+| Movie archive index | 6.096 s | 6.175 s |
+| Movie metadata | 6.668 s | 6.754 s |
+| Preview runtime opening | 3.552 s | 4.095 s |
+| Content mounting | 1.407 s | 1.676 s |
+| First scene selection | 0.071 s | 0.077 s |
+| All-scene duration analysis | 30.813 s | 32.201 s |
+| First CPU render, 544x306 | 0.339 s | 0.297 s |
+| Total, including setup and teardown | 93.470 s | 97.986 s |
+
+The detailed run spent 45.231 seconds in the first embedded-package lookup.
+`MarcusContent::Impl::Package` calls `Catalog`, which constructs a
+`StudioV3dmm::Store`. That constructor eagerly reads every installed catalog
+entry; `Store::Read` hashes each VXP archive and its extracted content. This
+machine's catalog contains 756 packages and 2,268 validated files, approximately
+1,938 MiB in total. This is work for the entire installed library, including
+packages not required by this movie. Subsequent package lookups took between
+0.0001 and 0.023 seconds; copying the inner movie took 0.136 seconds. The outer
+ZIP decompression is a small part of this profile.
+
+The browser's Open handoff reuses its prepared ZIP
+extraction, but still runs normal content setup and movie loading.
+`main.c::refresh` then calls `marcus_movie_time`, which reads the timing of every
+scene before the first displayed frame. That explains a further 31–32 seconds
+of UI blocking here. The measured nominal duration was 4,291.06 seconds
+(1:11:31), with click-wait time excluded.
+
+The next optimization candidates are lazy validation of only the selected VXP
+packages, avoiding repeated validation of unchanged installed content, deferring
+whole-movie timing from the first-frame path, and replacing repeated linear
+chunk-ID searches in movie metadata loading with an index. These measurements
+do not quantify the eventual savings or Release-build performance. The first
+render above uses BRender CPU; it is not a GPU startup measurement.
+
+Local evidence is in `tmp/marcus-awards-profile/run-1.log`, `run-2.log`, their
+JSON summaries, `bundle.json`, and the temporary profiling sources. Both runs
+completed successfully. Instrumentation was compiled into separate profiling
+executables; the production playback sources were not edited for this audit.
