@@ -2763,12 +2763,12 @@ static void draw_timeline(App *app)
         ui->hint = !app->movie_time_status ? "Calculating duration; you can use the current scene"
                    : app->movie_time_status < 0 && app->loaded ? "Duration unavailable; scene playback is still available"
                    : "Movie position / total duration; time waiting for a click is excluded";
-    ui_navigation_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
-    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
+    ui_frame_button(ui, SCENE_NAV_X, y + SCENE_NAV_Y, 0, app->loaded && app->info.scene > 0, "First scene");
+    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP, y + SCENE_NAV_Y, 1, app->loaded && app->info.scene > 0,
                          "Previous scene");
-    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 2, y + SCENE_NAV_Y, 2,
+    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP * 2, y + SCENE_NAV_Y, 2,
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Next scene");
-    ui_navigation_button(ui, SCENE_NAV_X + NAV_STEP * 3, y + SCENE_NAV_Y, 3,
+    ui_frame_button(ui, SCENE_NAV_X + NAV_STEP * 3, y + SCENE_NAV_Y, 3,
                          app->loaded && app->info.scene + 1 < app->info.scene_count, "Last scene");
     if (app->loaded)
     {
@@ -3201,9 +3201,9 @@ static void draw_movie_controls(App *app)
         SDL_strlcpy(label, app->loaded && !app->movie_time_status ? "Calculating duration..." : "--:-- / --:--", sizeof(label));
     movie_control_label(ui, rect.x + rect.w - 240, rect.y + 16, 216, label, TEXT);
     draw_movie_scrubber(app, available);
-    ui_navigation_button(ui, left, rect.y + 90, 1, app->info.scene > 0, "Previous scene");
+    ui_frame_button(ui, left, rect.y + 90, 1, app->info.scene > 0, "Previous scene");
     ui_play_button(ui, rect.x + 64, rect.y + 78, app->playing, app->playback.wait == 1, app->loaded);
-    ui_navigation_button(ui, rect.x + 116, rect.y + 90, 2, app->info.scene + 1 < app->info.scene_count, "Next scene");
+    ui_frame_button(ui, rect.x + 116, rect.y + 90, 2, app->info.scene + 1 < app->info.scene_count, "Next scene");
     ui_button_sized(ui, rect.x + 168, rect.y + 86, 56, 28, "-10 s", 0, available);
     ui_button_sized(ui, rect.x + 232, rect.y + 86, 56, 28, "+10 s", 0, available);
     ui_button_sized(ui, rect.x + 312, rect.y + 86, 64, 28, app->muted ? "Unmute" : "Mute", app->muted, 1);
