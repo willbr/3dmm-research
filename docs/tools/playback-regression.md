@@ -18,6 +18,10 @@ tag says the fixture exercises it; it does not say that feature passes.
 
 ## Build and prepare
 
+For the native results browser and review notes, see
+[Playback Review](playback-review.md). It builds independently of Marcus and
+opens these databases without modifying captured evidence.
+
 Use the existing Marcus build configuration. Stop this workspace's running
 Marcus before rebuilding, then relaunch it afterward, as required by AGENTS.md.
 
