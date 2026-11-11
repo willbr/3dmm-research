@@ -2860,7 +2860,7 @@ bool Movie::FGetFniSave(Filename *pfni)
     AssertVarMem(pfni);
 
     return (_pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
-                              _FNeedsContainer() ? PszLit("vmm") : ksz3mm, &_data.title));
+                              (achar *)(_FNeedsContainer() ? PszLit("vmm") : ksz3mm), &_data.title));
 }
 
 bool Movie::_FNeedsContainer()
