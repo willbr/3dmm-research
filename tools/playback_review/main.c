@@ -397,12 +397,79 @@ static void details(void)
     }
 }
 
+static void run_table(void)
+{
+    static const char *names[] = {"Player", "Mode", "Status", "Repeat", "Case", "Run ID", "Preparation"};
+    static const char *columns[] = {"player", "mode", "status", "repetition", "case_name", "id", "preparation"};
+    static const int fields[] = {3, 4, 7, 6, 2, 0, 5};
+    ImGuiTableSortSpecs *sort;
+    ImVec4 hover;
+    char label[1024];
+    char *sql;
+    int i, column, active;
+    igBeginDisabled(dirty != 0);
+    if (igBeginTable("Runs", 7,
+                     ImGuiTableFlags_Sortable | ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg |
+                         ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY,
+                     vec(0, 185), 0))
+    {
+        for (column = 0; column < 7; ++column)
+            igTableSetupColumn(
+                names[column],
+                column == 5 ? ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_PreferSortDescending : 0, 0,
+                (ImGuiID)column);
+        igTableSetupScrollFreeze(0, 1);
+        igTableHeadersRow();
+        sort = igTableGetSortSpecs();
+        if (sort && sort->SpecsDirty && sort->SpecsCount)
+        {
+            column = (int)sort->Specs[0].ColumnUserID;
+            if (column >= 0 && column < 7)
+            {
+                sql = sqlite3_mprintf("SELECT id,suite_id,case_name,player,mode,preparation,repetition,status "
+                                      "FROM runs ORDER BY %s %s,id DESC",
+                                      columns[column],
+                                      sort->Specs[0].SortDirection == ImGuiSortDirection_Descending ? "DESC" : "ASC");
+                query(&runs, sql);
+                sqlite3_free(sql);
+            }
+            sort->SpecsDirty = 0;
+        }
+        for (i = 0; i < runs.rows; ++i)
+        {
+            SDL_snprintf(label, sizeof(label), "%s | %s | %s | %s | %s | %s | %s | %s", cell(&runs, i, 0),
+                         cell(&runs, i, 2), cell(&runs, i, 3), cell(&runs, i, 4), cell(&runs, i, 5), cell(&runs, i, 6),
+                         cell(&runs, i, 7), cell(&runs, i, 1));
+            if (filter[0] && !strstr(label, filter))
+                continue;
+            active = selected == atoi(cell(&runs, i, 0));
+            igTableNextRow(0, 0);
+            igTableSetColumnIndex(0);
+            SDL_snprintf(label, sizeof(label), "%s##run-%s", cell(&runs, i, 3), cell(&runs, i, 0));
+            hover.x = active ? 0.26f : 0.20f;
+            hover.y = active ? 0.59f : 0.20f;
+            hover.z = active ? 0.98f : 0.20f;
+            hover.w = 0.8f;
+            igPushStyleColor_Vec4(ImGuiCol_HeaderHovered, hover);
+            if (igSelectable_Bool(label, active, ImGuiSelectableFlags_SpanAllColumns, vec(0, 0)))
+                choose_run(i);
+            igPopStyleColor(1);
+            for (column = 1; column < 7; ++column)
+            {
+                igTableSetColumnIndex(column);
+                igTextUnformatted(cell(&runs, i, fields[column]), NULL);
+            }
+        }
+        igEndTable();
+    }
+    igEndDisabled();
+}
+
 int main(int argc, char **argv)
 {
     SDL_Window *window;
     SDL_Event event;
     int running, i, width, height, smoke;
-    char label[1024];
     if (argc < 2)
     {
         if (!review_pick_database(database, (int)sizeof(database)))
@@ -475,20 +542,7 @@ int main(int argc, char **argv)
         igTextUnformatted(database, NULL);
         igInputTextWithHint("Filter runs", "suite / movie / player / mode / status", filter, sizeof(filter), 0, NULL,
                             NULL);
-        igBeginDisabled(dirty != 0);
-        igBeginChild_Str("Runs", vec(0, 165), ImGuiChildFlags_Borders, 0);
-        for (i = 0; i < runs.rows; ++i)
-        {
-            SDL_snprintf(label, sizeof(label), "%s | %s | %s | %s | %s | rep %s | %s | %s", cell(&runs, i, 0),
-                         cell(&runs, i, 2), cell(&runs, i, 3), cell(&runs, i, 4), cell(&runs, i, 5), cell(&runs, i, 6),
-                         cell(&runs, i, 7), cell(&runs, i, 1));
-            if (filter[0] && !strstr(label, filter))
-                continue;
-            if (igSelectable_Bool(label, selected == atoi(cell(&runs, i, 0)), 0, vec(0, 0)))
-                choose_run(i);
-        }
-        igEndChild();
-        igEndDisabled();
+        run_table();
         if (store.error[0])
             igTextWrapped("%s", store.error);
         igBeginChild_Str("Evidence", vec(0, 0), 0, ImGuiWindowFlags_HorizontalScrollbar);

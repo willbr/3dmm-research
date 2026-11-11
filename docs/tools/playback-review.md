@@ -25,6 +25,11 @@ SQLite is public domain. No Marcus rebuild is required.
 
 - Filter runs by movie, player, suite, mode or status. The newest SDL seek run
   is selected initially when present. Select v3dmm to check it against retail.
+- The run table has sortable, resizable columns for player, mode, status,
+  repeat, case, run ID and preparation. Click a header to change sort order;
+  run ID and repeat sort numerically. Headers remain visible while scrolling.
+  Blue identifies the selected run; hovering another row uses grey. The suite
+  ID remains searchable and appears in the run details instead of every row.
 - Reference selection follows the case manifest, matching suite, case, mode,
   preparation and repetition. If several reference runs match, the newest is
   used. The displayed run IDs identify the exact pair.
