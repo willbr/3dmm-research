@@ -7,6 +7,32 @@ It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
 The dark layout has a camera viewport, object and sound dope sheets, scene object list
 and properties pane. The existing Studio application is unchanged.
 
+Playback compatibility targets retail 3D Movie Maker, with v3dmm as an additional
+comparison baseline. Marcus should reuse the SDL port's shared engine policy
+rather than independently approximate it. That policy can be migrated to C
+behind its existing boundaries without postponing behavior fixes.
+
+Scrolling now uses a portable adapter to the same `MoviePlaybackEvaluator`
+scrolling branch used by SDL Studio. It moves each eligible credits box one
+pixel per five-tick alarm (nominally 12 steps/second), discards late-alarm debt,
+and holds the authored frame through the final completion-check alarm. Pausing
+freezes the remaining interval; seeks reset it. Layout/font metrics and other
+Marcus playback policies are still separate and require further parity work.
+Timeline durations describe nominal scheduling; a slow host can take longer.
+
+The headless playback regression covers first-alarm delay, a ten-second late
+callback moving only one pixel, no catch-up debt, the final completion-check
+alarm, reset/no-overflow behavior, and pause/resume without a scrolling jump.
+The existing shared evaluator tests also pass. No Marcus UI test is involved.
+
+Windows 11 capture `tmp/text-acid-shared-scroll-results/playback.sqlite`
+(suite `20261111T100144Z-6de14c55`) records the rebuilt Marcus and retail playing
+Text Acid: both complete all 240 authored frames, with 1,292 Marcus and 610
+retail presentation observations. The scene-index-2/frame-3 hold measures
+11,508.87 ms in Marcus versus 11,081.91 ms in retail. Frame timing still differs
+and continuous visual parity remains inconclusive. This single-repeat capture
+does not establish repeatability or eliminate the remaining layout/pacing gaps.
+
 ## Build and launch
 
 Use an x64 MSVC development shell on Windows, or a C/C++ build environment on

@@ -9,6 +9,7 @@
 #include "waveform.h"
 #include "sound_timeline.h"
 #include "playback.h"
+#include "retail_scroll.h"
 #include "soc_core.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -26,6 +27,32 @@ void Check(bool value, int line)
     }
 }
 #define CHECK(value) Check((value), __LINE__)
+void RetailScrollSteps()
+{
+    RetailScrollPlayback clock;
+    auto update = clock.Update(10000, true);
+    CHECK(update.holding && !update.step); // Entry arms an alarm, not a jump.
+    CHECK(!clock.Update(83, true).step);
+    CHECK(clock.Update(1, true).step);
+    update = clock.Update(10000, true);
+    CHECK(update.step && update.holding); // A late callback moves one pixel.
+    CHECK(!clock.Update(0, true).step); // No accumulated catch-up debt.
+    CHECK(!clock.Update(83, true).step);
+    CHECK(clock.Update(1, true).step);
+    update = clock.Update(0, false); // Final pixel still has a pending alarm.
+    CHECK(update.holding && !update.step);
+    CHECK(clock.Update(83, false).holding);
+    update = clock.Update(1, false);
+    CHECK(!update.holding && !update.step);
+    CHECK(!clock.Update(10000, true).step); // Completed frame stays completed.
+    clock.Reset();
+    CHECK(!clock.Update(0, false).holding); // No overflow requires no hold.
+    clock.Reset();
+    CHECK(clock.Update(0, true).holding);
+    CHECK(clock.Update(84, true).step); // Rewind starts at the first step.
+    CHECK(std::abs(RetailScrollPlayback::NominalSeconds(3) - 4.0 / 12) < 1e-9);
+    CHECK(RetailScrollPlayback::NominalSeconds(0) == 0);
+}
 void WaveformPeaks()
 {
     // Preserve transients and opposing stereo channels at both coarse and
@@ -518,6 +545,7 @@ std::size_t Visible(const std::vector<byte> &pixels)
 } // namespace
 int main(int argc, char **argv)
 {
+    RetailScrollSteps();
     if (argc == 5 && std::strcmp(argv[1], "--sample") == 0)
     {
         player = marcus_create();
@@ -646,6 +674,10 @@ int main(int argc, char **argv)
     CHECK(std::abs(MovieTime().position_seconds - scrollTime - .1) < 1e-6);
     double scrollElapsed = 100;
     CHECK(Info().frame == 0 && Image() != credits);
+    const auto firstScrollStep = Image();
+    Tick(0, false);
+    Tick(10000); // Resume discards paused time without moving credits.
+    CHECK(Image() == firstScrollStep && Info().frame == 0);
     MarcusAudioStats stats;
     CHECK(marcus_audio_stats(player, &stats) && stats.midi_sounds == 1);
     SDL_Delay(150);
@@ -656,8 +688,11 @@ int main(int argc, char **argv)
         scrollElapsed += 100;
     }
     CHECK(Info().frame == 1);
-    CHECK(scrollElapsed >= authoredTiming.scrolling.at(0) * 1000 + 1000.0 / 6);
-    CHECK(scrollElapsed <= authoredTiming.scrolling.at(0) * 1000 + 400);
+    // Each deliberately late 100 ms callback advances just one pixel, plus
+    // the completion-check alarm and ordinary authored-frame delay.
+    const auto scrollAlarms = std::lround(authoredTiming.scrolling.at(0) * 12);
+    CHECK(scrollElapsed >= scrollAlarms * 100 + 100);
+    CHECK(scrollElapsed <= scrollAlarms * 100 + 200);
     CHECK(Tick(0).wait == 3);
     Tick(200);
     Tick(0, false);

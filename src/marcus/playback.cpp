@@ -1,4 +1,5 @@
 #include "playback.h"
+#include "retail_scroll.h"
 #include "caption_quad.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
@@ -336,7 +337,7 @@ struct CaptionImage
     PreviewCaption data;
     std::vector<Glyph> glyphs;
     int height = 0;
-    double scroll = 0;
+    int scroll = 0;
     bool ready = false;
     std::size_t maskBytes = 0;
 };
@@ -368,6 +369,7 @@ struct MarcusPlayback::Impl
     std::map<FaceKey, std::unique_ptr<KauaiFonts::Face>> faces;
     std::size_t captionBytes = 0;
     Audio audio;
+    RetailScrollPlayback scrollPlayback;
     bool entered = false, wasPlaying = false, scrolling = false, restoreMusic = true;
     int wait = 0, transition = 0;
     double frameTime = 0, waitTime = 0, transitionTime = 0, frameSeconds = 0;
@@ -377,6 +379,7 @@ struct MarcusPlayback::Impl
         entered = false;
         restoreMusic = true;
         scrolling = false;
+        scrollPlayback.Reset();
         wait = 0;
         frameTime = waitTime = transitionTime = 0;
         frameSeconds = 0;
@@ -580,7 +583,7 @@ bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusS
             if (!calculator.Layout(caption, error))
                 return false;
             const int overflow = std::max(0, caption.height - (data.bottom - data.top - 10));
-            timing.scrolling[data.firstFrame] = std::max(timing.scrolling[data.firstFrame], overflow * 5000.0 / 60000);
+            timing.scrolling[data.firstFrame] = std::max(timing.scrolling[data.firstFrame], RetailScrollPlayback::NominalSeconds(overflow));
             calculator.captionBytes -= caption.maskBytes;
         }
     return true;
@@ -695,6 +698,7 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
     const auto frame = preview.Info().currentFrame;
     if (!impl->entered)
     {
+        impl->scrollPlayback.Reset();
         impl->frameSeconds = 0;
         // Restore scene music on a seek; speech and effects only fire at their
         // authored frame, so scrubbing never produces a burst of old sounds.
@@ -743,16 +747,25 @@ bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elap
     if (impl->scrolling || impl->wait != 1)
         impl->frameSeconds += elapsed / 1000;
     const bool wasScrolling = impl->scrolling;
-    impl->scrolling = false;
+    bool needsScroll = false;
     for (auto &caption : impl->captions)
         if (!caption.data.story && frame == caption.data.firstFrame)
         {
             if (!impl->Layout(caption, error))
                 return false;
             const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
-            caption.scroll = std::min(double(overflow), caption.scroll + elapsed * 60 / 5000);
-            impl->scrolling = impl->scrolling || caption.scroll < overflow;
+            needsScroll = needsScroll || caption.scroll < overflow;
         }
+    const auto scrollUpdate = impl->scrollPlayback.Update(elapsed, needsScroll);
+    if (scrollUpdate.step)
+        for (auto &caption : impl->captions)
+            if (!caption.data.story && frame == caption.data.firstFrame)
+            {
+                const auto overflow = std::max(0, caption.height - (caption.data.bottom - caption.data.top - 10));
+                if (caption.scroll < overflow)
+                    ++caption.scroll;
+            }
+    impl->scrolling = scrollUpdate.holding;
     if (impl->scrolling)
         return true;
     if (wasScrolling)

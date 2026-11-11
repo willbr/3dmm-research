@@ -1039,6 +1039,7 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/text_box_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/sound_queue.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie_playback.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
