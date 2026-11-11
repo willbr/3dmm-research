@@ -43,6 +43,19 @@ int main(void)
     CHECK(review_presentation_pair(&s, 1, 2, 7, &delta, &timed) == 0 && !timed);
     CHECK(review_presentation_pair(&s, 3, 2, 5, &delta, &timed) == -1);
     CHECK(review_presentation_pair(&s, 2, 1, 99, &delta, &timed) == -1); /* Never cross scenes. */
+    CHECK(sqlite3_open(path, &db) == SQLITE_OK);
+    CHECK(sqlite3_exec(db,
+                       "ALTER TABLE images ADD COLUMN pixel_sha256 TEXT;"
+                       "UPDATE images SET pixel_sha256=CASE run_id WHEN 1 THEN 'reference' ELSE 'candidate' END;",
+                       NULL, NULL, NULL) == SQLITE_OK);
+    CHECK(review_stable_pair(&s, 1, 2, 0, 3) == 0);  /* Different pixels across runs still pair. */
+    CHECK(review_stable_pair(&s, 1, 2, 1, 3) == -1); /* Missing candidate. */
+    CHECK(sqlite3_exec(db, "UPDATE images SET pixel_sha256='changed' WHERE run_id=2 AND sequence=6", NULL, NULL,
+                       NULL) == SQLITE_OK);
+    CHECK(review_stable_pair(&s, 1, 2, 0, 3) == -1);
+    CHECK(sqlite3_exec(db, "UPDATE images SET pixel_sha256=NULL WHERE run_id=2", NULL, NULL, NULL) == SQLITE_OK);
+    CHECK(review_stable_pair(&s, 1, 2, 0, 3) == -1);
+    sqlite3_close(db);
     CHECK(sqlite3_db_readonly(s.results, "main") == 1);
     CHECK(review_note_load(&s, 1, -1, body, sizeof(body), &resolved) && !body[0] && !resolved);
     CHECK(review_note_save(&s, 1, -1, "Whole run: apostrophe ' and UTF-8 \xc3\xa9", 0));

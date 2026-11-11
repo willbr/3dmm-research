@@ -32,6 +32,7 @@ static int differences = -1;
 static int playback_mode, paired_sequence = -1;
 static double pair_delta_ms;
 static int pair_timed;
+static int pair_static;
 static const char *run_columns[] = {"player", "mode", "status", "repetition", "case_name", "id", "preparation"};
 static int run_sort = 5, run_descending = 1;
 
@@ -295,6 +296,9 @@ static void load_images(void)
     frame = atoi(cell(&frames, cursor, 2));
     paired_sequence =
         playback_mode ? review_presentation_pair(&store, reference, selected, seq, &pair_delta_ms, &pair_timed) : seq;
+    pair_static = playback_mode ? review_stable_pair(&store, reference, selected, scene, frame) : -1;
+    if (pair_static >= 0)
+        paired_sequence = pair_static;
     for (i = 0; i < 2; ++i)
     {
         sql = sqlite3_mprintf("SELECT path FROM images WHERE run_id=%d AND sequence=%d AND scene=%d AND frame=%d",
@@ -425,17 +429,17 @@ static void details(void)
         load_images();
     if (playback_mode)
     {
-        if (paired_sequence >= 0 && pair_timed)
-            igText("Playback pairing: reference image %d, offset %.2f ms relative to the frame commit (review aid, not "
-                   "a parity verdict).",
+        if (pair_static >= 0)
+            igTextWrapped("Paired by scene and authored frame: captured pixels are unchanged within this frame in "
+                          "each run. Timing is evaluated separately.");
+        else if (paired_sequence >= 0 && pair_timed)
+            igText("Variable captures: reference image %d, capture-phase offset %.2f ms "
+                   "(approximate alignment, not playback lateness).",
                    paired_sequence, pair_delta_ms);
         else if (paired_sequence >= 0)
             igText("Reference image %d: same scene/frame; timing unavailable.", paired_sequence);
         else
             igTextWrapped("No reference image captured at the same scene/frame; candidate remains available.");
-        if (paired_sequence >= 0 && pair_timed && (pair_delta_ms < -50 || pair_delta_ms > 50))
-            igTextWrapped(
-                "Timing offset exceeds 50 ms. Reference shown for visual review; this is not a timing match.");
     }
     igBeginDisabled(!note_ok);
     if (igInputTextMultiline("Review note", note, sizeof(note), vec(-1, 85), 0, NULL, NULL))
@@ -474,6 +478,8 @@ static void details(void)
     }
     if (igCollapsingHeader_TreeNodeFlags("Frame timing and state", 0) && frames.rows)
     {
+        igTextWrapped("Observer timestamps are not display times. Playback timing verdicts require equivalent "
+                      "markers; render and capture durations are recorded separately where available.");
         sequence = atoi(cell(&frames, cursor, 0));
         sql = sqlite3_mprintf("SELECT run_id,sequence,scene,frame,timestamp_ns,duration_since_previous_ns FROM "
                               "frame_timing WHERE run_id IN (%d,%d) AND scene=%d AND frame=%d",
@@ -484,8 +490,9 @@ static void details(void)
                               atoi(cell(&frames, cursor, 1)), atoi(cell(&frames, cursor, 2)));
         show_query(sql);
         sqlite3_free(sql);
-        sql = sqlite3_mprintf("SELECT sequence,timestamp_ns,state_json FROM images WHERE run_id=%d AND sequence=%d",
-                              selected, sequence);
+        sql = sqlite3_mprintf(
+            "SELECT sequence,timestamp_ns,render_ns,capture_ns,state_json FROM images WHERE run_id=%d AND sequence=%d",
+            selected, sequence);
         show_query(sql);
         sqlite3_free(sql);
     }

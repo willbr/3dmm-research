@@ -49,9 +49,12 @@ while a note has unsaved edits; save or discard those edits first.
 - Reference and candidate PNGs appear beside a magenta mask of changed RGB
   pixels. Zoom uses nearest-neighbour sampling; horizontal scrolling supports
   large images. Seek pairing requires matching sequence, scene and authored frame.
-  Playback pairs the nearest reference image at the same scene/authored frame,
-  using elapsed time relative to that frame's commit. The actual offset is
-  displayed; offsets exceeding 50 ms are flagged without hiding the reference.
+  Playback pairs by scene/authored frame without a timing requirement when all
+  captured pixel hashes within that frame are unchanged in each run. The two runs
+  may still have different pixels. This is observed stability, not proof that
+  sampling caught every intermediate change. Otherwise it pairs the nearest
+  reference using elapsed time relative to the frame marker. The displayed
+  capture-phase offset is approximate alignment, not playback lateness.
   If timestamps are unavailable, the first reference image at that scene/frame
   is shown with a timing-unavailable label. This is a review aid, not a parity verdict: native blits,
   SDL presents and Marcus updates have different boundaries and rates.
@@ -63,6 +66,8 @@ while a note has unsaved edits; save or discard those edits first.
   not run new comparisons. Historical comparisons may name a different reference
   run from the image pair; the reference ID is shown for each.
 - Expand timing/state, provenance or audio details to inspect the stored evidence.
+  Render and capture durations are displayed separately where recorded. Timing
+  verdicts require equivalent authored-frame marker semantics.
   Timing is shown in recorded nanoseconds, including the interval since the prior
   observation. Audio paths, metadata and frame sound events are inspectable;
   listening and waveform playback are not implemented in this first version.

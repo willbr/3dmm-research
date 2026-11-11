@@ -354,13 +354,13 @@ def compare_runs(store, reference, candidate, *, frame_tolerance_ms=25, sample_t
                                 (a['suite_id'], a['case_name'])).fetchone()[0]
     if a['player'] != original:
         raise ValueError('Reference run must use the original declared by the case: ' + original)
-    policy = {'version': 1, 'frame_tolerance_ms': frame_tolerance_ms,
+    policy = {'version': 2, 'frame_tolerance_ms': frame_tolerance_ms,
               'sample_tolerance': sample_tolerance, 'pixel_tolerance': 0,
               'global_alignment_samples': 0, 'expected_audio': expected_audio}
     def result(component, **metrics):
         if (reference_repeatability and component in reference_repeatability and
                 reference_repeatability[component] != 'matched'):
-            metrics['observed_status'] = metrics['status']
+            metrics.setdefault('observed_status', metrics['status'])
             metrics['status'] = 'inconclusive'
             metrics['reference_repeatability'] = reference_repeatability[component]
             metrics['reason'] = 'Original reference did not repeat within this comparison policy'
@@ -413,8 +413,15 @@ def compare_runs(store, reference, candidate, *, frame_tolerance_ms=25, sample_t
                               comparable=comparable, different_images=mismatches, changed_pixels=changed_pixels,
                               max_channel_error=max_error, first_difference=first))
     else:
-        results.append(result('frame_timing', **timing_metrics(left, right, round(frame_tolerance_ms * 1000000))))
         caps = [json.loads(run['capabilities_json']) for run in (a, b)]
+        timing = timing_metrics(left, right, round(frame_tolerance_ms * 1000000))
+        markers = [cap.get('frame_commit_semantics') for cap in caps]
+        timing['markers'] = markers
+        if not all(markers) or markers[0] != markers[1]:
+            timing['observed_status'] = timing['status']
+            timing['status'] = 'inconclusive'
+            timing['reason'] = 'Equivalent authored-frame timing markers have not been established'
+        results.append(result('frame_timing', **timing))
         if all(cap['sound_requests'] for cap in caps):
             events = [[json.loads(row['event_json']) for row in rows('sound_events', run)] for run in (reference, candidate)]
             results.append(result('sound_requests', status='matched' if events[0] == events[1] else 'different',

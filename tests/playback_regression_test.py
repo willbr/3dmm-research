@@ -154,6 +154,30 @@ class Database(unittest.TestCase):
         self.store.image(run, sequence, 0, frame, path)
         return path
 
+    def test_timing_requires_equivalent_markers(self):
+        a = self.run_record('retail', mode='playback')
+        b = self.run_record('marcus', mode='playback')
+        for run, interval in ((a, 166000000), (b, 466000000)):
+            for seq in range(2):
+                self.store.insert('frames', run_id=run, sequence=seq, scene=0, frame=seq + 1,
+                                  timestamp_ns=1000000000 + seq * interval, state_json='{}')
+        def verdict():
+            compare_runs(self.store, a, b)
+            row = self.store.db.execute("SELECT status,metrics_json FROM comparisons "
+                                        "WHERE component='frame_timing' ORDER BY id DESC LIMIT 1").fetchone()
+            return row[0], json.loads(row[1])
+        status, metrics = verdict()
+        self.assertEqual(status, 'inconclusive')
+        self.assertEqual(metrics['observed_status'], 'different')
+        self.assertNotEqual(*metrics['markers'])
+        self.store.db.execute('UPDATE runs SET capabilities_json=? WHERE id=?',
+                              (json.dumps(capabilities('retail', 'playback')), b))
+        self.assertEqual(verdict()[0], 'different')
+        caps = capabilities('retail', 'playback')
+        caps.pop('frame_commit_semantics')
+        self.store.db.execute('UPDATE runs SET capabilities_json=? WHERE id=?', (json.dumps(caps), b))
+        self.assertEqual(verdict()[0], 'inconclusive')
+
     @unittest.skipUnless(Image, 'Image checks require Pillow; standard-library measurement checks still run')
     def test_pixel_hash_is_independent_of_container(self):
         a, b = self.run_record('retail'), self.run_record('marcus')

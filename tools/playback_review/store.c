@@ -3,6 +3,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+int review_stable_pair(ReviewStore *s, int reference, int candidate, int scene, int frame)
+{
+    sqlite3_stmt *stmt;
+    int pair = -1;
+    const char *sql = "SELECT min(sequence) FROM images WHERE run_id=?1 AND scene=?3 AND frame=?4 "
+                      "HAVING count(DISTINCT pixel_sha256)=1 AND count(pixel_sha256)=count(*) "
+                      "AND (SELECT count(DISTINCT pixel_sha256)=1 AND count(pixel_sha256)=count(*) "
+                      "FROM images WHERE run_id=?2 AND scene=?3 AND frame=?4)";
+    if (sqlite3_prepare_v2(s->results, sql, -1, &stmt, NULL) != SQLITE_OK)
+        return -1;
+    sqlite3_bind_int(stmt, 1, reference);
+    sqlite3_bind_int(stmt, 2, candidate);
+    sqlite3_bind_int(stmt, 3, scene);
+    sqlite3_bind_int(stmt, 4, frame);
+    if (sqlite3_step(stmt) == SQLITE_ROW && sqlite3_column_type(stmt, 0) != SQLITE_NULL)
+        pair = sqlite3_column_int(stmt, 0);
+    sqlite3_finalize(stmt);
+    return pair;
+}
 int review_presentation_pair(ReviewStore *s, int reference, int candidate, int sequence, double *delta_ms, int *timed)
 {
     sqlite3_stmt *q;

@@ -1,5 +1,18 @@
 # Playback regression corpus
 
+Timing policy version 2 requires matching, known `frame_commit_semantics` before
+issuing an authored-frame timing verdict. Different or missing marker semantics
+produce an inconclusive result, retaining raw metrics and `observed_status`.
+Recomparison appends results without changing the captured evidence.
+
+Sharing the scroll evaluator does not make capture markers equivalent: Marcus
+records its authored marker before composition, while retail observes an engine
+callback before painting. In the shared-scroll capture, Marcus's first composition
+took 304.97 ms, accounting for most of the reviewer's approximately 303 ms image
+phase offset. That offset alone does not establish playback lateness. Static
+captured frames are paired independently of timing; changing frames retain
+approximate phase pairing. Equivalent presentation markers remain future work.
+
 `tools/playback_regression.py` runs a hash-pinned movie corpus serially through
 retail, original v3dmm, SDL Studio and Marcus on Windows. Observations and scoped
 comparisons go into `playback.sqlite`; PNGs, WAVs, logs and original capture
