@@ -21,6 +21,14 @@ downloads pinned SDL3, cimgui (including its matching Dear ImGui submodule), and
 SQLite sources. Dependency licenses are copied to the build's `licenses` folder;
 SQLite is public domain. No Marcus rebuild is required.
 
+Use **Open Database...** to switch results files without restarting, or
+**Refresh** to reload the current database after new captures/comparisons arrive.
+Refresh preserves the selected run and observation when they still exist, along
+with filtering, sorting and note scope, and reloads saved notes and images.
+Opening a different database resets the filter and selects a default run. A
+failed open leaves the current database visible. Both controls are disabled
+while a note has unsaved edits; save or discard those edits first.
+
 ## Reviewing evidence
 
 - Filter runs by movie, player, suite, mode or status. The newest SDL seek run
@@ -61,8 +69,8 @@ Pixel equality of seek images does not establish continuous playback quality.
 Missing images, missing comparisons and `inconclusive` verdicts are not passes.
 The mask is a visual aid computed from files currently on disk, not a new stored
 verdict or artifact-integrity check. Run the regression CLI comparisons to verify
-artifact hashes. The viewer snapshots the run list at startup; reopen after new
-captures are added.
+artifact hashes. The run list updates on startup, opening a database, or Refresh;
+it does not automatically poll while captures are being added.
 
 ## Notes
 

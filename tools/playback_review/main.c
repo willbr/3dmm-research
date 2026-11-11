@@ -31,6 +31,15 @@ static float zoom = 1.0f;
 static int differences = -1;
 static int playback_mode, paired_sequence = -1;
 static double pair_delta_ms;
+static const char *run_columns[] = {"player", "mode", "status", "repetition", "case_name", "id", "preparation"};
+static int run_sort = 5, run_descending = 1;
+
+static char *run_query(void)
+{
+    return sqlite3_mprintf("SELECT id,suite_id,case_name,player,mode,preparation,repetition,status "
+                           "FROM runs ORDER BY %s %s,id DESC",
+                           run_columns[run_sort], run_descending ? "DESC" : "ASC");
+}
 
 static ImVec2 vec(float x, float y)
 {
@@ -156,6 +165,115 @@ static void choose_run(int row)
     cursor = 0;
     loaded_cursor = -2;
     load_note();
+}
+static int preferred_run(void)
+{
+    int i;
+    for (i = 0; i < runs.rows; ++i)
+        if (!strcmp(cell(&runs, i, 3), "sdl") && !strcmp(cell(&runs, i, 4), "seek"))
+            return i;
+    for (i = 0; i < runs.rows; ++i)
+        if (!strcmp(cell(&runs, i, 3), "sdl"))
+            return i;
+    return 0;
+}
+static void open_database(const char *path, int refresh)
+{
+    ReviewStore next;
+    Table next_runs;
+    char *sql, *error, *suite;
+    int i, old_run, old_sequence, old_scene, old_frame, restored;
+    if (dirty)
+        return;
+    memset(&next_runs, 0, sizeof(next_runs));
+    if (!review_open(&next, path))
+    {
+        SDL_strlcpy(store.error, next.error, sizeof(store.error));
+        return;
+    }
+    sql = run_query();
+    error = NULL;
+    if (sqlite3_get_table(next.results, sql, &next_runs.cells, &next_runs.rows, &next_runs.columns, &error) !=
+        SQLITE_OK)
+    {
+        SDL_strlcpy(store.error, error ? error : "Could not read runs", sizeof(store.error));
+        sqlite3_free(error);
+        sqlite3_free(sql);
+        clear_table(&next_runs);
+        review_close(&next);
+        return;
+    }
+    sqlite3_free(sql);
+    old_run = selected;
+    old_sequence = frames.rows ? atoi(cell(&frames, cursor, 0)) : -1;
+    old_scene = frames.rows ? atoi(cell(&frames, cursor, 1)) : -1;
+    old_frame = frames.rows ? atoi(cell(&frames, cursor, 2)) : 0;
+    suite = NULL;
+    for (i = 0; refresh && i < runs.rows; ++i)
+        if (atoi(cell(&runs, i, 0)) == old_run)
+            suite = sqlite3_mprintf("%s", cell(&runs, i, 1));
+    /* Swap only after the new database and its run query both succeed. */
+    review_close(&store);
+    store = next;
+    clear_table(&runs);
+    runs = next_runs;
+    clear_table(&frames);
+    for (i = 0; i < 3; ++i)
+        clear_picture(&pictures[i]);
+    SDL_strlcpy(database, path, sizeof(database));
+    selected = reference = -1;
+    cursor = 0;
+    loaded_cursor = -2;
+    differences = paired_sequence = -1;
+    note[0] = 0;
+    note_ok = resolved = 0;
+    if (!refresh)
+    {
+        filter[0] = 0;
+        frame_note = 0;
+    }
+    restored = 0;
+    for (i = 0; suite && i < runs.rows; ++i)
+        if (atoi(cell(&runs, i, 0)) == old_run && !strcmp(cell(&runs, i, 1), suite))
+        {
+            choose_run(i);
+            restored = 1;
+            break;
+        }
+    sqlite3_free(suite);
+    if (!restored && runs.rows)
+        choose_run(preferred_run());
+    if (restored)
+    {
+        for (i = 0; i < frames.rows; ++i)
+            if (atoi(cell(&frames, i, 0)) == old_sequence && atoi(cell(&frames, i, 1)) == old_scene &&
+                atoi(cell(&frames, i, 2)) == old_frame)
+            {
+                cursor = i;
+                break;
+            }
+        load_note();
+    }
+}
+static void database_controls(void)
+{
+    char path[4096];
+    igBeginDisabled(dirty != 0);
+    if (igButton("Open Database...", vec(0, 0)))
+    {
+        path[0] = 0;
+        if (review_pick_database(path, (int)sizeof(path)))
+            open_database(path, 0);
+    }
+    igSameLine(0, -1);
+    if (igButton("Refresh", vec(0, 0)))
+    {
+        SDL_strlcpy(path, database, sizeof(path));
+        open_database(path, 1);
+    }
+    igEndDisabled();
+    igSameLine(0, -1);
+    igTextUnformatted(dirty ? "Save or discard note edits before opening or refreshing." : database, NULL);
 }
 static void load_images(void)
 {
@@ -431,7 +549,6 @@ static void details(void)
 static void run_table(void)
 {
     static const char *names[] = {"Player", "Mode", "Status", "Repeat", "Case", "Run ID", "Preparation"};
-    static const char *columns[] = {"player", "mode", "status", "repetition", "case_name", "id", "preparation"};
     static const int fields[] = {3, 4, 7, 6, 2, 0, 5};
     ImGuiTableSortSpecs *sort;
     ImVec4 hover;
@@ -457,10 +574,9 @@ static void run_table(void)
             column = (int)sort->Specs[0].ColumnUserID;
             if (column >= 0 && column < 7)
             {
-                sql = sqlite3_mprintf("SELECT id,suite_id,case_name,player,mode,preparation,repetition,status "
-                                      "FROM runs ORDER BY %s %s,id DESC",
-                                      columns[column],
-                                      sort->Specs[0].SortDirection == ImGuiSortDirection_Descending ? "DESC" : "ASC");
+                run_sort = column;
+                run_descending = sort->Specs[0].SortDirection == ImGuiSortDirection_Descending;
+                sql = run_query();
                 query(&runs, sql);
                 sqlite3_free(sql);
             }
@@ -545,15 +661,8 @@ int main(int argc, char **argv)
         return 1;
     }
     /* Prefer the newest SDL seek run for the primary parity workflow. */
-    for (i = 0; i < runs.rows; ++i)
-        if (!strcmp(cell(&runs, i, 3), "sdl") && !strcmp(cell(&runs, i, 4), "seek"))
-            break;
-    if (i == runs.rows)
-        for (i = 0; i < runs.rows; ++i)
-            if (!strcmp(cell(&runs, i, 3), "sdl"))
-                break;
     if (runs.rows)
-        choose_run(i < runs.rows ? i : 0);
+        choose_run(preferred_run());
     running = 1;
     while (running)
     {
@@ -574,7 +683,7 @@ int main(int argc, char **argv)
         igSetNextWindowPos(vec(0, 0), 0, vec(0, 0));
         igSetNextWindowSize(vec((float)width, (float)height), 0);
         igBegin("Playback review", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
-        igTextUnformatted(database, NULL);
+        database_controls();
         igInputTextWithHint("Filter runs", "suite / movie / player / mode / status", filter, sizeof(filter), 0, NULL,
                             NULL);
         run_table();
