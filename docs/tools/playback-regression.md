@@ -1049,3 +1049,57 @@ All nine captures retain unchanged movie, ISO-resource and Marcus-content hashes
 Existing cross-player pixel/audio differences and timing/alignment limitations
 remain. The results establish frame/image preservation against the preceding
 build, not full retail parity or repeatability from a single repetition.
+
+## C89 piece write windows and file-text policy (12 November 2026)
+
+FileByteStream destination-window orchestration and FileLocation text conversion
+now use the shared C89 backend. Native callbacks still provide file/handle
+primitives and code-page conversion. Piece writes pin both storage sections and
+restore the destination view on success or failure. Text conversion retains
+legacy BOM detection, encoding precedence and ownership changes, including BOM
+stripping before a subsequent conversion failure.
+
+Two unsafe legacy paths are bounded explicitly: a final piece that would exceed
+the requested destination window is rejected before I/O, and failed full-input
+allocation uses the actual 512-byte stack capacity rather than reading 1024
+bytes into it. This adds neither general overlapping-copy guarantees nor new
+text encodings, malformed-input repair or newline normalization. See the
+[dependency boundary](../code-map/library-split.md#piece-write-windows-and-file-text-conversion).
+
+Thirteen standalone C checks and twenty-five focused native checks pass.
+The frozen native baseline contains 240 text/BOM/encoding cases and sixteen
+supported memory/file write windows. All 117,346 bytes match after conversion;
+the standalone check independently reproduces hash `0xedc4d066`.
+Allocation, file creation/read/write, conversion-size and packed/window failure
+checks verify cleanup, balanced locks/references and preserved destination
+views. These checks also pass under MSVC AddressSanitizer. No Marcus UI tests
+were added.
+
+All 51 CLI baselines match, including six asset indexes covering 20,568 entries.
+Local reports are `tmp/c89-file-policy-output-comparison.json` and the native
+snapshots `tmp/c89-file-policy-before.bin` / `tmp/c89-file-policy-after.bin`.
+
+Frozen Studio/Marcus builds were captured with no concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T103136Z-1ea36fb4` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T103649Z-359097ec` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against the preceding owning-DataBlock suite `20261112T095017Z-fdf75549`, all
+180 seek images match exactly. Scrolling playback retains the same 60 authored
+frame positions and ordered exact image changes: retail/SDL 328 and Marcus 321.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available.
+
+Sampled-audio runs preserve all 60 authored frame positions and exact image
+changes against `20261112T095527Z-185c32e2`. Observed PCM16 peaks remain 2380
+for retail and 2176 for SDL/Marcus; these establish audible capture, not exact
+PCM preservation. The nine-run report is
+`tmp/c89-file-policy-playback-comparison.json`.
+
+All nine captures retain unchanged movie, ISO-resource and Marcus-content hashes.
+Existing cross-player pixel/audio differences and timing/alignment limitations
+remain. These checks establish frame/image preservation against the preceding
+build, not full retail parity or repeatability from one repetition.

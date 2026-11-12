@@ -223,6 +223,7 @@ typedef class DataBlock *PDataBlock;
 #define kclsDataBlock 'BLCK'
 class DataBlock : public DataBlock_PAR
 {
+    friend class FileByteStream;
     RTCLASS_DEC
     NOCOPY(DataBlock)
     ASSERT

@@ -473,3 +473,110 @@ shrink:
     three_mm_group_reserve(&t->group, 0, 0, 1);
     return result;
 }
+
+typedef struct PieceCopy
+{
+    ThreeMMPieceTable *table;
+    ThreeMMFilePiece piece;
+} PieceCopy;
+static int read_copy_piece(void *context, ThreeMMU32 offset, void *output, size_t bytes)
+{
+    PieceCopy *copy = (PieceCopy *)context;
+    ThreeMMFilePiece part = copy->piece;
+    part.offset += offset;
+    part.length = (ThreeMMU32)bytes;
+    return copy->table->files.read && copy->table->files.read(copy->table->files.context, &part, output);
+}
+int three_mm_piece_table_write(ThreeMMPieceTable *t, ThreeMMU32 offset, ThreeMMOwnedBlock *destination,
+                               const ThreeMMStorageAllocator *allocator)
+{
+    ThreeMMU32 i, start, inside, count, total, written, index;
+    ThreeMMFilePiece piece;
+    ThreeMMBlockView saved;
+    ThreeMMBlockIO input, output;
+    const unsigned char *memory;
+    PieceCopy copy;
+    int result;
+    if (!t || three_mm_owned_block_check(destination) != OK)
+        return BAD;
+    if (destination->view.packed)
+        return THREE_MM_DATA_PACKED;
+    total = destination->view.length;
+    if (!three_mm_range_contains(t->length, offset, total))
+        return BAD;
+    if (!total)
+        return OK;
+    if (find(t, offset, &index, &start, NULL) != OK)
+        return BAD;
+    inside = offset - start;
+    /* Retain the legacy count selection for supported windows. Its original
+     * total-versus-remaining mistake could expand a final window past the
+     * caller's range; reject that case before touching storage or I/O. */
+    for (i = index, written = 0; written < total && i < t->group.count; ++i)
+    {
+        if (three_mm_piece_table_get(t, i, &piece, NULL) != OK || inside >= piece.length)
+            return BAD;
+        count = piece.length - inside;
+        if (count > total)
+            count = total;
+        if (count > total - written)
+            return BAD;
+        written += count;
+        inside = 0;
+    }
+    if (written != total)
+        return BAD;
+    if (three_mm_storage_lock(&t->storage, 0) != THREE_MM_STORAGE_OK)
+        return BAD;
+    if (three_mm_storage_lock(&t->storage, 1) != THREE_MM_STORAGE_OK)
+    {
+        three_mm_storage_unlock(&t->storage, 0);
+        return BAD;
+    }
+    saved = destination->view;
+    inside = offset - start;
+    written = 0;
+    result = three_mm_block_move_lim(&destination->view, -(ThreeMMI32)total);
+    for (i = index; result == OK && written < total && i < t->group.count; ++i)
+    {
+        if (three_mm_piece_table_get(t, i, &piece, &memory) != OK)
+        {
+            result = BAD;
+            break;
+        }
+        count = piece.length - inside;
+        if (count > total)
+            count = total;
+        result = three_mm_block_move_lim(&destination->view, (ThreeMMI32)count);
+        if (result != OK)
+            break;
+        result = three_mm_owned_block_io(destination, &output);
+        if (result != OK)
+            break;
+        if (piece.file)
+        {
+            memset(&input, 0, sizeof(input));
+            input.view.kind = THREE_MM_BLOCK_FILE;
+            input.view.length = count;
+            copy.table = t;
+            copy.piece = piece;
+            copy.piece.offset += inside;
+            copy.piece.length = count;
+            input.context = &copy;
+            input.read_file = read_copy_piece;
+            result = three_mm_block_copy(&input, &output, 1, allocator);
+        }
+        else
+            result = three_mm_block_write(&output, 0, memory + inside, count, 0);
+        inside = 0;
+        written += count;
+        /* Failed writes still consumed their attempted window in the native
+         * protocol. Restoring saved below covers that path as well. */
+        if (three_mm_block_move_min(&destination->view, (ThreeMMI32)count) != OK && result == OK)
+            result = BAD;
+    }
+    destination->view = saved;
+    three_mm_storage_unlock(&t->storage, 1);
+    three_mm_storage_unlock(&t->storage, 0);
+    return result;
+}

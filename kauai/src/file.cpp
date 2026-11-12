@@ -12,6 +12,7 @@
 ***************************************************************************/
 #include "util.h"
 #include "handle_services.h"
+#include "three_mm/file_text.h"
 ASSERTNAME
 
 namespace {
@@ -31,10 +32,13 @@ ThreeMMBlockIO FileBlock(PFileLocation location)
     io.read_file = ReadBlockFile; io.write_file = WriteBlockFile;
     return io;
 }
-void *AllocateCopyBuffer(void *, void *, ThreeMMU32, ThreeMMU32 bytes, int priority)
+void *AllocateCopyBuffer(void *, void *old, ThreeMMU32 oldBytes, ThreeMMU32 bytes, int priority)
 {
-    void *buffer = nullptr;
-    return FAllocPv(&buffer, bytes, fmemNil, priority == THREE_MM_STORAGE_SPEED ? mprForSpeed : mprNormal) ? buffer : nullptr;
+    void *buffer = old;
+    const LegacyLong mpr = priority == THREE_MM_STORAGE_SPEED ? mprForSpeed : mprNormal;
+    const bool ok = old ? _FResizePpvDebug(&buffer, bytes, oldBytes, fmemNil, mpr, &vdmglob.dmaglPv) :
+                          FAllocPv(&buffer, bytes, fmemNil, mpr);
+    return ok ? buffer : nullptr;
 }
 void ReleaseCopyBuffer(void *, void *buffer, ThreeMMU32) { FreePpv(&buffer); }
 const ThreeMMStorageAllocator copyAllocator = {nullptr, AllocateCopyBuffer, ReleaseCopyBuffer};
@@ -45,7 +49,12 @@ int ReadOwnedFile(void *, void *file, ThreeMMU32 offset, void *bytes, size_t cou
 int WriteOwnedFile(void *, void *file, ThreeMMU32 offset, const void *bytes, size_t count) { return WriteBlockFile(file, offset, bytes, count); }
 const ThreeMMBlockFileServices blockFiles = {nullptr, RetainBlockFile, ReleaseBlockFile, CreateBlockTemp, ReadOwnedFile, WriteOwnedFile};
 int PackHandle(void *context, void **handle) { return vpcodmUtil->FCompressPhq(handle, *static_cast<LegacyLong *>(context)); }
+ThreeMMI32 ConvertFileText(void *, const void *input, ThreeMMU32 bytes, int source, void *output, ThreeMMU32 capacity)
+{
+    return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(source), static_cast<achar *>(output), capacity);
 }
+}
+const ThreeMMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
 
 FileType FileObject::vftgCreator = '____';
 PFileObject FileObject::_pfilFirst;
@@ -477,116 +486,15 @@ bool FileLocation::FWriteHq(HQ hq, LegacyLong dfp)
 bool FileLocation::FTranslate(short osk)
 {
     AssertThis(0);
-    short oskSig;
-    byte rgbSrc[512];
-    byte rgbDst[1024];
-    void *pvSrc;
-    void *pvDst;
-    LegacyLong cchDst, cch;
-    LegacyLong cbBlock, cbT;
-    PFileObject pfilNew;
-    FilePosition fpSrc, fpDst;
-    bool fRet = fFalse;
-
-    // look for a unicode byte order signature
-    oskSig = MacWin(koskSbMac, koskSbWin);
-    if (this->cb >= size(wchar) && this->cb % size(wchar) == 0)
-    {
-        wchar chw;
-
-        if (!FReadRgb(&chw, size(wchar), 0))
-            return fFalse;
-        if (chw == kchwUnicode)
-        {
-            oskSig = MacWin(koskUniMac, koskUniWin);
-            this->fp += size(wchar);
-            this->cb -= size(wchar);
-        }
-        else if (chw == kchwUnicodeSwap)
-        {
-            oskSig = MacWin(koskUniWin, koskUniMac);
-            this->fp += size(wchar);
-            this->cb -= size(wchar);
-        }
-    }
-
-    // determine the probable osk
-    if (oskSig != osk)
-    {
-        if (oskNil == osk)
-            osk = oskSig;
-        else
-        {
-            LegacyLong dcb = CbCharOsk(osk) - CbCharOsk(oskSig);
-
-            if (dcb < 0 || dcb == 0 && CbCharOsk(osk) == size(wchar))
-                osk = oskSig;
-        }
-    }
-
-    if (osk == koskCur)
-        return fTrue;
-
-    if (pvNil == (pfilNew = FileObject::PfilCreateTemp()))
-        return fFalse;
-
-    if (this->cb <= size(rgbSrc) || !FAllocPv(&pvSrc, cbBlock = this->cb, fmemNil, mprForSpeed))
-    {
-        pvSrc = (void *)rgbSrc;
-        cbBlock = size(rgbDst);
-    }
-
-    pvDst = (void *)rgbDst;
-    cchDst = size(rgbDst) / size(achar);
-    fpSrc = this->fp;
-    fpDst = 0;
-    for (cbT = 0; cbT < this->cb; cbT += cbBlock)
-    {
-        if (cbBlock > this->cb - cbT)
-            cbBlock = this->cb - cbT;
-
-        // read the source
-        if (!this->pfil->FReadRgbSeq(pvSrc, cbBlock, &fpSrc))
-            goto LFail;
-
-        // translate
-        cch = CchTranslateRgb(pvSrc, cbBlock, osk, pvNil, 0);
-        if (cch <= 0)
-            continue;
-
-        if (cch > cchDst)
-        {
-            if (pvDst != (void *)rgbDst)
-                FreePpv(&pvDst);
-            cchDst = cch;
-            if (!FAllocPv(&pvDst, cchDst * size(achar), fmemNil, mprNormal))
-                goto LFail;
-        }
-        if (cch != CchTranslateRgb(pvSrc, cbBlock, osk, (achar *)pvDst, cch))
-        {
-            Bug("why did CchTranslateRgb fail?");
-            goto LFail;
-        }
-
-        // write to the dest
-        if (!pfilNew->FWriteRgbSeq(pvDst, cch * size(achar), &fpDst))
-            goto LFail;
-    }
-    fRet = fTrue;
-    ReleasePpo(&this->pfil);
-    this->pfil = pfilNew;
-    this->fp = 0;
-    this->cb = this->pfil->FpMac();
-    pfilNew = pvNil;
-
-LFail:
-    if ((void *)rgbSrc != pvSrc)
-        FreePpv(&pvSrc);
-    if (pvDst != (void *)rgbDst)
-        FreePpv(&pvDst);
-    ReleasePpo(&pfilNew);
-
-    return fRet;
+    const short one = 1;
+    const ThreeMMFileTextConverter converter = {nullptr, koskCur, MacWin(koskSbMac, koskSbWin),
+        MacWin(koskUniMac, koskUniWin), reinterpret_cast<const byte *>(&one)[0] == 0, sizeof(achar), ConvertFileText};
+    ThreeMMBlockFile region = {pfil, static_cast<ThreeMMU32>(fp), static_cast<ThreeMMU32>(cb)};
+    const int result = three_mm_file_text_translate(&region, &blockFiles, &converter, KauaiCopyAllocator(), osk);
+    // BOM stripping remains visible even if a later allocation or I/O fails.
+    pfil = static_cast<PFileObject>(region.file); fp = region.offset; cb = region.length;
+    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("why did CchTranslateRgb fail?");
+    return result == THREE_MM_DATA_OK;
 }
 
 #ifdef DEBUG

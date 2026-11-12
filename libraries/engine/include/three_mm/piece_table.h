@@ -4,6 +4,7 @@
 #define THREE_MM_ENGINE_PIECE_TABLE_H
 #include "collections.h"
 #include "data_stream.h"
+#include "block_owner.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -53,6 +54,11 @@ extern "C"
     int three_mm_piece_table_replace_table(ThreeMMPieceTable *, ThreeMMU32 offset, ThreeMMU32 remove,
                                            ThreeMMPieceTable *source, ThreeMMU32 source_offset, ThreeMMU32 bytes);
     int three_mm_piece_table_compact(ThreeMMPieceTable *);
+    /* Write through the legacy per-piece destination windows, restoring its
+     * original view and both storage locks on every exit. Preflight rejects
+     * the old partial-final-piece overshoot before writing any bytes. */
+    int three_mm_piece_table_write(ThreeMMPieceTable *, ThreeMMU32 source_offset, ThreeMMOwnedBlock *destination,
+                                   const ThreeMMStorageAllocator *);
 #ifdef __cplusplus
 }
 #endif

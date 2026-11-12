@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -347,10 +347,9 @@ It also runs under MSVC AddressSanitizer. Native core checks save/compare the
 same edit snapshot and exercise repeated single-file compaction and same-stream
 memory append. No Marcus UI checks are added.
 
-FileByteStream destination windowing remains in its native `FWriteRgb` adapter,
-with its existing lock and window restoration protocol; DataBlock copying below
-it now delegates to C89. This slice verifies full-stream writes and compaction,
-not new partial-write or overlapping-self-copy guarantees.
+FileByteStream destination windowing now also uses C89, described below,
+with the existing lock and window restoration protocol. General overlapping
+self-copy guarantees remain outside this slice.
 
 ### Block I/O and opaque handle transactions
 
@@ -422,9 +421,48 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
-FileByteStream write-window orchestration, primitive memory/file services,
-codec registration, file-text translation and chunk persistence remain C++.
-These and remaining engine objects still prevent a complete C-only backend.
+### Piece write windows and file-text conversion
+
+`three_mm_piece_table_write` in `piece_table.c` owns piece selection, both storage
+locks, per-piece DataBlock destination windows, memory/file copy dispatch and
+restoration after success or I/O failure. The native stream adapter delegates
+to it over the existing C-owned DataBlock record. Source file references stay
+owned by the pinned table; positional copy callbacks retain the existing SPEED
+buffer/fallback policy.
+
+The legacy writer selected each chunk using total length instead of remaining
+length. Some partial final-piece windows could therefore grow past the caller's
+destination. C preflight now rejects that unsupported window before locking or
+writing. Supported windows retain the original byte results and their final
+destination view. This is a safety guard, not a new general partial-write or
+overlapping-self-copy guarantee.
+
+`three_mm/file_text.h` and `file_text.c` own FileLocation text conversion policy:
+the even-length BOM probe, host-ordered signature interpretation, requested/
+inferred encoding precedence, same-encoding no-op, temporary-file redirection,
+count queries, output growth and reference cleanup. Character conversion is a
+callback over the existing shared text/native code-page services. BOM range
+stripping remains visible if later work fails. Nonpositive count queries still
+skip their chunk. No UTF-8 detection, newline normalization or malformed-text
+repair is added.
+
+Input uses one full-size SPEED allocation above 512 bytes, with a 512-byte
+stack fallback. The old fallback used a 1024-byte read limit for that 512-byte
+buffer; the C fallback is bounded to the actual buffer. Output keeps its
+1024-byte stack area and release-before-exact-NORMAL-allocation growth.
+Temporary files and scratch buffers are released on failure; the old file
+reference remains until all writes succeed.
+
+`engine-file-policy-test` checks the frozen native snapshot hash for 240 text
+cases and 16 supported memory/file write windows (117,346 bytes), plus pinned
+locks, restoration, partial-I/O errors, overshoot rejection, temporary/read/write/
+conversion/allocation failures, bounded fallback reads, UTF-16 output growth
+and explicit signature/no-op behavior. It also passes under MSVC AddressSanitizer.
+Native core tests compare the complete pre-conversion snapshot using the real
+code-page and file services.
+
+Primitive memory/file services, codec registration, chunk persistence and
+remaining engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

@@ -428,6 +428,79 @@ static void TestBlockMaterialization()
 #endif
 }
 
+static void TestFilePolicies()
+{
+    byte input[8192], actual[8192], original[8192];
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_FILE_POLICY_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
+    }
+    for (int kind = 0; kind < 6; ++kind)
+        for (LegacyLong units : {0L,1L,2L,127L,256L,257L,768L,1025L})
+            for (short requested : {short(oskNil),koskSbMac,koskSbWin,koskUniMac,koskUniWin})
+            {
+                LegacyLong size = 0;
+                if (kind == 2 || kind == 3 || kind == 5)
+                {
+                    input[size++] = kind == 3 ? 0xfe : 0xff;
+                    input[size++] = kind == 3 ? 0xff : 0xfe;
+                }
+                for (LegacyLong i = 0; i < units; ++i)
+                {
+                    byte value = i % 7 == 0 ? (kind == 1 ? 0x8e : 0xe9) : static_cast<byte>('A' + i % 26);
+                    if (kind < 2) input[size++] = value;
+                    else if (kind == 3) { input[size++] = 0; input[size++] = value; }
+                    else { input[size++] = value; input[size++] = 0; }
+                }
+                if (kind == 5) input[size++] = 0x7f; // Odd total: the legacy BOM probe is skipped.
+                auto file = FileObject::PfilCreateTemp();
+                Check(file && file->FWriteRgb(PszLit("prefix-"), 7, 0) && file->FWriteRgb(input, size, 7));
+                FileLocation location = {file, 7, size};
+                file->AddRef(); // location owns a reference that FTranslate may replace.
+                Check(location.FTranslate(requested));
+                Check(location.cb < sizeof(actual) && location.FRead(actual));
+                Check(file->FReadRgb(original, size, 7) && !std::memcmp(original, input, size));
+                LegacyLong record[] = {kind, units, requested, location.fp, location.cb, location.pfil == file, location.pfil->FpMac()};
+                if (snapshot)
+                {
+                    Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+                    Check(std::fwrite(actual, 1, location.cb, snapshot) == static_cast<size_t>(location.cb));
+                }
+                ReleasePpo(&location.pfil); ReleasePpo(&file);
+            }
+    auto file = FileObject::PfilCreateTemp();
+    auto stream = NewObj FileByteStream();
+    Check(file && stream);
+    for (LegacyLong i = 0; i < 4096; ++i) input[i] = static_cast<byte>(i * 11);
+    Check(file->FWriteRgb(input, 4096, 0));
+    FileLocation piece = {file, 0, 4096};
+    Check(stream->FReplace(PszLit("front"), 5, 0, 0) && stream->FReplaceFlo(&piece, false, 5, 0));
+    Check(stream->FReplace(PszLit("endings"), 7, stream->IbMac(), 0));
+    byte model[4108]; stream->FetchRgb(0, sizeof(model), model);
+    struct Range { LegacyLong offset, count; };
+    for (const auto &range : {Range{0,4108}, Range{2,4106}, Range{5,4096}, Range{1,3}, Range{12,1024}, Range{0,5}, Range{4101,7}, Range{3,4098}})
+        for (int force = 0; force < 2; ++force)
+        {
+            DataBlock target;
+            std::memset(input, 0xcc, range.count + 17);
+            Check(target.FSetTemp(range.count + 17, force != 0) && target.FWrite(input));
+            Check(target.FMoveMin(11) && target.FMoveLim(-6));
+            Check(stream->FWriteRgb(&target, range.offset) && target.Cb() == range.count);
+            Check(target.FMoveMin(-11) && target.FMoveLim(6) && target.FRead(actual));
+            Check(!std::memcmp(actual, input, 11) && !std::memcmp(actual + 11, model + range.offset, range.count));
+            Check(!std::memcmp(actual + 11 + range.count, input, 6));
+            LegacyLong record[] = {range.offset, range.count, force, target.Cb()};
+            if (snapshot)
+            {
+                Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+                Check(std::fwrite(actual, 1, target.Cb(), snapshot) == static_cast<size_t>(target.Cb()));
+            }
+        }
+    ReleasePpo(&stream); ReleasePpo(&file);
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
 static void TestPieceEdits()
 {
     byte fileBytes[8192], model[30000], actual[30000], insert[16];
@@ -3279,6 +3352,7 @@ int main()
     TestDataStreams();
     TestBlockCopies();
     TestBlockMaterialization();
+    TestFilePolicies();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

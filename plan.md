@@ -104,8 +104,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - DataBlock now owns a C89 state record, including file/HQ lifetime, adoption,
   replacement, temporary-storage selection and file materialization. Pack/unpack
   commits and prior-file releases also live in C. Native diagnostics and primitive
-  services remain callbacks. Remaining write-window orchestration, allocator/file
-  services, file-text translation and container persistence are next.
+  services remain callbacks.
+- FileByteStream destination-window orchestration and FileLocation text/BOM/
+  encoding-selection policy now use C89, with bounded fallback buffers and
+  explicit guards for legacy write-window overshoot. Host code-page conversion
+  remains a callback. Container persistence, codec registration and remaining
+  primitive service adapters are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

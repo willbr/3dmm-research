@@ -12,6 +12,7 @@
 
 ***************************************************************************/
 #include "util.h"
+#include "handle_services.h"
 ASSERTNAME
 
 RTCLASS(MemoryByteStream)
@@ -247,55 +248,13 @@ bool FileByteStream::FWriteRgb(PFileLocation location, LegacyLong offset)
     DataBlock block(location);
     return FWriteRgb(&block, offset);
 }
-// Retain the original DataBlock window/lock protocol; only piece-table storage
-// and editing moved to C. General block-copy policy remains a host service.
 bool FileByteStream::FWriteRgb(PDataBlock block, LegacyLong offset)
 {
     AssertThis(fobjAssertFull);
     AssertPo(block, 0);
-    const LegacyLong total = block->Cb();
-    if (offset < 0 || total < 0 || !three_mm_range_contains(_pieces.length, offset, total))
-    {
-        Bug("blck is too big");
-        return false;
-    }
-    if (!total) return true;
-    ThreeMMU32 index = 0, start = 0;
-    ThreeMMFilePiece piece;
-    while (index < _pieces.group.count)
-    {
-        AssertDo(three_mm_piece_table_get(&_pieces, index, &piece, nullptr) == THREE_MM_DATA_OK, "invalid piece");
-        if (static_cast<ThreeMMU32>(offset) - start < piece.length) break;
-        start += piece.length; ++index;
-    }
-    offset -= start;
-    AssertDo(three_mm_storage_lock(&_pieces.storage, 0) == THREE_MM_STORAGE_OK, "piece lock failed");
-    AssertDo(three_mm_storage_lock(&_pieces.storage, 1) == THREE_MM_STORAGE_OK, "piece lock failed");
-    AssertDo(block->FMoveLim(-total), 0);
-    bool ok = true;
-    LegacyLong written = 0;
-    for (; ok && written < total && index < _pieces.group.count; ++index)
-    {
-        const unsigned char *memory;
-        AssertDo(three_mm_piece_table_get(&_pieces, index, &piece, &memory) == THREE_MM_DATA_OK, "invalid piece");
-        const LegacyLong count = LwMin(total, piece.length - offset);
-        AssertDo(block->FMoveLim(count), 0);
-        if (piece.file)
-        {
-            DataBlock source(static_cast<PFileObject>(piece.file), piece.offset + offset, count);
-            ok = source.FWriteToBlck(block);
-        }
-        else ok = block->FWrite(const_cast<unsigned char *>(memory + offset));
-        offset = 0;
-        written += count;
-        AssertDo(block->FMoveMin(count), 0);
-    }
-    Assert(!ok || written == total, "wrong number of bytes written!");
-    AssertDo(block->FMoveMin(-written), 0);
-    AssertDo(block->FMoveLim(total - written), 0);
-    AssertDo(three_mm_storage_unlock(&_pieces.storage, 1) == THREE_MM_STORAGE_OK, "piece unlock failed");
-    AssertDo(three_mm_storage_unlock(&_pieces.storage, 0) == THREE_MM_STORAGE_OK, "piece unlock failed");
-    return ok;
+    const int result = three_mm_piece_table_write(&_pieces, offset, &block->_state, KauaiCopyAllocator());
+    if (result == THREE_MM_DATA_ARGUMENT || result == THREE_MM_DATA_PACKED) Bug("invalid stream write window");
+    return result == THREE_MM_DATA_OK;
 }
 bool FileByteStream::FCompact(void)
 {
