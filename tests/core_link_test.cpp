@@ -136,6 +136,27 @@ static void TestChunkPersistence()
         }
         ReleasePpo(&raw);
     };
+    auto captureWalk = [&](PChunkyFile file, ChunkTagOrType type, ChunkNumber root) {
+        ChunkGraphEnumerator walk;
+        for (int mode = 0; mode < 8; ++mode)
+        {
+            walk.Init(file, type, root);
+            ChildChunkIdentification node; ChunkIdentification parent; LegacyUlong flags, input = fcgeNil;
+            uint32_t step = 0;
+            while (walk.FNextKid(&node, &parent, &flags, input))
+            {
+                Check(step < 1000 && !(flags & fcgeError));
+                uint32_t record[] = {static_cast<uint32_t>(mode), step, static_cast<uint32_t>(flags), node.cki.ctg,
+                    node.cki.cno, flags & fcgeRoot ? 0U : node.chid,
+                    flags & fcgeRoot ? 0U : parent.ctg, flags & fcgeRoot ? 0U : parent.cno};
+                if (snapshot) Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+                input = mode && (step + mode) % (mode + 1) == 0 ? fcgeSkipToSib : fcgeNil;
+                if (mode == 7 && step == 2) walk.Init(file, type, root); // Reuse an active enumerator.
+                ++step;
+            }
+            if (snapshot) Check(std::fwrite(&step, sizeof(step), 1, snapshot) == 1);
+        }
+    };
     for (LegacyLong length : {0L,1L,3L,257L,1024L})
     {
         Filename source, copy, destination;
@@ -231,6 +252,15 @@ static void TestChunkPersistence()
         Check(file->FAdoptChild('GRPH', nodes[3], 'GRPH', nodes[2], 6));
         Check(file->FAdoptChild('GRPH', nodes[0], 'GRPH', nodes[4], 4, false));
         for (int i = 4; i < 7; ++i) Check(file->FAdoptChild('GRPH', nodes[i], 'GRPH', nodes[i+1], i));
+        Check(file->FAdoptChild('GRPH', nodes[0], 'GRPH', nodes[4], 4, true));
+        Check(file->FLoner('GRPH', nodes[4])); // Duplicate adoption does not clear loner.
+        captureWalk(file, 'GRPH', nodes[0]);
+        file->ChangeChid('GRPH', nodes[0], 'GRPH', nodes[1], 1, 9);
+        captureWalk(file, 'GRPH', nodes[0]);
+        file->ChangeChid('GRPH', nodes[0], 'GRPH', nodes[1], 9, 1);
+        file->ChangeChid('GRPH', nodes[0], 'GRPH', nodes[4], 4, 3);
+        captureWalk(file, 'GRPH', nodes[0]);
+        file->ChangeChid('GRPH', nodes[0], 'GRPH', nodes[4], 3, 4);
         Check(file->FSave('GRPH')); capture(source);
         Check(file->FPutPv(payload, 37, 'GRPH', nodes[0]));
         Check(file->Ckid('GRPH', nodes[0]) == 3 && file->CckiRef('GRPH', nodes[2]) == 3);
@@ -242,6 +272,18 @@ static void TestChunkPersistence()
         for (int i = 5; i < 8; ++i) Check(!file->FFind('GRPH', nodes[i]));
         file->Delete('GRPH', nodes[4]);
         Check(file->FSave('NONE')); capture(source);
+        file->SetTemp(true); ReleasePpo(&file);
+    }
+    {
+        Filename source; Check(source.FGetTemp());
+        auto file = ChunkyFile::PcflCreate(&source, fcflWriteEnable);
+        ChunkNumber nodes[48];
+        for (int i = 0; i < 48; ++i) Check(file->FAddPv(payload, 1, 'DEEP', &nodes[i]));
+        for (int i = 0; i < 47; ++i) Check(file->FAdoptChild('DEEP', nodes[i], 'DEEP', nodes[i+1], i));
+        captureWalk(file, 'DEEP', nodes[0]);
+        Check(file->FSave('DEEP')); capture(source);
+        file->Delete('DEEP', nodes[0]);
+        Check(file->Ccki() == 0 && file->FSave('GONE')); capture(source);
         file->SetTemp(true); ReleasePpo(&file);
     }
     if (snapshot) Check(std::fclose(snapshot) == 0);

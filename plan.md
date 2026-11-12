@@ -121,9 +121,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   lazy free-map loading and physical I/O remain native services.
 - Unique chunk numbers, low-level insertion, replace/create rollback, payload
   commit, runtime-ID invalidation selection, reference decrement and deletion
-  sequencing now use C89. Native traversal still supplies pre/post/error events;
-  graph enumeration/stack storage and child-link edits remain next, alongside
-  codec registration and remaining primitive adapters.
+  sequencing now use C89.
+- Graph enumeration and its owning stack, descendant searches, child adoption,
+  count-overflow rollback, unlink/deletion and child-ID reordering now use C89.
+  Native facades retain graph/index lookup and byte-transfer primitives. Remaining
+  swap/move/copy/clone operations, codec registration and primitive adapters are
+  next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

@@ -24,7 +24,8 @@ extern "C"
         THREE_MM_EDIT_MISSING_NODE,
         THREE_MM_EDIT_BAD_REFERENCE,
         THREE_MM_EDIT_LOW_MEMORY,
-        THREE_MM_EDIT_MISSING_CHILD
+        THREE_MM_EDIT_MISSING_CHILD,
+        THREE_MM_EDIT_CYCLE_RISK
     };
     typedef struct ThreeMMChunkDeleteEvent
     {
@@ -54,6 +55,12 @@ extern "C"
         void (*begin_delete)(void *, ThreeMMU32 type, ThreeMMU32 number);
         int (*next_delete)(void *, int skip, ThreeMMChunkDeleteEvent *);
         void (*issue)(void *, int kind);
+        int (*insert_child)(void *, ThreeMMU32 parent, ThreeMMU32 position, const ThreeMMChunkChild *);
+        void (*erase_child)(void *, ThreeMMU32 parent, ThreeMMU32 position);
+        void (*put_child)(void *, ThreeMMU32 parent, ThreeMMU32 position, const ThreeMMChunkChild *);
+        /* 0=no, 1=yes, 2=unknown, retaining the legacy reference shortcut. */
+        int (*descendant)(void *, ThreeMMU32 root_type, ThreeMMU32 root_number, ThreeMMU32 target_type,
+                          ThreeMMU32 target_number);
     } ThreeMMChunkEdit;
     int three_mm_chunk_unique(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 *position, ThreeMMU32 *number);
     int three_mm_chunk_add(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 position,
@@ -66,6 +73,14 @@ extern "C"
      * child references in reverse order without recursively deleting those children,
      * matching the legacy low-memory fallback. Diagnostics are optional callbacks. */
     int three_mm_chunk_delete(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 number);
+    int three_mm_chunk_adopt_at(const ThreeMMChunkEdit *, ThreeMMU32 parent, ThreeMMU32 position,
+                                const ThreeMMChunkChild *, int clear_loner, ThreeMMU32 max_references);
+    int three_mm_chunk_adopt(const ThreeMMChunkEdit *, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
+                             const ThreeMMChunkChild *, int clear_loner, ThreeMMU32 max_references);
+    int three_mm_chunk_unlink(const ThreeMMChunkEdit *, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
+                              const ThreeMMChunkChild *);
+    int three_mm_chunk_change_slot(const ThreeMMChunkEdit *, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
+                                   const ThreeMMChunkChild *old_child, ThreeMMU32 new_slot);
 #ifdef __cplusplus
 }
 #endif

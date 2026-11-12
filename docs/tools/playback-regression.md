@@ -1309,3 +1309,57 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 graph traversal and child-link editing (12 November 2026)
+
+The shared backend now owns graph traversal state, lazy stack storage, skip and
+pre/post/root/error events, descendant searches, child adoption, count-limit
+rollback, unlink/final-reference deletion and child-ID reordering. Native
+facades retain record lookup/transfer and diagnostic services. The native
+DynamicArray stack object allocation is removed; stack reserve/growth failure
+still emits PRE|POST|ERROR and resumes siblings. Stack storage is released at
+completion, root skip, reset and disposal.
+
+Duplicate adoption leaves existing loner state unchanged, child-ID moves retain
+(slot,type,number) order, and count-limit failures roll back inserted child bytes.
+Descendant search retains the zero-reference shortcut and match-before-error
+ordering. It adds no global shared-node deduplication or stronger cycle policy.
+See the [graph boundary](../code-map/library-split.md#graph-traversal-and-child-link-editing).
+
+All 568,649 pre-conversion baseline bytes match. Added cases record graph events
+and parent identities over eight skip/reuse modes, shared subgraphs, child-ID
+moves and a 48-node chain with cascading deletion. Invalid root parent/slot
+fields are normalized, as they are not defined by the native API. Standalone C
+checks compare traversal against an independent recursive reference, relocate
+stack allocations, force initial/growth failure and SPEED fallback, and check
+reset/early exit/cleanup. Child-link cases cover duplicates, both count limits,
+insertion failure, cycle-risk/unknown results, order conflicts and final unlink.
+
+Seventeen standalone C checks, twenty-nine focused native checks and both MSVC
+AddressSanitizer checks pass. All 51 CLI baselines match, including six asset
+indexes covering 20,568 entries. Local evidence includes
+`tmp/c89-chunk-graph-before.bin`, `tmp/c89-chunk-graph-after.bin` and
+`tmp/c89-chunk-graph-output-comparison.json`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T123354Z-18aaa6c9` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T123837Z-ed38be21` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding mutation suites `20261112T120259Z-5d079f4d` and
+`20261112T120607Z-933904f5`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-chunk-graph-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

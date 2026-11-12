@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include "three_mm/chunky_file.h"
+#include "three_mm/chunk_graph.h"
 
 struct ThreeMMChunkEdit;
 
@@ -151,7 +152,6 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FDecRefCount(LegacyLong icrp);
     void _DeleteCore(LegacyLong icrp);
     bool _FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, LegacyLong *pikid);
-    bool _FAdoptChild(LegacyLong icrpPar, LegacyLong ikid, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner);
     void _ReadFreeMap(void);
     bool _FFindChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTagOrType ctg, ChildChunkIdentification *pkid);
     bool _FSetName(LegacyLong icrp, PString pstn);
@@ -305,26 +305,8 @@ class ChunkGraphEnumerator : public ChunkGraphEnumerator_PAR
     NOCOPY(ChunkGraphEnumerator)
 
   private:
-    // data enumeration push state
-    struct DataEnumerationPushState
-    {
-        ChildChunkIdentification kid;
-        LegacyLong ikid;
-    };
-
-    // enumeration states
-    enum
-    {
-        esStart,    // waiting to start the enumeration
-        esGo,       // go to the next node
-        esGoNoSkip, // there are no children to skip, so ignore fcgeSkipToSib
-        esDone      // we're done with the enumeration
-    };
-
-    LegacyLong _es;    // current state
-    PChunkyFile _pcfl;  // the chunky file
-    PDynamicArray _pgldps; // our stack of DPSs
-    DataEnumerationPushState _dps;    // the current DataEnumerationPushState
+    PChunkyFile _pcfl;
+    ThreeMMChunkWalk _walk;
 
   public:
     ChunkGraphEnumerator(void);

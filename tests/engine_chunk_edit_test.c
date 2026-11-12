@@ -26,7 +26,7 @@ typedef struct Fixture
     ThreeMMChunkLocation output;
     ThreeMMChunkLocation freed[32];
     int frees, resets, clears, outputs, extra, fail;
-    int file, output_added, next, total, begun, issues[4];
+    int file, output_added, next, total, begun, issues[5], delete_root, descends, descendant;
     ThreeMMChunkDeleteEvent events[16];
     int skips[16];
     char log[256];
@@ -148,7 +148,7 @@ static void reset(void *ctx, ThreeMMU32 type, ThreeMMU32 number)
 static void begin(void *ctx, ThreeMMU32 type, ThreeMMU32 number)
 {
     Fixture *f = (Fixture *)ctx;
-    CHECK(type == 10 && number == 0 && !f->begun);
+    CHECK(type == 10 && number == (ThreeMMU32)f->delete_root && !f->begun);
     ++f->begun;
 }
 static int next(void *ctx, int skip, ThreeMMChunkDeleteEvent *out)
@@ -164,8 +164,44 @@ static int next(void *ctx, int skip, ThreeMMChunkDeleteEvent *out)
 static void issue(void *ctx, int kind)
 {
     Fixture *f = (Fixture *)ctx;
-    CHECK(kind >= 0 && kind < 4);
+    CHECK(kind >= 0 && kind < 5);
     ++f->issues[kind];
+}
+static int insert_child(void *context, ThreeMMU32 parent, ThreeMMU32 i, const ThreeMMChunkChild *child)
+{
+    Fixture *f = (Fixture *)context;
+    Node *n = f->nodes + parent;
+    ThreeMMU32 count = n->entry.child_count;
+    CHECK(parent < f->count && i <= count && count < 4);
+    if (f->fail == 4)
+        return 0;
+    memmove(n->children + i + 1, n->children + i, (count - i) * sizeof(*child));
+    n->children[i] = *child;
+    n->entry.variable_bytes += 12;
+    return 1;
+}
+static void erase_child(void *context, ThreeMMU32 parent, ThreeMMU32 i)
+{
+    Fixture *f = (Fixture *)context;
+    Node *n = f->nodes + parent;
+    ThreeMMU32 count = n->entry.child_count;
+    CHECK(parent < f->count && i <= count && count < 4);
+    memmove(n->children + i, n->children + i + 1, (count - i) * sizeof(ThreeMMChunkChild));
+    memset(n->children + count, 0, sizeof(ThreeMMChunkChild));
+    n->entry.variable_bytes -= 12;
+}
+static void put_child(void *context, ThreeMMU32 parent, ThreeMMU32 i, const ThreeMMChunkChild *child)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(parent < f->count && i < f->nodes[parent].entry.child_count);
+    f->nodes[parent].children[i] = *child;
+}
+static int descendant(void *context, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 target_type, ThreeMMU32 target)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(type == 10 && target_type == 10 && number == 1 && target == 0);
+    ++f->descends;
+    return f->descendant;
 }
 static void init(Fixture *f)
 {
@@ -186,6 +222,10 @@ static void init(Fixture *f)
     f->edit.begin_delete = begin;
     f->edit.next_delete = next;
     f->edit.issue = issue;
+    f->edit.insert_child = insert_child;
+    f->edit.erase_child = erase_child;
+    f->edit.put_child = put_child;
+    f->edit.descendant = descendant;
 }
 static void node(Fixture *f, unsigned i, ThreeMMU32 number, ThreeMMU32 flags, ThreeMMU32 parents)
 {
@@ -353,10 +393,79 @@ static void deletes(void)
     CHECK(f.stores == 5 && f.stored_numbers[2] == 3 && f.stored_numbers[3] == 2 && f.stored_numbers[4] == 2);
     CHECK(f.issues[THREE_MM_EDIT_LOW_MEMORY] == 1 && f.frees == 2);
 }
+static void links(void)
+{
+    Fixture f;
+    ThreeMMChunkChild key;
+    Node parent, target;
+    int risk;
+    init(&f);
+    node(&f, 0, 0, 2, 0);
+    node(&f, 1, 1, 22, 0);
+    f.nodes[0].entry.variable_bytes = 16;
+    key.type = 10;
+    key.number = 1;
+    key.slot = 9;
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 0, 3) == THREE_MM_CHUNK_OK);
+    CHECK(f.nodes[0].entry.child_count == 1 && f.nodes[0].entry.variable_bytes == 28 &&
+          f.nodes[1].entry.parent_count == 1 && f.nodes[1].entry.flags == 22);
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_OK && f.descends == 1 &&
+          f.nodes[1].entry.flags == 22);
+    parent = f.nodes[0];
+    target = f.nodes[1];
+    key.slot = 1;
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
+    f.fail = 4;
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_MEMORY &&
+          !memcmp(&parent, f.nodes, sizeof(parent)));
+    f.fail = 0;
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_OK);
+    CHECK(f.nodes[0].entry.child_count == 2 && f.nodes[0].entry.variable_bytes == 40 &&
+          f.nodes[1].entry.parent_count == 2 && f.nodes[1].entry.flags == 20);
+    key.slot = 9;
+    CHECK(three_mm_chunk_change_slot(&f.edit, 10, 0, &key, 0) == THREE_MM_CHUNK_OK &&
+          f.nodes[0].children[0].slot == 0 && f.nodes[0].children[1].slot == 1);
+    key.slot = 0;
+    CHECK(three_mm_chunk_change_slot(&f.edit, 10, 0, &key, 10) == THREE_MM_CHUNK_OK &&
+          f.nodes[0].children[0].slot == 1 && f.nodes[0].children[1].slot == 10);
+    key.slot = 10;
+    parent = f.nodes[0];
+    CHECK(three_mm_chunk_change_slot(&f.edit, 10, 0, &key, 1) == THREE_MM_CHUNK_BAD_FILE &&
+          !memcmp(&parent, f.nodes, sizeof(parent)));
+    CHECK(three_mm_chunk_change_slot(&f.edit, 99, 99, &key, 10) == THREE_MM_CHUNK_OK);
+    key.slot = 1;
+    CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_OK && f.nodes[1].entry.parent_count == 1 &&
+          !f.begun);
+    key.slot = 10;
+    f.delete_root = 1;
+    event(&f, 0, 1, 7, 0);
+    CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_OK && f.count == 1 && f.begun == 1);
+    CHECK(!f.nodes[0].entry.child_count && f.nodes[0].entry.variable_bytes == 16 &&
+          !strcmp(f.nodes[0].name, "retained"));
+    init(&f);
+    node(&f, 0, 0, 2, 0);
+    node(&f, 1, 1, 2, 1);
+    f.nodes[0].entry.variable_bytes = 16;
+    parent = f.nodes[0];
+    target = f.nodes[1];
+    key.slot = 5;
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == THREE_MM_CHUNK_BAD_FILE); /* Child-reference overflow. */
+    CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
+    for (risk = 1; risk <= 2; ++risk)
+    {
+        f.descendant = risk;
+        CHECK(three_mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == THREE_MM_CHUNK_BAD_FILE);
+        CHECK(f.issues[THREE_MM_EDIT_CYCLE_RISK] == risk && !memcmp(&parent, f.nodes, sizeof(parent)));
+    }
+    CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_NOT_FOUND);
+    CHECK(three_mm_chunk_adopt(&f.edit, 10, 99, &key, 1, 3) == THREE_MM_CHUNK_NOT_FOUND);
+}
 int main(void)
 {
     put_cases();
     simple();
     deletes();
+    links();
     return 0;
 }

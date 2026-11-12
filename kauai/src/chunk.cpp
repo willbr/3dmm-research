@@ -79,6 +79,7 @@
 #include "three_mm/chunk_save.h"
 #include "three_mm/chunk_heap.h"
 #include "three_mm/chunk_edit.h"
+#include "handle_services.h"
 ASSERTNAME
 
 namespace Chunky {
@@ -2077,7 +2078,23 @@ ThreeMMChunkEdit ChunkyFile::_EditServices(void *context)
     };
     edit.issue = [](void *, int kind) {
         if (kind == THREE_MM_EDIT_LOW_MEMORY) Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
+        else if (kind == THREE_MM_EDIT_CYCLE_RISK) Warn("Performing this adoption may cause a cycle");
         else Bug("invalid chunk deletion reference");
+    };
+    edit.insert_child = [](void *c, ThreeMMU32 parent, ThreeMMU32 position, const ThreeMMChunkChild *child) -> int {
+        ChildChunkIdentification native = {{child->type, child->number}, child->slot};
+        return static_cast<ChunkEditHost *>(c)->owner->_pggcrp->FInsertRgb(parent, position * sizeof(native), sizeof(native), &native);
+    };
+    edit.erase_child = [](void *c, ThreeMMU32 parent, ThreeMMU32 position) {
+        static_cast<ChunkEditHost *>(c)->owner->_pggcrp->DeleteRgb(parent, position * sizeof(ChildChunkIdentification), sizeof(ChildChunkIdentification));
+    };
+    edit.put_child = [](void *c, ThreeMMU32 parent, ThreeMMU32 position, const ThreeMMChunkChild *child) {
+        ChildChunkIdentification native = {{child->type, child->number}, child->slot};
+        static_cast<ChunkEditHost *>(c)->owner->_pggcrp->PutRgb(parent, position * sizeof(native), sizeof(native), &native);
+    };
+    edit.descendant = [](void *c, ThreeMMU32 rootType, ThreeMMU32 rootNumber, ThreeMMU32 type, ThreeMMU32 number) -> int {
+        const auto result = static_cast<ChunkEditHost *>(c)->owner->TIsDescendent(rootType, rootNumber, type, number);
+        return result == tNo ? 0 : result == tYes ? 1 : 2;
     };
     return edit;
 }
@@ -2567,25 +2584,26 @@ LegacyLong ChunkyFile::CckiRef(ChunkTagOrType ctg, ChunkNumber cno)
     Determines if (ctgSub, cnoSub) is in the chunk subgraph of (ctg, cno).
     Returns tMaybe on error.
 ***************************************************************************/
+namespace {
+ThreeMMChunkGraph ChunkGraphServices(PChunkyFile file)
+{
+    return {file,
+        [](void *context, ThreeMMU32 type, ThreeMMU32 number) -> ThreeMMU32 {
+            return static_cast<PChunkyFile>(context)->Ckid(type, number);
+        },
+        [](void *context, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 position, ThreeMMChunkChild *child) -> int {
+            ChildChunkIdentification native;
+            if (!static_cast<PChunkyFile>(context)->FGetKid(type, number, position, &native)) return 0;
+            *child = {native.cki.ctg, native.cki.cno, native.chid}; return 1;
+        }};
+}
+}
 tribool ChunkyFile::TIsDescendent(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgSub, ChunkNumber cnoSub)
 {
     AssertThis(0);
-    ChunkGraphEnumerator cge;
-    ChildChunkIdentification kid;
-    LegacyUlong grfcge;
-
-    if (CckiRef(ctgSub, cnoSub) == 0)
-        return tNo;
-
-    cge.Init(this, ctg, cno);
-    while (cge.FNextKid(&kid, pvNil, &grfcge, fcgeNil))
-    {
-        if (kid.cki.ctg == ctgSub && kid.cki.cno == cnoSub)
-            return tYes;
-        if (grfcge & fcgeError)
-            return tMaybe;
-    }
-    return tNo;
+    const auto graph = ChunkGraphServices(this);
+    const int result = three_mm_chunk_reaches(&graph, KauaiCopyAllocator(), ctg, cno, ctgSub, cnoSub, CckiRef(ctgSub, cnoSub));
+    return result == 0 ? tNo : result == 1 ? tYes : tMaybe;
 }
 
 /***************************************************************************
@@ -2595,31 +2613,11 @@ tribool ChunkyFile::TIsDescendent(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagO
 void ChunkyFile::DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid)
 {
     AssertThis(0);
-    LegacyLong icrpPar, icrpChild, ikid;
-    ChunkRepresentation *qcrp;
-
-    if (!_FFindCtgCno(ctgPar, cnoPar, &icrpPar) || !_FFindCtgCno(ctgChild, cnoChild, &icrpChild))
-    {
-        Bug("chunk not there");
-        return;
-    }
-    if (!_FFindChild(icrpPar, ctgChild, cnoChild, chid, &ikid))
-    {
-        Bug("not a child");
-        return;
-    }
-
-    // remove the reference
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
-    qcrp->ckid--;
-    _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification));
-
-    // now decrement the ref count and nuke it if the ref count is zero
-    if (_FDecRefCount(icrpChild))
-    {
-        // delete the chunk
-        Delete(ctgChild, cnoChild);
-    }
+    ChunkGraphEnumerator enumerator;
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, &enumerator};
+    const auto edit = _EditServices(&host);
+    const ThreeMMChunkChild child = {ctgChild, cnoChild, chid};
+    if (three_mm_chunk_unlink(&edit, ctgPar, cnoPar, &child) != THREE_MM_CHUNK_OK) { Bug("chunk or child link missing"); return; }
     AssertThis(fcflFull);
 }
 
@@ -2790,80 +2788,13 @@ bool ChunkyFile::_FGetName(LegacyLong icrp, PString pstn)
 bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
 {
     AssertThis(0);
-    LegacyLong icrpPar;
-    LegacyLong ikid;
-
-    if (!_FFindCtgCno(ctgPar, cnoPar, &icrpPar))
-    {
-        Bug("parent not there");
-        return fFalse;
-    }
-    if (_FFindChild(icrpPar, ctgChild, cnoChild, chid, &ikid))
-        return fTrue; // already a child
-
-    if (!_FAdoptChild(icrpPar, ikid, ctgChild, cnoChild, chid, fClearLoner))
-    {
-        AssertThis(0);
-        return fFalse;
-    }
-
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    const ThreeMMChunkChild child = {ctgChild, cnoChild, chid};
+    const int result = three_mm_chunk_adopt(&edit, ctgPar, cnoPar, &child, fClearLoner, kckidMax);
+    if (result == THREE_MM_CHUNK_NOT_FOUND) Bug("parent or child not there");
     AssertThis(0);
-    return fTrue;
-}
-
-/***************************************************************************
-    Make (ctgChild, cnoChild) a child of icrpPar.
-***************************************************************************/
-bool ChunkyFile::_FAdoptChild(LegacyLong icrpPar, LegacyLong ikid, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
-{
-    AssertBaseThis(0);
-    AssertIn(icrpPar, 0, _pggcrp->IvMac());
-    LegacyLong icrp;
-    ChunkRepresentation *qcrp;
-    ChildChunkIdentification kid;
-
-    if (!_FFindCtgCno(ctgChild, cnoChild, &icrp))
-    {
-        Bug("child not there");
-        return fFalse;
-    }
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
-    AssertIn(ikid, 0, (LegacyLong)qcrp->ckid + 1);
-    if (tNo != TIsDescendent(ctgChild, cnoChild, qcrp->cki.ctg, qcrp->cki.cno))
-    {
-        Warn("Performing this adoption may cause a cycle");
-        return fFalse;
-    }
-
-    kid.cki.ctg = ctgChild;
-    kid.cki.cno = cnoChild;
-    kid.chid = chid;
-    if (!_pggcrp->FInsertRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification), &kid))
-    {
-        AssertThis(0);
-        return fFalse;
-    }
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
-    if (qcrp->ckid >= kckidMax)
-        goto LOverFlow;
-    qcrp->ckid++;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    if (qcrp->ccrpRef >= kckidMax)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
-        qcrp->ckid--;
-    LOverFlow:
-        _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification));
-        AssertThis(0);
-        return fFalse;
-    }
-    qcrp->ccrpRef++;
-
-    if (fClearLoner)
-        qcrp->ClearGrfcrp(fcrpLoner);
-    AssertThis(0);
-    return fTrue;
+    return result == THREE_MM_CHUNK_OK;
 }
 
 /***************************************************************************
@@ -2874,29 +2805,11 @@ bool ChunkyFile::_FAdoptChild(LegacyLong icrpPar, LegacyLong ikid, ChunkTagOrTyp
 void ChunkyFile::ChangeChid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chidOld, ChildChunkID chidNew)
 {
     AssertThis(0);
-    LegacyLong icrp, ikidOld, ikidNew;
-    ChildChunkIdentification *qkid, *qrgkid;
-
-    if (chidOld == chidNew)
-        return;
-
-    if (!_FFindCtgCno(ctgPar, cnoPar, &icrp))
-    {
-        Bug("parent not there");
-        return;
-    }
-    if (!_FFindChild(icrp, ctgChild, cnoChild, chidOld, &ikidOld) ||
-        _FFindChild(icrp, ctgChild, cnoChild, chidNew, &ikidNew))
-    {
-        Bug("src not a child or dest already a child");
-        return;
-    }
-
-    qkid = (qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp)) + ikidOld;
-    qkid->chid = chidNew;
-
-    MoveElement(qrgkid, size(ChildChunkIdentification), ikidOld, ikidNew);
-
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    const ThreeMMChunkChild child = {ctgChild, cnoChild, chidOld};
+    if (three_mm_chunk_change_slot(&edit, ctgPar, cnoPar, &child, chidNew) != THREE_MM_CHUNK_OK)
+    { Bug("src not a child or dest already a child"); return; }
     AssertThis(0);
 }
 
@@ -3688,176 +3601,53 @@ bool ChunkyFile::_FFindRtie(ChunkTagOrType ctg, ChunkNumber cno, RuntimeIDEntry 
 ChunkGraphEnumerator::ChunkGraphEnumerator(void)
 {
     AssertThisMem();
-
-    _es = esDone;
-    _pgldps = pvNil;
+    _pcfl = nullptr;
+    AssertDo(three_mm_chunk_walk_init(&_walk, KauaiCopyAllocator()) == THREE_MM_CHUNK_OK, "invalid graph allocator");
     AssertThis(0);
 }
-
-/***************************************************************************
-    Destructor for chunk graph enumerator.
-***************************************************************************/
 ChunkGraphEnumerator::~ChunkGraphEnumerator(void)
 {
     AssertThis(0);
-    ReleasePpo(&_pgldps);
+    AssertDo(three_mm_chunk_walk_dispose(&_walk) == THREE_MM_CHUNK_OK, "invalid graph disposal");
 }
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the cge
-***************************************************************************/
 void ChunkGraphEnumerator::AssertValid(LegacyUlong grf)
 {
     ChunkGraphEnumerator_PAR::AssertValid(0);
-    AssertIn(_es, esStart, esDone + 1);
-    if (FIn(_es, esStart, esDone))
-    {
-        AssertPo(_pcfl, 0);
-        AssertNilOrPo(_pgldps, 0);
-    }
-    else
-        Assert(_pgldps == pvNil, "_pgldps not nil");
+    AssertIn(_walk.phase, THREE_MM_WALK_START, THREE_MM_WALK_DONE + 1);
+    if (_walk.phase != THREE_MM_WALK_DONE) AssertPo(_pcfl, 0);
+    else Assert(!_walk.depth && !_walk.created && !_walk.stack.buffers[0].data, "graph stack retained after completion");
+    Assert(_walk.depth <= _walk.stack.buffers[0].capacity / sizeof(ThreeMMChunkWalkFrame), "bad graph depth");
 }
-
-/***************************************************************************
-    Mark memory used by the cge.
-***************************************************************************/
 void ChunkGraphEnumerator::MarkMem(void)
 {
     AssertThis(0);
     ChunkGraphEnumerator_PAR::MarkMem();
-    MarkMemObj(_pgldps);
+    MarkPv(_walk.stack.buffers[0].data);
 }
-#endif // DEBUG
-
-/***************************************************************************
-    Start a new enumeration.
-***************************************************************************/
+#endif
 void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-
-    ReleasePpo(&_pgldps);
-    _es = esStart;
+    AssertThis(0); AssertPo(pcfl, 0);
+    const auto graph = ChunkGraphServices(pcfl);
+    AssertDo(three_mm_chunk_walk_reset(&_walk, &graph, ctg, cno) == THREE_MM_CHUNK_OK, "invalid graph reset");
     _pcfl = pcfl;
-    _dps.kid.cki.ctg = ctg;
-    _dps.kid.cki.cno = cno;
-    TrashVar(&_dps.kid.chid);
     AssertThis(0);
 }
-
-/***************************************************************************
-    Fetch the next node in the graph enumeration.  Generally, parent nodes
-    are returned twice (once with fcgePre and again with fcgePost).  Nodes
-    without children are returned only once (with both fcgePre and fcgePost
-    set).  The new node is put in *pkid, and the node's parent (if the node
-    is not the root of the enumeration) is put in *pckiPar.  pckiPar may
-    be nil.
-
-    If (grfcgeIn & fcgeSkipToSib), skips all children and the upward touch
-    of the last node returned.
-
-    The *pgrfcgeOut value can contain any combination of: fcgePre, fcgePost,
-    fcgeError, fcgeRoot.  These have the following meanings:
-
-        fcgePre:  *pkid is valid; haven't traversed the node's children yet
-        fcgePost:  *pkid is valid; have already traversed the children (or
-            there aren't any children)
-        fcgeError:  a memory error occurred; may be set in conjunction with
-            other flags
-        fcgeRoot:  *pkid is valid (except the chid value); *pckiPar is
-            invalid; the node is the root of the enumeration
-***************************************************************************/
 bool ChunkGraphEnumerator::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, LegacyUlong *pgrfcgeOut, LegacyUlong grfcgeIn)
 {
-    AssertThis(0);
-    AssertVarMem(pkid);
-    AssertNilOrVarMem(pckiPar);
-    AssertVarMem(pgrfcgeOut);
-
-    *pgrfcgeOut = fcgeNil;
-    switch (_es)
+    AssertThis(0); AssertVarMem(pkid); AssertNilOrVarMem(pckiPar); AssertVarMem(pgrfcgeOut);
+    static_assert(fcgePre == THREE_MM_WALK_PRE && fcgePost == THREE_MM_WALK_POST &&
+        fcgeRoot == THREE_MM_WALK_ROOT && fcgeError == THREE_MM_WALK_ERROR, "graph event flags drift");
+    ThreeMMChunkChild node, parent; ThreeMMU32 flags;
+    if (!three_mm_chunk_walk_next(&_walk, (grfcgeIn & fcgeSkipToSib) != 0, &node, &parent, &flags))
     {
-    case esStart:
-        // starting the enumeration
-        // hit the node on the way down
-        *pgrfcgeOut |= fcgePre | fcgeRoot;
-        if (_pcfl->Ckid(_dps.kid.cki.ctg, _dps.kid.cki.cno) == 0)
-            goto LPost;
-        *pkid = _dps.kid;
-        _dps.ikid = 0;
-        _es = esGo;
-        break;
-
-    case esGo:
-        if ((grfcgeIn & fcgeSkipToSib) && (_pgldps == pvNil || !_pgldps->FPop(&_dps)))
-        {
-            goto LDone;
-        }
-        // fall through
-    case esGoNoSkip:
-        if (!_pcfl->FGetKid(_dps.kid.cki.ctg, _dps.kid.cki.cno, _dps.ikid++, pkid))
-        {
-        LPost:
-            // no more children, hit the node on the way up
-            *pgrfcgeOut |= fcgePost;
-            *pkid = _dps.kid;
-            if (_pgldps == pvNil || !_pgldps->FPop(&_dps))
-            {
-                // this is the root
-                *pgrfcgeOut |= fcgeRoot;
-                _es = esDone;
-                ReleasePpo(&_pgldps);
-            }
-            else
-            {
-                _es = esGoNoSkip;
-                if (pckiPar != pvNil)
-                    *pckiPar = _dps.kid.cki;
-            }
-            break;
-        }
-
-        // hit the child
-        if (pckiPar != pvNil)
-            *pckiPar = _dps.kid.cki;
-        if (_pcfl->Ckid(pkid->cki.ctg, pkid->cki.cno) > 0)
-        {
-            // child has children, need to push the dps
-            if (_pgldps == pvNil && (_pgldps = DynamicArray::PglNew(size(DataEnumerationPushState), 10)) == pvNil || !_pgldps->FPush(&_dps))
-            {
-                // mem failure, pretend it has no children
-                *pgrfcgeOut |= fcgeError;
-                goto LNoChildren;
-            }
-            _dps.kid = *pkid;
-            _dps.ikid = 0;
-            *pgrfcgeOut |= fcgePre;
-            _es = esGo;
-        }
-        else
-        {
-        LNoChildren:
-            // child doesn't have children, just handle it
-            *pgrfcgeOut |= fcgePost | fcgePre;
-            _es = esGoNoSkip;
-        }
-        break;
-
-    default:
-    LDone:
-        _es = esDone;
-        ReleasePpo(&_pgldps);
-        TrashVar(pkid);
-        TrashVar(pckiPar);
-        TrashVar(pgrfcgeOut);
-        return fFalse;
+        TrashVar(pkid); TrashVar(pckiPar); TrashVar(pgrfcgeOut); return fFalse;
     }
-
-    TrashVarIf((*pgrfcgeOut & fcgeRoot), pckiPar);
-    TrashVarIf((*pgrfcgeOut & fcgeRoot), &pkid->chid);
+    *pkid = {{node.type, node.number}, node.slot}; *pgrfcgeOut = flags;
+    if (pckiPar && !(flags & THREE_MM_WALK_ROOT)) *pckiPar = {parent.type, parent.number};
+    TrashVarIf(flags & THREE_MM_WALK_ROOT, pckiPar);
+    TrashVarIf(flags & THREE_MM_WALK_ROOT, &pkid->chid);
     return fTrue;
 }
 

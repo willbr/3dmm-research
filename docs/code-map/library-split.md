@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,41 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Graph traversal and child-link editing
+
+`chunk_graph.c` owns the live graph walker, pre/post/root/error events, skip
+behavior and lazy stack storage. The native `ChunkGraphEnumerator` now embeds
+this C owner and only translates records, invalid output diagnostics and debug
+memory marking. Stack frames contain identities/cursors rather than index
+positions, supporting mutation during deletion. Traversal still visits shared
+nodes separately for each link; it adds no global visited-node normalization.
+
+The C stack reserves ten initial frames through the existing collection growth
+policy and releases storage on completion, root skip, reset and disposal. It
+removes the native DynamicArray object allocation. A failed reservation/growth
+still yields PRE|POST|ERROR for that child and continues with siblings. Descendant
+search preserves the zero-target-reference shortcut and match-before-error
+ordering. Graph/context lifetime remains borrowed; the walker takes no file
+references and cannot be copied.
+
+`chunk_edit.c` also owns child adoption, duplicate-link handling, insertion before
+count-limit checks, rollback on parent/child reference overflow, loner updates,
+unlink plus final-reference deletion, and child-ID reordering. Native callbacks
+transfer child bytes through existing C89 group storage. Duplicate adoption is
+an unchanged success even when clear-loner is requested; changing a child ID
+preserves ordering by (slot,type,number). Cycle-risk rejection retains the
+existing descendant policy, including unknown results after allocation failure.
+
+All 568,649 native baseline bytes match. Added cases record traversal order,
+flags and parent identities across skip modes, active reset, shared subgraphs,
+child-ID moves and a 48-node chain, alongside previous saved-file/heap/deletion
+outputs. Invalid root parent/slot fields are normalized in the event snapshot. Standalone C tests compare traversal with an independent recursive
+reference, force first-allocation and growth failures, relocate allocations,
+check SPEED-to-NORMAL fallback, reset/early completion and cleanup. Child tests
+cover idempotence, insertion failure, both count limits and rollback, cycle-risk
+and unknown results, ordering conflicts and cascading unlink deletion. Both pass
+MSVC AddressSanitizer. Other graph swap/move/copy/clone policies remain native.
+
 ### Chunk insertion, replacement and deletion policy
 
 `chunk_edit.c` owns first-unused chunk-number selection, blank-index insertion
@@ -443,8 +478,8 @@ non-root references and removes unreferenced non-loners on post events. Shared
 descendants and loners stop descent. Traversal errors retain the legacy fallback:
 decrement children in reverse order but do not recursively delete those newly
 unreferenced children. This intentionally does not introduce orphan repair.
-The existing native graph enumerator supplies events and owns its stack; that
-dependency, child-link editing and other graph operations remain to migrate.
+The C89 graph walker above now supplies traversal events and owns its stack;
+other swap/move/copy/clone operations remain to migrate.
 
 The native 550,737-byte baseline matches after conversion. It extends the heap
 snapshot with named diamond/duplicate-edge graphs, replacement preserving child
@@ -545,7 +580,7 @@ limits, untouched guards and the maximum signed file position. They also pass
 under MSVC AddressSanitizer.
 
 The whole-file save sequence above now shares relocation/recovery policy too.
-Graph traversal, child-link mutation and free-map loading remain native. These slices
+Graph swap/move/copy/clone operations and free-map loading remain native. These slices
 do not complete the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion
