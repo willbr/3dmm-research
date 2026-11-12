@@ -140,8 +140,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   use C89. Index materialization owns reusable C scratch storage, assembles child
   records and sequences legacy-name conversion through the host text callback.
   Native DynamicArray free maps and index-loader C++ vectors are removed.
-  Remaining container storage selection/cache policy and resource ownership
-  are next.
+  Native allocation diagnostics and physical services remain adapters.
+- Main/extra storage selection, zero-size allocation rules, cache copy/rollback
+  and read-through fetch fallback now use C89. Cached location publication
+  preserves runtime IDs and other metadata. Native callbacks provide C heap
+  access, file creation/copy and fixed-record updates. Remaining container flag/
+  lifecycle policy and resource ownership are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -237,7 +241,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations and forest transfer now have shared C89
 implementations behind temporary native facades. Continue with remaining
-container storage selection/cache policy, then resource/engine objects and the
+container flag/lifecycle policy, then resource/engine objects and the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.

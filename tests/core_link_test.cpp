@@ -327,6 +327,43 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestStorageRouting()
+{
+    FILE *snapshot=nullptr;
+    if(const char *path=std::getenv("THREE_MM_STORAGE_ROUTING_SNAPSHOT")) {snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
+    const LegacyUlong modes[]={fcflNil,fcflWriteEnable,fcflReadFromExtra,fcflWriteEnable|fcflReadFromExtra,fcflWriteEnable|fcflAddToExtra};
+    byte payload[64];for(unsigned i=0;i<sizeof(payload);++i)payload[i]=static_cast<byte>(i*17+3);
+    for(int mode=0;mode<5;++mode)
+    {
+        Filename name;Check(name.FGetTemp());auto file=ChunkyFile::PcflCreate(&name,fcflWriteEnable);Check(file!=nullptr);
+        Check(file->FPutPv(payload,17,'DATA',1) && file->FPutPv(nullptr,0,'ZERO',2));
+        file->SetPacked('DATA',1,true);file->SetForest('DATA',1,true);Check(file->FSave('BASE'));ReleasePpo(&file);
+        file=ChunkyFile::PcflOpen(&name,modes[mode]);Check(file!=nullptr);
+        Check(file->FEnsureOnExtra('ZERO',2) && !file->FOnExtra('ZERO',2));
+        auto copied = ChunkyFile::PcflCreateTemp(); Check(copied != nullptr);
+        ChunkNumber firstCopy, repeatedCopy;
+        Check(file->FCopy('DATA',1,copied,&firstCopy));
+        FileLocation before,after,zero;Check(file->FFindFlo('DATA',1,&before));
+        const bool cachedBefore=file->FOnExtra('DATA',1);Check(cachedBefore==!!(modes[mode]&fcflReadFromExtra));
+        Check(file->FEnsureOnExtra('DATA',1) && file->FEnsureOnExtra('DATA',1));
+        Check(file->FCopy('DATA',1,copied,&repeatedCopy) && repeatedCopy == firstCopy && copied->Ccki() == 1);
+        ReleasePpo(&copied);
+        Check(file->FFindFlo('DATA',1,&after) && file->FFindFlo('ZERO',2,&zero));
+        Check(file->FOnExtra('DATA',1) && !file->FOnExtra('ZERO',2) && file->FPacked('DATA',1) && file->FForest('DATA',1));
+        byte actual[64];Check(after.FRead(actual) && !std::memcmp(actual,payload,17));
+        Check(file->FPutPv(payload,23,'NEW ',3) && file->FPutPv(nullptr,0,'NIL ',4));
+        FileLocation added,empty;Check(file->FFindFlo('NEW ',3,&added) && file->FFindFlo('NIL ',4,&empty));
+        uint32_t record[]={static_cast<uint32_t>(mode),static_cast<uint32_t>(before.fp),static_cast<uint32_t>(after.fp),static_cast<uint32_t>(zero.fp),
+            cachedBefore,before.pfil==after.pfil,zero.pfil==after.pfil,static_cast<uint32_t>(added.fp),file->FOnExtra('NEW ',3),static_cast<uint32_t>(empty.fp),file->FOnExtra('NIL ',4)};
+        if(snapshot)Check(std::fwrite(record,sizeof(record),1,snapshot)==1);
+        Check(file->FSave('DONE'));ReleasePpo(&file);
+        auto raw=FileObject::PfilOpen(&name);Check(raw!=nullptr);LegacyLong count=raw->FpMac();byte bytes[2048];Check(count<sizeof(bytes) && raw->FReadRgb(bytes,count,0));
+        if(snapshot){Check(std::fwrite(&count,sizeof(count),1,snapshot)==1);Check(std::fwrite(bytes,1,count,snapshot)==static_cast<size_t>(count));}
+        ReleasePpo(&raw);Check(name.FDelete());
+    }
+    if(snapshot)Check(std::fclose(snapshot)==0);
+}
+
 static void TestFreeMapLoading()
 {
     FILE *snapshot=nullptr;
@@ -3722,6 +3759,7 @@ int main()
     TestStringWire();
     TestForestTransfer();
     TestFreeMapLoading();
+    TestStorageRouting();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

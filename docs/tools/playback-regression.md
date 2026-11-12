@@ -1561,3 +1561,53 @@ preservation against the preceding build, not full retail parity or general
 repeatability from one repetition. After captures, a whitespace correction and
 removal of an unreachable native cleanup label were rebuilt and rechecked;
 no C policy or executed native logic changed.
+
+## C89 storage selection and read-through caching (12 November 2026)
+
+Main/extra allocation selection, empty-allocation rules, cache copy/publication,
+failed-copy extent release and read-through fetch fallback now use C89. Native
+callbacks provide physical file services, C heap access and fixed-record updates.
+Only offset/on-extra change after a successful cache move; runtime IDs and other
+metadata are preserved. The historical empty-cache extra-file behavior remains
+explicit. See the [implementation boundary](../code-map/library-split.md#storage-selection-and-read-through-caching).
+
+All 1,740 native routing baseline bytes match across read-only/write/read-through/
+add-to-extra modes and subsequent saves. The previous 572,367-byte chunk,
+2,192-byte loading, 29,532-byte string and 1,594-byte forest snapshots also match.
+Native checks verify graph-copy reuse across a cache move. Standalone checks
+cover add/force/unread/empty combinations, size guards, creation/reservation/copy
+failures, failed-copy cleanup, retained extra files, repeated caching, metadata
+preservation, read fallback/retry and diagnostic trace ordering.
+
+Twenty-two standalone C checks, thirty-four focused native checks and MSVC
+AddressSanitizer pass. Native statistics and expanded-index variants compile
+with `/Zs`; a pre-existing duplicate mask alias was corrected in the expanded
+branch. This does not establish expanded-index runtime compatibility. All 51 CLI
+baselines match, including six asset indexes covering 20,568 entries. Evidence
+includes `tmp/c89-routing-before.bin`, `tmp/c89-routing-after.bin`,
+`tmp/c89-routing-chunks-after.bin`, `tmp/c89-routing-loading-after.bin`,
+`tmp/c89-routing-strings-after.bin`, `tmp/c89-routing-forest-after.bin` and
+`tmp/c89-routing-output-comparison.json`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T142853Z-e891a5e5` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T143448Z-5be8800c` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding loading suites `20261112T141135Z-67446bce` and
+`20261112T141639Z-32717cc3`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-routing-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

@@ -272,7 +272,7 @@ typedef ChunkRepresentationSmall ChunkRepresentationOther;
 const LegacyLong kcbMaxCrp = kcbMaxCrpbg;
 typedef LegacyLong CKID;
 const LegacyLong kckidMax = kcbMax;
-const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
+const ByteOrderMask kbomCrp = kbomCrpbgGrfcrp;
 
 #else //! CHUNK_BIG_INDEX
 
@@ -1396,68 +1396,12 @@ bool ChunkyFile::_FEnsureOnExtra(LegacyLong icrp, FileLocation *pflo)
     AssertThis(0);
     AssertNilOrVarMem(pflo);
 
-    ChunkRepresentation *qcrp;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    if (qcrp->Grfcrp(fcrpOnExtra) || qcrp->Cb() == 0)
-    {
-        if (pvNil != pflo)
-        {
-            pflo->pfil = _cstoExtra.pfil;
-            pflo->fp = qcrp->fp;
-            pflo->cb = qcrp->Cb();
-        }
-    }
-    else
-    {
-        FileLocation floSrc, floDst;
-
-#ifdef CHUNK_STATS
-        if (vfDumpChunkRequests)
-        {
-            String stn;
-
-            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-            stn.FFormatSz(PszLit("Cache: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), qcrp->cki.ctg, qcrp->cki.cno,
-                          qcrp->fp, qcrp->Cb());
-            DumpStn(&stn, _csto.pfil);
-        }
-#endif // CHUNK_STATS
-
-        floSrc.pfil = _csto.pfil;
-        floSrc.fp = qcrp->fp;
-        floSrc.cb = qcrp->Cb();
-
-        if (!_FAllocFlo(floSrc.cb, &floDst, fTrue))
-            return fFalse;
-        if (!floSrc.FCopy(&floDst))
-        {
-            _FreeFpCb(fTrue, floDst.fp, floDst.cb);
-            return fFalse;
-        }
-
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        qcrp->SetGrfcrp(fcrpOnExtra);
-        qcrp->fp = floDst.fp;
-        if (pvNil != pflo)
-            *pflo = floDst;
-    }
-
-#ifdef CHUNK_STATS
-    if (pvNil != pflo && vfDumpChunkRequests)
-    {
-        String stn;
-
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        stn.FFormatSz(PszLit("Fetch from extra: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), qcrp->cki.ctg, qcrp->cki.cno,
-                      qcrp->fp, qcrp->Cb());
-        DumpStn(&stn, _csto.pfil);
-    }
-#endif // CHUNK_STATS
-
-    return fTrue;
+    const auto policy = _StoragePolicy(); const auto services = _StorageServices();
+    ThreeMMChunkLocation location;
+    if (three_mm_chunk_storage_cache(&policy, &services, icrp, pflo ? &location : nullptr) != THREE_MM_CHUNK_OK) return false;
+    if (pflo) *pflo = {static_cast<PFileObject>(location.file), static_cast<FilePosition>(location.offset), static_cast<LegacyLong>(location.bytes)};
+    return true;
 }
-
 /***************************************************************************
     Get the FileLocation from the chunk.
 ***************************************************************************/
@@ -1466,31 +1410,12 @@ void ChunkyFile::_GetFlo(LegacyLong icrp, PFileLocation pflo)
     AssertThis(0);
     AssertVarMem(pflo);
 
-    if (!_fReadFromExtra || !_FEnsureOnExtra(icrp, pflo))
-    {
-        ChunkRepresentation *qcrp;
-
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        pflo->pfil = qcrp->Grfcrp(fcrpOnExtra) ? _cstoExtra.pfil : _csto.pfil;
-        pflo->fp = qcrp->fp;
-        pflo->cb = qcrp->Cb();
-
-#ifdef CHUNK_STATS
-        if (vfDumpChunkRequests)
-        {
-            String stn;
-
-            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-            stn.FFormatSz(PszLit("Fetch from %z: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"),
-                          qcrp->Grfcrp(fcrpOnExtra) ? PszLit("extra") : PszLit("main"), qcrp->cki.ctg, qcrp->cki.cno,
-                          qcrp->fp, qcrp->Cb());
-            DumpStn(&stn, _csto.pfil);
-        }
-#endif // CHUNK_STATS
-    }
+    const auto policy = _StoragePolicy(); const auto services = _StorageServices();
+    ThreeMMChunkLocation location;
+    AssertDo(three_mm_chunk_storage_fetch(&policy, &services, icrp, &location) == THREE_MM_CHUNK_OK, "invalid chunk fetch");
+    *pflo = {static_cast<PFileObject>(location.file), static_cast<FilePosition>(location.offset), static_cast<LegacyLong>(location.bytes)};
     AssertPo(pflo->pfil, 0);
 }
-
 /***************************************************************************
     Get the DataBlock from the chunk.
 ***************************************************************************/
@@ -1699,60 +1624,67 @@ ThreeMMChunkHeap ChunkHeapServices(ChunkHeapHost *host)
     return {host, HeapCount, HeapGet, HeapPut, HeapErase, HeapInsert, HeapEnsure, HeapPhysicalEnd, HeapResize};
 }
 }
+ThreeMMChunkStoragePolicy ChunkyFile::_StoragePolicy()
+{
+    return {kcbMaxCrp, _fAddToExtra, _fReadFromExtra, _fFreeMapNotRead};
+}
+ThreeMMChunkStorageServices ChunkyFile::_StorageServices()
+{
+    ThreeMMChunkStorageServices services = {};
+    services.context = this;
+    services.file = [](void *c, int extra) -> void * {
+        auto self = static_cast<PChunkyFile>(c); return extra ? self->_cstoExtra.pfil : self->_csto.pfil;
+    };
+    services.create_extra = [](void *c) -> int { return static_cast<PChunkyFile>(c)->_FCreateExtra(); };
+    services.reserve = [](void *c, int extra, ThreeMMU32 bytes, ThreeMMU32 *offset) -> int {
+        auto self = static_cast<PChunkyFile>(c); auto storage = extra ? &self->_cstoExtra : &self->_csto;
+        ChunkHeapHost host = {storage->pfil, &storage->free_map}; const auto heap = ChunkHeapServices(&host);
+        ThreeMMU32 end = storage->fpMac;
+        if (three_mm_chunk_heap_allocate(&heap, &end, bytes, offset) != THREE_MM_CHUNK_OK) return 0;
+        storage->fpMac = end; return 1;
+    };
+    services.release_space = [](void *c, int extra, ThreeMMU32 offset, ThreeMMU32 bytes) {
+        static_cast<PChunkyFile>(c)->_FreeFpCb(extra != 0, offset, bytes);
+    };
+    services.entry = [](void *c, ThreeMMU32 position, ThreeMMChunkEntry *entry) {
+        AssertDo(ReadRuntimeChunk(static_cast<PChunkyFile>(c)->_pggcrp, position, entry), "invalid storage entry");
+    };
+    services.cache_place = [](void *c, ThreeMMU32 position, ThreeMMU32 offset) {
+        auto row = static_cast<ChunkRepresentation *>(static_cast<PChunkyFile>(c)->_pggcrp->QvFixedGet(position));
+        row->SetGrfcrp(fcrpOnExtra); row->fp = offset;
+    };
+    services.copy = [](void *, const ThreeMMChunkLocation *source, const ThreeMMChunkLocation *destination) -> int {
+        FileLocation from = {static_cast<PFileObject>(source->file), static_cast<FilePosition>(source->offset), static_cast<LegacyLong>(source->bytes)};
+        FileLocation to = {static_cast<PFileObject>(destination->file), static_cast<FilePosition>(destination->offset), static_cast<LegacyLong>(destination->bytes)};
+        return from.FCopy(&to);
+    };
+#ifdef CHUNK_STATS
+    if (vfDumpChunkRequests) services.trace = [](void *c, int kind, const ThreeMMChunkEntry *entry) {
+        auto self = static_cast<PChunkyFile>(c); String text;
+        if (kind == THREE_MM_STORAGE_CACHE)
+            text.FFormatSz(PszLit("Cache: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), entry->type, entry->number, entry->offset, entry->bytes);
+        else if (kind == THREE_MM_STORAGE_FETCH_EXTRA)
+            text.FFormatSz(PszLit("Fetch from extra: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), entry->type, entry->number, entry->offset, entry->bytes);
+        else
+            text.FFormatSz(PszLit("Fetch from %z: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"),
+                entry->flags & fcrpOnExtra ? PszLit("extra") : PszLit("main"), entry->type, entry->number, entry->offset, entry->bytes);
+        DumpStn(&text, self->_csto.pfil);
+    };
+#endif
+    return services;
+}
 bool ChunkyFile::_FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtra)
 {
-    AssertBaseThis(0);
-    AssertIn(cb, 0, kcbMax);
-    AssertVarMem(pflo);
-
-    ChunkStorage *pcsto;
-
-    if (cb > kcbMaxCrp)
-    {
-        Bug("Requested FileLocation too big");
-        return fFalse;
-    }
-
-    if ((fForceOnExtra || _fAddToExtra) && cb > 0)
-    {
-        pcsto = &_cstoExtra;
-        if (pcsto->pfil == pvNil && !_FCreateExtra())
-        {
-            TrashVar(pflo);
-            return fFalse;
-        }
-    }
-    else
-    {
-        // Empty chunks reserve no storage, including on read-only files whose
-        // free-space map is loaded only when primary storage becomes writable.
-        Assert(cb == 0 || !_fFreeMapNotRead, "free map not read yet");
-        pcsto = &_csto;
-    }
-
-    // set the file and cb - just need to find an fp
-    AssertPo(pcsto->pfil, 0);
-    pflo->pfil = pcsto->pfil;
-    pflo->cb = cb;
-
-    if (cb <= 0)
-    {
-        pflo->fp = 0;
-        pflo->cb = 0; // for safety
-        return fTrue;
-    }
-
-    ChunkHeapHost host = {pcsto->pfil, &pcsto->free_map};
-    const auto heap = ChunkHeapServices(&host);
-    ThreeMMU32 end = pcsto->fpMac, offset = 0;
-    if (three_mm_chunk_heap_allocate(&heap, &end, cb, &offset) != THREE_MM_CHUNK_OK)
-    {
-        TrashVar(pflo); return fFalse;
-    }
-    pcsto->fpMac = end; pflo->fp = offset;
-    return fTrue;
+    AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertVarMem(pflo);
+    if (cb > kcbMaxCrp) { Bug("Requested FileLocation too big"); return false; }
+    Assert(cb == 0 || fForceOnExtra || _fAddToExtra || !_fFreeMapNotRead, "free map not read yet");
+    const auto policy = _StoragePolicy(); const auto services = _StorageServices();
+    ThreeMMChunkLocation location;
+    if (three_mm_chunk_storage_allocate(&policy, &services, cb, fForceOnExtra, &location) != THREE_MM_CHUNK_OK)
+    { TrashVar(pflo); return false; }
+    *pflo = {static_cast<PFileObject>(location.file), static_cast<FilePosition>(location.offset), static_cast<LegacyLong>(location.bytes)};
+    return true;
 }
-
 /***************************************************************************
     Look for the (ctg, cno) pair.  Fills *picrp with where it should be.
     Returns whether or not it was found.  Assumes the _pggcrp is sorted

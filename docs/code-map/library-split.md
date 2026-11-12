@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,42 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Storage selection and read-through caching
+
+`chunk_storage.c` owns main/extra allocation selection, cache copy/publication,
+failed-copy extent release and read-through fallback. Nonempty forced/add-to-extra
+allocations create extra storage lazily; failed reservations retain a newly
+created file. Empty allocations always choose main at zero without reading a
+free map or creating extra storage. Nonempty main allocations require the lazy
+map read to have been attempted. Native reserve callbacks use the C heap and
+publish its logical end; physical files remain host services.
+
+Caching copies the original main payload before publishing offset/on-extra.
+Failure frees the new extra extent and retains the old entry; it does not free
+the original main payload. Only offset/on-extra change, preserving packed/forest
+flags and runtime IDs. Fetch tries caching when read-from-extra is enabled,
+falls back to the recorded main/extra location on failure, and can retry later.
+Optional callbacks retain cache/fetch trace ordering and native diagnostics.
+
+The legacy empty-cache quirk is preserved: ensure returns the current extra-file
+token, possibly NULL, without setting the empty chunk's on-extra bit. A native
+fetch can consequently assert if read-from-extra selects an empty chunk before
+any extra file exists; this slice does not silently repair that behavior.
+
+`engine-chunk-storage-test` checks routing over add/force/unread/empty combinations,
+size guards, creation/reservation/copy failures, extent release, metadata
+preservation, repeated caching, fetch fallback/retry and trace ordering. MSVC
+AddressSanitizer passes. All 1,740 native routing baseline bytes match across five
+read-only/write/read-through/add-to-extra modes and subsequent saves. Native
+checks also verify graph-copy reuse across a cache move. The previous chunk,
+loading, string and forest snapshots remain exact.
+
+The native statistics and expanded-index variants compile with `/Zs`. The
+expanded variant exposed a pre-existing duplicate mask name; its alias now uses
+`kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
+runtime validation. Container flag/lifecycle policy and resource ownership still
+require conversion.
+
 ### Index materialization and owning free maps
 
 `chunk_loading.c` owns free-map records and their range storage through an
@@ -762,7 +798,7 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, remaining container storage/cache policy and
+Primitive memory/file services, remaining container flag/lifecycle policy and
 engine objects still prevent a complete C-only backend.
 
 ## Why the split exists

@@ -21,6 +21,7 @@
 #include "three_mm/chunk_graph.h"
 #include "three_mm/chunk_metadata.h"
 #include "three_mm/chunk_loading.h"
+#include "three_mm/chunk_storage.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -133,6 +134,8 @@ class ChunkyFile : public ChunkyFile_PAR
     ThreeMMChunkEndpoint _OpsServices(void *context);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
+    ThreeMMChunkStoragePolicy _StoragePolicy();
+    ThreeMMChunkStorageServices _StorageServices();
     bool _FCreateExtra(void);
     bool _FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtra = fFalse);
     bool _FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picrp);
