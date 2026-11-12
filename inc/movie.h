@@ -789,7 +789,7 @@ class Movie : public Movie_PAR
     bool FAutoSave(PFilename pfni = pvNil, bool fCleanRollCall = fFalse); // Save movie in temp file
     bool FSaveTagSnd(TAG *ptag)
     {
-        return TagManager::FSaveTag(ptag, _data.resources, fTrue);
+        return TagManager::FSaveTag(ptag, _data.Resources(), fTrue);
     }
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
@@ -824,7 +824,7 @@ class Movie : public Movie_PAR
     long CmactrMac(void)
     {
         AssertThis(0);
-        return _data.actors->IvMac();
+        return _data.Actors()->IvMac();
     }
     bool FIsPropBrwsIarid(long iarid); // Identify the roll call browser iarids
     bool FIsIaridTdt(long iarid);      // 3d spletter

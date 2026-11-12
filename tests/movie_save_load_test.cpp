@@ -838,13 +838,13 @@ int __cdecl main(int argc, char **argv)
         if (!stored.FLoad(&fniMovie))
             BAIL("core movie load failed");
         ChildChunkIdentification scene;
-        if (!stored.resources->Pcfl()->FGetKidChidCtg(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))
+        if (!stored.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))
             BAIL("saved movie has no scene");
         SceneData metadata;
-        if (!metadata.FRead(stored.resources->Pcfl(), scene.cki.cno))
+        if (!metadata.FRead(stored.Resources()->Pcfl(), scene.cki.cno))
             BAIL("core scene read failed");
         metadata.transition = transFadeToBlack;
-        if (!metadata.FWrite(stored.resources->Pcfl(), scene.cki.cno) || !stored.FSave(&fniMovie))
+        if (!metadata.FWrite(stored.Resources()->Pcfl(), scene.cki.cno) || !stored.FSave(&fniMovie))
             BAIL("core scene edit/save failed");
     }
 

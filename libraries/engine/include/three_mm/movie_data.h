@@ -41,6 +41,7 @@ extern "C"
     int three_mm_movie_read_header(const ThreeMMReadStream *stream, ThreeMMMovieHeader *header);
     int three_mm_movie_read_actor(const ThreeMMReadStream *stream, int big_endian, ThreeMMMovieActor *actor,
                                   ThreeMMI32 *actor_id_limit);
+    void three_mm_movie_write_actor(const ThreeMMMovieActor *, unsigned char bytes[28], int big_endian);
 
     /* General string-table layout validation used by Archive before the legacy
      * text transcoder. This retains its existing strict, dense-GST policy; Studio

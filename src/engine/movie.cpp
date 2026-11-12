@@ -251,7 +251,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     if (pvNil == pfni)
     {
         pmvie->_data.actors = StringTable_GST::PgstNew(size(RollCallActorEntry));
-        if (pmvie->_data.actors == pvNil)
+        if (pmvie->_data.Actors() == pvNil)
         {
             goto LFail;
         }
@@ -299,7 +299,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     if (!pmvie->_data.FLoad(pfni, cno))
         goto LFail;
     cno = pmvie->_data.movieNumber;
-    pcfl = pmvie->_data.resources->Pcfl();
+    pcfl = pmvie->_data.Resources()->Pcfl();
     pcfl->AddRef();
 
     if (!pmvie->_FSetPfilSave(pfni))
@@ -425,10 +425,10 @@ void Movie::_DoSndGarbageCollection(bool fPurgeAll)
 
     long ikid;
 
-    if (pvNil == _data.resources)
+    if (pvNil == _data.Resources())
         return;
 
-    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
     if (pvNil == pcfl)
         return;
 
@@ -474,7 +474,7 @@ Movie::~Movie(void)
         vpsndm->ResumeAll();
     _fUserPaused = false;
 
-    ReleasePpo(&_data.resources);
+    _data.ReleaseResources();
     ReleasePpo(&_pfilSave);
 
     if (FPlaying())
@@ -550,11 +550,11 @@ void Movie::MarkMem(void)
 
     Movie_PAR::MarkMem();
 
-    MarkMemObj(_data.resources);
+    MarkMemObj(_data.Resources());
 
     MarkMemObj(_pfilSave);
 
-    MarkMemObj(_data.actors);
+    MarkMemObj(_data.Actors());
 
     MarkMemObj(Pscen());
 
@@ -582,8 +582,8 @@ void Movie::AssertValid(LegacyUlong grf)
 {
     Movie_PAR::AssertValid(fobjAllocated);
 
-    AssertNilOrPo(_data.resources, 0);
-    AssertPo(_data.actors, 0);
+    AssertNilOrPo(_data.Resources(), 0);
+    AssertPo(_data.Actors(), 0);
     AssertNilOrPo(Pbwld(), 0);
     AssertPo(&_clok, 0);
     AssertPo(_pmcc, 0);
@@ -605,7 +605,7 @@ void Movie::AssertValid(LegacyUlong grf)
 PTagList Movie::_PtaglFetch(void)
 {
     AssertThis(0);
-    Assert(_data.resources != pvNil, "need pcrfAutosave");
+    Assert(_data.Resources() != pvNil, "need pcrfAutosave");
 
     PTagList ptagl;
     ChildChunkIdentification kid;
@@ -618,9 +618,9 @@ PTagList Movie::_PtaglFetch(void)
     //
     // Add each scene's tags
     //
-    for (chid = 0; _data.resources->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, chid, kctgScen, &kid); chid++)
+    for (chid = 0; _data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, chid, kctgScen, &kid); chid++)
     {
-        if (!Scene::FAddTagsToTagl(_data.resources->Pcfl(), kid.cki.cno, ptagl))
+        if (!Scene::FAddTagsToTagl(_data.Resources()->Pcfl(), kid.cki.cno, ptagl))
         {
             ReleasePpo(&ptagl);
             return pvNil;
@@ -652,13 +652,13 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
 
     RollCallActorEntry mactr;
 
-    if (iarid < 0 || iarid >= _data.actors->IvMac())
+    if (iarid < 0 || iarid >= _data.Actors()->IvMac())
     {
         return fFalse;
     }
 
-    _data.actors->GetStn(iarid, pstn);
-    _data.actors->GetExtra(iarid, &mactr);
+    _data.Actors()->GetStn(iarid, pstn);
+    _data.Actors()->GetExtra(iarid, &mactr);
     *parid = mactr.arid;
     *pcactRef = mactr.cactRef;
     if (pvNil != ptagTmpl)
@@ -733,9 +733,9 @@ bool Movie::FChooseArid(long arid)
         // Search roll call for actor, and create
         // a new actor for it.
         //
-        for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
+        for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
         {
-            _data.actors->GetExtra(imactr, &mactr);
+            _data.Actors()->GetExtra(imactr, &mactr);
             if (mactr.arid == arid)
             {
                 pactr = Actor::PactrNew(&(mactr.tagTmpl));
@@ -810,12 +810,12 @@ bool Movie::FGetName(long arid, PString pstn)
     RollCallActorEntry mactr;
     long imactr;
 
-    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
     {
-        _data.actors->GetExtra(imactr, &mactr);
+        _data.Actors()->GetExtra(imactr, &mactr);
         if (mactr.arid == arid)
         {
-            _data.actors->GetStn(imactr, pstn);
+            _data.Actors()->GetStn(imactr, pstn);
             return (fTrue);
         }
     }
@@ -844,14 +844,14 @@ bool Movie::FNameActr(long arid, PString pstn)
     RollCallActorEntry mactr;
     long imactr;
 
-    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
     {
 
-        _data.actors->GetExtra(imactr, &mactr);
+        _data.Actors()->GetExtra(imactr, &mactr);
         if (mactr.arid == arid)
         {
 
-            if (_data.actors->FPutStn(imactr, pstn))
+            if (_data.Actors()->FPutStn(imactr, pstn))
             {
 
                 _pmcc->UpdateRollCall();
@@ -870,7 +870,7 @@ bool Movie::FNameActr(long arid, PString pstn)
  * Identifies whether the mactr is in prop browser
  *
  * Parameters:
- *   imactr - index in _data.actors
+ *   imactr - index in _data.Actors()
  *
  * Returns:
  *	 bool
@@ -879,10 +879,10 @@ bool Movie::FNameActr(long arid, PString pstn)
 bool Movie::FIsPropBrwsIarid(long iarid)
 {
     AssertThis(0);
-    AssertIn(iarid, 0, _data.actors->IvMac());
+    AssertIn(iarid, 0, _data.Actors()->IvMac());
 
     RollCallActorEntry mactr;
-    _data.actors->GetExtra(iarid, &mactr);
+    _data.Actors()->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsProp);
 }
 
@@ -891,7 +891,7 @@ bool Movie::FIsPropBrwsIarid(long iarid)
  * Identifies whether the mactr is in 3dtext object
  *
  * Parameters:
- *   imactr - index in _data.actors
+ *   imactr - index in _data.Actors()
  *
  * Returns:
  *	 bool
@@ -900,10 +900,10 @@ bool Movie::FIsPropBrwsIarid(long iarid)
 bool Movie::FIsIaridTdt(long iarid)
 {
     AssertThis(0);
-    AssertIn(iarid, 0, _data.actors->IvMac());
+    AssertIn(iarid, 0, _data.Actors()->IvMac());
 
     RollCallActorEntry mactr;
-    _data.actors->GetExtra(iarid, &mactr);
+    _data.Actors()->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsTdt);
 }
 
@@ -928,15 +928,15 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
     RollCallActorEntry mactr;
     long imactr;
 
-    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
     {
 
-        _data.actors->GetExtra(imactr, &mactr);
+        _data.Actors()->GetExtra(imactr, &mactr);
         if (mactr.arid == arid)
         {
 
             mactr.tagTmpl = *ptag;
-            _data.actors->PutExtra(imactr, &mactr);
+            _data.Actors()->PutExtra(imactr, &mactr);
             return;
         }
     }
@@ -970,10 +970,10 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
         //
         // Search for an actor with the same arid
         //
-        for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
+        for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
         {
 
-            _data.actors->GetExtra(imactr, &mactr);
+            _data.Actors()->GetExtra(imactr, &mactr);
             if (mactr.arid == pactr->Arid())
             {
                 TAG tagTmpl;
@@ -987,7 +987,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
                     // Actor::GetTagTmpl doesn't AddRef the pcrf, so do it here:
                     TagManager::DupTag(&tagTmpl);
                 }
-                _data.actors->PutExtra(imactr, &mactr);
+                _data.Actors()->PutExtra(imactr, &mactr);
                 Pmcc()->UpdateRollCall();
                 return (fTrue);
             }
@@ -1016,8 +1016,8 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
     mactr.cactRef = 1;
     pactr->GetTagTmpl(&mactr.tagTmpl);
     // Open the tag, since it might be a ThreeDText
-    AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _data.resources), "Should never fail when not copying the tag");
-    if (_data.actors->FAddStn(pstn, &mactr))
+    AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _data.Resources()), "Should never fail when not copying the tag");
+    if (_data.Actors()->FAddStn(pstn, &mactr))
     {
         Pmcc()->UpdateRollCall();
         return (fTrue);
@@ -1049,9 +1049,9 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
     //
     // Search for the actor in the roll call
     //
-    for (imactr = 0; imactr < _data.actors->IvMac(); imactr++)
+    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
     {
-        _data.actors->GetExtra(imactr, &mactr);
+        _data.Actors()->GetExtra(imactr, &mactr);
         if (mactr.arid == pactr->Arid())
         {
             mactr.cactRef--;
@@ -1059,11 +1059,11 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
             if (fDelIfOnlyRef && mactr.cactRef == 0)
             {
                 vptagm->CloseTag(&mactr.tagTmpl);
-                _data.actors->Delete(imactr);
+                _data.Actors()->Delete(imactr);
             }
             else
             {
-                _data.actors->PutExtra(imactr, &mactr);
+                _data.Actors()->PutExtra(imactr, &mactr);
             }
 
             if (mactr.cactRef == 0)
@@ -1094,7 +1094,7 @@ bool Movie::FSwitchScen(long iscen)
 {
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
-    Assert((iscen == ivNil) || (_data.resources != pvNil), "Invalid save file");
+    Assert((iscen == ivNil) || (_data.Resources() != pvNil), "Invalid save file");
 
     PScene pscen;
     ChildChunkIdentification kid;
@@ -1150,10 +1150,10 @@ LRetry:
     //
     // Get info for next scene and read it in.
     //
-    AssertDo(_data.resources->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
+    AssertDo(_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
              "Should never fail");
 
-    pscen = Scene::PscenRead(this, _data.resources, kid.cki.cno);
+    pscen = Scene::PscenRead(this, _data.Resources(), kid.cki.cno);
 
     if ((pscen == pvNil) || !pscen->FPlayStartEvents())
     {
@@ -1258,7 +1258,7 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
 
-    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
     ChildChunkIdentification kid;
     ChildChunkID chidTmp;
 
@@ -1407,7 +1407,7 @@ bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PC
     PChunkyFile pcfl;
 
     if (pvNil == pcrf)
-        pcrf = _data.resources;
+        pcrf = _data.Resources();
     pcfl = pcrf->Pcfl();
 
     if (ptag->sid != ksidUseCrf)
@@ -1457,7 +1457,7 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
     ChildChunkIdentification kid;
     long ckid;
     long ikid;
-    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
         return fFalse;
@@ -1500,14 +1500,14 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
     AssertVarMem(pfilSrc);
     AssertVarMem(pcno);
     AssertNilOrPo(pstn, 0);
-    Assert(_data.resources != pvNil, "Bad working file.");
+    Assert(_data.Resources() != pvNil, "Bad working file.");
 
     PChunkyFile pcfl;
     Filename fniSrc;
     ChildChunkID chid;
     ChildChunkIdentification kidScen;
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // Ensure we will be writing to the temp file
@@ -1575,7 +1575,7 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
 
     if (!FEnsureAutosave())
         return fFalse;
-    pcflDest = _data.resources->Pcfl();
+    pcflDest = _data.Resources()->Pcfl();
     pcflSrc->GetFni(&fni);
 
     // Copy the msnd chunk from one movie to another
@@ -1600,7 +1600,7 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
 /****************************************************
  *
  * Choose Scene Chid for New Sound
- * Note: _data.resources is expected to be current
+ * Note: _data.Resources() is expected to be current
  * Parameters:
  *	none
  *
@@ -1611,7 +1611,7 @@ bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumb
 ChildChunkID Movie::_ChidScenNewSnd(void)
 {
     AssertBaseThis(0);
-    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
     long ckid;
     long chid;
     ChildChunkIdentification kidScen;
@@ -1632,7 +1632,7 @@ ChildChunkID Movie::_ChidScenNewSnd(void)
 /****************************************************
  *
  * Choose Mvie Chid for New Sound
- * Note: _data.resources is expected to be current
+ * Note: _data.Resources() is expected to be current
  * Parameters:
  *	none
  *
@@ -1643,7 +1643,7 @@ ChildChunkID Movie::_ChidScenNewSnd(void)
 ChildChunkID Movie::_ChidMvieNewSnd(void)
 {
     AssertBaseThis(0);
-    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
     long ckid;
     long chid;
     ChildChunkIdentification kid;
@@ -1690,14 +1690,14 @@ bool Movie::FRemScenCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
-    Assert(_data.resources != pvNil, "Bad working file.");
+    Assert(_data.Resources() != pvNil, "Bad working file.");
 
     ChildChunkIdentification kid;
     PChunkyFile pcfl;
     PScene pscen;
     long iscenOld;
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // Ensure we are using the temp file
@@ -1819,10 +1819,10 @@ bool Movie::FRemScen(long iscen)
     else
     {
 
-        AssertDo(_data.resources->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
+        AssertDo(_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
                  "Should never fail");
 
-        pscen = Scene::PscenRead(this, _data.resources, kid.cki.cno);
+        pscen = Scene::PscenRead(this, _data.Resources(), kid.cki.cno);
 
         if ((pscen == pvNil) || !pscen->FPlayStartEvents())
         {
@@ -1904,7 +1904,7 @@ bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
     ptag->ctg = kctgMtrl;
     ptag->cno = cno;
 
-    if (!TagManager::FOpenTag(ptag, _data.resources))
+    if (!TagManager::FOpenTag(ptag, _data.Resources()))
     {
         return fFalse;
     }
@@ -1933,7 +1933,7 @@ bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
     }
 
     if (pvNil != ppcrf)
-        *ppcrf = _data.resources;
+        *ppcrf = _data.Resources();
 
     //
     // Switch to the autosave file
@@ -1983,7 +1983,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
         return (fFalse);
     }
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // Switch to the autosave file
@@ -2003,7 +2003,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
     tagTdt.ctg = kctgTmpl;
     tagTdt.cno = cno;
 
-    if (!TagManager::FOpenTag(&tagTdt, _data.resources))
+    if (!TagManager::FOpenTag(&tagTdt, _data.Resources()))
     {
         return fFalse;
     }
@@ -2074,7 +2074,7 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
         return (fFalse);
     }
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // Switch to the autosave file
@@ -2094,7 +2094,7 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
     tagTdtNew.ctg = kctgTmpl;
     tagTdtNew.cno = cno;
 
-    if (!TagManager::FOpenTag(&tagTdtNew, _data.resources))
+    if (!TagManager::FOpenTag(&tagTdtNew, _data.Resources()))
     {
         return fFalse;
     }
@@ -2180,7 +2180,7 @@ bool Movie::_FUseTempFile(void)
     ChildChunkIdentification kid;
     Filename fni;
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // Make sure we are using the temporary file
@@ -2229,7 +2229,7 @@ bool Movie::_FMakeCrfValid(void)
     PChunkyFile pcfl;
     Filename fni;
 
-    if (_data.resources != pvNil)
+    if (_data.Resources() != pvNil)
     {
         return (fTrue);
     }
@@ -2256,7 +2256,7 @@ bool Movie::_FMakeCrfValid(void)
     // read-only, and chunk numbers change over time.
     //
     _data.resources = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
-    if (pvNil == _data.resources)
+    if (pvNil == _data.Resources())
     {
         ReleasePpo(&pcfl);
         return (fFalse);
@@ -2293,7 +2293,7 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     if (_container && MovieContainer::IsVmm(pfni))
         return FSaveToFni(pfni, false);
     AssertThis(0);
-    AssertNilOrPo(_data.resources, 0);
+    AssertNilOrPo(_data.Resources(), 0);
     AssertNilOrPo(pfni, ffniFile);
 
 #ifdef BUG1848
@@ -2306,12 +2306,12 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
     PChunkyFile pcfl;
 
-    if (_data.resources == pvNil)
+    if (_data.Resources() == pvNil)
     {
         return (fFalse);
     }
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // If no changes, then quit quick.
@@ -2350,7 +2350,7 @@ LRetry:
         //
         // Save scene in new chunk
         //
-        if (!Pscen()->FWrite(_data.resources, &cnoScen))
+        if (!Pscen()->FWrite(_data.Resources(), &cnoScen))
         {
             goto LFail0;
         }
@@ -2378,12 +2378,12 @@ LRetry:
         RollCallActorEntry mactr;
         long imactr;
 
-        for (imactr = 0; imactr < _data.actors->IvMac();)
+        for (imactr = 0; imactr < _data.Actors()->IvMac();)
         {
-            _data.actors->GetExtra(imactr, &mactr);
+            _data.Actors()->GetExtra(imactr, &mactr);
             if (mactr.cactRef == 0)
             {
-                _data.actors->Delete(imactr);
+                _data.Actors()->Delete(imactr);
                 vptagm->CloseTag(&mactr.tagTmpl);
             }
             else
@@ -2403,7 +2403,7 @@ LRetry:
         kidGstRollCall.cki.cno = cnoNil;
     }
 
-    if (!MovieData::FWriteRollCall(pcfl, _data.movieNumber, _data.actors, &cno))
+    if (!MovieData::FWriteRollCall(pcfl, _data.movieNumber, _data.Actors(), &cno))
         goto LFail1;
 
     //
@@ -2651,7 +2651,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
     {
         pglckiDoomed->Get(icki1, &cki);
         pcfl->Delete(cki.ctg, cki.cno);
-        if (pcfl == _data.resources->Pcfl()) // remove chunk from ChunkyResourceFile cache
+        if (pcfl == _data.Resources()->Pcfl()) // remove chunk from ChunkyResourceFile cache
         {
             PFNRPO pfnrpo;
 
@@ -2669,7 +2669,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
             }
             // ignore failure of FSetCrep, because return value of fFalse
             // just means that the chunk is not stored in the ChunkyResourceFile's cache
-            _data.resources->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
+            _data.Resources()->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
         }
     }
 LEnd:
@@ -2758,12 +2758,12 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
     ChunkIdentification cki;
     PChunkyFile pcfl;
 
-    if (_data.resources == pvNil)
+    if (_data.Resources() == pvNil)
     {
         return (pvNil);
     }
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     if (MovieContainer::IsVmm(pfni) && !_container)
     {
@@ -2867,7 +2867,7 @@ bool Movie::_FNeedsContainer()
     Filename portableArchive;
     if (!vptagm || !vptagm->SourceArchive(6, kftgContent, 0, &portableArchive))
         return false;
-    if (!_data.resources)
+    if (!_data.Resources())
         return false;
     // The current scene may have new source references absent from its stored
     // tag list. Flush it before choosing the public save format.
@@ -3643,7 +3643,7 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
         goto LFail0;
     }
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
 
     //
     // Ensure we are using the temp file
@@ -3664,7 +3664,7 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
     //
     // Write it.
     //
-    if (!pscen->FWrite(_data.resources, &cnoScen))
+    if (!pscen->FWrite(_data.Resources(), &cnoScen))
     {
         goto LFail0;
     }
@@ -4559,7 +4559,7 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
     scend.imvied = ivNil;
 
 #ifdef BUG1929
-    /* Ensure that _data.resources points to the temp file, not the original movie file */
+    /* Ensure that _data.Resources() points to the temp file, not the original movie file */
     if (!_FUseTempFile())
         goto LFail;
 #endif // BUG1929
@@ -4577,7 +4577,7 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
         goto LFail;
     }
 
-    mvied.pcrf = _data.resources;
+    mvied.pcrf = _data.Resources();
     mvied.cno = _data.movieNumber;
     mvied.aridLim = _data.actorIdLimit;
     if (!pcmvi->pglmvied->FAdd(&mvied, &imvied))
@@ -4678,8 +4678,8 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
     long imvied, imviedMac = pcmvi->pglmvied->IvMac();
     long aridMin = 0;
     ChildChunkID chidScen = 0;
-    PChunkyFile pcfl = _data.resources->Pcfl();
-    PChunkyResourceFile pcrf = _data.resources;
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
+    PChunkyResourceFile pcrf = _data.Resources();
     PDynamicArray pglmviedNew;
 
     pglmviedNew = pcmvi->pglmvied->PglDup();
@@ -4886,11 +4886,11 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     AssertThis(0);
 
     long imactr, imactrMac, icnoMac = 0;
-    PChunkyFile pcfl = _data.resources->Pcfl();
+    PChunkyFile pcfl = _data.Resources()->Pcfl();
     PStringTable_GST pgstmactr = pvNil;
 
     /* Update the roll call StringTable_GST */
-    if (!FReadRollCall(_data.resources, cno, &pgstmactr))
+    if (!FReadRollCall(_data.Resources(), cno, &pgstmactr))
     {
         pgstmactr = pvNil;
         goto LFail;
@@ -4906,7 +4906,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 
         mactr.arid += aridMin;
         mactr.cactRef = 0;
-        if (!_data.actors->FAddStn(&stn, &mactr))
+        if (!_data.Actors()->FAddStn(&stn, &mactr))
             goto LFail;
     }
 
@@ -4985,12 +4985,12 @@ LFail:
         RollCallActorEntry mactr;
 
         /* Remove added entries to the movie's roll call */
-        imactrMac = _data.actors->IvMac();
+        imactrMac = _data.Actors()->IvMac();
         while (imactr--)
         {
-            _data.actors->GetExtra(--imactrMac, &mactr);
+            _data.Actors()->GetExtra(--imactrMac, &mactr);
             vptagm->CloseTag(&mactr.tagTmpl);
-            _data.actors->Delete(imactrMac);
+            _data.Actors()->Delete(imactrMac);
             pgstmactr->Delete(imactr);
         }
 
@@ -5625,10 +5625,10 @@ bool Movie::FUnusedSndsUser(bool *pfHaveValid)
     if (pfHaveValid != pvNil)
         *pfHaveValid = fFalse;
 
-    if (pvNil == _data.resources)
+    if (pvNil == _data.Resources())
         return fFalse;
 
-    pcfl = _data.resources->Pcfl();
+    pcfl = _data.Resources()->Pcfl();
     ccki = pcfl->CckiCtg(kctgMsnd);
     for (icki = 0; icki < ccki; icki++)
     {

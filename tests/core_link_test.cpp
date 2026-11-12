@@ -1473,12 +1473,38 @@ static bool MissingSource(const MissingSourceRequest &request)
 
 static void TestMoviePersistence()
 {
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_MOVIE_OWNER_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb");
+        Check(snapshot);
+    }
+    const auto record = [&](MovieData &movie) {
+        if (!snapshot) return;
+        uint32_t row[] = {movie.movieNumber, static_cast<uint32_t>(movie.actorIdLimit),
+                          static_cast<uint32_t>(movie.sceneCount), static_cast<uint32_t>(movie.Actors()->IvMac()),
+                          static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.Cch())};
+        Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
+        Check(std::fwrite(movie.title.Prgch(), sizeof(achar), movie.title.Cch(), snapshot) == static_cast<size_t>(movie.title.Cch()));
+        ChildChunkIdentification child;
+        DataBlock block;
+        auto file = movie.Resources()->Pcfl();
+        if (file->FGetKidChidCtg(kctgMvie, movie.movieNumber, 0, kctgGst, &child))
+        {
+            Check(file->FFind(kctgGst, child.cki.cno, &block));
+            byte bytes[2048]; uint32_t size = block.Cb();
+            Check(size <= sizeof(bytes) && block.FReadRgb(bytes, size, 0));
+            Check(std::fwrite(&size, sizeof(size), 1, snapshot) == 1 && std::fwrite(bytes, 1, size, snapshot) == size);
+        }
+        else { uint32_t size = 0; Check(std::fwrite(&size, sizeof(size), 1, snapshot) == 1); }
+    };
     Filename destination;
     Check(destination.FGetTemp());
     {
         MovieData movie;
         Check(movie.FInitEmpty());
-        PChunkyFile file = movie.resources->Pcfl();
+        record(movie);
+        PChunkyFile file = movie.Resources()->Pcfl();
         movie.title.SetSzs(PszLit("Headless movie"));
         // Preserve an actual graph: a scene references an embedded actor
         // template; persistence treats their payloads as opaque, never UI.
@@ -1500,40 +1526,47 @@ static void TestMoviePersistence()
         actor.tagTmpl.sid = ksidUseCrf;
         actor.tagTmpl.ctg = kctgTmpl;
         actor.tagTmpl.cno = actorTemplate;
-        Check(TagManager::FOpenTag(&actor.tagTmpl, movie.resources));
+        Check(TagManager::FOpenTag(&actor.tagTmpl, movie.Resources()));
         String name;
         name.SetSzs(PszLit("Actor"));
-        Check(movie.actors->FAddStn(&name, &actor));
+        Check(movie.Actors()->FAddStn(&name, &actor));
         Check(movie.FSave(&destination));
+        record(movie);
         Check(movie.FSave(&destination)); // Replacing the roll call retains graph children.
+        record(movie);
     }
     {
         MovieData loaded;
         Check(loaded.FLoad(&destination));
-        Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors->IvMac() == 1);
+        record(loaded);
+        Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.Actors()->IvMac() == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
-        Check(MovieData::FVerifyVersion(loaded.resources->Pcfl(), &explicitRoot));
+        Check(MovieData::FVerifyVersion(loaded.Resources()->Pcfl(), &explicitRoot));
         RollCallActorEntry actor;
-        loaded.actors->GetExtra(0, &actor);
+        loaded.Actors()->GetExtra(0, &actor);
         Check(actor.arid == 42 && actor.cactRef == 1 && actor.grfbrws == 5);
-        Check(actor.tagTmpl.pcrf == loaded.resources);
+        Check(actor.tagTmpl.pcrf == loaded.Resources());
         DataBlock block;
-        Check(loaded.resources->Pcfl()->FFind(kctgTmpl, actor.tagTmpl.cno, &block));
+        Check(loaded.Resources()->Pcfl()->FFind(kctgTmpl, actor.tagTmpl.cno, &block));
         byte bytes[5];
         Check(block.FReadRgb(bytes, sizeof(bytes), 0));
         Check(bytes[0] == 1 && bytes[4] == 9);
         loaded.title.SetSzs(PszLit("Saved after load"));
         Check(loaded.FSave(&destination)); // Save back to the currently open file.
+        record(loaded);
         Check(loaded.FLoad(&destination, explicitRoot));
+        record(loaded);
         // A failed load leaves already-open state intact.
         Check(!loaded.FLoad(&destination, explicitRoot + 10000));
-        Check(loaded.actors->IvMac() == 1 && loaded.actorIdLimit == 43);
+        record(loaded);
+        Check(loaded.Actors()->IvMac() == 1 && loaded.actorIdLimit == 43);
     }
     {
         MovieData reopened; // All prior archive handles have been released.
         Check(reopened.FLoad(&destination));
+        record(reopened);
         Check(reopened.title.FEqualSz(PszLit("Saved after load")));
-        Check(reopened.sceneCount == 1 && reopened.actors->IvMac() == 1);
+        Check(reopened.sceneCount == 1 && reopened.Actors()->IvMac() == 1);
     }
     // Reject mismatched wire layouts before GetExtra can overrun a row.
     {
@@ -1557,6 +1590,7 @@ static void TestMoviePersistence()
         ReleasePpo(&malformed);
     }
     Check(destination.FDelete());
+    if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
 static void TestMovieWireFormats()

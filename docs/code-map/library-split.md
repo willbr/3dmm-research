@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -462,6 +462,34 @@ Builder checks cover archive/directory selection and create/init/open/add failur
 MSVC AddressSanitizer passes. All 60 native prompt-trace bytes match, as do the
 previous eleven snapshots and 51 CLI baselines. Twenty-nine standalone and
 forty-two focused native checks pass. No Marcus UI tests were added.
+
+### Movie ownership and roll-call persistence
+
+`movie_owner.c` owns MovieData's resource/table references, movie number, actor-ID
+limit and scene count. Native MovieData now inherits this C state and exposes typed
+borrowed handle accessors, with no duplicated native ownership fields. C performs
+empty initialization, transactional load/replace, contiguous scene counting and
+save ordering. Failed initialization/load preserves the old movie. Save retains
+legacy partial publication: after writing/adopting a new roll call and removing
+the old child, a name/save failure leaves that replacement visible. Only successful
+explicit save makes a temporary file persistent.
+
+C owns roll-call row conversion, extra-width checks, tag-open/append sequencing,
+partial-failure cleanup and output publication. It closes a just-opened tag before
+earlier rows on failed insertion, releases the wire table before unwinding runtime
+rows, and preserves caller ID limits on failure. `movie_data.c` writes 28-byte actor
+extras in either byte order, with a zero pointer slot. Native GST handles still
+provide text decoding, storage and header writes; replacing those objects with C
+roll-call storage remains required. Native title strings, root/version adapters,
+physical I/O and tag-service thunks also remain intermediate host dependencies.
+
+Studio uses the same state and roll-call paths. Its existing early resource release
+during Movie destruction remains explicit, before closing the scene and actor list;
+the general MovieData destructor closes actors before releasing resources.
+`engine-movie-owner-test` covers transactional failure, reference lifetime, cleanup
+order, failed row insertion, both byte orders, invalid rows/extra widths and partial
+save publication. Native persistence checks exercise real files, embedded tags,
+repeated save/load and failed-load preservation.
 
 ### Source names and directory discovery
 

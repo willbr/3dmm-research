@@ -2078,3 +2078,49 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 movie ownership and roll-call persistence (12 November 2026)
+
+MovieData now uses an owning C state for resource/table references, movie number,
+actor-ID limit and scene count. C controls initialization, transactional load and
+replacement, contiguous scene counting, save ordering and tag cleanup. Roll-call
+reading/writing uses C row conversion and failure cleanup, preserving 28-byte
+extras and zeroing the wire pointer slot. Native GST objects, title strings,
+root/version adapters and physical I/O remain transitional host dependencies.
+See the [implementation boundary](../code-map/library-split.md#movie-ownership-and-roll-call-persistence).
+
+Thirty-one standalone C checks, forty-four focused native checks and MSVC
+AddressSanitizer pass. New checks cover failed initialization/load, old-state
+preservation, tag references, cleanup order, both byte orders, invalid rows and
+extra widths, insertion failure and partial save publication. Studio retains its
+existing early resource release during Movie destruction. Fourteen binary
+snapshots match, including a new 736-byte native state/title/GST persistence
+baseline and all thirteen preceding snapshots. All 51 CLI baselines match,
+including six asset indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-movie-owner-before.bin`,
+`tmp/c89-movie-owner-after.bin`, `tmp/c89-movie-owner-snapshot-comparison.json`,
+`tmp/c89-movie-owner-output-comparison.json` and `tmp/c89-movie-owner-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T182054Z-b432b76f` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T182407Z-581585d3` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding name suites `20261112T180529Z-30270838` and
+`20261112T180849Z-d9fde1de`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-movie-owner-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

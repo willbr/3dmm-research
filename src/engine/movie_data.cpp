@@ -11,100 +11,219 @@ const short kcvnCur = THREE_MM_MOVIE_CURRENT_VERSION;
 const short kcvnBack = THREE_MM_MOVIE_BACKWARD_VERSION;
 } // namespace
 
+namespace
+{
+struct NativeMovieHost
+{
+    PFilename filename;
+    PString title;
+};
+struct NativeRollCallHost
+{
+    String name;
+    DataBlock block;
+};
+ThreeMMRollCallActor CoreActor(const RollCallActorEntry &a)
+{
+    return {{a.arid, a.cactRef, a.tagTmpl.sid, a.grfbrws, a.tagTmpl.ctg, a.tagTmpl.cno},
+            a.tagTmpl.sid == ksidUseCrf ? a.tagTmpl.pcrf : nullptr};
+}
+RollCallActorEntry NativeActor(const ThreeMMRollCallActor &a)
+{
+    RollCallActorEntry out = {};
+    out.arid = a.data.actor_id;
+    out.cactRef = a.data.reference_count;
+    out.grfbrws = a.data.browser_flags;
+    out.tagTmpl.sid = a.data.source_id;
+    out.tagTmpl.ctg = a.data.template_type;
+    out.tagTmpl.cno = a.data.template_number;
+    out.tagTmpl.pcrf = static_cast<PChunkyResourceFile>(a.cache);
+    return out;
+}
+void ReadActor(void *table, ThreeMMU32 index, ThreeMMRollCallActor *out)
+{
+    RollCallActorEntry a;
+    static_cast<PStringTable_GST>(table)->GetExtra(index, &a);
+    *out = CoreActor(a);
+}
+void CloseActor(void *, ThreeMMRollCallActor *a)
+{
+    auto value = NativeActor(*a);
+    TagManager::CloseTag(&value.tagTmpl);
+    a->cache = value.tagTmpl.pcrf;
+}
+void ReleaseTable(void *p)
+{
+    static_cast<PStringTable_GST>(p)->Release();
+}
+ThreeMMU32 CountActors(void *p)
+{
+    return static_cast<PStringTable_GST>(p)->IvMac();
+}
+void *NewActors(void *, int wire)
+{
+    return StringTable_GST::PgstNew(wire ? sizeof(RollCallActorEntryOnFile) : sizeof(RollCallActorEntry));
+}
+ThreeMMRollCallServices RollCallServices(NativeRollCallHost *host)
+{
+    return {host,
+            [](void *c, void *resources, ThreeMMU32 movie, int *big) -> void * {
+                auto h = static_cast<NativeRollCallHost *>(c);
+                auto file = static_cast<PChunkyResourceFile>(resources)->Pcfl();
+                ChildChunkIdentification child;
+                if (!file->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child) ||
+                    !file->FFind(child.cki.ctg, child.cki.cno, &h->block))
+                {
+                    PushErc(ercSocBadFile);
+                    return nullptr;
+                }
+                short bo;
+                auto table = StringTable_GST::PgstRead(&h->block, &bo);
+                if (table)
+                    *big = *reinterpret_cast<const unsigned char *>(&bo) == 0;
+                return table;
+            },
+            [](void *p) -> ThreeMMU32 { return static_cast<PStringTable_GST>(p)->CbExtra(); },
+            sizeof(RollCallActorEntry),
+            NewActors,
+            ReleaseTable,
+            CountActors,
+            [](void *c, void *table, ThreeMMU32 i, unsigned char *bytes) {
+                static_cast<PStringTable_GST>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
+                static_cast<PStringTable_GST>(table)->GetExtra(i, bytes);
+            },
+            ReadActor,
+            [](void *c, void *table, ThreeMMU32 i, ThreeMMRollCallActor *a) {
+                static_cast<PStringTable_GST>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
+                ReadActor(table, i, a);
+            },
+            [](void *c, void *table, const ThreeMMRollCallActor *a) -> int {
+                auto value = NativeActor(*a);
+                return static_cast<PStringTable_GST>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name,
+                                                                     &value);
+            },
+            [](void *c, void *table, const unsigned char *bytes) -> int {
+                return static_cast<PStringTable_GST>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name,
+                                                                     const_cast<unsigned char *>(bytes));
+            },
+            [](void *, ThreeMMRollCallActor *a, void *resources) -> int {
+                auto value = NativeActor(*a);
+                const bool ok = TagManager::FOpenTag(&value.tagTmpl, static_cast<PChunkyResourceFile>(resources));
+                *a = CoreActor(value);
+                return ok;
+            },
+            CloseActor,
+            [](void *p) -> ThreeMMU32 { return static_cast<PStringTable_GST>(p)->CbOnFile(); },
+            [](void *c, void *file, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
+                return static_cast<PChunkyFile>(file)->FAdd(bytes, kctgGst, number,
+                                                            &static_cast<NativeRollCallHost *>(c)->block);
+            },
+            [](void *c, void *table) -> int {
+                return static_cast<PStringTable_GST>(table)->FWrite(&static_cast<NativeRollCallHost *>(c)->block);
+            },
+            [](void *, void *file, ThreeMMU32 movie, ThreeMMU32 number) -> int {
+                return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, movie, kctgGst, number, 0);
+            },
+            [](void *, void *file, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgGst, number); }};
+}
+} // namespace
+ThreeMMMovieOwnerServices MovieData::_OwnerServices(void *context)
+{
+    return {
+        context,
+        [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
+        [](void *c) -> void * { return ChunkyFile::PcflOpen(static_cast<NativeMovieHost *>(c)->filename, fcflNil); },
+        [](void *, void *file, ThreeMMU32 *number) -> int {
+            return FVerifyVersion(static_cast<PChunkyFile>(file), number);
+        },
+        [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
+        [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
+        [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
+        NewActors,
+        ReleaseTable,
+        CountActors,
+        ReadActor,
+        CloseActor,
+        [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); },
+        [](void *, void *file, ThreeMMU32 *number) -> int {
+            return FCreateRoot(static_cast<PChunkyFile>(file), number);
+        },
+        [](void *, void *resources, ThreeMMU32 number, void **actors, ThreeMMI32 *limit) -> int {
+            PStringTable_GST table = nullptr;
+            LegacyLong next = *limit;
+            const bool ok = FReadRollCall(static_cast<PChunkyResourceFile>(resources), number, &table, &next);
+            if (ok)
+                *limit = next;
+            *actors = table;
+            return ok;
+        },
+        [](void *c, void *file, ThreeMMU32 number) {
+            static_cast<PChunkyFile>(file)->FGetName(kctgMvie, number, static_cast<NativeMovieHost *>(c)->title);
+        },
+        [](void *, void *file, ThreeMMU32 movie, ThreeMMI32 index) -> int {
+            ChildChunkIdentification child;
+            return static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, movie, index, kctgScen, &child);
+        },
+        [](void *, void *file, ThreeMMU32 movie, ThreeMMU32 *previous) -> int {
+            ChildChunkIdentification child;
+            const bool found = static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child);
+            if (found)
+                *previous = child.cki.cno;
+            return found;
+        },
+        [](void *, void *file, ThreeMMU32 movie, void *actors, ThreeMMU32 *written) -> int {
+            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, static_cast<PStringTable_GST>(actors),
+                                  written);
+        },
+        [](void *, void *file, ThreeMMU32 movie, ThreeMMU32 previous) {
+            static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
+        },
+        [](void *c, void *file, ThreeMMU32 movie) -> int {
+            return static_cast<PChunkyFile>(file)->FSetName(kctgMvie, movie, static_cast<NativeMovieHost *>(c)->title);
+        },
+        [](void *c, void *file) -> int {
+            return static_cast<PChunkyFile>(file)->FSave(kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
+        },
+        [](void *file) { static_cast<PChunkyFile>(file)->SetTemp(fFalse); }};
+}
 MovieData::~MovieData()
 {
-    ClearActors();
-    ReleasePpo(&resources);
+    const auto s = _OwnerServices(nullptr);
+    three_mm_movie_state_dispose(this, &s);
 }
 void MovieData::ClearActors()
 {
-    if (actors == pvNil)
-        return;
-    for (LegacyLong i = 0; i < actors->IvMac(); ++i)
-    {
-        RollCallActorEntry actor;
-        actors->GetExtra(i, &actor);
-        TagManager::CloseTag(&actor.tagTmpl);
-    }
-    ReleasePpo(&actors);
+    const auto s = _OwnerServices(nullptr);
+    three_mm_movie_clear_actors(this, &s);
 }
-
+void MovieData::ReleaseResources()
+{
+    const auto s = _OwnerServices(nullptr);
+    three_mm_movie_release_resources(this, &s);
+}
 bool MovieData::FInitEmpty()
 {
-    MovieData fresh;
-    PChunkyFile file = ChunkyFile::PcflCreateTemp();
-    if (file == pvNil)
-        return fFalse;
-    fresh.resources = ChunkyResourceFile::PcrfNew(file, 0);
-    ReleasePpo(&file);
-    fresh.actors = StringTable_GST::PgstNew(size(RollCallActorEntry));
-    if (fresh.resources == pvNil || fresh.actors == pvNil)
-        return fFalse;
-    if (!FCreateRoot(fresh.resources->Pcfl(), &fresh.movieNumber))
-        return fFalse;
-    ClearActors();
-    ReleasePpo(&resources);
-    resources = fresh.resources;
-    fresh.resources = pvNil;
-    actors = fresh.actors;
-    fresh.actors = pvNil;
-    movieNumber = fresh.movieNumber;
-    actorIdLimit = sceneCount = 0;
-    title = fresh.title;
-    return fTrue;
+    const auto s = _OwnerServices(nullptr);
+    if (!three_mm_movie_init_empty(this, &s))
+        return false;
+    title.SetNil();
+    return true;
 }
-
 bool MovieData::FLoad(PFilename filename, ChunkNumber number)
 {
-    MovieData loaded;
-    PChunkyFile file = ChunkyFile::PcflOpen(filename, fcflNil);
-    if (file == pvNil)
-        return fFalse;
-    bool valid = FVerifyVersion(file, &number);
-    if (valid)
-        loaded.resources = ChunkyResourceFile::PcrfNew(file, 0);
-    ReleasePpo(&file);
-    if (!valid || loaded.resources == pvNil)
-        return fFalse;
-    loaded.movieNumber = number;
-    if (!FReadRollCall(loaded.resources, number, &loaded.actors, &loaded.actorIdLimit))
-        return fFalse;
-    file = loaded.resources->Pcfl(); // borrowed until loaded relinquishes ownership
-    file->FGetName(kctgMvie, number, &loaded.title);
-    ChildChunkIdentification child;
-    while (file->FGetKidChidCtg(kctgMvie, number, loaded.sceneCount, kctgScen, &child))
-        ++loaded.sceneCount;
-    ClearActors();
-    ReleasePpo(&resources);
-    resources = loaded.resources;
-    loaded.resources = pvNil;
-    actors = loaded.actors;
-    loaded.actors = pvNil;
-    movieNumber = loaded.movieNumber;
-    actorIdLimit = loaded.actorIdLimit;
-    sceneCount = loaded.sceneCount;
-    title = loaded.title;
-    return fTrue;
+    String loadedTitle;
+    NativeMovieHost host = {filename, &loadedTitle};
+    const auto s = _OwnerServices(&host);
+    if (!three_mm_movie_load(this, number, &s))
+        return false;
+    title = loadedTitle;
+    return true;
 }
-
 bool MovieData::FSave(PFilename filename)
 {
-    if (resources == pvNil || actors == pvNil)
-        return fFalse;
-    PChunkyFile file = resources->Pcfl();
-    ChildChunkIdentification previous;
-    bool hadPrevious = file->FGetKidChidCtg(kctgMvie, movieNumber, 0, kctgGst, &previous);
-    ChunkNumber written;
-    if (!FWriteRollCall(file, movieNumber, actors, &written))
-        return fFalse;
-    if (hadPrevious)
-        file->DeleteChild(kctgMvie, movieNumber, kctgGst, previous.cki.cno, 0);
-    if (!file->FSetName(kctgMvie, movieNumber, &title) || !file->FSave(kctgSoc, filename))
-        return fFalse;
-    // A successful explicit save makes the backing file persistent. Without
-    // this, exporting a temporary archive would delete it on destruction.
-    file->SetTemp(fFalse);
-    return fTrue;
+    NativeMovieHost host = {filename, &title};
+    const auto s = _OwnerServices(&host);
+    return three_mm_movie_save(this, &s) != 0;
 }
 
 bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
@@ -164,135 +283,23 @@ bool MovieData::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno, ThreeMMMovie
     return fTrue;
 }
 
-bool MovieData::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, LegacyLong *paridLim)
+bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PStringTable_GST *actors,
+                              LegacyLong *limit)
 {
-    AssertPo(pcrf, 0);
-    AssertVarMem(ppgst);
-    Assert(*ppgst == pvNil, "Overwriting existing StringTable_GST");
-    AssertNilOrVarMem(paridLim);
-
-    short bo;
-    LegacyLong imactr, imactrMac;
-    LegacyLong aridLimit = paridLim != pvNil ? *paridLim : 0;
-    PChunkyFile pcfl = pcrf->Pcfl();
-    ChildChunkIdentification kid;
-    DataBlock blck;
-    PStringTable_GST pgstOnFile = pvNil;
-    PStringTable_GST pgstRuntime = pvNil;
-    String stn;
-    RollCallActorEntryOnFile mactrOnFile;
-    RollCallActorEntry mactr;
-
-    if (!pcfl->FGetKidChidCtg(kctgMvie, cno, 0, kctgGst, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-    {
-        PushErc(ercSocBadFile);
-        goto LFail;
-    }
-
-    // Read the wire-format GST (extras are sized RollCallActorEntryOnFile).
-    pgstOnFile = StringTable_GST::PgstRead(&blck, &bo);
-    if (pgstOnFile == pvNil || pgstOnFile->CbExtra() != size(RollCallActorEntryOnFile))
-        goto LFail;
-
-    // Marshal into a fresh runtime GST whose extras are sized RollCallActorEntry
-    // (which on x64 is wider than the wire form because TAG embeds a pointer).
-    pgstRuntime = StringTable_GST::PgstNew(size(RollCallActorEntry));
-    if (pgstRuntime == pvNil)
-        goto LFail;
-
-    imactrMac = pgstOnFile->IvMac();
-    for (imactr = 0; imactr < imactrMac; imactr++)
-    {
-        pgstOnFile->GetStn(imactr, &stn);
-        pgstOnFile->GetExtra(imactr, &mactrOnFile);
-        ThreeMMMemoryStream memory;
-        ThreeMMMovieActor decoded;
-        ThreeMMI32 limit = aridLimit;
-        const auto order = reinterpret_cast<const unsigned char *>(&bo);
-        if (!three_mm_memory_stream_init(&memory, &mactrOnFile, sizeof(mactrOnFile)) ||
-            three_mm_movie_read_actor(&memory.stream, order[0] == 0, &decoded, &limit) != THREE_MM_MOVIE_OK)
-            goto LFail;
-        mactr.arid = decoded.actor_id;
-        mactr.cactRef = decoded.reference_count;
-        mactr.grfbrws = decoded.browser_flags;
-        mactr.tagTmpl.sid = decoded.source_id;
-        mactr.tagTmpl.ctg = decoded.template_type;
-        mactr.tagTmpl.cno = decoded.template_number;
-        mactr.tagTmpl.pcrf = pvNil;
-        aridLimit = limit;
-
-        // Open the tags, since they might be ThreeDTexts. FOpenTag may
-        // populate mactr.tagTmpl.pcrf for ksidUseCrf tags; that pcrf is the
-        // owning ref balanced by CloseTag, so it must land in the runtime GST.
-        if (!TagManager::FOpenTag(&mactr.tagTmpl, pcrf))
-            goto LFail;
-
-        if (!pgstRuntime->FAddStn(&stn, &mactr))
-        {
-            TagManager::CloseTag(&mactr.tagTmpl);
-            goto LFail;
-        }
-    }
-
-    ReleasePpo(&pgstOnFile);
-    *ppgst = pgstRuntime;
-    if (paridLim != pvNil)
-        *paridLim = aridLimit;
-    return fTrue;
-LFail:
-    ReleasePpo(&pgstOnFile);
-    if (pgstRuntime != pvNil)
-    {
-        for (LegacyLong i = 0; i < pgstRuntime->IvMac(); ++i)
-        {
-            pgstRuntime->GetExtra(i, &mactr);
-            TagManager::CloseTag(&mactr.tagTmpl);
-        }
-    }
-    ReleasePpo(&pgstRuntime);
-    *ppgst = pvNil;
-    return fFalse;
+    Assert(*actors == pvNil, "Overwriting existing StringTable_GST");
+    NativeRollCallHost host;
+    const auto s = RollCallServices(&host);
+    void *output = nullptr;
+    ThreeMMI32 next = limit ? *limit : 0;
+    const bool ok = three_mm_movie_read_rollcall(resources, number, &output, limit ? &next : nullptr, &s) != 0;
+    if (ok && limit)
+        *limit = next;
+    *actors = static_cast<PStringTable_GST>(output);
+    return ok;
 }
-
-bool MovieData::FWriteRollCall(PChunkyFile pcfl, ChunkNumber number, PStringTable_GST actors, ChunkNumber *written)
+bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PStringTable_GST actors, ChunkNumber *written)
 {
-    if (actors == pvNil || actors->CbExtra() != size(RollCallActorEntry))
-        return fFalse;
-    DataBlock blck;
-    // Marshal the runtime GST into a transient wire-format GST whose
-    // extras are sized RollCallActorEntryOnFile (28 bytes on every arch).
-    // The runtime GST holds RollCallActorEntry which on x64 is wider, so
-    // we cannot FWrite it directly without breaking the .3MM wire format.
-    PStringTable_GST pgstOnFile = StringTable_GST::PgstNew(size(RollCallActorEntryOnFile));
-    if (pvNil == pgstOnFile)
-        return fFalse;
-    LegacyLong imactrSave, imactrMacSave = actors->IvMac();
-    String stnSave;
-    RollCallActorEntry mactrSave;
-    RollCallActorEntryOnFile mactrSaveOnFile;
-    bool fOk = fTrue;
-    for (imactrSave = 0; imactrSave < imactrMacSave && fOk; imactrSave++)
-    {
-        actors->GetStn(imactrSave, &stnSave);
-        actors->GetExtra(imactrSave, &mactrSave);
-        mactrSaveOnFile.arid = mactrSave.arid;
-        mactrSaveOnFile.cactRef = mactrSave.cactRef;
-        mactrSaveOnFile.grfbrws = mactrSave.grfbrws;
-        mactrSaveOnFile.tagTmpl.From(mactrSave.tagTmpl);
-        if (!pgstOnFile->FAddStn(&stnSave, &mactrSaveOnFile))
-            fOk = fFalse;
-    }
-    if (!fOk || !pcfl->FAdd(pgstOnFile->CbOnFile(), kctgGst, written, &blck))
-    {
-        ReleasePpo(&pgstOnFile);
-        return fFalse;
-    }
-    if (!pgstOnFile->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, number, kctgGst, *written, 0))
-    {
-        ReleasePpo(&pgstOnFile);
-        pcfl->Delete(kctgGst, *written);
-        return fFalse;
-    }
-    ReleasePpo(&pgstOnFile);
-    return fTrue;
+    NativeRollCallHost host;
+    const auto s = RollCallServices(&host);
+    return three_mm_movie_write_rollcall(file, number, actors, written, &s) != 0;
 }

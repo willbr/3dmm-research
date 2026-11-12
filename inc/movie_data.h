@@ -6,6 +6,7 @@
 #include "tagman.h"
 #include <cstdint>
 #include "three_mm/movie_data.h"
+#include "three_mm/movie_owner.h"
 
 struct MovieFilePrefix
 {
@@ -48,16 +49,14 @@ const ByteOrderMask kbomMactr = 0xfffc0000;
 
 // State shared by document/view and headless persistence hosts. The actor
 // table owns opened TAG references; resources is an owned reference as well.
-struct MovieData
+struct MovieData : ThreeMMMovieState
 {
-    PChunkyResourceFile resources = pvNil;
-    ChunkNumber movieNumber = cnoNil;
     String title;
-    PStringTable_GST actors = pvNil;
-    LegacyLong actorIdLimit = 0;
-    LegacyLong sceneCount = 0;
 
-    MovieData() = default;
+    MovieData() { three_mm_movie_state_init(this); }
+    PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
+    PStringTable_GST Actors() const { return static_cast<PStringTable_GST>(actors); }
+    void ReleaseResources();
     ~MovieData();
     MovieData(const MovieData &) = delete;
     MovieData &operator=(const MovieData &) = delete;
@@ -73,5 +72,7 @@ struct MovieData
     static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PStringTable_GST *actors,
                               LegacyLong *actorIdLimit = pvNil);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PStringTable_GST actors, ChunkNumber *written);
+  private:
+    static ThreeMMMovieOwnerServices _OwnerServices(void *);
 };
 #endif

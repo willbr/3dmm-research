@@ -65,6 +65,22 @@ int three_mm_movie_read_actor(const ThreeMMReadStream *stream, int big_endian, T
     return THREE_MM_MOVIE_OK;
 }
 
+static void put_word(unsigned char *p, ThreeMMU32 value, int big)
+{
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+        p[big ? 3 - i : i] = (unsigned char)(value >> (i * 8));
+}
+void three_mm_movie_write_actor(const ThreeMMMovieActor *a, unsigned char bytes[28], int big)
+{
+    put_word(bytes, (ThreeMMU32)a->actor_id, big);
+    put_word(bytes + 4, (ThreeMMU32)a->reference_count, big);
+    put_word(bytes + 8, a->browser_flags, big);
+    put_word(bytes + 12, (ThreeMMU32)a->source_id, big);
+    put_word(bytes + 16, 0, big);
+    put_word(bytes + 20, a->template_type, big);
+    put_word(bytes + 24, a->template_number, big);
+}
 int three_mm_movie_validate_strings(const ThreeMMReadStream *stream, ThreeMMU32 max_bytes)
 {
     unsigned char header[20], bytes[512], offset_bytes[4];
