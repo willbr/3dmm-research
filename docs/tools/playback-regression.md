@@ -1929,3 +1929,55 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 tag ownership, dispatch and owning lists (12 November 2026)
+
+Tag open/save/redirect/duplicate/close, embedded/source child lookup and fetch
+dispatch now use C89. Publication preserves callback visibility and reference
+ordering; unopened cache pointers are not read by open or disabled file caching.
+C owns cache clearing, including media resolution before reopen and zero/restore
+memory budgets. File caching remains disabled. Source catalogue, availability
+and directory/media discovery/retry remain native provider policy. TagList now
+owns C group storage; tags are borrowed, duplicate keys ignore cache identity,
+child-cache flags latch true, and child entries retain duplicates. Cache passes
+retain legacy child-reference behavior without implicit close. See the
+[implementation boundary](../code-map/library-split.md#tag-ownership-dispatch-and-owning-lists).
+
+Twenty-eight standalone C checks, forty-one focused native checks and MSVC
+AddressSanitizer pass. Direct checks cover copy failures, retain/release/publication
+order, same-cache redirects, source/media dispatch, missing hooks, cache clearing,
+comparison, initial/growth failure, list ordering/duplicates and cache-pass stops.
+Missing-parent diagnostics have a separate result from ordinary storage failures.
+The final builds were checked after that distinction was corrected.
+
+All eleven binary snapshots match: the new 336-byte tag fixture plus the prior
+2,188-byte GG oracle, 120-byte registry, 597-byte construction, 56-byte lifecycle,
+1,740-byte routing, 2,192-byte loading, 572,367-byte chunk, 29,532-byte string,
+1,594-byte forest and 1,624-byte resource-cache baselines. All 51 CLI baselines
+match, including six asset indexes covering 20,568 entries. Evidence includes
+`tmp/c89-tag-before.bin`, `tmp/c89-tag-after.bin`, `tmp/c89-tag-*-after.bin`,
+`tmp/c89-tag-output-comparison.json` and `tmp/c89-tag-asan.log`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Final
+evidence is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T172035Z-ecee3a77` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T172353Z-da4a3e37` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding table suites `20261112T165400Z-1eead350` and
+`20261112T165721Z-da1661e1`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-tag-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

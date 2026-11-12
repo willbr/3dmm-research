@@ -27,11 +27,10 @@ class TagList : public TagList_PAR
     MARKMEM
 
   protected:
-    PGeneralGroup _pggtagf; // CachedTag for fixed part, array of ChidCtgPair for variable part
+    ThreeMMTagList _list;
 
   protected:
     bool _FInit(void);
-    bool _FFindTag(PTAG ptag, LegacyLong *pitag);
 
   public:
     static PTagList PtaglNew(void);

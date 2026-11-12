@@ -41,6 +41,7 @@
 #define TAGM_H
 
 #include <cstdint>
+#include "three_mm/tag.h"
 
 const LegacyLong ksidInvalid = -1; // negative SIDs imply an invalid TAG
 const LegacyLong sidNil = 0;
@@ -60,6 +61,10 @@ struct TAG
     ChunkTagOrType ctg;   // ChunkTagOrType of chunk
     ChunkNumber cno;   // ChunkNumber of chunk
 };
+inline ThreeMMTag TagToCore(const TAG &tag)
+{ return {tag.sid, tag.sid == ksidUseCrf ? tag.pcrf : nullptr, tag.ctg, tag.cno}; }
+inline void TagFromCore(TAG *tag, const ThreeMMTag &value)
+{ tag->sid=value.sid;tag->pcrf=static_cast<PChunkyResourceFile>(value.cache);tag->ctg=value.type;tag->cno=value.number; }
 const ByteOrderMask kbomTag = 0xFF000000;
 // TAG embeds a runtime PChunkyResourceFile pointer that's 4 bytes on x86 and
 // 8 bytes on x64. Runtime TAG is allowed to grow on x64; nothing on disk
@@ -166,6 +171,7 @@ class TagManager : public TagManager_PAR
     TagManager(void)
     {
     }
+    static ThreeMMTagServices _Services(void *);
     bool _FFindSid(LegacyLong sid, LegacyLong *pistn = pvNil);
     bool _FGetStnMergedOfSid(LegacyLong sid, PString pstn);
     bool _FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort);

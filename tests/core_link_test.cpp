@@ -3715,6 +3715,38 @@ static void TestMaterialHeaders()
     ReleasePpo(&file);
 }
 
+static void TestTagOwnershipBaseline()
+{
+    FILE *snapshot=nullptr;
+    if(const char *path=std::getenv("THREE_MM_TAG_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot);}
+    auto a=ChunkyFile::PcflCreateTemp(),b=ChunkyFile::PcflCreateTemp();Check(a&&b);
+    Check(a->FPutPv(nullptr,0,'TAGR',7)&&a->FPutPv(nullptr,0,'TAGC',8)&&a->FAdoptChild('TAGR',7,'TAGC',8,9));
+    auto ca=ChunkyResourceFile::PcrfNew(a,128),cb=ChunkyResourceFile::PcrfNew(b,128);Check(ca&&cb);
+    auto observe=[&](int event,const TAG &tag){
+        uint32_t row[]={static_cast<uint32_t>(event),static_cast<uint32_t>(tag.sid),tag.ctg,tag.cno,
+            tag.sid?0U:tag.pcrf==ca?1U:tag.pcrf==cb?2U:0U,static_cast<uint32_t>(ca->CactRef()),static_cast<uint32_t>(cb->CactRef())};
+        if(snapshot)Check(std::fwrite(row,sizeof(row),1,snapshot)==1);
+    };
+    TAG tag={};tag.ctg='TAGR';tag.cno=7;
+    Check(TagManager::FOpenTag(&tag,ca));observe(1,tag);
+    auto duplicate=tag;TagManager::DupTag(&duplicate);observe(2,duplicate);TagManager::CloseTag(&duplicate);observe(3,duplicate);
+    Check(TagManager::FSaveTag(&tag,cb,false));observe(4,tag);
+    Check(TagManager::FSaveTag(&tag,cb,true));observe(5,tag);
+    Check(TagManager::FSaveTag(&tag,cb,true));observe(6,tag);TagManager::CloseTag(&tag);observe(7,tag);
+    tag={};tag.ctg='TAGR';tag.cno=7;Check(TagManager::FOpenTag(&tag,cb,a));observe(8,tag);TagManager::CloseTag(&tag);
+    tag.sid=42;tag.pcrf=ca;Check(TagManager::FOpenTag(&tag,cb));Check(TagManager::FSaveTag(&tag,cb,true));
+    TagManager::DupTag(&tag);TagManager::CloseTag(&tag);observe(9,tag);
+    auto list=TagList::PtaglNew();Check(list);
+    TAG tags[4]={{2,ca,9,3},{1,ca,8,4},{2,cb,9,3},{0,ca,7,1}};
+    for(auto &value:tags)Check(list->FInsertTag(&value,false));
+    Check(list->FInsertTag(tags+2,true)&&list->FInsertChild(tags,2,9)&&list->FInsertChild(tags,1,8)&&list->FInsertChild(tags,2,9));
+    Check(list->Ctag()==3);
+    for(int i=0;i<list->Ctag();++i){TAG value;list->GetTag(i,&value);observe(10+i,value);}
+    Check(TagManager::FcmpCompareTags(tags,tags+2)==fcmpEq);ReleasePpo(&list);
+    Check(ca->CactRef()==1&&cb->CactRef()==1);ReleasePpo(&ca);ReleasePpo(&cb);ReleasePpo(&a);ReleasePpo(&b);
+    if(snapshot)Check(std::fclose(snapshot)==0);
+}
+
 static void TestEngineServices()
 {
     // Clear caches without an Application or native window existing.
@@ -3905,6 +3937,7 @@ int main()
     Check(!vpcex->FDispatchNextCmd());
     ReleasePpo(&vpcex);
 #ifdef TEST_ENGINE_CORE
+    TestTagOwnershipBaseline();
     TestEngineServices();
     TestMoviePersistence();
     TestMovieWireFormats();

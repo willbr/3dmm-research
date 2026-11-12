@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,39 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Tag ownership, dispatch and owning lists
+
+`tag.c` owns embedded tag open/copy/save/redirect/duplicate/close policy. Copy
+failures retain legacy results: failed open clears cache identity; failed save
+leaves the tag unchanged. Redirect retains the destination before releasing the
+old cache. Optional publication mirrors native tag fields at callback points;
+close clears after release. Nonembedded tags ignore cache pointers. Native open
+and disabled file-cache adapters avoid reading unopened cache fields.
+
+C dispatches child lookup and resource fetch through embedded caches or source
+managers, including local-only versus media-enabled requests and missing-tag
+callbacks. Source availability, directory/media discovery/retry and the source
+manager catalogue remain native provider policy. C owns cache clearing: resolve
+media before file reopen, ignore reopen failure, and zero/restore memory budgets.
+File caching remains disabled, matching the previously unconditional return.
+
+`tag_list.c` owns payload/location buffers and replaces TagList's GeneralGroup.
+Tags are borrowed without retaining caches. Sort/dedup uses sid/type/number and
+ignores cache identity; the first tag wins and child-cache flags only become true.
+Children sort by type then slot and retain duplicates. Cache passes stop on the
+first failed main cache, child lookup or child cache. They pass child tags through
+without an implicit close, matching the existing native reference behavior.
+Callbacks cannot mutate/re-enter the list. Runtime TAG and its 16-byte wire form
+remain distinct native adapters; the new C tag value carries no C++ types.
+
+`engine-tag-test` checks copy failures, ownership/publication order, redirect,
+source/media dispatch, missing hooks, comparison, clear-cache order, allocation
+failures, list ordering, duplicates and cache-pass stops. MSVC AddressSanitizer
+passes. All 336 frozen native tag-baseline bytes match; previous snapshots and
+51 CLI baselines remain exact. Twenty-eight standalone and forty-one focused
+native checks pass. Source catalogue/discovery and engine-object integration
+remain the next work; full backend conversion is incomplete.
+
 ### Owning chunk tables and compact/expanded records
 
 `chunk_table.c` owns the writable index record and its payload/location buffers.
@@ -445,7 +478,7 @@ is supplied by the caller. Location words are restored after every write failure
 and active buffers are unlocked. Native `chunk.cpp` retains thin argument/result
 adapters, file I/O and legacy text conversion; it no longer allocates/calls a
 GeneralGroup or implements packed record methods. Full native container facade
-replacement, tag/resource resolution and engine objects remain migration work.
+replacement, source catalogue/discovery and engine objects remain migration work.
 
 `engine-chunk-table-test` retains a frozen native hash over 2,188 bytes covering
 both widths, reverse insertion, variable edits, moves, deletion, locking and wire
@@ -558,7 +591,7 @@ at 192 MiB each without allocating those payloads.
 primitives, diagnostics, file blocks and readers. Reader identity is passed as a
 function pointer and cast back before host comparison/calling; C never converts
 function pointers to data pointers or orders them. GenericHQ and generic-object
-wrappers remain native adapters. Native container adapters, tag ownership and engine objects remain
+wrappers remain native adapters. Native container adapters, source catalogue/discovery and engine objects remain
 migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,

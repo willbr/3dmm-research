@@ -167,8 +167,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   aggregation/reset also use C.
 - The writable chunk index now owns C table storage and compact/expanded C
   records. Group-object allocation, mutation, locking, size/flag access and wire
-  output no longer require GeneralGroup or native record methods. Tag/resource
-  resolution, engine objects and complete caller integration remain.
+  output no longer require GeneralGroup or native record methods.
+- Tag open/save/duplicate/close, child construction, fetch dispatch and cache
+  clearing now use C89. TagList owns C group storage and preserves legacy sort,
+  duplicate and borrowed-reference behavior. Source catalogue/directory/media
+  discovery policy remains native, along with engine objects and final callers.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -264,7 +267,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-tag/resource resolution and engine object ownership, then the
+source catalogue/discovery policy and engine object ownership, then the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.

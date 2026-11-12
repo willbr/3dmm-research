@@ -1,307 +1,84 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 
-/***************************************************************************
-
-    tagl.cpp: Tag list class
-
-    Primary Author: ******
-    Review Status: REVIEWED - any changes to this file must be reviewed!
-
-    The GeneralGroup of CachedTags is maintained in sorted order.  It is sorted by sid,
-    then by	ChunkTagOrType, then by ChunkNumber.
-
-***************************************************************************/
 #include "soc_core.h"
 ASSERTNAME
-
 RTCLASS(TagList)
 
-/****************************************
-    CachedTag stores the tag that you
-    want to cache and whether to cache
-    its children automatically or not.
-****************************************/
-struct CachedTag
-{
-    TAG tag;
-    bool fCacheChildren;
-};
-// CachedTag is runtime-only — TagList is built fresh by enumerating scenes
-// (see Movie::_PtaglFetch) and is never serialized. So this struct's size is
-// allowed to grow with TAG on 64-bit platforms (24 bytes vs 20 on x86) without
-// breaking the .3MM wire format.
-
-/****************************************
-    ChidCtgPair: "chid-ctg" struct, for
-    children of a tag.  An array of
-    these is the variable part of the
-    GeneralGroup.
-****************************************/
-struct ChidCtgPair
-{
-    ChildChunkID chid;
-    ChunkTagOrType ctg;
-};
-static_assert(sizeof(ChidCtgPair) == 8, "ChidCtgPair on-disk layout drift");
-
-/***************************************************************************
-    Create a new TagList
-***************************************************************************/
 PTagList TagList::PtaglNew(void)
 {
-    PTagList ptagl;
-
-    ptagl = NewObj TagList;
-    if (pvNil == ptagl)
-        return pvNil;
-    if (!ptagl->_FInit())
-    {
-        ReleasePpo(&ptagl);
-        return pvNil;
-    }
-    AssertPo(ptagl, 0);
-    return ptagl;
+    auto list = NewObj TagList();
+    if (list && !list->_FInit())
+        ReleasePpo(&list);
+    return list;
 }
-
-/***************************************************************************
-    Initialize the TagList
-***************************************************************************/
 bool TagList::_FInit(void)
 {
-    AssertBaseThis(0);
-
-    _pggtagf = GeneralGroup::PggNew(size(CachedTag));
-    if (pvNil == _pggtagf)
-        return fFalse;
-    return fTrue;
+    const auto allocator = CollectionAllocator();
+    return three_mm_tag_list_init(&_list, &allocator) == THREE_MM_STORAGE_OK;
 }
-
-/***************************************************************************
-    Clean up and delete this tag list
-***************************************************************************/
 TagList::~TagList(void)
 {
-    AssertBaseThis(0);
-    ReleasePpo(&_pggtagf);
+    AssertDo(three_mm_tag_list_dispose(&_list) == THREE_MM_STORAGE_OK, "invalid tag list disposal");
 }
-
-/***************************************************************************
-    Return the count of tags in the TagList
-***************************************************************************/
 LegacyLong TagList::Ctag(void)
 {
     AssertThis(0);
-
-    return _pggtagf->IvMac();
+    return _list.count;
 }
-
-/***************************************************************************
-    Get the itag'th tag from the TagList
-***************************************************************************/
-void TagList::GetTag(LegacyLong itag, PTAG ptag)
+void TagList::GetTag(LegacyLong i, PTAG tag)
 {
     AssertThis(0);
-    AssertIn(itag, 0, Ctag());
-    AssertVarMem(ptag);
-
-    CachedTag tagf;
-
-    _pggtagf->GetFixed(itag, &tagf);
-    *ptag = tagf.tag;
+    ThreeMMTagCached value;
+    AssertDo(three_mm_tag_list_get(&_list, i, &value) == THREE_MM_STORAGE_OK, "invalid tag index");
+    TagFromCore(tag, value.tag);
 }
-
-/***************************************************************************
-    Find ptag in the TagList.  If the tag is found, the function returns
-    fTrue and *pitag is the location of the tag in the GeneralGroup.  If the tag
-    is not found, the function returns fFalse and *pitag is the location
-    at which the tag should be inserted into the GeneralGroup to maintain correct
-    sorting order in the GeneralGroup.
-***************************************************************************/
-bool TagList::_FFindTag(PTAG ptag, LegacyLong *pitag)
+bool TagList::FInsertTag(PTAG tag, bool children)
 {
     AssertThis(0);
-    AssertVarMem(ptag);
-    AssertVarMem(pitag);
-
-    CachedTag *qtagf;
-    LegacyLong itagfMin, itagfLim, itagf;
-    LegacyLong sid = ptag->sid;
-    ChunkTagOrType ctg = ptag->ctg;
-    ChunkNumber cno = ptag->cno;
-
-    if (_pggtagf->IvMac() == 0)
-    {
-        *pitag = 0;
-        return fFalse;
-    }
-
-    // Do a binary search.  The CachedTags are sorted by (sid, ctg, cno).
-    for (itagfMin = 0, itagfLim = _pggtagf->IvMac(); itagfMin < itagfLim;)
-    {
-        itagf = (itagfMin + itagfLim) / 2;
-        qtagf = (CachedTag *)_pggtagf->QvFixedGet(itagf);
-        if (sid < qtagf->tag.sid)
-            itagfLim = itagf;
-        else if (sid > qtagf->tag.sid)
-            itagfMin = itagf + 1;
-        else if (ctg < qtagf->tag.ctg)
-            itagfLim = itagf;
-        else if (ctg > qtagf->tag.ctg)
-            itagfMin = itagf + 1;
-        else if (cno < qtagf->tag.cno)
-            itagfLim = itagf;
-        else if (cno > qtagf->tag.cno)
-            itagfMin = itagf + 1;
-        else
-        {
-            *pitag = itagf;
-            return fTrue;
-        }
-    }
-
-    // Tag not found
-    *pitag = itagfMin;
-    return fFalse;
+    auto value = TagToCore(*tag);
+    return three_mm_tag_list_insert(&_list, &value, children) == THREE_MM_STORAGE_OK;
 }
-
-/***************************************************************************
-    Insert the given tag into the TagList, if it isn't already in there.
-***************************************************************************/
-bool TagList::FInsertTag(PTAG ptag, bool fCacheChildren)
+bool TagList::FInsertChild(PTAG tag, ChildChunkID slot, ChunkTagOrType type)
 {
     AssertThis(0);
-    AssertVarMem(ptag);
-
-    LegacyLong itag;
-    CachedTag tagf;
-
-    if (!_FFindTag(ptag, &itag))
-    {
-        // Build and insert CachedTag into fixed part of GeneralGroup
-        tagf.tag = *ptag;
-        tagf.fCacheChildren = fCacheChildren;
-        if (!_pggtagf->FInsert(itag, 0, pvNil, &tagf))
-            return fFalse;
-        return fTrue;
-    }
-    // Tag is already in GeneralGroup, see if fCacheChildren needs to be updated
-    _pggtagf->GetFixed(itag, &tagf);
-    if (!tagf.fCacheChildren && fCacheChildren)
-    {
-        // FIXME(bruxisma): The compiler has correctly identified that this
-        // should be an assignment.
-        tagf.fCacheChildren = fTrue;
-        _pggtagf->PutFixed(itag, &tagf);
-    }
-    return fTrue;
-}
-
-/***************************************************************************
-    Insert a TAG child into the TagList
-***************************************************************************/
-bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
-{
-    AssertThis(0);
-    AssertVarMem(ptag);
-
-    LegacyLong itagf;
-    ChidCtgPair ccNew;
-    ChidCtgPair *prgcc;
-    LegacyLong ccc; // count of ChidCtgPairs
-    LegacyLong icc;
-
-    if (!_FFindTag(ptag, &itagf))
-    {
+    auto value = TagToCore(*tag);
+    const int result = three_mm_tag_list_child(&_list, &value, slot, type);
+    if (result == THREE_MM_TAG_PARENT_NOT_FOUND)
         Bug("You should have inserted ptag first");
-        return fFalse;
-    }
-#ifdef DEBUG
-    CachedTag tagf;
-    _pggtagf->GetFixed(itagf, &tagf);
-    if (tagf.tag.ctg != ptag->ctg || tagf.tag.cno != ptag->cno)
-        Bug("_FFindTag has a bug");
-#endif // DEBUG
-
-    ccNew.chid = chid;
-    ccNew.ctg = ctg;
-    ccc = _pggtagf->Cb(itagf) / size(ChidCtgPair);
-    if (ccc == 0)
-    {
-        if (!_pggtagf->FPut(itagf, size(ChidCtgPair), &ccNew))
-            return fFalse;
-        return fTrue;
-    }
-    prgcc = (ChidCtgPair *)_pggtagf->QvGet(itagf);
-    // linear search through prgcc to find where to insert ccNew
-    for (icc = 0; icc < ccc; icc++)
-    {
-        if (prgcc[icc].ctg > ccNew.ctg)
-            break;
-        if (prgcc[icc].ctg == ccNew.ctg && prgcc[icc].chid > ccNew.chid)
-            break;
-    }
-    if (!_pggtagf->FInsertRgb(itagf, icc * size(ChidCtgPair), size(ChidCtgPair), &ccNew))
-        return fFalse;
-    return fTrue;
+    return result == THREE_MM_STORAGE_OK;
 }
-
-/***************************************************************************
-    Cache all the tags and child tags in TagList
-***************************************************************************/
 bool TagList::FCacheTags(void)
 {
     AssertThis(0);
-
-    LegacyLong itagf;
-    CachedTag tagf;
-    LegacyLong ccc; // count of ChidCtgPairs
-    LegacyLong icc;
-    ChidCtgPair cc;
-    TAG tag;
-
-    for (itagf = 0; itagf < _pggtagf->IvMac(); itagf++)
-    {
-        // Cache the main tag
-        _pggtagf->GetFixed(itagf, &tagf);
-        if (!vptagm->FCacheTagToHD(&tagf.tag, tagf.fCacheChildren))
-            return fFalse;
-
-        // Cache the child tags
-        ccc = _pggtagf->Cb(itagf) / size(ChidCtgPair);
-        for (icc = 0; icc < ccc; icc++)
-        {
-            _pggtagf->GetRgb(itagf, icc * size(ChidCtgPair), size(ChidCtgPair), &cc);
-            if (!vptagm->FBuildChildTag(&tagf.tag, cc.chid, cc.ctg, &tag))
-                return fFalse;
-            // Note that if we ever have the case where we don't always
-            // want the ChidCtgPair tag to be cached with all its children, we could
-            // change the ChidCtgPair structure to hold a boolean and pass it to
-            // FCacheTagToHD here.
-            if (!vptagm->FCacheTagToHD(&tag, fTrue))
-                return fFalse;
-        }
-    }
-    return fTrue;
+    const ThreeMMTagListServices services = {
+        nullptr,
+        [](void *, const ThreeMMTag *value, int children) -> int {
+            TAG tag;
+            TagFromCore(&tag, *value);
+            return vptagm->FCacheTagToHD(&tag, children != 0);
+        },
+        [](void *, const ThreeMMTag *value, ThreeMMU32 slot, ThreeMMU32 type, ThreeMMTag *out) -> int {
+            TAG parent, child;
+            TagFromCore(&parent, *value);
+            if (!vptagm->FBuildChildTag(&parent, slot, type, &child))
+                return 0;
+            *out = TagToCore(child);
+            return 1;
+        }};
+    return three_mm_tag_list_cache(&_list, &services) != 0;
 }
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the TagList.
-***************************************************************************/
-void TagList::AssertValid(LegacyUlong grf)
+void TagList::AssertValid(LegacyUlong flags)
 {
     TagList_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pggtagf, 0);
+    Assert(_list.count <= _list.storage.buffers[1].capacity / 8, "invalid tag count");
 }
-
-/***************************************************************************
-    Mark memory used by the TagList
-***************************************************************************/
 void TagList::MarkMem(void)
 {
     AssertThis(0);
     TagList_PAR::MarkMem();
-    MarkMemObj(_pggtagf);
+    MarkPv(_list.storage.buffers[0].data);
+    MarkPv(_list.storage.buffers[1].data);
 }
-#endif // DEBUG
+#endif

@@ -842,338 +842,171 @@ bool TagManager::FFindFile(LegacyLong sid, PString pstn, PFilename pfni, bool fA
     Build a tag for a child of another tag.  Note that this may hit the
     CD if _PcrmSourceGet has not yet been called for ptagPar->sid.
 ***************************************************************************/
-bool TagManager::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType ctgChild, PTAG ptagChild)
+namespace
 {
-    AssertThis(0);
-    AssertVarMem(ptagPar);
-    Assert(ptagPar->sid >= 0, "Invalid sid");
-    AssertVarMem(ptagChild);
-
-    PChunkyResourceManager pcrmSource;
-    PChunkyResourceFile pcrfSource;
-    ChildChunkIdentification kid;
-
-    TrashVar(ptagChild);
-
-    if (ksidUseCrf == ptagPar->sid)
-    {
-        AssertPo(ptagPar->pcrf, 0);
-        if (!ptagPar->pcrf->Pcfl()->FGetKidChidCtg(ptagPar->ctg, ptagPar->cno, chid, ctgChild, &kid))
-        {
-            return fFalse; // child chunk not found
-        }
-        ptagChild->sid = ksidUseCrf;
-        ptagChild->pcrf = ptagPar->pcrf;
-        ptagPar->pcrf->AddRef();
-        ptagChild->ctg = kid.cki.ctg;
-        ptagChild->cno = kid.cki.cno;
-        return fTrue;
-    }
-    pcrmSource = _PcrmSourceGet(ptagPar->sid, false, ptagPar);
-    if (pvNil == pcrmSource)
-        return fFalse;
-    pcrfSource = pcrmSource->PcrfFindChunk(ptagPar->ctg, ptagPar->cno);
-    if (pvNil == pcrfSource)
-        return fFalse; // parent chunk not found
-    if (!pcrfSource->Pcfl()->FGetKidChidCtg(ptagPar->ctg, ptagPar->cno, chid, ctgChild, &kid))
-    {
-        return fFalse; // child chunk not found
-    }
-    ptagChild->sid = ptagPar->sid;
-    ptagChild->ctg = kid.cki.ctg;
-    ptagChild->cno = kid.cki.cno;
-
-    return fTrue;
-}
-
-/***************************************************************************
-    Put specified chunk in cache file, if it's not there yet
-***************************************************************************/
-bool TagManager::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
+struct NativeTagHost
 {
-    AssertThis(0);
-    AssertVarMem(ptag);
-    Assert(ptag->sid >= 0, "Invalid sid");
-
-    PChunkyResourceManager pcrmSource;
-    PChunkyResourceFile pcrfSource;
-    bool fSourceIsOnHD;
-    PChunkyFile pcfl;
-
-    if (ksidUseCrf == ptag->sid)
-        return fTrue;
-
-    // FOONE: Disable caching for now. It doesn't seem to be working properly.
-    return fTrue;
-    // Do nothing if the source itself is already on HD
-    if (!_FDetermineIfSourceHD(ptag->sid, &fSourceIsOnHD))
-        goto LFail;
-    if (fSourceIsOnHD)
-        return fTrue;
-
-    pcrmSource = _PcrmSourceGet(ptag->sid);
-    if (pvNil == pcrmSource)
-        goto LFail;
-    pcrfSource = pcrmSource->PcrfFindChunk(ptag->ctg, ptag->cno);
-    if (pvNil == pcrfSource)
-        goto LFail; // chunk not found
-
-    pcfl = pcrfSource->Pcfl();
-    if (fCacheChildChunks)
-    {
-        // Cache the chunk specified by the tag, and all its child
-        // chunks.
-        ChunkGraphEnumerator cge;
+    PTagManager manager;
+    PTAG target;
+    const TAG *asset;
+};
+} // namespace
+ThreeMMTagServices TagManager::_Services(void *context)
+{
+    ThreeMMTagServices s = {};
+    s.context = context;
+    s.file = [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); };
+    s.retain = [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); };
+    s.release = [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); };
+    s.compare_cache = [](void *a, void *b) -> int {
+        auto x = static_cast<PChunkyResourceFile>(a), y = static_cast<PChunkyResourceFile>(b);
+        return x == y ? 0 : x < y ? -1 : 1;
+    };
+    s.copy = [](void *a, ThreeMMU32 type, ThreeMMU32 number, void *b, ThreeMMU32 *out) -> int {
+        return static_cast<PChunkyFile>(a)->FCopy(type, number, static_cast<PChunkyFile>(b), out);
+    };
+    s.source = [](void *c, ThreeMMI32 sid, int local, const ThreeMMTag *) -> void * {
+        auto h = static_cast<NativeTagHost *>(c);
+        return h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
+    };
+    s.find_cache = [](void *m, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        return static_cast<PChunkyResourceManager>(m)->PcrfFindChunk(type, number);
+    };
+    s.child = [](void *c, const ThreeMMTag *parent, ThreeMMU32 slot, ThreeMMU32 type, ThreeMMU32 *number) -> int {
         ChildChunkIdentification kid;
-        LegacyUlong grfcgeIn = 0;
-        LegacyUlong grfcgeOut;
-
-        cge.Init(pcfl, ptag->ctg, ptag->cno);
-        while (cge.FNextKid(&kid, pvNil, &grfcgeOut, grfcgeIn))
+        if (!static_cast<PChunkyResourceFile>(c)->Pcfl()->FGetKidChidCtg(parent->type, parent->number, slot, type,
+                                                                         &kid))
+            return 0;
+        *number = kid.cki.cno;
+        return 1;
+    };
+    s.fetch = [](void *c, int manager, const ThreeMMTag *tag, ThreeMMResourceReader reader) -> void * {
+        auto r = reinterpret_cast<PFNRPO>(reader);
+        return manager ? static_cast<PChunkyResourceManager>(c)->PbacoFetch(tag->type, tag->number, r)
+                       : static_cast<PChunkyResourceFile>(c)->PbacoFetch(tag->type, tag->number, r);
+    };
+    s.missing = [](void *c, const ThreeMMTag *) {
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+        auto h = static_cast<NativeTagHost *>(c);
+        if (h->manager->_missingTagTest)
+            h->manager->_missingTagTest(const_cast<PTAG>(h->asset));
+#endif
+    };
+    s.publish = [](void *c, const ThreeMMTag *value) {
+        auto h = static_cast<NativeTagHost *>(c);
+        if (h->target)
         {
-            if (grfcgeOut & fcgePre)
-            {
-                if (!pcfl->FEnsureOnExtra(kid.cki.ctg, kid.cki.cno))
-                    goto LFail;
-            }
+            h->target->sid = value->sid;
+            h->target->ctg = value->type;
+            h->target->cno = value->number;
+            if (value->sid == ksidUseCrf)
+                h->target->pcrf = static_cast<PChunkyResourceFile>(value->cache);
         }
-    }
-    else
-    {
-        // Just cache the chunk specified by the tag
-        if (!pcfl->FEnsureOnExtra(ptag->ctg, ptag->cno))
-            goto LFail;
-    }
-    return fTrue;
-LFail:
-    PushErc(ercSocCantCacheTag);
-    return fFalse;
+    };
+    return s;
 }
-
-/***************************************************************************
-    Resolve the TAG to a BaseCacheableObject.  Only use HD cache files, unless fUseCD is
-    fTrue.
-***************************************************************************/
-PBaseCacheableObject TagManager::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
+bool TagManager::FBuildChildTag(PTAG parent, ChildChunkID slot, ChunkTagOrType type, PTAG out)
 {
     AssertThis(0);
-    AssertVarMem(ptag);
-    Assert(ptag->sid >= 0, "Invalid sid");
-    Assert(pvNil != pfnrpo, "bad rpo");
-
-    PBaseCacheableObject pbaco = pvNil;
-    PChunkyResourceManager pcrmSource;
-
-    if (ptag->sid == ksidUseCrf)
-    {
-        // Tag knows pcrf, so just read from there.  Nothing we can do if
-        // it's not there.
-        AssertPo(ptag->pcrf, 0);
-        pbaco = ptag->pcrf->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
-    }
-    else
-    {
-        pcrmSource = _PcrmSourceGet(ptag->sid, !fUseCD, ptag);
-        if (pcrmSource != pvNil)
-            pbaco = pcrmSource->PbacoFetch(ptag->ctg, ptag->cno, pfnrpo);
-    }
-#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-    if (pbaco == pvNil && _missingTagTest)
-        _missingTagTest(ptag);
-#endif
-    return pbaco;
+    AssertVarMem(parent);
+    Assert(parent->sid >= 0, "Invalid sid");
+    AssertVarMem(out);
+    TrashVar(out);
+    NativeTagHost host = {this, out, parent};
+    const auto services = _Services(&host);
+    auto input = TagToCore(*parent);
+    ThreeMMTag child = {};
+    return three_mm_tag_child(&input, slot, type, &child, &services) != 0;
 }
-
-/***************************************************************************
-    Clear the cache for source sid.  If sid is sidNil, clear all caches.
-***************************************************************************/
-void TagManager::ClearCache(LegacyLong sid, LegacyUlong grftagm)
+bool TagManager::FCacheTagToHD(PTAG tag, bool children)
+{
+    AssertThis(0);
+    AssertVarMem(tag);
+    Assert(tag->sid >= 0, "Invalid sid");
+    const ThreeMMTag value = {tag->sid, nullptr, 0, 0};
+    return three_mm_tag_cache_file(&value, children) != 0;
+}
+PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, PFNRPO reader, bool useMedia)
+{
+    AssertThis(0);
+    AssertVarMem(tag);
+    Assert(tag->sid >= 0, "Invalid sid");
+    Assert(reader != nullptr, "bad rpo");
+    NativeTagHost host = {this, nullptr, tag};
+    const auto services = _Services(&host);
+    auto value = TagToCore(*tag);
+    return static_cast<PBaseCacheableObject>(
+        three_mm_tag_fetch(&value, reinterpret_cast<ThreeMMResourceReader>(reader), useMedia, &services));
+}
+void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
-
-    LegacyLong isfs, isfsMac;
-    LegacyLong cbMax;
-
-    isfsMac = _pglsfs->IvMac();
-    for (isfs = 0; isfs < isfsMac; isfs++)
-    {
-        LegacyLong icrf, icrfMac;
-        SourceFileStructure sfs;
-        PChunkyResourceManager pcrmSource;
-
-        _pglsfs->Get(isfs, &sfs);
-        if ((sid != sidNil && sfs.sid != sid) || sfs.pcrmSource == pvNil)
-            continue;
-        if (grftagm & ftagmFile)
-        {
-            // The following line may seem silly, since we already have
-            // sfs.pcrmSource.  But it ensures that the crm's CD is inserted,
-            // since the FReopen() will need the CD to be in.
-            pcrmSource = _PcrmSourceGet(sfs.sid);
-            if (pvNil == pcrmSource)
-                continue;
-        }
-        else
-        {
-            // Just doing a memory purge, so sfs.pcrmSource is valid.
-            pcrmSource = sfs.pcrmSource;
-        }
-        icrfMac = pcrmSource->Ccrf();
-        for (icrf = 0; icrf < icrfMac; icrf++)
-        {
-            PChunkyResourceFile pcrf;
-
-            pcrf = pcrmSource->PcrfGet(icrf);
-            AssertPo(pcrf->Pcfl(), 0);
-            if (pcrf->Pcfl() != pvNil)
-            {
-                if (grftagm & ftagmFile)
-                {
-                    // Clear the HD cache by reopening the file
-                    pcrf->Pcfl()->FReopen(); // Ignore error
-                }
-                if (grftagm & ftagmMemory)
-                {
-                    // Clear RAM cache (for BACOs with 0 cactRef) by
-                    // temporarily setting the ChunkyResourceFile's cbMax to 0
-                    cbMax = pcrf->CbMax();
-                    pcrf->SetCbMax(0);
-                    pcrf->SetCbMax(cbMax);
-                }
-            }
-        }
-    }
+    const ThreeMMTagCacheServices services = {
+        this,
+        [](void *c) -> ThreeMMU32 { return static_cast<PTagManager>(c)->_pglsfs->IvMac(); },
+        [](void *c, ThreeMMU32 i, ThreeMMI32 *sid, void **manager) {
+            SourceFileStructure source;
+            static_cast<PTagManager>(c)->_pglsfs->Get(i, &source);
+            *sid = source.sid;
+            *manager = source.pcrmSource;
+        },
+        [](void *c, ThreeMMI32 sid) -> void * { return static_cast<PTagManager>(c)->_PcrmSourceGet(sid); },
+        [](void *m) -> ThreeMMU32 { return static_cast<PChunkyResourceManager>(m)->Ccrf(); },
+        [](void *m, ThreeMMU32 i) -> void * { return static_cast<PChunkyResourceManager>(m)->PcrfGet(i); },
+        [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); },
+        [](void *f) { static_cast<PChunkyFile>(f)->FReopen(); },
+        [](void *c) -> ThreeMMI32 { return static_cast<PChunkyResourceFile>(c)->CbMax(); },
+        [](void *c, ThreeMMI32 budget) { static_cast<PChunkyResourceFile>(c)->SetCbMax(budget); }};
+    three_mm_tag_clear_cache(sid, flags, &services);
 }
-
-/***************************************************************************
-    Prepares this tag to be used (resolved).  The tag is invalid until you
-    call this, *except* you can pass the tag to FCacheTagToHD() before
-    calling FOpenTag().  If you FOpenTag() a tag, you must CloseTag() it
-    when you're done with it.
-***************************************************************************/
-bool TagManager::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc)
+bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile source)
 {
-    AssertVarMem(ptag);
-    Assert(ptag->sid >= 0, "Invalid sid");
-    AssertPo(pcrfDest, 0);
-    AssertNilOrPo(pcflSrc, 0);
-
-    ChunkNumber cnoDest;
-
-    if (ptag->sid != ksidUseCrf)
-        return fTrue;
-    if (pvNil != pcflSrc && pcrfDest->Pcfl() != pcflSrc)
-    {
-        if (!pcflSrc->FCopy(ptag->ctg, ptag->cno, pcrfDest->Pcfl(), &cnoDest))
-        {
-            ptag->pcrf = pvNil;
-            return fFalse; // copy failed
-        }
-        ptag->cno = cnoDest;
-    }
-    ptag->pcrf = pcrfDest;
-    pcrfDest->AddRef();
-    return fTrue;
+    AssertVarMem(tag);
+    Assert(tag->sid >= 0, "Invalid sid");
+    AssertPo(destination, 0);
+    AssertNilOrPo(source, 0);
+    NativeTagHost host = {nullptr, tag, tag};
+    const auto services = _Services(&host);
+    ThreeMMTag value = {tag->sid, nullptr, tag->ctg, tag->cno};
+    return three_mm_tag_open(&value, destination, source, &services) != 0;
 }
-
-/***************************************************************************
-    Save tag's data in the given ChunkyResourceFile.  If fRedirect, the tag now points
-    to the copy in the ChunkyResourceFile.
-***************************************************************************/
-bool TagManager::FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect)
+bool TagManager::FSaveTag(PTAG tag, PChunkyResourceFile destination, bool redirect)
 {
-    AssertVarMem(ptag);
-    Assert(ptag->sid >= 0, "Invalid sid");
-    AssertPo(pcrf, 0);
-
-    ChunkNumber cnoDest;
-
-    if (ptag->sid != ksidUseCrf)
-        return fTrue;
-
-    AssertPo(ptag->pcrf, 0);
-
-    if (!ptag->pcrf->Pcfl()->FCopy(ptag->ctg, ptag->cno, pcrf->Pcfl(), &cnoDest))
-    {
-        return fFalse; // copy failed
-    }
-
-    if (fRedirect)
-    {
-        pcrf->AddRef();
-        ReleasePpo(&ptag->pcrf);
-        ptag->pcrf = pcrf;
-        ptag->cno = cnoDest;
-    }
-
-    return fTrue;
+    AssertVarMem(tag);
+    Assert(tag->sid >= 0, "Invalid sid");
+    AssertPo(destination, 0);
+    NativeTagHost host = {nullptr, tag, tag};
+    const auto services = _Services(&host);
+    auto value = TagToCore(*tag);
+    return three_mm_tag_save(&value, destination, redirect, &services) != 0;
 }
-
-/***************************************************************************
-    Call this for each tag when you're duplicating it.  Increments
-    refcount on the tag's ChunkyResourceFile.
-***************************************************************************/
-void TagManager::DupTag(PTAG ptag)
+void TagManager::DupTag(PTAG tag)
 {
-    AssertVarMem(ptag);
-    Assert(ptag->sid >= 0, "Invalid sid");
-
-    if (ptag->sid == ksidUseCrf)
-    {
-        AssertPo(ptag->pcrf, 0);
-        ptag->pcrf->AddRef();
-    }
+    AssertVarMem(tag);
+    Assert(tag->sid >= 0, "Invalid sid");
+    const auto services = _Services(nullptr);
+    auto value = TagToCore(*tag);
+    three_mm_tag_dup(&value, &services);
 }
-
-/***************************************************************************
-    Close the tag
-***************************************************************************/
-void TagManager::CloseTag(PTAG ptag)
+void TagManager::CloseTag(PTAG tag)
 {
-    AssertVarMem(ptag);
-    // Client destructors often call CloseTag on an uninitialized tag, so
-    // don't Assert on ksidInvalid tags...just ignore them
-    Assert(ptag->sid == ksidInvalid || ptag->sid >= 0, "Invalid sid");
-
-    if (ptag->sid == ksidUseCrf)
-    {
-        AssertPo(ptag->pcrf, 0);
-        ReleasePpo(&ptag->pcrf);
-    }
+    AssertVarMem(tag);
+    Assert(tag->sid == ksidInvalid || tag->sid >= 0, "Invalid sid");
+    NativeTagHost host = {nullptr, tag, tag};
+    const auto services = _Services(&host);
+    auto value = TagToCore(*tag);
+    three_mm_tag_close(&value, &services);
 }
-
-/***************************************************************************
-    Compare two tags.  Tags are sorted first by sid, then ChunkTagOrType, then ChunkNumber.
-***************************************************************************/
-LegacyUlong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
+LegacyUlong TagManager::FcmpCompareTags(PTAG a, PTAG b)
 {
-    AssertVarMem(ptag1);
-    Assert(ptag1->sid >= 0, "Invalid sid");
-    AssertVarMem(ptag2);
-    Assert(ptag2->sid >= 0, "Invalid sid");
-
-    if (ptag1->sid < ptag2->sid)
-        return fcmpLt;
-    if (ptag1->sid > ptag2->sid)
-        return fcmpGt;
-    if (ptag1->ctg < ptag2->ctg)
-        return fcmpLt;
-    if (ptag1->ctg > ptag2->ctg)
-        return fcmpGt;
-    if (ptag1->cno < ptag2->cno)
-        return fcmpLt;
-    if (ptag1->cno > ptag2->cno)
-        return fcmpGt;
-    // If both sids are ksidUseCrf, compare CRFs
-    if (ptag1->sid == ksidUseCrf) // implies ptag2->sid == ksidUseCrf
-    {
-        if (ptag1->pcrf < ptag2->pcrf)
-            return fcmpLt;
-        if (ptag1->pcrf > ptag2->pcrf)
-            return fcmpGt;
-    }
-    return fcmpEq;
+    AssertVarMem(a);
+    AssertVarMem(b);
+    Assert(a->sid >= 0 && b->sid >= 0, "Invalid sid");
+    const auto services = _Services(nullptr);
+    auto x = TagToCore(*a), y = TagToCore(*b);
+    const int order = three_mm_tag_compare(&x, &y, &services);
+    return order < 0 ? fcmpLt : order > 0 ? fcmpGt : fcmpEq;
 }
 
 #ifdef DEBUG
