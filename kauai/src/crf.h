@@ -12,16 +12,17 @@
 
     Chunky resource file management. A ChunkyResourceFile is a cache wrapped around a
     chunky file. A ChunkyResourceManager is a list of CRFs. A BaseCacheableObject is an object that
-    can be cached in a ChunkyResourceFile. An ResourceCache is an interface that ChunkyResourceFile and ChunkyResourceManager both
-    implement (are a super set of).
+    can be cached in a ChunkyResourceFile. ResourceCache is the interface implemented
+    by both ChunkyResourceFile and ChunkyResourceManager.
 
 ***************************************************************************/
 #ifndef CHRES_H
 #define CHRES_H
 
-#include <cstdint>
+#include "three_mm/resource_cache.h"
 
-namespace Chunky {
+namespace Chunky
+{
 
 typedef class ChunkyResourceFile *PChunkyResourceFile;
 typedef ChunkNumber RSC;
@@ -48,12 +49,8 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     MARKMEM
 
   private:
-    // These fields are owned by the ChunkyResourceFile
-    PChunkyResourceFile _pcrf; // The BaseCacheableObject has a ref count on this iff !_fAttached
-    ChunkTagOrType _ctg;
-    ChunkNumber _cno;
-    LegacyLong _crep : 16;
-    LegacyLong _fAttached : 1;
+    ThreeMMResourceObject _resource;
+    static const ThreeMMResourceObjectServices *_ObjectServices();
 
     friend class ChunkyResourceFile;
 
@@ -69,19 +66,19 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 
     ChunkTagOrType Ctg(void)
     {
-        return _ctg;
+        return _resource.type;
     }
     ChunkNumber Cno(void)
     {
-        return _cno;
+        return _resource.number;
     }
     PChunkyResourceFile Pcrf(void)
     {
-        return _pcrf;
+        return static_cast<PChunkyResourceFile>(_resource.owner);
     }
     LegacyLong Crep(void)
     {
-        return _crep;
+        return _resource.priority;
     }
 
     // Many objects know how big they are, and how to write themselves to a
@@ -98,7 +95,8 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                   PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 typedef FNRPO *PFNRPO;
 
 typedef class ResourceCache *PResourceCache;
@@ -109,8 +107,10 @@ class ResourceCache : public ResourceCache_PAR
     RTCLASS_DEC
 
   public:
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, LegacyLong crep = crepNormal) = 0;
-    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
+    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil,
+                          LegacyLong crep = crepNormal) = 0;
+    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil,
+                                            RSC rsc = rscNil) = 0;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
@@ -128,46 +128,32 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MARKMEM
 
   protected:
-    struct CRE
-    {
-        PFNRPO pfnrpo;    // object reader
-        LegacyLong cactRelease; // the last time this object was released
-        BaseCacheableObject *pbaco;      // the object
-        LegacyLong cb;          // size of data
-    };
-
-    PChunkyFile _pcfl;
-    PDynamicArray _pglcre; // sorted by (cki, pfnrpo)
-    LegacyLong _cbMax;
-    // Aggregate resident size may exceed the per-object allocation limit,
-    // especially for decoded SDL audio while several sounds are in use.
-    std::int64_t _cbCur;
-    LegacyLong _cactRelease;
-
+    friend class ChunkyResourceManager;
+    ThreeMMResourceCache _cache;
+    ThreeMMResourceServices _Services();
     ChunkyResourceFile(PChunkyFile pcfl, LegacyLong cbMax);
-    bool _FFindCre(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, LegacyLong *picre);
-    bool _FFindBaco(PBaseCacheableObject pbaco, LegacyLong *picre);
-    bool _FPurgeCb(std::int64_t cbPurge, LegacyLong crepLast);
 
   public:
     ~ChunkyResourceFile(void);
     static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
 
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, LegacyLong crep = crepNormal);
-    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
+    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil,
+                          LegacyLong crep = crepNormal);
+    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil,
+                                            RSC rsc = rscNil);
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
 
     LegacyLong CbMax(void)
     {
-        return _cbMax;
+        return _cache.budget;
     }
     void SetCbMax(LegacyLong cbMax);
 
     PChunkyFile Pcfl(void)
     {
-        return _pcfl;
+        return static_cast<PChunkyFile>(_cache.file);
     }
 
     // These APIs are intended for BaseCacheableObject use only
@@ -188,18 +174,18 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     MARKMEM
 
   protected:
-    PDynamicArray _pglpcrf;
-
-    ChunkyResourceManager(void)
-    {
-    }
+    ThreeMMResourceManager _manager;
+    static ThreeMMResourceManagerServices _Services();
+    ChunkyResourceManager(void);
 
   public:
     ~ChunkyResourceManager(void);
     static PChunkyResourceManager PcrmNew(LegacyLong ccrfInit);
 
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, LegacyLong crep = crepNormal);
-    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
+    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil,
+                          LegacyLong crep = crepNormal);
+    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil,
+                                            RSC rsc = rscNil);
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
@@ -208,7 +194,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     LegacyLong Ccrf(void)
     {
         AssertThis(0);
-        return _pglpcrf->IvMac();
+        return _manager.count;
     }
     PChunkyResourceFile PcrfGet(LegacyLong icrf);
 };
@@ -238,7 +224,8 @@ class GenericHQ : public GenericHQ_PAR
     }
 
     // An object reader for a GenericHQ.
-    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                         PBaseCacheableObject *ppbaco, LegacyLong *pcb);
 };
 
 /***************************************************************************

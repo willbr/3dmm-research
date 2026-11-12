@@ -18,11 +18,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <limits>
+#include "handle_services.h"
 #include "util.h"
 ASSERTNAME
 
-namespace Chunky {
+namespace Chunky
+{
 
 RTCLASS(BaseCacheableObject)
 RTCLASS(GenericHQ)
@@ -31,990 +32,416 @@ RTCLASS(ChunkyResourceFile)
 RTCLASS(ChunkyResourceManager)
 RTCLASS(GenericCacheableObject)
 
-/***************************************************************************
-    Constructor for base cacheable object.
-***************************************************************************/
+const ThreeMMResourceObjectServices *BaseCacheableObject::_ObjectServices()
+{
+    static const ThreeMMResourceObjectServices services = {
+        [](void *o) -> ThreeMMResourceObject * { return &static_cast<PBaseCacheableObject>(o)->_resource; },
+        [](void *o) -> ThreeMMI32 { return static_cast<PBaseCacheableObject>(o)->_cactRef; },
+        [](void *o, ThreeMMI32 n) { static_cast<PBaseCacheableObject>(o)->_cactRef = n; },
+        [](void *o) { static_cast<PBaseCacheableObject>(o)->AddRef(); },
+        [](void *o) { static_cast<PBaseCacheableObject>(o)->Release(); },
+        [](void *o) { static_cast<PBaseCacheableObject>(o)->Detach(); },
+        [](void *o, ThreeMMI32 n) { static_cast<PBaseCacheableObject>(o)->SetCrep(n); },
+        [](void *o) { delete static_cast<PBaseCacheableObject>(o); },
+        [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); },
+        [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); },
+        [](void *c, void *o) {
+            static_cast<PChunkyResourceFile>(c)->BacoReleased(static_cast<PBaseCacheableObject>(o));
+        },
+        [](void *c, void *o) {
+            static_cast<PChunkyResourceFile>(c)->BacoDetached(static_cast<PBaseCacheableObject>(o));
+        },
+        [](void *, int kind) {
+            if (kind == THREE_MM_RESOURCE_BAD_REFS)
+                Bug("calling Release without an AddRef");
+            else
+                Bug("invalid cacheable object ownership");
+        }};
+    return &services;
+}
 BaseCacheableObject::BaseCacheableObject(void)
 {
     AssertBaseThis(fobjAllocated);
-    _pcrf = pvNil;
-    _crep = crepToss;
-    _fAttached = fFalse;
+    three_mm_resource_object_init(&_resource);
 }
-
-/***************************************************************************
-    Destructor.
-***************************************************************************/
 BaseCacheableObject::~BaseCacheableObject(void)
 {
     AssertBaseThis(fobjAllocated);
-    Assert(!_fAttached, "still attached");
-    ReleasePpo(&_pcrf);
+    Assert(!_resource.attached, "still attached");
+    three_mm_resource_object_dispose(this, _ObjectServices());
 }
-
-/***************************************************************************
-    Write the BaseCacheableObject to a FileLocation - just make the FileLocation a DataBlock and write to
-    the block.
-***************************************************************************/
-bool BaseCacheableObject::FWriteFlo(PFileLocation pflo)
+bool BaseCacheableObject::FWriteFlo(PFileLocation location)
 {
     AssertThis(0);
-    AssertPo(pflo, 0);
-    DataBlock blck(pflo);
-    return FWrite(&blck);
+    AssertPo(location, 0);
+    DataBlock block(location);
+    return FWrite(&block);
 }
-
-/***************************************************************************
-    Placeholder function for BaseCacheableObject generic writer.
-***************************************************************************/
-bool BaseCacheableObject::FWrite(PDataBlock pblck)
+bool BaseCacheableObject::FWrite(PDataBlock block)
 {
     AssertThis(0);
-    RawRtn(); // Derived class should be defining this
-    return fFalse;
+    RawRtn();
+    return false;
 }
-
-/***************************************************************************
-    Placeholder function for BaseCacheableObject generic cb-getter.
-***************************************************************************/
 LegacyLong BaseCacheableObject::CbOnFile(void)
 {
     AssertThis(0);
-    RawRtn(); // Derived class should be defining this
+    RawRtn();
     return 0;
 }
-
+void BaseCacheableObject::Release(void)
+{
+    AssertThis(0);
+    three_mm_resource_object_release(this, _ObjectServices());
+}
+void BaseCacheableObject::Detach(void)
+{
+    AssertThis(0);
+    three_mm_resource_object_detach(this, _ObjectServices());
+}
+void BaseCacheableObject::SetCrep(LegacyLong priority)
+{
+    AssertThis(0);
+    three_mm_resource_object_priority(this, priority, _ObjectServices());
+}
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a BaseCacheableObject.
-***************************************************************************/
-void BaseCacheableObject::AssertValid(LegacyUlong grf)
+void BaseCacheableObject::AssertValid(LegacyUlong flags)
 {
     BaseCacheableObject_PAR::AssertValid(fobjAllocated);
-    Assert(!_fAttached || pvNil != _pcrf, "attached baco has no crf");
-    AssertNilOrVarMem(_pcrf);
+    Assert(!_resource.attached || _resource.owner != nullptr, "attached baco has no crf");
+    AssertNilOrVarMem(static_cast<PChunkyResourceFile>(_resource.owner));
 }
-
-/***************************************************************************
-    Mark memory for the BaseCacheableObject.
-***************************************************************************/
 void BaseCacheableObject::MarkMem(void)
 {
     AssertValid(0);
     BaseCacheableObject_PAR::MarkMem();
-    if (!_fAttached)
-        MarkMemObj(_pcrf);
+    if (!_resource.attached)
+        MarkMemObj(static_cast<PChunkyResourceFile>(_resource.owner));
 }
-#endif // DEBUG
-
-/***************************************************************************
-    Release a reference to the BaseCacheableObject.  If the reference count goes to zero
-    and the BaseCacheableObject is not attached, it is deleted.
-***************************************************************************/
-void BaseCacheableObject::Release(void)
+#endif
+ThreeMMResourceServices ChunkyResourceFile::_Services()
 {
-    AssertThis(0);
-    if (_cactRef-- <= 0)
-    {
-        Bug("calling Release without an AddRef");
-        _cactRef = 0;
-    }
-    if (_cactRef == 0)
-    {
-        if (!_fAttached)
-            delete this;
-        else
+    ThreeMMResourceServices s = {};
+    s.context = this;
+    s.objects = *BaseCacheableObject::_ObjectServices();
+    s.compare_reader = [](ThreeMMResourceReader a, ThreeMMResourceReader b) -> int {
+        const auto x = reinterpret_cast<PFNRPO>(a), y = reinterpret_cast<PFNRPO>(b);
+        return x == y ? 0 : x < y ? -1 : 1;
+    };
+    s.contains = [](void *c, ThreeMMU32 type, ThreeMMU32 number) -> int {
+        return static_cast<PChunkyResourceFile>(c)->Pcfl()->FFind(type, number);
+    };
+    s.find_block = [](void *c, ThreeMMU32 type, ThreeMMU32 number, void *block) -> int {
+        return static_cast<PChunkyResourceFile>(c)->Pcfl()->FFind(type, number, static_cast<PDataBlock>(block));
+    };
+    s.read = [](void *c, ThreeMMResourceReader reader, ThreeMMU32 type, ThreeMMU32 number, void *block, void **object,
+                ThreeMMI32 *bytes) -> int {
+        PBaseCacheableObject value = nullptr;
+        LegacyLong count = *bytes;
+        const bool ok =
+            reinterpret_cast<PFNRPO>(reader)(static_cast<PChunkyResourceFile>(c), type, number,
+                                             static_cast<PDataBlock>(block), object ? &value : nullptr, &count);
+        if (object)
+            *object = value;
+        *bytes = count;
+        return ok;
+    };
+    s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
+    s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
+    s.owner_refs = [](void *c) -> ThreeMMI32 { return static_cast<PChunkyResourceFile>(c)->_cactRef; };
+    s.set_owner_refs = [](void *c, ThreeMMI32 refs) { static_cast<PChunkyResourceFile>(c)->_cactRef = refs; };
+    s.issue = [](void *c, int kind, ThreeMMU32 type, ThreeMMU32 number) {
+        if (kind == THREE_MM_RESOURCE_LOAD_FAILED)
         {
-            AssertPo(_pcrf, 0);
-            _pcrf->BacoReleased(this);
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+            const auto batch = std::getenv("THREEDMM_BATCH_TEST");
+            if (batch && std::strcmp(batch, "1") == 0)
+            {
+                Filename file;
+                String path;
+                char name[kcchMaxStz];
+                static_cast<PChunkyResourceFile>(c)->Pcfl()->GetFni(&file);
+                file.GetStnPath(&path);
+                path.GetSzs(name);
+                std::fprintf(stderr, "BATCH_RESOURCE_LOAD_FAILED ctg=%08lx cno=%08lx file=%s\n",
+                             static_cast<unsigned long>(type), static_cast<unsigned long>(number), name);
+            }
+#endif
+            PushErc(ercCrfCantLoad);
         }
-    }
+        else if (kind == THREE_MM_RESOURCE_DUPLICATE)
+            Bug("how did this happen?");
+        else if (kind == THREE_MM_RESOURCE_BAD_CHARGE)
+            Bug("negative resource size");
+        else if (kind == THREE_MM_RESOURCE_BAD_OWNER)
+            Bug("someone still refers to this ChunkyResourceFile");
+        else
+            Bug("invalid resource cache ownership");
+    };
+    return s;
 }
-
-/***************************************************************************
-    Detach a BaseCacheableObject from its ChunkyResourceFile.
-***************************************************************************/
-void BaseCacheableObject::Detach(void)
-{
-    AssertThis(0);
-    if (_fAttached)
-    {
-        AssertPo(_pcrf, 0);
-        _pcrf->AddRef();
-        _fAttached = fFalse;
-        _pcrf->BacoDetached(this);
-    }
-    if (_cactRef <= 0)
-        delete this;
-}
-
-/***************************************************************************
-    Set the crep for the BaseCacheableObject.
-***************************************************************************/
-void BaseCacheableObject::SetCrep(LegacyLong crep)
-{
-    AssertThis(0);
-    // An AddRef followed by Release is done so that BacoReleased() is
-    // called if this BaseCacheableObject's _cactRef is 0...if crep is crepToss, this
-    // detaches this BaseCacheableObject from the cache.
-    AddRef();
-    _crep = crep;
-    Release();
-}
-
-/***************************************************************************
-    Constructor for ChunkyResourceFile.  Increments the open count on the ChunkyFile.
-***************************************************************************/
-ChunkyResourceFile::ChunkyResourceFile(PChunkyFile pcfl, LegacyLong cbMax)
+ChunkyResourceFile::ChunkyResourceFile(PChunkyFile file, LegacyLong budget)
 {
     AssertBaseThis(fobjAllocated);
-    AssertPo(pcfl, 0);
-    AssertIn(cbMax, 0, kcbMax);
-
-    pcfl->AddRef();
-    _pcfl = pcfl;
-    _cbMax = cbMax;
+    AssertPo(file, 0);
+    AssertIn(budget, 0, kcbMax);
+    static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2, "resource C contract");
+    const auto services = _Services();
+    int diagnostic = 0;
+    Debug(diagnostic = 1;)
+        AssertDo(three_mm_resource_cache_init(&_cache, this, file, budget, &services, KauaiCopyAllocator(),
+                                              diagnostic) == THREE_MM_STORAGE_OK,
+                 "invalid resource cache");
 }
-
-/***************************************************************************
-    Destructor for the ChunkyResourceFile.  Decrements the open count on the ChunkyFile and frees
-    all the cached data.
-***************************************************************************/
 ChunkyResourceFile::~ChunkyResourceFile(void)
 {
     AssertBaseThis(fobjAllocated);
-    CRE cre;
-
-    _cactRef++; // so we don't get "deleted" while detaching the BACOs
-    if (pvNil != _pglcre)
-    {
-        while (_pglcre->IvMac() > 0)
-        {
-            _pglcre->Get(0, &cre);
-            cre.pbaco->AddRef(); // so it doesn't go away when being detached
-            cre.pbaco->Detach();
-            cre.pbaco->_pcrf = pvNil; // we're going away!
-            Debug(_cactRef--;) cre.pbaco->Release();
-        }
-        ReleasePpo(&_pglcre);
-    }
-    Assert(_cactRef == 1, "someone still refers to this ChunkyResourceFile");
-    ReleasePpo(&_pcfl);
+    AssertDo(three_mm_resource_cache_dispose(&_cache) == THREE_MM_STORAGE_OK, "invalid resource cache disposal");
 }
-
-/***************************************************************************
-    Static method to create a new chunky resource file cache.
-***************************************************************************/
-PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile pcfl, LegacyLong cbMax)
+PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget)
 {
-    AssertPo(pcfl, 0);
-    AssertIn(cbMax, 0, kcbMax);
-    PChunkyResourceFile pcrf;
-
-    if (pvNil != (pcrf = NewObj ChunkyResourceFile(pcfl, cbMax)) && pvNil == (pcrf->_pglcre = DynamicArray::PglNew(size(CRE), 5)))
-    {
-        ReleasePpo(&pcrf);
-    }
-    AssertNilOrPo(pcrf, 0);
-    return pcrf;
+    AssertPo(file, 0);
+    AssertIn(budget, 0, kcbMax);
+    auto cache = NewObj ChunkyResourceFile(file, budget);
+    if (cache && three_mm_resource_cache_reserve(&cache->_cache, 5) != THREE_MM_STORAGE_OK)
+        ReleasePpo(&cache);
+    AssertNilOrPo(cache, 0);
+    return cache;
 }
-
-/***************************************************************************
-    Set the size of the cache. This is most effecient when cbMax is 0
-    (all non-required BACOs are flushed) or is bigger than the current
-    cbMax.
-***************************************************************************/
-void ChunkyResourceFile::SetCbMax(LegacyLong cbMax)
+void ChunkyResourceFile::SetCbMax(LegacyLong budget)
 {
     AssertThis(0);
-    AssertIn(cbMax, 0, kcbMax);
-
-    if (0 == cbMax)
-    {
-        CRE cre;
-        LegacyLong icre;
-
-        for (icre = _pglcre->IvMac(); icre-- > 0;)
-        {
-            _pglcre->Get(icre, &cre);
-            AssertPo(cre.pbaco, 0);
-            if (cre.pbaco->CactRef() == 0)
-            {
-                Assert(cre.pbaco->_fAttached, "BaseCacheableObject not attached!");
-                cre.pbaco->Detach();
-
-                // have to start over in case other BACOs got deleted or
-                // reference counts went to zero
-                icre = _pglcre->IvMac();
-            }
-        }
-    }
-    else if (_cbCur > cbMax)
-        _FPurgeCb(_cbCur - cbMax, klwMax);
-
-    _cbMax = cbMax;
+    AssertIn(budget, 0, kcbMax);
+    three_mm_resource_cache_budget(&_cache, budget);
 }
-
-/***************************************************************************
-    Pre-fetch the object.  Returns tYes if the chunk is successfully cached,
-    tNo if the chunk isn't in the ChunkyResourceFile and tMaybe if there wasn't room
-    to cache the chunk.
-***************************************************************************/
-tribool ChunkyResourceFile::TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, LegacyLong crep)
+tribool ChunkyResourceFile::TLoad(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope,
+                                  LegacyLong priority)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "bad pfnrpo");
-    Assert(crep > crepToss, "crep too small");
-    CRE cre;
-    LegacyLong icre;
-    DataBlock blck;
-
-    // see if this ChunkyResourceFile contains this resource type
-    if (rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
-        return tNo;
-
-    // see if it's in the cache
-    if (_FFindCre(ctg, cno, pfnrpo, &icre))
-    {
-        _pglcre->Get(icre, &cre);
-        cre.pbaco->SetCrep(LwMax(cre.pbaco->_crep, crep));
-        cre.cactRelease = _cactRelease++;
-        _pglcre->Put(icre, &cre);
-        return tYes;
-    }
-
-    // see if it's in the chunky file
-    if (!_pcfl->FFind(ctg, cno, &blck))
-        return tNo;
-
-    // get the approximate size of the object
-    if (!(*pfnrpo)(this, ctg, cno, &blck, pvNil, &cre.cb))
-        return tMaybe;
-
-    if (_cbCur + cre.cb > _cbMax)
-    {
-        if (!_FPurgeCb(_cbCur + cre.cb - _cbMax, crep - 1))
-            return tMaybe;
-    }
-
-    if (!(*pfnrpo)(this, ctg, cno, &blck, &cre.pbaco, &cre.cb))
-        return tMaybe;
-
-    AssertPo(cre.pbaco, 0);
-    Assert(cre.cb >= 0, "negative resource size");
-
-    if (_cbCur + cre.cb > _cbMax && !_FPurgeCb(_cbCur + cre.cb - _cbMax, crep - 1))
-    {
-        ReleasePpo(&cre.pbaco);
-        return tMaybe;
-    }
-
-    cre.pbaco->_pcrf = this;
-    cre.pbaco->_ctg = ctg;
-    cre.pbaco->_cno = cno;
-    cre.pbaco->_crep = crep;
-
-    AddRef(); // until the baco is attached it needs a reference count
-    cre.pbaco->_fAttached = fFalse;
-    cre.pfnrpo = pfnrpo;
-    cre.cactRelease = _cactRelease++;
-
-    // indexes may have changed, get the location to insert again
-    AssertDo(!_FFindCre(ctg, cno, pfnrpo, &icre), "how did this happen?");
-
-    if (!_pglcre->FInsert(icre, &cre))
-    {
-        // can't keep it loaded
-        ReleasePpo(&cre.pbaco);
-        return tMaybe;
-    }
-
-    _cbCur += cre.cb;
-    cre.pbaco->_fAttached = fTrue;
-    cre.pbaco->Release();
-    Release(); // baco successfully attached, so release its reference count
-
-    return tYes;
+    Assert(reader != nullptr, "bad object reader");
+    Assert(priority > crepToss, "crep too small");
+    DataBlock block;
+    return static_cast<tribool>(three_mm_resource_cache_load(
+        &_cache, type, number, reinterpret_cast<ThreeMMResourceReader>(reader), scope, priority, &block));
 }
-
-/***************************************************************************
-    Make sure the object is loaded and increment its reference count.  If
-    successful, must be balanced with a call to ReleasePpo.
-***************************************************************************/
-PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, bool *error,
+                                                    RSC scope)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "bad pfnrpo");
-    AssertNilOrVarMem(pfError);
-    CRE cre;
-    LegacyLong icre;
-    DataBlock blck;
-
-    if (pvNil != pfError)
-        *pfError = fFalse;
-
-    // see if this ChunkyResourceFile contains this resource type
-    if (rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
-        return pvNil;
-
-    // see if it's in the cache
-    if (_FFindCre(ctg, cno, pfnrpo, &icre))
-    {
-        _pglcre->Get(icre, &cre);
-        AssertPo(cre.pbaco, 0);
-        cre.pbaco->AddRef();
-        return cre.pbaco;
-    }
-
-    // see if it's in the chunky file
-    if (!_pcfl->FFind(ctg, cno, &blck))
-        return pvNil;
-
-    // get the object and its size
-    if (!(*pfnrpo)(this, ctg, cno, &blck, &cre.pbaco, &cre.cb))
-    {
-        if (pvNil != pfError)
-            *pfError = fTrue;
-#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-        const auto batch = std::getenv("THREEDMM_BATCH_TEST");
-        if (batch && std::strcmp(batch, "1") == 0)
-        {
-            Filename file;
-            String path;
-            char name[kcchMaxStz];
-            _pcfl->GetFni(&file);
-            file.GetStnPath(&path);
-            path.GetSzs(name);
-            std::fprintf(stderr, "BATCH_RESOURCE_LOAD_FAILED ctg=%08lx cno=%08lx file=%s\n",
-                         static_cast<unsigned long>(ctg), static_cast<unsigned long>(cno), name);
-        }
-#endif
-        PushErc(ercCrfCantLoad);
-        return pvNil;
-    }
-
-    AssertPo(cre.pbaco, 0);
-    // A decoded resource can exceed the allocation limit for its on-disk
-    // chunk (SDL audio uses separate sample storage). The reader reports a
-    // signed 32-bit resident charge; aggregate accounting is wider.
-    Assert(cre.cb >= 0, "negative resource size");
-
-    cre.pbaco->_pcrf = this;
-    cre.pbaco->_ctg = ctg;
-    cre.pbaco->_cno = cno;
-    cre.pbaco->_crep = crepNormal;
-
-    AddRef();
-    cre.pbaco->_fAttached = fFalse;
-    cre.pfnrpo = pfnrpo;
-
-    // indexes may have changed, get the location to insert again
-    AssertDo(!_FFindCre(ctg, cno, pfnrpo, &icre), "how did this happen?");
-
-    if (!_pglcre->FInsert(icre, &cre))
-    {
-        // return the pbaco anyway.  when it's released it will go away
-        if (pvNil != pfError)
-            *pfError = fTrue;
-        return cre.pbaco;
-    }
-
-    _cbCur += cre.cb;
-    cre.pbaco->_fAttached = fTrue;
-    Release();
-
-    if (_cbCur > _cbMax)
-    {
-        // purge some stuff
-        _FPurgeCb(_cbCur - _cbMax, klwMax);
-    }
-
-    return cre.pbaco;
+    Assert(reader != nullptr, "bad object reader");
+    AssertNilOrVarMem(error);
+    DataBlock block;
+    int failed = 0;
+    auto object = static_cast<PBaseCacheableObject>(three_mm_resource_cache_fetch(
+        &_cache, type, number, reinterpret_cast<ThreeMMResourceReader>(reader), scope, &block, &failed));
+    if (error)
+        *error = failed != 0;
+    return object;
 }
-
-/***************************************************************************
-    If the object is loaded, increment its reference count and return it.
-    If it's not already loaded, just return nil.
-***************************************************************************/
-PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "bad pfnrpo");
-
-    CRE cre;
-    LegacyLong icre;
-
-    // see if it's in the cache
-    if (!_FFindCre(ctg, cno, pfnrpo, &icre) || rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
-    {
-        return pvNil;
-    }
-
-    _pglcre->Get(icre, &cre);
-    AssertPo(cre.pbaco, 0);
-    cre.pbaco->AddRef();
-    return cre.pbaco;
+    Assert(reader != nullptr, "bad object reader");
+    return static_cast<PBaseCacheableObject>(
+        three_mm_resource_cache_find(&_cache, type, number, reinterpret_cast<ThreeMMResourceReader>(reader), scope));
 }
-
-/***************************************************************************
-    If the baco indicated chunk is cached, set its crep.  Returns true
-    iff the baco was cached.
-***************************************************************************/
-bool ChunkyResourceFile::FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+bool ChunkyResourceFile::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, PFNRPO reader,
+                                  RSC scope)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "bad pfnrpo");
-
-    CRE cre;
-    LegacyLong icre;
-
-    // see if it's in the cache
-    if (!_FFindCre(ctg, cno, pfnrpo, &icre) || rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
-    {
-        return fFalse;
-    }
-
-    _pglcre->Get(icre, &cre);
-    AssertPo(cre.pbaco, 0);
-    cre.pbaco->SetCrep(crep);
-    return fTrue;
+    Assert(reader != nullptr, "bad object reader");
+    return three_mm_resource_cache_priority(&_cache, priority, type, number,
+                                            reinterpret_cast<ThreeMMResourceReader>(reader), scope) != 0;
 }
-
-/***************************************************************************
-    Return this if the chunk is in this crf, otherwise return nil. The
-    caller is not given a reference count.
-***************************************************************************/
-PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-
-    if (!_pcfl->FFind(ctg, cno) || rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
-    {
-        return pvNil;
-    }
-
-    return this;
+    return three_mm_resource_cache_contains(&_cache, type, number, scope) ? this : nullptr;
 }
-
-/***************************************************************************
-    Check the _fAttached flag.  If it's false, make sure the BaseCacheableObject is not
-    in the ChunkyResourceFile.
-***************************************************************************/
-void ChunkyResourceFile::BacoDetached(PBaseCacheableObject pbaco)
+void ChunkyResourceFile::BacoDetached(PBaseCacheableObject object)
 {
     AssertThis(0);
-    AssertPo(pbaco, 0);
-    Assert(pbaco->_pcrf == this, "BaseCacheableObject doesn't have right ChunkyResourceFile");
-    LegacyLong icre;
-    CRE cre;
-
-    if (pbaco->_fAttached)
-    {
-        Bug("who's calling BacoDetached?");
-        return;
-    }
-    if (!_FFindBaco(pbaco, &icre))
-    {
-        Bug("why isn't the BaseCacheableObject in the ChunkyResourceFile?");
-        return;
-    }
-    _pglcre->Get(icre, &cre);
-    _cbCur -= cre.cb;
-    Assert(_cbCur >= 0, "negative cache size");
-    _pglcre->Delete(icre);
+    AssertPo(object, 0);
+    three_mm_resource_cache_detached(&_cache, object);
 }
-
-/***************************************************************************
-    The BaseCacheableObject was released.  See if it should be flushed.
-***************************************************************************/
-void ChunkyResourceFile::BacoReleased(PBaseCacheableObject pbaco)
+void ChunkyResourceFile::BacoReleased(PBaseCacheableObject object)
 {
     AssertThis(0);
-    AssertPo(pbaco, 0);
-    Assert(pbaco->_pcrf == this, "BaseCacheableObject doesn't have right ChunkyResourceFile");
-    LegacyLong icre;
-    CRE cre;
-
-    if (!pbaco->_fAttached || pbaco->CactRef() != 0)
-    {
-        Bug("who's calling BacoReleased?");
-        return;
-    }
-
-    if (!_FFindBaco(pbaco, &icre))
-    {
-        Bug("why isn't the BaseCacheableObject in the ChunkyResourceFile?");
-        return;
-    }
-    _pglcre->Get(icre, &cre);
-    cre.cactRelease = _cactRelease++;
-    _pglcre->Put(icre, &cre);
-
-    if (pbaco->_crep <= crepToss || _cbCur > _cbMax)
-    {
-        // toss it
-        pbaco->Detach();
-    }
+    AssertPo(object, 0);
+    three_mm_resource_cache_released(&_cache, object);
 }
-
-/***************************************************************************
-    Find the cre corresponding to the (ctg, cno, pfnrpo).  Set *picre to
-    its location (or where it would be if it were in the list).
-***************************************************************************/
-bool ChunkyResourceFile::_FFindCre(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, LegacyLong *picre)
-{
-    AssertThis(0);
-    AssertVarMem(picre);
-    CRE *qrgcre, *qcre;
-    LegacyLong icreMin, icreLim, icre;
-
-    // Do a binary search.  The CREs are sorted by (ctg, cno, pfnrpo).
-    qrgcre = (CRE *)_pglcre->QvGet(0);
-    for (icreMin = 0, icreLim = _pglcre->IvMac(); icreMin < icreLim;)
-    {
-        icre = (icreMin + icreLim) / 2;
-        qcre = qrgcre + icre;
-        AssertPo(qcre->pbaco, 0);
-        if (ctg < qcre->pbaco->_ctg)
-            icreLim = icre;
-        else if (ctg > qcre->pbaco->_ctg)
-            icreMin = icre + 1;
-        else if (cno < qcre->pbaco->_cno)
-            icreLim = icre;
-        else if (cno > qcre->pbaco->_cno)
-            icreMin = icre + 1;
-        else if (pfnrpo == qcre->pfnrpo)
-        {
-            *picre = icre;
-            return fTrue;
-        }
-        else if (pfnrpo < qcre->pfnrpo)
-            icreLim = icre;
-        else
-            icreMin = icre + 1;
-    }
-
-    *picre = icreMin;
-    return fFalse;
-}
-
-/***************************************************************************
-    Find the cre corresponding to the BaseCacheableObject.  Set *picre to its location.
-***************************************************************************/
-bool ChunkyResourceFile::_FFindBaco(PBaseCacheableObject pbaco, LegacyLong *picre)
-{
-    AssertThis(0);
-    AssertPo(pbaco, 0);
-    Assert(pbaco->_pcrf == this, "BaseCacheableObject doesn't have right ChunkyResourceFile");
-    AssertVarMem(picre);
-    ChunkTagOrType ctg;
-    ChunkNumber cno;
-    CRE *qrgcre, *qcre;
-    LegacyLong icreMin, icreLim, icre;
-
-    ctg = pbaco->_ctg;
-    cno = pbaco->_cno;
-
-    // Do a binary search.  The CREs are sorted by (ctg, cno, pfnrpo).
-    qrgcre = (CRE *)_pglcre->QvGet(0);
-    for (icreMin = 0, icreLim = _pglcre->IvMac(); icreMin < icreLim;)
-    {
-        icre = (icreMin + icreLim) / 2;
-        qcre = qrgcre + icre;
-        AssertPo(qcre->pbaco, 0);
-        if (ctg < qcre->pbaco->_ctg)
-            icreLim = icre;
-        else if (ctg > qcre->pbaco->_ctg)
-            icreMin = icre + 1;
-        else if (cno < qcre->pbaco->_cno)
-            icreLim = icre;
-        else if (cno > qcre->pbaco->_cno)
-            icreMin = icre + 1;
-        else if (pbaco == qcre->pbaco)
-        {
-            *picre = icre;
-            return fTrue;
-        }
-        else
-        {
-            // we've found the (ctg, cno), now look for the BaseCacheableObject
-            for (icreMin = icre; icreMin-- > 0;)
-            {
-                qcre = qrgcre + icreMin;
-                if (qcre->pbaco->_ctg != ctg || qcre->pbaco->_cno != cno)
-                    break;
-                if (qcre->pbaco == pbaco)
-                {
-                    *picre = icreMin;
-                    return fTrue;
-                }
-            }
-            for (icreLim = icre; ++icreLim < _pglcre->IvMac();)
-            {
-                qcre = qrgcre + icreLim;
-                if (qcre->pbaco->_ctg != ctg || qcre->pbaco->_cno != cno)
-                    break;
-                if (qcre->pbaco == pbaco)
-                {
-                    *picre = icreLim;
-                    return fTrue;
-                }
-            }
-            TrashVar(picre);
-            return fFalse;
-        }
-    }
-
-    TrashVar(picre);
-    return fFalse;
-}
-
-/***************************************************************************
-    Try to purge at least cbPurge bytes of space.  Doesn't free anything
-    with a crep > crepLast or that is locked.
-***************************************************************************/
-bool ChunkyResourceFile::_FPurgeCb(std::int64_t cbPurge, LegacyLong crepLast)
-{
-    AssertThis(0);
-    Assert(cbPurge > 0, "empty cache purge");
-    if (crepLast <= crepToss)
-        return fFalse;
-
-    CRE cre;
-    LegacyLong icreMac;
-
-    while (0 < (icreMac = _pglcre->IvMac()))
-    {
-        // We want to find the "best" element to free.  This is determined by
-        // keeping a "best so far" element, which we compare each element to.
-        // If the cre has a larger crep, it is worse, so just continue.
-        // If the cre has a smaller crep, it is better.  When the crep values
-        // are the same, we score it based on when the cre was last released
-        // (how many releases have happened since the cre was last used) and
-        // how different the cb is from cbPurge.  Each release is worth
-        // kcbRelease bytes.  Bytes short of cbPurge are considered worse
-        // (by a factor of 3) than bytes beyond cbPurge, so we favor elements
-        // that are larger than cbPurge.
-        // REVIEW shonk: tune kcbRelease and the weighting factor...
-        const LegacyLong kcbRelease = 256;
-        LegacyLong icre, crep;
-        std::int64_t lw, dcb;
-        auto lwBest = std::numeric_limits<std::int64_t>::max();
-        LegacyLong icreBest = ivNil;
-        LegacyLong crepBest = crepLast;
-
-        for (icre = 0; icre < icreMac; icre++)
-        {
-            _pglcre->Get(icre, &cre);
-            AssertPo(cre.pbaco, 0);
-            if (cre.pbaco->CactRef() > 0 || (crep = cre.pbaco->_crep) > crepBest)
-            {
-                continue;
-            }
-            Assert(crep <= crepBest, 0);
-            AssertIn(cre.cactRelease, 0, _cactRelease);
-
-            dcb = cre.cb - cbPurge;
-            lw = -LwMul(kcbRelease, LwMin(kcbMax / kcbRelease, _cactRelease - cre.cactRelease)) +
-                 2 * (dcb < 0 ? -dcb : dcb) - dcb;
-            if (crep < crepBest || lw < lwBest)
-            {
-                icreBest = icre;
-                crepBest = crep;
-                lwBest = lw;
-            }
-        }
-
-        if (ivNil == icreBest)
-            return fFalse;
-
-        _pglcre->Get(icreBest, &cre);
-        Assert(cre.pbaco->_fAttached, "BaseCacheableObject not attached!");
-        cre.pbaco->Detach();
-
-        if (0 >= (cbPurge -= cre.cb))
-            return fTrue;
-    }
-
-    return fFalse;
-}
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a ChunkyResourceFile (chunky resource file).
-***************************************************************************/
-void ChunkyResourceFile::AssertValid(LegacyUlong grf)
+void ChunkyResourceFile::AssertValid(LegacyUlong flags)
 {
     ChunkyResourceFile_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pglcre, 0);
-    AssertPo(_pcfl, 0);
-    AssertIn(_cbMax, 0, kcbMax);
-    Assert(_cbCur >= 0, "negative cache size");
-    AssertIn(_cactRelease, 0, kcbMax);
+    AssertPo(Pcfl(), 0);
+    AssertIn(_cache.budget, 0, kcbMax);
+    Assert(_cache.resident.high >= 0, "negative cache size");
+    AssertIn(_cache.releases, 0, kcbMax);
+    Assert(_cache.count <= _cache.storage.buffers[0].capacity / sizeof(ThreeMMResourceEntry), "bad cache count");
 }
-
-/***************************************************************************
-    Mark memory used by a ChunkyResourceFile.
-***************************************************************************/
 void ChunkyResourceFile::MarkMem(void)
 {
     AssertThis(0);
-    LegacyLong icre;
-    CRE cre;
-
     ChunkyResourceFile_PAR::MarkMem();
-    MarkMemObj(_pglcre);
-    MarkMemObj(_pcfl);
-
-    for (icre = _pglcre->IvMac(); icre-- > 0;)
+    MarkPv(_cache.storage.buffers[0].data);
+    MarkMemObj(Pcfl());
+    ThreeMMResourceEntry row;
+    for (ThreeMMU32 i = _cache.count; i-- > 0;)
     {
-        _pglcre->Get(icre, &cre);
-        AssertPo(cre.pbaco, 0);
-        Assert(cre.pbaco->_fAttached, "baco claims to not be attached!");
-        cre.pbaco->_fAttached = fTrue; // safety to avoid infinite recursion
-        MarkMemObj(cre.pbaco);
+        AssertDo(three_mm_resource_cache_at(&_cache, i, &row) == THREE_MM_STORAGE_OK, "bad cache row");
+        auto object = static_cast<PBaseCacheableObject>(row.object);
+        AssertPo(object, 0);
+        Assert(object->_resource.attached, "baco not attached");
+        object->_resource.attached = 1;
+        MarkMemObj(object);
     }
 }
-#endif // DEBUG
-
-/***************************************************************************
-    Destructor for Chunky resource manager.
-***************************************************************************/
+#endif
+namespace
+{
+ThreeMMResourceRequest ResourceRequest(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope,
+                                       LegacyLong priority = crepNormal)
+{
+    return {type, number, scope, reinterpret_cast<ThreeMMResourceReader>(reader), priority};
+}
+} // namespace
+ThreeMMResourceManagerServices ChunkyResourceManager::_Services()
+{
+    return {nullptr,
+            [](void *, void *file, ThreeMMI32 budget) -> void * {
+                return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), budget);
+            },
+            [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); },
+            [](void *c, const ThreeMMResourceRequest *q) -> int {
+                return static_cast<PChunkyResourceFile>(c)->TLoad(
+                    q->type, q->number, reinterpret_cast<PFNRPO>(q->reader), q->scope, q->priority);
+            },
+            [](void *c, const ThreeMMResourceRequest *q, int *error) -> void * {
+                bool failed = false;
+                auto object = static_cast<PChunkyResourceFile>(c)->PbacoFetch(
+                    q->type, q->number, reinterpret_cast<PFNRPO>(q->reader), &failed, q->scope);
+                *error = failed;
+                return object;
+            },
+            [](void *c, const ThreeMMResourceRequest *q) -> void * {
+                return static_cast<PChunkyResourceFile>(c)->PbacoFind(q->type, q->number,
+                                                                      reinterpret_cast<PFNRPO>(q->reader), q->scope);
+            },
+            [](void *c, const ThreeMMResourceRequest *q) -> int {
+                return static_cast<PChunkyResourceFile>(c)->FSetCrep(q->priority, q->type, q->number,
+                                                                     reinterpret_cast<PFNRPO>(q->reader), q->scope);
+            },
+            [](void *c, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 scope) -> int {
+                return three_mm_resource_cache_contains(&static_cast<PChunkyResourceFile>(c)->_cache, type, number,
+                                                        scope);
+            }};
+}
+ChunkyResourceManager::ChunkyResourceManager(void)
+{
+    const auto services = _Services();
+    AssertDo(three_mm_resource_manager_init(&_manager, &services, KauaiCopyAllocator()) == THREE_MM_STORAGE_OK,
+             "invalid resource manager");
+}
 ChunkyResourceManager::~ChunkyResourceManager(void)
 {
     AssertBaseThis(fobjAllocated);
-    LegacyLong ipcrf;
-    PChunkyResourceFile pcrf;
-
-    if (pvNil != _pglpcrf)
-    {
-        for (ipcrf = _pglpcrf->IvMac(); ipcrf-- > 0;)
-        {
-            _pglpcrf->Get(ipcrf, &pcrf);
-            AssertPo(pcrf, 0);
-            ReleasePpo(&pcrf);
-        }
-        ReleasePpo(&_pglpcrf);
-    }
+    AssertDo(three_mm_resource_manager_dispose(&_manager) == THREE_MM_STORAGE_OK, "invalid manager disposal");
 }
-
-/***************************************************************************
-    Static method to create a new ChunkyResourceManager.
-***************************************************************************/
-PChunkyResourceManager ChunkyResourceManager::PcrmNew(LegacyLong ccrfInit)
+PChunkyResourceManager ChunkyResourceManager::PcrmNew(LegacyLong reserve)
 {
-    AssertIn(ccrfInit, 0, kcbMax);
-    PChunkyResourceManager pcrm;
-
-    if (pvNil == (pcrm = NewObj ChunkyResourceManager()))
-        return pvNil;
-    if (pvNil == (pcrm->_pglpcrf = DynamicArray::PglNew(size(PChunkyResourceFile), ccrfInit)))
-    {
-        ReleasePpo(&pcrm);
-        return pvNil;
-    }
-    AssertPo(pcrm, 0);
-    return pcrm;
+    AssertIn(reserve, 0, kcbMax);
+    auto manager = NewObj ChunkyResourceManager();
+    if (manager && three_mm_resource_manager_reserve(&manager->_manager, reserve) != THREE_MM_STORAGE_OK)
+        ReleasePpo(&manager);
+    AssertNilOrPo(manager, 0);
+    return manager;
 }
-
-/***************************************************************************
-    Prefetch the object if there is room in the cache.  Assigns the fetched
-    object the given priority (crep).
-***************************************************************************/
-tribool ChunkyResourceManager::TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, LegacyLong crep)
+tribool ChunkyResourceManager::TLoad(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope,
+                                     LegacyLong priority)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "nil object reader");
-    PChunkyResourceFile pcrf;
-    tribool t;
-    LegacyLong ipcrf;
-    LegacyLong cpcrf = _pglpcrf->IvMac();
-
-    for (ipcrf = 0; ipcrf < cpcrf; ipcrf++)
-    {
-        _pglpcrf->Get(ipcrf, &pcrf);
-        AssertPo(pcrf, 0);
-        t = pcrf->TLoad(ctg, cno, pfnrpo, rsc, crep);
-        if (t != tNo)
-            return t;
-    }
-    return tNo;
+    Assert(reader != nullptr, "nil object reader");
+    const auto q = ResourceRequest(type, number, reader, scope, priority);
+    return static_cast<tribool>(three_mm_resource_manager_load(&_manager, &q));
 }
-
-/***************************************************************************
-    Make sure the object is loaded and increment its reference count.  If
-    successful, must be balanced with a call to ReleasePpo.  If this fails,
-    and pfError is not nil, *pfError is set iff the chunk exists but
-    couldn't be loaded.
-***************************************************************************/
-PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, ChunkNumber number, PFNRPO reader,
+                                                       bool *error, RSC scope)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "nil object reader");
-    AssertNilOrVarMem(pfError);
-    PChunkyResourceFile pcrf;
-    LegacyLong ipcrf;
-    bool fError = fFalse;
-    PBaseCacheableObject pbaco = pvNil;
-    LegacyLong cpcrf = _pglpcrf->IvMac();
-
-    for (ipcrf = 0; ipcrf < cpcrf; ipcrf++)
-    {
-        _pglpcrf->Get(ipcrf, &pcrf);
-        AssertPo(pcrf, 0);
-        pbaco = pcrf->PbacoFetch(ctg, cno, pfnrpo, &fError, rsc);
-        if (pvNil != pbaco || fError)
-            break;
-    }
-    if (pvNil != pfError)
-        *pfError = fError;
-    AssertNilOrPo(pbaco, 0);
-    return pbaco;
+    Assert(reader != nullptr, "nil object reader");
+    AssertNilOrVarMem(error);
+    const auto q = ResourceRequest(type, number, reader, scope);
+    int failed = 0;
+    auto object = static_cast<PBaseCacheableObject>(three_mm_resource_manager_fetch(&_manager, &q, &failed));
+    if (error)
+        *error = failed != 0;
+    return object;
 }
-
-/***************************************************************************
-    If the object is loaded, increment its reference count and return it.
-    If it's not already loaded, just return nil.
-***************************************************************************/
-PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTagOrType type, ChunkNumber number, PFNRPO reader, RSC scope)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "nil object reader");
-
-    PChunkyResourceFile pcrf;
-
-    if (pvNil == (pcrf = PcrfFindChunk(ctg, cno, rsc)))
-        return pvNil;
-
-    return pcrf->PbacoFind(ctg, cno, pfnrpo);
+    Assert(reader != nullptr, "nil object reader");
+    const auto q = ResourceRequest(type, number, reader, scope);
+    return static_cast<PBaseCacheableObject>(three_mm_resource_manager_find(&_manager, &q));
 }
-
-/***************************************************************************
-    If the chunk is cached, set its crep.  Returns true iff the chunk
-    was cached.
-***************************************************************************/
-bool ChunkyResourceManager::FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+bool ChunkyResourceManager::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, PFNRPO reader,
+                                     RSC scope)
 {
     AssertThis(0);
-    Assert(pvNil != pfnrpo, "nil object reader");
-    PChunkyResourceFile pcrf;
-    LegacyLong ipcrf;
-    LegacyLong cpcrf = _pglpcrf->IvMac();
-
-    for (ipcrf = 0; ipcrf < cpcrf; ipcrf++)
-    {
-        _pglpcrf->Get(ipcrf, &pcrf);
-        AssertPo(pcrf, 0);
-        if (pcrf->FSetCrep(crep, ctg, cno, pfnrpo, rsc))
-            return fTrue;
-    }
-    return fFalse;
+    Assert(reader != nullptr, "nil object reader");
+    const auto q = ResourceRequest(type, number, reader, scope, priority);
+    return three_mm_resource_manager_priority(&_manager, &q) != 0;
 }
-
-/***************************************************************************
-    Return which ChunkyResourceFile the given chunk is in. The caller is not given a
-    reference count.
-***************************************************************************/
-PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-    PChunkyResourceFile pcrf;
-    LegacyLong ipcrf;
-    LegacyLong cpcrf = _pglpcrf->IvMac();
-
-    for (ipcrf = 0; ipcrf < cpcrf; ipcrf++)
-    {
-        _pglpcrf->Get(ipcrf, &pcrf);
-        AssertPo(pcrf, 0);
-
-        if (pcrf->Pcfl()->FFind(ctg, cno) && (rscNil == rsc || pcrf->Pcfl()->FFind(kctgRsc, rsc)))
-        {
-            return pcrf;
-        }
-    }
-
-    return pvNil;
+    return static_cast<PChunkyResourceFile>(three_mm_resource_manager_find_file(&_manager, type, number, scope));
 }
-
-/***************************************************************************
-    Add a chunky file to the list of chunky resource files, by
-    creating the chunky resource file object and adding it to the DynamicArray
-***************************************************************************/
-bool ChunkyResourceManager::FAddCfl(PChunkyFile pcfl, LegacyLong cbMax, LegacyLong *piv)
+bool ChunkyResourceManager::FAddCfl(PChunkyFile file, LegacyLong budget, LegacyLong *position)
 {
     AssertThis(0);
-    AssertPo(pcfl, 0);
-    AssertIn(cbMax, 0, kcbMax);
-    AssertNilOrVarMem(piv);
-
-    PChunkyResourceFile pcrf;
-
-    if (pvNil == (pcrf = ChunkyResourceFile::PcrfNew(pcfl, cbMax)))
+    AssertPo(file, 0);
+    AssertIn(budget, 0, kcbMax);
+    AssertNilOrVarMem(position);
+    ThreeMMU32 at;
+    const int result = three_mm_resource_manager_add(&_manager, file, budget, &at);
+    if (result == THREE_MM_STORAGE_OK)
     {
-        TrashVar(piv);
-        return fFalse;
+        if (position)
+            *position = at;
+        return true;
     }
-    if (!_pglpcrf->FAdd(&pcrf, piv))
-    {
-        ReleasePpo(&pcrf);
-        return fFalse;
-    }
-    return fTrue;
+    if (result == THREE_MM_STORAGE_IO)
+        TrashVar(position);
+    return false;
 }
-
-/***************************************************************************
-    Get the icrf'th ChunkyResourceFile.
-***************************************************************************/
-PChunkyResourceFile ChunkyResourceManager::PcrfGet(LegacyLong icrf)
+PChunkyResourceFile ChunkyResourceManager::PcrfGet(LegacyLong position)
 {
     AssertThis(0);
-    AssertIn(icrf, 0, kcbMax);
-    PChunkyResourceFile pcrf;
-
-    if (!FIn(icrf, 0, _pglpcrf->IvMac()))
-        return pvNil;
-
-    _pglpcrf->Get(icrf, &pcrf);
-    AssertPo(pcrf, 0);
-    return pcrf;
+    AssertIn(position, 0, kcbMax);
+    return static_cast<PChunkyResourceFile>(three_mm_resource_manager_at(&_manager, position));
 }
-
 #ifdef DEBUG
-/***************************************************************************
-    Check the sanity of the ChunkyResourceManager
-***************************************************************************/
-void ChunkyResourceManager::AssertValid(LegacyUlong grfobj)
+void ChunkyResourceManager::AssertValid(LegacyUlong flags)
 {
-    ChunkyResourceManager_PAR::AssertValid(grfobj | fobjAllocated);
-    AssertPo(_pglpcrf, 0);
+    ChunkyResourceManager_PAR::AssertValid(flags | fobjAllocated);
+    Assert(_manager.count <= _manager.storage.buffers[0].capacity / sizeof(void *), "bad manager count");
 }
-
-/***************************************************************************
-    mark the memory associated with the ChunkyResourceManager
-***************************************************************************/
 void ChunkyResourceManager::MarkMem(void)
 {
     AssertThis(0);
-    LegacyLong ipcrf;
-    LegacyLong cpcrf;
-    PChunkyResourceFile pcrf;
-
     ChunkyResourceManager_PAR::MarkMem();
-    MarkMemObj(_pglpcrf);
-
-    for (ipcrf = 0, cpcrf = _pglpcrf->IvMac(); ipcrf < cpcrf; ipcrf++)
-    {
-        _pglpcrf->Get(ipcrf, &pcrf);
-        AssertPo(pcrf, 0);
-        MarkMemObj(pcrf);
-    }
+    MarkPv(_manager.storage.buffers[0].data);
+    for (ThreeMMU32 i = 0; i < _manager.count; ++i)
+        MarkMemObj(static_cast<PChunkyResourceFile>(three_mm_resource_manager_at(&_manager, i)));
 }
-#endif // DEBUG
-
+#endif
 /***************************************************************************
     A PFNRPO to read GenericHQ objects.
 ***************************************************************************/
-bool GenericHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+bool GenericHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                         PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

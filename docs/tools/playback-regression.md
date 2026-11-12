@@ -1722,3 +1722,54 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 resource caches and object ownership (12 November 2026)
+
+Resource-cache tables, preload/fetch, eviction, cacheable-object attachment and
+release policy, and resource-manager ownership/searches now use C89. Native
+facades retain reader calls, virtual dispatch, class allocation and file/reference
+primitives. Two-word signed arithmetic preserves wide resident accounting without
+C99 integer types. See the [implementation boundary](../code-map/library-split.md#resource-caches-object-lifetime-and-manager-lookup).
+
+The native resource test retains all 1,624 baseline bytes covering priority/age
+and estimate/actual eviction, cascading releases, distinct reader identities,
+scoped lookup, manager precedence/error stops and objects outliving their cache.
+Both native and standalone tests hold 24 resources charged at 192 MiB without
+allocating large payloads. Direct C checks cover recursive reads, relocating
+storage, allocation fallback/failure, failed insertion lifetimes, signed priority
+truncation, budget scan restart and manager query/disposal ordering. A frozen
+Python arbitrary-precision oracle checks 65,536 wide-arithmetic pairs.
+
+Twenty-five standalone C checks, thirty-eight focused native checks and MSVC
+AddressSanitizer pass. Native statistics/expanded-index resource variants compile
+with `/Zs`; expanded-index runtime remains unverified. All eight binary snapshots
+match, including the prior 597-byte construction, 56-byte lifecycle, 1,740-byte
+routing, 2,192-byte loading, 572,367-byte chunk, 29,532-byte string and 1,594-byte
+forest baselines. All 51 CLI baselines match, including six asset indexes covering
+20,568 entries. Evidence includes `tmp/c89-resource-before.bin`,
+`tmp/c89-resource-after.bin`, `tmp/c89-resource-*-after.bin`,
+`tmp/c89-resource-output-comparison.json` and `tmp/c89-resource-asan.log`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T160245Z-70316bea` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T160706Z-94c41679` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding container suites `20261112T152255Z-f6ca2e8e` and
+`20261112T152648Z-013c24c1`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-resource-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

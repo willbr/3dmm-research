@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,51 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Resource caches, object lifetime and manager lookup
+
+`resource_cache.c` owns sorted cache tables, reader-key lookup, preload/fetch,
+estimated/actual size checks, release ages, priority/age/size eviction and budget
+changes. Its C object record owns resource identity and attachment state. C
+policy handles zero-reference retention, explicit detach, toss priority and
+objects outliving their cache. Cache disposal clears surviving objects' owner
+pointers before releasing the file. Signed-16-bit priority storage is preserved.
+
+`resource_manager.c` owns the cache list and reverse disposal. Searches retain
+forward precedence: preload stops on YES or MAYBE, fetch stops on an object or
+error, and cached find checks only the first containing file, omitting scope on
+the final cache lookup. Query callbacks may append caches; the initial count
+bounds each search. Allocation failure releases newly created cache references
+and leaves the caller's insertion-position output unchanged.
+
+Both tables use C-owned storage. Entries are copied before callbacks; readers
+may load other keys and detach/destruction callbacks may remove other entries.
+Insertion searches again after readers, and zero-budget scans restart after
+detach. Same-key recursive reads and disposal re-entry are invalid. Failed fetch
+insertion still returns a detached object with its owner reference and an error;
+failed preload insertion releases the fresh object. Reader success transfers a
+fresh reference and a nonnegative charge; negative charges are rejected.
+
+`wide.c` supplies signed two-word arithmetic for resident totals and purge scores,
+retaining accounting above 32 bits without `long long` or `stdint.h`. The frozen
+Python arbitrary-precision oracle covers 65,536 pairs, with explicit signed
+boundaries in the C test. Native and standalone checks hold 24 resources charged
+at 192 MiB each without allocating those payloads.
+
+`crf.cpp` remains a native facade for class allocation, virtual/reference
+primitives, diagnostics, file blocks and readers. Reader identity is passed as a
+function pointer and cast back before host comparison/calling; C never converts
+function pointers to data pointers or orders them. GenericHQ and generic-object
+wrappers remain native adapters. Native registry/context replacement, tag
+ownership and engine objects remain migration work.
+
+`engine-resource-cache-test` covers recursive reads, relocating storage,
+speculative allocation fallback, initial/growth failure, cleanup/lifetimes,
+eviction scoring and manager precedence. MSVC AddressSanitizer passes. The native
+`resource-cache-test` retains all 1,624 frozen baseline bytes, including cascading
+releases, distinct readers, scoped lookup and error stops. All eight native
+snapshots and all 51 CLI baselines remain exact. Twenty-five standalone and
+thirty-eight focused native checks pass; no Marcus UI tests were added.
+
 ### Container construction, lookup and disposal
 
 `chunk_container.c` owns open/create sequencing over native object/file/index
@@ -454,8 +499,9 @@ creation and saves; native checks also cover repeated open, corrupt-file rejecti
 and temporary deletion. All previous snapshots remain exact. Native statistics
 and expanded-index variants compile; expanded-index runtime remains unverified.
 
-Native class allocation, forest destination setup and registry backing still exist. Resource-cache ownership
-and replacing native contexts remain necessary for a complete C-only backend.
+Native class allocation, forest destination setup and registry backing still exist.
+Resource-cache ownership is converted above; replacing native contexts remains
+necessary for a complete C-only backend.
 
 ### Container options, flags and reopen ownership
 
@@ -494,7 +540,7 @@ routing, loading, string and forest snapshots remain exact. Statistics and
 expanded-index variants compile; expanded-index runtime remains unverified.
 
 Construction and associated-resource disposal now use C above. Native class/
-registry backing and resource-cache ownership still prevent a standalone C backend.
+registry backing and native object adapters still prevent a standalone C backend.
 
 ### Storage selection and read-through caching
 
@@ -530,7 +576,7 @@ The native statistics and expanded-index variants compile with `/Zs`. The
 expanded variant exposed a pre-existing duplicate mask name; its alias now uses
 `kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
 runtime validation. Container option/flag/reopen policy now uses C above; native
-class/registry backing and resource ownership still require conversion.
+class/registry backing and native object adapters still require conversion.
 
 ### Index materialization and owning free maps
 

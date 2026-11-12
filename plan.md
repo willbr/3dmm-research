@@ -152,7 +152,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Open/create sequencing, existing-owner lookup and associated-resource disposal
   now use C89, including partial construction cleanup and shared file references.
   Native class allocation, name resolution, forest destination setup and registry backing remain adapters;
-  resource-cache ownership and final native-context replacement remain next.
+  final native-context replacement remains next.
+- Resource-cache tables, cacheable-object reference/detach/priority policy,
+  eviction and resource-manager lookup/ownership now use C89. Two-word signed
+  arithmetic preserves wide resident accounting without C99 types. Native
+  callbacks retain class allocation, readers, file/reference primitives and
+  virtual dispatch; these adapters still require replacement.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -246,9 +251,9 @@ configuration and capture environment recorded with the evidence.
 ### Immediate next work and completion
 
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
-container persistence, graph operations and forest transfer now have shared C89
-implementations behind temporary native facades. Continue with remaining
-resource-cache ownership and native-context replacement, then engine objects and the
+container persistence, graph operations, forest transfer and resource caches now
+have shared C89 implementations behind temporary native facades. Continue with
+native-context/registry replacement and forest destination setup, then engine objects and the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.
