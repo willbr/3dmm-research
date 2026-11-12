@@ -53,6 +53,8 @@ class CodecManager : public CodecManager_PAR
     static int _ConvertDecoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
     static void *_FindEncoder(void *, ThreeMMI32);
     static int _ConvertEncoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
+    struct HandleCodeContext { CodecManager *manager; LegacyLong format; };
+    static int _CodeHandleBytes(void *, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
     LegacyLong _cfmtDef;
     PCodec _pcodcDef;
     PDynamicArray _pglpcodc;

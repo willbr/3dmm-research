@@ -16,6 +16,7 @@
 #ifndef FILE_H
 #define FILE_H
 #include "three_mm/data_stream.h"
+#include "three_mm/block_io.h"
 
 /****************************************
     Byte order issues
@@ -228,6 +229,7 @@ class DataBlock : public DataBlock_PAR
 
   protected:
     ThreeMMBlockView _BlockView();
+    ThreeMMBlockIO _IOView();
     static int _ReadDecodeFile(void *, void **);
     static int _DecodeHandle(void *, void **);
     static void _ReleaseDecodeHandle(void *, void *);

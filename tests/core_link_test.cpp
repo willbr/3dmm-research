@@ -249,6 +249,117 @@ static void TestDataStreams()
     ReleasePpo(&pieces);
 }
 
+static void TestBlockCopies()
+{
+    byte bytes[8208], seed[8208], actual[8208];
+    for (unsigned i = 0; i < sizeof(bytes); ++i) bytes[i] = static_cast<byte>(i * 29 + i / 256);
+    std::memset(seed, 0xcc, sizeof(seed));
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_BLOCK_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
+    }
+    for (LegacyLong size : {0L, 1L, 1024L, 1025L, 4096L})
+        for (int shape = 0; shape < 4; ++shape)
+            for (int flags = 0; flags < 4; ++flags)
+            {
+                DataBlock source, target;
+                PFileObject from = nullptr, to = nullptr;
+                HQ memory = nullptr, destinationMemory = nullptr;
+                if (shape & 1)
+                {
+                    from = FileObject::PfilCreateTemp();
+                    Check(from && from->FWriteRgb(bytes, size + 10, 0));
+                    source.Set(from, 3, size, flags & 1);
+                }
+                else
+                {
+                    Check(FAllocHq(&memory, size + 10, fmemNil, mprNormal));
+                    CopyPb(bytes, PvLockHq(memory), size + 10); UnlockHq(memory);
+                    source.SetHq(&memory, flags & 1);
+                    Check(source.FMoveMin(3) && source.FMoveLim(-7));
+                }
+                if (shape & 2)
+                {
+                    to = FileObject::PfilCreateTemp();
+                    Check(to && to->FWriteRgb(seed, size + 12, 0));
+                    target.Set(to, 5, size, flags & 2);
+                }
+                else
+                {
+                    Check(FAllocHq(&memory, size + 12, fmemNil, mprNormal));
+                    CopyPb(seed, PvLockHq(memory), size + 12); UnlockHq(memory);
+                    destinationMemory = memory;
+                    target.SetHq(&memory, flags & 2);
+                    Check(target.FMoveMin(5) && target.FMoveLim(-7));
+                }
+                Check(source.FWriteToBlck(&target, true));
+                Check(target.FPacked() == !!(flags & 2) && source.FPacked() == !!(flags & 1));
+                Check(source.FReadHq(&memory, true));
+                Check(memory && CbOfHq(memory) == size);
+                Check(target.FWriteHq(memory, 0, true)); FreePhq(&memory);
+                if (to) Check(to->FReadRgb(actual, size + 12, 0));
+                else CopyPb(QvFromHq(destinationMemory), actual, size + 12);
+                Check(!std::memcmp(actual, seed, 5));
+                Check(!std::memcmp(actual + 5, bytes + 3, size));
+                Check(!std::memcmp(actual + size + 5, seed, 7));
+                if (snapshot) Check(std::fwrite(actual, 1, size + 12, snapshot) == static_cast<size_t>(size + 12));
+                memory = source.HqFree(true);
+                Check(memory && CbOfHq(memory) == size);
+                Check(!std::memcmp(QvFromHq(memory), bytes + 3, size));
+                FreePhq(&memory);
+                Check(source.Cb(true) == ((shape & 1) ? size : 0));
+                ReleasePpo(&from); ReleasePpo(&to);
+            }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+    for (LegacyLong format : {kcfmtKauai, kcfmtKauai2})
+    {
+        HQ memory;
+        Check(FAllocHq(&memory, 4096, fmemNil, mprNormal));
+        CopyPb(bytes, QvFromHq(memory), 4096);
+        Check(vpcodmUtil->FCompressPhq(&memory, format));
+        Check(vpcodmUtil->FDecompressPhq(&memory) && CbOfHq(memory) == 4096);
+        Check(!std::memcmp(QvFromHq(memory), bytes, 4096)); FreePhq(&memory);
+        DataBlock slice;
+        Check(slice.FSetTemp(4096) && slice.FWrite(bytes));
+        Check(slice.FMoveMin(3) && slice.FMoveLim(-97) && slice.FPackData(format));
+        Check(slice.FUnpackData() && slice.Cb() == 3996 && slice.FRead(actual));
+        Check(!std::memcmp(actual, bytes + 3, 3996));
+        DataBlock fileBlock;
+        Check(fileBlock.FSetTemp(4096, true) && fileBlock.FWrite(bytes));
+        Check(fileBlock.FPackData(format) && fileBlock.FUnpackData() && fileBlock.Cb() == 4096);
+        Check(fileBlock.FRead(actual) && !std::memcmp(actual, bytes, 4096));
+    }
+    DataBlock shortSlice;
+    Check(shortSlice.FSetTemp(32) && shortSlice.FWriteRgb(bytes, 32, 0));
+    Check(shortSlice.FMoveMin(3) && shortSlice.FMoveLim(-21));
+    Check(!shortSlice.FPackData() && !shortSlice.FPacked() && shortSlice.Cb() == 8);
+    Check(shortSlice.CbMem() == 8 && shortSlice.FRead(actual) && !std::memcmp(actual, bytes + 3, 8));
+    DataBlock shortFile;
+    Check(shortFile.FSetTemp(8, true) && shortFile.FWriteRgb(bytes, 8, 0));
+    Check(!shortFile.FPackData() && !shortFile.FPacked() && shortFile.Cb() == 8 && shortFile.CbMem() == 0);
+#ifdef DEBUG
+    HQ original, memory;
+    Check(FAllocHq(&memory, 4096, fmemNil, mprNormal)); original = memory;
+    CopyPb(bytes, QvFromHq(memory), 4096);
+    vdmglob.dmaglHq.cactDo = 0; vdmglob.dmaglHq.cactFail = 1;
+    const bool coded = vpcodmUtil->FCompressPhq(&memory);
+    const bool consumed = vdmglob.dmaglHq.cactFail == 0;
+    vdmglob.dmaglHq.cactFail = vdmglob.dmaglHq.cactDo = 0;
+    Check(!coded && consumed && memory == original && CbOfHq(memory) == 4096);
+    Check(!std::memcmp(QvFromHq(memory), bytes, 4096)); FreePhq(&memory);
+    auto from = FileObject::PfilCreateTemp(), to = FileObject::PfilCreateTemp();
+    Check(from && to && from->FWriteRgb(bytes, 4096, 0));
+    FileLocation source = {from, 0, 4096}, destination = {to, 0, 4096};
+    vdmglob.dmaglPv.cactDo = 0; vdmglob.dmaglPv.cactFail = 1;
+    const bool copied = source.FCopy(&destination);
+    const bool fallbackConsumed = vdmglob.dmaglPv.cactFail == 0;
+    vdmglob.dmaglPv.cactFail = vdmglob.dmaglPv.cactDo = 0;
+    Check(copied && fallbackConsumed && to->FReadRgb(actual, 4096, 0));
+    Check(!std::memcmp(actual, bytes, 4096)); ReleasePpo(&from); ReleasePpo(&to);
+#endif
+}
+
 static void TestPieceEdits()
 {
     byte fileBytes[8192], model[30000], actual[30000], insert[16];
@@ -3098,6 +3209,7 @@ int main()
     TestCollectionStorage();
     TestCollectionWireAndMutations();
     TestDataStreams();
+    TestBlockCopies();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

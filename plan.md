@@ -97,8 +97,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - File-piece storage/lifetime, split/merge, memory/file/cross-stream replacements,
   rollback and compaction now use an owning C89 piece table. File references and
   positional I/O are host callbacks; a native GeneralGroup object is no longer
-  required by FileByteStream. General DataBlock write-window/copy policy, HQ
-  transactions, remaining allocator services and container persistence are next.
+  required by FileByteStream.
+- DataBlock byte/HQ I/O routing, block/file copying, handle detach/normalization,
+  codec HQ transactions and block packing now use C89 policy. Host callbacks
+  retain physical allocation, locks and file I/O. Temporary-file materialization,
+  remaining ownership/window adapters, allocator services and container
+  persistence are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

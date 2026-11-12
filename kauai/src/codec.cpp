@@ -11,6 +11,7 @@
 
 ***************************************************************************/
 #include "util.h"
+#include "handle_services.h"
 ASSERTNAME
 
 RTCLASS(CodecManager)
@@ -231,44 +232,27 @@ bool CodecManager::_FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc)
     Compress or decompress an hq of data. Note that the value of *phq
     may change. cfmt should be cfmtNil to decompress.
 ***************************************************************************/
+int CodecManager::_CodeHandleBytes(void *context, const void *input, ThreeMMU32 bytes, void *output,
+                                  ThreeMMU32 capacity, ThreeMMI32 *written)
+{
+    const auto call = static_cast<HandleCodeContext *>(context);
+    LegacyLong count = *written;
+    const bool ok = call->manager->_FCode(call->format, const_cast<void *>(input), bytes, output, capacity, &count);
+    *written = count;
+    return ok;
+}
 bool CodecManager::_FCodePhq(LegacyLong cfmt, HQ *phq)
 {
     AssertThis(0);
     AssertVarMem(phq);
     AssertHq(*phq);
 
-    HQ hqDst;
-    void *pvSrc;
-    LegacyLong cbSrc;
-    LegacyLong cbDst;
-    bool fRet;
-
-    pvSrc = PvLockHq(*phq);
-    cbSrc = CbOfHq(*phq);
-    fRet = _FCode(cfmt, pvSrc, cbSrc, pvNil, 0, &cbDst);
-    UnlockHq(*phq);
-    if (!fRet)
-        return fFalse;
-
-    if (!FAllocHq(&hqDst, cbDst, fmemNil, mprNormal))
-        return fFalse;
-
-    pvSrc = PvLockHq(*phq);
-    fRet = _FCode(cfmt, pvSrc, cbSrc, PvLockHq(hqDst), cbDst, &cbDst);
-    UnlockHq(hqDst);
-    UnlockHq(*phq);
-    if (!fRet)
-    {
-        FreePhq(&hqDst);
-        return fFalse;
-    }
-    Assert(cbDst <= CbOfHq(hqDst), "why is the final size larger?");
-    if (cbDst < CbOfHq(hqDst))
-        AssertDo(FResizePhq(&hqDst, cbDst, fmemNil, mprNormal), 0);
-
-    FreePhq(phq);
-    *phq = hqDst;
-    return fTrue;
+    HandleCodeContext context = {this, cfmt};
+    int shrinkFailed = 0;
+    const int result = three_mm_handle_code(KauaiHandleServices(), phq, &context, _CodeHandleBytes, &shrinkFailed);
+    Assert(!shrinkFailed, "HQ shrink failed");
+    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("why is the final size larger?");
+    return result == THREE_MM_DATA_OK;
 }
 
 /***************************************************************************

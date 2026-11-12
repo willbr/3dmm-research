@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -301,8 +301,9 @@ selection/query, input-size-minus-one estimate and minimum-saving policy.
 It retains pre-conversion failure counts and publishes callback counts on
 conversion failure. Native registration order and custom codec callbacks remain
 supported; algorithm dispatch is no longer implemented in `codkauai.cpp`.
-`CodecManager` object/registration lifetime and HQ allocation/lock/resize
-transactions remain C++ host services.
+`CodecManager` object/registration lifetime and primitive HQ allocation/lock/resize
+services remain C++ host services. The HQ conversion transaction itself now
+uses C89 policy, described below.
 
 `engine-codec-test` checks a frozen native hash covering 768 capacity/format/input
 cases and decoded results, independent wire fixtures for each offset tier,
@@ -346,12 +347,51 @@ It also runs under MSVC AddressSanitizer. Native core checks save/compare the
 same edit snapshot and exercise repeated single-file compaction and same-stream
 memory append. No Marcus UI checks are added.
 
-General DataBlock destination windowing/copy policy remains in the native
-`FWriteRgb` adapter, with its existing lock and window restoration protocol.
-This slice verifies full-stream writes and compaction, not new partial-write
-or overlapping-self-copy guarantees. HQ transactions, remaining allocator
-services, chunk persistence and engine objects still prevent a complete C-only
-backend.
+FileByteStream destination windowing remains in its native `FWriteRgb` adapter,
+with its existing lock and window restoration protocol; DataBlock copying below
+it now delegates to C89. This slice verifies full-stream writes and compaction,
+not new partial-write or overlapping-self-copy guarantees.
+
+### Block I/O and opaque handle transactions
+
+`three_mm/block_io.h` and `block_io.c` own DataBlock byte/HQ I/O routing,
+memory/file copy dispatch, FileLocation copying, handle detach/normalization,
+codec HQ transactions and block-packing decisions. The native view is borrowed;
+the host adopts returned handles and releases prior file references only after
+successful file-to-memory conversion. Primitive HQ operations and physical file
+I/O are callbacks. The public interface has no C++ or platform types.
+
+File-to-file copying retains the full-buffer SPEED allocation attempt followed
+by a 1024-byte stack fallback. Copying stays forward and retains partial writes
+on I/O failure. Same-file overlap remains allocation-dependent, as before;
+this conversion does not impose snapshot semantics on the fallback. Memory
+copies require non-overlapping ranges. Source packed access requires explicit
+permission; destination packed flags are preserved, including the existing
+destination-memory write behavior.
+
+Handle reads allocate before I/O, balance locks and release temporary handles
+on failure. Taking a memory slice consumes its view, shifts bytes to offset
+zero and attempts an exact shrink; taking a file block leaves its file view
+and returns a new handle. Codec transactions query while the source is locked,
+unlock before allocation, convert with both handles locked, unlock both, attempt
+shrink and commit only after success. Failed query/allocation/conversion retains
+the original handle. Best-effort shrink retains the physical size on failure
+and reports the existing host diagnostic. Packing a sliced memory block retains
+its normalized handle even if encoding fails; failed file packing leaves its
+original file reference and releases the temporary handle.
+
+`engine-block-io-test` checks the 80-case memory/file/packed/slice matrix,
+zero-length handle versus empty-block behavior, relocation, lock cleanup, query/
+allocation/conversion failures, shrink failure, partial read/write errors,
+forward overlap with both allocation paths and packing transactions. It also
+passes under MSVC AddressSanitizer. Native core checks compare 99,296 bytes
+captured before conversion and exercise real HQ allocation failure, copy-buffer
+fallback, sliced/failed packing and both codecs through HQ and file blocks.
+
+DataBlock object/file lifetime setters, temporary-file selection/materialization,
+FileByteStream write-window orchestration, primitive memory/file services,
+file-text translation and chunk persistence remain C++. These and remaining
+engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

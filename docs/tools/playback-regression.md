@@ -927,3 +927,66 @@ Movie, ISO-resource and Marcus-content hashes are unchanged in every run.
 Existing cross-player pixel/audio differences and timing/alignment limitations
 remain. The captures establish preservation against the preceding build,
 not complete retail parity, exact PCM equality or repeatability from one run.
+
+## C89 block copying and opaque handle transactions (12 November 2026)
+
+DataBlock byte/HQ I/O routing, memory/file copy dispatch, FileLocation copies,
+handle detach/normalization, codec HQ transactions and block packing now use
+shared C89 policy. Primitive allocation/lock/file services remain host callbacks;
+object/file lifetime setters and temporary-file materialization remain further
+migration work. The whole backend conversion is still incomplete.
+
+Eleven standalone C-only checks and twenty-three focused native checks pass.
+The 80-case native matrix covers zero/one-byte and 1024/1025/4096-byte copies,
+all memory/file combinations, packed flags, sliced ranges and handle transfers.
+All 99,296 pre-conversion bytes match the migrated native output exactly
+(`tmp/c89-block-before.bin`, `tmp/c89-block-after.bin`).
+
+`engine-block-io` independently checks that matrix, balanced locks/references,
+failed reads/writes, query/allocation/conversion failures, physical capacity on
+shrink failure, slice normalization, packing transactions and partial forward
+file copies with full-buffer allocation or 1024-byte fallback. It passes under
+MSVC AddressSanitizer. Native checks exercise real HQ allocation failure,
+copy-buffer fallback, failed sliced/file packing and both standard codecs
+through memory and file blocks. No Marcus UI tests were added.
+
+The conversion retains allocation-dependent same-file overlap behavior,
+best-effort shrink diagnostics, packed access rules and normalized memory
+storage after failed sliced packing. See the
+[block/handle boundary](../code-map/library-split.md#block-io-and-opaque-handle-transactions).
+General temporary-file selection/materialization and FileByteStream destination
+window orchestration remain native services.
+
+All 51 saved CLI baselines match: 45 movie/archive/legacy outputs or rejection
+results and six asset indexes covering 20,568 entries. The report is
+`tmp/c89-block-output-comparison.json`.
+
+Both hosts were rebuilt and held fixed, with no concurrent builds during
+capture. Evidence is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T091731Z-f92446d1` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T092213Z-c11c8a6b` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+| `20261112T092451Z-0d872b87` | Targeted retail-only sampled-audio repeat after peak variation | One complete; verdict `inconclusive`, with no cross-player comparisons. |
+
+Against the preceding piece-table suites `20261112T074206Z-11e2b8a2` and
+`20261112T074704Z-feeb5715`, all 180 seek images match exactly. All nine main
+runs retain the same 60 authored frame positions and ordered exact image
+changes: scrolling text retail/SDL 328 and Marcus 321, sampled audio 60 for
+each player. Only adjacent identical image/position records are collapsed;
+raw timestamps and presentation samples remain available. The local report is
+`tmp/c89-block-playback-comparison.json`.
+
+SDL/Marcus sampled-audio PCM16 peaks remain 2176. Retail's first main recording
+peaks at 4333, with that larger peak confined to its first second; its peak
+after the first second remains 2380. The targeted repeat returns to the earlier
+overall peak of 2380 and preserves the same frame/image sequence. Both retail
+recordings report no discontinuities or timestamp errors. Both recordings are
+retained; this is reference-capture variability, not evidence of exact PCM
+preservation. The audit is `tmp/c89-block-retail-audio-audit.json`.
+
+All ten captures retain unchanged movie, ISO-resource and Marcus-content hashes.
+Existing cross-player pixel/audio differences and timing/alignment limitations
+remain. These checks establish frame/image preservation against the preceding
+build, not full retail parity, exact PCM equality or general repeatability.
