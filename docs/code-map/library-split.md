@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -645,6 +645,40 @@ standalone C checks, forty-nine focused native checks and MSVC AddressSanitizer
 pass. Nineteen binary snapshots and all 51 CLI baselines match, including a new
 192-byte native track/clone snapshot and the prior eighteen snapshots. No Marcus
 UI tests were added.
+
+### Actor value state and route evaluation
+
+`actor_state.c` owns state initialization, transform reset, route rewind, origin
+updates and pure value-event application over the public `ThreeMMActorState` C
+record. Rotation, stretch, scale, step, freeze, tweak and move events execute in C.
+Resource/stage/sound events return NeedsRuntime without payload validation or state
+changes, preserving the native host boundary. Invalid pure layouts and zero-step
+locations leave state unchanged. Rewind preserves stage visibility, current frame,
+cached action metadata, translations and the current-rotation flag.
+
+`actor_route.c` owns route advancement, Action/Step event clamping, subroute terminal
+handling, location-to-position evaluation and alias-safe interpolation. A route
+location addresses a valid segment, and each subroute terminates at a zero-distance
+node. Arrival at a terminal node and a subsequent attempt to move beyond it remain
+distinct. Zero steps accumulate dwell frames. Only primitive table reads are host
+callbacks; C performs the arithmetic and branching.
+
+`actor_fixed.c` implements wrapping 32-bit addition/subtraction, 16.16 multiplication
+rounded toward negative infinity, and division with the original small-divisor
+reciprocal/saturation policy. It uses unsigned 16-bit partial products and binary
+long division, with no C99 integer types or floating-point approximation. The native
+adapter asserts fixed-point ABI and every copied route/event/transform layout.
+Native ActorFrameState still translates its value fields into/out of the C record;
+this temporary facade, remaining sequencing/pose/timeline/seek logic and physical
+table services must be removed as migration continues.
+
+`engine-actor-motion-test` covers fixed-point boundary cases, subroute termination,
+clamping, output aliasing, rewind preservation, all pure event kinds, deferred runtime
+kinds and invalid layouts/locations. Thirty-seven standalone C checks, fifty focused
+native checks and MSVC AddressSanitizer pass. Native checks compare 4,096 arithmetic
+pairs against BRender and match new 33,384-byte route/arithmetic and 4,142-byte state
+snapshots. All twenty-one binary snapshots and 51 CLI baselines match. No Marcus UI
+tests were added.
 
 ### Source names and directory discovery
 

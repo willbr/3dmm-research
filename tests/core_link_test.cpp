@@ -18,6 +18,7 @@
 #include "codec.h"
 #if defined(TEST_ENGINE_CORE)
 #include "actor_frame_fixture.h"
+#include "three_mm/actor_motion.h"
 #include "studio_preferences.h"
 #endif
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
@@ -2241,6 +2242,19 @@ static void TestActorTrackOwnership()
 
 static void TestActorRouteEvaluation()
 {
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_ACTOR_ROUTE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
+    auto record = [&](const void *p, size_t n) { if (snapshot) Check(std::fwrite(p, 1, n, snapshot) == n); };
+    auto advance = [&](const ActorTrack &track, BRS step, RouteLocation *location, LegacyLong next, LegacyLong frame,
+                       LegacyLong first, bool clamp, bool *end = nullptr) {
+        bool ended = false;
+        ActorRouteEvaluator::Advance(track, step, location, next, frame, first, clamp, &ended);
+        if (end) *end = ended;
+        RoutePoint position;
+        ActorRouteEvaluator::Position(track, location, &position);
+        record(location, sizeof(*location)); record(&position, sizeof(position));
+        int flag = ended; record(&flag, sizeof(flag));
+    };
     RoutePoint firstPoint = {BR_SCALAR(2), BR_SCALAR(4), BR_SCALAR(6)};
     RoutePoint secondPoint = {BR_SCALAR(6), BR_SCALAR(8), BR_SCALAR(10)};
     ActorRouteEvaluator::Interpolate(&firstPoint, &secondPoint, BR_SCALAR(0.5), &firstPoint);
@@ -2259,20 +2273,20 @@ static void TestActorRouteEvaluation()
         Check(track.Route()->FInsert(index, &points[index]));
     RouteLocation location = {99, BR_SCALAR(99), 99};
     bool end = true;
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(2), &location, 0, -3, -3, true, &end);
+    advance(track, BR_SCALAR(2), &location, 0, -3, -3, true, &end);
     Check(location.irpt == 0 && location.dwrOffset == rZero && location.dnfrm == 0 && !end);
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(2), &location, 0, -2, -3, true, &end);
+    advance(track, BR_SCALAR(2), &location, 0, -2, -3, true, &end);
     RoutePoint position;
     ActorRouteEvaluator::Position(track, &location, &position);
     Check(position.dxr == BR_SCALAR(2) && position.dyr == rZero && !end);
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(4), &location, 0, -1, -3, true, &end);
+    advance(track, BR_SCALAR(4), &location, 0, -1, -3, true, &end);
     ActorRouteEvaluator::Position(track, &location, &position);
     Check(location.irpt == 1 && position.dxr == BR_SCALAR(4) && position.dyr == BR_SCALAR(2) && !end);
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(2), &location, 0, 0, -3, true, &end);
+    advance(track, BR_SCALAR(2), &location, 0, 0, -3, true, &end);
     Check(location.irpt == 2 && location.dwrOffset == rZero && !end);
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(1), &location, 0, 1, -3, true, &end);
+    advance(track, BR_SCALAR(1), &location, 0, 1, -3, true, &end);
     Check(location.irpt == 2 && location.dnfrm == 1 && end);
-    ActorRouteEvaluator::Advance(track, rZero, &location, 0, 2, -3, true, &end);
+    advance(track, rZero, &location, 0, 2, -3, true, &end);
     Check(location.irpt == 2 && location.dnfrm == 2 && !end);
     ActorRouteEvaluator::Position(track, &location, &position);
     Check(position.dxr == BR_SCALAR(4) && position.dyr == BR_SCALAR(4));
@@ -2293,15 +2307,15 @@ static void TestActorRouteEvaluation()
     ActorEvent::Action action = {};
     Check(track.Events()->FInsert(2, sizeof(action), &action, &event));
     location = {0, rZero, 0};
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(6), &location, 0, 2, 1, true, &end);
+    advance(track, BR_SCALAR(6), &location, 0, 2, 1, true, &end);
     Check(location.irpt == 0 && location.dwrOffset == BR_SCALAR(3) && !end);
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(3), &location, 2, 3, 1, true, &end);
+    advance(track, BR_SCALAR(3), &location, 2, 3, 1, true, &end);
     Check(location.irpt == 1 && location.dwrOffset == BR_SCALAR(1) && !end);
     location = {0, rZero, 0};
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(6), &location, 0, 2, 1, false, &end);
+    advance(track, BR_SCALAR(6), &location, 0, 2, 1, false, &end);
     Check(location.irpt == 1 && location.dwrOffset == BR_SCALAR(2) && !end);
     location = {0, rZero, 0};
-    ActorRouteEvaluator::Advance(track, BR_SCALAR(100), &location, 3, 2, 1, true, &end);
+    advance(track, BR_SCALAR(100), &location, 3, 2, 1, true, &end);
     Check(location.irpt == 2 && location.dwrOffset == rZero && !end); // Never crosses to the next subroute.
 
     // Replaying the same explicit steps reproduces locations including dwell time.
@@ -2312,18 +2326,44 @@ static void TestActorRouteEvaluation()
         location = {0, rZero, 0};
         for (LegacyLong frame = 0; frame < 6; ++frame)
         {
-            ActorRouteEvaluator::Advance(track, steps[frame], &location, 3, frame + 1, 1, true);
+            advance(track, steps[frame], &location, 3, frame + 1, 1, true);
             if (pass == 0)
                 expected[frame] = location;
             else
                 Check(location == expected[frame]);
         }
     }
+    ThreeMMU32 seed = 1234567;
+    for (int i = 0; i < 4096; ++i)
+    {
+        seed = seed * 1664525u + 1013904223u; BRS a; std::memcpy(&a, &seed, 4);
+        seed = seed * 1664525u + 1013904223u; BRS b; std::memcpy(&b, &seed, 4);
+        // Explicit small divisors exercise reciprocal and saturation paths.
+        if (i < 17) b = i - 8;
+        BRS values[] = {BrsMul(a, b), BrsDiv(a, b)};
+        Check(three_mm_fixed_mul(a,b)==values[0] && three_mm_fixed_div(a,b)==values[1]);
+        record(values, sizeof(values));
+    }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
 static void TestActorValueEvaluation()
 {
     ActorFrameState state;
+    FILE *stateSnapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_ACTOR_STATE_SNAPSHOT")) { stateSnapshot = std::fopen(path, "wb"); Check(stateSnapshot); }
+    auto recordState = [&]() {
+        if (!stateSnapshot) return;
+        auto bytes = [&](const void *p, size_t n) { Check(std::fwrite(p, 1, n, stateSnapshot) == n); };
+        bytes(&state.routeTranslation, sizeof(state.routeTranslation)); bytes(&state.subrouteTranslation, sizeof(state.subrouteTranslation));
+        int flags[] = {state.onStage, state.frozen, state.useCurrentRotation}; bytes(flags, sizeof(flags));
+        BRS step = state.step; bytes(&step, sizeof(step));
+        LegacyLong values[] = {state.action,state.celCount,state.cel,state.frame,state.nextEvent,state.firstEventInFrame,state.actionEvent,state.addEvent}; bytes(values,sizeof(values));
+        bytes(&state.actionFlags,sizeof(state.actionFlags)); bytes(&state.location,sizeof(state.location)); bytes(&state.position,sizeof(state.position));
+        bytes(&state.transform.bmat34Fwd,48); bytes(&state.transform.aevpull,12); bytes(&state.transform.rScaleStep,4); bytes(&state.transform.bmat34Cur,48);
+        bytes(&state.transform.xaPath,2); bytes(&state.transform.yaPath,2); bytes(&state.transform.zaPath,2);
+    };
+    recordState();
     BMAT34 identity;
     BrMatrix34Identity(&identity);
     Check(state.frame == knfrmInvalid && state.actionEvent == ivNil && !state.frozen && !state.onStage);
@@ -2342,6 +2382,7 @@ static void TestActorValueEvaluation()
         LegacyLong index = track.Events()->IvMac();
         Check(track.Events()->FInsert(index, bytes, payload, &event));
         ActorValueEventResult result = state.ApplyValueEvent(track, index, origin);
+        recordState();
         ActorEvent::Base unchanged;
         track.Events()->GetFixed(index, &unchanged);
         Check(unchanged.nfrm == 277); // Core evaluation never mutates the authored cache.
@@ -2354,6 +2395,7 @@ static void TestActorValueEvaluation()
     state.frozen = true;
     state.action = state.cel = state.nextEvent = 4;
     state.RewindRoute(track);
+    recordState();
     Check(state.frame == 9 && state.onStage && state.celCount == 6 && state.actionFlags == 3);
     Check(!state.frozen && state.action == 0 && state.cel == 0 && state.nextEvent == 0 && state.location.dnfrm == -1);
     Check(state.position.dxr == BR_SCALAR(1) && state.position.dyr == BR_SCALAR(2));
@@ -2408,6 +2450,8 @@ static void TestActorValueEvaluation()
     Check(state.transform.rScaleStep == rOne && state.transform.aevpull.rScaleY == rOne);
     state = snapshot;
     Check(ActorFrameTest::SameState(state, snapshot)); // Value snapshots restore independently of track ownership.
+    recordState();
+    if (stateSnapshot) Check(std::fclose(stateSnapshot) == 0);
 }
 
 static void TestActorPoseEvaluation()

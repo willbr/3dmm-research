@@ -1,139 +1,93 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
+#include "engine_actor_motion.h"
 ASSERTNAME
-using namespace ActorEvent;
-
+namespace
+{
+ThreeMMActorState Core(const ActorFrameState &native)
+{
+    ThreeMMActorState out = {};
+    out.onStage = native.onStage;
+    out.frozen = native.frozen;
+    out.useCurrentRotation = native.useCurrentRotation;
+    out.step = native.step;
+    out.action = native.action;
+    out.celCount = native.celCount;
+    out.cel = native.cel;
+    out.frame = native.frame;
+    out.nextEvent = native.nextEvent;
+    out.firstEventInFrame = native.firstEventInFrame;
+    out.actionEvent = native.actionEvent;
+    out.addEvent = native.addEvent;
+    out.actionFlags = native.actionFlags;
+    std::memcpy(&out.routeTranslation, &native.routeTranslation, sizeof(out.routeTranslation));
+    std::memcpy(&out.subrouteTranslation, &native.subrouteTranslation, sizeof(out.subrouteTranslation));
+    std::memcpy(&out.location, &native.location, sizeof(out.location));
+    std::memcpy(&out.position, &native.position, sizeof(out.position));
+    std::memcpy(&out.transform, &native.transform, sizeof(out.transform));
+    return out;
+}
+void Publish(ActorFrameState &native, const ThreeMMActorState &value)
+{
+    native.onStage = value.onStage != 0;
+    native.frozen = value.frozen != 0;
+    native.useCurrentRotation = value.useCurrentRotation != 0;
+    native.step = value.step;
+    native.action = value.action;
+    native.celCount = value.celCount;
+    native.cel = value.cel;
+    native.frame = value.frame;
+    native.nextEvent = value.nextEvent;
+    native.firstEventInFrame = value.firstEventInFrame;
+    native.actionEvent = value.actionEvent;
+    native.addEvent = value.addEvent;
+    native.actionFlags = value.actionFlags;
+    std::memcpy(&native.routeTranslation, &value.routeTranslation, sizeof(value.routeTranslation));
+    std::memcpy(&native.subrouteTranslation, &value.subrouteTranslation, sizeof(value.subrouteTranslation));
+    std::memcpy(&native.location, &value.location, sizeof(value.location));
+    std::memcpy(&native.position, &value.position, sizeof(value.position));
+    std::memcpy(&native.transform, &value.transform, sizeof(value.transform));
+}
+} // namespace
 ActorFrameState::ActorFrameState()
 {
-    InitTransform();
+    ThreeMMActorState value;
+    three_mm_actor_state_init(&value);
+    Publish(*this, value);
 }
-
 void ActorFrameState::InitTransform()
 {
-    BrMatrix34Identity(&transform.bmat34Fwd);
-    BrMatrix34Identity(&transform.bmat34Cur);
-    transform.aevpull.rScaleX = transform.aevpull.rScaleY = transform.aevpull.rScaleZ = rOne;
-    transform.rScaleStep = rOne;
-    transform.xaPath = transform.yaPath = transform.zaPath = aZero;
+    auto value = Core(*this);
+    three_mm_actor_state_init_transform(&value);
+    Publish(*this, value);
 }
-
 void ActorFrameState::RewindRoute(const ActorTrack &track)
 {
-    frozen = false;
-    action = cel = 0;
-    location = {0, rZero, -1};
-    if (track.Route() != pvNil && track.Route()->IvMac() > 0)
-    {
-        RouteDistancePoint point;
-        track.Route()->Get(0, &point);
-        position = point.xyz;
-    }
-    nextEvent = firstEventInFrame = 0;
-    actionEvent = addEvent = ivNil;
-    step = rZero;
-    InitTransform();
+    auto value = Core(*this);
+    const auto services = EngineActorMotion::Services();
+    three_mm_actor_state_rewind(&value, track.Route(), &services);
+    Publish(*this, value);
 }
-
 void ActorFrameState::UpdateOrigin(const RoutePoint &origin)
 {
-    routeTranslation.dxr = BrsAdd(origin.dxr, subrouteTranslation.dxr);
-    routeTranslation.dyr = BrsAdd(origin.dyr, subrouteTranslation.dyr);
-    routeTranslation.dzr = BrsAdd(origin.dzr, subrouteTranslation.dzr);
+    auto value = Core(*this);
+    const auto point = EngineActorMotion::Point(origin);
+    three_mm_actor_state_origin(&value, &point);
+    Publish(*this, value);
 }
-
-ActorValueEventResult ActorFrameState::ApplyValueEvent(const ActorTrack &track, LegacyLong index, const RoutePoint &origin)
+ActorValueEventResult ActorFrameState::ApplyValueEvent(const ActorTrack &track, LegacyLong index,
+                                                       const RoutePoint &origin)
 {
-    if (track.Events() == pvNil || track.Events()->CbFixed() != sizeof(Base) || index < 0 || index >= track.Events()->IvMac())
-        return ActorValueEventResult::Invalid;
-    Base event;
-    track.Events()->GetFixed(index, &event);
-    LegacyLong expectedSize;
-    switch (event.aet)
-    {
-    case aetRotF:
-    case aetRotH:
-        expectedSize = sizeof(BMAT34);
-        break;
-    case aetPull:
-        expectedSize = sizeof(Stretch);
-        break;
-    case aetSize:
-    case aetStep:
-        expectedSize = sizeof(BRS);
-        break;
-    case aetFreeze:
-        expectedSize = sizeof(int32_t);
-        break;
-    case aetTweak:
-    case aetMove:
-        expectedSize = sizeof(RoutePoint);
-        break;
-    case aetActn:
-    case aetAdd:
-    case aetRem:
-    case aetCost:
-    case aetSnd:
-        return ActorValueEventResult::NeedsRuntime;
-    default:
-        return ActorValueEventResult::Invalid;
-    }
-    if (track.Events()->Cb(index) != expectedSize)
-        return ActorValueEventResult::Invalid;
-
-    switch (event.aet)
-    {
-    case aetRotF:
-        track.Events()->Get(index, &transform.bmat34Fwd);
-        useCurrentRotation = false;
-        break;
-    case aetRotH:
-        track.Events()->Get(index, &transform.bmat34Cur);
-        useCurrentRotation = true;
-        break;
-    case aetPull:
-        track.Events()->Get(index, &transform.aevpull);
-        break;
-    case aetSize:
-        track.Events()->Get(index, &transform.rScaleStep);
-        break;
-    case aetStep: {
-        BRS requestedStep;
-        track.Events()->Get(index, &requestedStep);
-        if (requestedStep == rZero)
-        {
-            if (track.Route() == pvNil || track.Route()->CbEntry() != sizeof(RouteDistancePoint) || event.rtel.irpt < 0 ||
-                event.rtel.irpt >= track.Route()->IvMac() || event.rtel.dwrOffset < rZero)
-                return ActorValueEventResult::Invalid;
-            RouteDistancePoint point;
-            track.Route()->Get(event.rtel.irpt, &point);
-            if (event.rtel.dwrOffset > point.dwr)
-                return ActorValueEventResult::Invalid;
-            location = event.rtel;
-            ActorRouteEvaluator::Position(track, &location, &position);
-        }
-        step = requestedStep;
-        break;
-    }
-    case aetFreeze: {
-        int32_t value;
-        track.Events()->Get(index, &value);
-        frozen = FPure(value);
-        break;
-    }
-    case aetTweak:
-        if (event.rtel.dnfrm == location.dnfrm)
-            track.Events()->Get(index, &position);
-        break;
-    case aetMove: {
-        RoutePoint delta;
-        track.Events()->Get(index, &delta);
-        subrouteTranslation.dxr = BrsAdd(delta.dxr, subrouteTranslation.dxr);
-        subrouteTranslation.dyr = BrsAdd(delta.dyr, subrouteTranslation.dyr);
-        subrouteTranslation.dzr = BrsAdd(delta.dzr, subrouteTranslation.dzr);
-        UpdateOrigin(origin);
-        break;
-    }
-    }
-    return ActorValueEventResult::Applied;
+    auto value = Core(*this);
+    const auto point = EngineActorMotion::Point(origin);
+    const auto services = EngineActorMotion::Services();
+    int result = three_mm_actor_state_apply(&value, track.Route(), track.Events(), index, &point, &services);
+    if (result == THREE_MM_ACTOR_APPLIED)
+        Publish(*this, value);
+    return static_cast<ActorValueEventResult>(result);
 }
+static_assert(static_cast<int>(ActorValueEventResult::Applied) == THREE_MM_ACTOR_APPLIED &&
+                  static_cast<int>(ActorValueEventResult::NeedsRuntime) == THREE_MM_ACTOR_NEEDS_RUNTIME &&
+                  static_cast<int>(ActorValueEventResult::Invalid) == THREE_MM_ACTOR_INVALID,
+              "actor result ABI");

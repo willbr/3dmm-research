@@ -2360,3 +2360,62 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition. The updated preview-scene fixture also builds.
+
+## C89 actor value state, route and fixed-point arithmetic (12 November 2026)
+
+Actor state initialization, transform reset, rewind/origin updates and pure value
+events now execute in C89, alongside route advancement/clamping, interpolation and
+guarded 16.16 arithmetic. The native state facade translates values into/out of the
+C state record; sequencers, pose/timeline/seek evaluation, resource effects and
+editing remain migration work. See the
+[implementation boundary](../code-map/library-split.md#actor-value-state-and-route-evaluation).
+
+Thirty-seven standalone C checks, fifty focused native checks and MSVC
+AddressSanitizer pass. Checks cover route terminal/dwell semantics, event clamping,
+aliasing, rewind preservation, pure/deferred event kinds, signed payload widths,
+invalid zero-step locations and unchanged state on rejection. Native checks also
+compare 4,096 scalar pairs against BRender multiplication and guarded division.
+All twenty-one binary snapshots match, including new 33,384-byte route/arithmetic
+and 4,142-byte state baselines plus nineteen prior snapshots. State snapshots
+serialize fields rather than native padding. All 51 CLI baselines match, including
+six asset indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-actor-route-before.bin`, `tmp/c89-actor-route-after.bin`,
+`tmp/c89-actor-state-before.bin`, `tmp/c89-actor-state-after.bin`,
+`tmp/c89-actor-motion-snapshot-comparison.json`,
+`tmp/c89-actor-motion-output-comparison.json` and `tmp/c89-actor-motion-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence is
+in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T202116Z-57a9fe56` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T202443Z-9d7e49de` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding track-ownership suites `20261112T200239Z-60bfee16` and
+`20261112T200710Z-c0d8bb16`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-actor-motion-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.
+
+The existing `actor-events` movie also ran in all three players, in both seek and
+continuous playback, to exercise rotation, scale, stretch, freeze and entrance/
+exit behavior. Suite `20261112T202637Z-00e43c69` completed all six runs without
+capture failures (verdict `different`, six different and five inconclusive
+components). Against earlier actor-event captures `20261111T170550Z-0ec5aad2`
+and the SDL playback recovery `20261111T172015Z-40d77fc0`, all 180 seek images
+match exactly. All six runs preserve 60 authored frame positions and 60 ordered
+image changes. Both baselines use the same movie SHA-256. Movie, ISO-resource and
+Marcus-content hashes remain unchanged. The comparison is
+`tmp/c89-actor-motion-events-comparison.json`. These six captures extend the nine
+above; the actor-event baseline is older than the immediately preceding build.
