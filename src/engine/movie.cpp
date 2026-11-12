@@ -250,7 +250,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     if (pvNil == pfni)
     {
-        pmvie->_data.actors = StringTable_GST::PgstNew(size(RollCallActorEntry));
+        pmvie->_data.actors = RollCallTable::New();
         if (pmvie->_data.Actors() == pvNil)
         {
             goto LFail;
@@ -383,7 +383,7 @@ LFail:
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, LegacyLong *paridLim)
+bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PRollCallTable *ppgst, LegacyLong *paridLim)
 {
     return MovieData::FReadRollCall(pcrf, cno, ppgst, paridLim);
 }
@@ -4887,7 +4887,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 
     long imactr, imactrMac, icnoMac = 0;
     PChunkyFile pcfl = _data.Resources()->Pcfl();
-    PStringTable_GST pgstmactr = pvNil;
+    PRollCallTable pgstmactr = pvNil;
 
     /* Update the roll call StringTable_GST */
     if (!FReadRollCall(_data.Resources(), cno, &pgstmactr))

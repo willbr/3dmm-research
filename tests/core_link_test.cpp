@@ -1583,13 +1583,56 @@ static void TestMoviePersistence()
         ReleasePpo(&wrong);
         PChunkyResourceFile resource = ChunkyResourceFile::PcrfNew(malformed, 0);
         Check(resource != pvNil);
-        PStringTable_GST output = pvNil;
+        PRollCallTable output = pvNil;
         Check(!MovieData::FReadRollCall(resource, number, &output));
         Check(output == pvNil);
         ReleasePpo(&resource);
         ReleasePpo(&malformed);
     }
     Check(destination.FDelete());
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
+static void TestRollCallStorageBaseline()
+{
+    auto table = RollCallTable::New();
+    Check(table);
+    RollCallActorEntry a = {};
+    a.tagTmpl.sid = 1; a.tagTmpl.ctg = kctgTmpl; a.tagTmpl.cno = 77;
+    String name;
+    for (int i = 0; i < 5; ++i)
+    {
+        a.arid = 10 + i; a.cactRef = i - 2; a.grfbrws = i * 3;
+        name.SetSzs(PszLit("original name"));
+        Check(table->FAddStn(&name, &a));
+    }
+    name.SetSzs(PszLit("x")); Check(table->FPutStn(1, &name));
+    name.SetSzs(PszLit("a much longer replacement name")); Check(table->FPutStn(3, &name));
+    table->GetExtra(2, &a); a.arid = -1234; a.grfbrws = 0x87654321; table->PutExtra(2, &a);
+    table->Delete(0); table->Delete(2);
+    achar text[] = {ChLit('A'), ChLit('/'), ChLit('B')}; name.SetRgch(text, 3);
+    Check(table->FAddStn(&name, &a));
+    name.SetNil(); Check(table->FAddStn(&name, &a));
+    auto file = ChunkyFile::PcflCreateTemp(); ChunkNumber root, number;
+    Check(file && MovieData::FCreateRoot(file, &root));
+    Check(MovieData::FWriteRollCall(file, root, table, &number));
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_ROLLCALL_STORAGE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
+    DataBlock block; Check(file->FFind(kctgGst, number, &block));
+    byte bytes[2048]; auto length = block.Cb(); Check(length <= sizeof(bytes) && block.FReadRgb(bytes, length, 0));
+    if (snapshot) Check(std::fwrite(bytes, 1, length, snapshot) == static_cast<size_t>(length));
+    auto resources = ChunkyResourceFile::PcrfNew(file, 0);
+    PRollCallTable loaded = nullptr; LegacyLong limit = 9;
+    Check(resources && MovieData::FReadRollCall(resources, root, &loaded, &limit));
+    for (LegacyLong i = 0; i < loaded->IvMac(); ++i)
+    {
+        loaded->GetStn(i, &name); loaded->GetExtra(i, &a);
+        uint32_t fields[] = {static_cast<uint32_t>(a.arid), static_cast<uint32_t>(a.cactRef), a.grfbrws,
+                             static_cast<uint32_t>(a.tagTmpl.sid), a.tagTmpl.ctg, a.tagTmpl.cno,
+                             static_cast<uint32_t>(name.Cch()), static_cast<uint32_t>(limit)};
+        if (snapshot) { Check(std::fwrite(fields, sizeof(fields), 1, snapshot) == 1); Check(std::fwrite(name.Prgch(), sizeof(achar), name.Cch(), snapshot) == static_cast<size_t>(name.Cch())); }
+    }
+    ReleasePpo(&loaded); ReleasePpo(&resources); ReleasePpo(&table); ReleasePpo(&file);
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
@@ -1626,7 +1669,7 @@ static void TestMovieWireFormats()
     Check(file->FAdd(wire->CbOnFile(), kctgGst, &number, &block));
     Check(wire->FWrite(&block, kboOther));
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
-    PStringTable_GST decoded = pvNil;
+    PRollCallTable decoded = pvNil;
     LegacyLong limit = 0;
     LegacyLong refs = resources->CactRef();
     Check(MovieData::FReadRollCall(resources, root, &decoded, &limit));
@@ -4024,6 +4067,7 @@ int main()
     TestTagOwnershipBaseline();
     TestEngineServices();
     TestMoviePersistence();
+    TestRollCallStorageBaseline();
     TestMovieWireFormats();
     TestScenePersistence();
     TestActorPersistence();

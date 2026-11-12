@@ -7,6 +7,7 @@
 #include <cstdint>
 #include "three_mm/movie_data.h"
 #include "three_mm/movie_owner.h"
+#include "three_mm/rollcall_storage.h"
 
 struct MovieFilePrefix
 {
@@ -47,6 +48,31 @@ static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile 
 
 const ByteOrderMask kbomMactr = 0xfffc0000;
 
+// Temporary native adapter over C-owned roll-call storage. Table destruction
+// releases storage only; movie transactions own the opened tag references.
+class RollCallTable : public BASE
+{
+    MARKMEM
+    ASSERT
+    static RollCallTable *_New(ThreeMMU32 extra);
+  public:
+    ThreeMMRollCallTable storage;
+    static RollCallTable *New(bool wire = false);
+    static RollCallTable *Read(PDataBlock block, int *bigEndian);
+    ~RollCallTable();
+    LegacyLong IvMac() const { return storage.count; }
+    LegacyLong CbExtra() const { return storage.stride - 4; }
+    LegacyLong CbOnFile() const { return three_mm_rollcall_table_wire_size(&storage); }
+    void GetStn(LegacyLong index, PString name);
+    void GetExtra(LegacyLong index, RollCallActorEntry *actor);
+    void PutExtra(LegacyLong index, const RollCallActorEntry *actor);
+    bool FAddStn(PString name, const RollCallActorEntry *actor);
+    bool FPutStn(LegacyLong index, PString name);
+    void Delete(LegacyLong index);
+    bool FWrite(PDataBlock);
+};
+typedef RollCallTable *PRollCallTable;
+
 // State shared by document/view and headless persistence hosts. The actor
 // table owns opened TAG references; resources is an owned reference as well.
 struct MovieData : ThreeMMMovieState
@@ -55,7 +81,7 @@ struct MovieData : ThreeMMMovieState
 
     MovieData() { three_mm_movie_state_init(this); }
     PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
-    PStringTable_GST Actors() const { return static_cast<PStringTable_GST>(actors); }
+    PRollCallTable Actors() const { return static_cast<PRollCallTable>(actors); }
     void ReleaseResources();
     ~MovieData();
     MovieData(const MovieData &) = delete;
@@ -69,9 +95,9 @@ struct MovieData : ThreeMMMovieState
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
     static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, ThreeMMMovieHeader *header = pvNil);
-    static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PStringTable_GST *actors,
+    static bool FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
                               LegacyLong *actorIdLimit = pvNil);
-    static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PStringTable_GST actors, ChunkNumber *written);
+    static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written);
   private:
     static ThreeMMMovieOwnerServices _OwnerServices(void *);
 };

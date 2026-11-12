@@ -180,7 +180,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - MovieData's resource/table handles, movie number, actor-ID limit and scene count
   now live in an owning C state. Empty initialization, transactional load/replace,
   save ordering and roll-call tag cleanup/marshalling use C89. Native title values,
-  root/version adapters, file services and GST object handles remain to replace.
+  root/version adapters and file services remain to replace. Runtime and wire
+  roll-call names/extras, editing buffers, GST loading/translation and serialization
+  now use owning C storage, with a temporary native object/caller adapter.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -276,7 +278,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-owning roll-call storage and movie title/root/version adapters, followed by the
+movie title/root/version adapters, followed by the
 remaining physical path/file adapters, then the editing, actor evaluation and rendering
 integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the

@@ -43,7 +43,7 @@ RollCallActorEntry NativeActor(const ThreeMMRollCallActor &a)
 void ReadActor(void *table, ThreeMMU32 index, ThreeMMRollCallActor *out)
 {
     RollCallActorEntry a;
-    static_cast<PStringTable_GST>(table)->GetExtra(index, &a);
+    static_cast<PRollCallTable>(table)->GetExtra(index, &a);
     *out = CoreActor(a);
 }
 void CloseActor(void *, ThreeMMRollCallActor *a)
@@ -54,15 +54,15 @@ void CloseActor(void *, ThreeMMRollCallActor *a)
 }
 void ReleaseTable(void *p)
 {
-    static_cast<PStringTable_GST>(p)->Release();
+    static_cast<PRollCallTable>(p)->Release();
 }
 ThreeMMU32 CountActors(void *p)
 {
-    return static_cast<PStringTable_GST>(p)->IvMac();
+    return static_cast<PRollCallTable>(p)->IvMac();
 }
 void *NewActors(void *, int wire)
 {
-    return StringTable_GST::PgstNew(wire ? sizeof(RollCallActorEntryOnFile) : sizeof(RollCallActorEntry));
+    return RollCallTable::New(wire);
 }
 ThreeMMRollCallServices RollCallServices(NativeRollCallHost *host)
 {
@@ -77,34 +77,31 @@ ThreeMMRollCallServices RollCallServices(NativeRollCallHost *host)
                     PushErc(ercSocBadFile);
                     return nullptr;
                 }
-                short bo;
-                auto table = StringTable_GST::PgstRead(&h->block, &bo);
-                if (table)
-                    *big = *reinterpret_cast<const unsigned char *>(&bo) == 0;
-                return table;
+                return RollCallTable::Read(&h->block, big);
             },
-            [](void *p) -> ThreeMMU32 { return static_cast<PStringTable_GST>(p)->CbExtra(); },
-            sizeof(RollCallActorEntry),
+            [](void *p) -> ThreeMMU32 { return static_cast<PRollCallTable>(p)->CbExtra(); },
+            sizeof(ThreeMMRollCallActor),
             NewActors,
             ReleaseTable,
             CountActors,
             [](void *c, void *table, ThreeMMU32 i, unsigned char *bytes) {
-                static_cast<PStringTable_GST>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
-                static_cast<PStringTable_GST>(table)->GetExtra(i, bytes);
+                static_cast<PRollCallTable>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
+                AssertDo(three_mm_rollcall_table_extra(&static_cast<PRollCallTable>(table)->storage, i, bytes),
+                         "bad wire row");
             },
             ReadActor,
             [](void *c, void *table, ThreeMMU32 i, ThreeMMRollCallActor *a) {
-                static_cast<PStringTable_GST>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
+                static_cast<PRollCallTable>(table)->GetStn(i, &static_cast<NativeRollCallHost *>(c)->name);
                 ReadActor(table, i, a);
             },
             [](void *c, void *table, const ThreeMMRollCallActor *a) -> int {
                 auto value = NativeActor(*a);
-                return static_cast<PStringTable_GST>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name,
-                                                                     &value);
+                return static_cast<PRollCallTable>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name, &value);
             },
             [](void *c, void *table, const unsigned char *bytes) -> int {
-                return static_cast<PStringTable_GST>(table)->FAddStn(&static_cast<NativeRollCallHost *>(c)->name,
-                                                                     const_cast<unsigned char *>(bytes));
+                auto name = &static_cast<NativeRollCallHost *>(c)->name;
+                return three_mm_rollcall_table_add(&static_cast<PRollCallTable>(table)->storage, name->Prgch(),
+                                                   name->Cch(), bytes);
             },
             [](void *, ThreeMMRollCallActor *a, void *resources) -> int {
                 auto value = NativeActor(*a);
@@ -113,13 +110,13 @@ ThreeMMRollCallServices RollCallServices(NativeRollCallHost *host)
                 return ok;
             },
             CloseActor,
-            [](void *p) -> ThreeMMU32 { return static_cast<PStringTable_GST>(p)->CbOnFile(); },
+            [](void *p) -> ThreeMMU32 { return static_cast<PRollCallTable>(p)->CbOnFile(); },
             [](void *c, void *file, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
                 return static_cast<PChunkyFile>(file)->FAdd(bytes, kctgGst, number,
                                                             &static_cast<NativeRollCallHost *>(c)->block);
             },
             [](void *c, void *table) -> int {
-                return static_cast<PStringTable_GST>(table)->FWrite(&static_cast<NativeRollCallHost *>(c)->block);
+                return static_cast<PRollCallTable>(table)->FWrite(&static_cast<NativeRollCallHost *>(c)->block);
             },
             [](void *, void *file, ThreeMMU32 movie, ThreeMMU32 number) -> int {
                 return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, movie, kctgGst, number, 0);
@@ -127,6 +124,113 @@ ThreeMMRollCallServices RollCallServices(NativeRollCallHost *host)
             [](void *, void *file, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgGst, number); }};
 }
 } // namespace
+RollCallTable *RollCallTable::_New(ThreeMMU32 extra)
+{
+    auto table = NewObj RollCallTable;
+    if (!table)
+        return nullptr;
+    const auto allocator = CollectionAllocator();
+    if (three_mm_rollcall_table_init(&table->storage, extra, sizeof(achar), koskCur,
+#ifdef DEBUG
+                                     1,
+#else
+                                     0,
+#endif
+                                     &allocator) != THREE_MM_STORAGE_OK)
+    {
+        ReleasePpo(&table);
+        return nullptr;
+    }
+    return table;
+}
+RollCallTable *RollCallTable::New(bool wire)
+{
+    return _New(wire ? THREE_MM_MOVIE_ACTOR_BYTES : sizeof(ThreeMMRollCallActor));
+}
+RollCallTable *RollCallTable::Read(PDataBlock block, int *bigEndian)
+{
+    auto table = _New(0);
+    if (!table)
+        return nullptr;
+    if (!block->FUnpackData())
+    {
+        ReleasePpo(&table);
+        return nullptr;
+    }
+    const auto stream = EngineReadStream::FromBlock(*block);
+    const auto convert = [](void *, const void *input, size_t bytes, int encoding, void *output,
+                            size_t capacity) -> size_t {
+        return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
+    };
+    if (three_mm_rollcall_table_read(&table->storage, &stream, convert, nullptr, bigEndian) != THREE_MM_STORAGE_OK)
+    {
+        ReleasePpo(&table);
+        return nullptr;
+    }
+    return table;
+}
+RollCallTable::~RollCallTable()
+{
+    if (storage.storage.allocator.release)
+        AssertDo(three_mm_rollcall_table_dispose(&storage) == THREE_MM_STORAGE_OK, "invalid roll-call disposal");
+}
+void RollCallTable::GetStn(LegacyLong index, PString name)
+{
+    const void *text;
+    ThreeMMU32 count;
+    AssertDo(three_mm_rollcall_table_name(&storage, index, &text, &count), "bad actor name");
+    name->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+}
+void RollCallTable::GetExtra(LegacyLong index, RollCallActorEntry *actor)
+{
+    ThreeMMRollCallActor value;
+    AssertDo(three_mm_rollcall_table_extra(&storage, index, &value), "bad actor row");
+    *actor = NativeActor(value);
+}
+void RollCallTable::PutExtra(LegacyLong index, const RollCallActorEntry *actor)
+{
+    const auto value = CoreActor(*actor);
+    AssertDo(three_mm_rollcall_table_set_extra(&storage, index, &value), "bad actor row");
+}
+bool RollCallTable::FAddStn(PString name, const RollCallActorEntry *actor)
+{
+    const auto value = CoreActor(*actor);
+    return three_mm_rollcall_table_add(&storage, name->Prgch(), name->Cch(), &value) != 0;
+}
+bool RollCallTable::FPutStn(LegacyLong index, PString name)
+{
+    return three_mm_rollcall_table_rename(&storage, index, name->Prgch(), name->Cch()) != 0;
+}
+void RollCallTable::Delete(LegacyLong index)
+{
+    AssertDo(three_mm_rollcall_table_delete(&storage, index), "bad actor deletion");
+}
+bool RollCallTable::FWrite(PDataBlock block)
+{
+    const ThreeMMStorageWriter writer = {block, static_cast<ThreeMMU32>(block->Cb()),
+                                         [](void *c, ThreeMMU32 offset, const void *data, size_t bytes) -> int {
+                                             return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(data),
+                                                                                          bytes, offset);
+                                         }};
+    const unsigned short one = 1;
+    return three_mm_rollcall_table_write(&storage, &writer, *reinterpret_cast<const unsigned char *>(&one) == 0) ==
+           THREE_MM_STORAGE_OK;
+}
+#ifdef DEBUG
+void RollCallTable::AssertValid(LegacyUlong flags)
+{
+    BASE::AssertValid(flags);
+    Assert(storage.stride >= 4 && storage.stride % 4 == 0, "bad roll-call stride");
+    Assert(storage.count <= storage.storage.buffers[1].capacity / storage.stride, "bad roll-call count");
+}
+void RollCallTable::MarkMem()
+{
+    BASE::MarkMem();
+    MarkPv(storage.storage.buffers[0].data);
+    MarkPv(storage.storage.buffers[1].data);
+}
+#endif
+
 ThreeMMMovieOwnerServices MovieData::_OwnerServices(void *context)
 {
     return {
@@ -149,7 +253,7 @@ ThreeMMMovieOwnerServices MovieData::_OwnerServices(void *context)
             return FCreateRoot(static_cast<PChunkyFile>(file), number);
         },
         [](void *, void *resources, ThreeMMU32 number, void **actors, ThreeMMI32 *limit) -> int {
-            PStringTable_GST table = nullptr;
+            PRollCallTable table = nullptr;
             LegacyLong next = *limit;
             const bool ok = FReadRollCall(static_cast<PChunkyResourceFile>(resources), number, &table, &next);
             if (ok)
@@ -172,8 +276,7 @@ ThreeMMMovieOwnerServices MovieData::_OwnerServices(void *context)
             return found;
         },
         [](void *, void *file, ThreeMMU32 movie, void *actors, ThreeMMU32 *written) -> int {
-            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, static_cast<PStringTable_GST>(actors),
-                                  written);
+            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, static_cast<PRollCallTable>(actors), written);
         },
         [](void *, void *file, ThreeMMU32 movie, ThreeMMU32 previous) {
             static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
@@ -283,7 +386,7 @@ bool MovieData::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno, ThreeMMMovie
     return fTrue;
 }
 
-bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PStringTable_GST *actors,
+bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,
                               LegacyLong *limit)
 {
     Assert(*actors == pvNil, "Overwriting existing StringTable_GST");
@@ -294,10 +397,10 @@ bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number,
     const bool ok = three_mm_movie_read_rollcall(resources, number, &output, limit ? &next : nullptr, &s) != 0;
     if (ok && limit)
         *limit = next;
-    *actors = static_cast<PStringTable_GST>(output);
+    *actors = static_cast<PRollCallTable>(output);
     return ok;
 }
-bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PStringTable_GST actors, ChunkNumber *written)
+bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, PRollCallTable actors, ChunkNumber *written)
 {
     NativeRollCallHost host;
     const auto s = RollCallServices(&host);

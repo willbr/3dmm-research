@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -478,10 +478,10 @@ C owns roll-call row conversion, extra-width checks, tag-open/append sequencing,
 partial-failure cleanup and output publication. It closes a just-opened tag before
 earlier rows on failed insertion, releases the wire table before unwinding runtime
 rows, and preserves caller ID limits on failure. `movie_data.c` writes 28-byte actor
-extras in either byte order, with a zero pointer slot. Native GST handles still
-provide text decoding, storage and header writes; replacing those objects with C
-roll-call storage remains required. Native title strings, root/version adapters,
-physical I/O and tag-service thunks also remain intermediate host dependencies.
+extras in either byte order, with a zero pointer slot. Roll-call storage, decoding
+and header writes now use the owning C table described below. Native title strings,
+root/version adapters, physical I/O and tag-service thunks remain intermediate
+host dependencies.
 
 Studio uses the same state and roll-call paths. Its existing early resource release
 during Movie destruction remains explicit, before closing the scene and actor list;
@@ -490,6 +490,36 @@ the general MovieData destructor closes actors before releasing resources.
 order, failed row insertion, both byte orders, invalid rows/extra widths and partial
 save publication. Native persistence checks exercise real files, embedded tags,
 repeated save/load and failed-load preservation.
+
+### Owning roll-call storage
+
+`rollcall_storage.c` owns runtime and wire roll-call names/extras in two C buffers.
+It replaces persistent and transient StringTable_GST objects in MovieData's actor
+paths. C owns append/rename/delete/extra updates, dense GST reading, offset swaps,
+legacy string translation and GST output. Runtime extras use ThreeMMRollCallActor;
+wire extras remain 28 bytes. Opaque tag references are transferred, never retained
+or closed by table mutation/destruction. Movie transactions and existing edit
+rollback retain responsibility for those references.
+
+Reading reuses the legacy dense GST header rules rather than Archive's stricter
+validator. Same-width legacy maps stay in C; width-changing text uses the host
+converter. Failed reads may leave partial loading state and must be discarded.
+Failed writes restore native offsets and release locks. Mutation failures preserve
+logical rows while allowing successful partial capacity growth.
+
+The temporary native RollCallTable class provides BASE allocation/diagnostics and
+typed String/TAG conversions for existing callers. Its only table state is the C
+record; it has no GST base class or native table-policy implementation. Studio's
+roll-call edits and movie-merge rollback use the same C table. Native title values,
+root/version policy, physical file/text conversion services and final facade
+removal remain migration work.
+
+`engine-rollcall-storage-test` checks relocating buffers, partial allocation
+failure, rename/delete/extra mutation, both header byte orders, untouched extras,
+foreign-width translation, failed read/write and locked disposal. The native
+405-byte mutation/GST snapshot and fourteen earlier snapshots match. Thirty-two
+standalone C checks, forty-five focused native checks, MSVC AddressSanitizer and
+all 51 CLI baselines pass. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

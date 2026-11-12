@@ -2124,3 +2124,50 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 owning roll-call storage (12 November 2026)
+
+Runtime and wire roll-call tables now own their name/extra buffers in C instead
+of native StringTable_GST objects. Append/rename/delete/extra updates, dense GST
+loading, text translation and GST serialization use C. Runtime records store
+ThreeMMRollCallActor; wire extras remain 28 bytes. Storage mutation/destruction
+does not retain or close tags, preserving movie transaction and edit-rollback
+ownership. A temporary native RollCallTable adapter supplies BASE diagnostics and
+typed conversions for existing callers. Title/root/version and physical services
+remain migration work. See the
+[implementation boundary](../code-map/library-split.md#owning-roll-call-storage).
+
+Thirty-two standalone C checks, forty-five focused native checks and MSVC
+AddressSanitizer pass. New checks cover relocation, partial allocation failure,
+failed rename, deletion/extra updates, both byte orders, untouched extras,
+foreign-width text conversion, read/write failures and locked disposal. All
+fifteen binary snapshots match, including a new 405-byte native edit/serialization
+baseline and fourteen prior snapshots. All 51 CLI baselines match, including
+six asset indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-rollcall-before.bin`, `tmp/c89-rollcall-after.bin`,
+`tmp/c89-rollcall-snapshot-comparison.json`, `tmp/c89-rollcall-output-comparison.json`
+and `tmp/c89-rollcall-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T183654Z-199a08ff` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T184031Z-923ea395` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding owner suites `20261112T182054Z-b432b76f` and
+`20261112T182407Z-581585d3`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-rollcall-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.
