@@ -329,7 +329,7 @@ ThreeMMChunkAccess ChunkyFile::_ChunkAccess()
 #define _BvKid(ikid) LwMul(ikid, size(ChildChunkIdentification))
 
 const LegacyLong rtiNil = 0; // no rti assigned
-PChunkyFile ChunkyFile::_pcflFirst;
+ThreeMMChunkContext ChunkyFile::_context;
 
 #ifdef CHUNK_STATS
 bool vfDumpChunkRequests = fTrue;
@@ -378,7 +378,8 @@ ChunkyFile::ChunkyFile(void)
     AssertDo(three_mm_chunk_runtime_init(&_runtime, KauaiCopyAllocator()) == THREE_MM_CHUNK_OK, "invalid runtime cache");
 #endif
     // add it to the linked list
-    _Attach(&_pcflFirst);
+    three_mm_chunk_link_init(&_link, this);
+    AssertDo(three_mm_chunk_context_attach(&_context, &_link) == THREE_MM_CHUNK_OK, "invalid container registry attachment");
     AssertBaseThis(0);
 }
 
@@ -398,6 +399,7 @@ ChunkyFile::~ChunkyFile(void)
         [](void *, void *index) { static_cast<PGeneralGroup>(index)->Release(); },
         [](void *c, const ThreeMMChunkReopenState *state) { static_cast<PChunkyFile>(c)->_PublishReopen(state); }};
     AssertDo(three_mm_chunk_dispose(&state, runtime, &services) == THREE_MM_CHUNK_OK, "invalid container disposal");
+    AssertDo(three_mm_chunk_context_detach(&_link) == THREE_MM_CHUNK_OK, "invalid container registry detachment");
 }
 /***************************************************************************
     Static method: open an existing file as a chunky file.  Increments the
@@ -529,7 +531,7 @@ PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
         [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_cstoExtra.pfil; },
         [](void *c) -> int { return static_cast<PChunkyFile>(c)->_fInvalidMainFile; },
         [](void *) { Bug("who is using this Filename?"); }};
-    return static_cast<PChunkyFile>(three_mm_chunk_find_container(_pcflFirst, FileObject::PfilFromFni(pfni), &services));
+    return static_cast<PChunkyFile>(three_mm_chunk_find_container(PcflFirst(), FileObject::PfilFromFni(pfni), &services));
 }
 /***************************************************************************
     Embedded chunk descriptor on file. Chunks and their subtrees can
@@ -586,50 +588,73 @@ bool ChunkyFile::FWriteChunkTree(ChunkTagOrType ctg, ChunkNumber cno, PFileObjec
 
 PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData)
 {
-    AssertVarMem(pflo); AssertPo(pflo->pfil, 0);
-    auto file = NewObj ChunkyFile();
-    if (!file) return nullptr;
-    file->_pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation));
-    if (!file->_pggcrp) { ReleasePpo(&file); return nullptr; }
-    if (fCopyData)
-    {
-        file->_csto.pfil = FileObject::PfilCreateTemp();
-        if (!file->_csto.pfil || !file->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
-        { ReleasePpo(&file); return nullptr; }
-        file->_csto.fpMac = size(ChunkyFilePrefix);
-    }
-    else
-    {
-        file->_csto.pfil = pflo->pfil; file->_csto.pfil->AddRef();
-        file->_csto.fpMac = pflo->fp + pflo->cb;
-        file->_fInvalidMainFile = true; file->_fAddToExtra = true;
-    }
-    struct ImportHost { PChunkyFile destination; PFileObject source; } host = {file, pflo->pfil};
-    const ThreeMMForestImport services = {&host,
-        [](void *c, ThreeMMU32 type, ThreeMMU32 offset, ThreeMMU32 bytes, ThreeMMU32 flags, int copy, ThreeMMU32 *number) -> int {
-            auto h = static_cast<ImportHost *>(c); ChunkNumber created;
-            if (copy)
-            {
-                DataBlock block(h->source, offset, bytes, flags & fcrpPacked);
-                if (!h->destination->FAddBlck(&block, type, &created)) return 0;
-            }
-            else
-            {
-                LegacyLong position; h->destination->_GetUniqueCno(type, &position, &created);
-                if (!h->destination->_FAdd(0, type, created, position, nullptr)) return 0;
-                auto row = static_cast<ChunkRepresentation *>(h->destination->_pggcrp->QvFixedGet(position));
-                row->fp = bytes ? offset : 0; row->SetCb(bytes); row->AssignGrfcrp(flags, fcrpPacked | fcrpForest);
-            }
-            *number = created; return 1;
+    AssertVarMem(pflo);
+    AssertPo(pflo->pfil, 0);
+    const ThreeMMForestConstruction construction = {
+        nullptr,
+        [](void *) -> void * { return NewObj ChunkyFile(); },
+        [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
+        [](void *) -> void * { return GeneralGroup::PggNew(sizeof(ChunkRepresentation)); },
+        [](void *, void *owner, void *index) {
+            static_cast<PChunkyFile>(owner)->_pggcrp = static_cast<PGeneralGroup>(index);
         },
-        [](void *c, ThreeMMU32 parentType, ThreeMMU32 parentNumber, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 slot) -> int {
-            return static_cast<ImportHost *>(c)->destination->FAdoptChild(parentType, parentNumber, type, number, slot);
-        }};
-    const ThreeMMReadStream stream = {pflo->pfil, static_cast<ThreeMMU32>(pflo->pfil->FpMac()), ReadChunkFile};
-    if (three_mm_forest_read(&stream, pflo->fp, pflo->cb, &services, KauaiCopyAllocator(), fCopyData) != THREE_MM_CHUNK_OK)
-        ReleasePpo(&file);
-    AssertNilOrPo(file, fcflFull | fcflGraph);
-    return file;
+        [](void *) -> void * { return FileObject::PfilCreateTemp(); },
+        [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
+        [](void *, void *owner, void *file) {
+            static_cast<PChunkyFile>(owner)->_csto.pfil = static_cast<PFileObject>(file);
+        },
+        [](void *, void *file, ThreeMMU32 end) -> int { return static_cast<PFileObject>(file)->FSetFpMac(end); },
+        [](void *, void *owner, ThreeMMU32 end, int borrowed) {
+            auto file = static_cast<PChunkyFile>(owner);
+            file->_csto.fpMac = end;
+            file->_fInvalidMainFile = borrowed != 0;
+            file->_fAddToExtra = borrowed != 0;
+        },
+        [](void *, void *owner, void *source, ThreeMMU32 offset, ThreeMMU32 bytes, int copy) -> int {
+            struct ImportHost
+            {
+                PChunkyFile destination;
+                PFileObject source;
+            } host = {static_cast<PChunkyFile>(owner), static_cast<PFileObject>(source)};
+            const ThreeMMForestImport services = {
+                &host,
+                [](void *c, ThreeMMU32 type, ThreeMMU32 offset, ThreeMMU32 bytes, ThreeMMU32 flags, int copy,
+                   ThreeMMU32 *number) -> int {
+                    auto h = static_cast<ImportHost *>(c);
+                    ChunkNumber created;
+                    if (copy)
+                    {
+                        DataBlock block(h->source, offset, bytes, flags & fcrpPacked);
+                        if (!h->destination->FAddBlck(&block, type, &created))
+                            return 0;
+                    }
+                    else
+                    {
+                        LegacyLong position;
+                        h->destination->_GetUniqueCno(type, &position, &created);
+                        if (!h->destination->_FAdd(0, type, created, position, nullptr))
+                            return 0;
+                        auto row = static_cast<ChunkRepresentation *>(h->destination->_pggcrp->QvFixedGet(position));
+                        row->fp = bytes ? offset : 0;
+                        row->SetCb(bytes);
+                        row->AssignGrfcrp(flags, fcrpPacked | fcrpForest);
+                    }
+                    *number = created;
+                    return 1;
+                },
+                [](void *c, ThreeMMU32 parentType, ThreeMMU32 parentNumber, ThreeMMU32 type, ThreeMMU32 number,
+                   ThreeMMU32 slot) -> int {
+                    return static_cast<ImportHost *>(c)->destination->FAdoptChild(parentType, parentNumber, type,
+                                                                                  number, slot);
+                }};
+            const ThreeMMReadStream stream = {
+                source, static_cast<ThreeMMU32>(static_cast<PFileObject>(source)->FpMac()), ReadChunkFile};
+            return three_mm_forest_read(&stream, offset, bytes, &services, KauaiCopyAllocator(), copy) ==
+                   THREE_MM_CHUNK_OK;
+        },
+        [](void *, void *owner) { AssertPo(static_cast<PChunkyFile>(owner), fcflFull | fcflGraph); }};
+    return static_cast<PChunkyFile>(
+        three_mm_chunk_construct_forest(&construction, pflo->pfil, pflo->fp, pflo->cb, fCopyData));
 }
 /***************************************************************************
     Return whether the chunk contains a forest of subchunks.
@@ -698,7 +723,7 @@ ThreeMMChunkRegistry ChunkyFile::_RegistryServices()
 void ChunkyFile::ClearMarks(void)
 {
     const auto registry = _RegistryServices();
-    AssertDo(three_mm_chunk_clear_marks(_pcflFirst, &registry) == THREE_MM_CHUNK_OK, "invalid container registry");
+    AssertDo(three_mm_chunk_clear_marks(PcflFirst(), &registry) == THREE_MM_CHUNK_OK, "invalid container registry");
 }
 /***************************************************************************
     Static method: close any chunky files that are unmarked and have 0
@@ -707,7 +732,7 @@ void ChunkyFile::ClearMarks(void)
 void ChunkyFile::CloseUnmarked(void)
 {
     const auto registry = _RegistryServices();
-    AssertDo(three_mm_chunk_close_unmarked(_pcflFirst, &registry) == THREE_MM_CHUNK_OK, "invalid container registry" );
+    AssertDo(three_mm_chunk_close_unmarked(PcflFirst(), &registry) == THREE_MM_CHUNK_OK, "invalid container registry" );
 }
 
 /***************************************************************************
@@ -783,6 +808,7 @@ void ChunkyFile::Release(void)
 void ChunkyFile::AssertValid(LegacyUlong grfcfl)
 {
     ChunkyFile_PAR::AssertValid(fobjAllocated);
+    Assert(three_mm_chunk_context_valid(&_link), "invalid container registry links");
     bool fFirstCrp;
     LegacyLong cbTot = 0;
     LegacyLong cbTotExtra = 0;

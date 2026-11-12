@@ -1,4 +1,5 @@
 #include "three_mm/chunk_container.h"
+#include "three_mm/chunk_context.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,7 +32,7 @@ struct Host
     int shells, live, fail, issues[4], created, finished;
     ThreeMMU32 file_flags, options;
     char log[128];
-    int logs;
+    int logs, external_refs;
     void *runtime_buffer;
 };
 enum
@@ -70,7 +71,7 @@ static void release_memory(void *c, void *p, ThreeMMU32 bytes)
     CHECK(h->live > 0);
     if (p == h->runtime_buffer)
     {
-        CHECK(!h->main_file.refs && !h->extra_file.refs && !h->index.refs);
+        CHECK(!h->main_file.refs && h->extra_file.refs == h->external_refs && !h->index.refs);
         event(h, 'r');
         h->runtime_buffer = NULL;
     }
@@ -460,10 +461,130 @@ static void dispose_cases(void)
         balanced(&h);
     }
 }
+static void context_cases(void)
+{
+    ThreeMMChunkContext a, b;
+    ThreeMMChunkLink links[4];
+    ThreeMMChunkLink **saved;
+    int values[4], i;
+    three_mm_chunk_context_init(&a);
+    three_mm_chunk_context_init(&b);
+    CHECK(!three_mm_chunk_context_first(&a) && !three_mm_chunk_context_first(NULL));
+    for (i = 0; i < 4; ++i)
+        three_mm_chunk_link_init(links + i, values + i);
+    for (i = 0; i < 3; ++i)
+        CHECK(three_mm_chunk_context_attach(&a, links + i) == THREE_MM_CHUNK_OK);
+    CHECK(three_mm_chunk_context_first(&a) == values + 2 && three_mm_chunk_context_next(links + 2) == values + 1);
+    CHECK(three_mm_chunk_context_attach(&b, links + 1) == THREE_MM_CHUNK_BAD_FILE && !b.first);
+    CHECK(three_mm_chunk_context_detach(links + 1) == THREE_MM_CHUNK_OK);
+    CHECK(three_mm_chunk_context_next(links + 2) == values && three_mm_chunk_context_valid(links));
+    CHECK(three_mm_chunk_context_detach(links + 1) == THREE_MM_CHUNK_OK);
+    CHECK(three_mm_chunk_context_attach(&b, links + 1) == THREE_MM_CHUNK_OK);
+    CHECK(three_mm_chunk_context_attach(&b, links + 3) == THREE_MM_CHUNK_OK);
+    saved = links[1].previous;
+    links[1].previous = &a.first;
+    CHECK(!three_mm_chunk_context_valid(links + 3));
+    links[1].previous = saved;
+    CHECK(three_mm_chunk_context_detach(links) == THREE_MM_CHUNK_OK);
+    CHECK(!three_mm_chunk_context_next(links + 2));
+    CHECK(three_mm_chunk_context_detach(links + 2) == THREE_MM_CHUNK_OK && !a.first);
+    CHECK(three_mm_chunk_context_detach(links + 3) == THREE_MM_CHUNK_OK && b.first == links + 1);
+    CHECK(three_mm_chunk_context_detach(links + 1) == THREE_MM_CHUNK_OK && !b.first);
+    for (i = 0; i < 4; ++i)
+        CHECK(three_mm_chunk_context_valid(links + i));
+}
+static void *temporary(void *c)
+{
+    return file(c, 1, 16);
+}
+static void retain_source(void *c, void *p)
+{
+    Host *h = (Host *)c;
+    CHECK(p == &h->extra_file && h->extra_file.refs == 1);
+    ++h->extra_file.refs;
+    event(h, '+');
+}
+static void forest_destination(void *c, void *owner, ThreeMMU32 end, int borrowed)
+{
+    Host *h = (Host *)c;
+    Owner *o = (Owner *)owner;
+    CHECK(o->state.index && o->state.main_file && end == (borrowed ? 200UL : 128UL));
+    o->state.main_end = end;
+    o->state.invalid_main = borrowed;
+    h->options = (ThreeMMU32)borrowed;
+    event(h, 'E');
+}
+static int read_forest(void *c, void *owner, void *source, ThreeMMU32 offset, ThreeMMU32 bytes, int copy)
+{
+    Host *h = (Host *)c;
+    Owner *o = (Owner *)owner;
+    CHECK(source == &h->extra_file && offset == 123 && bytes == 77 && o->state.index);
+    CHECK(o->state.main_file == (copy ? &h->main_file : &h->extra_file));
+    CHECK(o->state.main_end == (copy ? 128UL : 200UL) && o->state.invalid_main == !copy &&
+          h->options == (ThreeMMU32)!copy);
+    event(h, 'R');
+    CHECK(three_mm_free_map_create(&h->allocator, 1, &o->state.main_map) == THREE_MM_CHUNK_OK);
+    CHECK(three_mm_chunk_runtime_set(&o->runtime, 1, 1, 44) == THREE_MM_CHUNK_OK);
+    h->runtime_buffer = o->runtime.storage.buffers[0].data;
+    return h->fail != FAIL_READ;
+}
+static void finish_forest(void *c, void *owner)
+{
+    Host *h = (Host *)c;
+    CHECK(((Owner *)owner)->state.index != NULL);
+    ++h->finished;
+    event(h, 'N');
+}
+static void forest_construction_cases(void)
+{
+    Host h;
+    ThreeMMChunkConstruction unused;
+    ThreeMMForestConstruction s;
+    Owner *o;
+    int copy, fail, expected;
+    for (copy = 0; copy < 2; ++copy)
+    {
+        for (fail = 0; fail <= FAIL_READ; ++fail)
+        {
+            init(&h, &unused);
+            memset(&s, 0, sizeof(s));
+            h.fail = fail;
+            h.extra_file.refs = h.external_refs = 1;
+            s.context = &h;
+            s.allocate = allocate;
+            s.release = drop;
+            s.index = index;
+            s.attach_index = attach_index;
+            s.temporary = temporary;
+            s.retain_file = retain_source;
+            s.attach_file = attach_file;
+            s.resize = resize_file;
+            s.destination = forest_destination;
+            s.read = read_forest;
+            s.finish = finish_forest;
+            CHECK(!three_mm_chunk_construct_forest(&s, &h.extra_file, 0x7fffffffUL, 1, copy) && !h.logs);
+            o = (Owner *)three_mm_chunk_construct_forest(&s, &h.extra_file, 123, 77, copy);
+            expected = !fail || (!copy && (fail == FAIL_FILE || fail == FAIL_RESIZE));
+            CHECK((o != NULL) == expected && h.finished == expected);
+            if (o)
+                drop(&h, o);
+            CHECK(h.extra_file.refs == 1);
+            --h.extra_file.refs;
+            balanced(&h);
+            CHECK(!h.issues[0] && !h.issues[1]);
+            if (copy && fail == FAIL_READ)
+                CHECK(!strcmp(h.log, "AIiOoZERDPfjrX"));
+            if (!copy && fail == FAIL_READ)
+                CHECK(!strcmp(h.log, "AIi+oERDPejrX"));
+        }
+    }
+}
 int main(void)
 {
     construct();
     lookup();
     dispose_cases();
+    context_cases();
+    forest_construction_cases();
     return 0;
 }

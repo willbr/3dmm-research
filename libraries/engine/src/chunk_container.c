@@ -2,6 +2,46 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/chunk_container.h"
 #include <string.h>
+void *three_mm_chunk_construct_forest(const ThreeMMForestConstruction *s, void *source, ThreeMMU32 offset,
+                                      ThreeMMU32 bytes, int copy)
+{
+    void *owner, *index, *file;
+    ThreeMMU32 end;
+    if (!s || !source || !s->allocate || !s->release || !s->index || !s->attach_index || !s->temporary ||
+        !s->retain_file || !s->attach_file || !s->resize || !s->destination || !s->read || offset > 0x7fffffffUL ||
+        bytes > 0x7fffffffUL - offset)
+        return NULL;
+    owner = s->allocate(s->context);
+    if (!owner)
+        return NULL;
+    index = s->index(s->context);
+    s->attach_index(s->context, owner, index);
+    if (!index)
+        goto fail;
+    if (copy)
+    {
+        file = s->temporary(s->context);
+        s->attach_file(s->context, owner, file);
+        if (!file || !s->resize(s->context, file, 128))
+            goto fail;
+        end = 128;
+    }
+    else
+    {
+        s->retain_file(s->context, source);
+        s->attach_file(s->context, owner, source);
+        end = offset + bytes;
+    }
+    s->destination(s->context, owner, end, !copy);
+    if (!s->read(s->context, owner, source, offset, bytes, copy != 0))
+        goto fail;
+    if (s->finish)
+        s->finish(s->context, owner);
+    return owner;
+fail:
+    s->release(s->context, owner);
+    return NULL;
+}
 static void issue(const ThreeMMChunkConstruction *services, int kind)
 {
     if (services->issue)

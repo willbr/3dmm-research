@@ -327,6 +327,32 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestContainerRegistry()
+{
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_CONTEXT_SNAPSHOT"))
+    { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
+    auto original = ChunkyFile::PcflFirst();
+    auto a = ChunkyFile::PcflCreateTemp(), b = ChunkyFile::PcflCreateTemp(), c = ChunkyFile::PcflCreateTemp();
+    Check(a && b && c);
+    auto observe = [&](uint32_t event) {
+        uint32_t row[5] = {event, 0, 0, 0, 0};
+        auto current = ChunkyFile::PcflFirst();
+        for (int i = 1; current != original; ++i, current = current->PcflNext())
+        { Check(current && i < 5); row[i] = (current == a ? 10 : current == b ? 20 : 30) + current->CactRef(); }
+        if (snapshot) Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
+    };
+    Check(c->PcflNext() == b && b->PcflNext() == a && a->PcflNext() == original); observe(1);
+    Check(b->FSetGrfcfl(fcflMark, fcflMark)); b->Release();
+    Check(b->CactRef() == 0); observe(2);
+    ReleasePpo(&a); Check(b->PcflNext() == original); observe(3);
+    ChunkyFile::CloseUnmarked(); Check(c->PcflNext() == b); observe(4);
+    ChunkyFile::ClearMarks(); ChunkyFile::CloseUnmarked(); b = nullptr;
+    Check(c->PcflNext() == original); observe(5);
+    ReleasePpo(&c); Check(ChunkyFile::PcflFirst() == original); observe(6);
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
 static void TestContainerConstruction()
 {
     FILE *snapshot=nullptr;
@@ -3818,6 +3844,7 @@ int main()
     TestStorageRouting();
     TestContainerLifecycle();
     TestContainerConstruction();
+    TestContainerRegistry();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

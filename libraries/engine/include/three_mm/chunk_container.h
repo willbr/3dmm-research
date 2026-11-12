@@ -42,6 +42,29 @@ extern "C"
      * in legacy release builds; an existing owner's option failure returns NULL
      * without an open-error diagnostic. Callbacks are synchronous and may not re-enter. */
     void *three_mm_chunk_construct(const ThreeMMChunkConstruction *, ThreeMMU32 flags, int create);
+    typedef struct ThreeMMForestConstruction
+    {
+        void *context;
+        void *(*allocate)(void *);
+        void (*release)(void *, void *owner);
+        void *(*index)(void *);
+        void (*attach_index)(void *, void *owner, void *index);
+        void *(*temporary)(void *);
+        void (*retain_file)(void *, void *file);
+        void (*attach_file)(void *, void *owner, void *file);
+        int (*resize)(void *, void *file, ThreeMMU32 end);
+        void (*destination)(void *, void *owner, ThreeMMU32 end, int borrowed);
+        int (*read)(void *, void *owner, void *source, ThreeMMU32 offset, ThreeMMU32 bytes, int copy);
+        void (*finish)(void *, void *owner); /* Optional successful-owner diagnostics. */
+    } ThreeMMForestConstruction;
+    /* Attach callbacks consume references, including partial construction. Copy
+     * imports create a temporary file and reserve its 128-byte prefix; borrowed
+     * imports retain source, publish offset+bytes as end, and mark invalid-main /
+     * add-to-extra before reading. Failure releases the owner and all attachments.
+     * read may leave partial resources; release consumes those too. Input source
+     * is borrowed. Calls are synchronous and cannot re-enter this construction. */
+    void *three_mm_chunk_construct_forest(const ThreeMMForestConstruction *, void *source, ThreeMMU32 offset,
+                                          ThreeMMU32 bytes, int copy);
     typedef struct ThreeMMChunkLookup
     {
         void *(*next)(void *);

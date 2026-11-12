@@ -1773,3 +1773,54 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 container registry and forest construction (12 November 2026)
+
+Container links now live in explicit C contexts, replacing ChunkyFile's native
+BaseLinkedList storage and registry head. Newest-first traversal and marked
+zero-reference retention remain unchanged. Forest destination construction also
+uses C: copied imports reserve a temporary file's 128-byte prefix; borrowed
+imports retain source, set their logical end and invalid-main/add-to-extra state
+before reading. All failure paths release the partial owner and its attachments.
+Native allocation, typed owner/index state and file/index primitives remain
+adapters. See the [implementation boundary](../code-map/library-split.md#container-registry-and-forest-destination-construction).
+
+Twenty-five standalone C checks, thirty-eight focused native checks and the
+expanded container MSVC AddressSanitizer check pass. Registry checks cover
+independent contexts, head/middle/tail removal, duplicate attachment, transfer,
+repeated detach and invalid-link guards. Forest construction checks cover
+allocation/index/temp/resize/read failure, borrowed source references and partial
+map/runtime cleanup ordering. Native statistics and expanded-index variants
+compile with `/Zs`; expanded-index runtime remains unverified.
+
+All nine binary snapshots match: the new 120-byte registry fixture plus the
+prior 597-byte construction, 56-byte lifecycle, 1,740-byte routing, 2,192-byte
+loading, 572,367-byte chunk, 29,532-byte string, 1,594-byte forest and 1,624-byte
+resource-cache baselines. All 51 CLI baselines match, including six asset indexes
+covering 20,568 entries. Evidence includes `tmp/c89-context-before.bin`,
+`tmp/c89-context-registry-after.bin`, `tmp/c89-context-resource-after.bin`,
+`tmp/c89-context-*-after.bin`, `tmp/c89-context-output-comparison.json` and
+`tmp/c89-context-asan.log`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T161703Z-903a37a1` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T162023Z-248551ea` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding resource-cache suites `20261112T160245Z-70316bea` and
+`20261112T160706Z-94c41679`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-context-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

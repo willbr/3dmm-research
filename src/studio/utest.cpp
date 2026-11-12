@@ -4978,7 +4978,7 @@ bool Application::FCmdIdle(PCommand pcmd)
     Application_PAR::FCmdIdle(pcmd);
 
     /* Check all open chunky files for errors */
-    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = (PChunkyFile)pcfl->PbllNext())
+    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = pcfl->PcflNext())
     {
         if (pcfl->ElError() != elNil)
         {

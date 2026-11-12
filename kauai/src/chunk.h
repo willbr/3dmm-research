@@ -24,6 +24,7 @@
 #include "three_mm/chunk_storage.h"
 #include "three_mm/chunk_lifecycle.h"
 #include "three_mm/chunk_container.h"
+#include "three_mm/chunk_context.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -84,12 +85,11 @@ const ByteOrderMask kbomKid = 0xFC000000;
     Chunky file class.
 ***************************************************************************/
 typedef class ChunkyFile *PChunkyFile;
-#define ChunkyFile_PAR BaseLinkedList
+#define ChunkyFile_PAR BASE
 #define kclsChunkyFile 'CFL'
 class ChunkyFile : public ChunkyFile_PAR
 {
     RTCLASS_DEC
-    BLL_DEC(ChunkyFile, PcflNext)
     ASSERT
     MARKMEM
 
@@ -121,7 +121,8 @@ class ChunkyFile : public ChunkyFile_PAR
 #endif //! CHUNK_BIG_INDEX
 
     // static member variables
-    static PChunkyFile _pcflFirst;
+    static ThreeMMChunkContext _context;
+    ThreeMMChunkLink _link;
 
   private:
     // private methods
@@ -168,7 +169,11 @@ class ChunkyFile : public ChunkyFile_PAR
     // static methods
     static PChunkyFile PcflFirst(void)
     {
-        return _pcflFirst;
+        return static_cast<PChunkyFile>(three_mm_chunk_context_first(&_context));
+    }
+    PChunkyFile PcflNext(void)
+    {
+        return static_cast<PChunkyFile>(three_mm_chunk_context_next(&_link));
     }
     static PChunkyFile PcflOpen(Filename *pfni, LegacyUlong grfcfl);
     static PChunkyFile PcflCreate(Filename *pfni, LegacyUlong grfcfl);

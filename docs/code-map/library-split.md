@@ -424,6 +424,37 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Container registry and forest destination construction
+
+`chunk_context.c` owns container registry links through explicit independent C
+contexts and caller-owned link records. No allocation or callbacks enter list
+insertion/removal. Links borrow owner tokens, insert newest first and detach
+without retaining owners. Attached link/context addresses must remain stable;
+detach is idempotent and duplicate attachment is rejected. Hosts remove links
+after associated-resource disposal and before freeing owner storage.
+
+`ChunkyFile` now derives directly from BASE and uses C link state, replacing its
+BaseLinkedList storage and native registry head. Its temporary native facade
+supplies a default process context; the C API supports independent contexts.
+`PcflFirst`/`PcflNext` keep their borrowed traversal contract. Existing C marked/
+zero-reference cleanup policy traverses those links. Native class allocation,
+typed owner/index state and other object adapters remain to be converted.
+
+`three_mm_chunk_construct_forest` owns destination construction. Copied imports
+create a temporary file and reserve the 128-byte prefix. Borrowed imports retain
+the source file, publish offset+length as the logical end and set invalid-main /
+add-to-extra before reading. Every failure releases the partial owner, including
+resources left by a failed reader. Native callbacks provide object/index/file
+primitives and adapt the existing C forest reader; no parallel construction
+policy remains. Invalid signed file extents are rejected before allocation.
+
+`engine-container-test` checks independent registries, head/middle/tail removal,
+repeated detach, cross-context transfer, duplicate attachment and corrupt-link
+guards. Forest checks cover allocation/index/temp/resize/read failure and borrowed
+source references, partial maps/runtime storage and cleanup order. The same checks
+pass under MSVC AddressSanitizer. The native registry test preserves all 120 frozen
+bytes across insertion, removal, marked zero-reference retention and cleanup.
+
 ### Resource caches, object lifetime and manager lookup
 
 `resource_cache.c` owns sorted cache tables, reader-key lookup, preload/fetch,
@@ -458,8 +489,8 @@ at 192 MiB each without allocating those payloads.
 primitives, diagnostics, file blocks and readers. Reader identity is passed as a
 function pointer and cast back before host comparison/calling; C never converts
 function pointers to data pointers or orders them. GenericHQ and generic-object
-wrappers remain native adapters. Native registry/context replacement, tag
-ownership and engine objects remain migration work.
+wrappers remain native adapters. Native owner-state/index replacement, tag ownership and engine objects remain
+migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
 speculative allocation fallback, initial/growth failure, cleanup/lifetimes,
@@ -499,9 +530,9 @@ creation and saves; native checks also cover repeated open, corrupt-file rejecti
 and temporary deletion. All previous snapshots remain exact. Native statistics
 and expanded-index variants compile; expanded-index runtime remains unverified.
 
-Native class allocation, forest destination setup and registry backing still exist.
-Resource-cache ownership is converted above; replacing native contexts remains
-necessary for a complete C-only backend.
+Native class allocation and typed owner/index adapters still exist. Registry links
+and forest destination construction now use C above; replacing the remaining
+native owner state is necessary for a complete C-only backend.
 
 ### Container options, flags and reopen ownership
 
@@ -540,7 +571,7 @@ routing, loading, string and forest snapshots remain exact. Statistics and
 expanded-index variants compile; expanded-index runtime remains unverified.
 
 Construction and associated-resource disposal now use C above. Native class/
-registry backing and native object adapters still prevent a standalone C backend.
+typed owner/index adapters still prevent a standalone C backend.
 
 ### Storage selection and read-through caching
 
@@ -576,7 +607,7 @@ The native statistics and expanded-index variants compile with `/Zs`. The
 expanded variant exposed a pre-existing duplicate mask name; its alias now uses
 `kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
 runtime validation. Container option/flag/reopen policy now uses C above; native
-class/registry backing and native object adapters still require conversion.
+native owner-state/index adapters still require conversion.
 
 ### Index materialization and owning free maps
 
@@ -916,7 +947,7 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, native class/registry backing and
+Primitive memory/file services, native owner-state/index adapters and
 engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
