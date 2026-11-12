@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -116,14 +116,17 @@ over that live group, including after edits; there is no second index cache.
 
 The decoder preserves separate header/index byte orders, old flag layouts,
 expanded-to-compact checks made before byte swapping, and legacy name bytes.
-The adapter still converts pre-v3 names and discards oversized names. Graph
+The C materializer sequences pre-v3 name conversion through the text host and
+discards oversized names. Graph
 validation retains aggregate reference totals and reachability policy rather
 than imposing a new per-node reference-count rule. An iterative walk handles
 deep graphs without recursive stack growth.
 
-Mutable groups, free maps, writes, embedded-forest decoding, stored-name adapters
-and payload codecs remain C++. The existing type-relative `FGetCkiCtg` payload
-ordinal is preserved pending a separate retail behavior check.
+Mutable groups, free maps, writes, embedded-forest decoding, stored-name policy
+and payload codecs now have the C implementations described below. Native
+facades and remaining storage/cache policy still prevent a C-only container.
+The existing type-relative `FGetCkiCtg` payload ordinal is preserved pending a
+separate retail behavior check.
 
 `engine-chunky-test` covers endian/version/layout combinations, malformed
 bounds, failed reads, transactional index replacement, unsigned keys, live
@@ -421,6 +424,41 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Index materialization and owning free maps
+
+`chunk_loading.c` owns free-map records and their range storage through an
+explicit allocator. `ChunkyFile` no longer owns native DynamicArray free maps;
+save/reopen transitions transfer unique C pointers and dispose detached owners.
+Maps remain nullable, distinct from an allocated empty map. Lazy loading clears
+the unread state before callbacks, including failure, and discards malformed
+maps without retrying. Reads preserve raw range values and the existing array
+header/width/length policy; they do not add a new overlap validator.
+
+Serialization writes the 12-byte array header followed by the complete body,
+omitting an empty body. Native-order output uses the C storage directly;
+opposite-order output uses C scratch storage. Failed writes retain partial output
+and ownership. The heap's first-fit/coalescing algorithms now operate on these
+C map primitives. Native services retain physical I/O and allocation diagnostics.
+
+Index materialization reuses an owning C scratch buffer for native child records
+and encoded names. Modern names retain their bytes. Pre-v3 names receive a bounded
+terminator and native SZS conversion; names of 256 bytes or more are discarded,
+as before. Native callbacks convert text and insert a fixed record plus variable
+bytes into the writable GeneralGroup. No C++ vector or exception path is needed
+for row assembly. A failed import leaves partial destination cleanup to its host.
+
+`engine-loading-test` checks both map byte orders, independent exact wire bytes,
+empty/null maps, lazy state publication before reads, malformed headers/widths/
+lengths, failed reads/writes, allocation failures and SPEED fallback. It checks
+compact/expanded index materialization, child packing and pre-v3 name lengths
+0/1/255/256/516, insertion/conversion/scratch failures and balanced disposal.
+The index fixtures select matching native byte order; existing expanded-index
+pre-swap compatibility checks remain unchanged. MSVC AddressSanitizer passes.
+Native integration preserves all 2,192 lazy-load snapshot bytes over valid,
+swapped, invalid-width/order/truncated and absent maps, including allocation
+positions and subsequent saves. Existing chunk, string and forest snapshots
+remain exact too.
+
 ### Embedded forest export/import
 
 `chunk_forest.c` owns the 24-byte embedded descriptor wire format, preorder
@@ -681,8 +719,8 @@ limits, untouched guards and the maximum signed file position. They also pass
 under MSVC AddressSanitizer.
 
 The whole-file save sequence above now shares relocation/recovery policy too.
-Runtime-table/name storage and free-map loading remain native. These slices
-do not complete the container editor or whole-engine conversion.
+Runtime-table/name storage and free-map loading now use the C modules above.
+These slices do not complete the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion
 
@@ -724,8 +762,8 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, remaining container primitives, free-map loading
-and engine objects still prevent a complete C-only backend.
+Primitive memory/file services, remaining container storage/cache policy and
+engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

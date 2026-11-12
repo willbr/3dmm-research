@@ -73,8 +73,6 @@
     If the chunky files are closed and re-opened, no sharing will occur.
 
 ***************************************************************************/
-#include <vector>
-#include <new>
 #include "util.h"
 #include "three_mm/chunk_save.h"
 #include "three_mm/chunk_heap.h"
@@ -113,7 +111,6 @@ const short kcvnBack = 4;
 // _FReadIndex can be removed!
 const short kcvnMin = 1;
 
-const auto kcvnMinStnNames = 3;
 const auto kcvnMinGrfcrp = 4;
 const auto kcvnMinSmallIndex = 4;
 const auto kcvnMinForest = 5;
@@ -139,15 +136,6 @@ struct ChunkyFilePrefix
 };
 static_assert(sizeof(ChunkyFilePrefix) == 128, "ChunkyFilePrefix wire format drift");
 const ByteOrderMask kbomCfp = 0xB55FFC00L;
-
-// free space map entry. Fixed 8-byte wire format on every architecture.
-struct FreeSpaceMap
-{
-    int32_t fp;
-    int32_t cb;
-};
-static_assert(sizeof(FreeSpaceMap) == 8, "FreeSpaceMap wire format drift");
-const ByteOrderMask kbomFsm = 0xF0000000L;
 
 enum
 {
@@ -401,9 +389,9 @@ ChunkyFile::~ChunkyFile(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_csto.pfil);
-    ReleasePpo(&_csto.pglfsm);
+    three_mm_free_map_close(_csto.free_map); _csto.free_map = nullptr;
     ReleasePpo(&_cstoExtra.pfil);
-    ReleasePpo(&_cstoExtra.pglfsm);
+    three_mm_free_map_close(_cstoExtra.free_map); _cstoExtra.free_map = nullptr;
     ReleasePpo(&_pggcrp);
 #ifndef CHUNK_BIG_INDEX
     AssertDo(three_mm_chunk_runtime_dispose(&_runtime) == THREE_MM_CHUNK_OK, "invalid runtime cache disposal");
@@ -505,9 +493,9 @@ bool ChunkyFile::FReopen(void)
     AssertDo(three_mm_chunk_runtime_dispose(&saved_runtime) == THREE_MM_CHUNK_OK, "invalid saved runtime disposal");
 #endif // CHUNK_BIG_INDEX
     ReleasePpo(&csto.pfil);
-    ReleasePpo(&csto.pglfsm);
+    three_mm_free_map_close(csto.free_map); csto.free_map = nullptr;
     ReleasePpo(&cstoExtra.pfil);
-    ReleasePpo(&cstoExtra.pglfsm);
+    three_mm_free_map_close(cstoExtra.free_map); cstoExtra.free_map = nullptr;
 
     AssertThis(0);
     return fRet;
@@ -927,9 +915,9 @@ void ChunkyFile::AssertValid(LegacyUlong grfcfl)
 
     AssertPo(_pggcrp, 0);
     AssertPo(_csto.pfil, 0);
-    if (_csto.pglfsm != pvNil)
+    if (_csto.free_map != pvNil)
     {
-        AssertPo(_csto.pglfsm, 0);
+        AssertPvAlloced(_csto.free_map, sizeof(*_csto.free_map));
         Assert(!_fFreeMapNotRead, "free map never read, but exists!");
     }
     Assert(_csto.fpMac >= fpBase, "fpMac wrong");
@@ -937,11 +925,11 @@ void ChunkyFile::AssertValid(LegacyUlong grfcfl)
     if (_cstoExtra.pfil != pvNil)
     {
         AssertPo(_cstoExtra.pfil, 0);
-        if (_cstoExtra.pglfsm != pvNil)
-            AssertPo(_cstoExtra.pglfsm, 0);
+        if (_cstoExtra.free_map != pvNil)
+            AssertPvAlloced(_cstoExtra.free_map, sizeof(*_cstoExtra.free_map));
     }
     else
-        Assert(_cstoExtra.pglfsm == pvNil, 0);
+        Assert(_cstoExtra.free_map == pvNil, 0);
 
 #ifndef CHUNK_BIG_INDEX
     Assert(_runtime.count <= _runtime.storage.buffers[0].capacity / sizeof(ThreeMMChunkRuntimeEntry), "bad runtime cache count");
@@ -1018,37 +1006,37 @@ void ChunkyFile::AssertValid(LegacyUlong grfcfl)
     Assert(cbTotExtra <= _cstoExtra.fpMac, "overlapping chunks on extra");
     Assert(cbTot <= _csto.fpMac - fpBase, "overlapping chunks on file");
 
-    if (_csto.pglfsm != pvNil)
+    if (_csto.free_map != pvNil)
     {
         LegacyLong ifsm;
-        FreeSpaceMap fsm;
+        ThreeMMChunkFreeRange fsm;
         FilePosition fpOld;
 
         fpOld = _csto.fpMac;
-        for (ifsm = _csto.pglfsm->IvMac(); ifsm-- != 0;)
+        for (ifsm = _csto.free_map->count; ifsm-- != 0;)
         {
-            _csto.pglfsm->Get(ifsm, &fsm);
-            Assert(fsm.fp >= fpBase && fsm.fp < fpOld, "bad fp in fsm");
-            Assert(fsm.cb + fsm.fp > fsm.fp && fsm.cb + fsm.fp < fpOld, "bad cb in fsm");
-            fpOld = fsm.fp;
-            cbTot += fsm.cb;
+            AssertDo(three_mm_free_map_get(_csto.free_map, ifsm, &fsm) == THREE_MM_CHUNK_OK, "bad free range");
+            Assert(fsm.offset >= fpBase && fsm.offset < fpOld, "bad fp in fsm");
+            Assert(fsm.bytes + fsm.offset > fsm.offset && fsm.bytes + fsm.offset < fpOld, "bad cb in fsm");
+            fpOld = fsm.offset;
+            cbTot += fsm.bytes;
         }
         Assert(cbTot <= _csto.fpMac - fpBase, "too much free space");
     }
-    if (_cstoExtra.pglfsm != pvNil)
+    if (_cstoExtra.free_map != pvNil)
     {
         LegacyLong ifsm;
-        FreeSpaceMap fsm;
+        ThreeMMChunkFreeRange fsm;
         FilePosition fpOld;
 
         fpOld = _cstoExtra.fpMac;
-        for (ifsm = _cstoExtra.pglfsm->IvMac(); ifsm-- != 0;)
+        for (ifsm = _cstoExtra.free_map->count; ifsm-- != 0;)
         {
-            _cstoExtra.pglfsm->Get(ifsm, &fsm);
-            Assert(fsm.fp >= 0 && fsm.fp < fpOld, "bad fp in fsm");
-            Assert(fsm.cb + fsm.fp > fsm.fp && fsm.cb + fsm.fp < fpOld, "bad cb in fsm");
-            fpOld = fsm.fp;
-            cbTotExtra += fsm.cb;
+            AssertDo(three_mm_free_map_get(_cstoExtra.free_map, ifsm, &fsm) == THREE_MM_CHUNK_OK, "bad extra free range");
+            Assert(fsm.offset >= 0 && fsm.offset < fpOld, "bad fp in fsm");
+            Assert(fsm.bytes + fsm.offset > fsm.offset && fsm.bytes + fsm.offset < fpOld, "bad cb in fsm");
+            fpOld = fsm.offset;
+            cbTotExtra += fsm.bytes;
         }
         Assert(cbTotExtra <= _cstoExtra.fpMac, "too much free space on extra");
     }
@@ -1078,8 +1066,8 @@ void ChunkyFile::MarkMem(void)
     AssertThis(0);
     ChunkyFile_PAR::MarkMem();
     MarkMemObj(_pggcrp);
-    MarkMemObj(_csto.pglfsm);
-    MarkMemObj(_cstoExtra.pglfsm);
+    if (_csto.free_map) { MarkPv(_csto.free_map); MarkPv(_csto.free_map->storage.buffers[0].data); }
+    if (_cstoExtra.free_map) { MarkPv(_cstoExtra.free_map); MarkPv(_cstoExtra.free_map->storage.buffers[0].data); }
 #ifndef CHUNK_BIG_INDEX
     MarkPv(_runtime.storage.buffers[0].data);
 #endif //! CHUNK_BIG_INDEX
@@ -1116,7 +1104,7 @@ bool ChunkyFile::_FReadIndex(void)
     AssertBaseThis(0);
     AssertPo(_csto.pfil, 0);
     Assert(!_fInvalidMainFile, 0);
-    Assert(_pggcrp == pvNil && _csto.pglfsm == pvNil && _cstoExtra.pfil == pvNil && _cstoExtra.pglfsm == pvNil,
+    Assert(_pggcrp == pvNil && _csto.free_map == pvNil && _cstoExtra.pfil == pvNil && _cstoExtra.free_map == pvNil,
            "cfl has wrong non-nil entries");
     static_assert(kcvnCur == THREE_MM_CHUNK_CURRENT_VERSION && kcvnBack == THREE_MM_CHUNK_BACKWARD_VERSION &&
                   kcvnMin == 1 && sizeof(ChunkyFilePrefix) == THREE_MM_CHUNK_PREFIX_BYTES &&
@@ -1145,72 +1133,27 @@ bool ChunkyFile::_FReadIndex(void)
     PGeneralGroup group = GeneralGroup::PggNew(size(ChunkRepresentation), access.count);
     if (!group)
         return fFalse;
-    try
-    {
-        for (ThreeMMU32 i = 0; i < access.count; ++i)
-        {
-            ThreeMMChunkEntry entry;
-            const unsigned char *name;
-            ThreeMMU32 nameBytes;
-            if (three_mm_chunk_at(&access, i, &entry) != THREE_MM_CHUNK_OK ||
-                three_mm_chunk_index_name(index, i, &name, &nameBytes) != THREE_MM_CHUNK_OK)
-                goto LFail;
-            String converted;
-            std::vector<byte> oldName;
-            if (header.version < kcvnMinStnNames && nameBytes)
-            {
-                // Keep retail's pre-v3 SZS conversion, including discarding oversized names.
-                SZS buffer;
-                if (nameBytes < sizeof(buffer))
-                {
-                    CopyPb(const_cast<unsigned char *>(name), buffer, nameBytes);
-                    buffer[nameBytes] = 0;
-                    converted.SetSzs(buffer);
-                    oldName.resize(converted.CbData());
-                    converted.GetData(oldName.data());
-                    name = oldName.data();
-                    nameBytes = converted.CbData();
-                }
-                else
-                    nameBytes = 0;
-            }
-            std::vector<byte> variable(entry.child_count * sizeof(ChildChunkIdentification) + nameBytes);
-            for (ThreeMMU32 childIndex = 0; childIndex < entry.child_count; ++childIndex)
-            {
-                ThreeMMChunkChild child;
-                if (three_mm_chunk_child_at(&access, i, childIndex, &child) != THREE_MM_CHUNK_OK)
-                    goto LFail;
-                ChildChunkIdentification native = {{child.type, child.number}, child.slot};
-                CopyPb(&native, variable.data() + childIndex * sizeof(native), sizeof(native));
-            }
-            if (nameBytes)
-                CopyPb(const_cast<unsigned char *>(name), variable.data() + entry.child_count * sizeof(ChildChunkIdentification), nameBytes);
-            ChunkRepresentation crp;
-            ClearPb(&crp, size(crp));
-            crp.cki = {entry.type, entry.number};
-            crp.fp = static_cast<LegacyLong>(entry.offset);
-            crp.SetCb(static_cast<LegacyLong>(entry.bytes));
-            crp.AssignGrfcrp(entry.flags);
-            crp.ckid = static_cast<CKID>(entry.child_count);
-            crp.ccrpRef = static_cast<CKID>(entry.parent_count);
-            if (!group->FInsert(i, entry.child_count * sizeof(ChildChunkIdentification) + nameBytes, variable.data(), &crp))
-                goto LFail;
-        }
-    }
-    catch (const std::bad_alloc &)
-    {
-        ReleasePpo(&group);
-        return fFalse;
-    }
+    const ThreeMMChunkMaterializer materializer = {group,
+        [](void *, const char *text, void *wire, ThreeMMU32 capacity, ThreeMMU32 *bytes) -> int {
+            String converted; converted.SetSzs(const_cast<char *>(text));
+            if (converted.CbData() > capacity) return 0;
+            converted.GetData(wire); *bytes = converted.CbData(); return 1;
+        },
+        [](void *context, ThreeMMU32 position, const ThreeMMChunkEntry *entry, const void *variable, ThreeMMU32 bytes) -> int {
+            ChunkRepresentation row = {};
+            row.cki = {entry->type, entry->number}; row.fp = entry->offset; row.SetCb(entry->bytes);
+            row.AssignGrfcrp(entry->flags); row.ckid = static_cast<CKID>(entry->child_count);
+            row.ccrpRef = static_cast<CKID>(entry->parent_count);
+            return static_cast<PGeneralGroup>(context)->FInsert(position, bytes, const_cast<void *>(variable), &row);
+        }};
+    if (three_mm_chunk_materialize(index, &materializer, KauaiCopyAllocator()) != THREE_MM_CHUNK_OK)
+    { ReleasePpo(&group); return false; }
     _pggcrp = group;
     _cbFreeMap = header.map_bytes;
     _fpFreeMap = header.map_offset;
     _fFreeMapNotRead = header.map_bytes > 0;
     _csto.fpMac = header.index_offset;
     return fTrue;
-LFail:
-    ReleasePpo(&group);
-    return fFalse;
 }
 
 /***************************************************************************
@@ -1225,36 +1168,10 @@ void ChunkyFile::_ReadFreeMap(void)
     Assert(_fFreeMapNotRead, "free map already read");
     Assert(!_fInvalidMainFile, 0);
 
-    short bo;
-    short osk;
-    LegacyLong cfsm;
-
-    // clear this even if reading the free map fails - so we don't try to
-    // read again
-    _fFreeMapNotRead = fFalse;
-
-    if (_csto.pglfsm != pvNil)
-    {
-        Bug("free map already exists");
-        return;
-    }
-
-    if (_cbFreeMap > 0)
-    {
-        if ((_csto.pglfsm = DynamicArray::PglRead(_csto.pfil, _fpFreeMap, _cbFreeMap, &bo, &osk)) == pvNil ||
-            _csto.pglfsm->CbEntry() != size(FreeSpaceMap))
-        {
-            // it failed, but so what
-            ReleasePpo(&_csto.pglfsm);
-            return;
-        }
-        // swap bytes
-        AssertBomRglw(kbomFsm, size(FreeSpaceMap));
-        if (bo != kboCur && (cfsm = _csto.pglfsm->IvMac()) > 0)
-        {
-            SwapBytesRglw(_csto.pglfsm->QvGet(0), cfsm * (size(FreeSpaceMap) / size(int32_t)));
-        }
-    }
+    const bool existed = _csto.free_map != nullptr;
+    const ThreeMMReadStream stream = {_csto.pfil, static_cast<ThreeMMU32>(_csto.pfil->FpMac()), ReadChunkFile};
+    three_mm_free_map_load(&_csto.free_map, &_fFreeMapNotRead, &stream, _fpFreeMap, _cbFreeMap, KauaiCopyAllocator());
+    if (existed) Bug("free map already exists");
 }
 
 /***************************************************************************
@@ -1263,7 +1180,7 @@ void ChunkyFile::_ReadFreeMap(void)
     the index and free map.
 ***************************************************************************/
 namespace {
-bool WriteChunkDirectory(PFileObject, PGeneralGroup, PDynamicArray, FilePosition, ChunkTagOrType);
+bool WriteChunkDirectory(PFileObject, PGeneralGroup, ThreeMMChunkFreeMap *, FilePosition, ChunkTagOrType);
 struct ChunkSaveHost
 {
     ChunkyFile *owner;
@@ -1289,13 +1206,13 @@ int SaveCopy(void *, void *source, ThreeMMU32 sourceOffset, void *destination, T
     return from.FCopy(&to);
 }
 void SaveReleaseFile(void *, void *file) { auto native = static_cast<PFileObject>(file); ReleasePpo(&native); }
-void SaveReleaseMap(void *, void *map) { auto native = static_cast<PDynamicArray>(map); ReleasePpo(&native); }
+void SaveReleaseMap(void *, void *map) { three_mm_free_map_close(static_cast<ThreeMMChunkFreeMap *>(map)); }
 int SaveIsTemp(void *, void *file) { return static_cast<PFileObject>(file)->FTemp(); }
 void SaveSetTemp(void *, void *file, int temporary) { static_cast<PFileObject>(file)->SetTemp(temporary != 0); }
 int SaveIndex(void *context, const ThreeMMChunkSaveState *state, ThreeMMU32 creator)
 {
     return WriteChunkDirectory(static_cast<PFileObject>(state->main_file), static_cast<ChunkSaveHost *>(context)->index,
-        static_cast<PDynamicArray>(state->main_map), state->main_end, creator);
+        static_cast<ThreeMMChunkFreeMap *>(state->main_map), state->main_end, creator);
 }
 int SaveRename(void *context, void *file)
 {
@@ -1324,7 +1241,7 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
             else fni = *pfni;
         }
     }
-    ThreeMMChunkSaveState state = {_csto.pfil, _cstoExtra.pfil, _csto.pglfsm, _cstoExtra.pglfsm,
+    ThreeMMChunkSaveState state = {_csto.pfil, _cstoExtra.pfil, _csto.free_map, _cstoExtra.free_map,
         static_cast<ThreeMMU32>(_csto.fpMac), static_cast<ThreeMMU32>(_cstoExtra.fpMac),
         _fInvalidMainFile, _fAddToExtra, _fFreeMapNotRead};
     ChunkSaveHost host = {this, &fni, pfni, _pggcrp};
@@ -1332,8 +1249,8 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
         auto self = static_cast<ChunkSaveHost *>(context)->owner;
         self->_csto.pfil = static_cast<PFileObject>(saved->main_file);
         self->_cstoExtra.pfil = static_cast<PFileObject>(saved->extra_file);
-        self->_csto.pglfsm = static_cast<PDynamicArray>(saved->main_map);
-        self->_cstoExtra.pglfsm = static_cast<PDynamicArray>(saved->extra_map);
+        self->_csto.free_map = static_cast<ThreeMMChunkFreeMap *>(saved->main_map);
+        self->_cstoExtra.free_map = static_cast<ThreeMMChunkFreeMap *>(saved->extra_map);
         self->_csto.fpMac = saved->main_end; self->_cstoExtra.fpMac = saved->extra_end;
         self->_fInvalidMainFile = saved->invalid_main != 0; self->_fAddToExtra = saved->add_to_extra != 0;
         self->_fFreeMapNotRead = saved->free_map_unread != 0;
@@ -1356,7 +1273,7 @@ struct ChunkIndexOutput
 {
     PFileObject file;
     PGeneralGroup index;
-    PDynamicArray map;
+    ThreeMMChunkFreeMap * map;
 };
 int WriteChunkIndex(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
 {
@@ -1368,7 +1285,12 @@ int WriteChunkMap(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
 {
     auto output = static_cast<ChunkIndexOutput *>(context);
     DataBlock block(output->file, offset, bytes);
-    return output->map->FWrite(&block);
+    const short one = 1;
+    const ThreeMMStorageWriter writer = {&block, bytes,
+        [](void *c, ThreeMMU32 offset, const void *data, size_t count) -> int {
+            return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(data), count, offset);
+        }};
+    return three_mm_free_map_write(output->map, &writer, reinterpret_cast<const byte *>(&one)[0] == 0, koskCur) == THREE_MM_STORAGE_OK;
 }
 int WriteChunkPrefix(void *context, const void *bytes, size_t count)
 {
@@ -1376,12 +1298,12 @@ int WriteChunkPrefix(void *context, const void *bytes, size_t count)
 }
 }
 namespace {
-bool WriteChunkDirectory(PFileObject file, PGeneralGroup index, PDynamicArray map, FilePosition end, ChunkTagOrType creator)
+bool WriteChunkDirectory(PFileObject file, PGeneralGroup index, ThreeMMChunkFreeMap * map, FilePosition end, ChunkTagOrType creator)
 {
     const short one = 1;
     ChunkIndexOutput output = {file, index, map};
     const ThreeMMChunkSave save = {creator, static_cast<ThreeMMU32>(end),
-        static_cast<ThreeMMU32>(index->CbOnFile()), map ? static_cast<ThreeMMU32>(map->CbOnFile()) : 0,
+        static_cast<ThreeMMU32>(index->CbOnFile()), three_mm_free_map_wire_size(map),
         reinterpret_cast<const byte *>(&one)[0] == 0, koskCur};
     const ThreeMMChunkWriter writer = {&output, WriteChunkIndex, WriteChunkMap, WriteChunkPrefix};
     return three_mm_chunk_write_index(&save, &writer, nullptr) == THREE_MM_CHUNK_OK;
@@ -1392,7 +1314,7 @@ bool ChunkyFile::_FWriteIndex(ChunkTagOrType ctgCreator)
     AssertBaseThis(0);
     AssertPo(_pggcrp, 0);
     AssertPo(_csto.pfil, 0);
-    return WriteChunkDirectory(_csto.pfil, _pggcrp, _csto.pglfsm, _csto.fpMac, ctgCreator);
+    return WriteChunkDirectory(_csto.pfil, _pggcrp, _csto.free_map, _csto.fpMac, ctgCreator);
 }
 
 /***************************************************************************
@@ -1731,7 +1653,7 @@ bool ChunkyFile::_FCreateExtra(void)
 {
     AssertBaseThis(0);
     Assert(_cstoExtra.pfil == pvNil, 0);
-    Assert(_cstoExtra.pglfsm == pvNil, 0);
+    Assert(_cstoExtra.free_map == pvNil, 0);
 
     if (pvNil == (_cstoExtra.pfil = FileObject::PfilCreateTemp()))
         return fFalse;
@@ -1744,33 +1666,31 @@ bool ChunkyFile::_FCreateExtra(void)
     Find a place to put a block the given size.
 ***************************************************************************/
 namespace {
-struct ChunkHeapHost { PFileObject file; PDynamicArray *map; };
+struct ChunkHeapHost { PFileObject file; ThreeMMChunkFreeMap **map; };
 ThreeMMU32 HeapCount(void *context)
 {
-    auto map = *static_cast<ChunkHeapHost *>(context)->map;
-    return map ? map->IvMac() : 0;
+    auto map = *static_cast<ChunkHeapHost *>(context)->map; return map ? map->count : 0;
 }
 void HeapGet(void *context, ThreeMMU32 position, ThreeMMChunkFreeRange *range)
 {
-    FreeSpaceMap native; (*static_cast<ChunkHeapHost *>(context)->map)->Get(position, &native);
-    *range = {static_cast<ThreeMMU32>(native.fp), static_cast<ThreeMMU32>(native.cb)};
+    AssertDo(three_mm_free_map_get(*static_cast<ChunkHeapHost *>(context)->map, position, range) == THREE_MM_CHUNK_OK, "bad free range");
 }
 void HeapPut(void *context, ThreeMMU32 position, const ThreeMMChunkFreeRange *range)
 {
-    FreeSpaceMap native = {static_cast<int32_t>(range->offset), static_cast<int32_t>(range->bytes)};
-    (*static_cast<ChunkHeapHost *>(context)->map)->Put(position, &native);
+    AssertDo(three_mm_free_map_put(*static_cast<ChunkHeapHost *>(context)->map, position, range) == THREE_MM_CHUNK_OK, "bad free range update");
 }
-void HeapErase(void *context, ThreeMMU32 position) { (*static_cast<ChunkHeapHost *>(context)->map)->Delete(position); }
+void HeapErase(void *context, ThreeMMU32 position)
+{
+    AssertDo(three_mm_free_map_erase(*static_cast<ChunkHeapHost *>(context)->map, position) == THREE_MM_CHUNK_OK, "bad free range removal");
+}
 int HeapInsert(void *context, ThreeMMU32 position, const ThreeMMChunkFreeRange *range)
 {
-    FreeSpaceMap native = {static_cast<int32_t>(range->offset), static_cast<int32_t>(range->bytes)};
-    return (*static_cast<ChunkHeapHost *>(context)->map)->FInsert(position, &native);
+    return three_mm_free_map_insert(*static_cast<ChunkHeapHost *>(context)->map, position, range) == THREE_MM_CHUNK_OK;
 }
 int HeapEnsure(void *context)
 {
     auto map = static_cast<ChunkHeapHost *>(context)->map;
-    if (!*map) *map = DynamicArray::PglNew(sizeof(FreeSpaceMap), 1);
-    return *map != nullptr;
+    return *map || three_mm_free_map_create(KauaiCopyAllocator(), 1, map) == THREE_MM_CHUNK_OK;
 }
 ThreeMMU32 HeapPhysicalEnd(void *context) { return static_cast<ChunkHeapHost *>(context)->file->FpMac(); }
 int HeapResize(void *context, ThreeMMU32 bytes) { return static_cast<ChunkHeapHost *>(context)->file->FSetFpMac(bytes); }
@@ -1822,7 +1742,7 @@ bool ChunkyFile::_FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtr
         return fTrue;
     }
 
-    ChunkHeapHost host = {pcsto->pfil, &pcsto->pglfsm};
+    ChunkHeapHost host = {pcsto->pfil, &pcsto->free_map};
     const auto heap = ChunkHeapServices(&host);
     ThreeMMU32 end = pcsto->fpMac, offset = 0;
     if (three_mm_chunk_heap_allocate(&heap, &end, cb, &offset) != THREE_MM_CHUNK_OK)
@@ -2414,7 +2334,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb)
     if (!fOnExtra && _fFreeMapNotRead) _ReadFreeMap();
     auto storage = fOnExtra ? &_cstoExtra : &_csto;
     AssertPo(storage->pfil, 0);
-    ChunkHeapHost host = {storage->pfil, &storage->pglfsm};
+    ChunkHeapHost host = {storage->pfil, &storage->free_map};
     const auto heap = ChunkHeapServices(&host);
     ThreeMMU32 end = storage->fpMac;
     const int result = three_mm_chunk_heap_free(&heap, &end, fp, cb);

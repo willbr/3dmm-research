@@ -69,14 +69,14 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C++ interfaces are migration inputs, not the final engine interface.
 - The first movie-data slice adds bounded decoded-chunk streams and C89 MVIE,
   roll-call and Archive GST-layout readers. Studio, Archive and Marcus call
-  these decoders. Mutable container storage, decompression, allocation adapters,
-  tag ownership and save/edit orchestration remain C++ dependencies.
+  these decoders. Later slices below migrate storage, codecs and persistence;
+  tag ownership and complete save/edit integration remain dependencies.
 - The existing `marcus-c89`, `content-vfs-c89` and `review-c89` checks passed
   on 11 November. They check selected C sources, not a C89 engine backend.
 - The chunky-file slice now reads CHN2 headers and GG indexes in C89 and shares
   live chunk/child lookup, enumeration and graph validation through `kauai-core`.
-  Writable groups, free maps, writes, embedded-forest decoding and stored-name
-  adapters remain C++.
+  The subsequent slices below migrate writable groups, free maps, writes,
+  embedded-forest decoding and stored-name policy.
 - Dense/allocated string-table mutation, searches, packed-string reconstruction,
   legacy byte maps and portable encoding conversion now use C89. Kauai supplies
   object/header adapters; Windows supplies native code-page and locale services.
@@ -117,8 +117,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   use C89. Filename resolution and physical file services remain native.
 - Save-a-copy now uses C89 for pinned record traversal, payload-copy/insertion
   order, destination locations and final commit. First-fit free-space allocation,
-  adjacent-hole coalescing and logical-tail trimming also use C89. File selection,
-  lazy free-map loading and physical I/O remain native services.
+  adjacent-hole coalescing and logical-tail trimming also use C89. File selection
+  and physical I/O remain native services; free-map loading now uses C89 below.
 - Unique chunk numbers, low-level insertion, replace/create rollback, payload
   commit, runtime-ID invalidation selection, reference decrement and deletion
   sequencing now use C89.
@@ -135,8 +135,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Embedded forest export/import now uses C89 descriptor encoding/decoding,
   preorder serialization, parent-stack ownership and child reconstruction.
   Native facades retain destination file/container creation, payload transfer
-  and index insertion primitives. Remaining container primitives and free-map
-  loading are next.
+  and index insertion primitives.
+- Free-map ownership, storage, lazy read/discard policy and serialization now
+  use C89. Index materialization owns reusable C scratch storage, assembles child
+  records and sequences legacy-name conversion through the host text callback.
+  Native DynamicArray free maps and index-loader C++ vectors are removed.
+  Remaining container storage selection/cache policy and resource ownership
+  are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -232,7 +237,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations and forest transfer now have shared C89
 implementations behind temporary native facades. Continue with remaining
-container primitives and free-map loading, then resource/engine objects and the
+container storage selection/cache policy, then resource/engine objects and the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.

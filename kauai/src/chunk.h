@@ -20,6 +20,7 @@
 #include "three_mm/chunky_file.h"
 #include "three_mm/chunk_graph.h"
 #include "three_mm/chunk_metadata.h"
+#include "three_mm/chunk_loading.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -95,7 +96,7 @@ class ChunkyFile : public ChunkyFile_PAR
     {
         PFileObject pfil;  // the file
         FilePosition fpMac;   // logical end of file (for writing new chunks)
-        PDynamicArray pglfsm; // free space map
+        ThreeMMChunkFreeMap *free_map; // free space map
     };
 
     PGeneralGroup _pggcrp;     // the index
@@ -104,7 +105,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
     bool _fAddToExtra : 1;
     bool _fMark : 1;
-    bool _fFreeMapNotRead : 1;
+    int _fFreeMapNotRead;
     bool _fReadFromExtra : 1;
     bool _fInvalidMainFile : 1;
 

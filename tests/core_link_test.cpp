@@ -327,6 +327,43 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestFreeMapLoading()
+{
+    FILE *snapshot=nullptr;
+    if(const char *path=std::getenv("THREE_MM_LOADING_SNAPSHOT")) { snapshot=std::fopen(path,"wb"); Check(snapshot!=nullptr); }
+    Filename original; Check(original.FGetTemp());
+    auto file=ChunkyFile::PcflCreate(&original,fcflWriteEnable); Check(file!=nullptr);
+    byte payload[64]={};
+    for(ChunkNumber i=1;i<=4;++i) Check(file->FPutPv(payload,11+i*6,'FMAP',i));
+    file->Delete('FMAP',1); file->Delete('FMAP',3); Check(file->FSave('MAPS')); ReleasePpo(&file);
+    auto raw=FileObject::PfilOpen(&original); Check(raw!=nullptr);
+    byte baseline[4096]; LegacyLong length=raw->FpMac(); Check(length<sizeof(baseline) && raw->FReadRgb(baseline,length,0)); ReleasePpo(&raw);
+    uint32_t mapOffset,mapBytes; std::memcpy(&mapOffset,baseline+28,4); std::memcpy(&mapBytes,baseline+32,4); Check(mapBytes==28);
+    for(int mode=0;mode<6;++mode)
+    {
+        byte bytes[4096]; std::memcpy(bytes,baseline,length);
+        if(mode==1) {
+            for(unsigned i=0;i<4;i+=2) { byte b=bytes[mapOffset+i];bytes[mapOffset+i]=bytes[mapOffset+i+1];bytes[mapOffset+i+1]=b; }
+            for(uint32_t i=4;i<mapBytes;i+=4) for(int j=0;j<2;++j) { byte b=bytes[mapOffset+i+j];bytes[mapOffset+i+j]=bytes[mapOffset+i+3-j];bytes[mapOffset+i+3-j]=b; }
+        }
+        if(mode==2) { uint32_t n=4; std::memcpy(bytes+mapOffset+4,&n,4); std::memcpy(bytes+mapOffset+8,&n,4); }
+        if(mode==3) bytes[mapOffset]=0x7f;
+        if(mode==4) { uint32_t n=mapBytes-1; std::memcpy(bytes+32,&n,4); n+=mapOffset; std::memcpy(bytes+16,&n,4); }
+        if(mode==5) { std::memset(bytes+32,0,4); std::memcpy(bytes+16,&mapOffset,4); }
+        Filename name; Check(name.FGetTemp()); raw=FileObject::PfilCreate(&name); Check(raw && raw->FWriteRgb(bytes,length,0)); ReleasePpo(&raw);
+        file=ChunkyFile::PcflOpen(&name,fcflWriteEnable); Check(file!=nullptr);
+        Check(file->FSetGrfcfl(fcflWriteEnable,fcflWriteEnable));
+        Check(file->FPutPv(payload,12,'FMAP',5)); FileLocation location; Check(file->FFindFlo('FMAP',5,&location));
+        Check(location.fp==(mode<2?128:232));
+        LegacyLong record[]={mode,location.fp}; if(snapshot) Check(std::fwrite(record,sizeof(record),1,snapshot)==1);
+        Check(file->FSave('LOAD')); ReleasePpo(&file);
+        raw=FileObject::PfilOpen(&name); Check(raw!=nullptr); LegacyLong count=raw->FpMac(); Check(count<sizeof(bytes) && raw->FReadRgb(bytes,count,0)); ReleasePpo(&raw);
+        if(snapshot) { Check(std::fwrite(&count,sizeof(count),1,snapshot)==1); Check(std::fwrite(bytes,1,count,snapshot)==static_cast<size_t>(count)); }
+        Check(name.FDelete());
+    }
+    Check(original.FDelete()); if(snapshot) Check(std::fclose(snapshot)==0);
+}
+
 static void TestForestTransfer()
 {
     FILE *snapshot = nullptr;
@@ -3684,6 +3721,7 @@ int main()
     TestChunkPersistence();
     TestStringWire();
     TestForestTransfer();
+    TestFreeMapLoading();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

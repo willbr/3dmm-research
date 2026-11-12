@@ -1509,3 +1509,55 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 owning free maps and index materialization (12 November 2026)
+
+Free-map ownership/storage, lazy loading/discard policy and serialization now use
+C89. Save/reopen transitions transfer unique C map owners instead of native
+DynamicArray references. Index loading reuses C scratch storage for child records
+and encoded names; native callbacks retain SZS conversion and writable-group
+insertion. The C++ vector/exception path for row assembly is removed. See the
+[implementation boundary](../code-map/library-split.md#index-materialization-and-owning-free-maps).
+
+All 2,192 new native lazy-load baseline bytes match over valid, swapped,
+invalid-width/order, truncated and absent maps, including resulting allocation
+positions and saves. The previous 572,367-byte chunk, 29,532-byte string and
+1,594-byte forest snapshots also match. Standalone checks compare independent
+map wire bytes in both byte orders, empty/null maps, lazy-state publication before
+reads, malformed headers/lengths, failed I/O, allocation failures and SPEED
+fallback. Materialization checks cover compact/expanded index rows, child packing,
+pre-v3 names of 0/1/255/256/516 bytes and failed insertion/conversion/scratch
+allocation. Matching-native-order fixtures retain the existing expanded-index
+pre-swap compatibility policy; this does not establish new foreign-endian support.
+
+Twenty-one standalone C checks, thirty-three focused native checks and MSVC
+AddressSanitizer pass. All 51 CLI baselines match, including six asset indexes
+covering 20,568 entries. Evidence includes `tmp/c89-loading-before.bin`,
+`tmp/c89-loading-after.bin`, `tmp/c89-loading-chunks-after.bin`,
+`tmp/c89-loading-strings-after.bin`, `tmp/c89-loading-forest-after.bin` and
+`tmp/c89-loading-output-comparison.json`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T141135Z-67446bce` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T141639Z-32717cc3` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding forest suites `20261112T135253Z-4fcb1b89` and
+`20261112T135623Z-445ef1e3`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-loading-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition. After captures, a whitespace correction and
+removal of an unreachable native cleanup label were rebuilt and rechecked;
+no C policy or executed native logic changed.
