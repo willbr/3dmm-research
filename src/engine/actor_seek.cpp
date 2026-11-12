@@ -27,7 +27,7 @@ void ActorSeekEvaluator::_Rewind()
         for (LegacyLong index = _state.nextEvent - 1; index >= 0; --index)
         {
             Base event;
-            _track.events->GetFixed(index, &event);
+            _track.Events()->GetFixed(index, &event);
             if (event.aet == aetAdd && event.nfrm <= _targetFrame)
             {
                 entrance = index;
@@ -38,10 +38,10 @@ void ActorSeekEvaluator::_Rewind()
     _state.RewindRoute(_track);
     if (_midPath)
     {
-        AssertIn(entrance, 0, _track.events->IvMac());
+        AssertIn(entrance, 0, _track.Events()->IvMac());
         _state.firstEventInFrame = _state.nextEvent = _state.addEvent = entrance;
         Base event;
-        _track.events->GetFixed(entrance, &event);
+        _track.Events()->GetFixed(entrance, &event);
         _state.location = event.rtel;
         _state.frame = event.nfrm;
         --_state.location.dnfrm;
@@ -66,7 +66,7 @@ ActorSeekCommand ActorSeekEvaluator::Next()
             }
             if (_targetFrame < _state.frame || _state.frame == knfrmInvalid)
             {
-                _midPath = _track.events->IvMac() > 0 && _state.nextEvent > 0 && _targetFrame > _firstFrame;
+                _midPath = _track.Events()->IvMac() > 0 && _state.nextEvent > 0 && _targetFrame > _firstFrame;
                 _phase = Phase::Rewind;
                 if (_targetFrame < _firstFrame && _state.onStage)
                     return _Command(ActorSeekCommandKind::Hide);
@@ -83,7 +83,7 @@ ActorSeekCommand ActorSeekEvaluator::Next()
             {
                 Assert(_state.nextEvent > 0, "Invalid seek event cursor");
                 Base event;
-                _track.events->GetFixed(_state.nextEvent - 1, &event);
+                _track.Events()->GetFixed(_state.nextEvent - 1, &event);
                 if (event.nfrm < _targetFrame)
                 {
                     ActorQuickSeekResult result =
@@ -109,7 +109,7 @@ ActorSeekCommand ActorSeekEvaluator::Next()
         case Phase::PrepareFrames:
             if (_targetFrame < _firstFrame)
                 _phase = Phase::Done;
-            else if (_track.events->IvMac() == 0)
+            else if (_track.Events()->IvMac() == 0)
             {
                 _state.frame = _targetFrame;
                 _phase = Phase::Done;
@@ -142,7 +142,7 @@ void ActorSeekEvaluator::Complete(bool success)
         {
             ++_state.frame;
             _state.firstEventInFrame = _state.nextEvent;
-            AssertIn(_state.actionEvent, -1, _track.events->IvMac());
+            AssertIn(_state.actionEvent, -1, _track.Events()->IvMac());
         }
     }
 }

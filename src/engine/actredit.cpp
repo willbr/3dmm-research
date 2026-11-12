@@ -53,7 +53,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 
     // If the current point is between nodes, a node will
     // be inserted.  Compute its dwr.
-    _track.route->Get(_state.location.irpt, &rpt);
+    _track.Route()->Get(_state.location.irpt, &rpt);
     rptOld.dwr = rpt.dwr;
     rpt.dwr = BrsSub(rptOld.dwr, _state.location.dwrOffset);
 
@@ -64,13 +64,13 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     //
     for (iaev = _state.addEvent; iaev < _state.nextEvent; iaev++)
     {
-        _track.events->GetFixed(iaev, &aev);
+        _track.Events()->GetFixed(iaev, &aev);
 
         // Is this an event we want to copy?
         switch (aev.aet)
         {
         case aetActn: // Copy, editing current cel only
-            _track.events->Get(iaev, &aevactn);
+            _track.Events()->Get(iaev, &aevactn);
             aevactn.celn = _state.cel;
             break;
 
@@ -87,14 +87,14 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 
         // The following events are not automatically copied
         case aetSnd:
-            _track.events->Get(iaev, &aevsnd);
+            _track.Events()->Get(iaev, &aevsnd);
             // Update the cno for the chid from the original movie
             // The scene this came from may be lost later
             if (!_pscen->Pmvie()->FResolveSndTag(&aevsnd.tag, aevsnd.chid))
             {
                 goto LFail;
             }
-            _track.events->Put(iaev, &aevsnd);
+            _track.Events()->Put(iaev, &aevsnd);
             if (aevsnd.celn == smmNil && iaev >= _state.firstEventInFrame)
                 break;
             if (iaev > _state.actionEvent && aevsnd.celn != smmNil)
@@ -128,28 +128,28 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
         aev.rtel.dnfrm = 0;
         aev.rtel.irpt = 0;
         aev.rtel.dwrOffset = 0;
-        iaevLast = (*ppactr)->_track.events->IvMac();
+        iaevLast = (*ppactr)->_track.Events()->IvMac();
 
         // Insert aev.  Tag ref count will be updated.
-        _track.events->Lock();
-        if (!(*ppactr)->_FInsertAev(iaevLast, _track.events->Cb(iaev),
-                                    (aev.aet == aetActn) ? &aevactn : _track.events->QvGet(iaev), &aev, fFalse))
+        _track.Events()->Lock();
+        if (!(*ppactr)->_FInsertAev(iaevLast, _track.Events()->Cb(iaev),
+                                    (aev.aet == aetActn) ? &aevactn : _track.Events()->QvGet(iaev), &aev, fFalse))
         {
-            _track.events->Unlock();
+            _track.Events()->Unlock();
             goto LFail;
         }
-        _track.events->Unlock();
+        _track.Events()->Unlock();
         (*ppactr)->_MergeAev(0, iaevLast);
     }
 
     //
     // Copy remaining events, adjusting their locations
     //
-    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
     {
-        _track.events->GetFixed(iaev, &aev);
+        _track.Events()->GetFixed(iaev, &aev);
 
-        if ((!fEntireScene) && (aetAdd == aev.aet) && (*ppactr)->_track.events->IvMac() > 0)
+        if ((!fEntireScene) && (aetAdd == aev.aet) && (*ppactr)->_track.Events()->IvMac() > 0)
         {
             break;
         }
@@ -183,20 +183,20 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
         }
 
         // Insert will update the tag ref count
-        iaevLast = (*ppactr)->_track.events->IvMac();
-        _track.events->Lock();
-        if (!(*ppactr)->_FInsertAev(iaevLast, _track.events->Cb(iaev), _track.events->QvGet(iaev), &aev, fFalse))
+        iaevLast = (*ppactr)->_track.Events()->IvMac();
+        _track.Events()->Lock();
+        if (!(*ppactr)->_FInsertAev(iaevLast, _track.Events()->Cb(iaev), _track.Events()->QvGet(iaev), &aev, fFalse))
         {
-            _track.events->Unlock();
+            _track.Events()->Unlock();
             goto LFail;
         }
-        _track.events->Unlock();
+        _track.Events()->Unlock();
     }
 
     //
     // Add the point we are at.
     //
-    if (!(*ppactr)->_track.route->FInsert(0, &rpt))
+    if (!(*ppactr)->_track.Route()->FInsert(0, &rpt))
     {
         goto LFail;
     }
@@ -204,18 +204,18 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     //
     // Copy the rest of the subroute or route
     //
-    if ((_state.location.irpt + 1) < _track.route->IvMac())
+    if ((_state.location.irpt + 1) < _track.Route()->IvMac())
     {
         // Locate the amount of route to copy
         //
-        long irptLim = _track.route->IvMac();
+        long irptLim = _track.Route()->IvMac();
         long irpt;
 
         if (!fEntireScene)
         {
             for (irpt = _state.location.irpt; irpt < irptLim; irpt++)
             {
-                _track.route->Get(irpt, &rpt);
+                _track.Route()->Get(irpt, &rpt);
                 if (rZero == rpt.dwr)
                 {
                     irptLim = irpt + 1;
@@ -224,21 +224,21 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
             }
         }
 
-        if (!(*ppactr)->_track.route->FSetIvMac((*ppactr)->_track.route->IvMac() + irptLim -
+        if (!(*ppactr)->_track.Route()->FSetIvMac((*ppactr)->_track.Route()->IvMac() + irptLim -
                                                 (_state.location.irpt + 1)))
         {
             goto LFail;
         }
 
-        prptSrc = (RouteDistancePoint *)_track.route->QvGet(_state.location.irpt + 1);
-        prptDest = (RouteDistancePoint *)(*ppactr)->_track.route->QvGet(1);
+        prptSrc = (RouteDistancePoint *)_track.Route()->QvGet(_state.location.irpt + 1);
+        prptDest = (RouteDistancePoint *)(*ppactr)->_track.Route()->QvGet(1);
         CopyPb(prptSrc, prptDest, LwMul(irptLim - (_state.location.irpt + 1), size(RouteDistancePoint)));
     }
     else
     {
         // Mark the end of the path
         rpt.dwr = rZero;
-        (*ppactr)->_track.route->Put(0, &rpt);
+        (*ppactr)->_track.Route()->Put(0, &rpt);
     }
 
     (*ppactr)->_SetStateRewound();
@@ -403,16 +403,16 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     // Insert the current point
     //
     _GetXyzFromRtel(&_state.location, &rpt.xyz);
-    _track.route->Get(_state.location.irpt, &rptNode);
+    _track.Route()->Get(_state.location.irpt, &rptNode);
     rpt.dwr = rZero;
 
     if (_state.location.dwrOffset == rZero)
     {
         rpt.dwr = rptNode.dwr;
     }
-    else if (rptNode.dwr > rZero && _state.location.irpt < _track.route->IvMac() - 1)
+    else if (rptNode.dwr > rZero && _state.location.irpt < _track.Route()->IvMac() - 1)
     {
-        _track.route->Get(_state.location.irpt + 1, &rpt1);
+        _track.Route()->Get(_state.location.irpt + 1, &rpt1);
         rpt.dwr = BR_LENGTH3(BrsSub(rpt1.xyz.dxr, rpt.xyz.dxr), BrsSub(rpt1.xyz.dyr, rpt.xyz.dyr),
                              BrsSub(rpt1.xyz.dzr, rpt.xyz.dzr));
         if (rZero == rpt.dwr)
@@ -421,7 +421,7 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
         }
     }
 
-    if (!(*ppactr)->_track.route->FInsert(0, &rpt))
+    if (!(*ppactr)->_track.Route()->FInsert(0, &rpt))
     {
         goto LFail;
     }
@@ -434,12 +434,12 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     //
     // If copying subroute only, determine amount to copy
     //
-    irptLim = _track.route->IvMac();
+    irptLim = _track.Route()->IvMac();
     if (!fEntireScene)
     {
         for (irpt = _state.location.irpt + 1; irpt < irptLim; irpt++)
         {
-            _track.route->Get(irpt, &rpt);
+            _track.Route()->Get(irpt, &rpt);
             if (rZero == rpt.dwr)
             {
                 irptLim = irpt + 1;
@@ -452,14 +452,14 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     // Copy indicated portion of the route
     //
     dnrpt = irptLim - (_state.location.irpt + 1);
-    if (dnrpt > 0 && !(*ppactr)->_track.route->FEnsureSpace(dnrpt, fgrpNil))
+    if (dnrpt > 0 && !(*ppactr)->_track.Route()->FEnsureSpace(dnrpt, fgrpNil))
         goto LFail;
 
     for (irpt = _state.location.irpt + 1; irpt < irptLim; irpt++)
     {
-        _track.route->Get(irpt, &rpt);
+        _track.Route()->Get(irpt, &rpt);
 
-        if (!(*ppactr)->_track.route->FInsert(irpt - _state.location.irpt, &rpt))
+        if (!(*ppactr)->_track.Route()->FInsert(irpt - _state.location.irpt, &rpt))
         {
             goto LFail;
         }
@@ -504,7 +504,7 @@ bool Actor::FPasteRte(PActor pactr)
     bool fStatic;
 #endif // STATIC
     long crptDel = 0;
-    long crptNew = pactr->_track.route->IvMac() - 1;
+    long crptNew = pactr->_track.Route()->IvMac() - 1;
 
     if (crptNew <= 0)
     {
@@ -512,7 +512,7 @@ bool Actor::FPasteRte(PActor pactr)
         return fFalse;
     }
 
-    if (!_track.route->FEnsureSpace(crptNew, fgrpNil) || !_track.events->FEnsureSpace(1, kcbVarStep, fgrpNil))
+    if (!_track.Route()->FEnsureSpace(crptNew, fgrpNil) || !_track.Events()->FEnsureSpace(1, kcbVarStep, fgrpNil))
     {
         return fFalse;
     }
@@ -537,9 +537,9 @@ bool Actor::FPasteRte(PActor pactr)
     //
     // Delete to the end of this *sub*route
     //
-    for (irpt = _state.location.irpt + 1; irpt < _track.route->IvMac(); irpt++)
+    for (irpt = _state.location.irpt + 1; irpt < _track.Route()->IvMac(); irpt++)
     {
-        _track.route->Get(irpt, &rpt);
+        _track.Route()->Get(irpt, &rpt);
         crptDel++;
         if (rpt.dwr == rZero)
         {
@@ -548,7 +548,7 @@ bool Actor::FPasteRte(PActor pactr)
     }
     if (crptDel > 0)
     {
-        _track.route->Delete(_state.location.irpt, crptDel);
+        _track.Route()->Delete(_state.location.irpt, crptDel);
     }
 
     //
@@ -556,13 +556,13 @@ bool Actor::FPasteRte(PActor pactr)
     // Space optimization: should precede paste
     // Update location pointer of events of later subroutes
     //
-    for (iaev = _state.nextEvent; iaev < _track.events->IvMac(); iaev++)
+    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
     {
-        _track.events->GetFixed(iaev, &aev);
+        _track.Events()->GetFixed(iaev, &aev);
         if (aev.rtel.irpt > _state.location.irpt + crptDel)
         {
             aev.rtel.irpt += crptNew - crptDel;
-            _track.events->PutFixed(iaev, &aev);
+            _track.Events()->PutFixed(iaev, &aev);
             continue;
         }
         else
@@ -577,29 +577,29 @@ bool Actor::FPasteRte(PActor pactr)
     // Translate the points of this section of route
     // Adjust the aev presently
     //
-    pactr->_track.route->Get(0, &rpt);
+    pactr->_track.Route()->Get(0, &rpt);
     dxyz.dxr = BrsSub(rptCur.xyz.dxr, rpt.xyz.dxr);
     dxyz.dyr = BrsSub(rptCur.xyz.dyr, rpt.xyz.dyr);
     dxyz.dzr = BrsSub(rptCur.xyz.dzr, rpt.xyz.dzr);
     for (irpt = 1; irpt <= crptNew; irpt++)
     {
-        pactr->_track.route->Get(irpt, &rpt);
+        pactr->_track.Route()->Get(irpt, &rpt);
         rpt.xyz.dxr = BrsAdd(rpt.xyz.dxr, dxyz.dxr);
         rpt.xyz.dyr = BrsAdd(rpt.xyz.dyr, dxyz.dyr);
         rpt.xyz.dzr = BrsAdd(rpt.xyz.dzr, dxyz.dzr);
-        AssertDo(_track.route->FInsert(_state.location.irpt + irpt, &rpt), "Logic error");
+        AssertDo(_track.Route()->FInsert(_state.location.irpt + irpt, &rpt), "Logic error");
     }
 
     //
     // Set the right dwr distance from the current point to
     // the first point on the new section of route
     //
-    _track.route->Get(_state.location.irpt + 1, &rpt);
+    _track.Route()->Get(_state.location.irpt + 1, &rpt);
     rptCur.dwr = BR_LENGTH3(BrsSub(rpt.xyz.dxr, rptCur.xyz.dxr), BrsSub(rpt.xyz.dyr, rptCur.xyz.dyr),
                             BrsSub(rpt.xyz.dzr, rptCur.xyz.dzr));
     if (rZero == rptCur.dwr)
         rptCur.dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-    _track.route->Put(_state.location.irpt, &rptCur);
+    _track.Route()->Put(_state.location.irpt, &rptCur);
 
 #ifdef STATIC
     //
@@ -718,8 +718,8 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     // Always place actors on the "floor"
     _GetNewOrigin(&xr, &yr, &zr);
 
-    Assert(_track.events->IvMac() > 0, "Nothing to paste!");
-    _track.events->GetFixed(0, &aev);
+    Assert(_track.Events()->IvMac() > 0, "Nothing to paste!");
+    _track.Events()->GetFixed(0, &aev);
     if (aev.aet != aetAdd)
         return fFalse;
     dnfrm = aev.nfrm - nfrm;
@@ -730,14 +730,14 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     // Note: In order to place a pasted actor at the insertion point,
     // the translation needs to compensate for the distance
     // recorded in each path point -> subtract the first path point.
-    _track.route->Get(0, &rpt);
+    _track.Route()->Get(0, &rpt);
     _state.subrouteTranslation.dxr = rZero;
     _state.subrouteTranslation.dyr = rZero;
     _state.subrouteTranslation.dzr = rZero;
     _dxyzFullRte.dxr = BrsSub(xr, rpt.xyz.dxr);
     _dxyzFullRte.dyr = BrsSub(yr, rpt.xyz.dyr);
     _dxyzFullRte.dzr = BrsSub(zr, rpt.xyz.dzr);
-    _track.events->Get(0, &aevadd);
+    _track.Events()->Get(0, &aevadd);
     _dxyzFullRte.dxr = BrsSub(_dxyzFullRte.dxr, aevadd.dxr);
     _dxyzFullRte.dyr = BrsSub(_dxyzFullRte.dyr, aevadd.dyr);
     _dxyzFullRte.dzr = BrsSub(_dxyzFullRte.dzr, aevadd.dzr);
@@ -745,17 +745,17 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     //
     // Translate the new actor in time
     // Update sound events
-    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
+    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
     {
-        _track.events->GetFixed(iaev, &aev);
+        _track.Events()->GetFixed(iaev, &aev);
         if (dnfrm != 0)
         {
             aev.nfrm -= dnfrm;
-            _track.events->PutFixed(iaev, &aev);
+            _track.Events()->PutFixed(iaev, &aev);
         }
         if (aetSnd != aev.aet)
             continue;
-        _track.events->Get(iaev, &aevsnd);
+        _track.Events()->Get(iaev, &aevsnd);
         if (aevsnd.tag.sid != ksidUseCrf)
             continue;
         // Save tag (this may be a new movie)
@@ -778,16 +778,16 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
             if (!_pscen->Pmvie()->FChidFromUserSndCno(aevsnd.tag.cno, &aevsnd.chid))
                 return fFalse;
             // Update event
-            _track.events->Put(iaev, &aevsnd);
+            _track.Events()->Put(iaev, &aevsnd);
         }
     }
 
     // Rotate 3D spletters to face the camera
     if (_ptmpl->FIsTdt())
     {
-        _track.events->Get(0, &aevadd);
+        _track.Events()->Get(0, &aevadd);
         aevadd.ya = _pscen->Pbkgd()->BraRotYCamera();
-        _track.events->Put(0, &aevadd);
+        _track.Events()->Put(0, &aevadd);
     }
 
     _UpdateXyzRte();
@@ -1193,13 +1193,13 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     // frame be	later than _nfrmFirst.
     if (_state.addEvent >= 0 && !fDeleteAll)
     {
-        paev = (Base *)_track.events->QvFixedGet(_state.addEvent);
+        paev = (Base *)_track.Events()->QvFixedGet(_state.addEvent);
         if (_state.frame == paev->nfrm)
         {
             if (!_FDeleteEntireSubrte())
                 goto LFail;
             if (pvNil != pfAlive)
-                *pfAlive = FPure(_track.events->IvMac() > 0);
+                *pfAlive = FPure(_track.Events()->IvMac() > 0);
             goto LDeleted;
         }
     }

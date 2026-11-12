@@ -38,9 +38,9 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
     ChildChunkIdentification child;
     if (!chunky->FFind(kctgActr, number, &block) || !ActorData::FReadHeader(&block, &header) ||
         !chunky->FGetKidChidCtg(kctgActr, number, 0, kctgPath, &child) ||
-        !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !(track.route = ActorData::PglReadRoute(&block)) ||
+        !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !track.AdoptRoute(ActorData::PglReadRoute(&block)) ||
         !chunky->FGetKidChidCtg(kctgActr, number, 0, kctgGgae, &child) ||
-        !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !(track.events = ActorData::PggReadEvents(&block)))
+        !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !track.AdoptEvents(ActorData::PggReadEvents(&block)))
         return false;
     if (header.nfrmFirst == knfrmInvalid)
     {
@@ -56,15 +56,15 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
     if (!tmpl)
         return false;
     bindTemplate(tmpl);
-    if (!(body = tmpl->PbodyCreate()) || (track.events->IvMac() && !track.route->IvMac()))
+    if (!(body = tmpl->PbodyCreate()) || (track.Events()->IvMac() && !track.Route()->IvMac()))
         return false;
     // Route/event readers validate row widths. Validate node references before
     // evaluation; reject impossible timelines rather than running unbounded.
-    for (LegacyLong i = 0; i < track.events->IvMac(); ++i)
+    for (LegacyLong i = 0; i < track.Events()->IvMac(); ++i)
     {
         Base event;
-        track.events->GetFixed(i, &event);
-        if (event.rtel.irpt < 0 || event.rtel.irpt >= track.route->IvMac())
+        track.Events()->GetFixed(i, &event);
+        if (event.rtel.irpt < 0 || event.rtel.irpt >= track.Route()->IvMac())
             return false;
     }
     // Old actor headers omit nfrmLast. Recompute through Studio's evaluator,
@@ -149,7 +149,7 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
             break;
         case aetActn: {
             Action action;
-            copy.events->Get(index, &action);
+            copy.Events()->Get(index, &action);
             marker.kind = PreviewAnimationKind::Action;
             marker.name = actionName(action.anid);
             detail << "Action " << action.anid << ", starting cel " << action.celn;
@@ -157,7 +157,7 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
         }
         case aetCost: {
             Costume costume;
-            copy.events->Get(index, &costume);
+            copy.Events()->Get(index, &costume);
             marker.kind = PreviewAnimationKind::Costume;
             marker.name = "Costume";
             detail << "Part set " << costume.ibset;
@@ -187,7 +187,7 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
         case aetMove:
         case aetTweak: {
             RoutePoint value;
-            copy.events->Get(index, &value);
+            copy.Events()->Get(index, &value);
             marker.kind = event.aet == aetMove ? PreviewAnimationKind::Move : PreviewAnimationKind::Path;
             marker.name = event.aet == aetMove ? "Move path" : "Adjust path";
             detail << "X " << BrScalarToFloat(value.dxr) << ", Y " << BrScalarToFloat(value.dyr) << ", Z "
@@ -216,9 +216,9 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
     // costume and sound effects are deliberately absent from this private host.
     const auto apply = [&](LegacyLong index) {
         Base event;
-        copy.events->GetFixed(index, &event);
+        copy.Events()->GetFixed(index, &event);
         event.nfrm = cursor.frame;
-        copy.events->PutFixed(index, &event);
+        copy.Events()->PutFixed(index, &event);
         const auto result = cursor.ApplyValueEvent(copy, index, header.dxyzFullRte);
         if (result == ActorValueEventResult::Invalid)
             return false;
@@ -227,7 +227,7 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
             {
             case aetAdd: {
                 Add add;
-                copy.events->Get(index, &add);
+                copy.Events()->Get(index, &add);
                 cursor.subrouteTranslation = {add.dxr, add.dyr, add.dzr};
                 cursor.UpdateOrigin(header.dxyzFullRte);
                 cursor.InitTransform();
@@ -245,7 +245,7 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
             }
             case aetActn: {
                 Action action;
-                copy.events->Get(index, &action);
+                copy.Events()->Get(index, &action);
                 if (action.anid < 0 || action.anid >= tmpl->Cactn() ||
                     !tmpl->FGetCcelActn(action.anid, &cursor.celCount) ||
                     !tmpl->FGetGrfactn(action.anid, &cursor.actionFlags))
@@ -293,7 +293,7 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
             if (command.kind == ActorFrameCommandKind::CheckEntrance)
             {
                 Base event;
-                copy.events->GetFixed(command.eventIndex, &event);
+                copy.Events()->GetFixed(command.eventIndex, &event);
                 evaluator.Complete(event.nfrm <= cursor.frame);
             }
             else
@@ -318,9 +318,9 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
 bool PreviewActor::Apply(LegacyLong index)
 {
     Base event;
-    track.events->GetFixed(index, &event);
+    track.Events()->GetFixed(index, &event);
     event.nfrm = state.frame;
-    track.events->PutFixed(index, &event);
+    track.Events()->PutFixed(index, &event);
     auto applied = state.ApplyValueEvent(track, index, header.dxyzFullRte);
     if (applied != ActorValueEventResult::NeedsRuntime)
         return applied == ActorValueEventResult::Applied;
@@ -328,7 +328,7 @@ bool PreviewActor::Apply(LegacyLong index)
     {
     case aetAdd: {
         Add add;
-        track.events->Get(index, &add);
+        track.Events()->Get(index, &add);
         if (!tmpl->FSetDefaultCost(body) || !tmpl->FSetActnCel(body, state.action, state.cel))
             return false;
         state.subrouteTranslation = {add.dxr, add.dyr, add.dzr};
@@ -349,7 +349,7 @@ bool PreviewActor::Apply(LegacyLong index)
     }
     case aetActn: {
         Action action;
-        track.events->Get(index, &action);
+        track.Events()->Get(index, &action);
         if (action.anid < 0 || action.anid >= tmpl->Cactn() || !tmpl->FSetActnCel(body, action.anid, action.celn))
             return false;
         if (state.action != action.anid)
@@ -363,7 +363,7 @@ bool PreviewActor::Apply(LegacyLong index)
     }
     case aetCost: {
         Costume costume;
-        track.events->Get(index, &costume);
+        track.Events()->Get(index, &costume);
         if (costume.fCmtl)
         {
             auto material = tmpl->PcmtlFetch(costume.cmid);
@@ -392,7 +392,7 @@ bool PreviewActor::Apply(LegacyLong index)
         return true;
     case aetSnd: {
         Sound sound;
-        track.events->Get(index, &sound);
+        track.Events()->Get(index, &sound);
         if (sound.celn != ivNil)
         {
             for (auto &existing : motionSounds)
@@ -459,7 +459,7 @@ bool PreviewActor::Evaluate(bool display)
         if (command.kind == ActorFrameCommandKind::CheckEntrance)
         {
             Base event;
-            track.events->GetFixed(command.eventIndex, &event);
+            track.Events()->GetFixed(command.eventIndex, &event);
             evaluator.Complete(event.nfrm <= state.frame);
         }
         else

@@ -31,11 +31,11 @@ inline bool FCreateTrack(ActorTrack &track, bool includeSounds = true)
                                    {{BR_SCALAR(8), rZero, rZero}, rZero},
                                    {{BR_SCALAR(20), rZero, rZero}, rZero}};
     for (LegacyLong index = 0; index < 3; ++index)
-        if (!created.route->FInsert(index, &points[index]))
+        if (!created.Route()->FInsert(index, &points[index]))
             return false;
     auto append = [&](LegacyLong type, LegacyLong frame, RouteLocation location, void *payload, LegacyLong bytes) {
         ActorEvent::Base event = {static_cast<int32_t>(type), static_cast<int32_t>(frame), location};
-        return created.events->FInsert(created.events->IvMac(), bytes, payload, &event);
+        return created.Events()->FInsert(created.Events()->IvMac(), bytes, payload, &event);
     };
     RouteLocation location = {0, rZero, 0};
     ActorEvent::Add addition = {};
@@ -86,34 +86,34 @@ inline bool FCreateMetadataTrack(ActorTrack &track, bool freezeAtFour)
     if (!created.FCreate())
         return false;
     RouteDistancePoint point = {{rZero, rZero, rZero}, BR_SCALAR(6)};
-    if (!created.route->FInsert(0, &point))
+    if (!created.Route()->FInsert(0, &point))
         return false;
     point = {{BR_SCALAR(6), rZero, rZero}, rZero};
-    if (!created.route->FInsert(1, &point))
+    if (!created.Route()->FInsert(1, &point))
         return false;
     ActorEvent::Base event = {ActorEvent::aetAdd, -2, {0, rZero, 0}};
     ActorEvent::Add addition = {};
-    if (!created.events->FInsert(0, sizeof(addition), &addition, &event))
+    if (!created.Events()->FInsert(0, sizeof(addition), &addition, &event))
         return false;
     event.aet = ActorEvent::aetActn;
     event.nfrm = -777; // Calculation must replace stale caches.
     ActorEvent::Action action = {0, 1};
-    if (!created.events->FInsert(1, sizeof(action), &action, &event))
+    if (!created.Events()->FInsert(1, sizeof(action), &action, &event))
         return false;
     event.aet = ActorEvent::aetStep;
     BRS step = kdwrNil;
-    if (!created.events->FInsert(2, sizeof(step), &step, &event))
+    if (!created.Events()->FInsert(2, sizeof(step), &step, &event))
         return false;
     event.aet = ActorEvent::aetSize;
     BRS scale = BR_SCALAR(2);
-    if (!created.events->FInsert(3, sizeof(scale), &scale, &event))
+    if (!created.Events()->FInsert(3, sizeof(scale), &scale, &event))
         return false;
     if (freezeAtFour)
     {
         event.aet = ActorEvent::aetFreeze;
         event.rtel.dwrOffset = BR_SCALAR(4);
         int32_t frozen = 1;
-        if (!created.events->FInsert(4, sizeof(frozen), &frozen, &event))
+        if (!created.Events()->FInsert(4, sizeof(frozen), &frozen, &event))
             return false;
     }
     track.Swap(created);

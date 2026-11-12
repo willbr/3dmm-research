@@ -2,108 +2,74 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 ASSERTNAME
-
+namespace
+{
+ThreeMMActorTrackServices Services()
+{
+    return {nullptr,
+            [](void *, ThreeMMU32 fixed, ThreeMMU32 entries, ThreeMMU32 variable) -> void * {
+                return GeneralGroup::PggNew(fixed, entries, variable);
+            },
+            [](void *, ThreeMMU32 width, ThreeMMU32 entries) -> void * { return DynamicArray::PglNew(width, entries); },
+            [](void *g, ThreeMMU32 growth) { static_cast<PDynamicArray>(g)->SetMinGrow(growth); },
+            [](void *g) -> void * { return static_cast<PGeneralGroup>(g)->PggDup(); },
+            [](void *g) -> void * { return static_cast<PDynamicArray>(g)->PglDup(); },
+            [](void *g) { static_cast<PGeneralGroup>(g)->Release(); },
+            [](void *g) { static_cast<PDynamicArray>(g)->Release(); },
+            [](void *g) { static_cast<PGeneralGroup>(g)->Lock(); },
+            [](void *g) { static_cast<PGeneralGroup>(g)->Unlock(); },
+            [](void *g) -> ThreeMMU32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
+            [](void *g, ThreeMMU32 i) -> void * { return static_cast<PGeneralGroup>(g)->QvFixedGet(i); },
+            [](void *g, ThreeMMU32 i) -> void * { return static_cast<PGeneralGroup>(g)->QvGet(i); },
+            [](void *cache) { static_cast<PChunkyResourceFile>(cache)->AddRef(); },
+            [](void *cache) { static_cast<PChunkyResourceFile>(cache)->Release(); }};
+}
+} // namespace
 ActorTrack::~ActorTrack()
 {
     Clear();
 }
-
 void ActorTrack::Clear()
 {
-    CloseTags();
-    ReleasePpo(&events);
-    ReleasePpo(&route);
+    const auto s = Services();
+    three_mm_actor_track_dispose(&_storage, &s);
 }
-
 void ActorTrack::CloseTags()
 {
-    if (events == pvNil)
-        return;
-    events->Lock();
-    for (LegacyLong index = 0; index < events->IvMac(); ++index)
-    {
-        PTAG tag;
-        if (FEventTag(events, index, &tag))
-        {
-            TAG aligned;
-            CopyPb(tag, &aligned, size(TAG));
-            if (aligned.sid == ksidUseCrf && aligned.pcrf != pvNil)
-            {
-                TagManager::CloseTag(&aligned);
-                CopyPb(&aligned, tag, size(TAG));
-            }
-        }
-    }
-    events->Unlock();
+    const auto s = Services();
+    three_mm_actor_track_close_tags(&_storage, &s);
 }
-
 bool ActorTrack::FEventTag(PGeneralGroup events, LegacyLong index, PTAG *tag, ActorEvent::PBase *event)
 {
-    auto base = (ActorEvent::PBase)events->QvFixedGet(index);
-    if (event != pvNil)
-        *event = base;
-    *tag = pvNil;
-    if (base->aet == ActorEvent::aetCost)
-    {
-        ActorEvent::Costume costume;
-        events->Get(index, &costume);
-        if (!costume.fCmtl)
-            *tag =
-                reinterpret_cast<PTAG>(static_cast<byte *>(events->QvGet(index)) + offsetof(ActorEvent::Costume, tag));
-    }
-    else if (base->aet == ActorEvent::aetSnd)
-        *tag = reinterpret_cast<PTAG>(static_cast<byte *>(events->QvGet(index)) + offsetof(ActorEvent::Sound, tag));
-    return *tag != pvNil;
+    const auto s = Services();
+    if (event)
+        *event = static_cast<ActorEvent::PBase>(events->QvFixedGet(index));
+    *tag = static_cast<PTAG>(three_mm_actor_event_tag(events, index, &s));
+    return *tag != nullptr;
 }
-
 void ActorTrack::Swap(ActorTrack &other)
 {
-    SwapVars(&events, &other.events);
-    SwapVars(&route, &other.route);
+    three_mm_actor_track_swap(&_storage, &other._storage);
 }
-
 bool ActorTrack::FCreate()
 {
-    ActorTrack created;
-    created.events = GeneralGroup::PggNew(sizeof(ActorEvent::Base), 10, sizeof(ActorEvent::Add));
-    if (created.events == pvNil)
-        return fFalse;
-    created.route = DynamicArray::PglNew(sizeof(RouteDistancePoint), 32);
-    if (created.route == pvNil)
-        return fFalse;
-    created.route->SetMinGrow(32);
-    Swap(created);
-    return fTrue;
+    const auto s = Services();
+    return three_mm_actor_track_create(&_storage, &s) != 0;
 }
-
 bool ActorTrack::FCloneFrom(const ActorTrack &source)
 {
-    if (this == &source)
-        return fTrue;
-    ActorTrack clone;
-    // Copy route first: once event bytes are copied, acquire their references
-    // immediately, before any operation that can fail.
-    if (source.route != pvNil && (clone.route = source.route->PglDup()) == pvNil)
-        return fFalse;
-    if (source.events != pvNil)
-    {
-        clone.events = source.events->PggDup();
-        if (clone.events == pvNil)
-            return fFalse;
-        clone.events->Lock();
-        for (LegacyLong index = 0; index < clone.events->IvMac(); ++index)
-        {
-            PTAG tag;
-            if (FEventTag(clone.events, index, &tag))
-            {
-                TAG aligned;
-                CopyPb(tag, &aligned, size(TAG));
-                if (aligned.sid == ksidUseCrf && aligned.pcrf != pvNil)
-                    TagManager::DupTag(&aligned);
-            }
-        }
-        clone.events->Unlock();
-    }
-    Swap(clone);
-    return fTrue;
+    const auto s = Services();
+    return three_mm_actor_track_clone(&_storage, &source._storage, &s) != 0;
+}
+PGeneralGroup ActorTrack::AdoptEvents(PGeneralGroup events)
+{
+    const auto s = Services();
+    three_mm_actor_track_adopt_events(&_storage, events, &s);
+    return Events();
+}
+PDynamicArray ActorTrack::AdoptRoute(PDynamicArray route)
+{
+    const auto s = Services();
+    three_mm_actor_track_adopt_route(&_storage, route, &s);
+    return Route();
 }

@@ -14,7 +14,7 @@
      |
      +---PATH (chid 0) // _pglxyz (actor path)
      |
-     +---GGAE (chid 0) // _track.events (actor events)
+     +---GGAE (chid 0) // _track.Events() (actor events)
 
 
 ***************************************************************************/
@@ -93,20 +93,20 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         return fFalse;
 
     // Now write the PATH chunk:
-    if (!pcfl->FAddChild(kctgActr, cnoActr, kchidPath, _track.route->CbOnFile(), kctgPath, &cnoPath, &blck))
+    if (!pcfl->FAddChild(kctgActr, cnoActr, kchidPath, _track.Route()->CbOnFile(), kctgPath, &cnoPath, &blck))
     {
         return fFalse;
     }
-    if (!_track.route->FWrite(&blck))
+    if (!_track.Route()->FWrite(&blck))
         return fFalse;
 
-    // Now write the GGAE chunk. The runtime _track.events holds Costume/Sound (with
+    // Now write the GGAE chunk. The runtime _track.Events() holds Costume/Sound (with
     // full TAG including runtime pcrf) for aetCost/aetSnd entries; on x64 those
     // are wider than the wire format. Marshal into a transient on-file GG that
     // embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for the wire layout,
     // then FWrite that.
     {
-        PGeneralGroup pggaevOnFile = ActorData::PggWriteEvents(_track.events);
+        PGeneralGroup pggaevOnFile = ActorData::PggWriteEvents(_track.Events());
         if (pggaevOnFile == pvNil)
             return fFalse;
         if (!pcfl->FAddChild(kctgActr, cnoActr, kchidGgae, pggaevOnFile->CbOnFile(), kctgGgae, &cnoGgae, &blck))
@@ -123,12 +123,12 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     }
 
     // Adopt actor sounds into the scene
-    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
+    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
     {
-        paev = (Base *)(_track.events->QvFixedGet(iaev));
+        paev = (Base *)(_track.Events()->QvFixedGet(iaev));
         if (aetSnd != paev->aet)
             continue;
-        _track.events->Get(iaev, &aevsnd);
+        _track.Events()->Get(iaev, &aevsnd);
         if (aevsnd.tag.sid != ksidUseCrf)
             continue;
 
@@ -268,7 +268,7 @@ bool Actor::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
 }
 
 /***************************************************************************
-    Read the PATH (_track.route) chunk
+    Read the PATH (_track.Route()) chunk
 ***************************************************************************/
 bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 {
@@ -278,12 +278,12 @@ bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
     DataBlock block;
     if (!pcfl->FFind(kctgPath, cno, &block))
         return fFalse;
-    _track.route = ActorData::PglReadRoute(&block);
-    return _track.route != pvNil;
+    _track.AdoptRoute(ActorData::PglReadRoute(&block));
+    return _track.Route() != pvNil;
 }
 
 /***************************************************************************
-    Read the GGAE (_track.events) chunk.
+    Read the GGAE (_track.Events()) chunk.
 
     The wire-format GG embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for
     aetCost/aetSnd entries; the runtime GG holds Costume/Sound (with full TAG
@@ -299,8 +299,8 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
     DataBlock block;
     if (!pcfl->FFind(kctgGgae, cno, &block))
         return fFalse;
-    _track.events = ActorData::PggReadEvents(&block);
-    return _track.events != pvNil;
+    _track.AdoptEvents(ActorData::PggReadEvents(&block));
+    return _track.Events() != pvNil;
 }
 
 /***************************************************************************
@@ -324,25 +324,25 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     if (!TagManager::FOpenTag(&_tagTmpl, pcrf))
         return fFalse;
 
-    _track.events->Lock();
-    for (iaev = 0; iaev < _track.events->IvMac(); iaev++)
+    _track.Events()->Lock();
+    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
     {
-        if (_FIsIaevTag(_track.events, iaev, &ptag))
+        if (_FIsIaevTag(_track.Events(), iaev, &ptag))
         {
             if (!TagManager::FOpenTag(ptag, pcrf))
                 goto LFail;
         }
     }
-    _track.events->Unlock();
+    _track.Events()->Unlock();
     return fTrue;
 LFail:
     // Close the tags that were opened before failure
     while (--iaev >= 0)
     {
-        if (_FIsIaevTag(_track.events, iaev, &ptag))
+        if (_FIsIaevTag(_track.Events(), iaev, &ptag))
             TagManager::CloseTag(ptag);
     }
-    _track.events->Unlock();
+    _track.Events()->Unlock();
     return fFalse;
 }
 

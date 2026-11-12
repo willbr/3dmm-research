@@ -2124,6 +2124,15 @@ static void TestActorPersistence()
 
 static void TestActorTrackOwnership()
 {
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_ACTOR_TRACK_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb");
+        Check(snapshot != nullptr);
+    }
+    auto record = [&](const void *p, size_t n) {
+        if (snapshot) Check(std::fwrite(p, 1, n, snapshot) == n);
+    };
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
     Check(file != pvNil);
     PChunkyResourceFile resource = ChunkyResourceFile::PcrfNew(file, 0);
@@ -2133,7 +2142,7 @@ static void TestActorTrackOwnership()
         ActorTrack source, copy;
         Check(source.FCreate() && copy.FCreate());
         RouteDistancePoint point = {{BR_SCALAR(3), BR_SCALAR(4), BR_SCALAR(5)}, rZero};
-        Check(source.route->FInsert(0, &point));
+        Check(source.Route()->FInsert(0, &point));
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetSnd;
         ActorEvent::Sound sound = {};
@@ -2141,36 +2150,36 @@ static void TestActorTrackOwnership()
         sound.tag.ctg = kctgMsnd;
         sound.tag.cno = 7;
         sound.tag.pcrf = resource;
-        Check(source.events->FInsert(0, sizeof(sound), &sound, &event));
+        Check(source.Events()->FInsert(0, sizeof(sound), &sound, &event));
         TagManager::DupTag(&sound.tag); // Reference transferred to the inserted row.
         event.aet = ActorEvent::aetCost;
         ActorEvent::Costume costume = {};
         costume.tag = sound.tag;
-        Check(source.events->FInsert(1, sizeof(costume), &costume, &event));
+        Check(source.Events()->FInsert(1, sizeof(costume), &costume, &event));
         TagManager::DupTag(&costume.tag);
         // A custom costume has no TAG, even if its unused bytes resemble one.
         costume.fCmtl = tYes;
-        Check(source.events->FInsert(2, sizeof(costume), &costume, &event));
+        Check(source.Events()->FInsert(2, sizeof(costume), &costume, &event));
         Check(resource->CactRef() == initialRefs + 2);
         Check(copy.FCloneFrom(source));
         Check(resource->CactRef() == initialRefs + 4);
-        Check(copy.events != source.events && copy.route != source.route);
+        Check(copy.Events() != source.Events() && copy.Route() != source.Route());
         point.xyz.dxr = BR_SCALAR(9);
-        copy.route->Put(0, &point);
+        copy.Route()->Put(0, &point);
         RouteDistancePoint original;
-        source.route->Get(0, &original);
+        source.Route()->Get(0, &original);
         Check(original.xyz.dxr == BR_SCALAR(3));
         Check(copy.FCloneFrom(copy));
         Check(resource->CactRef() == initialRefs + 4);
 
-        PGeneralGroup sourceEvents = source.events;
-        PDynamicArray sourceRoute = source.route;
+        PGeneralGroup sourceEvents = source.Events();
+        PDynamicArray sourceRoute = source.Route();
 #ifdef DEBUG
         bool failed = false, succeeded = false;
         for (LegacyLong skip = 0; skip < 24; ++skip)
         {
-            PGeneralGroup oldEvents = copy.events;
-            PDynamicArray oldRoute = copy.route;
+            PGeneralGroup oldEvents = copy.Events();
+            PDynamicArray oldRoute = copy.Route();
             vmutxMem.Enter();
             vdmglob.dmaglPv.cactDo = vdmglob.dmaglHq.cactDo = vdmglob.dmaglBase.cactDo = skip;
             vdmglob.dmaglPv.cactFail = vdmglob.dmaglHq.cactFail = vdmglob.dmaglBase.cactFail = 1000;
@@ -2183,29 +2192,33 @@ static void TestActorTrackOwnership()
             if (!ok)
             {
                 failed = true;
-                Check(copy.events == oldEvents && copy.route == oldRoute);
+                Check(copy.Events() == oldEvents && copy.Route() == oldRoute);
             }
             else
                 succeeded = true;
             Check(resource->CactRef() == initialRefs + 4);
-            Check(source.events == sourceEvents && source.route == sourceRoute);
+            Check(source.Events() == sourceEvents && source.Route() == sourceRoute);
         }
         Check(failed && succeeded);
 #endif
         // Clone serializes identically, using the real runtime-to-wire codec.
-        PGeneralGroup first = ActorData::PggWriteEvents(source.events);
-        PGeneralGroup second = ActorData::PggWriteEvents(copy.events);
+        PGeneralGroup first = ActorData::PggWriteEvents(source.Events());
+        PGeneralGroup second = ActorData::PggWriteEvents(copy.Events());
         Check(first != pvNil && second != pvNil && first->IvMac() == second->IvMac());
         for (LegacyLong index = 0; index < first->IvMac(); ++index)
         {
             Check(first->Cb(index) == second->Cb(index));
             Check(std::memcmp(first->QvFixedGet(index), second->QvFixedGet(index), sizeof(ActorEvent::Base)) == 0);
             Check(std::memcmp(first->QvGet(index), second->QvGet(index), first->Cb(index)) == 0);
+            LegacyLong bytes = first->Cb(index);
+            record(&bytes, sizeof(bytes));
+            record(first->QvFixedGet(index), sizeof(ActorEvent::Base));
+            record(first->QvGet(index), bytes);
         }
         ReleasePpo(&first);
         ReleasePpo(&second);
         copy.Swap(source);
-        Check(copy.events == sourceEvents && copy.route == sourceRoute);
+        Check(copy.Events() == sourceEvents && copy.Route() == sourceRoute);
         source.Clear();
         Check(resource->CactRef() == initialRefs + 2);
         copy.CloseTags();
@@ -2215,11 +2228,15 @@ static void TestActorTrackOwnership()
         Check(unopened.FCloneFrom(copy));
         Check(resource->CactRef() == initialRefs);
         Check(copy.FCloneFrom(ActorTrack()));
-        Check(copy.route == pvNil && copy.events == pvNil);
+        Check(copy.Route() == pvNil && copy.Events() == pvNil);
+        LegacyLong referenceDelta = resource->CactRef() - initialRefs;
+        record(&referenceDelta, sizeof(referenceDelta));
+        record(&original, sizeof(original));
     }
     Check(resource->CactRef() == initialRefs);
     ReleasePpo(&resource);
     ReleasePpo(&file);
+    if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
 static void TestActorRouteEvaluation()
@@ -2239,7 +2256,7 @@ static void TestActorRouteEvaluation()
                                    {{BR_SCALAR(4), BR_SCALAR(4), rZero}, rZero},
                                    {{BR_SCALAR(100), rZero, rZero}, rZero}};
     for (LegacyLong index = 0; index < 4; ++index)
-        Check(track.route->FInsert(index, &points[index]));
+        Check(track.Route()->FInsert(index, &points[index]));
     RouteLocation location = {99, BR_SCALAR(99), 99};
     bool end = true;
     ActorRouteEvaluator::Advance(track, BR_SCALAR(2), &location, 0, -3, -3, true, &end);
@@ -2266,15 +2283,15 @@ static void TestActorRouteEvaluation()
     event.rtel = {0, BR_SCALAR(1), 0};
     ActorEvent::Sound sound = {};
     sound.tag.sid = ksidInvalid;
-    Check(track.events->FInsert(0, sizeof(sound), &sound, &event));
+    Check(track.Events()->FInsert(0, sizeof(sound), &sound, &event));
     event.aet = ActorEvent::aetStep;
     event.rtel.dwrOffset = BR_SCALAR(3);
     BRS step = BR_SCALAR(1);
-    Check(track.events->FInsert(1, sizeof(step), &step, &event));
+    Check(track.Events()->FInsert(1, sizeof(step), &step, &event));
     event.aet = ActorEvent::aetActn;
     event.rtel = {1, BR_SCALAR(1), 0};
     ActorEvent::Action action = {};
-    Check(track.events->FInsert(2, sizeof(action), &action, &event));
+    Check(track.Events()->FInsert(2, sizeof(action), &action, &event));
     location = {0, rZero, 0};
     ActorRouteEvaluator::Advance(track, BR_SCALAR(6), &location, 0, 2, 1, true, &end);
     Check(location.irpt == 0 && location.dwrOffset == BR_SCALAR(3) && !end);
@@ -2315,18 +2332,18 @@ static void TestActorValueEvaluation()
     ActorTrack track;
     Check(track.FCreate());
     RouteDistancePoint point = {{BR_SCALAR(1), BR_SCALAR(2), BR_SCALAR(3)}, BR_SCALAR(4)};
-    Check(track.route->FInsert(0, &point));
+    Check(track.Route()->FInsert(0, &point));
     point = {{BR_SCALAR(5), BR_SCALAR(6), BR_SCALAR(7)}, rZero};
-    Check(track.route->FInsert(1, &point));
+    Check(track.Route()->FInsert(1, &point));
     RoutePoint origin = {BR_SCALAR(10), BR_SCALAR(20), BR_SCALAR(30)};
     RouteLocation eventLocation = {0, BR_SCALAR(2), 3};
     auto apply = [&](LegacyLong type, void *payload, LegacyLong bytes) {
         ActorEvent::Base event = {static_cast<int32_t>(type), 277, eventLocation};
-        LegacyLong index = track.events->IvMac();
-        Check(track.events->FInsert(index, bytes, payload, &event));
+        LegacyLong index = track.Events()->IvMac();
+        Check(track.Events()->FInsert(index, bytes, payload, &event));
         ActorValueEventResult result = state.ApplyValueEvent(track, index, origin);
         ActorEvent::Base unchanged;
-        track.events->GetFixed(index, &unchanged);
+        track.Events()->GetFixed(index, &unchanged);
         Check(unchanged.nfrm == 277); // Core evaluation never mutates the authored cache.
         return result;
     };
@@ -2418,13 +2435,13 @@ static void TestActorPoseEvaluation()
     ActorTrack track;
     Check(track.FCreate());
     RouteDistancePoint point = {{rZero, rZero, rZero}, BR_SCALAR(4)};
-    Check(track.route->FInsert(0, &point));
+    Check(track.Route()->FInsert(0, &point));
     point = {{BR_SCALAR(4), rZero, rZero}, rZero};
-    Check(track.route->FInsert(1, &point));
+    Check(track.Route()->FInsert(1, &point));
     ActorEvent::Base event = {ActorEvent::aetAdd, 1, {0, rZero, 0}};
     ActorEvent::Add addition = {};
     addition.ya = BR_ANGLE_DEG(45);
-    Check(track.events->FInsert(0, sizeof(addition), &addition, &event));
+    Check(track.Events()->FInsert(0, sizeof(addition), &addition, &event));
     ActorFrameState state;
     state.addEvent = 0;
     state.actionFlags = factnRotateY;
@@ -2474,7 +2491,7 @@ static void TestActorPoseEvaluation()
     inputs.restY = aZero;
     inputs.restZ = static_cast<BRA>(0x4000);
     addition.ya = aZero;
-    track.events->Put(0, &addition);
+    track.Events()->Put(0, &addition);
     state.location = {0, rZero, 0};
     BRS expected[3][3] = {{rZero, BR_SCALAR(3), rZero}, {rZero, rZero, BR_SCALAR(2)}, {BR_SCALAR(4), rZero, rZero}};
     for (LegacyLong mode = 0; mode < 2; ++mode)
@@ -2499,9 +2516,9 @@ static void TestActorPoseEvaluation()
                                       {{BR_SCALAR(4), rZero, BR_SCALAR(4)}, BR_SCALAR(4)},
                                       {{BR_SCALAR(4), rZero, rZero}, rZero}};
         for (LegacyLong index = 0; index < 5; ++index)
-            Check(curved.route->FInsert(index, &curve[index]));
+            Check(curved.Route()->FInsert(index, &curve[index]));
         event.rtel.irpt = 1; // Ignore the preceding, unrelated subroute.
-        Check(curved.events->FInsert(0, sizeof(addition), &addition, &event));
+        Check(curved.Events()->FInsert(0, sizeof(addition), &addition, &event));
         state.location = {3, BR_SCALAR(2), 0};
         BrMatrix34Identity(&matrix);
         ActorPoseEvaluator::RouteOrientation(state, curved, &matrix, &x, &y, &z, &axes);
@@ -2516,7 +2533,7 @@ static void TestActorPoseEvaluation()
 
     // A single point has no route tangent and leaves the caller's matrix intact.
     point.dwr = rZero;
-    track.route->Put(0, &point);
+    track.Route()->Put(0, &point);
     state.location = {0, rZero, 0};
     BrMatrix34Identity(&matrix);
     ActorPoseEvaluator::RouteOrientation(state, track, &matrix, &x, &y, &z, &axes);
@@ -2549,20 +2566,20 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
         Check(trace.count < 128);
         trace.commands[trace.count++] = command;
         ActorEvent::Base event;
-        track.events->GetFixed(command.eventIndex, &event);
+        track.Events()->GetFixed(command.eventIndex, &event);
         if (command.kind == ActorFrameCommandKind::CheckEntrance)
         {
             if (command.eventIndex == trace.refreshEntrance)
             {
                 event.nfrm = static_cast<int32_t>(state.frame);
-                track.events->PutFixed(command.eventIndex, &event);
+                track.Events()->PutFixed(command.eventIndex, &event);
                 ++trace.refreshed;
             }
             evaluator.Complete(event.nfrm <= state.frame);
             continue;
         }
         event.nfrm = static_cast<int32_t>(state.frame);
-        track.events->PutFixed(command.eventIndex, &event);
+        track.Events()->PutFixed(command.eventIndex, &event);
         if (command.eventIndex == trace.failIndex && trace.failures > 0)
         {
             --trace.failures;
@@ -2577,7 +2594,7 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
             {
             case ActorEvent::aetAdd: {
                 ActorEvent::Add addition;
-                track.events->Get(command.eventIndex, &addition);
+                track.Events()->Get(command.eventIndex, &addition);
                 state.subrouteTranslation = {addition.dxr, addition.dyr, addition.dzr};
                 state.UpdateOrigin(origin);
                 state.InitTransform();
@@ -2595,7 +2612,7 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
             }
             case ActorEvent::aetActn: {
                 ActorEvent::Action action;
-                track.events->Get(command.eventIndex, &action);
+                track.Events()->Get(command.eventIndex, &action);
                 state.action = action.anid;
                 state.cel = action.celn;
                 state.celCount = 4;
@@ -2610,7 +2627,7 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
                 break;
             case ActorEvent::aetSnd: {
                 ActorEvent::Sound sound;
-                track.events->Get(command.eventIndex, &sound);
+                track.Events()->Get(command.eventIndex, &sound);
                 if (sound.celn == ivNil)
                     ++trace.ordinarySounds;
                 else
@@ -2719,8 +2736,8 @@ static void TestActorFrameSequencing()
         ActorEvent::Base event = {ActorEvent::aetAdd,
                                   index == 2 ? 10 : static_cast<int32_t>(index + 1),
                                   {static_cast<int32_t>(index), rZero, 0}};
-        Check(entrances.route->FInsert(index, &point));
-        Check(entrances.events->FInsert(index, sizeof(addition), &addition, &event));
+        Check(entrances.Route()->FInsert(index, &point));
+        Check(entrances.Events()->FInsert(index, sizeof(addition), &addition, &event));
     }
     ActorFrameState state;
     state.frame = 3;
@@ -2750,26 +2767,26 @@ static void TestActorFrameSequencing()
     ActorTrack toggles;
     Check(toggles.FCreate());
     RouteDistancePoint stationary = {{rZero, rZero, rZero}, rZero};
-    Check(toggles.route->FInsert(0, &stationary));
+    Check(toggles.Route()->FInsert(0, &stationary));
     ActorEvent::Base toggleEvent = {ActorEvent::aetFreeze, 1, {0, rZero, 0}};
     int32_t freeze = 1;
-    Check(toggles.events->FInsert(0, sizeof(freeze), &freeze, &toggleEvent));
+    Check(toggles.Events()->FInsert(0, sizeof(freeze), &freeze, &toggleEvent));
     state = ActorFrameState();
     state.frame = 2;
     FrameTrace freezeTrace;
     result = RunCoreFrame(state, toggles, inputs, false, freezeTrace);
     Check(result.success && state.frozen && state.cel == 1); // Initial state controls this frame's cel.
     freeze = 0;
-    toggles.events->Put(0, &freeze);
+    toggles.Events()->Put(0, &freeze);
     state.nextEvent = 0;
     ++state.frame;
     FrameTrace unfreezeTrace;
     result = RunCoreFrame(state, toggles, inputs, false, unfreezeTrace);
     Check(result.success && !state.frozen && state.cel == 1);
-    toggles.events->Delete(0);
+    toggles.Events()->Delete(0);
     toggleEvent.aet = ActorEvent::aetActn;
     ActorEvent::Action action = {0, 2};
-    Check(toggles.events->FInsert(0, sizeof(action), &action, &toggleEvent));
+    Check(toggles.Events()->FInsert(0, sizeof(action), &action, &toggleEvent));
     state.nextEvent = 0;
     ++state.frame;
     FrameTrace actionTrace;
@@ -2779,18 +2796,18 @@ static void TestActorFrameSequencing()
     ActorTrack failures;
     Check(failures.FCreate());
     RouteDistancePoint point = {{rZero, rZero, rZero}, rZero};
-    Check(failures.route->FInsert(0, &point));
+    Check(failures.Route()->FInsert(0, &point));
     ActorEvent::Base event = {ActorEvent::aetSize, 1, {0, rZero, 0}};
     BRS scale = BR_SCALAR(2);
-    Check(failures.events->FInsert(0, sizeof(scale), &scale, &event));
+    Check(failures.Events()->FInsert(0, sizeof(scale), &scale, &event));
     event.aet = ActorEvent::aetMove;
     RoutePoint delta = {rOne, rZero, rZero};
-    Check(failures.events->FInsert(1, sizeof(delta), &delta, &event));
+    Check(failures.Events()->FInsert(1, sizeof(delta), &delta, &event));
     event.aet = ActorEvent::aetSnd;
     ActorEvent::Sound sound = {};
     sound.tag.sid = ksidInvalid;
     sound.celn = ivNil;
-    Check(failures.events->FInsert(2, sizeof(sound), &sound, &event));
+    Check(failures.Events()->FInsert(2, sizeof(sound), &sound, &event));
     state = ActorFrameState();
     state.frame = 2;
     inputs.displayFrame = false;
@@ -2845,24 +2862,24 @@ static void TestActorTimeline()
     Check(ActorFrameTest::FCreateTrack(track));
     // Explicit authored steps require no metadata resolver. Rebuild stale
     // non-entrance frame caches, retaining the scheduled entrance frames.
-    for (LegacyLong index = 0; index < track.events->IvMac(); ++index)
+    for (LegacyLong index = 0; index < track.Events()->IvMac(); ++index)
     {
         ActorEvent::Base event;
-        track.events->GetFixed(index, &event);
+        track.Events()->GetFixed(index, &event);
         if (event.aet != ActorEvent::aetAdd)
         {
             event.nfrm = -777;
-            track.events->PutFixed(index, &event);
+            track.Events()->PutFixed(index, &event);
         }
     }
     LegacyLong last = -999;
     Check(ActorTimeline::FComputeLifetime(track, 1, false, ActorStepSource(), &last) && last == 9);
     LegacyLong frames[] = {1, 1, 1, 2, 2, 3, 3, 4, 6, 8, 9};
-    Check(track.events->IvMac() == 11);
+    Check(track.Events()->IvMac() == 11);
     for (LegacyLong index = 0; index < 11; ++index)
     {
         ActorEvent::Base event;
-        track.events->GetFixed(index, &event);
+        track.Events()->GetFixed(index, &event);
         Check(event.nfrm == frames[index]);
     }
     ActorTrack empty;
@@ -2883,9 +2900,9 @@ static void TestActorTimeline()
     probe.failOn = 2;
     Check(!ActorTimeline::FComputeLifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
     ActorEvent::Base event;
-    metadata.events->GetFixed(1, &event);
+    metadata.Events()->GetFixed(1, &event);
     Check(event.nfrm == -2);
-    metadata.events->GetFixed(4, &event);
+    metadata.Events()->GetFixed(4, &event);
     Check(event.nfrm == -1); // Earlier successful frames remain cached after failure.
     RouteLocation stopped = {0, rZero, 0};
     LegacyLong lastEvent = -99;
@@ -2897,11 +2914,11 @@ static void TestActorTimeline()
     for (LegacyLong index = 0; index < 4; ++index)
     {
         RouteDistancePoint point = {{BR_SCALAR(index * 4), rZero, rZero}, index == 3 ? rZero : BR_SCALAR(4)};
-        Check(route.route->FInsert(index, &point));
+        Check(route.Route()->FInsert(index, &point));
     }
     event = {ActorEvent::aetAdd, 1, {0, rZero, 0}};
     ActorEvent::Add addition = {};
-    Check(route.events->FInsert(0, sizeof(addition), &addition, &event));
+    Check(route.Events()->FInsert(0, sizeof(addition), &addition, &event));
     ActorFrameState initial;
     initial.frame = 10;
     initial.cel = 3;
@@ -2956,8 +2973,8 @@ static void TestActorTimeline()
                                    {{rZero, BR_SCALAR(4), rZero}, BR_SCALAR(4)},
                                    {{BR_SCALAR(4), BR_SCALAR(4), rZero}, rZero}};
     for (LegacyLong index = 0; index < 3; ++index)
-        Check(vertical.route->FInsert(index, &points[index]));
-    Check(vertical.events->FInsert(0, sizeof(addition), &addition, &event));
+        Check(vertical.Route()->FInsert(index, &points[index]));
+    Check(vertical.Events()->FInsert(0, sizeof(addition), &addition, &event));
     state = initial;
     state.step = BR_SCALAR(2);
     state.transform.rScaleStep = rOne;
@@ -3111,11 +3128,11 @@ static void TestActorSeekControl()
     for (LegacyLong index = 0; index < 4; ++index)
     {
         RouteDistancePoint point = {{BR_SCALAR(index * 4), rZero, rZero}, index == 3 ? rZero : BR_SCALAR(4)};
-        Check(straight.route->FInsert(index, &point));
+        Check(straight.Route()->FInsert(index, &point));
     }
     ActorEvent::Base event = {ActorEvent::aetAdd, 1, {0, rZero, 0}};
     ActorEvent::Add addition = {};
-    Check(straight.events->FInsert(0, sizeof(addition), &addition, &event));
+    Check(straight.Events()->FInsert(0, sizeof(addition), &addition, &event));
     ActorFrameState quickStart;
     quickStart.frame = 10;
     quickStart.cel = 9;
@@ -3149,11 +3166,11 @@ static void TestActorSeekControl()
                                    {{rZero, BR_SCALAR(4), rZero}, BR_SCALAR(4)},
                                    {{BR_SCALAR(4), BR_SCALAR(4), rZero}, rZero}};
     for (LegacyLong index = 0; index < 3; ++index)
-        Check(vertical.route->FInsert(index, &points[index]));
-    Check(vertical.events->FInsert(0, sizeof(addition), &addition, &event));
+        Check(vertical.Route()->FInsert(index, &points[index]));
+    Check(vertical.Events()->FInsert(0, sizeof(addition), &addition, &event));
     event.aet = ActorEvent::aetStep;
     BRS step = BR_SCALAR(2);
-    Check(vertical.events->FInsert(1, sizeof(step), &step, &event));
+    Check(vertical.Events()->FInsert(1, sizeof(step), &step, &event));
     seek = quickStart;
     seek.frame = 4;
     seek.cel = 4;

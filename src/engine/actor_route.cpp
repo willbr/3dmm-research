@@ -7,8 +7,8 @@ using namespace ActorEvent;
 void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS dwrStep, RouteLocation *prtel, LegacyLong iaevCur,
                                   LegacyLong nfrmCur, LegacyLong nfrmFirst, bool clampAtEvents, bool *pfEndRoute)
 {
-    AssertPo(track.route, 0);
-    AssertPo(track.events, 0);
+    AssertPo(track.Route(), 0);
+    AssertPo(track.Events(), 0);
     AssertVarMem(const_cast<RouteLocation *>(prtel));
     AssertNilOrVarMem(pfEndRoute);
 
@@ -35,7 +35,7 @@ void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS dwrStep, RouteLoc
     }
 
     // Move to the correct path segment
-    dwrT = ((RouteDistancePoint *)track.route->QvGet(prtel->irpt))->dwr;
+    dwrT = ((RouteDistancePoint *)track.Route()->QvGet(prtel->irpt))->dwr;
     dwrT = BrsSub(dwrT, prtel->dwrOffset);
     if (rZero == dwrT)
     {
@@ -54,13 +54,13 @@ void ActorRouteEvaluator::Advance(const ActorTrack &track, BRS dwrStep, RouteLoc
             goto LDoneMove;
         }
         prtel->irpt++;
-        AssertIn(prtel->irpt, 1, track.route->IvMac());
+        AssertIn(prtel->irpt, 1, track.Route()->IvMac());
         prtel->dwrOffset = rZero;
         dwrStep = BrsSub(dwrStep, dwrT);
-        dwrT = ((RouteDistancePoint *)track.route->QvGet(prtel->irpt))->dwr;
+        dwrT = ((RouteDistancePoint *)track.Route()->QvGet(prtel->irpt))->dwr;
     }
 
-    dwrT = ((RouteDistancePoint *)track.route->QvGet(prtel->irpt))->dwr;
+    dwrT = ((RouteDistancePoint *)track.Route()->QvGet(prtel->irpt))->dwr;
     prtel->dwrOffset = BrsAdd(prtel->dwrOffset, dwrStep);
 
 LDoneMove:
@@ -71,9 +71,9 @@ LDoneMove:
         // Spec: Ordinarily, the actor will display at the end of this step.
         // If Actn or Step events exist, the the actor is to display
         // at the location of the event.
-        for (iaev = iaevCur; iaev < track.events->IvMac(); iaev++)
+        for (iaev = iaevCur; iaev < track.Events()->IvMac(); iaev++)
         {
-            track.events->GetFixed(iaev, &aev);
+            track.Events()->GetFixed(iaev, &aev);
             if ((aev.rtel <= *prtel) && (aev.aet == aetStep || aev.aet == aetActn))
             {
                 *prtel = aev.rtel;
@@ -93,7 +93,7 @@ LDone:
 
 void ActorRouteEvaluator::Position(const ActorTrack &track, const RouteLocation *prtel, PRoutePoint pxyz)
 {
-    AssertPo(track.route, 0);
+    AssertPo(track.Route(), 0);
     AssertVarMem(const_cast<RouteLocation *>(prtel));
     AssertVarMem(pxyz);
 
@@ -102,15 +102,15 @@ void ActorRouteEvaluator::Position(const ActorTrack &track, const RouteLocation 
     RouteDistancePoint rptSecond;
     BRS rFract;
 
-    if (rZero == prtel->dwrOffset || (prtel->irpt) + 1 == track.route->IvMac())
+    if (rZero == prtel->dwrOffset || (prtel->irpt) + 1 == track.Route()->IvMac())
     {
-        track.route->Get(prtel->irpt, &rpt);
+        track.Route()->Get(prtel->irpt, &rpt);
         *pxyz = rpt.xyz;
         return;
     }
 
-    track.route->Get(prtel->irpt, &rptFirst);
-    track.route->Get(1 + prtel->irpt, &rptSecond);
+    track.Route()->Get(prtel->irpt, &rptFirst);
+    track.Route()->Get(1 + prtel->irpt, &rptSecond);
     Assert(rptFirst.dwr >= prtel->dwrOffset, "Possible offset bug in _GetXyzFromRtel");
 
     rFract = BrsDiv(prtel->dwrOffset, rptFirst.dwr);

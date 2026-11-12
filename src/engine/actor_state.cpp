@@ -23,10 +23,10 @@ void ActorFrameState::RewindRoute(const ActorTrack &track)
     frozen = false;
     action = cel = 0;
     location = {0, rZero, -1};
-    if (track.route != pvNil && track.route->IvMac() > 0)
+    if (track.Route() != pvNil && track.Route()->IvMac() > 0)
     {
         RouteDistancePoint point;
-        track.route->Get(0, &point);
+        track.Route()->Get(0, &point);
         position = point.xyz;
     }
     nextEvent = firstEventInFrame = 0;
@@ -44,10 +44,10 @@ void ActorFrameState::UpdateOrigin(const RoutePoint &origin)
 
 ActorValueEventResult ActorFrameState::ApplyValueEvent(const ActorTrack &track, LegacyLong index, const RoutePoint &origin)
 {
-    if (track.events == pvNil || track.events->CbFixed() != sizeof(Base) || index < 0 || index >= track.events->IvMac())
+    if (track.Events() == pvNil || track.Events()->CbFixed() != sizeof(Base) || index < 0 || index >= track.Events()->IvMac())
         return ActorValueEventResult::Invalid;
     Base event;
-    track.events->GetFixed(index, &event);
+    track.Events()->GetFixed(index, &event);
     LegacyLong expectedSize;
     switch (event.aet)
     {
@@ -78,35 +78,35 @@ ActorValueEventResult ActorFrameState::ApplyValueEvent(const ActorTrack &track, 
     default:
         return ActorValueEventResult::Invalid;
     }
-    if (track.events->Cb(index) != expectedSize)
+    if (track.Events()->Cb(index) != expectedSize)
         return ActorValueEventResult::Invalid;
 
     switch (event.aet)
     {
     case aetRotF:
-        track.events->Get(index, &transform.bmat34Fwd);
+        track.Events()->Get(index, &transform.bmat34Fwd);
         useCurrentRotation = false;
         break;
     case aetRotH:
-        track.events->Get(index, &transform.bmat34Cur);
+        track.Events()->Get(index, &transform.bmat34Cur);
         useCurrentRotation = true;
         break;
     case aetPull:
-        track.events->Get(index, &transform.aevpull);
+        track.Events()->Get(index, &transform.aevpull);
         break;
     case aetSize:
-        track.events->Get(index, &transform.rScaleStep);
+        track.Events()->Get(index, &transform.rScaleStep);
         break;
     case aetStep: {
         BRS requestedStep;
-        track.events->Get(index, &requestedStep);
+        track.Events()->Get(index, &requestedStep);
         if (requestedStep == rZero)
         {
-            if (track.route == pvNil || track.route->CbEntry() != sizeof(RouteDistancePoint) || event.rtel.irpt < 0 ||
-                event.rtel.irpt >= track.route->IvMac() || event.rtel.dwrOffset < rZero)
+            if (track.Route() == pvNil || track.Route()->CbEntry() != sizeof(RouteDistancePoint) || event.rtel.irpt < 0 ||
+                event.rtel.irpt >= track.Route()->IvMac() || event.rtel.dwrOffset < rZero)
                 return ActorValueEventResult::Invalid;
             RouteDistancePoint point;
-            track.route->Get(event.rtel.irpt, &point);
+            track.Route()->Get(event.rtel.irpt, &point);
             if (event.rtel.dwrOffset > point.dwr)
                 return ActorValueEventResult::Invalid;
             location = event.rtel;
@@ -117,17 +117,17 @@ ActorValueEventResult ActorFrameState::ApplyValueEvent(const ActorTrack &track, 
     }
     case aetFreeze: {
         int32_t value;
-        track.events->Get(index, &value);
+        track.Events()->Get(index, &value);
         frozen = FPure(value);
         break;
     }
     case aetTweak:
         if (event.rtel.dnfrm == location.dnfrm)
-            track.events->Get(index, &position);
+            track.Events()->Get(index, &position);
         break;
     case aetMove: {
         RoutePoint delta;
-        track.events->Get(index, &delta);
+        track.Events()->Get(index, &delta);
         subrouteTranslation.dxr = BrsAdd(delta.dxr, subrouteTranslation.dxr);
         subrouteTranslation.dyr = BrsAdd(delta.dyr, subrouteTranslation.dyr);
         subrouteTranslation.dzr = BrsAdd(delta.dzr, subrouteTranslation.dzr);

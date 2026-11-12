@@ -191,7 +191,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Actor header normalization, checked ID adjustment, route validation/swapping and
   all event layout/marshalling now use C89. The 40/44-byte header forms, mixed-width
   Add angles, unopened runtime tags and cleanup order are retained. Native table
-  adapters, track/tag ownership, actor evaluation/editing and final integration remain.
+  adapters, actor evaluation/editing and final integration remain.
+- Actor track state, table/tag ownership, transactional creation/cloning, tag lookup
+  and ordered cleanup now use C89. Native actor and preview code borrow typed
+  table handles from this state; physical table implementations remain adapters.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -287,7 +290,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-actor track/tag ownership and remaining stored-data persistence, alongside the remaining
+actor state/evaluation and remaining stored-data persistence, alongside the remaining
 physical path/file adapters, then the editing, actor evaluation and rendering
 integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the

@@ -2315,3 +2315,48 @@ raw presentation samples and timestamps remain available. The report is
 in `tmp/c89-movie-data-regression/playback.sqlite`. Existing cross-player pixel/
 audio differences and timing/alignment limitations remain; this is preservation
 against the preceding build, not full retail parity or general repeatability.
+
+## C89 actor track and tag ownership (12 November 2026)
+
+Actor route/event handles, creation/cloning, embedded-tag lookup, reference
+ownership and ordered cleanup now use C89. Actor/preview code borrows typed table
+handles from the C state. Physical table operations and actor evaluation/editing
+remain migration work. See the
+[implementation boundary](../code-map/library-split.md#actor-track-state-and-embedded-tag-ownership).
+
+Thirty-six standalone C checks, forty-nine focused native checks and MSVC
+AddressSanitizer pass. Checks cover unaligned tag bytes, all thirteen event kinds,
+custom and source-tag acceptance, every create/clone allocation failure,
+transactional replacement, retain/release order, idempotent cleanup and partial/
+empty tracks. The native ownership check still injects real table allocation
+failures and verifies resource reference counts. All nineteen binary snapshots
+match, including a new 192-byte ownership/clone baseline and eighteen prior
+snapshots. All 51 CLI baselines match, including six asset indexes covering
+20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-actor-track-before.bin`, `tmp/c89-actor-track-after.bin`,
+`tmp/c89-actor-track-snapshot-comparison.json`,
+`tmp/c89-actor-track-output-comparison.json` and `tmp/c89-actor-track-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence is
+in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T200239Z-60bfee16` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T200710Z-c0d8bb16` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding actor-data suites `20261112T195016Z-384726c3` and
+`20261112T195348Z-84a9a960`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-actor-track-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition. The updated preview-scene fixture also builds.

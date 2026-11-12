@@ -56,9 +56,9 @@ void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track,
         BrMatrix34Copy(&bmat34TR, &state.transform.bmat34Fwd); // copy to bmat34TR
 
         // Post apply the path orientation
-        AssertIn(state.addEvent, 0, track.events->IvMac());
-        paev = (Base *)track.events->QvFixedGet(state.addEvent);
-        track.route->Get(paev->rtel.irpt, &rpt);
+        AssertIn(state.addEvent, 0, track.Events()->IvMac());
+        paev = (Base *)track.Events()->QvFixedGet(state.addEvent);
+        track.Route()->Get(paev->rtel.irpt, &rpt);
 #ifdef BUG1899
         if (inputs.fixedPathOrientation ||
             (state.location.irpt == paev->rtel.irpt && state.location.dwrOffset == rZero))
@@ -69,7 +69,7 @@ void ActorPoseEvaluator::Update(ActorFrameState &state, const ActorTrack &track,
             // Single point	subroute ->
             // Post apply single point orientation to event rotations
             Add aevadd;
-            track.events->Get(state.addEvent, &aevadd);
+            track.Events()->Get(state.addEvent, &aevadd);
             BrMatrix34PostRotateX(&bmat34TR, aevadd.xa);
             BrMatrix34PostRotateY(&bmat34TR, aevadd.ya);
             BrMatrix34PostRotateZ(&bmat34TR, aevadd.za);
@@ -119,17 +119,17 @@ void ActorPoseEvaluator::RouteOrientation(const ActorFrameState &state, const Ac
     if (pvNil != pza)
         *pza = aZero;
 
-    AssertIn(state.addEvent, 0, track.events->IvMac());
-    track.events->GetFixed(state.addEvent, &aev);
+    AssertIn(state.addEvent, 0, track.Events()->IvMac());
+    track.Events()->GetFixed(state.addEvent, &aev);
     irptAdd = aev.rtel.irpt;
     irptPrev = (rZero < state.location.dwrOffset || state.location.irpt == aev.rtel.irpt) ? state.location.irpt
                                                                                           : state.location.irpt - 1;
 
-    Assert(rZero == state.location.dwrOffset || irptPrev < track.route->IvMac(), "Incorrect offset in path");
+    Assert(rZero == state.location.dwrOffset || irptPrev < track.Route()->IvMac(), "Incorrect offset in path");
 
     // If at end of subpath, or if on a static segment,
     // retain the orientation the actor last had
-    track.route->Get(irptPrev, &rpt);
+    track.Route()->Get(irptPrev, &rpt);
     if (rZero == rpt.dwr)
         irptPrev--;
 
@@ -168,10 +168,10 @@ void ActorPoseEvaluator::AccumulateTangent(const ActorTrack &track, RoutePoint *
     RouteDistancePoint rpt2;
     BRS dwr, dxr, dyr, dzr;
 
-    Assert(irpt + 1 < track.route->IvMac(), "irpt out of range");
+    Assert(irpt + 1 < track.Route()->IvMac(), "irpt out of range");
 
-    track.route->Get(irpt, &rpt1);
-    track.route->Get(irpt + 1, &rpt2);
+    track.Route()->Get(irpt, &rpt1);
+    track.Route()->Get(irpt + 1, &rpt2);
 
     dxr = BrsSub(rpt2.xyz.dxr, rpt1.xyz.dxr);
     dyr = BrsSub(rpt2.xyz.dyr, rpt1.xyz.dyr);

@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -605,7 +605,8 @@ releasing wire before partial runtime storage on failure. Writing borrows runtim
 groups and releases only partial output on failure. Tags stay unopened/unretained;
 read sets runtime cache pointers to null, while write zeros wire pointer slots and
 ignores cache identity. Native file/block/group services and typed interfaces remain
-temporary adapters. Track/tag ownership and actor evaluation/editing remain work.
+temporary adapters. Track/tag ownership now uses the C state described below;
+actor evaluation/editing remain work.
 
 `engine-actor-data-test` covers old/current headers, partial failed reads, invalid
 byte-order outputs, ID overflow, empty/foreign routes, all event layouts, Add padding,
@@ -613,6 +614,37 @@ tag fields, and allocation/insertion failures at every row. Thirty-five standalo
 C checks, forty-eight focused native checks, MSVC AddressSanitizer, eighteen binary
 snapshots and all 51 CLI baselines pass. The new header/all-event snapshot is 2,896
 bytes. No Marcus UI tests were added.
+
+### Actor track state and embedded tag ownership
+
+`actor_track.c` owns the route/event handles in `ThreeMMActorTrack`, replacing
+native ownership fields and their lifetime policy. The temporary ActorTrack facade
+exposes typed borrowed table accessors; actor evaluation/editing, preview and test
+fixtures use those accessors. Native services perform primitive allocation, table
+copying/locking and cache retain/release operations.
+
+C creates event tables with 20 fixed bytes, ten initial rows and twenty variable
+bytes, and route tables with 16-byte rows, 32 initial rows and minimum growth 32.
+Creation and cloning publish only after success, then dispose old state. Clone
+copies route first and acquires embedded tag references immediately after copying
+event bytes. Allocation failure leaves the destination and its references intact.
+Self-clone and self-swap are safe. Empty and partially populated tracks are accepted.
+
+C identifies Costume tags only when the custom flag is zero, and Sound tags for
+all Sound rows. It copies unaligned tag bytes to aligned local storage before
+access. Only sid-zero, non-null caches own references. Close clears cache pointers
+in their rows and tolerates repeated calls. Cleanup closes tags before releasing
+event tables, then route tables. Adoption transfers a handle and disposes the old
+table; adopting the current handle is a no-op. Callbacks cannot mutate/re-enter the
+participating tracks. Runtime evaluation/editing and physical table adapters remain.
+
+`engine-actor-track-test` covers every event kind, unaligned tags, custom flag
+values, unopened/positive/invalid-source tags, allocation failures, reference and
+cleanup order, replacement, self operations and partial/empty tracks. Thirty-six
+standalone C checks, forty-nine focused native checks and MSVC AddressSanitizer
+pass. Nineteen binary snapshots and all 51 CLI baselines match, including a new
+192-byte native track/clone snapshot and the prior eighteen snapshots. No Marcus
+UI tests were added.
 
 ### Source names and directory discovery
 

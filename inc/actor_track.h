@@ -3,6 +3,7 @@
 #ifndef ACTOR_TRACK_H
 #define ACTOR_TRACK_H
 #include "actor_data.h"
+#include "three_mm/actor_track.h"
 
 // Owns authored route/event tables and the embedded resource references in
 // their TAGs. Tables read by ActorData start with unopened TAGs; inserting an
@@ -13,9 +14,19 @@
 // requires releasing its previous contents (Clear handles both tables).
 class ActorTrack
 {
+    ThreeMMActorTrack _storage = {};
+
   public:
-    PGeneralGroup events = pvNil;
-    PDynamicArray route = pvNil;
+    PGeneralGroup Events() const
+    {
+        return static_cast<PGeneralGroup>(_storage.events);
+    }
+    PDynamicArray Route() const
+    {
+        return static_cast<PDynamicArray>(_storage.route);
+    }
+    PGeneralGroup AdoptEvents(PGeneralGroup);
+    PDynamicArray AdoptRoute(PDynamicArray);
 
     ActorTrack() = default;
     ~ActorTrack();

@@ -53,7 +53,7 @@ static bool Costume(ActorTrack &track, int frame, int set, int cmid, PChunkyReso
     costume.fCmtl = resource == pvNil ? tYes : tNo;
     costume.tag = {resource ? 0 : 2, resource, kctgMtrl, material};
     TagManager::DupTag(&costume.tag);
-    if (track.events->FInsert(track.events->IvMac(), sizeof(costume), &costume, &event))
+    if (track.Events()->FInsert(track.Events()->IvMac(), sizeof(costume), &costume, &event))
         return true;
     TagManager::CloseTag(&costume.tag);
     return false;
@@ -62,7 +62,7 @@ static bool AnimationEvents(ActorTrack &track, PChunkyResourceFile resource, Chu
 {
     const auto append = [&](int kind, int offset, int hold, const void *value, int bytes, int cached = 900) {
         ActorEvent::Base event = {kind, cached, {0, BR_SCALAR(offset), hold}};
-        return track.events->FInsert(track.events->IvMac(), bytes, const_cast<void *>(value), &event);
+        return track.Events()->FInsert(track.Events()->IvMac(), bytes, const_cast<void *>(value), &event);
     };
     int32_t freeze = 1, unfreeze = 0;
     BRS size = BR_SCALAR(1.5), stop = rZero, speed = BR_SCALAR(2);
@@ -365,7 +365,7 @@ int main(int argc, char **argv)
         const int distance = movie ? 400 : 40;
         RouteDistancePoint points[] = {{{rZero, rZero, rZero}, BR_SCALAR(distance)},
                                        {{BR_SCALAR(distance), rZero, rZero}, rZero}};
-        if (!track.route->FInsert(0, &points[0]) || !track.route->FInsert(1, &points[1]))
+        if (!track.Route()->FInsert(0, &points[0]) || !track.Route()->FInsert(1, &points[1]))
         {
             ok = false;
             break;
@@ -374,11 +374,11 @@ int main(int argc, char **argv)
         ActorEvent::Add addition = {};
         ActorEvent::Action action = {movie && actor == 0 ? animation : 0, 0};
         BRS step = BR_SCALAR(2);
-        ok = track.events->FInsert(0, sizeof(addition), &addition, &event);
+        ok = track.Events()->FInsert(0, sizeof(addition), &addition, &event);
         event.aet = ActorEvent::aetActn;
-        ok = ok && track.events->FInsert(1, sizeof(action), &action, &event);
+        ok = ok && track.Events()->FInsert(1, sizeof(action), &action, &event);
         event.aet = ActorEvent::aetStep;
-        ok = ok && track.events->FInsert(2, sizeof(step), &step, &event);
+        ok = ok && track.Events()->FInsert(2, sizeof(step), &step, &event);
         if (movie && actor == 0)
             ok = ok && Costume(track, 8, costumeSet, alternateCostume, pvNil, 0) &&
                  Costume(track, 20, costumeSet, originalCostume, pvNil, 0);
@@ -392,14 +392,14 @@ int main(int argc, char **argv)
             ok = ok && AnimationEvents(track, document, textures[0]);
         if (actor == 4)
         {
-            track.route->Delete(0, track.route->IvMac());
-            while (track.events->IvMac())
-                track.events->Delete(0);
+            track.Route()->Delete(0, track.Route()->IvMac());
+            while (track.Events()->IvMac())
+                track.Events()->Delete(0);
         }
         ChunkNumber child;
-        ok = ok && file->FAddChild(kctgActr, actorNumber, 0, track.route->CbOnFile(), kctgPath, &child, &block) &&
-             track.route->FWrite(&block);
-        auto wire = ActorData::PggWriteEvents(track.events);
+        ok = ok && file->FAddChild(kctgActr, actorNumber, 0, track.Route()->CbOnFile(), kctgPath, &child, &block) &&
+             track.Route()->FWrite(&block);
+        auto wire = ActorData::PggWriteEvents(track.Events());
         ok = ok && wire && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &child, &block) &&
              wire->FWrite(&block);
         ReleasePpo(&wire);

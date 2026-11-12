@@ -28,10 +28,10 @@ bool ActorStepSource::FPlaybackStep(const ActorFrameState &state, BRS *step) con
 
 static bool FindEntrance(const ActorTrack &track, LegacyLong first, LegacyLong *found)
 {
-    for (; first < track.events->IvMac(); ++first)
+    for (; first < track.Events()->IvMac(); ++first)
     {
         ActorEvent::Base event;
-        track.events->GetFixed(first, &event);
+        track.Events()->GetFixed(first, &event);
         if (event.aet == ActorEvent::aetAdd)
         {
             *found = first;
@@ -73,9 +73,9 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
     rtel.dnfrm = -1;
     iaevAdd = -1;
     // REVIEW *****(SeanSe): Why not start at the end and go backwards?
-    for (iaev = 0; iaev < track.events->IvMac(); iaev++)
+    for (iaev = 0; iaev < track.Events()->IvMac(); iaev++)
     {
-        paev = (Base *)track.events->QvFixedGet(iaev);
+        paev = (Base *)track.Events()->QvFixedGet(iaev);
         if (aetAdd == paev->aet)
             iaevAdd = iaev;
     }
@@ -89,7 +89,7 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
     // Loop through each frame
     LegacyLong fFrozen = fFalse;
     LegacyLong iaevNew = 0;
-    for ((*lastFrame) = firstFrame; ((rtel.irpt != track.route->IvMac()) || (iaevNew != track.events->IvMac()));
+    for ((*lastFrame) = firstFrame; ((rtel.irpt != track.Route()->IvMac()) || (iaevNew != track.Events()->IvMac()));
          (*lastFrame)++)
     {
         if (int64_t(*lastFrame) - firstFrame > maxFrames || *lastFrame == klwMax)
@@ -112,9 +112,9 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
         ActorRouteEvaluator::Advance(track, dwr, &rtel, iaevNew, (*lastFrame), firstFrame, !rejoining, &fEndSubRoute);
 
         // Scan all events for this frame
-        for (iaev = iaevNew; iaev < track.events->IvMac(); iaev++)
+        for (iaev = iaevNew; iaev < track.Events()->IvMac(); iaev++)
         {
-            track.events->GetFixed(iaev, &aev);
+            track.Events()->GetFixed(iaev, &aev);
 
             if ((aev.rtel > rtel) && ((aetAdd != aev.aet) || (!fEndSubRoute && !fDoneSubRoute)))
             {
@@ -151,19 +151,19 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
 
             case aetFreeze:
                 int32_t ffriz;
-                track.events->Get(iaev, &ffriz);
+                track.Events()->Get(iaev, &ffriz);
                 fFrozen = FPure(ffriz);
                 break;
 
             case aetSize: // Uniform size transformation
                 // Adjust step size : affects actor lifetime
-                track.events->Get(iaev, &rScale);
+                track.Events()->Get(iaev, &rScale);
                 break;
 
             case aetActn:
                 Action aevactn;
 
-                track.events->Get(iaev, &aevactn);
+                track.Events()->Get(iaev, &aevactn);
                 anid = aevactn.anid;
                 celn = aevactn.celn;
                 fFrozen = fFalse;
@@ -171,7 +171,7 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
                 break;
 
             case aetStep:
-                track.events->Get(iaev, &dwrStep);
+                track.Events()->Get(iaev, &dwrStep);
                 break;
 
             default:
@@ -185,7 +185,7 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
             if (aev.nfrm != (*lastFrame))
             {
                 aev.nfrm = (*lastFrame);
-                track.events->PutFixed(iaev, &aev);
+                track.Events()->PutFixed(iaev, &aev);
             }
         }
 
@@ -206,11 +206,11 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
         //   and finished updating later events at this same path location
         if (fEndSubRoute ||
             (dwrStep == rZero &&
-             (iaev == track.events->IvMac() || (!(aev.rtel.irpt == rtel.irpt && aev.rtel.dwrOffset == rtel.dwrOffset) &&
+             (iaev == track.Events()->IvMac() || (!(aev.rtel.irpt == rtel.irpt && aev.rtel.dwrOffset == rtel.dwrOffset) &&
                                                 FIsStalled(track, iaevNew, &rtel)))))
 #else  //! BUG1960
         if (fEndSubRoute ||
-            ((dwrStep == rZero) && (iaev == track.events->IvMac() || FIsStalled(track, iaevNew, &rtel))))
+            ((dwrStep == rZero) && (iaev == track.Events()->IvMac() || FIsStalled(track, iaevNew, &rtel))))
 #endif //! BUG1960
         {
             fDoneSubRoute = fTrue;
@@ -227,7 +227,7 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
             }
 
             // Add events jump in space.  Update rtel
-            track.events->GetFixed(iaev, &aev);
+            track.Events()->GetFixed(iaev, &aev);
             rtel = aev.rtel;
 
             // Initialization for _AdvanceRtel()
@@ -244,15 +244,15 @@ bool ActorTimeline::FComputeLifetime(const ActorTrack &track, LegacyLong firstFr
 
 bool ActorTimeline::FIsStalled(const ActorTrack &track, LegacyLong iaevFirst, RouteLocation *prtel, LegacyLong *piaevLast)
 {
-    AssertIn(iaevFirst, 0, track.events->IvMac());
+    AssertIn(iaevFirst, 0, track.Events()->IvMac());
     AssertNilOrVarMem(piaevLast);
 
     Base aev;
     LegacyLong iaev;
 
-    for (iaev = iaevFirst; iaev < track.events->IvMac(); iaev++)
+    for (iaev = iaevFirst; iaev < track.Events()->IvMac(); iaev++)
     {
-        track.events->GetFixed(iaev, &aev);
+        track.Events()->GetFixed(iaev, &aev);
         if ((aev.rtel.irpt > prtel->irpt) || (aev.rtel.dwrOffset > prtel->dwrOffset))
         {
             if (piaevLast != pvNil)
@@ -267,7 +267,7 @@ bool ActorTimeline::FIsStalled(const ActorTrack &track, LegacyLong iaevFirst, Ro
             if (aetStep == aev.aet)
             {
                 BRS dwrAev;
-                track.events->Get(iaev, &dwrAev);
+                track.Events()->Get(iaev, &dwrAev);
                 if (rZero != dwrAev)
                     return fFalse;
             }
@@ -290,7 +290,7 @@ bool ActorTimeline::FStepBack(ActorFrameState &state, const ActorTrack &track, c
     RouteLocation rtelAdd;
     BRS dwrT;
 
-    paev = (Base *)track.events->QvFixedGet(state.addEvent);
+    paev = (Base *)track.Events()->QvFixedGet(state.addEvent);
     rtelAdd = paev->rtel;
 
     if (!state.frozen)
@@ -323,7 +323,7 @@ bool ActorTimeline::FStepBack(ActorFrameState &state, const ActorTrack &track, c
                 break;
             }
             state.location.irpt--;
-            track.route->Get(state.location.irpt, &rpt);
+            track.Route()->Get(state.location.irpt, &rpt);
             dwrT = BrsAdd(rpt.dwr, dwrT);
         }
         state.location.dwrOffset = dwrT;
@@ -360,7 +360,7 @@ ActorQuickSeekResult ActorTimeline::QuickBackup(ActorFrameState &state, const Ac
 
 #ifdef DEBUG
     Base *paev;
-    paev = (Base *)track.events->QvFixedGet(state.nextEvent - 1);
+    paev = (Base *)track.Events()->QvFixedGet(state.nextEvent - 1);
     Assert(paev->nfrm < nfrm, "Invalid Call to _FQuickBackupToFrm()");
 #endif // DEBUG
 

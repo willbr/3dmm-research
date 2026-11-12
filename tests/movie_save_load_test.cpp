@@ -235,13 +235,13 @@ class TrackTestActor : public Actor
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetAdd;
         ActorEvent::Add addition = {};
-        if (!_track.route->FInsert(0, &point) || !_track.events->FInsert(0, sizeof(addition), &addition, &event))
+        if (!_track.Route()->FInsert(0, &point) || !_track.Events()->FInsert(0, sizeof(addition), &addition, &event))
             return false;
         event.aet = ActorEvent::aetSnd;
         ActorEvent::Sound sound = {};
         sound.tag = _tagTmpl;
         sound.tag.ctg = kctgMsnd;
-        if (!_track.events->FInsert(1, sizeof(sound), &sound, &event))
+        if (!_track.Events()->FInsert(1, sizeof(sound), &sound, &event))
             return false;
         TagManager::DupTag(&sound.tag);
         ActorEvent::SoundMotionMatch match = {};
@@ -257,33 +257,33 @@ class TrackTestActor : public Actor
     }
     bool FTestRestore(PActor snapshot)
     {
-        PGeneralGroup changedEvents = _track.events;
-        PDynamicArray changedRoute = _track.route;
+        PGeneralGroup changedEvents = _track.Events();
+        PDynamicArray changedRoute = _track.Route();
         RouteDistancePoint point = {{BR_SCALAR(99), rZero, rZero}, rZero};
-        _track.route->Put(0, &point);
-        _track.events->Delete(0); // Add has no owned TAG.
+        _track.Route()->Put(0, &point);
+        _track.Events()->Delete(0); // Add has no owned TAG.
         _state.frame = 7;
         _arid = 99;
         _state.transform.rScaleStep = BR_SCALAR(3);
         const long refs = CactRef();
         Restore(snapshot);
-        _track.route->Get(0, &point);
-        return CactRef() == refs && _track.events != changedEvents && _track.route != changedRoute &&
-               _track.events->IvMac() == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
+        _track.Route()->Get(0, &point);
+        return CactRef() == refs && _track.Events() != changedEvents && _track.Route() != changedRoute &&
+               _track.Events()->IvMac() == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
                _state.transform.rScaleStep == BR_SCALAR(2) && _state.nextEvent == 1 && _pglsmm->IvMac() == 1;
     }
     bool FTestRoute()
     {
         RouteDistancePoint start = {{BR_SCALAR(3), rZero, rZero}, BR_SCALAR(4)};
         RouteDistancePoint finish = {{BR_SCALAR(7), rZero, rZero}, rZero};
-        _track.route->Put(0, &start);
-        if (!_track.route->FInsert(1, &finish))
+        _track.Route()->Put(0, &start);
+        if (!_track.Route()->FInsert(1, &finish))
             return false;
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetStep;
         event.rtel.dwrOffset = BR_SCALAR(2);
         BRS step = rZero;
-        if (!_track.events->FInsert(2, sizeof(step), &step, &event))
+        if (!_track.Events()->FInsert(2, sizeof(step), &step, &event))
             return false;
         for (long mode = 0; mode < 3; ++mode)
         {
@@ -306,10 +306,10 @@ class TrackTestActor : public Actor
         _state.frame = 17;
         auto apply = [&](long type, void *payload, long bytes) {
             ActorEvent::Base event = {static_cast<int32_t>(type), -1, {0, BR_SCALAR(2), 3}};
-            long index = _track.events->IvMac();
-            if (!_track.events->FInsert(index, bytes, payload, &event) || !_FDoAevCore(index))
+            long index = _track.Events()->IvMac();
+            if (!_track.Events()->FInsert(index, bytes, payload, &event) || !_FDoAevCore(index))
                 return false;
-            _track.events->GetFixed(index, &event);
+            _track.Events()->GetFixed(index, &event);
             return event.nfrm == 17;
         };
         RoutePoint delta = {BR_SCALAR(2), BR_SCALAR(3), BR_SCALAR(4)};

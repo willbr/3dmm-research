@@ -22,12 +22,12 @@ ActorFrameEvaluator::ActorFrameEvaluator(ActorFrameState &state, const ActorTrac
 
 bool ActorFrameEvaluator::FSubrouteEventsDone(const ActorTrack &track, LegacyLong index, RouteLocation location)
 {
-    AssertPo(track.events, 0);
-    AssertIn(index, 0, track.events->IvMac() + 1);
-    for (; index < track.events->IvMac(); ++index)
+    AssertPo(track.Events(), 0);
+    AssertIn(index, 0, track.Events()->IvMac() + 1);
+    for (; index < track.Events()->IvMac(); ++index)
     {
         Base event;
-        track.events->GetFixed(index, &event);
+        track.Events()->GetFixed(index, &event);
         if (event.aet == aetAdd)
             return true;
         if (event.rtel > location)
@@ -73,10 +73,10 @@ ActorFrameCommand ActorFrameEvaluator::Next()
     {
         if (_phase == Phase::Entrances)
         {
-            for (; _entranceScan < _track.events->IvMac(); ++_entranceScan)
+            for (; _entranceScan < _track.Events()->IvMac(); ++_entranceScan)
             {
                 Base event;
-                _track.events->GetFixed(_entranceScan, &event);
+                _track.Events()->GetFixed(_entranceScan, &event);
                 if (event.aet == aetAdd)
                 {
                     _entrance = _entranceScan++;
@@ -87,13 +87,13 @@ ActorFrameCommand ActorFrameEvaluator::Next()
             _phase = Phase::Events;
             _scan = _state.nextEvent;
         }
-        if (_scan == _track.events->IvMac())
+        if (_scan == _track.Events()->IvMac())
         {
             _Finish();
             break;
         }
         Base event;
-        _track.events->GetFixed(_scan, &event);
+        _track.Events()->GetFixed(_scan, &event);
         if (event.aet == aetAdd)
         {
             _pending = Pending::OrderedEntranceQuery;
@@ -119,7 +119,7 @@ ActorFrameCommand ActorFrameEvaluator::Next()
             if (!_inputs.displayFrame || _inputs.suppressSounds)
             {
                 Sound sound;
-                _track.events->Get(_scan, &sound);
+                _track.Events()->Get(_scan, &sound);
                 if (sound.celn == ivNil)
                 {
                     ++_state.nextEvent;
