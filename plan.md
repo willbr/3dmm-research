@@ -91,8 +91,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - GST headers, memory-stream storage/edits, live file-piece lookup/fetch,
   DataBlock range/unpack policy and packed-envelope decode dispatch now use C89.
   Host callbacks still provide codec algorithms, HQ ownership and file access.
-  Next convert codec implementations and encoding, then file-piece editing,
-  remaining allocator services and container persistence.
+  KCDC/KCD2 algorithms and packed encoding now also use C89, preserving exact
+  native encoder bytes and decoded results. Codec registration, HQ transactions
+  and host allocation diagnostics remain C++ services. Next convert file-piece
+  editing, remaining allocator services and container persistence.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

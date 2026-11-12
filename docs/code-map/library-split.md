@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -265,7 +265,8 @@ handle. Packed memory subranges remain unsupported and now reject safely while
 retaining storage. Successful full-memory unpack also removes the original
 assignment-in-assert typo that failed in debug builds. Packed format/decoded-size
 parsing, codec selection/query, conversion dispatch and wrong-size detection
-are shared C policy. Algorithms and encoding remain host codec services.
+are shared C policy. KCDC/KCD2 algorithms and encoding are now C services,
+described below.
 
 `engine-data-stream-test` covers independent GST fixtures, overflow/range edges,
 failed decode ownership, packed dispatch failures, relocating/failing allocation,
@@ -275,9 +276,44 @@ rejected memory/file decodes, memory edits/locks/writes and mixed memory/file
 pieces. Native string checks cover both endian orders, requested encoding-width
 normalization and empty allocated GST save/reopen.
 
-Codec algorithms/encoding, HQ services, file-piece editing/compaction and chunk
-persistence remain C++; these and remaining engine objects still prevent a
-complete C-only backend.
+### KCDC/KCD2 algorithms and packed encoding
+
+`three_mm/codec.h` and `codec.c` implement both formats without Kauai or C++
+dependencies. Encoding preserves dictionary links, nearest/longest-match
+selection, offset cost preferences, literal ordering, bit packing and tails.
+The two temporary arrays use checked four-byte entries and NORMAL allocation
+priority. The host retains its original fixed-memory allocator diagnostics;
+the standalone API can use the C heap or an explicit allocator. Every failure
+releases the scratch arrays and leaves the published count untouched.
+
+Decoders read bounded low-bit-first fields instead of unaligned word lookahead.
+They retain flags/tail checks, overlapping back references, all four offset
+tiers, KCD2's split last literal byte and format-specific termination. Raw decode
+can succeed with zero output; packed envelopes still require the advertised
+positive decoded size. This conversion preserves the existing length-prefix
+rules rather than changing the format or repairing legacy encoder edge cases.
+The generated x86 assembly sources remain available to their generator tools;
+`KauaiCodec` now dispatches to the shared portable C implementation on every
+architecture.
+
+`three_mm_packed_encode` shares the eight-byte big-endian envelope, codec
+selection/query, input-size-minus-one estimate and minimum-saving policy.
+It retains pre-conversion failure counts and publishes callback counts on
+conversion failure. Native registration order and custom codec callbacks remain
+supported; algorithm dispatch is no longer implemented in `codkauai.cpp`.
+`CodecManager` object/registration lifetime and HQ allocation/lock/resize
+transactions remain C++ host services.
+
+`engine-codec-test` checks a frozen native hash covering 768 capacity/format/input
+cases and decoded results, independent wire fixtures for each offset tier,
+scratch-allocation failures, envelope queries/errors and 12,000 malformed inputs.
+The same checks pass under MSVC AddressSanitizer. `codec-test --snapshot PATH`
+also records exact native output for before/after binary comparison; its
+existing thirteen round trips remain intact. Core link tests exercise real
+allocator failure hooks and both formats through DataBlock pack/unpack.
+
+HQ services, file-piece editing/compaction and chunk persistence remain C++;
+these and remaining engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

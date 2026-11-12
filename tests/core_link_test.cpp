@@ -166,10 +166,29 @@ static void TestDataStreams()
     byte source[4096], actual[4100];
     for (unsigned i = 0; i < sizeof(source); ++i) source[i] = static_cast<byte>(i % 7);
     DataBlock block;
-    Check(block.FSetTemp(sizeof(source)) && block.FWrite(source));
-    Check(block.FPackData(kcfmtKauai2) && block.FPacked());
-    Check(block.FUnpackData() && !block.FPacked() && block.Cb() == sizeof(source));
-    Check(block.FRead(actual) && !std::memcmp(actual, source, sizeof(source)));
+    for (LegacyLong format : {kcfmtKauai, kcfmtKauai2})
+    {
+        Check(block.FSetTemp(sizeof(source)) && block.FWrite(source));
+        Check(block.FPackData(format) && block.FPacked());
+        Check(block.FUnpackData() && !block.FPacked() && block.Cb() == sizeof(source));
+        Check(block.FRead(actual) && !std::memcmp(actual, source, sizeof(source)));
+    }
+    LegacyLong untouchedCount = 123;
+    Check(!vpcodmUtil->FCompress(source, 9, pvNil, 0, &untouchedCount) && untouchedCount == 123);
+#ifdef DEBUG
+    KauaiCodec codec;
+    for (int failure = 0; failure < 2; ++failure)
+    {
+        const auto initialAllocations = vdmglob.dmaglPv.cv;
+        vdmglob.dmaglPv.cactDo = failure;
+        vdmglob.dmaglPv.cactFail = 1;
+        LegacyLong count;
+        const bool ok = codec.FConvert(true, kcfmtKauai2, source, sizeof(source), actual, sizeof(actual), &count);
+        const bool consumed = vdmglob.dmaglPv.cactFail == 0;
+        vdmglob.dmaglPv.cactFail = vdmglob.dmaglPv.cactDo = 0;
+        Check(!ok && consumed && vdmglob.dmaglPv.cv == initialAllocations);
+    }
+#endif
 
     // Unknown packed format must retain the original owning handle on failure.
     byte invalid[] = {'n','o','n','e', 0,0,0,4, 1,2,3,4};

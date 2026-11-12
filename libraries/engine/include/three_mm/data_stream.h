@@ -14,7 +14,9 @@ extern "C"
         THREE_MM_DATA_PACKED,
         THREE_MM_DATA_IO,
         THREE_MM_DATA_CODEC,
-        THREE_MM_DATA_WRONG_SIZE
+        THREE_MM_DATA_WRONG_SIZE,
+        THREE_MM_DATA_MEMORY,
+        THREE_MM_DATA_NOT_ENCODED
     };
     enum
     {
@@ -59,6 +61,12 @@ extern "C"
     int three_mm_packed_decode(const ThreeMMPackedDecoder *, const void *, ThreeMMU32 bytes, void *output,
                                ThreeMMU32 capacity, ThreeMMI32 *written);
     int three_mm_packed_format(const ThreeMMReadStream *, ThreeMMI32 *format);
+    /* The same callback shape supplies encoder selection/conversion. Queries
+     * retain the legacy input-size-minus-one estimate and minimum saving rule.
+     * Conversion failures publish the callback count; pre-conversion failures
+     * leave written untouched. */
+    int three_mm_packed_encode(const ThreeMMPackedDecoder *encoder, ThreeMMI32 format, const void *, ThreeMMU32 bytes,
+                               void *output, ThreeMMU32 capacity, ThreeMMI32 *written);
 
     /* Owns its C storage. No copying/re-entry; replacement input must not alias it.
      * MemoryByteStream's legacy reserve hints use NORMAL priority for both attempts,

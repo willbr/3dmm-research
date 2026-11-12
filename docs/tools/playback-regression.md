@@ -825,3 +825,54 @@ Movie, ISO-resource and Marcus-content hashes remain unchanged in every run.
 Existing cross-player image/audio differences and timing/alignment limitations
 remain. These captures establish preservation against the previous build,
 not full retail parity, exact PCM equality or repeatability from one repetition.
+
+## C89 KCDC/KCD2 codecs and packed encoding (12 November 2026)
+
+KCDC and KCD2 encode/decode algorithms now live in the shared C89 backend.
+Studio and Marcus use the same match selection, bitstream rules and bounded
+decoder. Packed encoding also uses C89 for the envelope, codec query/dispatch
+and minimum-saving rules. Native callbacks retain allocation diagnostics;
+codec registration and HQ transactions remain C++ migration work.
+
+Nine standalone C-only checks and twenty-one focused native checks pass. The
+pre-migration native codec snapshot covers 768 format/input/capacity cases,
+including exact encoder bytes, failures and successful decoded results. Its
+1,349,303 bytes match the migrated implementation exactly. Local snapshots are
+`tmp/c89-codec-before.bin` and `tmp/c89-codec-after.bin`; the frozen hash is
+also checked by `engine-codec` without a C++ toolchain.
+
+The new check includes independent wire fixtures for all four offset tiers,
+overlapping back references, KCD2 literal splits, both scratch-allocation failure
+points, envelope queries/errors and 12,000 malformed decoder inputs. It passes
+under MSVC AddressSanitizer. Native core checks exercise the real allocator
+failure hooks and DataBlock pack/unpack through both formats. The existing
+thirteen codec round trips pass. No Marcus UI tests were added.
+
+All 51 saved CLI baselines match: 45 movie/archive/legacy outputs or rejection
+results and six asset indexes covering 20,568 entries. The report is
+`tmp/c89-codec-output-comparison.json`. See the
+[codec dependency boundary](../code-map/library-split.md#kcdckcd2-algorithms-and-packed-encoding)
+for remaining C++ services and the preserved format boundary.
+
+Both hosts were rebuilt and held fixed during capture, with no concurrent
+builds. Evidence is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T061451Z-2eb68cb9` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T061954Z-da0299a5` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Compared with the preceding stream-slice suites `20261112T052155Z-259b682f`
+and `20261112T052622Z-74b6d2ac`, all 180 seek images match exactly. Each player
+retains the same 60 authored frame positions and ordered exact image changes:
+scrolling text retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain preserved. PCM16 peak magnitudes remain 2380 for
+retail and 2176 for SDL and Marcus. The local report is
+`tmp/c89-codec-playback-comparison.json`.
+
+All nine runs retain unchanged movie, ISO-resource and Marcus-content hashes.
+Existing cross-player pixel/audio differences and timing/alignment limitations
+remain. These checks establish preservation against the preceding build;
+they do not establish full retail parity, exact PCM equality or repeatability
+from a single repetition.

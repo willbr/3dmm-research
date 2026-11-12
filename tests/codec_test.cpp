@@ -14,6 +14,8 @@ ASSERTNAME
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <initializer_list>
 
 namespace
 {
@@ -128,8 +130,50 @@ bool RoundTrip(const char *pszName, LegacyLong cbSrc, uint32_t seed, int kind, L
 }
 }
 
-int main(void)
+// Capture deterministic encoded bytes before/after a codec migration. Failed
+// calls have unspecified output bytes/count, so only their status is recorded.
+static int Snapshot(const char *path)
 {
+    FILE *file = std::fopen(path, "wb");
+    if (!file) return 1;
+    KauaiCodec codec;
+    const LegacyLong sizes[] = {1,2,3,7,8,15,31,64,255,256,511,4095,4096,4097,8192,16384};
+    byte input[16384], output[32768], decoded[16384];
+    for (LegacyLong format : {kcfmtKauai, kcfmtKauai2})
+        for (LegacyLong size : sizes)
+            for (int kind = 0; kind < 6; ++kind)
+            {
+                FillRandom(input, size, 0x13579, kind % 5);
+                if (kind == 5)
+                {
+                    LCG random{0x2468};
+                    for (LegacyLong i = 0; i < size; ++i) input[i] = static_cast<byte>(random.Next() >> 16);
+                }
+                for (LegacyLong capacity : {LegacyLong(7), size, size + 16, size * 2})
+                {
+                    LegacyLong count = 0;
+                    bool ok = codec.FConvert(true, format, input, size, output, capacity, &count);
+                    const byte status = ok ? 1 : 0;
+                    if (std::fwrite(&status, 1, 1, file) != 1) return 1;
+                    if (ok && (std::fwrite(&count, sizeof(count), 1, file) != 1 ||
+                               std::fwrite(output, 1, count, file) != static_cast<size_t>(count))) return 1;
+                    if (ok)
+                    {
+                        LegacyLong decodedCount = 0;
+                        bool decodedOk = codec.FConvert(false, format, output, count, decoded, size, &decodedCount);
+                        const byte decodedStatus = decodedOk ? 1 : 0;
+                        if (std::fwrite(&decodedStatus, 1, 1, file) != 1) return 1;
+                        if (decodedOk && (std::fwrite(&decodedCount, sizeof(decodedCount), 1, file) != 1 ||
+                                         std::fwrite(decoded, 1, decodedCount, file) != static_cast<size_t>(decodedCount))) return 1;
+                    }
+                }
+            }
+    return std::fclose(file) != 0;
+}
+
+int main(int argc, char **argv)
+{
+    if (argc == 3 && !std::strcmp(argv[1], "--snapshot")) return Snapshot(argv[2]);
     printf("=== KauaiCodec round-trip tests ===\n");
     printf("Pointer width: %d bits\n", (int)(sizeof(void *) * 8));
     printf("\n");

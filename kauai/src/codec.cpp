@@ -17,12 +17,6 @@ RTCLASS(CodecManager)
 RTCLASS(Codec)
 
 /***************************************************************************
-    The header on a compressed block consists of the cfmt (a long in big
-    endian order) and the decompressed length (a long in big endian order).
-***************************************************************************/
-const LegacyLong kcbCodecHeader = 2 * size(LegacyLong);
-
-/***************************************************************************
     Constructor for the compression manager. pcodc is an optional default
     codec. cfmt is the default compression format.
 ***************************************************************************/
@@ -184,6 +178,21 @@ bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
     return true;
 }
 
+void *CodecManager::_FindEncoder(void *context, ThreeMMI32 format)
+{
+    PCodec codec = nullptr;
+    if (format == cfmtNil) return nullptr;
+    return static_cast<CodecManager *>(context)->_FFindCodec(true, format, &codec) ? codec : nullptr;
+}
+int CodecManager::_ConvertEncoder(void *codec, ThreeMMI32 format, const void *input, ThreeMMU32 bytes,
+                                  void *output, ThreeMMU32 capacity, ThreeMMI32 *written)
+{
+    LegacyLong count = *written;
+    const bool ok = static_cast<PCodec>(codec)->FConvert(true, format, const_cast<void *>(input), bytes, output, capacity, &count);
+    *written = static_cast<ThreeMMI32>(count);
+    return ok;
+}
+
 /***************************************************************************
     Look for a codec that can handle the given format.
 ***************************************************************************/
@@ -275,60 +284,13 @@ bool CodecManager::_FCode(LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *
     AssertPvCb(pvDst, cbDst);
     AssertVarMem(pcbDst);
 
-    byte *prgb;
-    PCodec pcodc;
-
-    if (cfmtNil != cfmt)
-    {
-        // Encode the data
-        if (pvNil == pvDst || cbDst >= cbSrc)
-            cbDst = cbSrc - 1;
-
-        if (cbDst <= kcbCodecHeader)
-        {
-            // destination is smaller than the minimum compressed size, so
-            // no sense trying.
-            return fFalse;
-        }
-
-        // make sure we have a codec for this format
-        if (!_FFindCodec(fTrue, cfmt, &pcodc))
-            return fFalse;
-
-        if (pvNil == pvDst)
-        {
-            // this is our best guess at the compressed size
-            *pcbDst = cbDst;
-            return fTrue;
-        }
-
-        prgb = (byte *)pvDst;
-        if (!pcodc->FConvert(fTrue, cfmt, pvSrc, cbSrc, prgb + kcbCodecHeader, cbDst - kcbCodecHeader, pcbDst))
-        {
-            return fFalse;
-        }
-
-        AssertIn(*pcbDst, 1, cbDst - kcbCodecHeader + 1);
-        *pcbDst += kcbCodecHeader;
-
-        prgb[0] = B3Lw(cfmt);
-        prgb[1] = B2Lw(cfmt);
-        prgb[2] = B1Lw(cfmt);
-        prgb[3] = B0Lw(cfmt);
-        prgb[4] = B3Lw(cbSrc);
-        prgb[5] = B2Lw(cbSrc);
-        prgb[6] = B1Lw(cbSrc);
-        prgb[7] = B0Lw(cbSrc);
-    }
-    else
-    {
-        const ThreeMMPackedDecoder decoder = {this, _FindDecoder, _ConvertDecoder};
-        ThreeMMI32 count = 0;
-        const int result = three_mm_packed_decode(&decoder, pvSrc, cbSrc, pvDst, cbDst, &count);
-        if (result != THREE_MM_DATA_ARGUMENT) *pcbDst = count;
-        if (result == THREE_MM_DATA_WRONG_SIZE) Bug("decompressed to wrong size");
-        return result == THREE_MM_DATA_OK;
-    }
-
-    return fTrue;
+    ThreeMMI32 count = 0;
+    const ThreeMMPackedDecoder encoder = {this, _FindEncoder, _ConvertEncoder};
+    const ThreeMMPackedDecoder decoder = {this, _FindDecoder, _ConvertDecoder};
+    const int result = cfmt != cfmtNil ?
+        three_mm_packed_encode(&encoder, cfmt, pvSrc, cbSrc, pvDst, cbDst, &count) :
+        three_mm_packed_decode(&decoder, pvSrc, cbSrc, pvDst, cbDst, &count);
+    if (result != THREE_MM_DATA_ARGUMENT && result != THREE_MM_DATA_NOT_ENCODED) *pcbDst = count;
+    if (result == THREE_MM_DATA_WRONG_SIZE) Bug("codec produced wrong size");
+    return result == THREE_MM_DATA_OK;
 }

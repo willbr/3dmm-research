@@ -162,6 +162,36 @@ int three_mm_packed_decode(const ThreeMMPackedDecoder *decoder, const void *inpu
         return THREE_MM_DATA_CODEC;
     return *written == expected ? THREE_MM_DATA_OK : THREE_MM_DATA_WRONG_SIZE;
 }
+int three_mm_packed_encode(const ThreeMMPackedDecoder *encoder, ThreeMMI32 format, const void *input, ThreeMMU32 bytes,
+                           void *output, ThreeMMU32 capacity, ThreeMMI32 *written)
+{
+    void *codec;
+    unsigned char *p = (unsigned char *)output;
+    unsigned i;
+    if (!encoder || !encoder->find || !encoder->convert || !input || !written || !bytes || bytes >= LIMIT ||
+        capacity >= LIMIT)
+        return THREE_MM_DATA_ARGUMENT;
+    if (!output || capacity >= bytes)
+        capacity = bytes - 1;
+    if (capacity <= 8 || !(codec = encoder->find(encoder->context, format)))
+        return THREE_MM_DATA_NOT_ENCODED;
+    if (!output)
+    {
+        *written = (ThreeMMI32)capacity;
+        return THREE_MM_DATA_OK;
+    }
+    if (!encoder->convert(codec, format, input, bytes, p + 8, capacity - 8, written))
+        return THREE_MM_DATA_CODEC;
+    if (*written < 1 || (ThreeMMU32)*written > capacity - 8)
+        return THREE_MM_DATA_WRONG_SIZE;
+    *written += 8;
+    for (i = 0; i < 4; ++i)
+    {
+        p[i] = (unsigned char)((ThreeMMU32)format >> (24 - i * 8));
+        p[4 + i] = (unsigned char)(bytes >> (24 - i * 8));
+    }
+    return THREE_MM_DATA_OK;
+}
 int three_mm_byte_buffer_init(ThreeMMByteBuffer *b, const ThreeMMStorageAllocator *allocator)
 {
     int result;

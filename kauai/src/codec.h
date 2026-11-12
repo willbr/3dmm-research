@@ -15,6 +15,7 @@
 #ifndef CODEC_H
 #define CODEC_H
 #include "three_mm/data_stream.h"
+#include "three_mm/codec.h"
 
 /***************************************************************************
     Codec object.
@@ -50,6 +51,8 @@ class CodecManager : public CodecManager_PAR
   protected:
     static void *_FindDecoder(void *, ThreeMMI32);
     static int _ConvertDecoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
+    static void *_FindEncoder(void *, ThreeMMI32);
+    static int _ConvertEncoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
     LegacyLong _cfmtDef;
     PCodec _pcodcDef;
     PDynamicArray _pglpcodc;
@@ -106,12 +109,6 @@ typedef class KauaiCodec *PKauaiCodec;
 class KauaiCodec : public KauaiCodec_PAR
 {
     RTCLASS_DEC
-
-  protected:
-    bool _FEncode(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst);
-    bool _FDecode(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst);
-    bool _FEncode2(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst);
-    bool _FDecode2(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst);
 
   public:
     virtual bool FCanDo(bool fEncode, LegacyLong cfmt)
