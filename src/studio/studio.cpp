@@ -483,6 +483,7 @@ bool Studio::FSetMovie(PMovie pmvie)
     AssertPo(pmvie, 0);
 
     bool fRet = fFalse;
+    String movieTitle;
     PMovieView pmvu = pvNil;
     RC rcRel, rcAbs;
     PKidspaceGraphicObject pgok;
@@ -517,7 +518,8 @@ bool Studio::FSetMovie(PMovie pmvie)
     AssertPo(pmvu, 0);
 
     // Set the movie title
-    UpdateTitle(_pmvie->PstnTitle());
+    _pmvie->GetName(&movieTitle);
+    UpdateTitle(&movieTitle);
 
     _pmvie->SetThumbPalette(_pglclr);
 

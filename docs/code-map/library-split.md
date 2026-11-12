@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -466,7 +466,7 @@ forty-two focused native checks pass. No Marcus UI tests were added.
 ### Movie ownership and roll-call persistence
 
 `movie_owner.c` owns MovieData's resource/table references, movie number, actor-ID
-limit and scene count. Native MovieData now inherits this C state and exposes typed
+limit, title and scene count. Native MovieData now inherits this C state and exposes typed
 borrowed handle accessors, with no duplicated native ownership fields. C performs
 empty initialization, transactional load/replace, contiguous scene counting and
 save ordering. Failed initialization/load preserves the old movie. Save retains
@@ -479,9 +479,9 @@ partial-failure cleanup and output publication. It closes a just-opened tag befo
 earlier rows on failed insertion, releases the wire table before unwinding runtime
 rows, and preserves caller ID limits on failure. `movie_data.c` writes 28-byte actor
 extras in either byte order, with a zero pointer slot. Roll-call storage, decoding
-and header writes now use the owning C table described below. Native title strings,
-root/version adapters, physical I/O and tag-service thunks remain intermediate
-host dependencies.
+and header writes now use the owning C table described below. Title/root/version
+policy now uses C as described below; physical I/O and typed tag/file thunks remain
+intermediate host dependencies.
 
 Studio uses the same state and roll-call paths. Its existing early resource release
 during Movie destruction remains explicit, before closing the scene and actor list;
@@ -510,8 +510,8 @@ logical rows while allowing successful partial capacity growth.
 The temporary native RollCallTable class provides BASE allocation/diagnostics and
 typed String/TAG conversions for existing callers. Its only table state is the C
 record; it has no GST base class or native table-policy implementation. Studio's
-roll-call edits and movie-merge rollback use the same C table. Native title values,
-root/version policy, physical file/text conversion services and final facade
+roll-call edits and movie-merge rollback use the same C table. Physical file/text
+conversion services and final facade
 removal remain migration work.
 
 `engine-rollcall-storage-test` checks relocating buffers, partial allocation
@@ -520,6 +520,38 @@ foreign-width translation, failed read/write and locked disposal. The native
 405-byte mutation/GST snapshot and fourteen earlier snapshots match. Thirty-two
 standalone C checks, forty-five focused native checks, MSVC AddressSanitizer and
 all 51 CLI baselines pass. No Marcus UI tests were added.
+
+### Movie titles, root creation and version checks
+
+`movie_title.c` owns MovieData's counted title in the C state, with native one/two-
+byte units and no encoding normalization. Initialization/load commit title together
+with the other movie fields; failures preserve the old title. C also owns filename
+extension stripping, default-name choice and notification policy. A leading dot
+counts as an extension boundary. Without a filename, a nonempty title is retained
+without notification. Default text, filename leaves and UI notification are host
+callbacks; native adapters copy their results into C state. Save-dialog callback
+mutations are published even when the dialog cancels, preserving legacy behavior.
+Studio now uses the existing copied-name query instead of a borrowed native title.
+
+`movie_root.c` owns first-movie selection, version-error classification and root
+creation, including explicit 8-byte prefix encoding. Selecting the first movie
+publishes its number before header validation; null number still selects the first
+movie. Failed verification preserves the header. Failed root writes delete the
+added chunk before publishing nil; failed addition retains callback output without
+extra cleanup. Existing version predicates remain in `movie_data.c`.
+
+Native file/block operations, locale/code-page conversion, localized text lookup,
+and frontend presentation remain host adapters. There is no persistent native
+MovieData title or duplicate native root/version policy. The engine still has
+other C++ ownership, editing/evaluation and final integration work.
+
+`engine-movie-title-root-test` checks both unit widths, bounded/overlapping title
+copies, default/notification order, extension edge cases, both prefix byte orders,
+selection publication and I/O/add/write failures. Movie ownership tests also check
+title preservation on failed replacement. The native save/load check covers a
+cancelled save callback mutating the title. Thirty-three standalone C checks,
+forty-six focused native checks, MSVC AddressSanitizer, sixteen binary snapshots
+and all 51 CLI baselines pass. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

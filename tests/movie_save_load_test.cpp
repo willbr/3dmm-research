@@ -47,6 +47,21 @@ class TestMcc : public MovieClientCallbacks
     long stopped = 0;
     long disabled = 0;
     WaitReason pause = witNil;
+    bool testingTitle = false;
+    long titleUpdates = 0;
+    void GetStn(long ids, PString value) override
+    {
+        if (testingTitle && ids == idsEngineDefaultTitle) value->SetSzs(PszLit("Default movie"));
+    }
+    void UpdateTitle(PString value) override
+    {
+        if (testingTitle) { ++titleUpdates; }
+    }
+    bool GetFniSave(Filename *, long, long, long, achar *, PString title) override
+    {
+        if (testingTitle) title->SetSzs(PszLit("Changed by client"));
+        return false;
+    }
     void PauseType(WaitReason reason) override
     {
         pause = reason;
@@ -792,6 +807,19 @@ int __cdecl main(int argc, char **argv)
     pmvie = Movie::PmvieNew(fFalse, pmcc, pvNil, cnoNil);
     if (pmvie == pvNil)
         BAIL("PmvieNew(blank) returned pvNil");
+    {
+        String title;
+        Filename unused;
+        pmcc->testingTitle = true;
+        pmvie->ResetTitle(); pmvie->GetName(&title);
+        if (!title.FEqualSz(PszLit("Default movie")) || pmcc->titleUpdates != 1)
+            BAIL("default title notification failed");
+        if (pmvie->FGetFniSave(&unused)) BAIL("save-dialog stub unexpectedly accepted");
+        pmvie->GetName(&title);
+        if (!title.FEqualSz(PszLit("Changed by client"))) BAIL("cancelled save title mutation lost");
+        pmcc->testingTitle = false;
+        pmvie->ResetTitle(); // Restore the original empty-title fixture.
+    }
 
     LOG("Play without a scene notifies the client without starting playback");
     {

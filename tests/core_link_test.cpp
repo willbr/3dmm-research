@@ -1483,9 +1483,9 @@ static void TestMoviePersistence()
         if (!snapshot) return;
         uint32_t row[] = {movie.movieNumber, static_cast<uint32_t>(movie.actorIdLimit),
                           static_cast<uint32_t>(movie.sceneCount), static_cast<uint32_t>(movie.Actors()->IvMac()),
-                          static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.Cch())};
+                          static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.count)};
         Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
-        Check(std::fwrite(movie.title.Prgch(), sizeof(achar), movie.title.Cch(), snapshot) == static_cast<size_t>(movie.title.Cch()));
+        Check(std::fwrite(three_mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
         ChildChunkIdentification child;
         DataBlock block;
         auto file = movie.Resources()->Pcfl();
@@ -1505,7 +1505,7 @@ static void TestMoviePersistence()
         Check(movie.FInitEmpty());
         record(movie);
         PChunkyFile file = movie.Resources()->Pcfl();
-        movie.title.SetSzs(PszLit("Headless movie"));
+        String movieTitle(PszLit("Headless movie")); movie.SetTitle(&movieTitle);
         // Preserve an actual graph: a scene references an embedded actor
         // template; persistence treats their payloads as opaque, never UI.
         byte payload[] = {1, 3, 5, 7, 9};
@@ -1551,7 +1551,7 @@ static void TestMoviePersistence()
         byte bytes[5];
         Check(block.FReadRgb(bytes, sizeof(bytes), 0));
         Check(bytes[0] == 1 && bytes[4] == 9);
-        loaded.title.SetSzs(PszLit("Saved after load"));
+        String movieTitle(PszLit("Saved after load")); loaded.SetTitle(&movieTitle);
         Check(loaded.FSave(&destination)); // Save back to the currently open file.
         record(loaded);
         Check(loaded.FLoad(&destination, explicitRoot));
@@ -1565,7 +1565,7 @@ static void TestMoviePersistence()
         MovieData reopened; // All prior archive handles have been released.
         Check(reopened.FLoad(&destination));
         record(reopened);
-        Check(reopened.title.FEqualSz(PszLit("Saved after load")));
+        String movieTitle; reopened.GetTitle(&movieTitle); Check(movieTitle.FEqualSz(PszLit("Saved after load")));
         Check(reopened.sceneCount == 1 && reopened.Actors()->IvMac() == 1);
     }
     // Reject mismatched wire layouts before GetExtra can overrun a row.
@@ -1634,6 +1634,32 @@ static void TestRollCallStorageBaseline()
     }
     ReleasePpo(&loaded); ReleasePpo(&resources); ReleasePpo(&table); ReleasePpo(&file);
     if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
+static void TestMovieRootBaseline()
+{
+    auto file = ChunkyFile::PcflCreateTemp(); ChunkNumber root;
+    Check(file && MovieData::FCreateRoot(file, &root));
+    DataBlock block; Check(file->FFind(kctgMvie, root, &block));
+    MovieFilePrefix prefix; Check(block.FReadRgb(&prefix, sizeof(prefix), 0));
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_MOVIE_ROOT_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
+    if (snapshot) Check(std::fwrite(&prefix, sizeof(prefix), 1, snapshot) == 1);
+    const auto record = [&](ChunkNumber requested, bool optional) {
+        ThreeMMMovieHeader header = {-77, -77, -77, -77};
+        bool ok = MovieData::FVerifyVersion(file, optional ? nullptr : &requested, &header);
+        uint32_t row[] = {ok, requested, static_cast<uint32_t>(header.system), static_cast<uint32_t>(header.current_version),
+                          static_cast<uint32_t>(header.backward_version), static_cast<uint32_t>(header.big_endian)};
+        if (snapshot) Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
+        vpers->Clear();
+    };
+    record(cnoNil, false); record(root, false); record(cnoNil, true); record(root + 10000, false);
+    prefix.dver.Set(0, 2); Check(block.FWrite(&prefix)); record(cnoNil, false);
+    prefix.dver.Set(2, 3); Check(block.FWrite(&prefix)); record(cnoNil, false);
+    prefix.dver.Set(3, -2); Check(block.FWrite(&prefix)); record(cnoNil, false);
+    prefix.dver.Set(2, 2); SwapBytesBom(&prefix, kbomMfp); Check(block.FWrite(&prefix)); record(cnoNil, false);
+    prefix.bo = 0; Check(block.FWrite(&prefix)); record(cnoNil, false);
+    ReleasePpo(&file); if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
 static void TestMovieWireFormats()
@@ -4068,6 +4094,7 @@ int main()
     TestEngineServices();
     TestMoviePersistence();
     TestRollCallStorageBaseline();
+    TestMovieRootBaseline();
     TestMovieWireFormats();
     TestScenePersistence();
     TestActorPersistence();

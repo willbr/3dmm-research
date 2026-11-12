@@ -8,6 +8,7 @@
 #include "three_mm/movie_data.h"
 #include "three_mm/movie_owner.h"
 #include "three_mm/rollcall_storage.h"
+#include "three_mm/movie_root.h"
 
 struct MovieFilePrefix
 {
@@ -77,9 +78,10 @@ typedef RollCallTable *PRollCallTable;
 // table owns opened TAG references; resources is an owned reference as well.
 struct MovieData : ThreeMMMovieState
 {
-    String title;
-
-    MovieData() { three_mm_movie_state_init(this); }
+    MovieData() { three_mm_movie_state_init(this); three_mm_movie_title_init(&title, sizeof(achar)); }
+    void GetTitle(PString) const;
+    void SetTitle(PString);
+    bool FWriteTitle(PChunkyFile);
     PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
     PRollCallTable Actors() const { return static_cast<PRollCallTable>(actors); }
     void ReleaseResources();

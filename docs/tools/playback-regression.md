@@ -2171,3 +2171,55 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 movie titles, roots and version selection (12 November 2026)
+
+Movie titles now live in the C movie state instead of a native String. Title
+selection, extension stripping, fallback and notification use C policy; native
+filename/localized-text callbacks supply their values. Movie load/initialization
+publish the title with the rest of the committed state. Cancelled save-dialog
+callbacks retain their historical ability to mutate the title. Studio uses a
+copied-name query instead of borrowing native title storage.
+
+C also owns first-movie selection, version-error classification and root creation,
+including explicit 8-byte prefix encoding. First selection publishes the movie
+number before header rejection; failed verification preserves header output.
+Write failure deletes a newly added root before publishing nil. Physical block/
+file operations and frontend presentation remain host adapters. See the
+[implementation boundary](../code-map/library-split.md#movie-titles-root-creation-and-version-checks).
+
+Thirty-three standalone C checks, forty-six focused native checks and MSVC
+AddressSanitizer pass. Checks cover both title widths, overlap/bounds, fallback
+and notification order, extension edge cases, both prefix byte orders, selection
+publication, I/O/add/write failures and failed-load title preservation. The native
+save/load test covers mutation by a cancelled save callback. All sixteen binary
+snapshots match, including a new 224-byte root/version baseline and fifteen prior
+snapshots. All 51 CLI baselines match, including six asset indexes covering
+20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-title-root-before.bin`, `tmp/c89-title-root-after.bin`,
+`tmp/c89-title-root-snapshot-comparison.json`, `tmp/c89-title-root-output-comparison.json`,
+`tmp/c89-title-root-asan.log` and `tmp/c89-title-owner-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T185329Z-fb5455e5` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T185640Z-e36976c1` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding roll-call suites `20261112T183654Z-199a08ff` and
+`20261112T184031Z-923ea395`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-title-root-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

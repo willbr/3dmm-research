@@ -3,6 +3,7 @@
 #ifndef THREE_MM_ENGINE_MOVIE_OWNER_H
 #define THREE_MM_ENGINE_MOVIE_OWNER_H
 #include "movie_data.h"
+#include "movie_title.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -17,6 +18,7 @@ extern "C"
         void *resources, *actors;
         ThreeMMU32 movieNumber;
         ThreeMMI32 actorIdLimit, sceneCount;
+        ThreeMMMovieTitle title;
     } ThreeMMMovieState;
     typedef struct ThreeMMMovieOwnerServices
     {
@@ -35,18 +37,18 @@ extern "C"
         void *(*file)(void *resources);
         int (*create_root)(void *, void *file, ThreeMMU32 *);
         int (*read_rollcall)(void *, void *resources, ThreeMMU32, void **actors, ThreeMMI32 *limit);
-        void (*load_name)(void *, void *file, ThreeMMU32);
+        void (*load_name)(void *, void *file, ThreeMMU32, ThreeMMMovieTitle *);
         int (*scene)(void *, void *file, ThreeMMU32 movie, ThreeMMI32 index);
         int (*previous_rollcall)(void *, void *file, ThreeMMU32 movie, ThreeMMU32 *previous);
         int (*write_rollcall)(void *, void *file, ThreeMMU32 movie, void *actors, ThreeMMU32 *written);
         void (*delete_previous)(void *, void *file, ThreeMMU32 movie, ThreeMMU32 previous);
-        int (*set_name)(void *, void *file, ThreeMMU32 movie);
+        int (*set_name)(void *, void *file, ThreeMMU32 movie, const ThreeMMMovieTitle *);
         int (*save)(void *, void *file);
         void (*make_persistent)(void *file);
     } ThreeMMMovieOwnerServices;
     /* Unique owning state. File/table handles are transitional host objects; C owns
-     * their references, transactions, replacement and ordered cleanup. Name loading
-     * writes host scratch, published by the caller only after a successful load.
+     * their references, transactions, replacement, title and ordered cleanup. Name
+     * loading writes the uncommitted state; replacement publishes it on success.
      * Callbacks cannot mutate/re-enter this state. No rollback after save publication:
      * successful roll-call replacement remains visible if naming/saving later fails. */
     void three_mm_movie_state_init(ThreeMMMovieState *);

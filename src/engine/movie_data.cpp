@@ -7,16 +7,9 @@ ASSERTNAME
 
 namespace
 {
-const short kcvnCur = THREE_MM_MOVIE_CURRENT_VERSION;
-const short kcvnBack = THREE_MM_MOVIE_BACKWARD_VERSION;
-} // namespace
-
-namespace
-{
 struct NativeMovieHost
 {
     PFilename filename;
-    PString title;
 };
 struct NativeRollCallHost
 {
@@ -261,8 +254,10 @@ ThreeMMMovieOwnerServices MovieData::_OwnerServices(void *context)
             *actors = table;
             return ok;
         },
-        [](void *c, void *file, ThreeMMU32 number) {
-            static_cast<PChunkyFile>(file)->FGetName(kctgMvie, number, static_cast<NativeMovieHost *>(c)->title);
+        [](void *, void *file, ThreeMMU32 number, ThreeMMMovieTitle *title) {
+            String value;
+            static_cast<PChunkyFile>(file)->FGetName(kctgMvie, number, &value);
+            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad movie title");
         },
         [](void *, void *file, ThreeMMU32 movie, ThreeMMI32 index) -> int {
             ChildChunkIdentification child;
@@ -281,8 +276,11 @@ ThreeMMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *, void *file, ThreeMMU32 movie, ThreeMMU32 previous) {
             static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
         },
-        [](void *c, void *file, ThreeMMU32 movie) -> int {
-            return static_cast<PChunkyFile>(file)->FSetName(kctgMvie, movie, static_cast<NativeMovieHost *>(c)->title);
+        [](void *, void *file, ThreeMMU32 movie, const ThreeMMMovieTitle *title) -> int {
+            String value;
+            value.SetRgch(const_cast<achar *>(static_cast<const achar *>(three_mm_movie_title_text(title))),
+                          title->count);
+            return static_cast<PChunkyFile>(file)->FSetName(kctgMvie, movie, &value);
         },
         [](void *c, void *file) -> int {
             return static_cast<PChunkyFile>(file)->FSave(kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
@@ -304,86 +302,85 @@ void MovieData::ReleaseResources()
     const auto s = _OwnerServices(nullptr);
     three_mm_movie_release_resources(this, &s);
 }
+void MovieData::GetTitle(PString out) const
+{
+    out->SetRgch(const_cast<achar *>(static_cast<const achar *>(three_mm_movie_title_text(&title))), title.count);
+}
+void MovieData::SetTitle(PString value)
+{
+    AssertDo(three_mm_movie_title_set(&title, value->Prgch(), value->Cch()), "bad movie title");
+}
+bool MovieData::FWriteTitle(PChunkyFile file)
+{
+    String value;
+    GetTitle(&value);
+    return file->FSetName(kctgMvie, movieNumber, &value);
+}
 bool MovieData::FInitEmpty()
 {
     const auto s = _OwnerServices(nullptr);
-    if (!three_mm_movie_init_empty(this, &s))
-        return false;
-    title.SetNil();
-    return true;
+    return three_mm_movie_init_empty(this, &s) != 0;
 }
 bool MovieData::FLoad(PFilename filename, ChunkNumber number)
 {
-    String loadedTitle;
-    NativeMovieHost host = {filename, &loadedTitle};
+    NativeMovieHost host = {filename};
     const auto s = _OwnerServices(&host);
-    if (!three_mm_movie_load(this, number, &s))
-        return false;
-    title = loadedTitle;
-    return true;
+    return three_mm_movie_load(this, number, &s) != 0;
 }
 bool MovieData::FSave(PFilename filename)
 {
-    NativeMovieHost host = {filename, &title};
+    NativeMovieHost host = {filename};
     const auto s = _OwnerServices(&host);
     return three_mm_movie_save(this, &s) != 0;
 }
-
+namespace
+{
+struct NativeMovieRootHost
+{
+    PChunkyFile file;
+    DataBlock block;
+};
+ThreeMMMovieRootServices MovieRootServices(NativeMovieRootHost *host)
+{
+    return {
+        host,
+        [](void *c, ThreeMMU32 *number) -> int {
+            ChunkIdentification id;
+            if (!static_cast<NativeMovieRootHost *>(c)->file->FGetCkiCtg(kctgMvie, 0, &id))
+                return 0;
+            *number = id.cno;
+            return 1;
+        },
+        [](void *c, ThreeMMU32 number, ThreeMMReadStream *stream) -> int {
+            auto h = static_cast<NativeMovieRootHost *>(c);
+            if (!h->file->FFind(kctgMvie, number, &h->block) || !h->block.FUnpackData())
+                return 0;
+            *stream = EngineReadStream::FromBlock(h->block);
+            return 1;
+        },
+        [](void *c, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
+            auto h = static_cast<NativeMovieRootHost *>(c);
+            return h->file->FAdd(bytes, kctgMvie, number, &h->block);
+        },
+        [](void *c, const void *bytes, ThreeMMU32 count) -> int {
+            return static_cast<NativeMovieRootHost *>(c)->block.FWriteRgb(const_cast<void *>(bytes), count, 0);
+        },
+        [](void *c, ThreeMMU32 number) { static_cast<NativeMovieRootHost *>(c)->file->Delete(kctgMvie, number); },
+        [](void *, int result) { PushErc(result == THREE_MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile); }};
+}
+} // namespace
 bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
 {
-    DataBlock block;
-    if (!file->FAdd(size(MovieFilePrefix), kctgMvie, number, &block))
-        return fFalse;
-    MovieFilePrefix prefix;
-    prefix.bo = kboCur;
-    prefix.osk = koskCur;
-    prefix.dver.Set(kcvnCur, kcvnBack);
-    if (block.FWrite(&prefix))
-        return fTrue;
-    file->Delete(kctgMvie, *number);
-    *number = cnoNil;
-    return fFalse;
+    NativeMovieRootHost host = {file};
+    const auto s = MovieRootServices(&host);
+    const unsigned short one = 1;
+    return three_mm_movie_create_root(number, koskCur, *reinterpret_cast<const byte *>(&one) == 0, &s) != 0;
 }
-
-bool MovieData::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno, ThreeMMMovieHeader *header)
+bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, ThreeMMMovieHeader *header)
 {
-    AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-    ChunkNumber cnoMvie = pcno != pvNil ? *pcno : cnoNil;
-    DataBlock blck;
-
-    // Get the cno of the first kid of the movie
-    if (pvNil == pcno || cnoNil == *pcno)
-    {
-        if (!pcfl->FGetCkiCtg(kctgMvie, 0, &(kid.cki)))
-        {
-            PushErc(ercSocBadFile);
-            return fFalse;
-        }
-        cnoMvie = kid.cki.cno;
-        if (pvNil != pcno)
-            *pcno = cnoMvie;
-    }
-
-    // Get version number of the file
-    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData())
-    {
-        PushErc(ercSocBadFile);
-        return fFalse;
-    }
-
-    const auto stream = EngineReadStream::FromBlock(blck);
-    ThreeMMMovieHeader decoded;
-    const int result = three_mm_movie_read_header(&stream, &decoded);
-    if (result != THREE_MM_MOVIE_OK)
-    {
-        PushErc(result == THREE_MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
-        return fFalse;
-    }
-    if (header)
-        *header = decoded;
-    return fTrue;
+    NativeMovieRootHost host = {file};
+    const auto s = MovieRootServices(&host);
+    return three_mm_movie_verify_root(number, header, &s) != 0;
 }
 
 bool MovieData::FReadRollCall(PChunkyResourceFile resources, ChunkNumber number, PRollCallTable *actors,

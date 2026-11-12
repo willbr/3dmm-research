@@ -721,10 +721,6 @@ class Movie : public Movie_PAR
     // Title stuff
     //
     void GetName(PString pstnTitle); // Gets the title of the movie.
-    PString PstnTitle(void)
-    {
-        return &_data.title;
-    }
     void ResetTitle(void);
 
     //

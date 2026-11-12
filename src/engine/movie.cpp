@@ -2430,7 +2430,7 @@ LRetry:
         goto LFail2;
     }
 
-    if (!pcfl->FSetName(kctgMvie, _data.movieNumber, &_data.title))
+    if (!_data.FWriteTitle(pcfl))
     {
         goto LFail3;
     }
@@ -2854,8 +2854,11 @@ bool Movie::FGetFniSave(Filename *pfni)
     AssertThis(0);
     AssertVarMem(pfni);
 
-    return (_pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
-                              (achar *)(_FNeedsContainer() ? PszLit("vmm") : ksz3mm), &_data.title));
+    String title; _data.GetTitle(&title);
+    const bool selected = _pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
+                              (achar *)(_FNeedsContainer() ? PszLit("vmm") : ksz3mm), &title);
+    _data.SetTitle(&title);
+    return selected;
 }
 
 bool Movie::_FNeedsContainer()
@@ -3782,7 +3785,7 @@ bool Movie::FAddScen(PTAG ptag)
     //
     // Set default name
     //
-    if ((Pscen() == pvNil) && (_data.title.Cch() == 0))
+    if ((Pscen() == pvNil) && (_data.title.count == 0))
     {
         _SetTitle();
     }
@@ -5338,7 +5341,7 @@ void Movie::GetName(PString pstnTitle)
     AssertThis(0);
     AssertPo(pstnTitle, 0);
 
-    *pstnTitle = _data.title;
+    _data.GetTitle(pstnTitle);
 }
 
 /******************************************************************************
@@ -5352,7 +5355,7 @@ void Movie::ResetTitle(void)
 
     Filename fni;
 
-    _data.title.SetNil();
+    three_mm_movie_title_set(&_data.title, nullptr, 0);
     _SetTitle(FGetFni(&fni) ? &fni : pvNil);
 }
 
@@ -5667,39 +5670,24 @@ bool Movie::FUnusedSndsUser(bool *pfHaveValid)
  *  None.
  *
  **************************************************************************/
-void Movie::_SetTitle(PFilename pfni)
+void Movie::_SetTitle(PFilename filename)
 {
-    AssertThis(0);
-
-    achar *pch;
-
-    if (pfni == pvNil)
-    {
-        if (_data.title.Cch() == 0)
-        {
-            Pmcc()->GetStn(idsEngineDefaultTitle, &_data.title);
-            Pmcc()->UpdateTitle(&_data.title);
-        }
-        return;
-    }
-
-    pfni->GetLeaf(&_data.title);
-
-    for (pch = _data.title.Psz() + _data.title.Cch(); (pch > _data.title.Psz()) && (*pch != ChLit('.')); pch--)
-    {
-    }
-
-    if (*pch == ChLit('.'))
-    {
-        _data.title.Delete(pch - _data.title.Psz());
-    }
-
-    if (_data.title.Cch() == 0)
-    {
-        Pmcc()->GetStn(idsEngineDefaultTitle, &_data.title);
-    }
-
-    Pmcc()->UpdateTitle(&_data.title);
+    struct Host { PMovie movie; PFilename filename; } host = {this, filename};
+    const ThreeMMMovieTitleServices services = {&host,
+        [](void *c, ThreeMMMovieTitle *title) {
+            String value; static_cast<Host *>(c)->filename->GetLeaf(&value);
+            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad leaf title");
+        },
+        [](void *c, ThreeMMMovieTitle *title) {
+            String value; static_cast<Host *>(c)->movie->Pmcc()->GetStn(idsEngineDefaultTitle, &value);
+            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad default title");
+        },
+        [](void *c, ThreeMMMovieTitle *title) {
+            String value; value.SetRgch(const_cast<achar *>(static_cast<const achar *>(three_mm_movie_title_text(title))), title->count);
+            static_cast<Host *>(c)->movie->Pmcc()->UpdateTitle(&value);
+            AssertDo(three_mm_movie_title_set(title, value.Prgch(), value.Cch()), "bad notified title");
+        }};
+    three_mm_movie_title_choose(&_data.title, filename != nullptr, &services);
 }
 
 //

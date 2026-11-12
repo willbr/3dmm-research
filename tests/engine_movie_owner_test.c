@@ -187,11 +187,12 @@ static int read_call(void *c, void *r, ThreeMMU32 n, void **out, ThreeMMI32 *lim
     *limit = 1;
     return 1;
 }
-static void load_name(void *c, void *f, ThreeMMU32 n)
+static void load_name(void *c, void *f, ThreeMMU32 n, ThreeMMMovieTitle *title)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7);
     event(h, 'n');
+    CHECK(three_mm_movie_title_set(title, "Loaded", 6));
 }
 static int scene(void *c, void *f, ThreeMMU32 n, ThreeMMI32 i)
 {
@@ -222,10 +223,11 @@ static void delete_previous(void *c, void *f, ThreeMMU32 n, ThreeMMU32 old)
     CHECK(f == h && n == 7 && old == 9);
     event(h, 'd');
 }
-static int set_name(void *c, void *f, ThreeMMU32 n)
+static int set_name(void *c, void *f, ThreeMMU32 n, const ThreeMMMovieTitle *title)
 {
     Host *h = (Host *)c;
     CHECK(f == h && n == 7);
+    CHECK(title->count == 6 && !memcmp(three_mm_movie_title_text(title), "Loaded", 6));
     event(h, 'N');
     return h->fail != FAIL_NAME;
 }
@@ -264,6 +266,7 @@ static void ownership(void)
     CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors);
     CHECK(!three_mm_movie_save(&m, &s) && !h.used);
     CHECK(three_mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crftb"));
+    CHECK(three_mm_movie_title_set(&m.title, "Old", 3));
     old_r = m.resources;
     old_t = m.actors;
     m.sceneCount = 5;
@@ -277,6 +280,7 @@ static void ownership(void)
         CHECK(!three_mm_movie_init_empty(&m, &s));
         CHECK(m.resources == old_r && m.actors == old_t && m.sceneCount == 5 && m.actorIdLimit == 42 && h.tables == 1 &&
               h.resources == 1);
+        CHECK(m.title.count == 3 && !memcmp(three_mm_movie_title_text(&m.title), "Old", 3));
         if (i == FAIL_RESOURCE)
             CHECK(!strcmp(h.log, "crftT"));
         if (i == FAIL_TABLE)
@@ -292,6 +296,7 @@ static void ownership(void)
         h.fail = i;
         CHECK(!three_mm_movie_load(&m, 99, &s));
         CHECK(m.resources == old_r && m.actors == old_t && h.resources == 1 && h.tables == 1);
+        CHECK(m.title.count == 3 && !memcmp(three_mm_movie_title_text(&m.title), "Old", 3));
     }
     reset(&h);
     h.fail = 0;

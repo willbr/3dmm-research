@@ -6,6 +6,7 @@ void three_mm_movie_state_init(ThreeMMMovieState *m)
 {
     memset(m, 0, sizeof(*m));
     m->movieNumber = 0xffffffffUL;
+    three_mm_movie_title_init(&m->title, 1);
 }
 static void close_rows(void *table, const ThreeMMMovieOwnerServices *s)
 {
@@ -49,6 +50,7 @@ int three_mm_movie_init_empty(ThreeMMMovieState *m, const ThreeMMMovieOwnerServi
     ThreeMMMovieState fresh;
     void *file;
     three_mm_movie_state_init(&fresh);
+    three_mm_movie_title_init(&fresh.title, m->title.unit);
     file = s->create_file(s->context);
     if (!file)
         return 0;
@@ -69,6 +71,7 @@ int three_mm_movie_load(ThreeMMMovieState *m, ThreeMMU32 number, const ThreeMMMo
     void *file;
     int valid;
     three_mm_movie_state_init(&loaded);
+    three_mm_movie_title_init(&loaded.title, m->title.unit);
     file = s->open_file(s->context);
     if (!file)
         return 0;
@@ -85,7 +88,7 @@ int three_mm_movie_load(ThreeMMMovieState *m, ThreeMMU32 number, const ThreeMMMo
         return 0;
     }
     file = s->file(loaded.resources);
-    s->load_name(s->context, file, number);
+    s->load_name(s->context, file, number, &loaded.title);
     while (s->scene(s->context, file, number, loaded.sceneCount))
         ++loaded.sceneCount;
     replace(m, &loaded, s);
@@ -104,7 +107,7 @@ int three_mm_movie_save(ThreeMMMovieState *m, const ThreeMMMovieOwnerServices *s
         return 0;
     if (had)
         s->delete_previous(s->context, file, m->movieNumber, previous);
-    if (!s->set_name(s->context, file, m->movieNumber) || !s->save(s->context, file))
+    if (!s->set_name(s->context, file, m->movieNumber, &m->title) || !s->save(s->context, file))
         return 0;
     s->make_persistent(file);
     return 1;
