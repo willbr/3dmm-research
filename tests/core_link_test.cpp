@@ -20,6 +20,7 @@
 #include "actor_frame_fixture.h"
 #include "three_mm/actor_motion.h"
 #include "three_mm/actor_pose.h"
+#include "three_mm/actor_effect.h"
 #include "studio_preferences.h"
 #endif
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
@@ -2456,6 +2457,61 @@ static void TestActorValueEvaluation()
 }
 
 static void RecordActorFrameState(const ActorFrameState &,FILE *);
+static void TestActorEntranceOrientation()
+{
+    FILE *before = nullptr, *after = nullptr;
+    if (const char *path = std::getenv("THREE_MM_ACTOR_ENTRANCE_EXPECTED"))
+    {
+        before = std::fopen(path, "wb");
+        Check(before);
+    }
+    if (const char *path = std::getenv("THREE_MM_ACTOR_ENTRANCE_SNAPSHOT"))
+    {
+        after = std::fopen(path, "wb");
+        Check(after);
+    }
+    ThreeMMU32 seed = 88917;
+    auto next = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
+    for (int i = 0; i < 256; ++i)
+    {
+        ThreeMMActorState value;
+        three_mm_actor_state_init(&value);
+        value.onStage = value.useCurrentRotation = 1;
+        value.transform.aevpull.rScaleY = 131072;
+        value.transform.rScaleStep = 196608;
+        for (auto &row : value.transform.bmat34Cur.m)
+            for (auto &cell : row)
+                cell = static_cast<ThreeMMI32>(next() & 0x3fffff) - 0x200000;
+        ThreeMMActorEntrance add = {};
+        add.x = i < 4 ? 0 : static_cast<unsigned short>(next());
+        add.y = i < 4 ? 0 : static_cast<unsigned short>(next());
+        add.z = i < 4 ? 0 : static_cast<unsigned short>(next());
+        auto expected = value;
+        BMAT34 matrix;
+        std::memcpy(&matrix, &value.transform.bmat34Cur, sizeof(matrix));
+        // Retained native _LoadAddOrien arithmetic is the independent oracle.
+        if (!(i & 1)) BrMatrix34Identity(&matrix);
+        BrMatrix34PostRotateX(&matrix, add.x);
+        BrMatrix34PostRotateY(&matrix, add.y);
+        BrMatrix34PostRotateZ(&matrix, add.z);
+        std::memcpy(&expected.transform.bmat34Cur, &matrix, sizeof(matrix));
+        expected.transform.xaPath = add.x;
+        expected.transform.yaPath = add.y;
+        expected.transform.zaPath = add.z;
+        three_mm_actor_add_orientation(&value, &add, i & 1);
+        Check(std::memcmp(&expected, &value, sizeof(value)) == 0);
+        auto record = [](FILE *file, const ThreeMMActorState &state) {
+            if (!file) return;
+            Check(std::fwrite(&state.transform.bmat34Cur, 1, 48, file) == 48);
+            const unsigned short angles[] = {state.transform.xaPath, state.transform.yaPath, state.transform.zaPath};
+            Check(std::fwrite(angles, 1, sizeof(angles), file) == sizeof(angles));
+        };
+        record(before, expected);
+        record(after, value);
+    }
+    if (before) Check(std::fclose(before) == 0);
+    if (after) Check(std::fclose(after) == 0);
+}
 static void TestActorMathBaseline()
 {
     FILE *file=nullptr;
@@ -4406,6 +4462,7 @@ int main()
     TestActorRouteEvaluation();
     TestActorValueEvaluation();
     TestActorMathBaseline();
+    TestActorEntranceOrientation();
     TestActorPoseEvaluation();
     TestActorFrameSequencing();
     TestActorTimeline();

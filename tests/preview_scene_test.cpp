@@ -29,6 +29,48 @@ int main(int argc, char **argv)
     ThreeMM::PreviewView view;
     if (!check(preview.Render(view, first, error)) || !first.coveredPixels)
         return 1;
+    // Metadata evaluation must use a private track and leave the live pose intact.
+    const auto objects = preview.Objects();
+    const auto soundCount = preview.FrameSounds().size();
+    unsigned entrances = 0, actions = 0, spans = 0;
+    for (std::size_t object = 0; object < objects.size(); ++object)
+    {
+        ThreeMM::PreviewAnimationTimeline timeline, again;
+        if (!check(preview.ReadAnimationTimeline(static_cast<int>(object), timeline, error)) ||
+            !check(preview.ReadAnimationTimeline(static_cast<int>(object), again, error)) ||
+            timeline.spans.size() != again.spans.size() || timeline.events.size() != again.events.size())
+            return 1;
+        for (std::size_t i = 0; i < timeline.spans.size(); ++i)
+        {
+            const auto &span = timeline.spans[i], &repeat = again.spans[i];
+            if (span.firstFrame < info.firstFrame || span.endFrame > info.lastFrame + 1 ||
+                span.endFrame <= span.firstFrame || span.firstFrame != repeat.firstFrame ||
+                span.endFrame != repeat.endFrame || span.action != repeat.action || span.frozen != repeat.frozen ||
+                span.name != repeat.name)
+                return 1;
+            ++spans;
+        }
+        for (std::size_t i = 0; i < timeline.events.size(); ++i)
+        {
+            const auto &event = timeline.events[i], &repeat = again.events[i];
+            if (event.frame < info.firstFrame || event.frame > info.lastFrame || event.frame != repeat.frame ||
+                event.kind != repeat.kind || event.name != repeat.name || event.detail != repeat.detail)
+                return 1;
+            entrances += event.kind == ThreeMM::PreviewAnimationKind::Entrance;
+            actions += event.kind == ThreeMM::PreviewAnimationKind::Action;
+        }
+    }
+    const auto observed = preview.Objects();
+    if (!entrances || !actions || !spans || objects.size() != observed.size() ||
+        soundCount != preview.FrameSounds().size())
+        return 1;
+    for (std::size_t i = 0; i < objects.size(); ++i)
+        if (objects[i].action != observed[i].action || objects[i].cel != observed[i].cel ||
+            objects[i].visible != observed[i].visible || objects[i].x != observed[i].x ||
+            objects[i].y != observed[i].y || objects[i].z != observed[i].z)
+            return 1;
+    if (!check(preview.Render(view, repeated, error)) || first.rgba != repeated.rgba)
+        return 1;
     if (!check(preview.Select({0x5343454e, 1}, error)) || !check(preview.Render(view, repeated, error)) ||
         repeated.rgba == first.rgba || !check(preview.Select({0x5343454e, 0}, error)))
         return 1;

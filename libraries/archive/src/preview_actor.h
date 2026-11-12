@@ -19,6 +19,9 @@ class PreviewActor
     PTemplate tmpl = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool Apply(LegacyLong index);
+    bool ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
+                    std::vector<ActorEvent::Sound> *motion = nullptr,
+                    std::vector<PreviewSoundCue> *cues = nullptr) const;
     bool Position(bool selectCel);
     bool Evaluate(bool display);
     ActorStepSource Steps() const;

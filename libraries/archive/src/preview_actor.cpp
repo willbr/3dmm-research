@@ -5,6 +5,8 @@
 #include <map>
 #include <sstream>
 #include "preview_actor.h"
+#include "engine_actor_motion.h"
+#include "three_mm/actor_effect.h"
 #undef size
 ASSERTNAME
 using namespace ActorEvent;
@@ -217,55 +219,9 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
     const auto apply = [&](LegacyLong index) {
         Base event;
         copy.Events()->GetFixed(index, &event);
-        event.nfrm = cursor.frame;
-        copy.Events()->PutFixed(index, &event);
-        const auto result = cursor.ApplyValueEvent(copy, index, header.dxyzFullRte);
-        if (result == ActorValueEventResult::Invalid)
+        if (!ApplyEvent(cursor, copy, index, true))
             return false;
-        if (result == ActorValueEventResult::NeedsRuntime)
-            switch (event.aet)
-            {
-            case aetAdd: {
-                Add add;
-                copy.Events()->Get(index, &add);
-                cursor.subrouteTranslation = {add.dxr, add.dyr, add.dzr};
-                cursor.UpdateOrigin(header.dxyzFullRte);
-                cursor.InitTransform();
-                BrMatrix34PostRotateX(&cursor.transform.bmat34Cur, add.xa);
-                BrMatrix34PostRotateY(&cursor.transform.bmat34Cur, add.ya);
-                BrMatrix34PostRotateZ(&cursor.transform.bmat34Cur, add.za);
-                cursor.transform.xaPath = add.xa;
-                cursor.transform.yaPath = add.ya;
-                cursor.transform.zaPath = add.za;
-                cursor.firstEventInFrame = cursor.addEvent = index;
-                cursor.location = event.rtel;
-                ActorRouteEvaluator::Position(copy, &cursor.location, &cursor.position);
-                cursor.onStage = true;
-                break;
-            }
-            case aetActn: {
-                Action action;
-                copy.Events()->Get(index, &action);
-                if (action.anid < 0 || action.anid >= tmpl->Cactn() ||
-                    !tmpl->FGetCcelActn(action.anid, &cursor.celCount) ||
-                    !tmpl->FGetGrfactn(action.anid, &cursor.actionFlags))
-                    return false;
-                cursor.action = action.anid;
-                cursor.cel = action.celn;
-                cursor.actionEvent = index;
-                cursor.location = event.rtel;
-                ActorRouteEvaluator::Position(copy, &cursor.location, &cursor.position);
-                break;
-            }
-            case aetRem:
-                cursor.onStage = false;
-                break;
-            case aetCost:
-            case aetSnd:
-                break;
-            default:
-                return false;
-            }
+        event.nfrm = cursor.frame;
         if (cursor.frame >= first)
         {
             if (timeline.events.size() >= 100000)
@@ -317,99 +273,135 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
 }
 bool PreviewActor::Apply(LegacyLong index)
 {
-    Base event;
-    track.Events()->GetFixed(index, &event);
-    event.nfrm = state.frame;
-    track.Events()->PutFixed(index, &event);
-    auto applied = state.ApplyValueEvent(track, index, header.dxyzFullRte);
-    if (applied != ActorValueEventResult::NeedsRuntime)
-        return applied == ActorValueEventResult::Applied;
-    switch (event.aet)
+    return ApplyEvent(state, track, index, false, &motionSounds, &sounds);
+}
+bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
+                              std::vector<Sound> *motion, std::vector<PreviewSoundCue> *cues) const
+{
+    struct Host
     {
-    case aetAdd: {
-        Add add;
-        track.Events()->Get(index, &add);
-        if (!tmpl->FSetDefaultCost(body) || !tmpl->FSetActnCel(body, state.action, state.cel))
-            return false;
-        state.subrouteTranslation = {add.dxr, add.dyr, add.dzr};
-        state.UpdateOrigin(header.dxyzFullRte);
-        state.InitTransform();
-        BrMatrix34PostRotateX(&state.transform.bmat34Cur, add.xa);
-        BrMatrix34PostRotateY(&state.transform.bmat34Cur, add.ya);
-        BrMatrix34PostRotateZ(&state.transform.bmat34Cur, add.za);
-        state.transform.xaPath = add.xa;
-        state.transform.yaPath = add.ya;
-        state.transform.zaPath = add.za;
-        state.firstEventInFrame = state.addEvent = index;
-        state.location = event.rtel;
-        ActorRouteEvaluator::Position(track, &state.location, &state.position);
-        state.onStage = true;
-        motionSounds.clear();
-        return true;
-    }
-    case aetActn: {
-        Action action;
-        track.Events()->Get(index, &action);
-        if (action.anid < 0 || action.anid >= tmpl->Cactn() || !tmpl->FSetActnCel(body, action.anid, action.celn))
-            return false;
-        if (state.action != action.anid)
-            motionSounds.clear();
-        state.action = action.anid;
-        state.cel = action.celn;
-        state.actionEvent = index;
-        state.location = event.rtel;
-        ActorRouteEvaluator::Position(track, &state.location, &state.position);
-        return tmpl->FGetCcelActn(state.action, &state.celCount) && tmpl->FGetGrfactn(state.action, &state.actionFlags);
-    }
-    case aetCost: {
-        Costume costume;
-        track.Events()->Get(index, &costume);
-        if (costume.fCmtl)
+        const PreviewActor *actor;
+        const ActorTrack *track;
+        ActorFrameState *view;
+        std::vector<Sound> *motion;
+        std::vector<PreviewSoundCue> *cues;
+        BodyCostume costume;
+    } host;
+    host.actor = this;
+    host.track = &events;
+    host.view = &value;
+    host.motion = motion;
+    host.cues = cues;
+    ThreeMMActorEffectServices effects = {};
+    effects.context = &host;
+    effects.write_event = [](void *group, ThreeMMI32 row, const ThreeMMActorEvent *value) {
+        Base event;
+        std::memcpy(&event, value, sizeof(event));
+        static_cast<PGeneralGroup>(group)->PutFixed(row, &event);
+    };
+    effects.publish = [](void *context, const ThreeMMActorState *state) {
+        EngineActorMotion::Publish(*static_cast<Host *>(context)->view, *state);
+    };
+    effects.run = [](void *context, const ThreeMMActorEffectCommand *command, ThreeMMActorEffectReply *reply) {
+        auto &host = *static_cast<Host *>(context);
+        auto actor = host.actor;
+        switch (command->operation)
         {
-            auto material = tmpl->PcmtlFetch(costume.cmid);
-            if (!material)
-                return false;
-            body->SetPartSetCmtl(material);
-            ReleasePpo(&material);
+        case THREE_MM_EFFECT_CLEAR_SOUNDS:
+            host.motion->clear();
+            break;
+        case THREE_MM_EFFECT_SET_ACTION_CEL:
+            reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
+                             actor->tmpl->FSetActnCel(actor->body, command->first, command->second);
+            break;
+        case THREE_MM_EFFECT_CEL_COUNT:
+        {
+            LegacyLong count = reply->value;
+            reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
+                             actor->tmpl->FGetCcelActn(command->first, &count);
+            reply->value = count;
+            break;
         }
-        else
+        case THREE_MM_EFFECT_ACTION_FLAGS:
         {
+            LegacyUlong flags = 0;
+            reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
+                             actor->tmpl->FGetGrfactn(command->first, &flags);
+            reply->flags = flags;
+            break;
+        }
+        case THREE_MM_EFFECT_SAVE_COSTUME:
+            reply->success = host.costume.FGet(actor->body);
+            break;
+        case THREE_MM_EFFECT_DEFAULT_COSTUME:
+            reply->success = actor->tmpl->FSetDefaultCost(actor->body);
+            break;
+        case THREE_MM_EFFECT_RESTORE_COSTUME:
+            host.costume.Set(actor->body);
+            break;
+        case THREE_MM_EFFECT_SHOW:
+        case THREE_MM_EFFECT_HIDE:
+            // Preview presentation uses the shared onStage value; Body has no World.
+            break;
+        case THREE_MM_EFFECT_FETCH_CUSTOM:
+            reply->resource = actor->tmpl->PcmtlFetch(command->first);
+            break;
+        case THREE_MM_EFFECT_FETCH_MATERIAL:
+        {
+            TAG native;
+            std::memcpy(&native, command->tag, sizeof(native));
             TAGOnFile tag;
-            tag.From(costume.tag);
-            auto source = resolve(tag);
-            if (!source)
-                return false;
-            auto material = static_cast<PMaterial_MTRL>(source->PbacoFetch(tag.ctg, tag.cno, Material_MTRL::FReadMtrl));
-            if (!material)
-                return false;
-            body->SetPartSetMtrl(costume.ibset, material);
-            ReleasePpo(&material);
+            tag.From(native);
+            auto source = actor->resolve(tag);
+            if (source)
+                reply->resource = source->PbacoFetch(tag.ctg, tag.cno, Material_MTRL::FReadMtrl);
+            break;
         }
-        return true;
-    }
-    case aetRem:
-        state.onStage = false;
-        return true;
-    case aetSnd: {
-        Sound sound;
-        track.Events()->Get(index, &sound);
-        if (sound.celn != ivNil)
+        case THREE_MM_EFFECT_APPLY_CUSTOM:
+            actor->body->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
+            break;
+        case THREE_MM_EFFECT_APPLY_MATERIAL:
+            actor->body->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
+            break;
+        case THREE_MM_EFFECT_RELEASE_CUSTOM:
         {
-            for (auto &existing : motionSounds)
-                if (existing.celn == sound.celn && existing.sty == sound.sty)
-                {
-                    existing = sound;
-                    return true;
-                }
-            motionSounds.push_back(sound);
+            auto resource = static_cast<PCustomMaterial_CMTL>(command->resource);
+            ReleasePpo(&resource);
+            break;
         }
-        else if (soundDisplay)
-            sounds.push_back(SoundCue(sound));
-        return true;
-    }
-    default:
-        return false;
-    }
+        case THREE_MM_EFFECT_RELEASE_MATERIAL:
+        {
+            auto resource = static_cast<PMaterial_MTRL>(command->resource);
+            ReleasePpo(&resource);
+            break;
+        }
+        case THREE_MM_EFFECT_ENQUEUE_SOUND:
+        {
+            Sound sound;
+            host.track->Events()->Get(command->first, &sound);
+            if (sound.celn != ivNil)
+            {
+                for (auto &existing : *host.motion)
+                    if (existing.celn == sound.celn && existing.sty == sound.sty)
+                    {
+                        existing = sound;
+                        return;
+                    }
+                host.motion->push_back(sound);
+            }
+            else if (actor->soundDisplay)
+                host.cues->push_back(actor->SoundCue(sound));
+            break;
+        }
+        }
+    };
+    auto core = EngineActorMotion::Core(value);
+    const auto origin = EngineActorMotion::Point(header.dxyzFullRte);
+    const auto tables = EngineActorMotion::Services();
+    bool success = three_mm_actor_effect_apply(&core, events.Route(), events.Events(), index, &origin,
+                                               body != nullptr, metadataOnly, &tables, &effects) != 0;
+    EngineActorMotion::Publish(value, core);
+    return success;
 }
 PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
 {

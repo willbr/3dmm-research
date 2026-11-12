@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -780,6 +780,40 @@ pass. Independent comparisons cover all 65,536 sine/cosine angles, 4,096 MAC/ata
 cases and 128 matrix chains. Twenty-six binary snapshots match, including new
 561,152-byte math and 111,872-byte pose traces with 256 varied poses and alias
 cases. All 51 CLI baselines match. No Marcus UI tests were added.
+
+### Shared actor event effects
+
+`actor_effect.c` owns cached event-frame writes and dispatch of pure and runtime
+events. Action changes clear motion sounds before cel setup, publish action/cel
+before count lookup, preserve failed count outputs, then update route location
+before querying flags. Failed flags retain the prior flag value. These ordered
+partial changes follow Studio's retail-compatible behavior in both hosts.
+
+Entrance policy saves the costume, applies defaults, and restores the saved
+costume only if cel setup fails. It then clears motion sounds, updates origin,
+resets scale/orientation, applies the authored angles and updates stage state.
+Material policy selects custom/ordinary fetch, rejects missing resources, applies
+the result and releases the fetched reference. Body presence gates exit hiding;
+logical stage state changes independently. Sound dispatch reports enqueue failure.
+
+Studio's `_FDoAevCore` and Marcus's `PreviewActor::ApplyEvent` execute primitive
+template/body/resource/audio commands and publish borrowed native observer views.
+The C code owns their ordering and failure decisions. Marcus's timeline reader
+uses the same C state policy in metadata-only mode, querying action metadata
+without body/costume/sound effects. Preview visibility remains a presentation
+adapter. `_LoadAddOrien` also delegates to C for runtime and editing callers.
+The private native value/table adapter is shared with the archive preview target.
+
+`engine-actor-effect-test` injects failures at action and entrance stages, checks
+partial state and observer values, exercises custom/ordinary reference cleanup,
+metadata-only evaluation, frame caching and pure events. Forty-one standalone C
+checks, fifty-five focused native/preview checks and MSVC AddressSanitizer pass.
+Twenty-seven binary snapshots match, including a new 13,824-byte entrance trace
+compared independently with retained native BRender arithmetic across 256 cases.
+All 51 CLI baselines match. A headless scene-preview check also verifies repeated
+timeline reads preserve the live pose, sounds and rendered pixels. No Marcus UI
+tests were added. Native sound/motion-match
+policy, primitive resource implementations, editing and final integration remain.
 
 ### Source names and directory discovery
 

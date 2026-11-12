@@ -2590,3 +2590,60 @@ Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus, establishin
 audible capture rather than exact PCM preservation. Movie, ISO-resource and
 Marcus-content hashes remain unchanged. Together the three cases cover fifteen
 successful captures; one repetition does not establish general repeatability.
+
+## Shared C89 actor event effects (12 November 2026)
+
+Studio, Marcus playback and Marcus timeline evaluation now call the same C89
+event policy. C owns cached frame writes, pure/runtime dispatch, partial action
+state, entrance costume rollback, route/orientation updates and material
+fetch/apply/release ordering. Metadata-only evaluation skips body and sound
+effects. Hosts retain primitive resource/body/audio operations and native observer
+views; actor sound/motion-match policy, editing and final integration remain work.
+See the [implementation boundary](../code-map/library-split.md#shared-actor-event-effects).
+
+Forty-one standalone C checks, fifty-five focused native/preview checks and MSVC
+AddressSanitizer pass. Failure injection checks retained cel-count writes, flag
+failures, entrance rollback, stage observations and material reference cleanup.
+All twenty-seven binary snapshots match, including an independent 13,824-byte
+entrance-orientation comparison against native BRender across 256 cases. All 51
+CLI baselines match, including six asset indexes covering 20,568 entries. No
+Marcus UI tests were added.
+
+Evidence includes `tmp/c89-actor-entrance-before.bin`,
+`tmp/c89-actor-entrance-after.bin`, `tmp/c89-actor-effect-snapshot-comparison.json`,
+`tmp/c89-actor-effect-output-comparison.json`,
+`tmp/c89-actor-effect-standalone.log`, `tmp/c89-actor-effect-native-tests.log` and
+`tmp/c89-actor-effect-asan.log`.
+
+The headless scene-preview integration check also passes with the packaged ISO
+resource file. It reads each actor's animation timeline twice and verifies
+matching spans/events, valid frame bounds, and unchanged live pose, sounds and
+rendered pixels. Its log is `tmp/c89-actor-effect-timeline.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Final shared
+backend evidence is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T223822Z-b130805c` | `actor-events`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T224100Z-17b4c1ca` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T224504Z-02af78e2` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding pose suites `20261112T221900Z-572f11a9` and
+`20261112T222057Z-68aec496`, all 360 seek images match exactly. All twelve runs
+preserve 60 authored frame positions and ordered exact image changes: actor events
+60 for each player; scrolling retail/SDL 328 and Marcus 321. Only adjacent
+identical image/position records are collapsed; raw presentation samples and
+timestamps remain available. Reports are
+`tmp/c89-actor-effect-events-comparison.json` and
+`tmp/c89-actor-effect-playback-comparison.json`. Movie, ISO-resource and
+Marcus-content hashes remain unchanged. Existing cross-player pixel/audio
+differences and timing/alignment limitations remain; these results establish
+preservation against the preceding build within this coverage.
+
+Against preceding audio suite `20261112T222422Z-e4a9fdc9`, all three audio-case
+runs preserve the same 60 authored frame positions and 60 ordered image changes.
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus, establishing
+audible capture rather than exact PCM preservation. Movie, ISO-resource and
+Marcus-content hashes remain unchanged. Together the final shared suites cover
+fifteen successful captures; one repetition does not establish general repeatability.

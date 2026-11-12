@@ -115,6 +115,8 @@
 #include "soc.h"
 
 #include "body_world.h"
+#include "engine_actor_motion.h"
+#include "three_mm/actor_effect.h"
 
 ASSERTNAME
 
@@ -614,135 +616,102 @@ bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _track.Events()->IvMac());
-
-    Base aev;
-    BodyCostume cost;
-
-    _track.Events()->GetFixed(iaev, &aev);
-    if (aev.nfrm != _state.frame)
+    struct Host
     {
-        aev.nfrm = _state.frame;
-        _track.Events()->PutFixed(iaev, &aev);
-    }
-    AssertIn(aev.aet, 0, aetLim);
-
-    ActorValueEventResult result = _state.ApplyValueEvent(_track, iaev, _dxyzFullRte);
-    if (result != ActorValueEventResult::NeedsRuntime)
-        return result == ActorValueEventResult::Applied;
-
-    switch (aev.aet)
-    {
-    case aetActn:
-        Action aevactn;
-        LegacyUlong grfactn;
-
-        _track.Events()->Get(iaev, &aevactn);
-
-        // Empty the motion match sound list	if the action <changed>
-        if (aevactn.anid != _state.action)
-            _pglsmm->FSetIvMac(0);
-
-        if (!_ptmpl->FSetActnCel(_pbody, aevactn.anid, aevactn.celn))
+        Actor *actor;
+        BodyCostume costume;
+    } host;
+    host.actor = this;
+    ThreeMMActorEffectServices effects = {};
+    effects.context = &host;
+    effects.write_event = [](void *events, ThreeMMI32 index, const ThreeMMActorEvent *value) {
+        Base event;
+        std::memcpy(&event, value, sizeof(event));
+        static_cast<PGeneralGroup>(events)->PutFixed(index, &event);
+    };
+    effects.publish = [](void *context, const ThreeMMActorState *value) {
+        EngineActorMotion::Publish(static_cast<Host *>(context)->actor->_state, *value);
+    };
+    effects.run = [](void *context, const ThreeMMActorEffectCommand *command, ThreeMMActorEffectReply *reply) {
+        auto &host = *static_cast<Host *>(context);
+        auto actor = host.actor;
+        switch (command->operation)
         {
-            return fFalse;
-        }
-        _state.cel = aevactn.celn;
-        _state.action = aevactn.anid;
-        if (!_ptmpl->FGetCcelActn(_state.action, &_state.celCount)) // Cache the cel count
-            return fFalse;
-        _state.actionEvent = iaev;
-
-        // Force the location to the step event
-        // Avoids incorrect event ordering on static segments
-        _state.location = aev.rtel;
-        _GetXyzFromRtel(&_state.location, &_state.position);
-        if (!_ptmpl->FGetGrfactn(_state.action, &grfactn))
+        case THREE_MM_EFFECT_CLEAR_SOUNDS:
+            actor->_pglsmm->FSetIvMac(0);
+            break;
+        case THREE_MM_EFFECT_SET_ACTION_CEL:
+            reply->success = actor->_ptmpl->FSetActnCel(actor->_pbody, command->first, command->second);
+            break;
+        case THREE_MM_EFFECT_CEL_COUNT:
         {
-            return fFalse;
+            LegacyLong count = reply->value;
+            reply->success = actor->_ptmpl->FGetCcelActn(command->first, &count);
+            reply->value = count;
+            break;
         }
-        _state.actionFlags = grfactn;
-        break;
-
-    case aetAdd:
-        Add aevadd;
-        RouteDistancePoint rpt;
-        // Save old costume in case of error
-        if (!cost.FGet(_pbody))
-            return fFalse;
-        // Invoke the default costume/orientation
-        if (!_ptmpl->FSetDefaultCost(_pbody))
-            return fFalse;
-        // Put the actor on stage.	Set up models.
-        if (!_ptmpl->FSetActnCel(_pbody, _state.action, _state.cel))
+        case THREE_MM_EFFECT_ACTION_FLAGS:
         {
-            cost.Set(_pbody); // restore old costume
-            return fFalse;
+            LegacyUlong flags = 0;
+            reply->success = actor->_ptmpl->FGetGrfactn(command->first, &flags);
+            reply->flags = flags;
+            break;
         }
-
-        // Empty the motion match sound list
-        _pglsmm->FSetIvMac(0);
-
-        // Set the translation for the subroute
-        _track.Events()->Get(iaev, &aevadd);
-        _state.subrouteTranslation.dxr = aevadd.dxr;
-        _state.subrouteTranslation.dyr = aevadd.dyr;
-        _state.subrouteTranslation.dzr = aevadd.dzr;
-        _UpdateXyzRte();
-
-        // Load the initial orientation
-        _InitXfrm();
-        _LoadAddOrien(&aevadd);
-
-        // Set state variables
-        _state.firstEventInFrame = _state.addEvent = iaev;
-        _state.location = aev.rtel;
-        _GetXyzFromRtel(&_state.location, &_state.position);
-        _track.Route()->Get(aev.rtel.irpt, &rpt);
-
-        // Show the actor
-        if (!_state.onStage)
-            _pbody->Show();
-        _state.onStage = fTrue;
-        break;
-
-    case aetRem:
-        // Exit the actor from the stage
-        _Hide();
-        break;
-
-    case aetCost:
-        Costume aevcost;
-        _track.Events()->Get(iaev, &aevcost);
-        if (aevcost.fCmtl)
+        case THREE_MM_EFFECT_SAVE_COSTUME:
+            reply->success = host.costume.FGet(actor->_pbody);
+            break;
+        case THREE_MM_EFFECT_DEFAULT_COSTUME:
+            reply->success = actor->_ptmpl->FSetDefaultCost(actor->_pbody);
+            break;
+        case THREE_MM_EFFECT_RESTORE_COSTUME:
+            host.costume.Set(actor->_pbody);
+            break;
+        case THREE_MM_EFFECT_SHOW:
+            actor->_pbody->Show();
+            break;
+        case THREE_MM_EFFECT_HIDE:
+            actor->_pbody->Hide();
+            break;
+        case THREE_MM_EFFECT_FETCH_CUSTOM:
+            reply->resource = actor->_ptmpl->PcmtlFetch(command->first);
+            break;
+        case THREE_MM_EFFECT_FETCH_MATERIAL:
         {
-            PCustomMaterial_CMTL pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid);
-            if (pvNil == pcmtl)
-                return fFalse;
-            _pbody->SetPartSetCmtl(pcmtl);
-            ReleasePpo(&pcmtl);
+            TAG tag;
+            std::memcpy(&tag, command->tag, sizeof(tag));
+            reply->resource = vptagm->PbacoFetch(&tag, Material_MTRL::FReadMtrl);
+            break;
         }
-        else
+        case THREE_MM_EFFECT_APPLY_CUSTOM:
+            actor->_pbody->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
+            break;
+        case THREE_MM_EFFECT_APPLY_MATERIAL:
+            actor->_pbody->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
+            break;
+        case THREE_MM_EFFECT_RELEASE_CUSTOM:
         {
-            PMaterial_MTRL pmtrl;
-            pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl);
-            if (pvNil == pmtrl)
-                return fFalse;
-            _pbody->SetPartSetMtrl(aevcost.ibset, pmtrl);
-            ReleasePpo(&pmtrl);
+            auto resource = static_cast<PCustomMaterial_CMTL>(command->resource);
+            ReleasePpo(&resource);
+            break;
         }
-        break;
-
-    case aetSnd:
-        // Enqueue non-mm sounds
-        if (!_FEnqueueSnd(iaev)) // Ignore failure
-            return fFalse;
-        break;
-
-    default:
-        Bug("Unimplemented actor event");
-    }
-
-    return fTrue;
+        case THREE_MM_EFFECT_RELEASE_MATERIAL:
+        {
+            auto resource = static_cast<PMaterial_MTRL>(command->resource);
+            ReleasePpo(&resource);
+            break;
+        }
+        case THREE_MM_EFFECT_ENQUEUE_SOUND:
+            reply->success = actor->_FEnqueueSnd(command->first);
+            break;
+        }
+    };
+    auto state = EngineActorMotion::Core(_state);
+    const auto origin = EngineActorMotion::Point(_dxyzFullRte);
+    const auto tables = EngineActorMotion::Services();
+    bool success = three_mm_actor_effect_apply(&state, _track.Route(), _track.Events(), iaev, &origin,
+                                               _pbody != pvNil, 0, &tables, &effects) != 0;
+    EngineActorMotion::Publish(_state, state);
+    return success;
 }
 
 /***************************************************************************
@@ -2604,16 +2573,14 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
 {
     AssertThis(0);
-
-    // Set _state.transform.bmat34Cur always holds the current full rotation
-    if (!fNoReset)
-        _InitXfrmRot(&_state.transform.bmat34Cur);
-    BrMatrix34PostRotateX(&_state.transform.bmat34Cur, paevadd->xa);
-    BrMatrix34PostRotateY(&_state.transform.bmat34Cur, paevadd->ya);
-    BrMatrix34PostRotateZ(&_state.transform.bmat34Cur, paevadd->za);
-    _state.transform.xaPath = paevadd->xa;
-    _state.transform.yaPath = paevadd->ya;
-    _state.transform.zaPath = paevadd->za;
+    static_assert(sizeof(Add) == sizeof(ThreeMMActorEntrance) && offsetof(Add, xa) == 12 &&
+                      offsetof(Add, ya) == 14 && offsetof(Add, za) == 16,
+                  "actor entrance ABI");
+    ThreeMMActorEntrance add;
+    std::memcpy(&add, paevadd, sizeof(add));
+    auto state = EngineActorMotion::Core(_state);
+    three_mm_actor_add_orientation(&state, &add, fNoReset);
+    EngineActorMotion::Publish(_state, state);
 }
 
 /***************************************************************************
