@@ -111,8 +111,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   remains a callback.
 - CHN2 index persistence now computes index/free-map positions, serializes the
   fixed prefix and commits index, optional free map and header in C89. Existing
-  collection serialization remains shared. Whole-file relocation, filesystem
-  rename/recovery, codec registration and remaining primitive adapters are next.
+  collection serialization remains shared.
+- Whole-file save sequencing, packed chunk relocation, empty-offset handling,
+  file/map reference transitions and recovery after commit/naming failure now
+  use C89. Filename resolution and physical file services remain native. Separate
+  save-a-copy insertion, free-space allocation, codec registration and remaining
+  primitive adapters are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

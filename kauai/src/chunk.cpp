@@ -76,6 +76,7 @@
 #include <vector>
 #include <new>
 #include "util.h"
+#include "three_mm/chunk_save.h"
 ASSERTNAME
 
 namespace Chunky {
@@ -1407,148 +1408,90 @@ void ChunkyFile::_ReadFreeMap(void)
     write out a new file and do the rename stuff.  If not, just write
     the index and free map.
 ***************************************************************************/
+namespace {
+bool WriteChunkDirectory(PFileObject, PGeneralGroup, PDynamicArray, FilePosition, ChunkTagOrType);
+struct ChunkSaveHost
+{
+    ChunkyFile *owner;
+    Filename *directory, *target;
+    PGeneralGroup index;
+};
+void SaveEntry(void *context, ThreeMMU32 position, ThreeMMChunkEntry *entry)
+{
+    AssertDo(ReadRuntimeChunk(context, position, entry), "invalid save index position");
+}
+void SavePlace(void *context, ThreeMMU32 position, ThreeMMU32 offset, ThreeMMU32 flags)
+{
+    auto row = static_cast<ChunkRepresentation *>(static_cast<PGeneralGroup>(context)->QvFixedGet(position));
+    row->fp = offset;
+    row->AssignGrfcrp(flags);
+}
+void *SaveCreateTemp(void *context) { return FileObject::PfilCreateTemp(static_cast<ChunkSaveHost *>(context)->directory); }
+int SaveResize(void *, void *file, ThreeMMU32 bytes) { return static_cast<PFileObject>(file)->FSetFpMac(bytes); }
+int SaveCopy(void *, void *source, ThreeMMU32 sourceOffset, void *destination, ThreeMMU32 offset, ThreeMMU32 bytes)
+{
+    FileLocation from = {static_cast<PFileObject>(source), static_cast<FilePosition>(sourceOffset), static_cast<LegacyLong>(bytes)};
+    FileLocation to = {static_cast<PFileObject>(destination), static_cast<FilePosition>(offset), static_cast<LegacyLong>(bytes)};
+    return from.FCopy(&to);
+}
+void SaveReleaseFile(void *, void *file) { auto native = static_cast<PFileObject>(file); ReleasePpo(&native); }
+void SaveReleaseMap(void *, void *map) { auto native = static_cast<PDynamicArray>(map); ReleasePpo(&native); }
+int SaveIsTemp(void *, void *file) { return static_cast<PFileObject>(file)->FTemp(); }
+void SaveSetTemp(void *, void *file, int temporary) { static_cast<PFileObject>(file)->SetTemp(temporary != 0); }
+int SaveIndex(void *context, const ThreeMMChunkSaveState *state, ThreeMMU32 creator)
+{
+    return WriteChunkDirectory(static_cast<PFileObject>(state->main_file), static_cast<ChunkSaveHost *>(context)->index,
+        static_cast<PDynamicArray>(state->main_map), state->main_end, creator);
+}
+int SaveRename(void *context, void *file)
+{
+    auto target = static_cast<ChunkSaveHost *>(context)->target;
+    if (target->TExists() != tNo) target->FDelete();
+    return static_cast<PFileObject>(file)->FRename(target);
+}
+int SaveSwapNames(void *, void *file, void *old) { return static_cast<PFileObject>(file)->FSwapNames(static_cast<PFileObject>(old)); }
+}
 bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 {
     AssertThis(fcflFull | fcflGraph);
     AssertNilOrPo(pfni, ffniFile);
-
     Filename fni;
-    FileLocation floSrc, floDst;
-    LegacyLong ccrp, icrp;
-    ChunkRepresentation *qcrp;
-    PFileObject pfilOld;
-
     if (_fInvalidMainFile)
     {
-        if (pvNil == pfni)
-        {
-            Bug("can't save a ChunkyFile that has no file attached!");
-            return fFalse;
-        }
+        if (!pfni) { Bug("can't save a ChunkyFile that has no file attached!"); return fFalse; }
         fni = *pfni;
     }
     else
     {
         GetFni(&fni);
-        if (pfni != pvNil)
+        if (pfni)
         {
-            if (pfni->FEqual(&fni))
-                pfni = pvNil;
-            else
-                fni = *pfni;
+            if (pfni->FEqual(&fni)) pfni = nullptr;
+            else fni = *pfni;
         }
     }
-
-    if (!_fAddToExtra && _cstoExtra.pfil == pvNil && pfni == pvNil)
-    {
-        // just write the index
-        Assert(!_fFreeMapNotRead, "why hasn't the free map been read?");
-        if (!_FWriteIndex(ctgCreator))
-            goto LError;
-        return fTrue;
-    }
-
-    // get a temp name in the same directory as the target
-    if ((floDst.pfil = FileObject::PfilCreateTemp(&fni)) == pvNil)
-        goto LError;
-    if (!floDst.pfil->FSetFpMac(size(ChunkyFilePrefix)))
-        goto LFail;
-
-    floDst.fp = size(ChunkyFilePrefix);
-    ccrp = _pggcrp->IvMac();
-    for (icrp = 0; icrp < ccrp; icrp++)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        floSrc.pfil = qcrp->Grfcrp(fcrpOnExtra) ? _cstoExtra.pfil : _csto.pfil;
-        floSrc.fp = qcrp->fp;
-        floSrc.cb = floDst.cb = qcrp->Cb();
-
-        if (floSrc.cb > 0 && !floSrc.FCopy(&floDst))
-        {
-        LFail:
-            Assert(floDst.pfil->FTemp(), "file not a temp");
-            ReleasePpo(&floDst.pfil);
-            goto LError;
-        }
-        floDst.fp += floDst.cb;
-    }
-
-    // All the data has been copied.  Update the index to point to the new file.
-    floSrc.fp = size(ChunkyFilePrefix);
-    for (icrp = 0; icrp < ccrp; icrp++)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        qcrp->ClearGrfcrp(fcrpOnExtra);
-        qcrp->fp = qcrp->Cb() > 0 ? floSrc.fp : 0;
-        floSrc.fp += qcrp->Cb();
-    }
-    Assert(floSrc.fp == floDst.fp, "what happened? - file messed up");
-
-    // update the csto's and write the index
-    pfilOld = _csto.pfil;
-    ReleasePpo(&_csto.pglfsm);
-    _fFreeMapNotRead = fFalse;
-    _csto.pfil = floDst.pfil;
-    _csto.fpMac = floDst.fp;
-    _csto.pfil->SetTemp(_fInvalidMainFile || pfilOld->FTemp());
-
-    if (_cstoExtra.pfil != pvNil)
-    {
-        _cstoExtra.fpMac = 0;
-        ReleasePpo(&_cstoExtra.pfil);
-        ReleasePpo(&_cstoExtra.pglfsm);
-    }
-
-    // write the index
-    if (!_FWriteIndex(ctgCreator))
-        goto LIndexFail;
-
-    if (pfni != pvNil)
-    {
-        // delete any existing file with this name, then rename our output
-        // file to the given name
-        if (pfni->TExists() != tNo)
-            pfni->FDelete();
-        if (!_csto.pfil->FRename(pfni))
-            goto LIndexFail;
-        _fInvalidMainFile = fFalse;
-    }
-    else if (!_csto.pfil->FSwapNames(pfilOld))
-    {
-    LIndexFail:
-        if (_fInvalidMainFile)
-        {
-            // we can just use the new file now.
-            ReleasePpo(&pfilOld); // release our claim on the old file
-        }
-        else
-        {
-            // restore the original csto and make floDst.pfil the extra file
-            _csto.pfil = pfilOld;
-            _csto.fpMac = size(ChunkyFilePrefix);
-            for (icrp = 0; icrp < ccrp; icrp++)
-            {
-                qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-                if (qcrp->Cb() > 0)
-                    qcrp->SetGrfcrp(fcrpOnExtra);
-            }
-            _cstoExtra.pfil = floDst.pfil;
-            floDst.pfil->SetTemp(fTrue);
-            _cstoExtra.fpMac = floDst.fp;
-        }
-    LError:
-        PushErc(ercCflSave);
-        AssertThis(fcflFull | fcflGraph);
-        return fFalse;
-    }
-
-    // everything worked
-    if (pfni == pvNil)
-        pfilOld->SetTemp(fTrue);
-
-    ReleasePpo(&pfilOld); // release our claim on the old file
+    ThreeMMChunkSaveState state = {_csto.pfil, _cstoExtra.pfil, _csto.pglfsm, _cstoExtra.pglfsm,
+        static_cast<ThreeMMU32>(_csto.fpMac), static_cast<ThreeMMU32>(_cstoExtra.fpMac),
+        _fInvalidMainFile, _fAddToExtra, _fFreeMapNotRead};
+    ChunkSaveHost host = {this, &fni, pfni, _pggcrp};
+    const auto publish = [](void *context, const ThreeMMChunkSaveState *saved) {
+        auto self = static_cast<ChunkSaveHost *>(context)->owner;
+        self->_csto.pfil = static_cast<PFileObject>(saved->main_file);
+        self->_cstoExtra.pfil = static_cast<PFileObject>(saved->extra_file);
+        self->_csto.pglfsm = static_cast<PDynamicArray>(saved->main_map);
+        self->_cstoExtra.pglfsm = static_cast<PDynamicArray>(saved->extra_map);
+        self->_csto.fpMac = saved->main_end; self->_cstoExtra.fpMac = saved->extra_end;
+        self->_fInvalidMainFile = saved->invalid_main != 0; self->_fAddToExtra = saved->add_to_extra != 0;
+        self->_fFreeMapNotRead = saved->free_map_unread != 0;
+    };
+    const ThreeMMChunkSaveIndex index = {_pggcrp, static_cast<ThreeMMU32>(_pggcrp->IvMac()), SaveEntry, SavePlace};
+    const ThreeMMChunkSaveServices services = {&host, SaveCreateTemp, SaveResize, SaveCopy, SaveReleaseFile,
+        SaveReleaseMap, SaveIsTemp, SaveSetTemp, SaveIndex, SaveRename, SaveSwapNames, publish};
+    const bool ok = three_mm_chunk_save(&state, &index, &services, ctgCreator, pfni != nullptr) == THREE_MM_CHUNK_OK;
+    publish(&host, &state);
+    if (!ok) PushErc(ercCflSave);
     AssertThis(fcflFull | fcflGraph);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -1578,20 +1521,24 @@ int WriteChunkPrefix(void *context, const void *bytes, size_t count)
     return static_cast<ChunkIndexOutput *>(context)->file->FWriteRgb(const_cast<void *>(bytes), count, 0);
 }
 }
+namespace {
+bool WriteChunkDirectory(PFileObject file, PGeneralGroup index, PDynamicArray map, FilePosition end, ChunkTagOrType creator)
+{
+    const short one = 1;
+    ChunkIndexOutput output = {file, index, map};
+    const ThreeMMChunkSave save = {creator, static_cast<ThreeMMU32>(end),
+        static_cast<ThreeMMU32>(index->CbOnFile()), map ? static_cast<ThreeMMU32>(map->CbOnFile()) : 0,
+        reinterpret_cast<const byte *>(&one)[0] == 0, koskCur};
+    const ThreeMMChunkWriter writer = {&output, WriteChunkIndex, WriteChunkMap, WriteChunkPrefix};
+    return three_mm_chunk_write_index(&save, &writer, nullptr) == THREE_MM_CHUNK_OK;
+}
+}
 bool ChunkyFile::_FWriteIndex(ChunkTagOrType ctgCreator)
 {
     AssertBaseThis(0);
     AssertPo(_pggcrp, 0);
     AssertPo(_csto.pfil, 0);
-
-    const short one = 1;
-    ChunkIndexOutput output = {_csto.pfil, _pggcrp, _csto.pglfsm};
-    const ThreeMMChunkSave save = {ctgCreator, static_cast<ThreeMMU32>(_csto.fpMac),
-        static_cast<ThreeMMU32>(_pggcrp->CbOnFile()),
-        _csto.pglfsm ? static_cast<ThreeMMU32>(_csto.pglfsm->CbOnFile()) : 0,
-        reinterpret_cast<const byte *>(&one)[0] == 0, koskCur};
-    const ThreeMMChunkWriter writer = {&output, WriteChunkIndex, WriteChunkMap, WriteChunkPrefix};
-    return three_mm_chunk_write_index(&save, &writer, nullptr) == THREE_MM_CHUNK_OK;
+    return WriteChunkDirectory(_csto.pfil, _pggcrp, _csto.pglfsm, _csto.fpMac, ctgCreator);
 }
 
 /***************************************************************************

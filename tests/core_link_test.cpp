@@ -157,6 +157,11 @@ static void TestChunkPersistence()
         file = ChunkyFile::PcflOpen(&source, fcflNil);
         Check(file && file->FSave('AS  ', &destination));
         capture(destination);
+        Check(file->FPutPv(payload, 23, 'TEST', first));
+        Check(file->FSave('SWAP')); // Read-only origin: compact extra data and swap names.
+        capture(destination);
+        Check(file->FSave('SAME', &destination)); // An explicit current name becomes a swap.
+        capture(destination);
         file->SetTemp(true); ReleasePpo(&file);
         file = ChunkyFile::PcflOpen(&copy, fcflNil);
         DataBlock block;

@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,41 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Whole-file save relocation and recovery
+
+`three_mm_chunk_save` owns the save sequence shared by Studio and Marcus. It
+chooses a direct index commit or a temporary output, checks the complete compact
+layout, copies nonempty chunks from main/extra storage, then updates offsets and
+clears on-extra flags. Empty chunks become offset zero. Packed bytes and other
+runtime flags are preserved. The operation adds no allocation or second index;
+trusted live-index primitives fill complete records and cannot fail or re-enter.
+It retains no pointers into movable index storage across callbacks.
+
+C also selects reference releases, temporary status, index commit and rename or
+name-swap completion. Early file failures discard the output and leave state and
+index intact. After a later index/naming failure, a valid old main is restored
+with logical end 128, and the copied data becomes temporary extra storage with
+every nonempty chunk marked on-extra. Without a valid old CHN2 main, the new
+temporary remains attached. Both paths support a later save retry.
+
+The native facade resolves target filenames, supplies file/map primitives and
+serializes the index through the preceding C89 commit policy. An optional state
+publication callback mirrors C ownership changes before detached references are
+released or services run, keeping native debug/lifetime tracking valid. This
+mirror does not acquire another owning reference. Existing target removal and
+filesystem rename/swap behavior remain host services; no atomic-save guarantee
+or new replacement protocol is implied.
+
+Thirty native saved-file outputs match all 13,190 pre-conversion bytes, including
+interior free maps, shortened indexes, save-a-copy, read-only save-as, modified
+extra data and explicit-current-name saves. Standalone C checks inject temporary
+creation/resize, each payload copy, index, rename and swap failures, verify
+reference/map cleanup and untouched early-failure state, and retry after late
+failures. They cover valid/invalid old mains, temporary status, empty files,
+empty chunk offsets, retained flags and signed file-position overflow, including
+under MSVC AddressSanitizer. The separate `FSaveACopy` insertion algorithm,
+general chunk editing and free-space allocation remain native.
+
 ### Chunk index persistence
 
 `three_mm_chunk_write_index` now owns the CHN2 index-commit policy shared by
@@ -444,9 +479,9 @@ orders and map-presence cases, inject every commit-stage failure and check size
 limits, untouched guards and the maximum signed file position. They also pass
 under MSVC AddressSanitizer.
 
-Whole-file save relocation and index mutation, filesystem rename/swap recovery,
-file lifetime and free-space allocation remain native. This is an index-commit
-slice, not a completed container editor or whole-engine conversion.
+The whole-file save sequence above now shares relocation/recovery policy too.
+General index mutation, save-a-copy insertion and free-space allocation remain
+native. Neither slice completes the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion
 
