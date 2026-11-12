@@ -146,6 +146,7 @@ static void TestChunkPersistence()
         Check(file->FAddPv(payload, 17, 'TEST', &hole) && file->FAddPv(payload, 31, 'TEST', &last));
         String name(PszLit("Persistent chunk name"));
         Check(file->FSetName('TEST', first, &name));
+        Check(file->FAdoptChild('TEST', first, 'TEST', last, 77, false));
         file->Delete('TEST', hole); // Interior free space, including an empty first chunk.
         Check(file->FSave('SAVE'));
         capture(source);
@@ -169,6 +170,50 @@ static void TestChunkPersistence()
         Check(block.FRead(bytes) && !std::memcmp(bytes, payload, length));
         file->SetTemp(true); ReleasePpo(&file);
         Check(source.FDelete());
+    }
+    for (int extra = 0; extra < 2; ++extra)
+    {
+        Filename source, copy;
+        Check(source.FGetTemp() && copy.FGetTemp());
+        auto file = ChunkyFile::PcflCreate(&source, fcflWriteEnable);
+        Check(file && file->FSave('HEAP'));
+        if (extra) { ReleasePpo(&file); file = ChunkyFile::PcflOpen(&source, fcflNil); Check(file); }
+        ChunkNumber numbers[24] = {};
+        LegacyLong sizes[24] = {};
+        bool live[24] = {};
+        LegacyUlong seed = 0x12345678;
+        for (int step = 0; step < 600; ++step)
+        {
+            seed = seed * 1664525U + 1013904223U;
+            const int slot = (seed >> 16) % 24;
+            const LegacyLong length = (seed >> 24) % 97;
+            if (!live[slot])
+            {
+                Check(file->FAddPv(payload, length, 'HEAP', &numbers[slot]));
+                live[slot] = true; sizes[slot] = length;
+            }
+            else if (seed & 1)
+            {
+                file->Delete('HEAP', numbers[slot]); live[slot] = false;
+            }
+            else
+            {
+                Check(file->FPutPv(payload, length, 'HEAP', numbers[slot])); sizes[slot] = length;
+            }
+            for (int i = 0; i < 24; ++i) if (live[i])
+            {
+                FileLocation location;
+                Check(file->FFindFlo('HEAP', numbers[i], &location) && location.cb == sizes[i]);
+                Check(location.FRead(bytes) && !std::memcmp(bytes, payload, sizes[i]));
+                LegacyLong record[] = {extra, step, i, static_cast<LegacyLong>(numbers[i]), location.fp, location.cb,
+                    file->FOnExtra('HEAP', numbers[i])};
+                if (snapshot) Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+            }
+        }
+        Check(file->FSave('HEAP')); capture(source);
+        Check(file->FSaveACopy('COPY', &copy)); capture(copy);
+        file->SetTemp(true); ReleasePpo(&file);
+        file = ChunkyFile::PcflOpen(&copy, fcflNil); Check(file); file->SetTemp(true); ReleasePpo(&file);
     }
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }

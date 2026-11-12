@@ -125,3 +125,51 @@ copy_failed:
     io->release_file(io->context, temporary);
     return THREE_MM_CHUNK_IO;
 }
+int three_mm_chunk_save_copy(const ThreeMMChunkSaveIndex *index, const ThreeMMChunkCopyServices *io, ThreeMMU32 creator)
+{
+    ThreeMMChunkEntry entry;
+    ThreeMMU32 i, end;
+    void *source;
+    int result = THREE_MM_CHUNK_OK;
+    if (!index || !index->entry || !io || !io->destination_file || !io->pin || !io->unpin || !io->copy || !io->insert ||
+        !io->finish)
+        return THREE_MM_CHUNK_BAD_FILE;
+    io->pin(io->context);
+    end = THREE_MM_CHUNK_PREFIX_BYTES;
+    for (i = 0; i < index->count; ++i)
+    {
+        index->entry(index->context, i, &entry);
+        source = entry.flags & ON_EXTRA ? io->extra_file : io->main_file;
+        if (!source || entry.offset > 0x7fffffffUL || entry.bytes > 0x7fffffffUL - entry.offset ||
+            entry.bytes > 0x7fffffffUL - end)
+        {
+            result = THREE_MM_CHUNK_BAD_FILE;
+            goto done;
+        }
+        end += entry.bytes;
+    }
+    end = THREE_MM_CHUNK_PREFIX_BYTES;
+    for (i = 0; i < index->count; ++i)
+    {
+        index->entry(index->context, i, &entry);
+        source = entry.flags & ON_EXTRA ? io->extra_file : io->main_file;
+        if (!io->copy(io->context, source, entry.offset, io->destination_file, end, entry.bytes))
+        {
+            result = THREE_MM_CHUNK_IO;
+            goto done;
+        }
+        entry.offset = end;
+        entry.flags &= ~ON_EXTRA;
+        if (!io->insert(io->context, i, &entry))
+        {
+            result = THREE_MM_CHUNK_MEMORY;
+            goto done;
+        }
+        end += entry.bytes;
+    }
+done:
+    io->unpin(io->context);
+    if (result == THREE_MM_CHUNK_OK && !io->finish(io->context, end, creator))
+        result = THREE_MM_CHUNK_IO;
+    return result;
+}

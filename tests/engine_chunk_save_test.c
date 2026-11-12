@@ -309,9 +309,133 @@ static void validation(void)
     CHECK(f.state.main_end == 128 && f.state.main_file == f.output && !f.state.invalid_main);
     CHECK(!f.copies && !f.places && f.output[0].temporary && !f.extra.refs);
 }
+typedef struct CopyFixture
+{
+    ThreeMMChunkEntry original[4], source[4], target[4];
+    unsigned char main[256], extra[256], output[256];
+    int pinned, pins, unpins, copies, inserts, finished, fail;
+} CopyFixture;
+static void copy_pin(void *context)
+{
+    CopyFixture *f = (CopyFixture *)context;
+    CHECK(!f->pinned);
+    f->pinned = 1;
+    ++f->pins;
+}
+static void copy_unpin(void *context)
+{
+    CopyFixture *f = (CopyFixture *)context;
+    CHECK(f->pinned);
+    f->pinned = 0;
+    ++f->unpins;
+}
+static void copy_entry(void *context, ThreeMMU32 i, ThreeMMChunkEntry *record)
+{
+    CopyFixture *f = (CopyFixture *)context;
+    CHECK(f->pinned && i < 4);
+    *record = f->source[i];
+}
+static int copy_payload(void *context, void *source, ThreeMMU32 from, void *destination, ThreeMMU32 to,
+                        ThreeMMU32 bytes)
+{
+    CopyFixture *f = (CopyFixture *)context;
+    CHECK(f->pinned && destination == f->output && to + bytes <= sizeof(f->output));
+    CHECK(source == f->main || source == f->extra);
+    CHECK(f->copies == f->inserts);
+    ++f->copies;
+    if (bytes)
+    {
+        CHECK(from + bytes <= 256);
+        memcpy(f->output + to, (unsigned char *)source + from, bytes);
+    }
+    return f->fail != f->copies;
+}
+static int copy_insert(void *context, ThreeMMU32 i, const ThreeMMChunkEntry *record)
+{
+    CopyFixture *f = (CopyFixture *)context;
+    CHECK(f->pinned && i == (ThreeMMU32)f->inserts && f->copies == f->inserts + 1);
+    CHECK(record->flags == (f->original[i].flags & ~1U));
+    CHECK(record->type == f->original[i].type && record->number == f->original[i].number &&
+          record->child_count == f->original[i].child_count && record->parent_count == f->original[i].parent_count &&
+          record->variable_bytes == f->original[i].variable_bytes && record->bytes == f->original[i].bytes);
+    ++f->inserts;
+    if (f->fail == 4 + f->inserts)
+        return 0;
+    f->target[i] = *record;
+    return 1;
+}
+static int copy_finish(void *context, ThreeMMU32 end, ThreeMMU32 creator)
+{
+    CopyFixture *f = (CopyFixture *)context;
+    CHECK(!f->pinned && f->pins == 1 && f->unpins == 1 && creator == 0x434f5059UL);
+    CHECK(end == (f->copies ? 138U : 128U));
+    ++f->finished;
+    return f->fail != 9;
+}
+static void copies(void)
+{
+    CopyFixture f;
+    ThreeMMChunkSaveIndex index;
+    ThreeMMChunkCopyServices io;
+    int fail, i, result;
+    for (fail = 0; fail <= 11; ++fail)
+    {
+        memset(&f, 0, sizeof(f));
+        f.fail = fail;
+        for (i = 0; i < 256; ++i)
+        {
+            f.main[i] = (unsigned char)i;
+            f.extra[i] = (unsigned char)(255 - i);
+        }
+        for (i = 0; i < 4; ++i)
+        {
+            f.source[i].type = 123;
+            f.source[i].number = (ThreeMMU32)i;
+            f.source[i].offset = (ThreeMMU32)(i * 3);
+            f.source[i].bytes = i == 1 ? 0 : i == 2 ? 5 : i == 0 ? 3 : 2;
+            f.source[i].flags = i % 2 ? 19 : 4;
+            f.source[i].child_count = f.source[i].parent_count = 1;
+            f.source[i].variable_bytes = 32;
+        }
+        if (fail == 10)
+            f.source[0].bytes = 0x7fffffffUL;
+        memcpy(f.original, f.source, sizeof(f.source));
+        index.context = &f;
+        index.count = fail == 11 ? 0 : 4;
+        index.entry = copy_entry;
+        index.place = NULL;
+        io.context = &f;
+        io.main_file = f.main;
+        io.extra_file = f.extra;
+        io.destination_file = f.output;
+        io.pin = copy_pin;
+        io.unpin = copy_unpin;
+        io.copy = copy_payload;
+        io.insert = copy_insert;
+        io.finish = copy_finish;
+        result = three_mm_chunk_save_copy(&index, &io, 0x434f5059UL);
+        CHECK(result == (!fail || fail == 11      ? THREE_MM_CHUNK_OK
+                         : fail == 10             ? THREE_MM_CHUNK_BAD_FILE
+                         : fail <= 4 || fail == 9 ? THREE_MM_CHUNK_IO
+                                                  : THREE_MM_CHUNK_MEMORY));
+        CHECK(!f.pinned && f.pins == 1 && f.unpins == 1 && !memcmp(f.source, f.original, sizeof(f.source)));
+        CHECK(f.finished == (!fail || fail == 9 || fail == 11));
+        if (!fail)
+        {
+            CHECK(f.copies == 4 && f.inserts == 4 && f.target[1].offset == 131 && !f.target[1].bytes);
+            CHECK(!memcmp(f.output + 128, f.main, 3) && !memcmp(f.output + 131, f.main + 6, 5) &&
+                  !memcmp(f.output + 136, f.extra + 9, 2));
+        }
+    }
+    io.pin = NULL;
+    CHECK(three_mm_chunk_save_copy(&index, &io, 0) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(three_mm_chunk_save_copy(NULL, &io, 0) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(three_mm_chunk_save_copy(&index, NULL, 0) == THREE_MM_CHUNK_BAD_FILE);
+}
 int main(void)
 {
     matrix();
     validation();
+    copies();
     return 0;
 }

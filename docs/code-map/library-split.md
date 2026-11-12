@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,36 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Save-a-copy and chunk heap policy
+
+`three_mm_chunk_save_copy` now owns the save-a-copy traversal and commit order.
+It pins the source index, checks source/compacted destination positions, copies
+each payload, inserts the corresponding record, unpins on every exit and only
+then commits the destination. Unlike whole-file relocation, even empty chunks
+invoke copy and retain the running destination offset. The native transfer
+primitive preserves the original fixed record (including expanded runtime IDs)
+and variable children/name bytes, replacing only the C-supplied offset/size/flags.
+Destination creation, failure disposal and physical I/O remain host services.
+
+`three_mm_chunk_heap_allocate` chooses the first fitting free range and consumes
+its beginning, deleting exact fits. Append reuses physical trailing bytes before
+extending the file. `three_mm_chunk_heap_free` merges either/both adjacent holes
+or trims the logical tail and its adjacent last free range. It never truncates
+physical storage. Interior map-creation/insertion failure drops the free space,
+retaining the legacy nonfatal policy; invalid/overlapping ranges and signed
+position overflow are rejected. Native callbacks provide trusted map primitives
+over the existing C89 array storage. File selection, lazy map reading and actual
+file growth remain native; the algorithms retain no movable-storage pointers.
+
+The native pre/post snapshot matches all 548,265 bytes, covering saved outputs,
+children/names and every live chunk's location across 1,200 deterministic
+add/replace/delete operations on main and extra storage. Standalone C heap checks
+compare 12,000 operations against an independent occupied-byte model, verify the
+complete free map after each edit, and inject growth/map allocation failures.
+Save-a-copy checks inject every copy/insertion/commit failure, require source
+pinning and balanced cleanup, preserve source records, and exercise empty files,
+empty offsets, flags and position limits. Both pass MSVC AddressSanitizer.
+
 ### Whole-file save relocation and recovery
 
 `three_mm_chunk_save` owns the save sequence shared by Studio and Marcus. It
@@ -453,8 +483,9 @@ creation/resize, each payload copy, index, rename and swap failures, verify
 reference/map cleanup and untouched early-failure state, and retry after late
 failures. They cover valid/invalid old mains, temporary status, empty files,
 empty chunk offsets, retained flags and signed file-position overflow, including
-under MSVC AddressSanitizer. The separate `FSaveACopy` insertion algorithm,
-general chunk editing and free-space allocation remain native.
+under MSVC AddressSanitizer. Save-a-copy and heap decisions now use the separate
+C89 algorithms above. General chunk editing and host file/map services remain
+further migration work.
 
 ### Chunk index persistence
 
@@ -480,8 +511,8 @@ limits, untouched guards and the maximum signed file position. They also pass
 under MSVC AddressSanitizer.
 
 The whole-file save sequence above now shares relocation/recovery policy too.
-General index mutation, save-a-copy insertion and free-space allocation remain
-native. Neither slice completes the container editor or whole-engine conversion.
+General graph/index mutation and free-map loading remain native. These slices
+do not complete the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion
 

@@ -1203,3 +1203,58 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 save-a-copy and chunk heap policy (12 November 2026)
+
+Save-a-copy now uses C89 for source pinning, checked compacted locations,
+payload-copy/index-insertion order and the final commit after unpinning.
+Original fixed metadata and variable child/name bytes are transferred unchanged,
+with only offset/size/on-extra state replaced. Empty chunks still invoke copy
+and retain the running destination offset, preserving the distinction from
+whole-file relocation's zero offset.
+
+First-fit free-space allocation, partial/exact hole consumption, adjacent-hole
+coalescing and logical-tail trimming also use C89. File selection, lazy map
+loading, primitive map operations and physical I/O remain native services.
+Append reuses physical trailing bytes before extending a file; freeing never
+truncates physical storage. Interior free-map allocation failure still drops the
+space without making chunk deletion fail. See the
+[dependency boundary](../code-map/library-split.md#save-a-copy-and-chunk-heap-policy).
+
+The native snapshot matches all 548,265 bytes before and after conversion:
+saved-file outputs with names/children plus every live chunk's location across
+1,200 deterministic main/extra-storage add/replace/delete operations. Standalone
+C heap checks compare 12,000 edits against an independent occupied-byte model
+and validate the complete free map after each edit. Copy/insertion/commit,
+file-growth and map-allocation failures verify source preservation, balanced
+pinning, unchanged failed allocation outputs, nonfatal dropped free space and
+position/overlap guards.
+
+Fifteen standalone C checks, twenty-seven focused native checks and both MSVC
+AddressSanitizer checks pass. All 51 CLI baselines match, including six asset
+indexes covering 20,568 entries. Local evidence includes
+`tmp/c89-chunk-heap-before.bin`, `tmp/c89-chunk-heap-after.bin` and
+`tmp/c89-chunk-heap-output-comparison.json`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T114441Z-31358a76` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T114750Z-2bcfa83e` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding relocation suites `20261112T112715Z-3899fba6` and
+`20261112T113021Z-db156802`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-chunk-heap-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

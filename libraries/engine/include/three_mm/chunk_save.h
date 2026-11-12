@@ -53,6 +53,25 @@ extern "C"
      * synchronous, may not re-enter, and may not edit state/index independently. */
     int three_mm_chunk_save(ThreeMMChunkSaveState *, const ThreeMMChunkSaveIndex *, const ThreeMMChunkSaveServices *,
                             ThreeMMU32 creator, int named);
+    typedef struct ThreeMMChunkCopyServices
+    {
+        void *context;
+        void *main_file, *extra_file, *destination_file;
+        void (*pin)(void *);
+        void (*unpin)(void *);
+        int (*copy)(void *, void *source, ThreeMMU32 source_offset, void *destination, ThreeMMU32 destination_offset,
+                    ThreeMMU32 bytes);
+        /* Transfer the original record/variable bytes, replacing only the C
+         * supplied offset/length/flags. Source bytes must stay pinned. */
+        int (*insert)(void *, ThreeMMU32 position, const ThreeMMChunkEntry *);
+        int (*finish)(void *, ThreeMMU32 logical_end, ThreeMMU32 creator);
+    } ThreeMMChunkCopyServices;
+    /* Destination creation/disposal stays with the host. Pin covers all reads,
+     * payload copies and insertions; finish runs after unpin. Empty copies still
+     * invoke copy and retain the running offset (unlike whole-file relocation).
+     * Source records/files stay untouched; failure may leave partial destination
+     * data/index for the host to discard. index.place is unused. */
+    int three_mm_chunk_save_copy(const ThreeMMChunkSaveIndex *, const ThreeMMChunkCopyServices *, ThreeMMU32 creator);
 #ifdef __cplusplus
 }
 #endif
