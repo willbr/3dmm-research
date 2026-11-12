@@ -131,8 +131,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Compact-index runtime-ID storage, chunk-name storage policy, serialized String
   read/write policy and codec registration now use C89. Reopen transfers runtime
   cache ownership explicitly; native code-page conversion, expanded-index fixed
-  records and physical storage remain host services. Remaining container
-  primitives, free-map loading and forest import/export are next.
+  records and physical storage remain host services.
+- Embedded forest export/import now uses C89 descriptor encoding/decoding,
+  preorder serialization, parent-stack ownership and child reconstruction.
+  Native facades retain destination file/container creation, payload transfer
+  and index insertion primitives. Remaining container primitives and free-map
+  loading are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -226,9 +230,9 @@ configuration and capture environment recorded with the evidence.
 ### Immediate next work and completion
 
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
-container persistence and graph operations now have shared C89 implementations
-behind temporary native facades. Continue with remaining container primitives,
-free-map loading and forest import/export, then resource/engine objects and the
+container persistence, graph operations and forest transfer now have shared C89
+implementations behind temporary native facades. Continue with remaining
+container primitives and free-map loading, then resource/engine objects and the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.

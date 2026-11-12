@@ -1460,3 +1460,52 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 embedded forest export/import (12 November 2026)
+
+Embedded forest descriptor encoding/decoding, preorder serialization, the owning
+import parent stack and child reconstruction now use C89. Native facades retain
+destination container/file creation, payload transfer and index insertion
+primitives. Copy imports retain the legacy PACKED-only flag policy; borrowed-data
+imports retain PACKED|FOREST. Shared descendants become separate tree occurrences.
+See the [implementation boundary](../code-map/library-split.md#embedded-forest-exportimport).
+
+All 1,594 native forest baseline bytes match across both byte orders, packed and
+empty payloads, shared descendants, copy/borrow imports, truncated streams,
+invalid byte order/length/child counts, empty forests and opaque OSK values.
+Native checks also assert success/rejection, counts and flags without snapshot
+recording. The standalone export freezes 118 bytes (FNV32 `2c02e752`). C tests
+cover parent/slot reconstruction, size-only traversal, read/add/adopt/write/copy
+failures, allocation failures/SPEED fallback and cleanup, signed size/position
+limits, and stack relocation/growth over a 200-level tree.
+
+Twenty standalone C checks, thirty-two focused native checks and MSVC
+AddressSanitizer pass. Existing 572,367-byte chunk and 29,532-byte string snapshots
+also remain exact. All 51 CLI baselines match, including six asset indexes covering
+20,568 entries. Evidence includes `tmp/c89-forest-before.bin`,
+`tmp/c89-forest-after.bin`, `tmp/c89-forest-chunks-after.bin`,
+`tmp/c89-forest-strings-after.bin` and `tmp/c89-forest-output-comparison.json`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T135253Z-4fcb1b89` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T135623Z-445ef1e3` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding metadata/registry suites `20261112T134043Z-39fa9d05` and
+`20261112T134405Z-0e241982`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-forest-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

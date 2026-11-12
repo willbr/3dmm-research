@@ -327,6 +327,75 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestForestTransfer()
+{
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_FOREST_SNAPSHOT"))
+    { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
+    auto source = ChunkyFile::PcflCreateTemp(); Check(source != nullptr);
+    Check(source->FPutPv(const_cast<char *>("root"), 4, 'ROOT', 7));
+    Check(source->FPutPv(const_cast<char *>("leaf-data"), 9, 'LEAF', 9));
+    Check(source->FPutPv(nullptr, 0, 'ZERO', 2));
+    Check(source->FAdoptChild('ROOT', 7, 'LEAF', 9, 30));
+    Check(source->FAdoptChild('ROOT', 7, 'ZERO', 2, 40));
+    Check(source->FAdoptChild('ZERO', 2, 'LEAF', 9, 50));
+    source->SetPacked('LEAF', 9, true); source->SetForest('ROOT', 7, true); source->SetForest('LEAF', 9, true);
+    auto output = FileObject::PfilCreateTemp(); Check(output != nullptr);
+    LegacyLong computed, written;
+    Check(source->FWriteChunkTree('ROOT', 7, nullptr, 0, &computed));
+    Check(source->FWriteChunkTree('ROOT', 7, output, 7, &written) && computed == written && written < 1024);
+    byte original[1024]; Check(output->FReadRgb(original, written, 7));
+    if (snapshot) Check(std::fwrite(original, 1, written, snapshot) == static_cast<size_t>(written));
+    for (int mode = 0; mode < 9; ++mode)
+        for (int copy = 0; copy < 2; ++copy)
+        {
+            byte bytes[1024]; std::memcpy(bytes, original, written); LegacyLong count = written;
+            if (mode == 1) // Opposite byte order on every descriptor.
+            {
+                for (LegacyLong pos = 0; pos < count;)
+                {
+                    int32_t payload; std::memcpy(&payload, bytes + pos + 12, 4);
+                    for (int field = 0; field < 2; ++field) { byte b = bytes[pos + field * 2]; bytes[pos + field * 2] = bytes[pos + field * 2 + 1]; bytes[pos + field * 2 + 1] = b; }
+                    for (int field = 4; field < 24; field += 4)
+                        for (int j = 0; j < 2; ++j) { byte b = bytes[pos + field + j]; bytes[pos + field + j] = bytes[pos + field + 3 - j]; bytes[pos + field + 3 - j] = b; }
+                    pos += 24 + payload;
+                }
+            }
+            if (mode == 2) --count;
+            if (mode == 3) bytes[0] = 0x7f;
+            if (mode == 4) std::memset(bytes + 12, 0xff, 4); // Negative payload length.
+            if (mode == 5) { std::memset(bytes + 16, 0, 4); bytes[16] = 8; } // Missing children.
+            if (mode == 6) { count = 28; std::memset(bytes + 16, 0xff, 4); } // Negative child count is a legacy leaf.
+            if (mode == 7) { count = 0; }
+            if (mode == 8) { bytes[2] = 0x7f; bytes[3] = 0x7f; } // OSK is opaque.
+            auto file = FileObject::PfilCreateTemp(); Check(file != nullptr);
+            Check(file->FWriteRgb(bytes, count, 7)); FileLocation location = {file, 7, count};
+            auto imported = ChunkyFile::PcflReadForestFromFlo(&location, copy != 0);
+            Check(!!imported == (mode == 0 || mode == 1 || mode == 6 || mode == 7 || mode == 8));
+            if (imported) Check(imported->Ccki() == (mode == 7 ? 0 : mode == 6 ? 1 : 4));
+            LegacyLong record[] = {mode, copy, !!imported, imported ? imported->Ccki() : -1};
+            if (snapshot) Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+            if (imported)
+                for (LegacyLong i = 0; i < imported->Ccki(); ++i)
+                {
+                    ChunkIdentification node; LegacyLong children; DataBlock block;
+                    Check(imported->FGetCki(i, &node, &children, &block)); byte payload[64];
+                    Check(imported->FPacked(node.ctg, node.cno) == (node.ctg == 'LEAF'));
+                    Check(imported->FForest(node.ctg, node.cno) == (!copy && (node.ctg == 'ROOT' || node.ctg == 'LEAF')));
+                    Check(children == (node.ctg == 'ROOT' && mode != 6 ? 2 : node.ctg == 'ZERO' ? 1 : 0));
+                    Check(imported->FLoner(node.ctg, node.cno) == (node.ctg == 'ROOT'));
+                    Check(block.Cb(true) <= sizeof(payload) && block.FReadRgb(payload, block.Cb(true), 0, true));
+                    uint32_t row[] = {node.ctg, node.cno, static_cast<uint32_t>(children), imported->CckiRef(node.ctg,node.cno),
+                        imported->FLoner(node.ctg,node.cno), imported->FPacked(node.ctg,node.cno), imported->FForest(node.ctg,node.cno), static_cast<uint32_t>(block.Cb(true))};
+                    if (snapshot) { Check(std::fwrite(row,sizeof(row),1,snapshot)==1); Check(std::fwrite(payload,1,block.Cb(true),snapshot)==static_cast<size_t>(block.Cb(true))); }
+                    for (LegacyLong j=0; j<children; ++j) { ChildChunkIdentification child; Check(imported->FGetKid(node.ctg,node.cno,j,&child)); if(snapshot) Check(std::fwrite(&child,sizeof(child),1,snapshot)==1); }
+                }
+            ReleasePpo(&imported); ReleasePpo(&file);
+        }
+    ReleasePpo(&source); ReleasePpo(&output);
+    if (snapshot) Check(std::fclose(snapshot)==0);
+}
+
 static void TestStringWire()
 {
     FILE *snapshot = nullptr;
@@ -3614,6 +3683,7 @@ int main()
     TestFilePolicies();
     TestChunkPersistence();
     TestStringWire();
+    TestForestTransfer();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

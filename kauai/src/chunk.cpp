@@ -80,6 +80,7 @@
 #include "three_mm/chunk_heap.h"
 #include "three_mm/chunk_edit.h"
 #include "three_mm/chunk_ops.h"
+#include "three_mm/chunk_forest.h"
 #include "handle_services.h"
 ASSERTNAME
 
@@ -630,230 +631,88 @@ PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
     ChunkyFile::PcflReadForestFromFlo reads a CF from a flo and creates a ChunkyFile
     around the data.
 ***************************************************************************/
-// Embedded chunk descriptor. Fixed 24-byte wire format on every architecture.
-struct EmbeddedChunkDescriptorOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    ChunkTagOrType ctg;
-    ChildChunkID chid;
-    int32_t cb;
-    int32_t ckid;
-    uint32_t grfcrp;
-};
-static_assert(sizeof(EmbeddedChunkDescriptorOnFile) == 24, "EmbeddedChunkDescriptorOnFile wire format drift");
-const ByteOrderMask kbomEcdf = 0x5FFC0000L;
-
-/***************************************************************************
-    Combine the indicated chunk and its children into an embedded chunk.
-    If pfil is pvNil, just computes the size.
-***************************************************************************/
+namespace {
+ThreeMMChunkGraph ChunkGraphServices(PChunkyFile);
+struct ForestWriteHost { PChunkyFile source; PFileObject destination; };
+}
 bool ChunkyFile::FWriteChunkTree(ChunkTagOrType ctg, ChunkNumber cno, PFileObject pfilDst, FilePosition fpDst, LegacyLong *pcb)
 {
-    AssertThis(0);
-    AssertNilOrPo(pfilDst, 0);
-    AssertNilOrVarMem(pcb);
-    ChunkGraphEnumerator cge;
-    EmbeddedChunkDescriptorOnFile ecdf;
-    FileLocation floSrc, floDst;
-    ChildChunkIdentification kid;
-    ChunkIdentification ckiPar;
-    LegacyUlong grfcge;
-
-    if (pvNil != pcb)
-        *pcb = 0;
-
-    cge.Init(this, ctg, cno);
-    while (cge.FNextKid(&kid, &ckiPar, &grfcge, fcgeNil))
+    AssertThis(0); AssertNilOrPo(pfilDst, 0); AssertNilOrVarMem(pcb);
+    ForestWriteHost host = {this, pfilDst};
+    const short one = 1;
+    ThreeMMForestExport output = {};
+    output.context = &host; output.graph = ChunkGraphServices(this);
+    output.big_endian = reinterpret_cast<const byte *>(&one)[0] == 0; output.system = koskCur;
+    output.entry = [](void *c, ThreeMMU32 type, ThreeMMU32 number, ThreeMMChunkEntry *entry) -> int {
+        auto source = static_cast<ForestWriteHost *>(c)->source; LegacyLong position;
+        return source->_FFindCtgCno(type, number, &position) && ReadRuntimeChunk(source->_pggcrp, position, entry);
+    };
+    if (pfilDst)
     {
-        if (grfcge & fcgeError)
-            goto LFail;
-
-        if (!(grfcge & fcgePre))
-            continue;
-
-        AssertDo(FFindFlo(kid.cki.ctg, kid.cki.cno, &floSrc), 0);
-        if (pvNil != pcb)
-            *pcb += size(EmbeddedChunkDescriptorOnFile) + floSrc.cb;
-
-        if (pvNil != pfilDst)
-        {
-            // write the data
-            ecdf.bo = kboCur;
-            ecdf.osk = koskCur;
-            ecdf.ctg = kid.cki.ctg;
-            ecdf.chid = (grfcge & fcgeRoot) ? chidNil : kid.chid;
-            ecdf.cb = floSrc.cb;
-            ecdf.ckid = Ckid(kid.cki.ctg, kid.cki.cno);
-            ecdf.grfcrp = fcrpNil;
-            if (FPacked(kid.cki.ctg, kid.cki.cno))
-                ecdf.grfcrp |= fcrpPacked;
-            if (FForest(kid.cki.ctg, kid.cki.cno))
-                ecdf.grfcrp |= fcrpForest;
-
-            if (!pfilDst->FWriteRgbSeq(&ecdf, size(ecdf), &fpDst))
-                goto LFail;
-
-            floDst.pfil = pfilDst;
-            floDst.fp = fpDst;
-            floDst.cb = floSrc.cb;
-            if (!floSrc.FCopy(&floDst))
-            {
-            LFail:
-                TrashVar(pcb);
-                return fFalse;
-            }
-            fpDst += floDst.cb;
-        }
+        output.write = [](void *c, ThreeMMU32 offset, const void *bytes, size_t count) -> int {
+            return static_cast<ForestWriteHost *>(c)->destination->FWriteRgb(const_cast<void *>(bytes), count, offset);
+        };
+        output.copy = [](void *c, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 offset, ThreeMMU32 bytes) -> int {
+            auto h = static_cast<ForestWriteHost *>(c); FileLocation source;
+            if (!h->source->FFindFlo(type, number, &source)) return 0;
+            FileLocation destination = {h->destination, static_cast<FilePosition>(offset), static_cast<LegacyLong>(bytes)};
+            return source.FCopy(&destination);
+        };
     }
-
-    return fTrue;
+    ThreeMMU32 bytes;
+    if (three_mm_forest_write(&output, KauaiCopyAllocator(), ctg, cno, fpDst, &bytes) != THREE_MM_CHUNK_OK)
+    { TrashVar(pcb); return false; }
+    if (pcb) *pcb = bytes;
+    return true;
 }
 
-/***************************************************************************
-    Static method to read a serialized chunk stream (as written by a series
-    of calls to FWriteChunkTree) and create a ChunkyFile around it. If fCopyData
-    is false, we construct the ChunkyFile to use pointers to the data in the FileLocation.
-    Otherwise, we copy the data to a new file.
-***************************************************************************/
 PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData)
 {
-    AssertVarMem(pflo);
-    AssertPo(pflo->pfil, 0);
-
-    // embedded chunk stack descriptor
-    struct EmbeddedChunkStackDescriptor
-    {
-        ChunkTagOrType ctg;
-        ChunkNumber cno;
-        LegacyLong ckid;
-    };
-
-    PChunkyFile pcfl;
-    EmbeddedChunkDescriptorOnFile ecdf;
-    EmbeddedChunkStackDescriptor ecsdT, ecsdCur;
-    FilePosition fpSrc, fpLimSrc;
-    PDynamicArray pglecsd = pvNil;
-
-    if (pvNil == (pglecsd = DynamicArray::PglNew(size(EmbeddedChunkStackDescriptor))))
-        goto LFail;
-
-    if ((pcfl = NewObj ChunkyFile()) == pvNil)
-        goto LFail;
-
-    if (pvNil == (pcfl->_pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation))))
-        goto LFail;
-
+    AssertVarMem(pflo); AssertPo(pflo->pfil, 0);
+    auto file = NewObj ChunkyFile();
+    if (!file) return nullptr;
+    file->_pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation));
+    if (!file->_pggcrp) { ReleasePpo(&file); return nullptr; }
     if (fCopyData)
     {
-        if (pvNil == (pcfl->_csto.pfil = FileObject::PfilCreateTemp()) || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
-        {
-            goto LFail;
-        }
-        pcfl->_csto.fpMac = size(ChunkyFilePrefix);
+        file->_csto.pfil = FileObject::PfilCreateTemp();
+        if (!file->_csto.pfil || !file->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
+        { ReleasePpo(&file); return nullptr; }
+        file->_csto.fpMac = size(ChunkyFilePrefix);
     }
     else
     {
-        pcfl->_csto.pfil = pflo->pfil;
-        pcfl->_csto.pfil->AddRef();
-        pcfl->_csto.fpMac = pflo->fp + pflo->cb;
-        pcfl->_fInvalidMainFile = fTrue;
-        pcfl->_fAddToExtra = fTrue;
+        file->_csto.pfil = pflo->pfil; file->_csto.pfil->AddRef();
+        file->_csto.fpMac = pflo->fp + pflo->cb;
+        file->_fInvalidMainFile = true; file->_fAddToExtra = true;
     }
-
-    AssertPo(pcfl, fcflFull | fcflGraph);
-
-    ClearPb(&ecsdCur, size(ecsdCur));
-
-    fpSrc = pflo->fp;
-    fpLimSrc = pflo->fp + pflo->cb;
-    for (;;)
-    {
-        if (fpSrc >= fpLimSrc)
-            break;
-
-        if (fpSrc > fpLimSrc + size(ecdf) || !pflo->pfil->FReadRgbSeq(&ecdf, size(ecdf), &fpSrc))
-        {
-            goto LFail;
-        }
-
-        if (kboOther == ecdf.bo)
-            SwapBytesBom(&ecdf, kbomEcdf);
-        else if (kboCur != ecdf.bo)
-            goto LFail;
-
-        if (!FIn(ecdf.cb, 0, fpLimSrc - fpSrc + 1))
-            goto LFail;
-
-        if (fCopyData)
-        {
-            DataBlock blck(pflo->pfil, fpSrc, ecdf.cb, ecdf.grfcrp & fcrpPacked);
-
-            if (!pcfl->FAddBlck(&blck, ecdf.ctg, &ecsdT.cno))
-                goto LFail;
-        }
-        else
-        {
-            ChunkRepresentation *qcrp;
-            LegacyLong icrp;
-
-            pcfl->_GetUniqueCno(ecdf.ctg, &icrp, &ecsdT.cno);
-            if (!pcfl->_FAdd(0, ecdf.ctg, ecsdT.cno, icrp, pvNil))
-                goto LFail;
-
-            qcrp = (ChunkRepresentation *)pcfl->_pggcrp->QvFixedGet(icrp);
-            qcrp->fp = ecdf.cb > 0 ? fpSrc : 0;
-            qcrp->SetCb(ecdf.cb);
-            qcrp->AssignGrfcrp(ecdf.grfcrp, fcrpPacked | fcrpForest);
-        }
-        fpSrc += ecdf.cb;
-
-        if (pglecsd->IvMac() > 0)
-        {
-            Assert(ecsdCur.ckid > 0, 0);
-
-            // Make this a child
-            if (!pcfl->FAdoptChild(ecsdCur.ctg, ecsdCur.cno, ecdf.ctg, ecsdT.cno, ecdf.chid))
+    struct ImportHost { PChunkyFile destination; PFileObject source; } host = {file, pflo->pfil};
+    const ThreeMMForestImport services = {&host,
+        [](void *c, ThreeMMU32 type, ThreeMMU32 offset, ThreeMMU32 bytes, ThreeMMU32 flags, int copy, ThreeMMU32 *number) -> int {
+            auto h = static_cast<ImportHost *>(c); ChunkNumber created;
+            if (copy)
             {
-                goto LFail;
+                DataBlock block(h->source, offset, bytes, flags & fcrpPacked);
+                if (!h->destination->FAddBlck(&block, type, &created)) return 0;
             }
-            ecsdCur.ckid--;
-        }
-
-        if (ecdf.ckid > 0)
-        {
-            // This one has children, so we need to push the current ecsd and
-            // make this the current one
-            ecsdT.ctg = ecdf.ctg;
-            ecsdT.ckid = ecdf.ckid;
-
-            if (!pglecsd->FPush(&ecsdCur))
-                goto LFail;
-
-            ecsdCur = ecsdT;
-        }
-        else
-        {
-            // pop up while there are no more children and there's something
-            // to pop.
-            while (ecsdCur.ckid <= 0 && pglecsd->IvMac() > 0)
-                pglecsd->FPop(&ecsdCur);
-        }
-    }
-
-    if (pglecsd->IvMac() > 0 || ecsdCur.ckid != 0)
-    {
-    LFail:
-        // something failed or the data was bad
-        ReleasePpo(&pcfl);
-    }
-
-    ReleasePpo(&pglecsd);
-    AssertNilOrPo(pcfl, fcflFull | fcflGraph);
-
-    return pcfl;
+            else
+            {
+                LegacyLong position; h->destination->_GetUniqueCno(type, &position, &created);
+                if (!h->destination->_FAdd(0, type, created, position, nullptr)) return 0;
+                auto row = static_cast<ChunkRepresentation *>(h->destination->_pggcrp->QvFixedGet(position));
+                row->fp = bytes ? offset : 0; row->SetCb(bytes); row->AssignGrfcrp(flags, fcrpPacked | fcrpForest);
+            }
+            *number = created; return 1;
+        },
+        [](void *c, ThreeMMU32 parentType, ThreeMMU32 parentNumber, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 slot) -> int {
+            return static_cast<ImportHost *>(c)->destination->FAdoptChild(parentType, parentNumber, type, number, slot);
+        }};
+    const ThreeMMReadStream stream = {pflo->pfil, static_cast<ThreeMMU32>(pflo->pfil->FpMac()), ReadChunkFile};
+    if (three_mm_forest_read(&stream, pflo->fp, pflo->cb, &services, KauaiCopyAllocator(), fCopyData) != THREE_MM_CHUNK_OK)
+        ReleasePpo(&file);
+    AssertNilOrPo(file, fcflFull | fcflGraph);
+    return file;
 }
-
 /***************************************************************************
     Return whether the chunk contains a forest of subchunks.
 ***************************************************************************/

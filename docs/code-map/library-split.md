@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,34 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Embedded forest export/import
+
+`chunk_forest.c` owns the 24-byte embedded descriptor wire format, preorder
+serialization through the C graph walker, size-only traversal, parent-stack
+ownership and import/adoption sequencing. Shared descendants serialize once per
+tree occurrence, so importing a forest does not reconstruct their original
+sharing. Names and original chunk numbers are omitted. Descriptor writes precede
+payload transfer and retain partial output on failure. Per-record overflow guards
+reject unrepresentable signed file positions/sizes before that record's I/O.
+
+Imports decode either byte order per descriptor. OSK and root child IDs remain
+opaque/ignored; negative child counts remain leaves, while incomplete positive
+counts fail. Empty forests succeed even at an offset beyond physical EOF,
+matching native behavior. Copy imports preserve only PACKED; borrowed-data imports
+preserve PACKED|FOREST. The native facades still create/dispose destination
+containers/files and provide raw payload transfer and index insertion primitives.
+The C import stack replaces a native DynamicArray object; failures release stack
+storage and leave partial destination cleanup to its host owner.
+
+`engine-forest-test` freezes the native 118-byte export (FNV32 `2c02e752`) and
+checks copy/borrow flag policy, payload offsets, parent/slot reconstruction, both
+byte orders, size-only traversal, read/add/adopt/write/copy failures, malformed
+descriptors and signed limits. A 200-level tree checks stack growth, relocating
+allocations, SPEED fallback and failed-growth cleanup. MSVC AddressSanitizer
+passes. Real native memory/file/container integration retains all 1,594 baseline
+bytes over valid, swapped, truncated, invalid-length/count/byte-order and empty
+forests. Existing chunk and serialized-string snapshots remain exact too.
+
 ### Runtime IDs, chunk names, serialized strings and codec registry
 
 `chunk_metadata.c` owns the compact-index sorted runtime-ID cache and chunk-name
@@ -696,8 +724,8 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, remaining container primitives, free-map loading,
-forest import/export and engine objects still prevent a complete C-only backend.
+Primitive memory/file services, remaining container primitives, free-map loading
+and engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 
