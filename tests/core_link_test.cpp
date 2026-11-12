@@ -327,6 +327,39 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestChunkTableBaseline()
+{
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_TABLE_SNAPSHOT"))
+    { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
+    for (int width : {20, 32})
+    {
+        auto group = GeneralGroup::PggNew(width); Check(group);
+        byte fixed[32], variable[32];
+        auto observe = [&]() {
+            DataBlock block; Check(block.FSetTemp(group->CbOnFile()) && group->FWrite(&block));
+            byte wire[2048]; const auto count = block.Cb(); Check(count < sizeof(wire));
+            Check(block.FReadRgb(wire, count, 0));
+            if (snapshot) Check(std::fwrite(wire, 1, count, snapshot) == static_cast<size_t>(count));
+        };
+        for (int i = 0; i < 6; ++i)
+        {
+            for (int j = 0; j < width; ++j) fixed[j] = static_cast<byte>(j * 7 + i);
+            for (int j = 0; j < 32; ++j) variable[j] = static_cast<byte>(j + i * 11);
+            Check(group->FInsert(0, i * 4, variable, fixed));
+        }
+        observe();
+        Check(group->FInsertRgb(2, 4, 4, const_cast<char *>("ABCD")));
+        group->DeleteRgb(1, 0, 4); group->Move(0, 6);
+        Check(group->FMoveRgb(0, 0, 3, 4, 4)); group->Delete(2); observe();
+        for (int j = 0; j < width; ++j) fixed[j] = static_cast<byte>(200 + j);
+        Check(group->FInsert(1, 8, const_cast<char *>("12345678"), fixed)); observe();
+        auto bytes = static_cast<byte *>(group->PvLock(0)); bytes[0] ^= 0x5a; group->Unlock(); observe();
+        ReleasePpo(&group);
+    }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
 static void TestContainerRegistry()
 {
     FILE *snapshot = nullptr;
@@ -3845,6 +3878,7 @@ int main()
     TestContainerLifecycle();
     TestContainerConstruction();
     TestContainerRegistry();
+    TestChunkTableBaseline();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

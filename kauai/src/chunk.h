@@ -26,6 +26,7 @@
 #include "three_mm/chunk_container.h"
 #include "three_mm/chunk_context.h"
 #include "three_mm/chunk_owner.h"
+#include "three_mm/chunk_table.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -98,7 +99,7 @@ class ChunkyFile : public ChunkyFile_PAR
     ThreeMMChunkOwner _owner;
     PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
     PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
-    PGeneralGroup _Index() { return static_cast<PGeneralGroup>(_owner.files.index); }
+    ThreeMMChunkTable *_Index() { return static_cast<ThreeMMChunkTable *>(_owner.files.index); }
 
     // static member variables
     static ThreeMMChunkContext _context;

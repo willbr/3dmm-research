@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -111,8 +111,8 @@ the adapters and resource ownership. The shared backend is still incomplete.
 expanded records, unsigned chunk/child searches, typed enumeration and graph
 validation. Both Studio and Marcus reach it through `kauai-core`. The C library
 has no dependency on Kauai. Its temporary owned wire index is copied into the
-host's writable `GeneralGroup`, then released. Subsequent queries use callbacks
-over that live group, including after edits; there is no second index cache.
+writable C chunk table, then released. Subsequent queries use C callbacks over
+that live table, including after edits; there is no second index cache.
 
 The decoder preserves separate header/index byte orders, old flag layouts,
 expanded-to-compact checks made before byte swapping, and legacy name bytes.
@@ -424,6 +424,39 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Owning chunk tables and compact/expanded records
+
+`chunk_table.c` owns the writable index record and its payload/location buffers.
+There is no GeneralGroup object or BASE lifetime for the index. C collection
+algorithms implement insertion, deletion, variable-byte edits, moves and growth;
+the table publishes count/size metadata and owns allocator cleanup, including
+partial creation. Locks pin the payload buffer as in native GG. Failed mutations
+preserve logical entries, though capacity and borrowed-pointer addresses may change.
+
+Compact 20-byte and expanded 32-byte records are checked C layouts. C implements
+packed sizes/flags, masked flag updates, 16-bit count storage, expanded runtime-ID
+preservation, canonical entry/child access and transient-flag clearing. Borrowed
+C access views supply the existing search/graph/save/edit policies. Record fields
+and child/name bytes retain native order after materialization.
+
+C writes the exact GG header, payload and locations. As with native GG, alternate
+byte order converts only the header/location words; fixed/variable payload order
+is supplied by the caller. Location words are restored after every write failure,
+and active buffers are unlocked. Native `chunk.cpp` retains thin argument/result
+adapters, file I/O and legacy text conversion; it no longer allocates/calls a
+GeneralGroup or implements packed record methods. Full native container facade
+replacement, tag/resource resolution and engine objects remain migration work.
+
+`engine-chunk-table-test` retains a frozen native hash over 2,188 bytes covering
+both widths, reverse insertion, variable edits, moves, deletion, locking and wire
+output. Both debug-trash modes match. It checks relocating allocation, initial/
+growth failure, fallback, locked-owner guards, opposite-order writes and failures
+at header/payload/location stages. Record checks cover masked flags, size/count
+truncation, runtime-ID preservation and child bounds. MSVC AddressSanitizer passes.
+Twenty-seven standalone and forty focused native checks pass. All ten binary
+snapshots and 51 CLI baselines remain exact. Expanded native index runtime remains
+unverified; native statistics/expanded-index variants compile with `/Zs`.
+
 ### Persistent container owner state
 
 `chunk_owner.c` owns the persistent container record: main/extra file and index
@@ -446,8 +479,8 @@ C also owns option latching, storage-policy views and file error aggregation /
 reset. Errors query main then extra; resetting lowers only levels above the
 requested value and retains the original callback order. Native services provide
 physical file flags, I/O, index creation and reference-count primitives. The
-GeneralGroup index object and native chunk-record adapters remain C++ migration
-work; this does not complete the engine or container backend.
+Index storage and record handling are converted above. Native container/class,
+file/name and object adapters remain; this does not complete the engine backend.
 
 `engine-chunk-owner-test` checks successful reopen and read/validation failure
 with live state aliases, guard denial, compact-cache restoration, expanded-owner
@@ -473,7 +506,7 @@ BaseLinkedList storage and native registry head. Its temporary native facade
 supplies a default process context; the C API supports independent contexts.
 `PcflFirst`/`PcflNext` keep their borrowed traversal contract. Existing C marked/
 zero-reference cleanup policy traverses those links. Persistent owner state is
-converted above. Native class allocation, typed index primitives and other object
+converted above. Native class allocation, file/name primitives and other object
 adapters remain to be converted.
 
 `three_mm_chunk_construct_forest` owns destination construction. Copied imports
@@ -525,7 +558,7 @@ at 192 MiB each without allocating those payloads.
 primitives, diagnostics, file blocks and readers. Reader identity is passed as a
 function pointer and cast back before host comparison/calling; C never converts
 function pointers to data pointers or orders them. GenericHQ and generic-object
-wrappers remain native adapters. Native index/chunk-record replacement, tag ownership and engine objects remain
+wrappers remain native adapters. Native container adapters, tag ownership and engine objects remain
 migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
@@ -566,9 +599,9 @@ creation and saves; native checks also cover repeated open, corrupt-file rejecti
 and temporary deletion. All previous snapshots remain exact. Native statistics
 and expanded-index variants compile; expanded-index runtime remains unverified.
 
-Native class allocation and typed index/chunk-record adapters still exist.
-Registry links, forest destination construction and persistent owner state now
-use C above; replacing the index adapters remains necessary for a C-only backend.
+Native class allocation and file/name adapters still exist. Registry links,
+forest destination construction, persistent owner state and index storage now
+use C above; full engine objects and caller integration remain necessary.
 
 ### Container options, flags and reopen ownership
 
@@ -607,7 +640,7 @@ routing, loading, string and forest snapshots remain exact. Statistics and
 expanded-index variants compile; expanded-index runtime remains unverified.
 
 Construction and associated-resource disposal now use C above. Native class/
-typed index/chunk-record adapters still prevent a standalone C backend.
+native container/object adapters still prevent a standalone C backend.
 
 ### Storage selection and read-through caching
 
@@ -643,7 +676,7 @@ The native statistics and expanded-index variants compile with `/Zs`. The
 expanded variant exposed a pre-existing duplicate mask name; its alias now uses
 `kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
 runtime validation. Container option/flag/reopen policy now uses C above; native
-native index/chunk-record adapters still require conversion.
+native container/object adapters still require conversion.
 
 ### Index materialization and owning free maps
 
@@ -665,7 +698,7 @@ Index materialization reuses an owning C scratch buffer for native child records
 and encoded names. Modern names retain their bytes. Pre-v3 names receive a bounded
 terminator and native SZS conversion; names of 256 bytes or more are discarded,
 as before. Native callbacks convert text and insert a fixed record plus variable
-bytes into the writable GeneralGroup. No C++ vector or exception path is needed
+bytes into the writable C chunk table. No C++ vector or exception path is needed
 for row assembly. A failed import leaves partial destination cleanup to its host.
 
 `engine-loading-test` checks both map byte orders, independent exact wire bytes,
@@ -983,7 +1016,7 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, native index/chunk-record adapters and
+Primitive memory/file services, native container/object adapters and
 engine objects still prevent a complete C-only backend.
 
 ## Why the split exists

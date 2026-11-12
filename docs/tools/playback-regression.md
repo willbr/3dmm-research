@@ -1875,3 +1875,57 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 owning chunk tables and record access (12 November 2026)
+
+The writable index now owns C table storage instead of a native GeneralGroup
+object. C owns creation/disposal, mutation metadata, locking and GG wire output.
+Compact/expanded fixed records are C layouts; C owns packed sizes/flags, masked
+updates, count truncation, runtime-ID preservation, canonical entry/child access
+and scratch-flag clearing. Native container code retains argument/result adapters,
+file I/O and legacy name conversion. Tag/resource resolution, engine objects and
+complete facade removal remain. See the [implementation boundary](../code-map/library-split.md#owning-chunk-tables-and-compactexpanded-records).
+
+Twenty-seven standalone C checks, forty focused native checks and MSVC
+AddressSanitizer pass. The new table check preserves a frozen hash over 2,188
+pre-conversion native GG bytes across both widths, reverse insertion, variable
+edits, moves, deletion, locking and output. Both debug-trash modes match. Checks
+cover initial/growth failures, relocating allocation, fallback, locked-owner
+guards, opposite-order writing and header/payload/location write failures,
+including restored locations and balanced locks. Record checks cover packed
+size/flag updates, count truncation, expanded runtime IDs and child bounds.
+Native statistics/expanded-index variants compile with `/Zs`; expanded native
+index runtime integration remains unverified.
+
+All ten binary snapshots match: the new 2,188-byte GG oracle plus the prior
+120-byte registry, 597-byte construction, 56-byte lifecycle, 1,740-byte routing,
+2,192-byte loading, 572,367-byte chunk, 29,532-byte string, 1,594-byte forest and
+1,624-byte resource-cache baselines. The standalone C table hash independently
+matches the native GG oracle. All 51 CLI baselines match, including six asset
+indexes covering 20,568 entries. Evidence includes `tmp/c89-table-before.bin`,
+`tmp/c89-table-native-after.bin`, `tmp/c89-table-*-after.bin`,
+`tmp/c89-table-output-comparison.json` and `tmp/c89-table-asan.log`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T165400Z-1eead350` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T165721Z-da1661e1` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding owner-state suites `20261112T163041Z-fc0766de` and
+`20261112T163404Z-47eeea2a`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-table-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.
