@@ -20,7 +20,7 @@
     user rolls might also be implemented as a source.  A SID of less
     than 0 is invalid; a TAG with a negative SID is an invalid TAG.
 
-    Each source has a name, managed by _pgstSource.  This name is used
+    Each source has a name, managed by the C source-name table. This name is used
     with the _pfninscd callback when the source cannot be found.  The
     callback should put up an alert saying (for example) "The source
     *Socrates* cannot be found...please insert the CD."
@@ -43,6 +43,8 @@
 #include <cstdint>
 #include "three_mm/tag.h"
 #include "three_mm/source.h"
+#include "three_mm/source_names.h"
+#include "three_mm/source_discovery.h"
 
 const LegacyLong ksidInvalid = -1; // negative SIDs imply an invalid TAG
 const LegacyLong sidNil = 0;
@@ -160,7 +162,7 @@ class TagManager : public TagManager_PAR
     Filename _fniHDRoot;     // Root HD directory to search for content
     LegacyLong _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
     ThreeMMSourceCatalogue _sources;
-    PStringTable_GST _pgstSource;   // String table of source descriptions
+    ThreeMMSourceNames _names; // C-owned source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
     TagSourceResolver _sourceResolver = nullptr;
     TagArchiveResolver _archiveResolver = nullptr;
@@ -175,7 +177,7 @@ class TagManager : public TagManager_PAR
     static ThreeMMTagServices _Services(void *);
     ThreeMMSourceOwners _SourceOwners();
     static ThreeMMSourceServices _SourceServices(void *);
-    bool _FFindSid(LegacyLong sid, LegacyLong *pistn = pvNil);
+    static ThreeMMSourceDiscovery _DiscoveryServices(void *);
     bool _FGetStnMergedOfSid(LegacyLong sid, PString pstn);
     bool _FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort);
     bool _FRetry(LegacyLong sid, const TAG *asset = nullptr);
@@ -215,7 +217,10 @@ class TagManager : public TagManager_PAR
     void InvalidateSource(LegacyLong sid);
 
     // GstSource stuff:
-    PStringTable_GST PgstSource(void);
+    LegacyLong CSourceNames() const { return _names.count; }
+    bool FGetSourceSid(LegacyLong index, LegacyLong *sid);
+    LegacyLong CbSourceNames() const;
+    bool FWriteSourceNames(PDataBlock);
     bool FMergeGstSource(PStringTable_GST pgst, short bo, short osk);
     bool FAddStnSource(PString pstnMerged, LegacyLong sid);
     bool FGetSid(PString pstn, LegacyLong *psid); // pstn can be short or long

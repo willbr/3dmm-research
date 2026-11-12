@@ -1819,10 +1819,9 @@ bool ThumbnailFileEnumerator::FNext(Filename *pfni, long *psid)
     }
 
     _legacyDone = true;
-    auto sources = vptagm->PgstSource();
-    while (_managedIndex < sources->IvMac())
+    while (_managedIndex < vptagm->CSourceNames())
     {
-        sources->GetExtra(_managedIndex++, &_managedSid);
+        AssertDo(vptagm->FGetSourceSid(_managedIndex++, &_managedSid), "invalid source index");
         if (vptagm->SourceDirectory(_managedSid, &_fniDir) != TagSourceAccess::Available)
             continue;
         _archiveIndex = 0;

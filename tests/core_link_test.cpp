@@ -3718,6 +3718,49 @@ static void TestMaterialHeaders()
     ReleasePpo(&file);
 }
 
+static void TestSourceNamesBaseline()
+{
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_SOURCE_NAMES_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb");
+        Check(snapshot);
+    }
+    Filename root;
+    String path(PszLit("."));
+    Check(root.FBuildFromPath(&path));
+    auto manager = TagManager::PtagmNew(&root, MissingSource, 0);
+    Check(manager);
+    const char *names[] = {"Long Alpha/ALPHA", "Solo", "Other/ALPHA", "ignored", "/Tail", "Head/", "A/B/C"};
+    const LegacyLong ids[] = {1, 2, 3, 1, 4, 5, 6};
+    for (int i = 0; i < 7; ++i)
+    {
+        String name;
+        name.SetSzs(const_cast<char *>(names[i]));
+        Check(manager->FAddStnSource(&name, ids[i]));
+    }
+    for (auto query : {"long alpha", "ALPHA", "Solo", "Other", "Tail", "Head", "B/C", "missing", ""})
+    {
+        String name;
+        name.SetSzs(const_cast<char *>(query));
+        LegacyLong sid = 99;
+        const bool found = manager->FGetSid(&name, &sid);
+        uint32_t row[] = {found, static_cast<uint32_t>(sid)};
+        if (snapshot)
+            Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
+    }
+    DataBlock block;
+    Check(block.FSetTemp(manager->CbSourceNames()) && manager->FWriteSourceNames(&block));
+    byte bytes[2048];
+    auto count = block.Cb();
+    Check(count < sizeof(bytes) && block.FReadRgb(bytes, count, 0));
+    if (snapshot)
+        Check(std::fwrite(bytes, 1, count, snapshot) == static_cast<size_t>(count));
+    ReleasePpo(&manager);
+    if (snapshot)
+        Check(std::fclose(snapshot) == 0);
+}
+
 static void TestTagOwnershipBaseline()
 {
     FILE *snapshot=nullptr;
@@ -3943,6 +3986,7 @@ int main()
     Check(!vpcex->FDispatchNextCmd());
     ReleasePpo(&vpcex);
 #ifdef TEST_ENGINE_CORE
+    TestSourceNamesBaseline();
     TestTagOwnershipBaseline();
     TestEngineServices();
     TestMoviePersistence();

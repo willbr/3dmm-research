@@ -173,8 +173,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   duplicate and borrowed-reference behavior.
 - The source catalogue now owns C records, path handles and manager references.
   Local/media decisions, cached misses, retry/install sequencing, ordered manager
-  construction and file routing use C89. Native source-name tables, long/short
-  directory/drive discovery primitives, engine objects and final callers remain.
+  construction and file routing use C89. Source names now use owning C storage,
+  including SID/name lookup, merging, splitting, provider dispatch and GST writes.
+  Local/media directory search order also uses C89. Physical filename/drive calls,
+  native locale services, UI prompts, engine objects and final callers remain.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -270,8 +272,9 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-source-name/directory-discovery adapters and engine object ownership, then the
-editing, actor evaluation and rendering integration sequence above. Extend the C
+MovieData ownership and roll-call/tag-reference lifetime, followed by the remaining
+physical path/file adapters, then the editing, actor evaluation and rendering
+integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.
 

@@ -2032,3 +2032,49 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 source names and directory discovery (12 November 2026)
+
+Source names now own C storage instead of a persistent native StringTable_GST.
+SID/name lookup, merged-name splitting, first-ID-wins merging, provider dispatch
+and GST serialization use C89. Movie saves write this table directly; Studio
+enumerates managed source IDs without borrowing a native table. Directory
+discovery policy also uses C, retaining local long-before-short and media
+short-before-long order, floppy skipping and fixed paths for opened sources.
+Physical path/file operations, platform error suppression, locale equality and
+UI prompt construction remain host services. See the
+[implementation boundary](../code-map/library-split.md#source-names-and-directory-discovery).
+
+Thirty standalone C checks, forty-three focused native checks and MSVC
+AddressSanitizer pass. Checks cover one/two-byte names, embedded zeros, empty
+halves, duplicate IDs and ambiguous lookup, partial merge failure, swapped IDs,
+provider mutation, failed wire writes, directory callback order and preservation
+of output on misses. All thirteen binary snapshots match, including the new
+192-byte source-name lookup/GST baseline and the twelve preceding snapshots.
+All 51 CLI baselines match, including six asset indexes covering 20,568 entries.
+Evidence includes `tmp/c89-names-before.bin`, `tmp/c89-names-after.bin`,
+`tmp/c89-names-snapshot-comparison.json`, `tmp/c89-names-output-comparison.json`
+and `tmp/c89-names-asan.log`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T180529Z-30270838` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T180849Z-d9fde1de` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding source suites `20261112T174305Z-0a5d4b28` and
+`20261112T174706Z-519940f5`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-names-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

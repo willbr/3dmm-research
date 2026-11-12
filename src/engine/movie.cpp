@@ -2305,7 +2305,6 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     ChunkNumber cnoSource;
     ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
     PChunkyFile pcfl;
-    PStringTable_GST pgstSource = pvNil;
 
     if (_data.resources == pvNil)
     {
@@ -2419,16 +2418,12 @@ LRetry:
         kidGstSource.cki.cno = cnoNil;
     }
 
-    pgstSource = vptagm->PgstSource();
-    if (pgstSource == pvNil)
-        goto LFail2;
-
-    if (!pcfl->FAdd(pgstSource->CbOnFile(), kctgGst, &cnoSource, &blck))
+    if (!pcfl->FAdd(vptagm->CbSourceNames(), kctgGst, &cnoSource, &blck))
     {
         goto LFail2;
     }
 
-    if (!pgstSource->FWrite(&blck) ||
+    if (!vptagm->FWriteSourceNames(&blck) ||
         !pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgGst, cnoSource, kchidGstSource))
     {
         pcfl->Delete(kctgGst, cnoSource);

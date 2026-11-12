@@ -30,8 +30,7 @@
     ("3DMOVIE").  We have to support short names because CD-ROMs currently
     do not allow long filenames.  So everywhere that we look for the
     source directory, we accept either the long or short name.
-    _pgstSource keeps track of these names.  Rather than have one StringTable_GST for
-    short names and one for long names, each string in _pgstSource is the
+    The C source-name table keeps track of these names. Each string is the
     "merged name", which is the long name followed by a slash character
     (/) followed by the short name, e.g., "3D Movie Maker/3DMOVIE".  The
     SplitString() function splits the merged name into the long and
@@ -44,8 +43,6 @@ PTagManager vptagm;
 ASSERTNAME
 
 RTCLASS(TagManager)
-
-const ByteOrderMask kbomSid = 0xc0000000;
 
 namespace
 {
@@ -61,6 +58,16 @@ struct NativeSourceHost
     PString leaf;
     const TAG *asset;
     FileType type = ftgNil;
+};
+struct NativeDiscoveryHost
+{
+    PTagManager manager;
+    LegacyLong sid;
+    PFilename output;
+    bool media;
+    String longName, shortName;
+    Filename candidate, drive;
+    FileNameEnumerator drives;
 };
 } // namespace
 ThreeMMSourceOwners TagManager::_SourceOwners()
@@ -145,6 +152,48 @@ ThreeMMSourceServices TagManager::_SourceServices(void *context)
     return s;
 }
 
+ThreeMMSourceDiscovery TagManager::_DiscoveryServices(void *context)
+{
+    return {context,
+            [](void *c, ThreeMMI32 sid) -> int {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                return static_cast<int>(h->manager->SourceDirectory(sid, h->output));
+            },
+            [](void *c, ThreeMMI32 sid) -> int {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                return h->manager->_FGetStnSplitOfSid(sid, &h->longName, &h->shortName);
+            },
+            [](void *c) {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                h->candidate = h->manager->_fniHDRoot;
+            },
+            [](void *c, int shortName) -> int {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                auto name = shortName ? &h->shortName : &h->longName;
+                return h->media ? h->manager->_FEnsureFniCD(h->sid, &h->candidate, name)
+                                : h->candidate.FDownDir(name, ffniMoveToDir);
+            },
+            [](void *c) {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                *h->output = h->candidate;
+            },
+            [](void *c) -> int { return static_cast<NativeDiscoveryHost *>(c)->output->Ftg() != ftgNil; },
+            [](void *c) -> int {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                return h->manager->_FEnsureFniCD(h->sid, h->output);
+            },
+            [](void *c) -> int { return static_cast<NativeDiscoveryHost *>(c)->drives.FInit(nullptr, nullptr, 0); },
+            [](void *c) -> int {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                return h->drives.FNextFni(&h->drive);
+            },
+            [](void *c) -> int { return (static_cast<NativeDiscoveryHost *>(c)->drive.Grfvk() & fvkFloppy) != 0; },
+            [](void *c) {
+                auto h = static_cast<NativeDiscoveryHost *>(c);
+                h->candidate = h->drive;
+            }};
+}
+
 /***************************************************************************
     Initialize the tag manager
 ***************************************************************************/
@@ -171,9 +220,17 @@ PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, Legacy
             goto LFail;
     }
 
-    ptagm->_pgstSource = StringTable_GST::PgstNew(size(LegacyLong)); // extra data is sid
-    if (pvNil == ptagm->_pgstSource)
-        goto LFail;
+    {
+        const auto allocator = CollectionAllocator();
+        if (three_mm_source_names_init(&ptagm->_names, sizeof(achar), koskCur,
+#ifdef DEBUG
+                                       1,
+#else
+                                       0,
+#endif
+                                       &allocator) != THREE_MM_STORAGE_OK)
+            goto LFail;
+    }
 
     AssertPo(ptagm, 0);
     return ptagm;
@@ -190,7 +247,8 @@ TagManager::~TagManager(void)
     AssertBaseThis(0);
     if (_sources.storage.allocator.release)
         AssertDo(three_mm_source_dispose(&_sources) == THREE_MM_STORAGE_OK, "invalid source disposal");
-    ReleasePpo(&_pgstSource);
+    if (_names.storage.allocator.release)
+        AssertDo(three_mm_source_names_dispose(&_names) == THREE_MM_STORAGE_OK, "invalid names disposal");
 }
 
 /***************************************************************************
@@ -198,34 +256,38 @@ TagManager::~TagManager(void)
 ***************************************************************************/
 void TagManager::SplitString(PString pstnMerged, PString pstnLong, PString pstnShort)
 {
-    AssertPo(pstnMerged, 0);
-    AssertVarMem(pstnLong);
-    AssertVarMem(pstnShort);
-
-    achar *pchStart = pstnMerged->Psz();
-    achar *pch;
-
-    for (pch = pchStart; *pch != chNil; pch++)
-    {
-        if (*pch == ChLit('/'))
-        {
-            pstnLong->SetRgch(pchStart, (pch - pchStart));
-            pstnShort->SetSz(pch + 1);
-            return;
-        }
-    }
-    // no slash, so set both pstnLong and pstnShort to pstnMerged
-    *pstnLong = *pstnMerged;
-    *pstnShort = *pstnMerged;
+    const auto parts = three_mm_source_name_split(pstnMerged->Prgch(), pstnMerged->Cch(), sizeof(achar));
+    pstnLong->SetRgch(pstnMerged->Prgch(), parts.long_count);
+    pstnShort->SetRgch(pstnMerged->Prgch() + parts.short_offset, parts.short_count);
 }
 
 /***************************************************************************
     Return source title string table so it can be embedded in documents
 ***************************************************************************/
-PStringTable_GST TagManager::PgstSource(void)
+LegacyLong TagManager::CbSourceNames() const
 {
-    AssertThis(0);
-    return _pgstSource;
+    return three_mm_source_names_wire_size(&_names);
+}
+bool TagManager::FGetSourceSid(LegacyLong index, LegacyLong *sid)
+{
+    const void *text;
+    ThreeMMU32 count;
+    ThreeMMI32 value;
+    if (!three_mm_source_names_at(&_names, index, &text, &count, &value))
+        return false;
+    *sid = value;
+    return true;
+}
+bool TagManager::FWriteSourceNames(PDataBlock block)
+{
+    const ThreeMMStorageWriter writer = {block, static_cast<ThreeMMU32>(block->Cb()),
+                                         [](void *c, ThreeMMU32 offset, const void *bytes, size_t count) -> int {
+                                             return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(bytes),
+                                                                                          count, offset);
+                                         }};
+    const unsigned short one = 1;
+    return three_mm_source_names_write(&_names, &writer, *reinterpret_cast<const byte *>(&one) == 0) ==
+           THREE_MM_STORAGE_OK;
 }
 
 void TagManager::InvalidateSource(LegacyLong sid)
@@ -234,57 +296,29 @@ void TagManager::InvalidateSource(LegacyLong sid)
 }
 
 /***************************************************************************
-    If there is an stn for the given sid in _pgstSource, return the
-    location of the stn.
-***************************************************************************/
-bool TagManager::_FFindSid(LegacyLong sid, LegacyLong *pistn)
-{
-    AssertThis(0);
-    Assert(sid >= 0, "Invalid sid");
-    AssertNilOrVarMem(pistn);
-
-    LegacyLong istn;
-    LegacyLong sidT;
-
-    for (istn = 0; istn < _pgstSource->IvMac(); istn++)
-    {
-        _pgstSource->GetExtra(istn, &sidT);
-        if (sid == sidT) // it's already in there
-        {
-            if (pvNil != pistn)
-                *pistn = istn;
-            return fTrue;
-        }
-    }
-    TrashVar(pistn);
-    return fFalse;
-}
-
-/***************************************************************************
     Add source title string table entries to tag manager, if it doesn't
     already know them.
 ***************************************************************************/
 bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
 {
-    AssertThis(0);
     AssertPo(pgst, 0);
     Assert(size(LegacyLong) == pgst->CbExtra(), "bad pgstSource");
-
-    LegacyLong istn;
-    String stn;
-    LegacyLong sid;
-
-    for (istn = 0; istn < pgst->IvMac(); istn++)
+    struct Host
     {
-        pgst->GetStn(istn, &stn);
-        pgst->GetExtra(istn, &sid);
-        if (kboOther == bo)
-            SwapBytesBom(&sid, kbomSid);
-        if (!FAddStnSource(&stn, sid))
-            return fFalse;
-    }
-
-    return fTrue;
+        PStringTable_GST table;
+        String text;
+    } host = {pgst};
+    const ThreeMMSourceNameInput input = {
+        &host, static_cast<ThreeMMU32>(pgst->IvMac()),
+        [](void *c, ThreeMMU32 i, const void **text, ThreeMMU32 *count, ThreeMMI32 *sid) {
+            auto h = static_cast<Host *>(c);
+            h->table->GetStn(i, &h->text);
+            h->table->GetExtra(i, sid);
+            *text = h->text.Prgch();
+            *count = h->text.Cch();
+        },
+        [](void *, ThreeMMI32) { Bug("Invalid sid"); }};
+    return three_mm_source_names_merge(&_names, &input, bo == kboOther) != 0;
 }
 
 /***************************************************************************
@@ -292,14 +326,8 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
 ***************************************************************************/
 bool TagManager::FAddStnSource(PString pstn, LegacyLong sid)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
     Assert(sid >= 0, "Invalid sid");
-
-    if (_FFindSid(sid))
-        return fTrue; // String is already there
-
-    return _pgstSource->FAddStn(pstn, &sid); // Try to add it
+    return three_mm_source_names_add(&_names, sid, pstn->Prgch(), pstn->Cch()) != 0;
 }
 
 /***************************************************************************
@@ -308,31 +336,15 @@ bool TagManager::FAddStnSource(PString pstn, LegacyLong sid)
 ***************************************************************************/
 bool TagManager::FGetSid(PString pstn, LegacyLong *psid)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    AssertVarMem(psid);
-
-    LegacyLong istn;
-    String stnMerged;
-    String stnLong;
-    String stnShort;
-
-    for (istn = 0; istn < _pgstSource->IvMac(); istn++)
-    {
-        _pgstSource->GetStn(istn, &stnMerged);
-        if (stnMerged.FEqualUser(pstn, fstnIgnoreCase))
-        {
-            _pgstSource->GetExtra(istn, psid);
-            return fTrue;
-        }
-        SplitString(&stnMerged, &stnLong, &stnShort);
-        if (stnLong.FEqualUser(pstn, fstnIgnoreCase) || stnShort.FEqualUser(pstn, fstnIgnoreCase))
-        {
-            _pgstSource->GetExtra(istn, psid);
-            return fTrue;
-        }
-    }
-    return fFalse;
+    ThreeMMI32 value;
+    const auto equal = [](void *, const void *a, ThreeMMU32 ac, const void *b, ThreeMMU32 bc) -> int {
+        return ::FEqualUserRgch(const_cast<achar *>(static_cast<const achar *>(a)), ac,
+                                const_cast<achar *>(static_cast<const achar *>(b)), bc, fstnIgnoreCase);
+    };
+    if (!three_mm_source_names_find_name(&_names, pstn->Prgch(), pstn->Cch(), equal, nullptr, &value))
+        return false;
+    *psid = value;
+    return true;
 }
 
 /***************************************************************************
@@ -340,20 +352,12 @@ bool TagManager::FGetSid(PString pstn, LegacyLong *psid)
 ***************************************************************************/
 bool TagManager::_FGetStnMergedOfSid(LegacyLong sid, PString pstn)
 {
-    AssertThis(0);
-    AssertVarMem(pstn);
-
-    LegacyLong istn;
-    LegacyLong sidT;
-
-    for (istn = 0; istn < _pgstSource->IvMac(); istn++)
-    {
-        _pgstSource->GetStn(istn, pstn);
-        _pgstSource->GetExtra(istn, &sidT);
-        if (sid == sidT)
-            return fTrue;
-    }
-    return fFalse;
+    const void *text = nullptr;
+    ThreeMMU32 count = 0;
+    const bool found = three_mm_source_names_merged(&_names, sid, &text, &count) != 0;
+    if (text)
+        pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+    return found;
 }
 
 /***************************************************************************
@@ -382,46 +386,27 @@ bool TagManager::_FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString ps
 ***************************************************************************/
 TagSourceAccess TagManager::SourceDirectory(LegacyLong sid, PFilename path)
 {
-    if (!_sourceResolver)
-        return TagSourceAccess::Legacy;
-    String longName, shortName;
-    Filename unused;
-    if (!_FGetStnSplitOfSid(sid, &longName, &shortName))
-        return TagSourceAccess::Legacy;
-    return _sourceResolver(&longName, &shortName, path ? path : &unused);
+    const auto provider = [](void *c, const void *longText, ThreeMMU32 longCount, const void *shortText,
+                             ThreeMMU32 shortCount, void *path) -> int {
+        String longName, shortName;
+        Filename unused;
+        longName.SetRgch(const_cast<achar *>(static_cast<const achar *>(longText)), longCount);
+        shortName.SetRgch(const_cast<achar *>(static_cast<const achar *>(shortText)), shortCount);
+        return static_cast<int>(static_cast<PTagManager>(c)->_sourceResolver(
+            &longName, &shortName, path ? static_cast<PFilename>(path) : &unused));
+    };
+    return static_cast<TagSourceAccess>(three_mm_source_names_resolve(
+        &_names, sid, path, _sourceResolver ? +provider : nullptr, this));
 }
 
 bool TagManager::_FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists)
 {
-    AssertThis(0);
-    Assert(sid >= 0, "Invalid sid");
-    AssertVarMem(pfniHD);
-    AssertVarMem(pfExists);
-
-    String stnLong;
-    String stnShort;
-    Filename fni;
-
-    *pfExists = fFalse;
-    const auto access = SourceDirectory(sid, pfniHD);
-    if (access != TagSourceAccess::Legacy)
-    {
-        *pfExists = access == TagSourceAccess::Available;
-        return fTrue;
-    }
-    if (!_FGetStnSplitOfSid(sid, &stnLong, &stnShort))
-    {
-        return fFalse; // can't even determine if fniHD exists or not
-    }
-
-    fni = _fniHDRoot;
-    if (!fni.FDownDir(&stnLong, ffniMoveToDir) && !fni.FDownDir(&stnShort, ffniMoveToDir))
-    {
-        return fTrue; // fniHD doesn't exist
-    }
-    *pfniHD = fni;
-    *pfExists = fTrue;
-    return fTrue;
+    NativeDiscoveryHost host = {this, sid, pfniHD, false};
+    const auto services = _DiscoveryServices(&host);
+    int exists;
+    const bool ok = three_mm_source_discover_local(sid, &services, &exists) != 0;
+    *pfExists = exists != 0;
+    return ok;
 }
 
 /***************************************************************************
@@ -488,64 +473,12 @@ bool TagManager::_FEnsureFniCD(LegacyLong sid, Filename *pfniCD, PString pstn)
 ***************************************************************************/
 bool TagManager::_FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChanged)
 {
-    const auto access = SourceDirectory(sid, pfniCD);
-    if (access != TagSourceAccess::Legacy)
-    {
-        *pfFniChanged = access == TagSourceAccess::Available;
-        return access == TagSourceAccess::Available;
-    }
-    AssertThis(0);
-    Assert(sid >= 0, "Invalid sid");
-    AssertPo(pfniCD, ffniEmpty | ffniDir); // could be a blank Filename
-    AssertVarMem(pfFniChanged);
-
-    FileNameEnumerator fne;
-    Filename fni;
-    String stnLong;
-    String stnShort;
-    Filename fniCD;
-
-    *pfFniChanged = fFalse;
-
-    // If pfniCD's ftg is not ftgNil, we've opened this source before,
-    // so look for it where it was last time.
-    if (ftgNil != pfniCD->Ftg())
-    {
-        if (_FEnsureFniCD(sid, pfniCD))
-        {
-            // The source is where we thought it was
-            return fTrue;
-        }
-        else
-        {
-            // With the way the ChunkyResourceManager stuff works now, the ChunkyResourceManager can't
-            // move to another path.  So fail if the CD isn't exactly
-            // where it was before.
-            return fFalse;
-        }
-    }
-
-    if (!_FGetStnSplitOfSid(sid, &stnLong, &stnShort))
-        return fFalse;
-    // The source has moved/disappeared, or we're opening it for the first
-    // time, so search all drives for it.
-    if (!fne.FInit(pvNil, pvNil, 0))
-        return fFalse;
-    while (fne.FNextFni(&fni))
-    {
-        if (fni.Grfvk() & fvkFloppy) // don't buzz floppies
-            continue;
-        fniCD = fni;
-        if (!_FEnsureFniCD(sid, &fniCD, &stnShort) && !_FEnsureFniCD(sid, &fniCD, &stnLong))
-        {
-            continue;
-        }
-        *pfFniChanged = fTrue;
-        *pfniCD = fniCD;
-        return fTrue;
-    }
-    // Couldn't find the source
-    return fFalse;
+    NativeDiscoveryHost host = {this, sid, pfniCD, true};
+    const auto services = _DiscoveryServices(&host);
+    int changed;
+    const bool ok = three_mm_source_discover_media(sid, &services, &changed) != 0;
+    *pfFniChanged = changed != 0;
+    return ok;
 }
 
 /***************************************************************************
@@ -563,7 +496,7 @@ bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
 
     if (!_FGetStnSplitOfSid(sid, &stnLong, &stnShort))
     {
-        Bug("_pgstSource has no string for this sid!");
+        Bug("the source-name table has no string for this sid!");
         return fFalse;
     }
     String root;
@@ -856,7 +789,7 @@ LegacyUlong TagManager::FcmpCompareTags(PTAG a, PTAG b)
 void TagManager::AssertValid(LegacyUlong flags)
 {
     TagManager_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pgstSource, 0);
+    Assert(_names.count <= _names.storage.buffers[1].capacity / 8, "bad source names");
     Assert(_pfninscd != nullptr, "bad source callback");
     Assert(_sources.count <= _sources.storage.buffers[0].capacity / sizeof(ThreeMMSourceRecord), "bad source count");
     for (ThreeMMU32 i = 0; i < _sources.count; ++i)
@@ -878,7 +811,8 @@ void TagManager::MarkMem(void)
     AssertThis(0);
     TagManager_PAR::MarkMem();
     MarkPv(_sources.storage.buffers[0].data);
-    MarkMemObj(_pgstSource);
+    MarkPv(_names.storage.buffers[0].data);
+    MarkPv(_names.storage.buffers[1].data);
     for (ThreeMMU32 i = 0; i < _sources.count; ++i)
     {
         ThreeMMSourceRecord r;

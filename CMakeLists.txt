@@ -365,7 +365,7 @@ target_link_libraries(actor-render-test PRIVATE engine-core)
 # saves it to a real on-disk .3MM, releases, reopens, releases again.
 # Exists to reproduce / pin a memory access error in the save+load
 # path. Links the full engine + kauai (gui side) because Movie save
-# uses vpappb (BeginLongOp/EndLongOp) and vptagm (PgstSource).
+# uses vpappb (BeginLongOp/EndLongOp) and vptagm (source names).
 add_executable(movie-save-load-test EXCLUDE_FROM_ALL)
 target_sources(movie-save-load-test PRIVATE
     "${PROJECT_SOURCE_DIR}/tests/movie_save_load_test.cpp"
@@ -1434,7 +1434,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
-  engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test
+  engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test
   global-cleanup-test
   preview-checks
   mbmp-pixels-test

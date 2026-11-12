@@ -447,10 +447,10 @@ C also owns local/media path retrieval and file-search sequencing, preserving
 legacy output quirks: an AVAILABLE media-provider shortcut leaves the existing
 output unchanged; failure obtaining a local directory ends file search without
 trying media. Final output is cleared only after both leaf searches fail.
-Native callbacks provide path values, source availability, long/short directory
-and drive discovery, file I/O, names and UI prompts. Source-name tables and those
-remaining discovery adapters still require conversion; the full engine migration
-is incomplete. Path handles currently wrap native Filename pairs, without native
+Native callbacks provide path values, source availability, physical directory
+and drive operations, file I/O and UI prompts. Source-name storage and discovery
+policy now use C as described below; the full engine migration is incomplete.
+Path handles currently wrap native Filename pairs, without native
 source-policy fields. Callbacks may append other sources but cannot invalidate
 the active acquired record; disposal callbacks cannot re-enter.
 
@@ -463,6 +463,35 @@ MSVC AddressSanitizer passes. All 60 native prompt-trace bytes match, as do the
 previous eleven snapshots and 51 CLI baselines. Twenty-nine standalone and
 forty-two focused native checks pass. No Marcus UI tests were added.
 
+### Source names and directory discovery
+
+`source_names.c` owns counted source names and SID extras in C storage, replacing
+TagManager's persistent StringTable_GST object. First SID wins; insertion order
+and per-row merged/long/short lookup precedence are preserved. Case equality is
+a host locale service. Splitting retains the distinction between counted text
+and zero-terminated slash scanning, including embedded zeros and empty halves.
+GST merging preserves previous rows on failure and swaps only incoming SID extras
+when required. Wire writes preserve native text/SID payloads and swap only headers
+and offsets, restoring offsets even after I/O failure. Provider calls use a stack
+copy so adding source names during a callback cannot invalidate the query.
+
+Movie saving writes this C table directly; Studio's managed-source enumerator
+uses count/SID queries. The borrowed native table getter has been removed.
+Read-side GST decoding still uses a temporary native string-table adapter.
+
+`source_discovery.c` owns provider short circuits, local long-before-short search,
+media short-before-long search, skipping floppies, and verifying previously opened
+media paths without relocating them. Both fallback descents retain the same path
+candidate as legacy. Native Filename operations, drive enumeration, media-error
+suppression and UI request construction remain host services.
+
+`engine-source-names-test` covers one/two-byte names, duplicate IDs, ambiguous
+lookup precedence, embedded zeros, merge failure, swapped IDs, provider mutation,
+failed wire writes and directory callback order/output preservation. Thirty C-only
+checks and forty-three focused native checks pass, as does MSVC AddressSanitizer.
+The 192-byte source-name snapshot and all twelve prior snapshots match; all 51
+CLI baselines match. No Marcus UI tests were added.
+
 ### Tag ownership, dispatch and owning lists
 
 `tag.c` owns embedded tag open/copy/save/redirect/duplicate/close policy. Copy
@@ -474,8 +503,8 @@ and disabled file-cache adapters avoid reading unopened cache fields.
 
 C dispatches child lookup and resource fetch through embedded caches or source
 managers, including local-only versus media-enabled requests and missing-tag
-callbacks. Source catalogue, lookup and retry policy now use C above; source-name
-and low-level directory/drive discovery adapters remain native. C owns cache clearing: resolve
+callbacks. Source catalogue, names, lookup, retry and directory-search policy now
+use C above; physical directory/drive adapters remain native. C owns cache clearing: resolve
 media before file reopen, ignore reopen failure, and zero/restore memory budgets.
 File caching remains disabled, matching the previously unconditional return.
 
