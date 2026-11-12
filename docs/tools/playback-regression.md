@@ -2478,3 +2478,63 @@ positions and 60 ordered image changes. Movie, ISO-resource and Marcus-content
 hashes remain unchanged. The report is
 `tmp/c89-actor-frame-events-comparison.json`; these six captures extend the nine
 above, for fifteen successful captures across the three cases.
+
+## C89 actor timeline and seek control (12 November 2026)
+
+Actor metadata-step policy, lifetime/cache calculation, stalling, backward steps,
+quick backup and outer seek commands now execute in C89. C owns seek control
+storage and partial-progress/rollback policy. Optional native-view publication
+preserves callback observations of decremented cels and attempted lifetime frames.
+Metadata reads, primitive table operations, diagnostics and typed native views are
+adapters; pose, resource/effect/editing and final integration remain work. See the
+[implementation boundary](../code-map/library-split.md#actor-timeline-metadata-steps-and-seek-control).
+
+Thirty-nine standalone C checks, fifty-two focused native checks and MSVC
+AddressSanitizer pass. Checks cover failed resolver outputs, callback observations,
+partial caches, signed frame budgets, stalling comparisons, per-step/probe rollback,
+retained quick-backup progress, vertical replay fallback, best-effort hide/costume
+commands, failed frame continuation and seek protocol. The enabled retail BUG1960/
+BUG1906 behavior and inherited before-first forward behavior remain. All twenty-four
+binary snapshots match, including new 4,438-byte timeline/cache/callback and
+26,564-byte seek command/state/effect baselines plus twenty-two prior snapshots.
+The traces serialize fields without native padding. All 51 CLI baselines match,
+including six asset indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-actor-timeline-before.bin`, `tmp/c89-actor-timeline-after.bin`,
+`tmp/c89-actor-seek-before.bin`, `tmp/c89-actor-seek-after.bin`,
+`tmp/c89-actor-timeline-snapshot-comparison.json`,
+`tmp/c89-actor-timeline-output-comparison.json` and `tmp/c89-actor-timeline-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence is
+in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T212906Z-83525be3` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T213343Z-edaa6f22` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding frame-sequencer suites `20261112T205341Z-f0ca8c87` and
+`20261112T205913Z-56bc5122`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-actor-timeline-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.
+
+The existing `actor-events` movie also ran in all three players, in both seek and
+continuous playback, to exercise rotation, scale, stretch, freeze and entrance/
+exit behavior. Suite `20261112T213626Z-de47ded1` completed all six runs without
+capture failures (verdict `different`, six different and five inconclusive
+components). Against preceding actor-event suite `20261112T210026Z-7ffde7d1`,
+all 180 seek images match exactly. All six runs preserve 60 authored frame
+positions and 60 ordered image changes. Movie, ISO-resource and Marcus-content
+hashes remain unchanged. The report is
+`tmp/c89-actor-timeline-events-comparison.json`; these six captures extend the nine
+above, for fifteen successful captures across the three cases.

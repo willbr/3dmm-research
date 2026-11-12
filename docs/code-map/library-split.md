@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -669,7 +669,7 @@ reciprocal/saturation policy. It uses unsigned 16-bit partial products and binar
 long division, with no C99 integer types or floating-point approximation. The native
 adapter asserts fixed-point ABI and every copied route/event/transform layout.
 Native ActorFrameState still translates its value fields into/out of the C record;
-this temporary facade, remaining pose/timeline/seek logic and physical
+this temporary facade, remaining pose logic, host effects and physical
 table services must be removed as migration continues.
 
 `engine-actor-motion-test` covers fixed-point boundary cases, subroute termination,
@@ -701,7 +701,7 @@ Next rejects an unanswered entrance query without changing storage/output, while
 an event command can be fetched repeatedly until acknowledged. Complete rejects
 an empty pending slot without changes. All policy executes in C; callbacks only
 read table metadata/rows. State conversion helpers are shared with native value/
-route adapters. Pose, timeline, seek, host effects and editing remain migration work.
+route adapters. Pose, host effects and editing remain migration work.
 
 `engine-actor-frame-test` exercises entrance order, protocol rejection, repeated
 requests, both entrance abort paths, ordinary retry ordering, all sound display/
@@ -711,6 +711,46 @@ focused native checks and MSVC AddressSanitizer pass. Twenty-two binary snapshot
 and all 51 CLI baselines match, including a new 170,230-byte native frame trace
 covering command/state/result/effect records during sequential playback and seeks.
 No Marcus UI tests were added.
+
+### Actor timeline, metadata steps and seek control
+
+`actor_timeline.c` owns raw/playback step policy, lifetime calculation and event
+frame-cache updates, stalling detection, backward steps and quick backup. Metadata
+resolvers return unscaled steps; their output starts at zero and failure preserves
+any partial write. Playback scaling occurs only after successful resolution. C owns
+the branches and 16.16 arithmetic; native services read metadata or table rows,
+write fixed event records and present diagnostics.
+
+Lifetime publishes each attempted frame and updates caches immediately. Failure
+retains partial caches and the last attempted frame. Its signed maxFrames check
+uses C89 two-word arithmetic, retaining the native 64-bit subtraction behavior at
+frame limits. No-entrance tracks still return firstFrame without applying the
+budget. Stalling preserves the separate node/offset comparisons. The enabled
+retail BUG1960 stationary-event and BUG1906 full-delta backup policies are retained.
+
+A failed backward step restores cel/frame/location and leaves output unchanged.
+Successful probes restore those state values while publishing their computed
+location separately. Quick-backup failure retains completed earlier steps and
+vertical transitions request full replay. Optional publication services keep native
+observer views current before metadata/diagnostic callbacks and lifetime writes;
+callbacks see the decremented cel during a backward-step metadata request. The
+native adapter uses value conversion for distinct 32-bit long/int types.
+
+`actor_seek.c` owns control state in `ThreeMMActorSeek`: backward/midpath rewind,
+quick effects, hide/costume commands and frame evaluation requests. Hosts still
+apply commands and acknowledge them. Hide/costume failures remain best-effort;
+frame failure accumulates while later frames run, and quick failure stops. The
+before-first forward-frame compatibility quirk is retained. Protocol rejection
+leaves control/state/output unchanged. Native value/command facades, pose and
+resource/effect/editing integration remain migration work.
+
+`engine-actor-timeline-test` covers resolver writes/failures, callback observations,
+cache updates/bounds, stalling, step/probe rollback, partial quick-backup progress,
+vertical fallback, midpath rewind, seek commands and protocol failure. Thirty-nine
+standalone C checks, fifty-two focused native checks and MSVC AddressSanitizer pass.
+Twenty-four binary snapshots and all 51 CLI baselines match, including new 4,438-byte
+timeline/cache/callback and 26,564-byte seek command/state/effect traces. No Marcus
+UI tests were added.
 
 ### Source names and directory discovery
 

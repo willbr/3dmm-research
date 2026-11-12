@@ -3,6 +3,7 @@
 #ifndef ACTOR_SEEK_H
 #define ACTOR_SEEK_H
 #include "actor_timeline.h"
+#include "three_mm/actor_timeline.h"
 
 enum class ActorSeekCommandKind
 {
@@ -38,30 +39,13 @@ class ActorSeekEvaluator
     void Complete(bool success);
     bool Success() const
     {
-        return _success;
+        return _sequence.success != 0;
     }
 
   private:
-    enum class Phase
-    {
-        Initialize,
-        Rewind,
-        PrepareFrames,
-        Frames,
-        Done
-    };
     ActorFrameState &_state;
     const ActorTrack &_track;
     ActorStepSource _steps;
-    LegacyLong _firstFrame;
-    LegacyLong _lastFrame;
-    LegacyLong _targetFrame;
-    Phase _phase = Phase::Initialize;
-    bool _midPath = false;
-    bool _waiting = false;
-    bool _success = true;
-    ActorSeekCommandKind _pending = ActorSeekCommandKind::Finished;
-    ActorSeekCommand _Command(ActorSeekCommandKind kind, bool display = false);
-    void _Rewind();
+    ThreeMMActorSeek _sequence = {};
 };
 #endif

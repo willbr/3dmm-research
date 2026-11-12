@@ -2602,17 +2602,18 @@ static void RecordActorFrameBytes(const void *p, size_t n)
 {
     if (actorFrameSnapshot) Check(std::fwrite(p, 1, n, actorFrameSnapshot) == n);
 }
-static void RecordActorFrameState(const ActorFrameState &s)
+static void RecordActorFrameState(const ActorFrameState &s, FILE *snapshot = actorFrameSnapshot)
 {
-    if (!actorFrameSnapshot) return;
-    int flags[] = {s.onStage,s.frozen,s.useCurrentRotation}; RecordActorFrameBytes(flags,sizeof(flags));
+    if (!snapshot) return;
+    auto bytes = [&](const void *p,size_t n) { Check(std::fwrite(p,1,n,snapshot)==n); };
+    int flags[] = {s.onStage,s.frozen,s.useCurrentRotation}; bytes(flags,sizeof(flags));
     LegacyLong values[] = {s.step,s.action,s.celCount,s.cel,s.frame,s.nextEvent,s.firstEventInFrame,s.actionEvent,s.addEvent};
-    RecordActorFrameBytes(values,sizeof(values)); RecordActorFrameBytes(&s.actionFlags,4);
-    RecordActorFrameBytes(&s.routeTranslation,12); RecordActorFrameBytes(&s.subrouteTranslation,12);
-    RecordActorFrameBytes(&s.location,12); RecordActorFrameBytes(&s.position,12);
-    RecordActorFrameBytes(&s.transform.bmat34Fwd,48); RecordActorFrameBytes(&s.transform.aevpull,12);
-    RecordActorFrameBytes(&s.transform.rScaleStep,4); RecordActorFrameBytes(&s.transform.bmat34Cur,48);
-    RecordActorFrameBytes(&s.transform.xaPath,2); RecordActorFrameBytes(&s.transform.yaPath,2); RecordActorFrameBytes(&s.transform.zaPath,2);
+    bytes(values,sizeof(values)); bytes(&s.actionFlags,4);
+    bytes(&s.routeTranslation,12); bytes(&s.subrouteTranslation,12);
+    bytes(&s.location,12); bytes(&s.position,12);
+    bytes(&s.transform.bmat34Fwd,48); bytes(&s.transform.aevpull,12);
+    bytes(&s.transform.rScaleStep,4); bytes(&s.transform.bmat34Cur,48);
+    bytes(&s.transform.xaPath,2); bytes(&s.transform.yaPath,2); bytes(&s.transform.zaPath,2);
 }
 
 // A headless resource/effect adapter with fixed action facts. No renderer,
@@ -2910,20 +2911,32 @@ static void TestActorFrameSequencing()
     Check(result.success && result.positionBody && !result.updatePose);
 }
 
+static FILE *actorTimelineSnapshot = nullptr;
+static FILE *actorSeekSnapshot = nullptr;
+static void RecordActorTimelineBytes(FILE *file,const void *p,size_t n) { if(file) Check(std::fwrite(p,1,n,file)==n); }
 struct StepProbe
 {
     LegacyLong calls = 0;
     LegacyLong failOn = 0;
     LegacyLong cels[32] = {};
+    ActorFrameState *observed = nullptr;
+    LegacyLong *observedLast = nullptr;
     static bool Resolve(void *context, LegacyLong action, LegacyLong cel, BRS *step)
     {
         auto &probe = *(StepProbe *)context;
         Check(action == 0 && probe.calls < 32);
+        Check(*step == rZero);
         probe.cels[probe.calls++] = cel;
-        if (probe.calls == probe.failOn)
-            return false;
-        *step = BR_SCALAR(((cel % 4 + 4) % 4) + 1);
-        return true;
+        if (probe.observedLast) Check(*probe.observedLast == probe.calls - 2);
+        bool success = probe.calls != probe.failOn;
+        if (success) *step = BR_SCALAR(((cel % 4 + 4) % 4) + 1);
+        FILE *record = actorTimelineSnapshot ? actorTimelineSnapshot : actorSeekSnapshot;
+        LegacyLong values[] = {-12345,action,cel,success,*step}; RecordActorTimelineBytes(record,values,sizeof(values));
+        if (probe.observed) {
+            Check(probe.observed->cel == cel);
+            RecordActorFrameState(*probe.observed,record);
+        }
+        return success;
     }
     ActorStepSource Source()
     {
@@ -2933,6 +2946,22 @@ struct StepProbe
 
 static void TestActorTimeline()
 {
+    if (const char *path=std::getenv("THREE_MM_ACTOR_TIMELINE_SNAPSHOT")) { actorTimelineSnapshot=std::fopen(path,"wb"); Check(actorTimelineSnapshot); }
+    auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorTimelineSnapshot,p,n); };
+    auto cache=[&](const ActorTrack &t) { LegacyLong count=t.Events()->IvMac(); record(&count,4); for(LegacyLong i=0;i<count;++i) { ActorEvent::Base e; t.Events()->GetFixed(i,&e); record(&e,sizeof(e)); } };
+    auto lifetime=[&](const ActorTrack &t,LegacyLong first,bool rejoining,const ActorStepSource &steps,LegacyLong *last,LegacyLong bound=klwMax) {
+        bool ok=ActorTimeline::FComputeLifetime(t,first,rejoining,steps,last,bound);
+        LegacyLong values[]={101,first,rejoining,bound,ok,*last}; record(values,sizeof(values)); cache(t); return ok;
+    };
+    auto stalled=[&](const ActorTrack &t,LegacyLong first,RouteLocation *p,LegacyLong *last=nullptr) {
+        bool ok=ActorTimeline::FIsStalled(t,first,p,last); LegacyLong values[]={102,first,ok,last?*last:-987}; record(values,sizeof(values)); record(p,sizeof(*p)); return ok;
+    };
+    auto back=[&](ActorFrameState &state,const ActorTrack &t,const ActorStepSource &steps,RouteLocation *p,bool update) {
+        bool ok=ActorTimeline::FStepBack(state,t,steps,p,update); LegacyLong values[]={103,ok,update}; record(values,sizeof(values)); record(p,sizeof(*p)); RecordActorFrameState(state,actorTimelineSnapshot); return ok;
+    };
+    auto backup=[&](ActorFrameState &state,const ActorTrack &t,LegacyLong last,LegacyLong target,const ActorStepSource &steps) {
+        auto result=ActorTimeline::QuickBackup(state,t,last,target,steps); LegacyLong values[]={104,last,target,result.success,result.valid,result.applyEffects}; record(values,sizeof(values)); RecordActorFrameState(state,actorTimelineSnapshot); return result;
+    };
     ActorTrack track;
     Check(ActorFrameTest::FCreateTrack(track));
     // Explicit authored steps require no metadata resolver. Rebuild stale
@@ -2948,7 +2977,7 @@ static void TestActorTimeline()
         }
     }
     LegacyLong last = -999;
-    Check(ActorTimeline::FComputeLifetime(track, 1, false, ActorStepSource(), &last) && last == 9);
+    Check(lifetime(track, 1, false, ActorStepSource(), &last) && last == 9);
     LegacyLong frames[] = {1, 1, 1, 2, 2, 3, 3, 4, 6, 8, 9};
     Check(track.Events()->IvMac() == 11);
     for (LegacyLong index = 0; index < 11; ++index)
@@ -2959,21 +2988,21 @@ static void TestActorTimeline()
     }
     ActorTrack empty;
     Check(empty.FCreate());
-    Check(ActorTimeline::FComputeLifetime(empty, -5, false, ActorStepSource(), &last) && last == -5);
+    Check(lifetime(empty, -5, false, ActorStepSource(), &last) && last == -5);
 
     ActorTrack metadata;
     Check(ActorFrameTest::FCreateMetadataTrack(metadata, false));
     StepProbe probe;
-    Check(ActorTimeline::FComputeLifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
+    Check(lifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
     Check(probe.calls == 3 && probe.cels[0] == 1 && probe.cels[1] == 2 && probe.cels[2] == 3);
     Check(ActorFrameTest::FCreateMetadataTrack(metadata, true));
     probe = StepProbe();
-    Check(ActorTimeline::FComputeLifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
+    Check(lifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
     Check(probe.calls == 3 && probe.cels[0] == 1 && probe.cels[1] == 2 && probe.cels[2] == 2);
     Check(ActorFrameTest::FCreateMetadataTrack(metadata, true));
     probe = StepProbe();
     probe.failOn = 2;
-    Check(!ActorTimeline::FComputeLifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
+    Check(!lifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
     ActorEvent::Base event;
     metadata.Events()->GetFixed(1, &event);
     Check(event.nfrm == -2);
@@ -2981,8 +3010,8 @@ static void TestActorTimeline()
     Check(event.nfrm == -1); // Earlier successful frames remain cached after failure.
     RouteLocation stopped = {0, rZero, 0};
     LegacyLong lastEvent = -99;
-    Check(!ActorTimeline::FIsStalled(metadata, 0, &stopped, &lastEvent) && lastEvent == -99);
-    Check(ActorTimeline::FIsStalled(metadata, 3, &stopped, &lastEvent) && lastEvent == 4);
+    Check(!stalled(metadata, 0, &stopped, &lastEvent) && lastEvent == -99);
+    Check(stalled(metadata, 3, &stopped, &lastEvent) && lastEvent == 4);
 
     ActorTrack route;
     Check(route.FCreate());
@@ -3006,26 +3035,26 @@ static void TestActorTimeline()
     ActorFrameState state = initial;
     RouteLocation output = {99, BR_SCALAR(99), 99};
     probe = StepProbe();
-    Check(ActorTimeline::FStepBack(state, route, probe.Source(), &output, false));
+    Check(back(state, route, probe.Source(), &output, false));
     Check(output.irpt == 1 && output.dwrOffset == rZero && probe.cels[0] == 2);
     Check(ActorFrameTest::SameState(state, initial));
     probe = StepProbe();
     probe.failOn = 1;
     output = {99, BR_SCALAR(99), 99};
-    Check(!ActorTimeline::FStepBack(state, route, probe.Source(), &output, false));
+    Check(!back(state, route, probe.Source(), &output, false));
     Check(output.irpt == 99 && ActorFrameTest::SameState(state, initial));
 
     probe = StepProbe();
     probe.failOn = 2;
-    Check(ActorTimeline::FStepBack(state, route, probe.Source(), &state.location, true));
+    Check(back(state, route, probe.Source(), &state.location, true));
     Check(state.frame == 9 && state.cel == 2 && state.location.irpt == 1 && state.location.dwrOffset == rZero);
     ActorFrameState afterFirst = state;
-    Check(!ActorTimeline::FStepBack(state, route, probe.Source(), &state.location, true));
+    Check(!back(state, route, probe.Source(), &state.location, true));
     Check(ActorFrameTest::SameState(state, afterFirst));
     state = initial;
     probe = StepProbe();
     probe.failOn = 2;
-    ActorQuickSeekResult quick = ActorTimeline::QuickBackup(state, route, 20, 8, probe.Source());
+    ActorQuickSeekResult quick = backup(state, route, 20, 8, probe.Source());
     Check(!quick.success && !quick.valid && !quick.applyEffects);
     Check(ActorFrameTest::SameState(state, afterFirst)); // Individual steps, not the entire seek, roll back.
 
@@ -3033,13 +3062,13 @@ static void TestActorTimeline()
     state.step = rOne;
     state.transform.rScaleStep = rOne;
     state.cel = 9;
-    quick = ActorTimeline::QuickBackup(state, route, 20, 8, ActorStepSource());
+    quick = backup(state, route, 20, 8, ActorStepSource());
     Check(quick.success && quick.valid && quick.applyEffects && state.frame == 8 && state.cel == 7);
     Check(state.position.dxr == BR_SCALAR(8));
     state = initial;
     state.frame = 13;
     state.location = {3, rZero, 4};
-    quick = ActorTimeline::QuickBackup(state, route, 9, 12, ActorStepSource());
+    quick = backup(state, route, 9, 12, ActorStepSource());
     Check(quick.success && quick.valid && !quick.applyEffects && state.frame == 12 && state.location.dnfrm == 3);
 
     ActorTrack vertical;
@@ -3055,7 +3084,7 @@ static void TestActorTimeline()
     state.transform.rScaleStep = rOne;
     state.location = {1, BR_SCALAR(2), 0};
     state.position = {BR_SCALAR(2), BR_SCALAR(4), rZero};
-    quick = ActorTimeline::QuickBackup(state, vertical, 20, 9, ActorStepSource());
+    quick = backup(state, vertical, 20, 9, ActorStepSource());
     Check(quick.success && !quick.valid && !quick.applyEffects && state.frame == 9);
     Check(state.position.dxr == rZero && state.position.dyr == BR_SCALAR(4));
 
@@ -3063,8 +3092,21 @@ static void TestActorTimeline()
     state.step = rZero;
     probe = StepProbe();
     probe.failOn = 1;
-    Check(ActorTimeline::FStepBack(state, route, probe.Source(), &state.location, true));
+    Check(back(state, route, probe.Source(), &state.location, true));
     Check(probe.calls == 0 && state.frame == 9 && state.location.dnfrm == -1);
+    state=initial; probe=StepProbe(); probe.observed=&state;
+    Check(back(state,route,probe.Source(),&output,false)); Check(ActorFrameTest::SameState(state,initial));
+    probe=StepProbe(); probe.observed=&state; probe.failOn=1;
+    Check(!back(state,route,probe.Source(),&state.location,true)); Check(ActorFrameTest::SameState(state,initial));
+    ActorTrack bounded; Check(ActorFrameTest::FCreateMetadataTrack(bounded,false)); probe=StepProbe();
+    Check(!lifetime(bounded,-2,false,probe.Source(),&last,0) && last==-1);
+    Check(!lifetime(bounded,klwMin,false,probe.Source(),&last,-1) && last==klwMin);
+    Check(!lifetime(bounded,klwMax,false,probe.Source(),&last) && last==klwMax);
+    if(actorTimelineSnapshot) Check(std::fclose(actorTimelineSnapshot)==0);
+    actorTimelineSnapshot=nullptr;
+    ActorTrack observation; Check(ActorFrameTest::FCreateMetadataTrack(observation,false));
+    StepProbe publication; publication.observedLast=&last;
+    Check(ActorTimeline::FComputeLifetime(observation,-2,false,publication.Source(),&last) && last==0);
 }
 
 struct SeekTrace
@@ -3082,13 +3124,19 @@ struct SeekTrace
 static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong first, LegacyLong last, LegacyLong target,
                         const ActorStepSource &steps, SeekTrace &trace)
 {
+    if (!actorSeekSnapshot) if (const char *path=std::getenv("THREE_MM_ACTOR_SEEK_SNAPSHOT")) { actorSeekSnapshot=std::fopen(path,"wb"); Check(actorSeekSnapshot); }
+    auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorSeekSnapshot,p,n); };
+    LegacyLong inputs[]={201,first,last,target}; record(inputs,sizeof(inputs)); RecordActorFrameState(state,actorSeekSnapshot);
     ActorSeekEvaluator evaluator(state, track, first, last, target, steps);
     bool dirty = false;
     for (;;)
     {
         ActorSeekCommand command = evaluator.Next();
-        if (command.kind == ActorSeekCommandKind::Finished)
+        LegacyLong values[]={202,static_cast<LegacyLong>(command.kind),command.displayFrame,evaluator.Success()}; record(values,sizeof(values)); RecordActorFrameState(state,actorSeekSnapshot);
+        if (command.kind == ActorSeekCommandKind::Finished) {
+            LegacyLong effects[]={trace.count,trace.recording,trace.ordinarySounds,trace.motionRegistrations}; record(effects,sizeof(effects));
             return evaluator.Success();
+        }
         Check(trace.count < 128);
         trace.commands[trace.count] = command;
         trace.frames[trace.count++] = state.frame;
@@ -4286,6 +4334,7 @@ int main()
     TestMoviePlayStartup();
     TestTextBoxPersistence();
     if (actorFrameSnapshot) Check(std::fclose(actorFrameSnapshot) == 0);
+    if (actorSeekSnapshot) Check(std::fclose(actorSeekSnapshot) == 0);
 #endif
     return 0;
 }
