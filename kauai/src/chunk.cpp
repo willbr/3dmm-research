@@ -385,6 +385,9 @@ RTCLASS(ChunkGraphEnumerator)
 ***************************************************************************/
 ChunkyFile::ChunkyFile(void)
 {
+#ifndef CHUNK_BIG_INDEX
+    AssertDo(three_mm_chunk_runtime_init(&_runtime, KauaiCopyAllocator()) == THREE_MM_CHUNK_OK, "invalid runtime cache");
+#endif
     // add it to the linked list
     _Attach(&_pcflFirst);
     AssertBaseThis(0);
@@ -402,7 +405,7 @@ ChunkyFile::~ChunkyFile(void)
     ReleasePpo(&_cstoExtra.pglfsm);
     ReleasePpo(&_pggcrp);
 #ifndef CHUNK_BIG_INDEX
-    ReleasePpo(&_pglrtie);
+    AssertDo(three_mm_chunk_runtime_dispose(&_runtime) == THREE_MM_CHUNK_OK, "invalid runtime cache disposal");
 #endif //! CHUNK_BIG_INDEX
 }
 
@@ -458,7 +461,7 @@ bool ChunkyFile::FReopen(void)
     ChunkStorage csto, cstoExtra;
     PGeneralGroup pggcrp;
 #ifndef CHUNK_BIG_INDEX
-    PDynamicArray pglrtie;
+    ThreeMMChunkRuntime saved_runtime;
 #endif // CHUNK_BIG_INDEX
     bool fFreeMapNotRead;
     bool fRet;
@@ -470,8 +473,8 @@ bool ChunkyFile::FReopen(void)
     _pggcrp = pvNil;
 
 #ifndef CHUNK_BIG_INDEX
-    pglrtie = _pglrtie;
-    _pglrtie = pvNil;
+    AssertDo(three_mm_chunk_runtime_init(&saved_runtime, KauaiCopyAllocator()) == THREE_MM_CHUNK_OK, "invalid saved runtime cache");
+    AssertDo(three_mm_chunk_runtime_swap(&_runtime, &saved_runtime) == THREE_MM_CHUNK_OK, "invalid runtime ownership swap");
 #endif // CHUNK_BIG_INDEX
 
     fFreeMapNotRead = _fFreeMapNotRead;
@@ -490,7 +493,7 @@ bool ChunkyFile::FReopen(void)
     {
         SwapVars(&_pggcrp, &pggcrp);
 #ifndef CHUNK_BIG_INDEX
-        SwapVars(&_pglrtie, &pglrtie);
+        AssertDo(three_mm_chunk_runtime_swap(&_runtime, &saved_runtime) == THREE_MM_CHUNK_OK, "invalid runtime restore");
 #endif // CHUNK_BIG_INDEX
         SwapVars(&_csto, &csto);
         SwapVars(&_cstoExtra, &cstoExtra);
@@ -498,7 +501,7 @@ bool ChunkyFile::FReopen(void)
     }
     ReleasePpo(&pggcrp);
 #ifndef CHUNK_BIG_INDEX
-    ReleasePpo(&pglrtie);
+    AssertDo(three_mm_chunk_runtime_dispose(&saved_runtime) == THREE_MM_CHUNK_OK, "invalid saved runtime disposal");
 #endif // CHUNK_BIG_INDEX
     ReleasePpo(&csto.pfil);
     ReleasePpo(&csto.pglfsm);
@@ -1082,7 +1085,7 @@ void ChunkyFile::AssertValid(LegacyUlong grfcfl)
         Assert(_cstoExtra.pglfsm == pvNil, 0);
 
 #ifndef CHUNK_BIG_INDEX
-    AssertNilOrPo(_pglrtie, 0);
+    Assert(_runtime.count <= _runtime.storage.buffers[0].capacity / sizeof(ThreeMMChunkRuntimeEntry), "bad runtime cache count");
 #endif //! CHUNK_BIG_INDEX
 
     if (!(grfcfl & (fcflFull | fcflGraph)))
@@ -1195,24 +1198,13 @@ void ChunkyFile::AssertValid(LegacyUlong grfcfl)
         Assert(_TValidIndex() != tNo, "bad index");
 
 #ifndef CHUNK_BIG_INDEX
-    // verify that the _pglrtie is in sorted order and all the chunks exist
-    if (pvNil != _pglrtie && _pglrtie->IvMac() > 0)
+    ThreeMMChunkRuntimeEntry cached, previous;
+    for (ThreeMMU32 i = 0; i < _runtime.count; ++i)
     {
-        LegacyLong irtie;
-        RuntimeIDEntry rtie, rtiePrev;
-        LegacyLong icrp;
-
-        irtie = _pglrtie->IvMac() - 1;
-        _pglrtie->Get(irtie, &rtie);
-        Assert(rtiNil != rtie.rti && _FFindCtgCno(rtie.ctg, rtie.cno, &icrp), "Bad RuntimeIDEntry");
-
-        while (irtie-- > 0)
-        {
-            rtiePrev = rtie;
-            _pglrtie->Get(irtie, &rtie);
-            Assert(rtiNil != rtie.rti && _FFindCtgCno(rtie.ctg, rtie.cno, &icrp), "Bad RuntimeIDEntry");
-            Assert(rtie.ctg < rtiePrev.ctg || rtie.ctg == rtiePrev.ctg && rtie.cno < rtiePrev.cno, "RuntimeIDEntry out of order");
-        }
+        AssertDo(three_mm_chunk_runtime_at(&_runtime, i, &cached) == THREE_MM_CHUNK_OK, "bad runtime cache entry");
+        Assert(cached.runtime != 0 && _FFindCtgCno(cached.type, cached.number, &icrpT), "runtime chunk missing");
+        if (i) Assert(previous.type < cached.type || (previous.type == cached.type && previous.number < cached.number), "runtime order");
+        previous = cached;
     }
 #endif //! CHUNK_BIG_INDEX
 
@@ -1230,7 +1222,7 @@ void ChunkyFile::MarkMem(void)
     MarkMemObj(_csto.pglfsm);
     MarkMemObj(_cstoExtra.pglfsm);
 #ifndef CHUNK_BIG_INDEX
-    MarkMemObj(_pglrtie);
+    MarkPv(_runtime.storage.buffers[0].data);
 #endif //! CHUNK_BIG_INDEX
 }
 #endif // DEBUG
@@ -2598,39 +2590,26 @@ bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 /***************************************************************************
     Set the name of the chunk at the given index.
 ***************************************************************************/
+namespace {
+ThreeMMChunkNames ChunkNameServices(PGeneralGroup group)
+{
+    return {group,
+        [](void *c) -> ThreeMMU32 { return static_cast<PGeneralGroup>(c)->IvMac(); }, ReadRuntimeChunk,
+        [](void *c, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 bytes) -> int {
+            return static_cast<PGeneralGroup>(c)->FInsertRgb(i, offset, bytes, nullptr);
+        },
+        [](void *c, ThreeMMU32 i, ThreeMMU32 offset, ThreeMMU32 bytes) { static_cast<PGeneralGroup>(c)->DeleteRgb(i, offset, bytes); },
+        [](void *c, ThreeMMU32 i) -> void * { return static_cast<PGeneralGroup>(c)->PvLock(i); },
+        [](void *c) { static_cast<PGeneralGroup>(c)->Unlock(); }, kcbMaxDataStn};
+}
+}
 bool ChunkyFile::_FSetName(LegacyLong icrp, PString pstn)
 {
-    AssertBaseThis(0);
-    AssertIn(icrp, 0, _pggcrp->IvMac());
-    AssertNilOrPo(pstn, 0);
-    LegacyLong cbVar, cbOld, cbNew;
-    ChunkRepresentation *qcrp;
-    LegacyLong bvRgch;
-
-    if (pstn != pvNil && pstn->Cch() > 0)
-        cbNew = pstn->CbData();
-    else
-        cbNew = 0;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
-    bvRgch = qcrp->BvRgch();
-    cbOld = cbVar - bvRgch;
-    AssertIn(cbOld, 0, kcbMaxDataStn + 1);
-
-    if (cbOld > cbNew)
-        _pggcrp->DeleteRgb(icrp, bvRgch, cbOld - cbNew);
-    else if (cbOld < cbNew && !_pggcrp->FInsertRgb(icrp, bvRgch, cbNew - cbOld, pvNil))
-    {
-        return fFalse;
-    }
-
-    if (cbNew > 0)
-    {
-        pstn->GetData(PvAddBv(_pggcrp->PvLock(icrp), bvRgch));
-        _pggcrp->Unlock();
-    }
-
-    return fTrue;
+    AssertBaseThis(0); AssertIn(icrp, 0, _pggcrp->IvMac()); AssertNilOrPo(pstn, 0);
+    byte wire[kcbMaxDataStn]; ThreeMMChunkNameValue value = {};
+    if (pstn) { value.bytes = pstn->CbData(); value.characters = pstn->Cch(); pstn->GetData(wire); value.wire = wire; }
+    const auto names = ChunkNameServices(_pggcrp);
+    return three_mm_chunk_name_set(&names, icrp, pstn ? &value : nullptr) == THREE_MM_CHUNK_OK;
 }
 
 /***************************************************************************
@@ -2660,29 +2639,13 @@ bool ChunkyFile::FGetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 ***************************************************************************/
 bool ChunkyFile::_FGetName(LegacyLong icrp, PString pstn)
 {
-    AssertBaseThis(0);
-    AssertIn(icrp, 0, _pggcrp->IvMac());
-    AssertPo(pstn, 0);
-
-    LegacyLong cbRgch, bvRgch;
-    LegacyLong cbVar;
-    ChunkRepresentation *qcrp;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
-    cbRgch = qcrp->CbRgch(cbVar);
-    AssertIn(cbRgch, 0, kcbMaxDataStn + 1);
-    if (cbRgch <= 0)
-    {
-        pstn->SetNil();
-        return fFalse;
-    }
-    bvRgch = qcrp->BvRgch();
-
-    if (!pstn->FSetData(PvAddBv(_pggcrp->PvLock(icrp), bvRgch), cbRgch))
-        pstn->SetNil();
-    _pggcrp->Unlock();
-
-    return pstn->Cch() > 0;
+    AssertBaseThis(0); AssertIn(icrp, 0, _pggcrp->IvMac()); AssertPo(pstn, 0);
+    const auto names = ChunkNameServices(_pggcrp);
+    const ThreeMMChunkNameDecoder decoder = {pstn,
+        [](void *c, const void *wire, ThreeMMU32 bytes) -> int { return static_cast<PString>(c)->FSetData(const_cast<void *>(wire), bytes); },
+        [](void *c) { static_cast<PString>(c)->SetNil(); },
+        [](void *c) -> ThreeMMU32 { return static_cast<PString>(c)->Cch(); }};
+    return three_mm_chunk_name_get(&names, icrp, &decoder) != 0;
 }
 
 /***************************************************************************
@@ -3045,130 +3008,26 @@ bool ChunkyFile::FClone(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile p
 LegacyLong ChunkyFile::_Rti(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
-
 #ifdef CHUNK_BIG_INDEX
-
-    LegacyLong icrp;
-    ChunkRepresentation *qcrp;
-
-    if (!_FFindCtgCno(ctg, cno, &icrp))
-        return rtiNil;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
-    return qcrp->rti;
-
-#else //! CHUNK_BIG_INDEX
-
-    RuntimeIDEntry rtie;
-
-    if (!_FFindRtie(ctg, cno, &rtie))
-        return rtiNil;
-
-    return rtie.rti;
-
-#endif //! CHUNK_BIG_INDEX
+    LegacyLong position;
+    if (!_FFindCtgCno(ctg, cno, &position)) return rtiNil;
+    return static_cast<ChunkRepresentation *>(_pggcrp->QvFixedGet(position))->rti;
+#else
+    return three_mm_chunk_runtime_get(&_runtime, ctg, cno);
+#endif
 }
-
-/***************************************************************************
-    Set the run time id of the given chunk.
-***************************************************************************/
 bool ChunkyFile::_FSetRti(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong rti)
 {
     AssertBaseThis(0);
-
 #ifdef CHUNK_BIG_INDEX
-
-    LegacyLong icrp;
-    ChunkRepresentation *qcrp;
-
-    if (!_FFindCtgCno(ctg, cno, &icrp))
-        return fFalse;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
-    qcrp->rti = rti;
+    LegacyLong position;
+    if (!_FFindCtgCno(ctg, cno, &position)) return fFalse;
+    static_cast<ChunkRepresentation *>(_pggcrp->QvFixedGet(position))->rti = rti;
     return fTrue;
-
-#else //! CHUNK_BIG_INDEX
-
-    RuntimeIDEntry rtie;
-    LegacyLong irtie;
-
-    if (_FFindRtie(ctg, cno, &rtie, &irtie))
-    {
-        if (rtiNil == rti)
-            _pglrtie->Delete(irtie);
-        else
-        {
-            rtie.rti = rti;
-            _pglrtie->Put(irtie, &rtie);
-        }
-        return fTrue;
-    }
-
-    if (rtiNil == rti)
-        return fTrue;
-
-    rtie.ctg = ctg;
-    rtie.cno = cno;
-    rtie.rti = rti;
-    if (pvNil == _pglrtie && pvNil == (_pglrtie = DynamicArray::PglNew(size(RuntimeIDEntry), 1)))
-        return fFalse;
-
-    return _pglrtie->FInsert(irtie, &rtie);
-
-#endif //! CHUNK_BIG_INDEX
+#else
+    return three_mm_chunk_runtime_set(&_runtime, ctg, cno, rti) == THREE_MM_CHUNK_OK;
+#endif
 }
-
-#ifndef CHUNK_BIG_INDEX
-/***************************************************************************
-    Look for an RuntimeIDEntry entry for the given (ctg, cno).
-***************************************************************************/
-bool ChunkyFile::_FFindRtie(ChunkTagOrType ctg, ChunkNumber cno, RuntimeIDEntry *prtie, LegacyLong *pirtie)
-{
-    AssertBaseThis(0);
-    AssertNilOrVarMem(prtie);
-    AssertNilOrVarMem(pirtie);
-
-    LegacyLong ivMin, ivLim, iv;
-    RuntimeIDEntry rtie;
-
-    if (pvNil == _pglrtie)
-    {
-        if (pvNil != pirtie)
-            *pirtie = 0;
-        TrashVar(prtie);
-        return fFalse;
-    }
-
-    for (ivMin = 0, ivLim = _pglrtie->IvMac(); ivMin < ivLim;)
-    {
-        iv = (ivMin + ivLim) / 2;
-        _pglrtie->Get(iv, &rtie);
-        if (rtie.ctg < ctg)
-            ivMin = iv + 1;
-        else if (rtie.ctg > ctg)
-            ivLim = iv;
-        else if (rtie.cno < cno)
-            ivMin = iv + 1;
-        else if (rtie.cno > cno)
-            ivLim = iv;
-        else
-        {
-            if (pvNil != prtie)
-                *prtie = rtie;
-            if (pvNil != pirtie)
-                *pirtie = iv;
-            return fTrue;
-            ;
-        }
-    }
-
-    if (pvNil != pirtie)
-        *pirtie = ivMin;
-    TrashVar(prtie);
-    return fFalse;
-}
-#endif //! CHUNK_BIG_INDEX
 
 /***************************************************************************
     Constructor for chunk graph enumerator.

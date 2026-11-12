@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,43 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Runtime IDs, chunk names, serialized strings and codec registry
+
+`chunk_metadata.c` owns the compact-index sorted runtime-ID cache and chunk-name
+resize/copy/decode policy. Zero runtime IDs remove entries without allocating;
+failed insertions preserve logical entries, and empty allocated capacity is
+retained. `FReopen` uses an explicit owning-cache swap to preserve rollback
+ownership. Expanded-index runtime IDs remain fixed-record host primitives.
+Names follow the 12-byte child records; shrinking precedes overwrite, failed
+growth preserves the old name and decode holds a balanced pin. Native group
+primitives already use the shared C collection algorithms.
+
+`string_wire.c` supplies `String::CbData`, `GetData`, `FWrite`, `FSetData` and
+`FRead` policy: OSK/count/terminator encoding, bounded conversion, malformed data
+rejection and absolute ending offsets. Strict reads reject trailing bytes;
+failed reads clear the string without publishing an ending offset. Writes keep
+the two header/body operations and their partial-write behavior. Code-page
+conversion and DataBlock I/O are host callbacks; early unpack failure retains
+the native unchanged-string behavior.
+
+`codec_registry.c` owns codec token storage and references. Lookup tries the
+default codec first, then registrations newest first. Duplicate registrations
+own separate references; failed registration retains none. Disposal releases
+the default first, then registrations in reverse order. Native codec dispatch,
+reference primitives and allocation diagnostics remain callbacks. Neither the
+registry nor compact runtime cache requires a native DynamicArray object.
+
+`engine-metadata-test` checks sorted cache updates/deletes, owner swaps, allocation
+failures/SPEED fallback, pinned name storage and failed growth, codec ordering and
+reference balance. Its frozen 480-case string snapshot is 29,532 bytes (FNV32
+`54d0f109`), matching the real native memory and file-backed paths over four
+encodings, maximum lengths, malformed/truncated data and nonzero offsets.
+Additional cases cover read/write failure stages and UTF-16/big-endian output.
+The test passes MSVC AddressSanitizer. Native checks retain all 572,367 chunk
+snapshot bytes and all serialized-string snapshot bytes. Reopen cache ownership
+is checked at the C owner-swap boundary; a full forced native reopen rollback
+is not covered by this check.
+
 ### Chunk swaps, moves and graph copy/clone
 
 `chunk_ops.c` owns payload swaps (offset/size/on-extra/packed/forest only), child
@@ -428,8 +465,8 @@ prefix swaps, identity moves with sorted parent-link repair, graph copy/clone,
 runtime-based matching and a process-global runtime-ID counter. Moves retain a
 runtime ID only within the same type; data swaps invalidate both IDs, while
 child swaps preserve the legacy cache behavior. Native callbacks provide aligned
-group-byte/record movement, runtime-table storage, payload transfer and name
-decode/encode. Those record moves already use C89 group algorithms.
+group-byte/record movement and payload transfer. Runtime-table/name policy now
+uses the C modules above; those record moves already use C89 group algorithms.
 
 Copy owns a sorted C source-to-destination number map and uses the C graph walker.
 It preserves source numbers when available, copies packed payloads and forest
@@ -454,8 +491,7 @@ identity moves in both directions. Standalone C checks verify sharing topology,
 flags, metadata, debug/release reference scans, runtime preservation/invalidation,
 maximum candidate IDs, best-effort runtime assignment and payload/name/link/
 traversal/map failures, including the retained partial-cleanup cases. They pass
-MSVC AddressSanitizer. Runtime-table/name storage and remaining container
-primitives still need migration.
+MSVC AddressSanitizer. Remaining container primitives still need migration.
 
 ### Graph traversal and child-link editing
 
@@ -660,8 +696,8 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, codec registration, remaining chunk graph
-operations and engine objects still prevent a complete C-only backend.
+Primitive memory/file services, remaining container primitives, free-map loading,
+forest import/export and engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

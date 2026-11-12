@@ -19,6 +19,7 @@
 #include <cstdint>
 #include "three_mm/chunky_file.h"
 #include "three_mm/chunk_graph.h"
+#include "three_mm/chunk_metadata.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -112,16 +113,7 @@ class ChunkyFile : public ChunkyFile_PAR
     LegacyLong _cbFreeMap;
 
 #ifndef CHUNK_BIG_INDEX
-    struct RuntimeIDEntry
-    {
-        ChunkTagOrType ctg;
-        ChunkNumber cno;
-        LegacyLong rti;
-    };
-
-    PDynamicArray _pglrtie;
-
-    bool _FFindRtie(ChunkTagOrType ctg, ChunkNumber cno, RuntimeIDEntry *prtie = pvNil, LegacyLong *pirtie = pvNil);
+    ThreeMMChunkRuntime _runtime;
 #endif //! CHUNK_BIG_INDEX
 
     // static member variables

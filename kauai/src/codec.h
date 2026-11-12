@@ -16,6 +16,7 @@
 #define CODEC_H
 #include "three_mm/data_stream.h"
 #include "three_mm/codec.h"
+#include "three_mm/codec_registry.h"
 
 /***************************************************************************
     Codec object.
@@ -55,9 +56,7 @@ class CodecManager : public CodecManager_PAR
     static int _ConvertEncoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
     struct HandleCodeContext { CodecManager *manager; LegacyLong format; };
     static int _CodeHandleBytes(void *, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
-    LegacyLong _cfmtDef;
-    PCodec _pcodcDef;
-    PDynamicArray _pglpcodc;
+    ThreeMMCodecRegistry _registry;
 
     virtual bool _FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc);
     virtual bool _FCodePhq(LegacyLong cfmt, HQ *phq);
@@ -69,7 +68,7 @@ class CodecManager : public CodecManager_PAR
 
     LegacyLong CfmtDefault(void)
     {
-        return _cfmtDef;
+        return _registry.default_format;
     }
     void SetCfmtDefault(LegacyLong cfmt);
     virtual bool FRegisterCodec(PCodec pcodc);
@@ -89,7 +88,7 @@ class CodecManager : public CodecManager_PAR
     }
     bool FCompressPhq(HQ *phq, LegacyLong cfmt = cfmtNil)
     {
-        return _FCodePhq(cfmtNil == cfmt ? _cfmtDef : cfmt, phq);
+        return _FCodePhq(cfmtNil == cfmt ? _registry.default_format : cfmt, phq);
     }
 
     bool FDecompress(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst)
@@ -98,7 +97,7 @@ class CodecManager : public CodecManager_PAR
     }
     bool FCompress(void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst, LegacyLong cfmt = cfmtNil)
     {
-        return _FCode(cfmtNil == cfmt ? _cfmtDef : cfmt, pvSrc, cbSrc, pvDst, cbDst, pcbDst);
+        return _FCode(cfmtNil == cfmt ? _registry.default_format : cfmt, pvSrc, cbSrc, pvDst, cbDst, pcbDst);
     }
 };
 

@@ -327,6 +327,53 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestStringWire()
+{
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_STRING_WIRE_SNAPSHOT"))
+    { snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr); }
+    for (int kind = 0; kind < 4; ++kind)
+        for (unsigned length : {0U,1U,31U,255U})
+            for (int malformed = 0; malformed < 5; ++malformed)
+                for (int readCount = 0; readCount < 2; ++readCount)
+                    for (int path = 0; path < 3; ++path)
+                    {
+                        byte bytes[1024] = {}, stored[1024]; unsigned count = 0;
+                        const byte system = kind == 0 ? 3 : kind == 1 ? 2 : kind == 2 ? 5 : 4;
+                        bytes[count++] = system; bytes[count++] = system;
+                        if (kind < 2) bytes[count++] = static_cast<byte>(length);
+                        else { bytes[count++] = kind == 3 ? 0 : static_cast<byte>(length); bytes[count++] = kind == 3 ? static_cast<byte>(length) : 0; }
+                        for (unsigned i = 0; i < length; ++i)
+                        {
+                            byte ch = i % 7 == 0 ? (kind == 1 ? 0x8e : 0xe9) : static_cast<byte>('a' + i % 26);
+                            if (kind < 2) bytes[count++] = ch;
+                            else { bytes[count++] = kind == 3 ? 0 : ch; bytes[count++] = kind == 3 ? ch : 0; }
+                        }
+                        bytes[count++] = 0; if (kind >= 2) bytes[count++] = 0;
+                        if (malformed == 1) --count;
+                        if (malformed == 2) bytes[count - 1] = 1;
+                        if (malformed == 3) { if (length) bytes[kind < 2 ? 3 : 4] = bytes[kind < 2 ? 3 : 5] = 0; else bytes[0] = 0xff; }
+                        if (malformed == 4) bytes[count++] = 0xaa;
+                        String value(PszLit("initial")); LegacyLong consumed = 12345; bool ok;
+                        if (!path) ok = value.FSetData(bytes, count, readCount ? &consumed : nullptr);
+                        else
+                        {
+                            DataBlock block; Check(block.FSetTemp(7 + count, path == 2));
+                            Check(block.FWriteRgb(bytes, count, 7));
+                            ok = value.FRead(&block, 7, readCount ? &consumed : nullptr);
+                        }
+                        value.GetData(stored);
+                        LegacyLong record[] = {kind, static_cast<LegacyLong>(length), malformed, readCount, path, ok,
+                            ok && readCount ? consumed : -1, value.Cch(), value.CbData()};
+                        if (snapshot)
+                        {
+                            Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+                            Check(std::fwrite(stored, 1, value.CbData(), snapshot) == static_cast<size_t>(value.CbData()));
+                        }
+                    }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
 static void TestCommandReplay()
 {
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
@@ -3566,6 +3613,7 @@ int main()
     TestBlockMaterialization();
     TestFilePolicies();
     TestChunkPersistence();
+    TestStringWire();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

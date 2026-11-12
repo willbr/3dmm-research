@@ -1412,3 +1412,51 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 runtime metadata, string wire policy and codec registry (12 November 2026)
+
+Compact-index runtime-ID storage, chunk-name resize/copy/decode policy,
+serialized String read/write policy and codec registration now use C89.
+Reopen transfers cache ownership explicitly. Native code-page conversion,
+expanded-index fixed records, codec dispatch and physical storage remain host
+services. See the [implementation boundary](../code-map/library-split.md#runtime-ids-chunk-names-serialized-strings-and-codec-registry).
+
+All 572,367 native chunk baseline bytes match. The new frozen serialized-string
+snapshot also matches: 480 cases, 29,532 bytes, FNV32 `54d0f109`. It covers four
+encodings, maximum-length strings, malformed/truncated data, trailing bytes,
+optional ending offsets and real memory/file-backed blocks at nonzero offsets.
+Standalone checks cover sorted runtime updates/deletion, ownership swaps,
+pinned name edits and failed growth, codec priority/reference balance,
+allocation failures/SPEED fallback, read/write failure stages and UTF-16/
+big-endian output. The C owner-swap boundary is covered; forced native reopen
+rollback is not exercised.
+
+Nineteen standalone C checks, thirty-one focused native checks and MSVC
+AddressSanitizer pass. All 51 CLI baselines match, including six asset indexes
+covering 20,568 entries. Local evidence includes `tmp/c89-metadata-before.bin`,
+`tmp/c89-metadata-after.bin`, `tmp/c89-string-wire-before.bin`,
+`tmp/c89-string-wire-after.bin` and `tmp/c89-metadata-output-comparison.json`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T134043Z-39fa9d05` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T134405Z-0e241982` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding graph-operation suites `20261112T130924Z-129e07bf` and
+`20261112T131443Z-a46b646a`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-metadata-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

@@ -17,6 +17,7 @@
 ASSERTNAME
 
 #include "three_mm/text.h"
+#include "three_mm/string_wire.h"
 
 const achar vrgchHex[] = PszLit("0123456789ABCDEF");
 
@@ -229,283 +230,55 @@ bool String::FEqualUserRgch(achar *prgch, LegacyLong cch, LegacyUlong grfstn)
     Return the buffer size needed by GetData, or the block size needed
     by String::FWrite.
 ***************************************************************************/
+namespace {
+ThreeMMStringWire StringWireView(void *buffer)
+{
+    const short one = 1;
+    return {buffer, sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), reinterpret_cast<const byte *>(&one)[0] == 0, nullptr,
+        [](void *, const void *input, ThreeMMU32 bytes, int encoding, void *output, ThreeMMU32 capacity) -> ThreeMMI32 {
+            return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(encoding), static_cast<achar *>(output), capacity);
+        }};
+}
+int ReadStringBlock(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+{ return static_cast<PDataBlock>(context)->FReadRgb(bytes, count, offset); }
+int WriteStringBlock(void *context, ThreeMMU32 offset, const void *bytes, size_t count)
+{ return static_cast<PDataBlock>(context)->FWriteRgb(const_cast<void *>(bytes), count, offset); }
+}
 LegacyLong String::CbData(void)
 {
-    AssertThis(0);
-
-    return size(short) + (Cch() + 2) * size(achar);
+    AssertThis(0); const auto text = StringWireView(_rgch);
+    return three_mm_string_wire_size(&text);
 }
-
-/***************************************************************************
-    Get the streamed data for the stn. pv should point to a buffer
-    CbData() bytes long.
-***************************************************************************/
 void String::GetData(void *pv)
 {
-    AssertThis(0);
-    AssertPvCb(pv, CbData());
-    short osk = koskCur;
-
-    CopyPb(&osk, pv, size(short));
-    CopyPb(_rgch, PvAddBv(pv, size(short)), (Cch() + 2) * size(achar));
+    AssertThis(0); AssertPvCb(pv, CbData()); const auto text = StringWireView(_rgch);
+    AssertDo(three_mm_string_wire_get(&text, pv, CbData()), "invalid string serialization");
 }
-
-/***************************************************************************
-    Writes the string data to the given block starting at position ib.
-***************************************************************************/
 bool String::FWrite(PDataBlock pblck, LegacyLong ib)
 {
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    LegacyLong cbWrite = CbData();
-    LegacyLong cbTot = pblck->Cb();
-    short osk = koskCur;
-
-    if (!FIn(ib, 0, cbTot - cbWrite + 1))
-    {
-        Bug("DataBlock is not big enough");
-        return fFalse;
-    }
-
-    if (!pblck->FWriteRgb(&osk, size(osk), ib))
-        return fFalse;
-    if (!pblck->FWriteRgb(_rgch, cbWrite - size(short), ib + size(short)))
-        return fFalse;
-
-    return fTrue;
+    AssertThis(0); AssertPo(pblck, 0);
+    const auto text = StringWireView(_rgch);
+    const ThreeMMStringWriter writer = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), WriteStringBlock};
+    return three_mm_string_wire_write(&text, &writer, ib) != 0;
 }
-
-/***************************************************************************
-    Set the string from the given data.
-***************************************************************************/
 bool String::FSetData(void *pv, LegacyLong cbMax, LegacyLong *pcbRead)
 {
-    AssertThis(0);
-    AssertIn(cbMax, 0, kcbMax);
-    AssertPvCb(pv, cbMax);
-    AssertNilOrVarMem(pcbRead);
-    LegacyLong cch, ich, ibT, cbT;
-    LegacyLong translated;
-    wchar chw;
-    short osk;
-
-    ibT = 0;
-    if (cbMax < size(short) + ibT)
-        goto LFail;
-    CopyPb(pv, &osk, size(short));
-    ibT += size(short);
-
-    if (osk == koskCur)
-    {
-        // no translation needed - read the length prefix
-        if (cbMax < ibT + size(achar))
-            goto LFail;
-        CopyPb(PvAddBv(pv, ibT), &_rgch[0], size(achar));
-        ibT += size(achar);
-        cch = (LegacyLong)(uchar)_rgch[0];
-        if (!FIn(cch, 0, kcchMaxStn + 1))
-            goto LFail;
-
-        // read the rest of the string
-        cbT = size(achar) * (cch + 1);
-        if (cbMax < ibT + cbT)
-            goto LFail;
-        CopyPb(PvAddBv(pv, ibT), _rgch + 1, cbT);
-        ibT += cbT;
-
-        // make sure the terminating zero is there
-        if (_rgch[cch + 1] != 0)
-            goto LFail;
-
-        goto LCheck;
-    }
-
-    switch (CbCharOsk(osk))
-    {
-    case size(schar):
-        if (ibT + 2 > cbMax)
-            goto LFail;
-
-        cch = (LegacyLong)(byte) * (schar *)PvAddBv(pv, ibT++);
-        if (cch > kcchMaxStn || ibT + cch >= cbMax || *(schar *)PvAddBv(pv, ibT + cch) != 0)
-        {
-            goto LFail;
-        }
-        translated = CchTranslateRgb(PvAddBv(pv, ibT), cch, osk, _rgch + 1, kcchMaxStn);
-        if (cch > 0 && translated <= 0)
-            goto LFail;
-        _rgch[0] = static_cast<achar>(translated);
-        ibT += cch + 1;
-
-        cch = (LegacyLong)(uchar)_rgch[0];
-        _rgch[cch + 1] = 0;
-        goto LCheck;
-
-    case size(wchar):
-        if (ibT + 2 * size(wchar) > cbMax)
-            goto LFail;
-        CopyPb(PvAddBv(pv, ibT), &chw, size(wchar));
-        ibT += size(wchar);
-
-        if (osk == MacWin(koskUniWin, koskUniMac))
-            SwapBytesRgsw(&chw, 1);
-        cch = (LegacyLong)(ushort)chw;
-
-        if (cch > kcchMaxStn || ibT + (cch + 1) * size(wchar) > cbMax)
-            goto LFail;
-        CopyPb(PvAddBv(pv, ibT + cch * size(wchar)), &chw, size(wchar));
-        if (chw != 0)
-            goto LFail;
-        translated = CchTranslateRgb(PvAddBv(pv, ibT), cch * size(wchar), osk, _rgch + 1, kcchMaxStn);
-        if (cch > 0 && translated <= 0)
-            goto LFail;
-        _rgch[0] = static_cast<achar>(translated);
-        ibT += (cch + 1) * size(wchar);
-
-        cch = (LegacyLong)(uchar)_rgch[0];
-        _rgch[cch + 1] = 0;
-
-    LCheck:
-        // make sure there aren't any other zeros.
-        for (ich = 1; ich <= cch; ich++)
-        {
-            if (_rgch[ich] == 0)
-                goto LFail;
-        }
-        if (pvNil != pcbRead)
-            *pcbRead = ibT;
-        else if (ibT != cbMax)
-            goto LFail;
-        AssertThis(0);
-        return fTrue;
-
-    default:
-    LFail:
-        PushErc(ercStnRead);
-        Warn("bad String data");
-        _rgch[0] = _rgch[1] = 0;
-        TrashVar(pcbRead);
-        return fFalse;
-    }
+    AssertThis(0); AssertIn(cbMax, 0, kcbMax); AssertPvCb(pv, cbMax); AssertNilOrVarMem(pcbRead);
+    const auto text = StringWireView(_rgch); ThreeMMMemoryStream memory; ThreeMMU32 end;
+    const bool ok = three_mm_memory_stream_init(&memory, pv, cbMax) &&
+        three_mm_string_wire_read(&text, &memory.stream, 0, pcbRead ? &end : nullptr);
+    if (ok) { if (pcbRead) *pcbRead = end; AssertThis(0); return fTrue; }
+    PushErc(ercStnRead); Warn("bad String data"); _rgch[0] = _rgch[1] = 0; TrashVar(pcbRead); return fFalse;
 }
-
-/***************************************************************************
-    Read a string from a block.
-***************************************************************************/
 bool String::FRead(PDataBlock pblck, LegacyLong ib, LegacyLong *pcbRead)
 {
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(pcbRead);
-
-    LegacyLong cch, ich, ibT, cbT, cbMax;
-    LegacyLong translated;
-    short osk;
-    schar chs;
-    wchar chw;
-    byte rgb[kcbMaxDataStn];
-
-    if (!pblck->FUnpackData())
-        return fFalse;
-    cbMax = pblck->Cb();
-
-    ibT = ib;
-    if (cbMax < size(short) + ibT || !pblck->FReadRgb(&osk, size(short), ibT))
-        goto LFail;
-    ibT += size(short);
-
-    if (osk == koskCur)
-    {
-        // no translation needed - read the length prefix
-        if (cbMax < ibT + size(achar) || !pblck->FReadRgb(&_rgch[0], size(achar), ibT))
-        {
-            goto LFail;
-        }
-        ibT += size(achar);
-        cch = (LegacyLong)(uchar)_rgch[0];
-        if (!FIn(cch, 0, kcchMaxStn + 1))
-            goto LFail;
-
-        // read the rest of the string
-        cbT = size(achar) * (cch + 1);
-        if (cbMax < ibT + cbT || !pblck->FReadRgb(_rgch + 1, cbT, ibT))
-            goto LFail;
-        ibT += cbT;
-
-        // make sure the terminating zero is there
-        if (_rgch[cch + 1] != 0)
-            goto LFail;
-
-        goto LCheck;
-    }
-
-    switch (CbCharOsk(osk))
-    {
-    case size(schar):
-        if (ibT + 2 > cbMax || !pblck->FReadRgb(&chs, 1, ibT++))
-            goto LFail;
-        cch = (LegacyLong)(byte)chs;
-        if (cch > kcchMaxStn || ibT + cch >= cbMax || !pblck->FReadRgb(rgb, cch + 1, ibT) || rgb[cch] != 0)
-        {
-            goto LFail;
-        }
-        ibT += cch + 1;
-        translated = CchTranslateRgb(rgb, cch, osk, _rgch + 1, kcchMaxStn);
-        if (cch > 0 && translated <= 0)
-            goto LFail;
-        _rgch[0] = static_cast<achar>(translated);
-
-        cch = (LegacyLong)(uchar)_rgch[0];
-        _rgch[cch + 1] = 0;
-        goto LCheck;
-
-    case size(wchar):
-        if (ibT + 2 * size(wchar) > cbMax || !pblck->FReadRgb(&chw, size(wchar), ibT))
-        {
-            goto LFail;
-        }
-        ibT += size(wchar);
-
-        if (osk == MacWin(koskUniWin, koskUniMac))
-            SwapBytesRgsw(&chw, 1);
-        cch = (LegacyLong)(ushort)chw;
-
-        if (cch > kcchMaxStn || ibT + (cch + 1) * size(wchar) > cbMax ||
-            !pblck->FReadRgb(rgb, (cch + 1) * size(wchar), ibT) || ((wchar *)rgb)[cch] != 0)
-        {
-            goto LFail;
-        }
-        ibT += (cch + 1) * size(wchar);
-        translated = CchTranslateRgb(rgb, cch * size(wchar), osk, _rgch + 1, kcchMaxStn);
-        if (cch > 0 && translated <= 0)
-            goto LFail;
-        _rgch[0] = static_cast<achar>(translated);
-
-        cch = (LegacyLong)(uchar)_rgch[0];
-        _rgch[cch + 1] = 0;
-
-    LCheck:
-        // make sure there aren't any other zeros.
-        for (ich = 1; ich <= cch; ich++)
-        {
-            if (_rgch[ich] == 0)
-                goto LFail;
-        }
-        if (pvNil != pcbRead)
-            *pcbRead = ibT;
-        else if (ibT != cbMax)
-            goto LFail;
-        AssertThis(0);
-        return fTrue;
-
-    default:
-    LFail:
-        PushErc(ercStnRead);
-        Warn("bad String data or read failure");
-        _rgch[0] = _rgch[1] = 0;
-        TrashVar(pcbRead);
-        return fFalse;
-    }
+    AssertThis(0); AssertPo(pblck, 0); AssertNilOrVarMem(pcbRead);
+    if (!pblck->FUnpackData()) return fFalse;
+    const auto text = StringWireView(_rgch); ThreeMMU32 end;
+    const ThreeMMReadStream reader = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), ReadStringBlock};
+    const bool ok = three_mm_string_wire_read(&text, &reader, ib, pcbRead ? &end : nullptr) != 0;
+    if (ok) { if (pcbRead) *pcbRead = end; AssertThis(0); return fTrue; }
+    PushErc(ercStnRead); Warn("bad String data or read failure"); TrashVar(pcbRead); return fFalse;
 }
 
 /***************************************************************************

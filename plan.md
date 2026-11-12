@@ -92,8 +92,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   DataBlock range/unpack policy and packed-envelope decode dispatch now use C89.
   Host callbacks still provide HQ ownership, file access and allocation diagnostics.
   KCDC/KCD2 algorithms and packed encoding now also use C89, preserving exact
-  native encoder bytes and decoded results. Codec registration and primitive
-  host allocation/lock services remain C++.
+  native encoder bytes and decoded results. Primitive host allocation/lock
+  services remain C++ callbacks.
 - File-piece storage/lifetime, split/merge, memory/file/cross-stream replacements,
   rollback and compaction now use an owning C89 piece table. File references and
   positional I/O are host callbacks; a native GeneralGroup object is no longer
@@ -127,8 +127,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Native facades retain graph/index lookup and byte-transfer primitives.
 - Payload/child swaps, chunk identity moves and parent-link repair, graph
   copy/clone sequencing, the owning copy-number map, runtime-based graph matching
-  and runtime-ID allocation now use C89. Native name/runtime-table storage,
-  remaining container primitives and codec registration are next.
+  and runtime-ID allocation now use C89.
+- Compact-index runtime-ID storage, chunk-name storage policy, serialized String
+  read/write policy and codec registration now use C89. Reopen transfers runtime
+  cache ownership explicitly; native code-page conversion, expanded-index fixed
+  records and physical storage remain host services. Remaining container
+  primitives, free-map loading and forest import/export are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -221,15 +225,13 @@ configuration and capture environment recorded with the evidence.
 
 ### Immediate next work and completion
 
-The first slice moves the decisions in `movie_playback.cpp` and
-`retail_scroll.cpp` into C89; existing C++ callers use temporary facades over
-the same C state and evaluators. This is the start of full engine conversion.
-The following movie-data slice supplies bounded decoded-chunk streams and
-shared C89 header/roll-call/GST-layout decoding. Next convert container index
-and child-reference reading, then string-table storage/transcoding, reusing the
-existing content VFS. Extend the C API and regression coverage as each C++
-dependency is removed. Editing, actor evaluation, rendering integration and
-persistence remain on the sequence above.
+Playback policy, movie-data decoding, collections/strings, block/stream ownership,
+container persistence and graph operations now have shared C89 implementations
+behind temporary native facades. Continue with remaining container primitives,
+free-map loading and forest import/export, then resource/engine objects and the
+editing, actor evaluation and rendering integration sequence above. Extend the C
+API and regression coverage as each C++ dependency is removed; replacing the
+temporary facades with complete Studio/Marcus backend integration remains required.
 
 The migration is complete when Studio and Marcus use the same C89 engine for
 their engine operations, including Studio editing/saving, the backend builds

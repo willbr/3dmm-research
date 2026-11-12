@@ -21,110 +21,54 @@ RTCLASS(Codec)
     Constructor for the compression manager. pcodc is an optional default
     codec. cfmt is the default compression format.
 ***************************************************************************/
+namespace {
+const ThreeMMCodecServices *CodecServices()
+{
+    static const ThreeMMCodecServices services = {nullptr,
+    [](void *, void *codec) { static_cast<PCodec>(codec)->AddRef(); },
+    [](void *, void *codec) { auto native = static_cast<PCodec>(codec); ReleasePpo(&native); },
+    [](void *, void *codec, int encode, ThreeMMI32 format) -> int { return static_cast<PCodec>(codec)->FCanDo(encode != 0, format); }};
+    return &services;
+}
+}
 CodecManager::CodecManager(PCodec pcodc, LegacyLong cfmt)
 {
-    AssertNilOrPo(pcodc, 0);
-    Assert(cfmtNil != cfmt, "nil default compression format");
-
-    _cfmtDef = cfmt;
-    _pcodcDef = pcodc;
-    if (pvNil != _pcodcDef)
-        _pcodcDef->AddRef();
-    _pglpcodc = pvNil;
-
+    AssertNilOrPo(pcodc, 0); Assert(cfmtNil != cfmt, "nil default compression format");
+    AssertDo(three_mm_codec_registry_init(&_registry, CodecServices(), KauaiCopyAllocator(), pcodc, cfmt) == THREE_MM_STORAGE_OK,
+        "invalid codec registry");
     AssertThis(0);
 }
-
-/***************************************************************************
-    Destructor for the compression manager.
-***************************************************************************/
 CodecManager::~CodecManager(void)
 {
     AssertThis(0);
-
-    ReleasePpo(&_pcodcDef);
-    if (pvNil != _pglpcodc)
-    {
-        LegacyLong ipcodc;
-        PCodec pcodc;
-
-        for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
-        {
-            _pglpcodc->Get(ipcodc, &pcodc);
-            ReleasePpo(&pcodc);
-        }
-        ReleasePpo(&_pglpcodc);
-    }
+    AssertDo(three_mm_codec_registry_dispose(&_registry) == THREE_MM_STORAGE_OK, "invalid codec registry disposal");
 }
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a CodecManager.
-***************************************************************************/
 void CodecManager::AssertValid(LegacyUlong grf)
 {
     CodecManager_PAR::AssertValid(0);
-    Assert(cfmtNil != _cfmtDef, "nil default compression");
-    AssertNilOrPo(_pcodcDef, 0);
-    AssertNilOrPo(_pglpcodc, 0);
+    Assert(_registry.default_format != cfmtNil, "nil default compression");
+    AssertNilOrPo(static_cast<PCodec>(_registry.default_codec), 0);
+    Assert(_registry.count <= _registry.storage.buffers[0].capacity / sizeof(void *), "bad codec count");
 }
-
-/***************************************************************************
-    Mark memory for the CodecManager.
-***************************************************************************/
 void CodecManager::MarkMem(void)
 {
-    AssertValid(0);
-    CodecManager_PAR::MarkMem();
-
-    MarkMemObj(_pcodcDef);
-    if (pvNil != _pglpcodc)
-    {
-        LegacyLong ipcodc;
-        PCodec pcodc;
-
-        for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
-        {
-            _pglpcodc->Get(ipcodc, &pcodc);
-            MarkMemObj(pcodc);
-        }
-        MarkMemObj(_pglpcodc);
-    }
+    AssertValid(0); CodecManager_PAR::MarkMem();
+    MarkMemObj(static_cast<PCodec>(_registry.default_codec));
+    for (ThreeMMU32 i = _registry.count; i-- > 0;)
+        MarkMemObj(static_cast<PCodec>(three_mm_codec_registry_at(&_registry, i)));
+    MarkPv(_registry.storage.buffers[0].data);
 }
-#endif // DEBUG
-
-/***************************************************************************
-    Set the default compression type.
-***************************************************************************/
+#endif
 void CodecManager::SetCfmtDefault(LegacyLong cfmt)
 {
     AssertThis(0);
-
-    if (cfmt == cfmtNil)
-    {
-        Bug("can't set default compression to nil");
-        return;
-    }
-
-    _cfmtDef = cfmt;
+    if (three_mm_codec_registry_default(&_registry, cfmt) != THREE_MM_STORAGE_OK) Bug("can't set default compression to nil");
 }
-
-/***************************************************************************
-    Add a codec to the compression manager.
-***************************************************************************/
 bool CodecManager::FRegisterCodec(PCodec pcodc)
 {
-    AssertThis(0);
-    AssertPo(pcodc, 0);
-
-    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = DynamicArray::PglNew(size(PCodec))))
-        return fFalse;
-
-    if (!_pglpcodc->FAdd(&pcodc))
-        return fFalse;
-
-    pcodc->AddRef();
-    return fTrue;
+    AssertThis(0); AssertPo(pcodc, 0);
+    return three_mm_codec_registry_add(&_registry, pcodc) == THREE_MM_STORAGE_OK;
 }
 
 /***************************************************************************
@@ -199,33 +143,10 @@ int CodecManager::_ConvertEncoder(void *codec, ThreeMMI32 format, const void *in
 ***************************************************************************/
 bool CodecManager::_FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc)
 {
-    AssertThis(0);
-    AssertVarMem(ppcodc);
-    Assert(cfmtNil != cfmt, "nil cfmt");
-
-    if (pvNil != _pcodcDef && _pcodcDef->FCanDo(fEncode, cfmt))
-    {
-        *ppcodc = _pcodcDef;
-        return fTrue;
-    }
-
-    if (pvNil != _pglpcodc)
-    {
-        LegacyLong ipcodc;
-        PCodec pcodc;
-
-        for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
-        {
-            _pglpcodc->Get(ipcodc, &pcodc);
-            if (pcodc->FCanDo(fEncode, cfmt))
-            {
-                *ppcodc = pcodc;
-                return fTrue;
-            }
-        }
-    }
-
-    return fFalse;
+    AssertThis(0); AssertVarMem(ppcodc); Assert(cfmtNil != cfmt, "nil cfmt");
+    auto codec = static_cast<PCodec>(three_mm_codec_registry_find(&_registry, fEncode, cfmt));
+    if (!codec) return fFalse;
+    *ppcodc = codec; return fTrue;
 }
 
 /***************************************************************************
