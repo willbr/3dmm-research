@@ -335,8 +335,8 @@ int three_mm_chunk_unlink(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_type, 
 int three_mm_chunk_change_slot(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
                                const ThreeMMChunkChild *key, ThreeMMU32 new_slot)
 {
-    ThreeMMChunkChild changed, moving;
-    ThreeMMU32 parent, source, destination, i;
+    ThreeMMChunkChild changed;
+    ThreeMMU32 parent, source;
     if (!readable(edit) || !edit->child || !edit->put_child || !key)
         return BAD;
     if (key->slot == new_slot)
@@ -345,7 +345,20 @@ int three_mm_chunk_change_slot(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_t
         return THREE_MM_CHUNK_NOT_FOUND;
     changed = *key;
     changed.slot = new_slot;
-    if (!find_child(edit, parent, key, &source) || find_child(edit, parent, &changed, &destination))
+    if (!find_child(edit, parent, key, &source))
+        return BAD;
+    return three_mm_chunk_retarget(edit, parent, source, &changed);
+}
+int three_mm_chunk_retarget(const ThreeMMChunkEdit *edit, ThreeMMU32 parent, ThreeMMU32 source,
+                            const ThreeMMChunkChild *changed)
+{
+    ThreeMMChunkEntry entry;
+    ThreeMMChunkChild moving;
+    ThreeMMU32 destination, i;
+    if (!readable(edit) || !edit->child || !edit->put_child || !changed || parent >= edit->count(edit->context))
+        return BAD;
+    edit->entry(edit->context, parent, &entry);
+    if (source >= entry.child_count || find_child(edit, parent, changed, &destination))
         return BAD;
     if (destination > source)
         --destination;
@@ -361,6 +374,6 @@ int three_mm_chunk_change_slot(const ThreeMMChunkEdit *edit, ThreeMMU32 parent_t
             edit->child(edit->context, parent, i - 1, &moving);
             edit->put_child(edit->context, parent, i, &moving);
         }
-    edit->put_child(edit->context, parent, destination, &changed);
+    edit->put_child(edit->context, parent, destination, changed);
     return OK;
 }

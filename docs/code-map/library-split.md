@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,42 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Chunk swaps, moves and graph copy/clone
+
+`chunk_ops.c` owns payload swaps (offset/size/on-extra/packed/forest only), child
+prefix swaps, identity moves with sorted parent-link repair, graph copy/clone,
+runtime-based matching and a process-global runtime-ID counter. Moves retain a
+runtime ID only within the same type; data swaps invalidate both IDs, while
+child swaps preserve the legacy cache behavior. Native callbacks provide aligned
+group-byte/record movement, runtime-table storage, payload transfer and name
+decode/encode. Those record moves already use C89 group algorithms.
+
+Copy owns a sorted C source-to-destination number map and uses the C graph walker.
+It preserves source numbers when available, copies packed payloads and forest
+flags, converts names through existing host text services, retains sharing within
+the copied subgraph and suppresses pre-existing reuse for clones. Matching scans
+candidate numbers in order and preserves traversal/RTI/child-count/slot rules,
+including the early no-match result when a source node has no runtime ID. It
+does not add a stronger graph-isomorphism check.
+
+The map's native DynamicArray object allocation is removed. Failure preserves
+the original partial cleanup: a first map-insert failure can leave a new loner;
+a later growth failure can leave the not-yet-linked node after root cleanup.
+Name/adoption failures delete the appropriate newly copied node before root
+cleanup, and reused nodes are retained. This is not an atomic copy transaction.
+Failed operations do not publish a C output number; the native facade retains
+its failed-output poisoning. Runtime-ID exhaustion no longer performs signed
+overflow; payload copying can continue without assigning another cache ID.
+
+All 572,367 native baseline bytes match, including repeated sharing, clones,
+same-file operations, changed descendants, payload/child swaps and referenced
+identity moves in both directions. Standalone C checks verify sharing topology,
+flags, metadata, debug/release reference scans, runtime preservation/invalidation,
+maximum candidate IDs, best-effort runtime assignment and payload/name/link/
+traversal/map failures, including the retained partial-cleanup cases. They pass
+MSVC AddressSanitizer. Runtime-table/name storage and remaining container
+primitives still need migration.
+
 ### Graph traversal and child-link editing
 
 `chunk_graph.c` owns the live graph walker, pre/post/root/error events, skip
@@ -454,7 +490,8 @@ reference, force first-allocation and growth failures, relocate allocations,
 check SPEED-to-NORMAL fallback, reset/early completion and cleanup. Child tests
 cover idempotence, insertion failure, both count limits and rollback, cycle-risk
 and unknown results, ordering conflicts and cascading unlink deletion. Both pass
-MSVC AddressSanitizer. Other graph swap/move/copy/clone policies remain native.
+MSVC AddressSanitizer. The graph operations above now share swap/move/copy/clone
+policy too.
 
 ### Chunk insertion, replacement and deletion policy
 
@@ -479,7 +516,7 @@ descendants and loners stop descent. Traversal errors retain the legacy fallback
 decrement children in reverse order but do not recursively delete those newly
 unreferenced children. This intentionally does not introduce orphan repair.
 The C89 graph walker above now supplies traversal events and owns its stack;
-other swap/move/copy/clone operations remain to migrate.
+the graph operations above also share swap/move/copy/clone policy.
 
 The native 550,737-byte baseline matches after conversion. It extends the heap
 snapshot with named diamond/duplicate-edge graphs, replacement preserving child
@@ -580,7 +617,7 @@ limits, untouched guards and the maximum signed file position. They also pass
 under MSVC AddressSanitizer.
 
 The whole-file save sequence above now shares relocation/recovery policy too.
-Graph swap/move/copy/clone operations and free-map loading remain native. These slices
+Runtime-table/name storage and free-map loading remain native. These slices
 do not complete the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion

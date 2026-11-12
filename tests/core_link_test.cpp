@@ -286,6 +286,44 @@ static void TestChunkPersistence()
         Check(file->Ccki() == 0 && file->FSave('GONE')); capture(source);
         file->SetTemp(true); ReleasePpo(&file);
     }
+    {
+        Filename source, destination; Check(source.FGetTemp() && destination.FGetTemp());
+        auto src = ChunkyFile::PcflCreate(&source, fcflWriteEnable);
+        auto dst = ChunkyFile::PcflCreate(&destination, fcflWriteEnable);
+        ChunkNumber nodes[4], conflict, first, again, clone, changed, local;
+        for (int i = 0; i < 4; ++i)
+        {
+            Check(src->FAddPv(payload + i, 19 + i, 'COPY', &nodes[i]));
+            String name(PszLit("Copied named node")); Check(src->FSetName('COPY', nodes[i], &name));
+        }
+        Check(src->FAdoptChild('COPY', nodes[0], 'COPY', nodes[2], 2));
+        Check(src->FAdoptChild('COPY', nodes[0], 'COPY', nodes[1], 3));
+        Check(src->FAdoptChild('COPY', nodes[2], 'COPY', nodes[1], 3));
+        Check(dst->FAddPv(payload, 3, 'COPY', &conflict));
+        Check(src->FCopy('COPY', nodes[0], dst, &first));
+        Check(src->FCopy('COPY', nodes[0], dst, &again) && again == first && dst->Ccki() == 4);
+        Check(src->FClone('COPY', nodes[0], dst, &clone) && clone != first && dst->Ccki() == 7);
+        ChildChunkIdentification branch, direct, shared;
+        Check(dst->FGetKid('COPY', clone, 0, &branch) && dst->FGetKid('COPY', clone, 1, &direct));
+        Check(dst->FGetKid(branch.cki.ctg, branch.cki.cno, 0, &shared) && shared.cki.cno == direct.cki.cno);
+        Check(dst->FSave('COPY')); capture(destination);
+        Check(src->FPutPv(payload + 7, 31, 'COPY', nodes[1]));
+        Check(src->FCopy('COPY', nodes[0], dst, &changed) && changed != first && changed != clone);
+        Check(src->FCopy('COPY', nodes[0], dst, &again) && again == changed);
+        Check(src->FClone('COPY', nodes[0], src, &local) && local != nodes[0]);
+        Check(src->FCopy('COPY', nodes[1], src, &again) && again == nodes[1] && src->FLoner('COPY', nodes[1]));
+        src->SwapData('COPY', nodes[1], 'COPY', nodes[3]);
+        src->SwapChildren('COPY', nodes[0], 'COPY', nodes[3]);
+        src->Move('COPY', nodes[1], 'MOVE', 40);
+        src->Move('COPY', nodes[2], 'COPY', 20);
+        src->Move('COPY', 20, 'COPY', nodes[2]);
+        src->SwapData('COPY', nodes[0], 'COPY', nodes[0]);
+        captureWalk(src, 'COPY', nodes[3]);
+        Check(src->FSave('SWAP') && dst->FSave('MORE')); capture(source); capture(destination);
+        uint32_t record[] = {first, again, clone, changed, local, static_cast<uint32_t>(src->Ccki()), static_cast<uint32_t>(dst->Ccki())};
+        if (snapshot) Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+        src->SetTemp(true); dst->SetTemp(true); ReleasePpo(&src); ReleasePpo(&dst);
+    }
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 

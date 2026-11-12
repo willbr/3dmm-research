@@ -1363,3 +1363,52 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 swaps, moves and graph copy/clone (12 November 2026)
+
+Payload/child swaps, identity moves with parent-link repair, graph copy/clone,
+the owning source/destination number map, runtime-based matching and runtime-ID
+allocation now use C89. Payload transfers retain existing packed-block policy;
+name conversion and runtime-table primitives remain native services. Clones
+avoid pre-existing destination reuse while retaining sharing inside the clone.
+Matching retains candidate-number and traversal/RTI/slot/count policy rather
+than introducing a stronger graph-isomorphism check. See the
+[operation boundary](../code-map/library-split.md#chunk-swaps-moves-and-graph-copyclone).
+
+All 572,367 native baseline bytes match, including repeated copy reuse, clones,
+changed descendants, same-file operations, swaps and referenced moves in both
+directions. Standalone checks cover sharing topology, packed/forest/loner flags,
+metadata, debug/release parent scans, runtime invalidation/preservation, maximum
+candidate IDs and best-effort runtime assignment. Payload/name/link/traversal and
+initial/growth map failures preserve the legacy partial cleanup, including a
+new loner left after first map failure and an unlinked node left after later
+map growth failure. This is not an atomic destination transaction.
+
+Eighteen standalone C checks, thirty focused native checks and MSVC
+AddressSanitizer pass. All 51 CLI baselines match, including six asset indexes
+covering 20,568 entries. Local evidence includes `tmp/c89-chunk-ops-before.bin`,
+`tmp/c89-chunk-ops-after.bin` and `tmp/c89-chunk-ops-output-comparison.json`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T130924Z-129e07bf` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T131443Z-a46b646a` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding graph/link suites `20261112T123354Z-18aaa6c9` and
+`20261112T123837Z-ed38be21`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-chunk-ops-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

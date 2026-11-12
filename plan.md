@@ -124,9 +124,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   sequencing now use C89.
 - Graph enumeration and its owning stack, descendant searches, child adoption,
   count-overflow rollback, unlink/deletion and child-ID reordering now use C89.
-  Native facades retain graph/index lookup and byte-transfer primitives. Remaining
-  swap/move/copy/clone operations, codec registration and primitive adapters are
-  next.
+  Native facades retain graph/index lookup and byte-transfer primitives.
+- Payload/child swaps, chunk identity moves and parent-link repair, graph
+  copy/clone sequencing, the owning copy-number map, runtime-based graph matching
+  and runtime-ID allocation now use C89. Native name/runtime-table storage,
+  remaining container primitives and codec registration are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

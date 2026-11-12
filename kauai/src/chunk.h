@@ -21,6 +21,7 @@
 #include "three_mm/chunk_graph.h"
 
 struct ThreeMMChunkEdit;
+struct ThreeMMChunkEndpoint;
 
 namespace Chunky {
 
@@ -124,7 +125,6 @@ class ChunkyFile : public ChunkyFile_PAR
 #endif //! CHUNK_BIG_INDEX
 
     // static member variables
-    static LegacyLong _rtiLast;
     static PChunkyFile _pcflFirst;
 
   private:
@@ -137,6 +137,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FReadIndex(void);
     ThreeMMChunkAccess _ChunkAccess();
     ThreeMMChunkEdit _EditServices(void *context);
+    ThreeMMChunkEndpoint _OpsServices(void *context);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
     bool _FCreateExtra(void);
@@ -147,8 +148,6 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck);
     bool _FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv);
     bool _FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone);
-    bool _FFindMatch(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
-    bool _FFindCtgRti(ChunkTagOrType ctg, LegacyLong rti, ChunkNumber cnoMin, ChunkNumber *pcnoDst);
     bool _FDecRefCount(LegacyLong icrp);
     void _DeleteCore(LegacyLong icrp);
     bool _FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, LegacyLong *pikid);

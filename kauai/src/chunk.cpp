@@ -79,6 +79,7 @@
 #include "three_mm/chunk_save.h"
 #include "three_mm/chunk_heap.h"
 #include "three_mm/chunk_edit.h"
+#include "three_mm/chunk_ops.h"
 #include "handle_services.h"
 ASSERTNAME
 
@@ -339,7 +340,6 @@ ThreeMMChunkAccess ChunkyFile::_ChunkAccess()
 #define _BvKid(ikid) LwMul(ikid, size(ChildChunkIdentification))
 
 const LegacyLong rtiNil = 0; // no rti assigned
-LegacyLong ChunkyFile::_rtiLast = rtiNil;
 PChunkyFile ChunkyFile::_pcflFirst;
 
 #ifdef CHUNK_STATS
@@ -1113,7 +1113,7 @@ void ChunkyFile::AssertValid(LegacyUlong grfcfl)
         ckidTot += crp.ckid;
 
 #ifdef CHUNK_BIG_INDEX
-        AssertIn(crp.rti, 0, _rtiLast + 1);
+        Assert(crp.rti >= 0 && crp.rti <= three_mm_chunk_runtime_highest(), "bad runtime ID");
 #endif // CHUNK_BIG_INDEX
 
         // assert that the file storage (fp,cb) is OK
@@ -2010,6 +2010,14 @@ struct ChunkEditHost
     void *bytes;
     ChunkGraphEnumerator *enumerator;
 };
+struct ChunkOpsHost
+{
+    ChunkEditHost edit;
+    DataBlock payload;
+    String name;
+    ChunkGraphEnumerator deletion;
+    explicit ChunkOpsHost(ChunkyFile *owner) : edit{owner, nullptr, nullptr, nullptr, nullptr, &deletion} {}
+};
 }
 ThreeMMChunkEdit ChunkyFile::_EditServices(void *context)
 {
@@ -2095,6 +2103,13 @@ ThreeMMChunkEdit ChunkyFile::_EditServices(void *context)
     edit.descendant = [](void *c, ThreeMMU32 rootType, ThreeMMU32 rootNumber, ThreeMMU32 type, ThreeMMU32 number) -> int {
         const auto result = static_cast<ChunkEditHost *>(c)->owner->TIsDescendent(rootType, rootNumber, type, number);
         return result == tNo ? 0 : result == tYes ? 1 : 2;
+    };
+    edit.move_entry = [](void *c, ThreeMMU32 source, ThreeMMU32 destination) {
+        static_cast<ChunkEditHost *>(c)->owner->_pggcrp->Move(source, destination);
+    };
+    edit.move_bytes = [](void *c, ThreeMMU32 source, ThreeMMU32 offset, ThreeMMU32 destination,
+                         ThreeMMU32 destinationOffset, ThreeMMU32 bytes) -> int {
+        return static_cast<ChunkEditHost *>(c)->owner->_pggcrp->FMoveRgb(source, offset, destination, destinationOffset, bytes);
     };
     return edit;
 }
@@ -2356,36 +2371,9 @@ bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PData
 void ChunkyFile::SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2)
 {
     AssertThis(0);
-    LegacyLong icrp1, icrp2;
-    ChunkRepresentation *qcrp1, *qcrp2;
-    FilePosition fp;
-    LegacyLong cb;
-    LegacyUlong grfcrpT;
-    const LegacyUlong kgrfcrpMask = fcrpOnExtra | fcrpPacked | fcrpForest;
-
-    if (!_FFindCtgCno(ctg1, cno1, &icrp1) || !_FFindCtgCno(ctg2, cno2, &icrp2))
-    {
-        Bug("can't find the chunks");
-        return;
-    }
-    qcrp1 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp1);
-    qcrp2 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp2);
-
-    fp = qcrp1->fp;
-    qcrp1->fp = qcrp2->fp;
-    qcrp2->fp = fp;
-    cb = qcrp1->Cb();
-    qcrp1->SetCb(qcrp2->Cb());
-    qcrp2->SetCb(cb);
-
-    // swap the bits of grfcrp in grfcrpMask
-    grfcrpT = qcrp1->Grfcrp(kgrfcrpMask);
-    qcrp1->AssignGrfcrp(qcrp2->Grfcrp(kgrfcrpMask), kgrfcrpMask);
-    qcrp2->AssignGrfcrp(grfcrpT, kgrfcrpMask);
-
-    _FSetRti(ctg1, cno1, rtiNil);
-    _FSetRti(ctg2, cno2, rtiNil);
-
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    if (three_mm_chunk_swap_data(&edit, ctg1, cno1, ctg2, cno2) != THREE_MM_CHUNK_OK) { Bug("can't find the chunks"); return; }
     AssertThis(fcflFull);
 }
 
@@ -2398,31 +2386,9 @@ void ChunkyFile::SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType 
 void ChunkyFile::SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2)
 {
     AssertThis(0);
-    LegacyLong icrp1, icrp2;
-    ChunkRepresentation *qcrp1, *qcrp2;
-    LegacyLong cb1, cb2;
-
-    if (!_FFindCtgCno(ctg1, cno1, &icrp1) || !_FFindCtgCno(ctg2, cno2, &icrp2))
-    {
-        Bug("can't find the chunks");
-        return;
-    }
-
-    // Swap the child lists.
-    qcrp1 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp1);
-    qcrp2 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp2);
-    cb1 = LwMul(qcrp1->ckid, size(ChildChunkIdentification));
-    cb2 = LwMul(qcrp2->ckid, size(ChildChunkIdentification));
-    SwapVars(&qcrp1->ckid, &qcrp2->ckid);
-
-    // These FMoveRgb calls won't fail, because no padding is necessary for
-    // child entries. (FMoveRgb can fail only if the number of bytes being
-    // moved is not a multiple of size(long)).
-    if (0 < cb1)
-        AssertDo(_pggcrp->FMoveRgb(icrp1, 0, icrp2, cb2, cb1), 0);
-    if (0 < cb2)
-        AssertDo(_pggcrp->FMoveRgb(icrp2, 0, icrp1, 0, cb2), 0);
-
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    if (three_mm_chunk_swap_children(&edit, ctg1, cno1, ctg2, cno2) != THREE_MM_CHUNK_OK) { Bug("invalid child swap"); return; }
     AssertThis(fcflFull);
 }
 
@@ -2435,71 +2401,9 @@ void ChunkyFile::SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrT
 void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew, ChunkNumber cnoNew)
 {
     AssertThis(0);
-    LegacyLong icrpCur, icrpTarget;
-    ChunkRepresentation *qcrp;
-    LegacyLong ccrpRef;
-    LegacyLong rti;
-
-    if (ctg == ctgNew && cno == cnoNew)
-        return;
-
-    if (!_FFindCtgCno(ctg, cno, &icrpCur) || _FFindCtgCno(ctgNew, cnoNew, &icrpTarget))
-    {
-        Bug("bad move request");
-        return;
-    }
-
-    rti = _Rti(ctg, cno);
-    if (rtiNil != rti)
-        _FSetRti(ctg, cno, rtiNil);
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpCur);
-    ccrpRef = qcrp->ccrpRef;
-    qcrp->cki.ctg = ctgNew;
-    qcrp->cki.cno = cnoNew;
-    _pggcrp->Move(icrpCur, icrpTarget);
-
-    if (ccrpRef > 0)
-    {
-        // chunk has some parents
-        ChunkRepresentation crp;
-        LegacyLong icrp, ikid, ikidNew;
-        ChildChunkIdentification *qkid, *qrgkid;
-
-        // In debug, increment ccrpRef so we'll traverse the entire
-        // index.  In ship, we'll stop once we changed ccrpRef KIDs.
-        Debug(ccrpRef++;) for (icrp = _pggcrp->IvMac(); icrp-- > 0 && ccrpRef > 0;)
-        {
-            _pggcrp->GetFixed(icrp, &crp);
-            qkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp);
-            for (ikid = 0; ikid < crp.ckid;)
-            {
-                if (qkid->cki.ctg != ctg || qkid->cki.cno != cno)
-                {
-                    ikid++;
-                    qkid++;
-                    continue;
-                }
-
-                // replace this kid
-                AssertDo(!_FFindChild(icrp, ctgNew, cnoNew, qkid->chid, &ikidNew), "already a child");
-
-                // refresh the qkid and qrgkid pointers
-                qkid = (qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp)) + ikid;
-                qkid->cki.ctg = ctgNew;
-                qkid->cki.cno = cnoNew;
-
-                MoveElement(qrgkid, size(ChildChunkIdentification), ikid, ikidNew);
-                ccrpRef--;
-            }
-        }
-        Assert(ccrpRef == 1, "corrupt chunky index");
-        // in ship, ccrpRef should be 0 here
-    }
-
-    if (rtiNil != rti && ctgNew == ctg)
-        _FSetRti(ctgNew, cnoNew, rti);
-
+    ChunkOpsHost host(this);
+    const auto endpoint = _OpsServices(&host);
+    if (three_mm_chunk_move(&endpoint, ctg, cno, ctgNew, cnoNew) != THREE_MM_CHUNK_OK) { Bug("bad move request or references"); return; }
     AssertThis(fcflFull);
 }
 
@@ -3061,383 +2965,54 @@ bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkN
     return result == THREE_MM_CHUNK_OK;
 }
 
-// cno map entry
-struct ChunkNumberMapEntry
+ThreeMMChunkEndpoint ChunkyFile::_OpsServices(void *context)
 {
-    ChunkTagOrType ctg;
-    ChunkNumber cnoSrc;
-    ChunkNumber cnoDst;
-};
-
-bool _FFindCnom(PDynamicArray pglcnom, ChunkTagOrType ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom = pvNil, LegacyLong *picnom = pvNil);
-bool _FAddCnom(PDynamicArray *ppglcnom, ChunkNumberMapEntry *pcnom);
-
-/***************************************************************************
-    Look for a cnom for the given (ctg, cno). Whether or not it exists,
-    fill *picnom with where it would go in the pglcnom.
-***************************************************************************/
-bool _FFindCnom(PDynamicArray pglcnom, ChunkTagOrType ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom, LegacyLong *picnom)
-{
-    AssertNilOrPo(pglcnom, 0);
-    AssertNilOrVarMem(pcnom);
-    AssertNilOrVarMem(picnom);
-    LegacyLong ivMin, ivLim, iv;
-    ChunkNumberMapEntry cnom;
-
-    if (pvNil == pglcnom)
-    {
-        TrashVar(pcnom);
-        if (pvNil != picnom)
-            *picnom = 0;
-        return fFalse;
-    }
-
-    for (ivMin = 0, ivLim = pglcnom->IvMac(); ivMin < ivLim;)
-    {
-        iv = (ivMin + ivLim) / 2;
-        pglcnom->Get(iv, &cnom);
-        if (cnom.ctg < ctg)
-            ivMin = iv + 1;
-        else if (cnom.ctg > ctg)
-            ivLim = iv;
-        else if (cnom.cnoSrc < cno)
-            ivMin = iv + 1;
-        else if (cnom.cnoSrc > cno)
-            ivLim = iv;
-        else
-        {
-            if (pvNil != pcnom)
-                *pcnom = cnom;
-            if (pvNil != picnom)
-                *picnom = iv;
-            return fTrue;
-        }
-    }
-
-    TrashVar(pcnom);
-    if (pvNil != picnom)
-        *picnom = ivMin;
-    return fFalse;
+    auto host = static_cast<ChunkOpsHost *>(context);
+    ThreeMMChunkEndpoint endpoint = {};
+    endpoint.edit = _EditServices(&host->edit);
+    endpoint.graph = ChunkGraphServices(this);
+    endpoint.allocator = KauaiCopyAllocator(); endpoint.identity = this; endpoint.context = context;
+    endpoint.max_references = kckidMax;
+#ifdef DEBUG
+    endpoint.scan_all_references = 1;
+#endif
+    endpoint.runtime = [](void *c, ThreeMMU32 type, ThreeMMU32 number) -> ThreeMMI32 {
+        return static_cast<ChunkOpsHost *>(c)->edit.owner->_Rti(type, number);
+    };
+    endpoint.set_runtime = [](void *c, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 runtime) -> int {
+        return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetRti(type, number, runtime);
+    };
+    endpoint.read_payload = [](void *c, ThreeMMU32 position) {
+        auto h = static_cast<ChunkOpsHost *>(c); h->edit.owner->_GetBlck(position, &h->payload);
+    };
+    endpoint.put_payload = [](void *c, ThreeMMU32 type, ThreeMMU32 number, void *source) -> int {
+        return static_cast<ChunkOpsHost *>(c)->edit.owner->FPutBlck(&static_cast<ChunkOpsHost *>(source)->payload, type, number);
+    };
+    endpoint.add_payload = [](void *c, ThreeMMU32 type, void *source, ThreeMMU32 *number) -> int {
+        ChunkNumber result;
+        const bool ok = static_cast<ChunkOpsHost *>(c)->edit.owner->FAddBlck(&static_cast<ChunkOpsHost *>(source)->payload, type, &result);
+        if (ok) *number = result;
+        return ok;
+    };
+    endpoint.read_name = [](void *c, ThreeMMU32 position) -> int {
+        auto h = static_cast<ChunkOpsHost *>(c); return h->edit.owner->_FGetName(position, &h->name);
+    };
+    endpoint.write_name = [](void *c, ThreeMMU32 position, void *source) -> int {
+        return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetName(position, &static_cast<ChunkOpsHost *>(source)->name);
+    };
+    return endpoint;
 }
-
-/***************************************************************************
-    Add a cnom to the *ppglcnom. Allocated *ppglcnom if it is nil.
-***************************************************************************/
-bool _FAddCnom(PDynamicArray *ppglcnom, ChunkNumberMapEntry *pcnom)
-{
-    AssertVarMem(ppglcnom);
-    AssertNilOrPo(*ppglcnom, 0);
-    AssertVarMem(pcnom);
-    LegacyLong icnom;
-
-    if (pvNil == *ppglcnom && pvNil == (*ppglcnom = DynamicArray::PglNew(size(ChunkNumberMapEntry))))
-        return fFalse;
-
-    AssertDo(!_FFindCnom(*ppglcnom, pcnom->ctg, pcnom->cnoSrc, pvNil, &icnom), "why is this cnom already in the gl?");
-    return (*ppglcnom)->FInsert(icnom, pcnom);
-}
-
-/***************************************************************************
-    Copy a chunk (ctgSrc, cnoSrc) from this chunky file to pcflDst.
-    The new cno is put in *pcno.  The destination chunk is marked as a
-    loner. If possible, the cno in the destination file will be the same
-    as the cno in the source file. If fClone is set, no chunk sharing will
-    occur. Otherwise, this does intelligent chunk sharing.
-***************************************************************************/
 bool ChunkyFile::_FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone)
 {
-    AssertThis(fcflFull);
-    AssertPo(pcflDst, fcflFull);
-    AssertVarMem(pcnoDst);
-
-    LegacyLong icrpSrc, icrpDst;
-    LegacyLong rtiSrc;
-    ChunkGraphEnumerator cge;
-    ChildChunkIdentification kid;
-    ChunkIdentification ckiPar;
-    DataBlock blckSrc;
-    LegacyUlong grfcge, grfcgeIn;
-    ChunkNumberMapEntry cnom, cnomPar;
-    String stn;
-    ChunkRepresentation *qcrp;
-
-    bool fFreeDstOnFailure = fFalse;
-    PDynamicArray pglcnom = pvNil;
-    bool fRet = fFalse;
-
-    if (!_FFindCtgCno(ctgSrc, cnoSrc, &icrpSrc))
-    {
-        Bug("chunk not found");
-        TrashVar(pcnoDst);
-        return fFalse;
-    }
-
-    if (!fClone && this == pcflDst)
-    {
-        SetLoner(ctgSrc, cnoSrc, fTrue);
-        *pcnoDst = cnoSrc;
-        return fTrue;
-    }
-
-    // copy chunks to the destination ChunkyFile
-    cge.Init(this, ctgSrc, cnoSrc);
-    grfcgeIn = fcgeNil;
-    while (cge.FNextKid(&kid, &ckiPar, &grfcge, grfcgeIn))
-    {
-        grfcgeIn = fcgeNil;
-        if (grfcge & fcgeError)
-            goto LFail;
-
-        // do pre-order handling only
-        if (!(grfcge & fcgePre))
-            continue;
-
-        if (_FFindCnom(pglcnom, kid.cki.ctg, kid.cki.cno, &cnom))
-        {
-            // chunk has already been copied - just link it to the parent
-            // and skip to its sibling
-            Assert(!(grfcge & fcgeRoot), "how can the root already have been copied?");
-            grfcgeIn = fcgeSkipToSib;
-        }
-        else if (rtiNil != (rtiSrc = _Rti(kid.cki.ctg, kid.cki.cno)) && !fClone &&
-                 _FFindMatch(kid.cki.ctg, kid.cki.cno, pcflDst, &cnom.cnoDst))
-        {
-            // chunk and its subgraph exists in the destination, just link it
-            // to the parent and skip to its sibling
-            grfcgeIn = fcgeSkipToSib;
-        }
-        else
-        {
-            // must copy the chunk
-
-            // assign the source chunk an rti (if it doesn't have one)
-            if (rtiNil == rtiSrc && _FSetRti(kid.cki.ctg, kid.cki.cno, _rtiLast + 1))
-            {
-                rtiSrc = ++_rtiLast;
-            }
-
-            cnom.ctg = kid.cki.ctg;
-            cnom.cnoSrc = kid.cki.cno;
-
-            // find the source icrp
-            AssertDo(_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrpSrc), 0);
-
-            // get the source blck
-            _GetBlck(icrpSrc, &blckSrc);
-
-            // allocate the dst chunk and copy the data - use the source cno
-            // if possible
-            if (this != pcflDst && !pcflDst->FFind(kid.cki.ctg, kid.cki.cno))
-            {
-                // can preserve cno
-                cnom.cnoDst = kid.cki.cno;
-                if (!pcflDst->FPutBlck(&blckSrc, kid.cki.ctg, cnom.cnoDst))
-                    goto LFail;
-            }
-            else
-            {
-                if (!pcflDst->FAddBlck(&blckSrc, kid.cki.ctg, &cnom.cnoDst))
-                    goto LFail;
-                if (this == pcflDst)
-                {
-                    AssertDo(_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrpSrc), 0);
-                }
-            }
-
-            AssertDo(pcflDst->_FFindCtgCno(kid.cki.ctg, cnom.cnoDst, &icrpDst), "_FFindCtgCno doesn't work");
-
-            // make sure the forest flags match
-            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpSrc);
-            if (qcrp->Grfcrp(fcrpForest))
-            {
-                qcrp = (ChunkRepresentation *)pcflDst->_pggcrp->QvFixedGet(icrpDst);
-                qcrp->SetGrfcrp(fcrpForest);
-            }
-
-            // set the dst name and rti to the src name and rti
-            if (_FGetName(icrpSrc, &stn) && !pcflDst->_FSetName(icrpDst, &stn))
-            {
-                pcflDst->Delete(kid.cki.ctg, cnom.cnoDst);
-                goto LFail;
-            }
-            if (rtiNil != rtiSrc)
-                pcflDst->_FSetRti(kid.cki.ctg, cnom.cnoDst, rtiSrc);
-
-            if (!_FAddCnom(&pglcnom, &cnom))
-                goto LFail;
-            fFreeDstOnFailure = fTrue;
-        }
-
-        // if it's the root, it has no parent and we need to set *pcnoDst
-        if (grfcge & fcgeRoot)
-        {
-            *pcnoDst = cnom.cnoDst;
-            continue;
-        }
-
-        // get the source parent's cnom
-        AssertDo(_FFindCnom(pglcnom, ckiPar.ctg, ckiPar.cno, &cnomPar), 0);
-
-        // make sure the dst child is a child of the dst parent
-        if (!pcflDst->FAdoptChild(ckiPar.ctg, cnomPar.cnoDst, kid.cki.ctg, cnom.cnoDst, kid.chid, grfcgeIn == fcgeNil))
-        {
-            if (grfcgeIn == fcgeNil)
-                pcflDst->Delete(kid.cki.ctg, cnom.cnoDst);
-            goto LFail;
-        }
-    }
-
-    fRet = fTrue;
-    pcflDst->SetLoner(ctgSrc, *pcnoDst, fTrue);
-
-LFail:
-    AssertThis(fcflFull);
-    AssertPo(pcflDst, fcflFull);
-    ReleasePpo(&pglcnom);
-    if (!fRet && fFreeDstOnFailure)
-        pcflDst->Delete(ctgSrc, *pcnoDst);
-    TrashVarIf(!fRet, pcnoDst);
-
-    return fRet;
-}
-
-/***************************************************************************
-    See if there is a subgraph of pcflDst matching the subgraph at
-    (ctgSrc, cnoSrc). Subgraphs match if there is one-to-one correspondence
-    of nodes and arcs of the two subgraphs and the rti's of corresponding
-    nodes are equal.
-***************************************************************************/
-bool ChunkyFile::_FFindMatch(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst)
-{
-    AssertBaseThis(0);
-    AssertPo(pcflDst, 0);
-    AssertVarMem(pcnoDst);
-
-    LegacyLong rtiSrc, rtiKid;
-    LegacyLong ckidSrc;
-    ChunkNumber cnoMin, cnoDst;
-    ChunkGraphEnumerator cgeSrc, cgeDst;
-    ChildChunkIdentification kidSrc, kidDst;
-    ChunkIdentification ckiParSrc, ckiParDst;
-    LegacyUlong grfcgeSrc, grfcgeDst;
-    bool fKidSrc, fKidDst;
-
-    if (this == pcflDst || rtiNil == (rtiSrc = _Rti(ctgSrc, cnoSrc)))
-        return fFalse;
-
-    ckidSrc = Ckid(ctgSrc, cnoSrc);
-    for (cnoDst = cnoMin = 0;; cnoMin = cnoDst + 1)
-    {
-        // get the next chunk with the same rti
-        if (cnoDst == (ChunkNumber)(-1) || !pcflDst->_FFindCtgRti(ctgSrc, rtiSrc, cnoMin, &cnoDst))
-        {
-            return fFalse;
-        }
-
-        if (pcflDst->Ckid(ctgSrc, cnoDst) != ckidSrc)
-            continue;
-
-        cgeSrc.Init(this, ctgSrc, cnoSrc);
-        cgeDst.Init(pcflDst, ctgSrc, cnoDst);
-        for (;;)
-        {
-            // get the next element of the the source graph
-            fKidSrc = cgeSrc.FNextKid(&kidSrc, &ckiParSrc, &grfcgeSrc, fcgeNil);
-
-            // if the source chunk doesn't have an rti, there's no hope
-            if (fKidSrc && rtiNil == (rtiKid = _Rti(kidSrc.cki.ctg, kidSrc.cki.cno)))
-            {
-                return fFalse;
-            }
-
-            // get the next element of the destination graph
-            fKidDst = cgeDst.FNextKid(&kidDst, &ckiParDst, &grfcgeDst, fcgeNil);
-
-            if (FPure(fKidSrc) != FPure(fKidDst))
-            {
-                // the two graphs have different numbers of nodes, so they
-                // don't match
-                break;
-            }
-
-            if (!fKidSrc)
-            {
-                // we're finished with the enumeration and everything matched
-                *pcnoDst = cnoDst;
-                return fTrue;
-            }
-            if ((grfcgeSrc | grfcgeDst) & fcgeError)
-                return fFalse;
-
-            if ((grfcgeSrc ^ grfcgeDst) & (fcgePre | fcgePost | fcgeRoot) || kidSrc.cki.ctg != kidDst.cki.ctg ||
-                !(grfcgeSrc & fcgeRoot) && kidSrc.chid != kidDst.chid ||
-                rtiKid != pcflDst->_Rti(kidDst.cki.ctg, kidDst.cki.cno) ||
-                Ckid(kidSrc.cki.ctg, kidSrc.cki.cno) != pcflDst->Ckid(kidDst.cki.ctg, kidDst.cki.cno))
-            {
-                // children don't match
-                break;
-            }
-        }
-    }
-}
-
-/***************************************************************************
-    Looks for a chunk of the given type with assigned rti and cno at least
-    cnoMin.
-***************************************************************************/
-bool ChunkyFile::_FFindCtgRti(ChunkTagOrType ctg, LegacyLong rti, ChunkNumber cnoMin, ChunkNumber *pcno)
-{
-    AssertBaseThis(0);
-    AssertNilOrVarMem(pcno);
-
-#ifdef CHUNK_BIG_INDEX
-
-    LegacyLong icrp, ccrp;
-    ChunkRepresentation *qcrp;
-
-    _FFindCtgCno(ctg, cnoMin, &icrp);
-    ccrp = Ccki();
-    for (; icrp < ccrp; icrp++)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        if (qcrp->cki.ctg != ctg)
-            break; // done
-        if (qcrp->rti == rti)
-        {
-            // found one
-            if (pcno != pvNil)
-                *pcno = qcrp->cki.cno;
-            return fTrue;
-        }
-    }
-
-#else //! CHUNK_BIG_INDEX
-
-    LegacyLong irtie, crtie;
-    RuntimeIDEntry rtie;
-
-    if (pvNil != _pglrtie && 0 < (crtie = _pglrtie->IvMac()))
-    {
-        _FFindRtie(ctg, cnoMin, pvNil, &irtie);
-        for (; irtie < crtie; irtie++)
-        {
-            _pglrtie->Get(irtie, &rtie);
-            if (rtie.ctg != ctg)
-                break; // done
-            if (rtie.rti == rti)
-            {
-                // found one
-                if (pcno != pvNil)
-                    *pcno = rtie.cno;
-                return fTrue;
-            }
-        }
-    }
-
-#endif //! CHUNK_BIG_INDEX
-
-    TrashVar(pcno);
-    return fFalse;
+    AssertThis(fcflFull); AssertPo(pcflDst, fcflFull); AssertVarMem(pcnoDst);
+    ChunkOpsHost source(this), destination(pcflDst);
+    const auto src = _OpsServices(&source); const auto dst = pcflDst->_OpsServices(&destination);
+    ThreeMMU32 copied;
+    const int result = three_mm_chunk_copy(&src, &dst, ctgSrc, cnoSrc, fClone, &copied);
+    if (result == THREE_MM_CHUNK_OK) *pcnoDst = copied;
+    else { TrashVar(pcnoDst); if (result == THREE_MM_CHUNK_NOT_FOUND) Bug("chunk not found"); }
+    AssertThis(fcflFull); AssertPo(pcflDst, fcflFull);
+    return result == THREE_MM_CHUNK_OK;
 }
 
 /***************************************************************************

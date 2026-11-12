@@ -61,6 +61,9 @@ extern "C"
         /* 0=no, 1=yes, 2=unknown, retaining the legacy reference shortcut. */
         int (*descendant)(void *, ThreeMMU32 root_type, ThreeMMU32 root_number, ThreeMMU32 target_type,
                           ThreeMMU32 target_number);
+        void (*move_entry)(void *, ThreeMMU32 source, ThreeMMU32 insertion_position);
+        int (*move_bytes)(void *, ThreeMMU32 source, ThreeMMU32 offset, ThreeMMU32 destination,
+                          ThreeMMU32 destination_offset, ThreeMMU32 bytes);
     } ThreeMMChunkEdit;
     int three_mm_chunk_unique(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 *position, ThreeMMU32 *number);
     int three_mm_chunk_add(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 position,
@@ -81,6 +84,8 @@ extern "C"
                               const ThreeMMChunkChild *);
     int three_mm_chunk_change_slot(const ThreeMMChunkEdit *, ThreeMMU32 parent_type, ThreeMMU32 parent_number,
                                    const ThreeMMChunkChild *old_child, ThreeMMU32 new_slot);
+    int three_mm_chunk_retarget(const ThreeMMChunkEdit *, ThreeMMU32 parent, ThreeMMU32 position,
+                                const ThreeMMChunkChild *replacement);
 #ifdef __cplusplus
 }
 #endif
