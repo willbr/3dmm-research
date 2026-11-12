@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -669,7 +669,7 @@ reciprocal/saturation policy. It uses unsigned 16-bit partial products and binar
 long division, with no C99 integer types or floating-point approximation. The native
 adapter asserts fixed-point ABI and every copied route/event/transform layout.
 Native ActorFrameState still translates its value fields into/out of the C record;
-this temporary facade, remaining pose logic, host effects and physical
+this temporary facade, host effects and physical
 table services must be removed as migration continues.
 
 `engine-actor-motion-test` covers fixed-point boundary cases, subroute termination,
@@ -741,7 +741,7 @@ quick effects, hide/costume commands and frame evaluation requests. Hosts still
 apply commands and acknowledge them. Hide/costume failures remain best-effort;
 frame failure accumulates while later frames run, and quick failure stops. The
 before-first forward-frame compatibility quirk is retained. Protocol rejection
-leaves control/state/output unchanged. Native value/command facades, pose and
+leaves control/state/output unchanged. Native value/command facades and
 resource/effect/editing integration remain migration work.
 
 `engine-actor-timeline-test` covers resolver writes/failures, callback observations,
@@ -751,6 +751,35 @@ standalone C checks, fifty-two focused native checks and MSVC AddressSanitizer p
 Twenty-four binary snapshots and all 51 CLI baselines match, including new 4,438-byte
 timeline/cache/callback and 26,564-byte seek command/state/effect traces. No Marcus
 UI tests were added.
+
+### Actor pose and fixed matrix/angle math
+
+`actor_pose.c` owns pose evaluation, route orientation and vector rotation. It
+retains the retail BUG1899 entrance-orientation rule, rest X/Y/Z rotation order,
+stretch and uniform scaling, and the final unscaled path rotation saved to state.
+Weighted tangents use 4/2/1 contributions without crossing earlier subroutes.
+The inherited signed-component norm comparison, exclusive upper clamp, zero-angle
+rotations and independently optional outputs remain observable behavior.
+
+`actor_math.c` implements wrapped 16.16 multiply-accumulate using two-word integer
+products, matrix composition and BAM trigonometry. Original BRender sine/atan
+tables and integer interpolation preserve signed 16-bit fraction truncation and
+the 65534 zero-angle cosine. It needs no floating point, libm, native arithmetic
+callback or shared scratch matrices. Original Argonaut notices are retained.
+
+The native pose facade supplies table views and explicit value conversions for
+the distinct native long/C int types. It maps aliased vector/matrix/axes outputs
+and preserves publication order; it no longer implements pose or math policy.
+Native state/table facades, resource/effect/editing logic and final backend
+integration remain migration work.
+
+`engine-actor-pose-test` covers integer boundaries, matrix rounding, route weights,
+optional and aliased outputs, current/authored orientation and scaling. Forty
+standalone C checks, fifty-three focused native checks and MSVC AddressSanitizer
+pass. Independent comparisons cover all 65,536 sine/cosine angles, 4,096 MAC/atan
+cases and 128 matrix chains. Twenty-six binary snapshots match, including new
+561,152-byte math and 111,872-byte pose traces with 256 varied poses and alias
+cases. All 51 CLI baselines match. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

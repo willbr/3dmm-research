@@ -2538,3 +2538,55 @@ positions and 60 ordered image changes. Movie, ISO-resource and Marcus-content
 hashes remain unchanged. The report is
 `tmp/c89-actor-timeline-events-comparison.json`; these six captures extend the nine
 above, for fifteen successful captures across the three cases.
+
+## C89 actor pose and matrix math (12 November 2026)
+
+Actor pose, weighted route orientation and vector rotation now execute in C89,
+along with fixed matrix composition and BAM sine/cosine/atan policy. Two-word
+integer products and original BRender tables preserve legacy rounding without
+floating point or native arithmetic callbacks. Native code supplies table views,
+value conversion and aliased-output publication. Resource effects, editing and
+final backend integration remain migration work. See the
+[implementation boundary](../code-map/library-split.md#actor-pose-and-fixed-matrixangle-math).
+
+Forty standalone C checks, fifty-three focused native checks and MSVC
+AddressSanitizer pass. Independent native comparisons cover all 65,536 sine/cosine
+angles, 4,096 multiply-accumulate/atan cases and 128 matrix chains. Tests retain
+zero-angle rotation rounding, signed fractional conversion, weighted tangents,
+authored/current orientation, scaling, optional outputs and alias behavior.
+All twenty-six binary snapshots match, including new 561,152-byte math and
+111,872-byte pose traces with 256 varied poses. All 51 CLI baselines match,
+including six asset indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-actor-math-before.bin`, `tmp/c89-actor-math-after.bin`,
+`tmp/c89-actor-pose-before.bin`, `tmp/c89-actor-pose-after.bin`,
+`tmp/c89-actor-pose-snapshot-comparison.json`,
+`tmp/c89-actor-pose-output-comparison.json` and `tmp/c89-actor-pose-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence is
+in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T221900Z-572f11a9` | `actor-events`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T222057Z-68aec496` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T222422Z-e4a9fdc9` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding timeline suites `20261112T213626Z-de47ded1` and
+`20261112T212906Z-83525be3`, all 360 seek images match exactly. All twelve runs
+preserve 60 authored frame positions and ordered exact image changes: actor events
+60 for each player; scrolling retail/SDL 328 and Marcus 321. Only adjacent
+identical image/position records are collapsed; raw presentation samples and
+timestamps remain available. Reports are
+`tmp/c89-actor-pose-events-comparison.json` and
+`tmp/c89-actor-pose-playback-comparison.json`. Movie, ISO-resource and
+Marcus-content hashes remain unchanged. Existing cross-player pixel/audio
+differences and timing/alignment limitations remain; these results establish
+preservation against the preceding build within this coverage.
+
+Against preceding audio suite `20261112T213343Z-edaa6f22`, all three audio-case
+runs preserve the same 60 authored frame positions and 60 ordered image changes.
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus, establishing
+audible capture rather than exact PCM preservation. Movie, ISO-resource and
+Marcus-content hashes remain unchanged. Together the three cases cover fifteen
+successful captures; one repetition does not establish general repeatability.

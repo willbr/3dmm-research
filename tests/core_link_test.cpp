@@ -19,6 +19,7 @@
 #if defined(TEST_ENGINE_CORE)
 #include "actor_frame_fixture.h"
 #include "three_mm/actor_motion.h"
+#include "three_mm/actor_pose.h"
 #include "studio_preferences.h"
 #endif
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
@@ -2454,28 +2455,84 @@ static void TestActorValueEvaluation()
     if (stateSnapshot) Check(std::fclose(stateSnapshot) == 0);
 }
 
+static void RecordActorFrameState(const ActorFrameState &,FILE *);
+static void TestActorMathBaseline()
+{
+    FILE *file=nullptr;
+    if(const char *path=std::getenv("THREE_MM_ACTOR_MATH_SNAPSHOT")) { file=std::fopen(path,"wb"); Check(file); }
+    auto record=[&](const void *p,size_t n) { if(file) Check(std::fwrite(p,1,n,file)==n); };
+    for(unsigned a=0;a<65536;++a) { BRS values[]={BR_SIN(static_cast<BRA>(a)),BR_COS(static_cast<BRA>(a))}; Check(values[0]==three_mm_angle_sin(static_cast<unsigned short>(a)) && values[1]==three_mm_angle_cos(static_cast<unsigned short>(a))); record(values,sizeof(values)); }
+    ThreeMMU32 seed=77123;
+    auto scalar=[&]() -> BRS { seed=seed*1664525u+1013904223u; return static_cast<BRS>(seed&0x3fffff)-0x200000; };
+    for(int i=0;i<4096;++i) {
+        BRS v[6]; for(auto &x:v) x=scalar();
+        BRS mac=BR_MAC3(v[0],v[1],v[2],v[3],v[4],v[5]); Check(mac==three_mm_fixed_mac3(v[0],v[1],v[2],v[3],v[4],v[5])); record(&mac,4);
+        BRA angle=BR_ATAN2(v[0],v[1]); Check(angle==three_mm_angle_atan2(v[0],v[1])); record(&angle,2);
+    }
+    for(int i=0;i<128;++i) {
+        BMAT34 a,b,out; for(auto &row:a.m) for(auto &x:row) x=scalar(); for(auto &row:b.m) for(auto &x:row) x=scalar();
+        ThreeMMActorMatrix ca,cb,co;
+        std::memcpy(&ca,&a,sizeof(ca)); std::memcpy(&cb,&b,sizeof(cb));
+        three_mm_matrix_multiply(&co,&ca,&cb);
+        BrMatrix34Mul(&out,&a,&b); Check(std::memcmp(&out,&co,sizeof(co))==0); record(&out,sizeof(out));
+        BMAT34 alias=a; ThreeMMActorMatrix calias=ca;
+        BrMatrix34Mul(&alias,&alias,&b); three_mm_matrix_multiply(&calias,&calias,&cb); Check(std::memcmp(&alias,&calias,sizeof(calias))==0);
+        alias=b; calias=cb;
+        BrMatrix34Mul(&alias,&a,&alias); three_mm_matrix_multiply(&calias,&ca,&calias); Check(std::memcmp(&alias,&calias,sizeof(calias))==0);
+        BRA angle=static_cast<BRA>(scalar());
+        BrMatrix34PostRotateX(&out,angle); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_X,angle,0); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PostRotateY(&out,static_cast<BRA>(angle+1234)); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_Y,static_cast<unsigned short>(angle+1234),0); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PostRotateZ(&out,static_cast<BRA>(angle+4567)); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_Z,static_cast<unsigned short>(angle+4567),0); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PreRotateX(&out,static_cast<BRA>(angle+9876)); three_mm_matrix_rotate(&co,THREE_MM_MATRIX_X,static_cast<unsigned short>(angle+9876),1); Check(std::memcmp(&out,&co,sizeof(co))==0);
+        BrMatrix34PostScale(&out,BR_SCALAR(1.5),BR_SCALAR(-0.75),BR_SCALAR(0.5));
+        three_mm_matrix_scale(&co,BR_SCALAR(1.5),BR_SCALAR(-0.75),BR_SCALAR(0.5)); Check(std::memcmp(&out,&co,sizeof(co))==0); record(&out,sizeof(out));
+    }
+    if(file) Check(std::fclose(file)==0);
+}
+
 static void TestActorPoseEvaluation()
 {
+    FILE *snapshot=nullptr;
+    if(const char *path=std::getenv("THREE_MM_ACTOR_POSE_SNAPSHOT")) { snapshot=std::fopen(path,"wb"); Check(snapshot); }
+    auto record=[&](const void *p,size_t n) { if(snapshot) Check(std::fwrite(p,1,n,snapshot)==n); };
+    auto outputs=[&](BMAT34 *m,BRA *x,BRA *y,BRA *z,LegacyUlong *axes) {
+        LegacyLong present[]={m!=nullptr,x!=nullptr,y!=nullptr,z!=nullptr,axes!=nullptr}; record(present,sizeof(present));
+        if(m) record(m,sizeof(*m)); if(x) record(x,2); if(y) record(y,2); if(z) record(z,2); if(axes) record(axes,4);
+    };
+    auto rotate=[&](LegacyUlong flags,RoutePoint *p,BMAT34 *m,BRA *x=nullptr,BRA *y=nullptr,BRA *z=nullptr,LegacyUlong *axes=nullptr) {
+        ActorPoseEvaluator::ApplyVectorRotation(flags,p,m,x,y,z,axes); outputs(m,x,y,z,axes); record(p,sizeof(*p));
+    };
+    auto orient=[&](const ActorFrameState &state,const ActorTrack &t,BMAT34 *m,BRA *x=nullptr,BRA *y=nullptr,BRA *z=nullptr,LegacyUlong *axes=nullptr) {
+        ActorPoseEvaluator::RouteOrientation(state,t,m,x,y,z,axes); outputs(m,x,y,z,axes); RecordActorFrameState(state,snapshot);
+    };
+    auto update=[&](ActorFrameState &state,const ActorTrack &t,const ActorPoseInputs &in,const RoutePoint *p,BMAT34 *m) {
+        ActorPoseEvaluator::Update(state,t,in,p,m); record(m,sizeof(*m)); RecordActorFrameState(state,snapshot);
+    };
     RoutePoint vector = {rOne, rOne, rZero};
     BMAT34 matrix;
     BrMatrix34Identity(&matrix);
     BRA x = 123, y = 123, z = 123;
     LegacyUlong axes = 0;
-    ActorPoseEvaluator::ApplyVectorRotation(factnRotateX, &vector, &matrix, &x, &y, &z, &axes);
+    rotate(factnRotateX, &vector, &matrix, &x, &y, &z, &axes);
     Check(x == static_cast<BRA>(0xe000) && y == aZero && z == aZero && axes == factnRotateX);
     // Each output is independently optional; requesting bank must not write pitch.
     z = 123;
-    ActorPoseEvaluator::ApplyVectorRotation(factnRotateX, &vector, pvNil, pvNil, pvNil, &z);
+    rotate(factnRotateX, &vector, pvNil, pvNil, pvNil, &z);
     Check(z == aZero);
-    ActorPoseEvaluator::ApplyVectorRotation(factnRotateY, &vector, pvNil, &x, &y, &z, &axes);
+    rotate(factnRotateY, &vector, pvNil, &x, &y, &z, &axes);
     Check(x == aZero && y == static_cast<BRA>(0x4000) && z == aZero && axes == factnRotateY);
-    ActorPoseEvaluator::ApplyVectorRotation(factnRotateX | factnRotateY, &vector, pvNil, &x, &y, &z, &axes);
+    rotate(factnRotateX | factnRotateY, &vector, pvNil, &x, &y, &z, &axes);
     Check(x == static_cast<BRA>(0xe000) && y == static_cast<BRA>(0x4000) && z == aZero &&
           axes == (factnRotateX | factnRotateY));
     vector = {rZero, rZero, rZero};
-    ActorPoseEvaluator::ApplyVectorRotation(factnRotateX | factnRotateY, &vector, pvNil, &x, &y, &z, &axes);
+    rotate(factnRotateX | factnRotateY, &vector, pvNil, &x, &y, &z, &axes);
     Check(x == aZero && y == aZero && z == aZero && axes == 0);
 
+    RoutePoint aliasVector={rOne,rOne,rOne};
+    BrMatrix34Identity(&matrix);
+    rotate(factnRotateX|factnRotateY,&aliasVector,&matrix,&x,&y,&z,reinterpret_cast<LegacyUlong *>(&aliasVector.dyr));
+    aliasVector={rOne,rOne,rOne}; BrMatrix34Identity(&matrix);
+    rotate(factnRotateX|factnRotateY,&aliasVector,&matrix,&x,&y,&z,reinterpret_cast<LegacyUlong *>(&matrix.m[0][0]));
     ActorTrack track;
     Check(track.FCreate());
     RouteDistancePoint point = {{rZero, rZero, rZero}, BR_SCALAR(4)};
@@ -2493,40 +2550,40 @@ static void TestActorPoseEvaluation()
     state.location = {0, BR_SCALAR(2), 0};
     RoutePoint position = {BR_SCALAR(2), rZero, rZero};
     ActorPoseInputs inputs;
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(state.position.dxr == BR_SCALAR(2) && state.transform.yaPath == static_cast<BRA>(0x4000));
     Check(BrsAbs(matrix.m[0][0]) <= BR_SCALAR(0.001) &&
           BrsAbs(BrsSub(BrsAbs(matrix.m[0][2]), rOne)) <= BR_SCALAR(0.001));
     BMAT34 moving = matrix;
     state.useCurrentRotation = true;
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(std::memcmp(&matrix, &moving, sizeof(matrix)) == 0); // Static frames keep the last full rotation.
 
     state.useCurrentRotation = false;
     inputs.fixedPathOrientation = true;
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(state.transform.yaPath == BR_ANGLE_DEG(45));
     inputs.fixedPathOrientation = false;
     state.location = {0, rZero, 0};
     position = {rZero, rZero, rZero};
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(state.transform.yaPath == BR_ANGLE_DEG(45)); // Authored orientation at the entrance.
     state.location = {1, rZero, 0};
     position = {BR_SCALAR(4), rZero, rZero};
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(state.transform.yaPath == static_cast<BRA>(0x4000)); // End node retains the route tangent.
 
     state.InitTransform();
     state.useCurrentRotation = true;
     state.transform.aevpull = {BR_SCALAR(3), rOne, rOne};
     state.transform.rScaleStep = BR_SCALAR(2);
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(BrsAbs(BrsSub(matrix.m[0][0], BR_SCALAR(6))) <= BR_SCALAR(0.001) &&
           BrsAbs(BrsSub(matrix.m[1][1], BR_SCALAR(2))) <= BR_SCALAR(0.001) &&
           BrsAbs(BrsSub(matrix.m[2][2], BR_SCALAR(2))) <= BR_SCALAR(0.001));
     state.InitTransform();
     inputs.restY = BR_ANGLE_DEG(90);
-    ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+    update(state, track, inputs, &position, &matrix);
     Check(BrsAbs(matrix.m[0][0]) <= BR_SCALAR(0.001) &&
           BrsAbs(BrsSub(BrsAbs(matrix.m[0][2]), rOne)) <= BR_SCALAR(0.001));
 
@@ -2545,7 +2602,7 @@ static void TestActorPoseEvaluation()
         state.transform.aevpull = {BR_SCALAR(2), BR_SCALAR(3), BR_SCALAR(4)};
         BrMatrix34RotateY(&state.transform.bmat34Cur, static_cast<BRA>(0x4000));
         BrMatrix34RotateY(&state.transform.bmat34Fwd, static_cast<BRA>(0x4000));
-        ActorPoseEvaluator::Update(state, track, inputs, &position, &matrix);
+        update(state, track, inputs, &position, &matrix);
         for (LegacyLong row = 0; row < 3; ++row)
             for (LegacyLong column = 0; column < 3; ++column)
                 Check(BrsAbs(BrsSub(matrix.m[row][column], expected[row][column])) <= BR_SCALAR(0.002));
@@ -2565,12 +2622,12 @@ static void TestActorPoseEvaluation()
         Check(curved.Events()->FInsert(0, sizeof(addition), &addition, &event));
         state.location = {3, BR_SCALAR(2), 0};
         BrMatrix34Identity(&matrix);
-        ActorPoseEvaluator::RouteOrientation(state, curved, &matrix, &x, &y, &z, &axes);
+        orient(state, curved, &matrix, &x, &y, &z, &axes);
         // Weighted tangent = 4*(-Z) + 2*(+X) + 1*(+Z) = (2,0,-3).
         Check(y > BR_ANGLE_DEG(145) && y < BR_ANGLE_DEG(148) && x == aZero && z == aZero && axes == factnRotateY);
         state.location = {2, BR_SCALAR(2), 0};
         BrMatrix34Identity(&matrix);
-        ActorPoseEvaluator::RouteOrientation(state, curved, &matrix, &x, &y, &z, &axes);
+        orient(state, curved, &matrix, &x, &y, &z, &axes);
         // At the second segment only 4*(+X) + 2*(+Z) contributes.
         Check(y > BR_ANGLE_DEG(62) && y < BR_ANGLE_DEG(65));
     }
@@ -2580,8 +2637,31 @@ static void TestActorPoseEvaluation()
     track.Route()->Put(0, &point);
     state.location = {0, rZero, 0};
     BrMatrix34Identity(&matrix);
-    ActorPoseEvaluator::RouteOrientation(state, track, &matrix, &x, &y, &z, &axes);
+    orient(state, track, &matrix, &x, &y, &z, &axes);
     Check(x == aZero && y == aZero && z == aZero && axes == 0 && matrix.m[0][0] == rOne);
+    point={{rZero,rZero,rZero},BR_SCALAR(4)}; track.Route()->Put(0,&point);
+    // Exact matrices and field records across varied rest/path/scale combinations.
+    ThreeMMU32 seed=12345;
+    auto next=[&]() { seed=seed*1664525u+1013904223u; return seed; };
+    for(int i=0;i<256;++i) {
+        RouteDistancePoint endpoint={{static_cast<BRS>(next()%0x60000)-0x30000,static_cast<BRS>(next()%0x60000)-0x30000,static_cast<BRS>(next()%0x60000)-0x30000},rZero};
+        track.Route()->Put(1,&endpoint);
+        RoutePoint direction=endpoint.xyz; BrMatrix34Identity(&matrix);
+        rotate(i&7,&direction,&matrix,&x,&y,&z,&axes);
+        ActorFrameState sample; sample.addEvent=0; sample.actionFlags=i&7; sample.frame=i+2;
+        sample.location={0,BR_SCALAR(2),0}; sample.useCurrentRotation=(i&1)!=0;
+        BrMatrix34RotateY(&sample.transform.bmat34Fwd,static_cast<BRA>(next()));
+        BrMatrix34RotateX(&sample.transform.bmat34Cur,static_cast<BRA>(next()));
+        sample.transform.aevpull={static_cast<BRS>(next()%0x50000)-0x10000,static_cast<BRS>(next()%0x50000)-0x10000,static_cast<BRS>(next()%0x50000)-0x10000};
+        sample.transform.rScaleStep=static_cast<BRS>(next()%0x30000)-0x10000;
+        ActorPoseInputs rest; rest.restX=static_cast<BRA>(next()); rest.restY=static_cast<BRA>(next()); rest.restZ=static_cast<BRA>(next()); rest.fixedPathOrientation=(i&2)!=0;
+        RoutePoint p={BR_SCALAR(i%5),BR_SCALAR(i%3),BR_SCALAR(i%7)};
+        update(sample,track,rest,&p,&matrix);
+        if((i&15)==0) update(sample,track,rest,&sample.position,&sample.transform.bmat34Cur);
+        if((i&15)==1 || (i&15)==2) update(sample,track,rest,&sample.position,&sample.transform.bmat34Fwd);
+        if((i&15)==3) update(sample,track,rest,&sample.position,&sample.transform.bmat34Cur);
+    }
+    if(snapshot) Check(std::fclose(snapshot)==0);
 }
 
 struct FrameTrace
@@ -4325,6 +4405,7 @@ int main()
     TestActorTrackOwnership();
     TestActorRouteEvaluation();
     TestActorValueEvaluation();
+    TestActorMathBaseline();
     TestActorPoseEvaluation();
     TestActorFrameSequencing();
     TestActorTimeline();

@@ -26,8 +26,5 @@ struct ActorPoseEvaluator
     // actionFlags uses the template's factnRotateX/Y bits. Banking remains zero.
     static void ApplyVectorRotation(LegacyUlong actionFlags, RoutePoint *vector, BMAT34 *matrix, BRA *x = pvNil,
                                     BRA *y = pvNil, BRA *z = pvNil, LegacyUlong *axes = pvNil);
-
-  private:
-    static void AccumulateTangent(const ActorTrack &track, RoutePoint *vector, LegacyLong node, BRS weight);
 };
 #endif

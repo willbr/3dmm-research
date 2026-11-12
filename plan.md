@@ -197,7 +197,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
   table handles from this state; physical table implementations remain adapters.
 - Actor value-state initialization, rewind/origin updates and pure events now
   use C89, together with route advancement/interpolation and guarded 16.16
-  arithmetic. Native state value translation, pose evaluation, resource effects
+  arithmetic. Native state value translation, resource effects
   and editing still remain.
 - Actor one-frame command sequencing now uses C89-owned sequencer state. Entrance
   pre-scan/order, acknowledgement protocol, sound suppression, cel latches, failure
@@ -207,6 +207,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   quick backup and outer seek command sequencing now use C89. Per-step rollback,
   partial progress, callback observations and the enabled retail fixes are retained.
   Native metadata/table/state/diagnostic adapters remain temporary facades.
+- Actor pose evaluation, weighted route orientation and fixed matrix/angle math
+  now use C89. Native pose code translates values, table views and aliased outputs;
+  the C implementation has no BRender arithmetic or floating-point dependency.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -302,7 +305,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-actor pose evaluation and remaining stored-data persistence, alongside the remaining
+actor runtime resource/event effects and remaining stored-data persistence, alongside the remaining
 physical path/file adapters, then the editing, actor evaluation and rendering
 integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
