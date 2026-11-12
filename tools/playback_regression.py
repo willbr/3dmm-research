@@ -6,6 +6,7 @@ All media, working copies and original-runtime resources remain local.
 import sys
 sys.dont_write_bytecode = True
 import argparse
+import array
 from datetime import datetime, timezone
 import json
 import itertools
@@ -20,6 +21,7 @@ import subprocess
 import threading
 import time
 import uuid
+import wave
 
 from playback_store import Store, digest, encode, frame_coverage, timing_metrics
 
@@ -31,7 +33,7 @@ FEATURES = (
     'rotation', 'scale', 'stretch', 'freeze', 'entrance-exit', 'costume', 'props',
     'textures', 'transparency', 'lighting', '3d-text', '2d-text', 'scrolling-text',
     'transition-cut', 'transition-fade', 'transition-dissolve', 'transition-black',
-    'sampled-speech', 'sampled-effects', 'overlapping-sounds', 'sound-queues',
+    'sampled-speech', 'sampled-effects', 'actor-sounds', 'motion-sounds', 'overlapping-sounds', 'sound-queues',
     'sound-offsets', 'sound-volume', 'sound-loops', 'sound-tail', 'midi',
     'timed-wait', 'sound-wait', 'click-wait', 'v3dmm-assets', 'long-playback',
 )
@@ -67,6 +69,8 @@ def load_manifest(path):
             raise ValueError('Unknown features: ' + ', '.join(sorted(unknown)))
         if 'text_acid_contract' in case and case['text_acid_contract'] != 1:
             raise ValueError('Unsupported Text Acid contract version')
+        if 'actor_audio_contract' in case and case['actor_audio_contract'] != 1:
+            raise ValueError('Unsupported actor audio contract version')
         case['path'] = (path.parent / case['path']).resolve()
         if not case['path'].is_file():
             raise ValueError('Missing movie: ' + str(case['path']))
@@ -303,6 +307,46 @@ def verify_text_acid(player, mode, report):
                     raise RuntimeError('Text Acid lifetime boundary changed')
         if page == 3 and not any(b['text'].startswith('Missing font sample:') and b['visible'] for b in boxes):
             raise RuntimeError('Text Acid lost the missing-font sample')
+
+
+def verify_actor_audio(path, report=None):
+    """Require both authored fixture tones; this is not PCM/timing equivalence."""
+    peaks = {600: 0.0, 1300: 0.0}
+    with wave.open(str(path), 'rb') as source:
+        if source.getsampwidth() != 2 or source.getnchannels() < 1 or source.getframerate() <= 2600:
+            raise RuntimeError('Actor audio contract requires PCM16 above 2600 Hz')
+        channels, rate = source.getnchannels(), source.getframerate()
+        stop = source.getnframes()
+        if report is not None:
+            first_scene = [f['monotonic_ns'] for f in report['trace']['frames'] if f['scene'] == 0]
+            if not first_scene:
+                raise RuntimeError('Actor audio contract needs first-scene frame observations')
+            # The second scene swaps child mappings. Its ordinary cue must not
+            # conceal a missing motion tone in the first scene.
+            stop = min(stop, report['audio_anchor_sample'] +
+                       round((max(first_scene) - report['command_before_ns']) * rate / 1e9))
+        size = rate // 10
+        window = [.5 - .5 * math.cos(2 * math.pi * i / (size - 1)) for i in range(size)]
+        coefficients = {tone: 2 * math.cos(2 * math.pi * tone / rate) for tone in peaks}
+        while source.tell() + size <= stop:
+            samples = array.array('h', source.readframes(size))
+            if sys.byteorder != 'little':
+                samples.byteswap()
+            if len(samples) != size * channels:
+                break
+            weighted = [samples[i * channels] * window[i] for i in range(size)]
+            for tone, coefficient in coefficients.items():
+                previous = older = 0.0
+                for sample in weighted:
+                    current = sample + coefficient * previous - older
+                    older, previous = previous, current
+                power = max(0, previous * previous + older * older - coefficient * previous * older)
+                peaks[tone] = max(peaks[tone], 2 * math.sqrt(power) / sum(window))
+    if any(value <= 50 for value in peaks.values()):
+        raise RuntimeError('Actor audio fixture lost an ordinary or motion tone: ' + encode(peaks))
+    return {'window_ms': 100, 'minimum_pcm16_amplitude': 50, 'end_sample': stop,
+            'first_scene_only': report is not None,
+            'tone_peak_amplitudes': {str(tone): value for tone, value in peaks.items()}}
 
 
 def verify_feature_observations(case, player, mode, report):
@@ -612,6 +656,9 @@ def run_suite(args):
                                 report = playback_capture(store, run, active, directory, audio_module,
                                                           args.bridge / 'oracle-audio-capture.exe', args.max_seconds, args.viewport)
                             verify_feature_observations(case, player, mode, report)
+                            if case.get('actor_audio_contract') and mode == 'playback':
+                                metrics = verify_actor_audio(directory / 'playback/audio.wav', report)
+                                (directory / 'playback/actor-audio.json').write_text(encode(metrics), encoding='utf-8')
                             provenance = dict(identities)
                             if player == 'marcus':
                                 provenance['capture_features'] = active.capture_features
@@ -724,6 +771,7 @@ def prepare(args):
         ('actor-events', '--events', basic + ['rotation', 'scale', 'stretch', 'freeze', 'entrance-exit']),
         ('dissolve', '--dissolve', basic + ['transition-dissolve']),
         ('sampled-audio', '--audio', basic + ['sampled-speech', 'sampled-effects']),
+        ('actor-audio', '--actor-audio', basic + ['sampled-speech', 'sampled-effects', 'actor-sounds', 'motion-sounds', 'sound-queues']),
         ('text-acid', '--text-acid', ['background', '2d-text', 'scrolling-text', 'transition-cut']),
         ('static-text', '--static-text', basic + ['2d-text']),
         ('scrolling-text', '--scrolling-text', basic + ['2d-text', 'scrolling-text']),
@@ -737,9 +785,11 @@ def prepare(args):
             subprocess.run(command, stdout=log, stderr=log, check=True, timeout=60)
         cases.append({'name': name, 'path': movie.name, 'sha256': digest(movie),
                       'reference': 'retail', 'features': features, 'players': list(PLAYERS),
-                      'expected_audio': 'audible' if option == '--audio' else 'silent'})
+                      'expected_audio': 'audible' if option in ('--audio', '--actor-audio') else 'silent'})
         if name == 'text-acid':
             cases[-1]['text_acid_contract'] = 1
+        if name == 'actor-audio':
+            cases[-1]['actor_audio_contract'] = 1
         if name in ('static-text', 'scrolling-text'):
             cases[-1]['text_contract'] = {'first_frame': 3, 'max_frame': 25 if name == 'static-text' else 31,
                                          'prefix': 'Static words' if name == 'static-text' else 'Scrolling credits'}

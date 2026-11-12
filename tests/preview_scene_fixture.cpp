@@ -130,7 +130,8 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number, bool story = fal
 
 // Audible regression cues have distinct frequencies and silence between them.
 // Store explicit little-endian PCM bytes rather than host-dependent structs.
-static bool AudioCues(PChunkyFile file, ChunkNumber scene, PGeneralGroup frames)
+static bool AudioCues(PChunkyFile file, ChunkNumber scene, PGeneralGroup frames,
+                      ChunkNumber *numbers = nullptr, bool sceneCues = true)
 {
     for (int cue = 0; cue < 2; ++cue)
     {
@@ -171,6 +172,10 @@ static bool AudioCues(PChunkyFile file, ChunkNumber scene, PGeneralGroup frames)
         name.SetSzs(cue ? PszLit("Regression effect 1300 Hz") : PszLit("Regression speech 600 Hz"));
         if (!file->FSetName(kctgMsnd, sound, &name))
             return false;
+        if (numbers)
+            numbers[cue] = sound;
+        if (!sceneCues)
+            continue;
         SceneEvent event = {cue ? 25 : 1, sevtPlaySnd};
         std::int32_t data[] = {0x10000, cue ? 2 : 3, 0, 1, cue, 0, 0, kctgMsnd, static_cast<std::int32_t>(sound)};
         LegacyLong insertion = 0;
@@ -187,6 +192,41 @@ static bool AudioCues(PChunkyFile file, ChunkNumber scene, PGeneralGroup frames)
     return true;
 }
 
+static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, const ChunkNumber *sounds)
+{
+    // Bind two cels, queue two ordinary cues, then replace the first binding.
+    // Both scene instances reuse the track; scene-child lookup resolves its tags.
+    const int frames[] = {1, 1, 3, 3, 10};
+    const int cels[] = {1, 3, -1, -1, 1};
+    const int volumes[] = {0x10000, 0x6000, 0x10000, 0x8000, 0x8000};
+    for (int i = 0; i < 5; ++i)
+    {
+        ActorEvent::Base event = {ActorEvent::aetSnd, frames[i], {0, BR_SCALAR((frames[i] - 1) * 2), 0}};
+        ActorEvent::Sound sound = {};
+        sound.celn = cels[i];
+        sound.sty = cels[i] < 0 ? 3 : 2;
+        sound.vlm = volumes[i];
+        sound.fQueue = cels[i] < 0 ? tYes : tNo;
+        sound.chid = cels[i] < 0 ? 0 : 1;
+        sound.tag = {0, resource, kctgMsnd, sounds[sound.chid]};
+        TagManager::DupTag(&sound.tag);
+        LegacyLong index = 0;
+        for (; index < track.Events()->IvMac(); ++index)
+        {
+            ActorEvent::Base old;
+            track.Events()->GetFixed(index, &old);
+            if (old.rtel.dwrOffset > event.rtel.dwrOffset)
+                break;
+        }
+        if (!track.Events()->FInsert(index, sizeof(sound), &sound, &event))
+        {
+            TagManager::CloseTag(&sound.tag);
+            return false;
+        }
+    }
+    return true;
+}
+
 
 #include "textbox_acid_fixture.h"
 
@@ -195,6 +235,7 @@ int main(int argc, char **argv)
     if (argc != 4 && argc != 5 &&
         !(argc == 6 && (std::strcmp(argv[5], "--batch") == 0 || std::strcmp(argv[5], "--dissolve") == 0 ||
                         std::strcmp(argv[5], "--events") == 0 || std::strcmp(argv[5], "--audio") == 0 ||
+                        std::strcmp(argv[5], "--actor-audio") == 0 ||
                         std::strcmp(argv[5], "--static-text") == 0 || std::strcmp(argv[5], "--scrolling-text") == 0 || std::strcmp(argv[5], "--text-acid") == 0)))
     {
         std::fprintf(stderr, "Usage: preview-scene-fixture OUT BACKGROUNDS MAIN_CHK [TEMPLATES "
@@ -206,6 +247,7 @@ int main(int argc, char **argv)
     const bool dissolve = argc == 6 && std::strcmp(argv[5], "--dissolve") == 0;
     const bool events = argc == 6 && std::strcmp(argv[5], "--events") == 0;
     const bool audio = argc == 6 && std::strcmp(argv[5], "--audio") == 0;
+    const bool actorAudio = argc == 6 && std::strcmp(argv[5], "--actor-audio") == 0;
     const bool staticText = argc == 6 && std::strcmp(argv[5], "--static-text") == 0;
     const bool scrollingText = argc == 6 && std::strcmp(argv[5], "--scrolling-text") == 0;
     const int source = movie ? 2 : 1;
@@ -293,6 +335,9 @@ int main(int argc, char **argv)
                     int(originalCostume), int(alternateCostume));
     }
     ChunkNumber actors[5] = {};
+    ChunkNumber actorSounds[2] = {};
+    if (actorAudio)
+        ok = ok && AudioCues(file, sceneNumber, frames, actorSounds, false);
     auto roll = movie ? StringTable_GST::PgstNew(sizeof(RollCallActorEntryOnFile)) : pvNil;
     const int count = movie ? 4 : 5;
     for (int actor = 0; ok && actor < count; ++actor)
@@ -390,6 +435,8 @@ int main(int argc, char **argv)
                 ok = ok && file->FAdoptChild(kctgActr, actorNumber, kctgMtrl, textures[texture], texture);
         if (events && actor == 1)
             ok = ok && AnimationEvents(track, document, textures[0]);
+        if (actorAudio && actor == 0)
+            ok = ok && ActorAudioEvents(track, document, actorSounds);
         if (actor == 4)
         {
             track.Route()->Delete(0, track.Route()->IvMac());
@@ -439,6 +486,9 @@ int main(int argc, char **argv)
             ok = file->FAdoptChild(kctgScen, emptyScene, kctgActr, actors[i], i);
     if (batch || staticText || scrollingText)
         ok = ok && file->FAdoptChild(kctgScen, emptyScene, kctgTbox, credits, 0);
+    if (actorAudio)
+        for (unsigned cue = 0; cue < 2; ++cue)
+            ok = ok && file->FAdoptChild(kctgScen, emptyScene, kctgMsnd, actorSounds[1 - cue], cue);
     auto secondFrames = movie ? GeneralGroup::PggNew(sizeof(SceneEvent)) : pvNil;
     if (movie)
     {

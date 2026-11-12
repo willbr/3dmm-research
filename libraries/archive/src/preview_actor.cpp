@@ -276,14 +276,14 @@ bool PreviewActor::Apply(LegacyLong index)
     return ApplyEvent(state, track, index, false, &motionSounds, &sounds);
 }
 bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
-                              std::vector<Sound> *motion, std::vector<PreviewSoundCue> *cues) const
+                              ActorSoundList *motion, std::vector<PreviewSoundCue> *cues) const
 {
     struct Host
     {
         const PreviewActor *actor;
         const ActorTrack *track;
         ActorFrameState *view;
-        std::vector<Sound> *motion;
+        ActorSoundList *motion;
         std::vector<PreviewSoundCue> *cues;
         BodyCostume costume;
     } host;
@@ -308,7 +308,7 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
         switch (command->operation)
         {
         case THREE_MM_EFFECT_CLEAR_SOUNDS:
-            host.motion->clear();
+            host.motion->Clear();
             break;
         case THREE_MM_EFFECT_SET_ACTION_CEL:
             reply->success = command->first >= 0 && command->first < actor->tmpl->Cactn() &&
@@ -377,20 +377,22 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
         }
         case THREE_MM_EFFECT_ENQUEUE_SOUND:
         {
-            Sound sound;
+            ThreeMMActorEvent event;
+            ThreeMMActorSound sound;
+            host.track->Events()->GetFixed(command->first, &event);
             host.track->Events()->Get(command->first, &sound);
-            if (sound.celn != ivNil)
-            {
-                for (auto &existing : *host.motion)
-                    if (existing.celn == sound.celn && existing.sty == sound.sty)
-                    {
-                        existing = sound;
-                        return;
-                    }
-                host.motion->push_back(sound);
-            }
-            else if (actor->soundDisplay)
-                host.cues->push_back(actor->SoundCue(sound));
+            ThreeMMActorSoundServices services = {};
+            services.context = &host;
+            services.cues_only = 1;
+            services.cue = [](void *context, const ThreeMMActorSound *value) {
+                auto &host = *static_cast<Host *>(context);
+                Sound sound;
+                std::memcpy(&sound, value, sizeof(sound));
+                if (host.actor->soundDisplay)
+                    host.cues->push_back(host.actor->SoundCue(sound));
+                return 1;
+            };
+            reply->success = three_mm_actor_sound_event(host.motion->Core(), &event, &sound, command->first, &services);
             break;
         }
         }
@@ -461,9 +463,24 @@ bool PreviewActor::Evaluate(bool display)
     if (!result.success)
         return false;
     if (result.considerMotionSounds && state.frame <= header.nfrmLast && state.celCount > 0)
-        for (const auto &sound : motionSounds)
-            if (sound.celn == state.cel % state.celCount)
-                sounds.push_back(SoundCue(sound));
+    {
+        ThreeMMActorSoundServices services = {};
+        services.context = this;
+        services.cues_only = 1;
+        services.cel_count = [](void *context, ThreeMMI32, ThreeMMI32 *out) {
+            *out = static_cast<PreviewActor *>(context)->state.celCount;
+            return 1;
+        };
+        services.cue = [](void *context, const ThreeMMActorSound *value) {
+            auto actor = static_cast<PreviewActor *>(context);
+            Sound sound;
+            std::memcpy(&sound, value, sizeof(sound));
+            actor->sounds.push_back(actor->SoundCue(sound));
+            return 1;
+        };
+        if (!three_mm_actor_sound_motion(motionSounds.Core(), state.action, state.cel, &services))
+            return false;
+    }
     return (!result.positionBody && !result.updatePose) || Position(result.selectCel);
 }
 bool PreviewActor::Seek(LegacyLong frame)
@@ -485,7 +502,7 @@ bool PreviewActor::Seek(LegacyLong frame)
             seek.Complete(true);
             break;
         case ActorSeekCommandKind::ResetCostume:
-            motionSounds.clear();
+            motionSounds.Clear();
             seek.Complete(tmpl->FSetDefaultCost(body));
             break;
         case ActorSeekCommandKind::ApplyQuickEffects:

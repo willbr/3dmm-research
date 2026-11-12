@@ -172,7 +172,7 @@ class TrackTestActor : public Actor
         _pbody = _ptmpl->PbodyCreate();
         if (_pbody == pvNil)
             return false;
-        _pglsmm->FSetIvMac(0);
+        _motionSounds.Clear();
         _state = ActorFrameState();
         _state.RewindRoute(_track);
         _state.celCount = 4;
@@ -244,8 +244,8 @@ class TrackTestActor : public Actor
         if (!_track.Events()->FInsert(1, sizeof(sound), &sound, &event))
             return false;
         TagManager::DupTag(&sound.tag);
-        ActorEvent::SoundMotionMatch match = {};
-        if (!_pglsmm->FInsert(0, &match))
+        ThreeMMActorMotionSound match = {};
+        if (!three_mm_actor_sounds_insert(_motionSounds.Core(), &match.event, &match.sound))
             return false;
         _SetStateRewound();
         _nfrmFirst = _state.frame = 1;
@@ -270,7 +270,7 @@ class TrackTestActor : public Actor
         _track.Route()->Get(0, &point);
         return CactRef() == refs && _track.Events() != changedEvents && _track.Route() != changedRoute &&
                _track.Events()->IvMac() == 2 && point.xyz.dxr == BR_SCALAR(3) && _state.frame == 1 && _arid == 23 &&
-               _state.transform.rScaleStep == BR_SCALAR(2) && _state.nextEvent == 1 && _pglsmm->IvMac() == 1;
+               _state.transform.rScaleStep == BR_SCALAR(2) && _state.nextEvent == 1 && _motionSounds.IvMac() == 1;
     }
     bool FTestRoute()
     {
@@ -368,10 +368,11 @@ static bool TestActorTrackRuntime(PScene scene)
         if (actor == pvNil || !actor->FInit(scene, resource))
             goto done;
 #ifdef DEBUG
-        // The fourth BASE allocation is motion-match storage, after Actor,
-        // route and event allocation. Failure must release only the clone.
+        // The third BASE allocation is the final native track table. Motion
+        // storage now uses the C allocator (fault-injected in its standalone test).
+        // Failure must release only the clone.
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactDo = 3;
+        vdmglob.dmaglBase.cactDo = 2;
         vdmglob.dmaglBase.cactFail = 1;
         vmutxMem.Leave();
         bool copied = actor->FDup(&snapshot, false);

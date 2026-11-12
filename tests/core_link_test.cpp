@@ -21,6 +21,7 @@
 #include "three_mm/actor_motion.h"
 #include "three_mm/actor_pose.h"
 #include "three_mm/actor_effect.h"
+#include "actor_sound.h"
 #include "studio_preferences.h"
 #endif
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
@@ -2457,6 +2458,73 @@ static void TestActorValueEvaluation()
 }
 
 static void RecordActorFrameState(const ActorFrameState &,FILE *);
+static void TestActorSoundStorage()
+{
+    FILE *before = nullptr, *after = nullptr;
+    if (const char *p = std::getenv("THREE_MM_ACTOR_SOUND_EXPECTED")) { before = std::fopen(p, "wb"); Check(before); }
+    if (const char *p = std::getenv("THREE_MM_ACTOR_SOUND_SNAPSHOT")) { after = std::fopen(p, "wb"); Check(after); }
+    auto native = DynamicArray::PglNew(sizeof(ActorEvent::SoundMotionMatch), 2);
+    Check(native);
+    ActorSoundList list;
+    Check(list.FCreate());
+    ThreeMMU32 seed = 67119;
+    auto next = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
+    auto fields = [](const ActorEvent::SoundMotionMatch &r, ThreeMMU32 *v) {
+        const ThreeMMU32 data[] = {static_cast<ThreeMMU32>(r.aev.aet), static_cast<ThreeMMU32>(r.aev.nfrm),
+            static_cast<ThreeMMU32>(r.aev.rtel.irpt), static_cast<ThreeMMU32>(r.aev.rtel.dwrOffset),
+            static_cast<ThreeMMU32>(r.aev.rtel.dnfrm), static_cast<ThreeMMU32>(r.aevsnd.fLoop),
+            static_cast<ThreeMMU32>(r.aevsnd.fQueue), static_cast<ThreeMMU32>(r.aevsnd.vlm),
+            static_cast<ThreeMMU32>(r.aevsnd.celn), static_cast<ThreeMMU32>(r.aevsnd.sty),
+            static_cast<ThreeMMU32>(r.aevsnd.fNoSound), r.aevsnd.chid, static_cast<ThreeMMU32>(r.aevsnd.tag.sid),
+            r.aevsnd.tag.pcrf != nullptr, r.aevsnd.tag.ctg, r.aevsnd.tag.cno};
+        std::memcpy(v, data, sizeof(data));
+    };
+    for (int i = 0; i < 256; ++i)
+    {
+        ActorEvent::SoundMotionMatch row = {};
+        row.aev.aet = ActorEvent::aetSnd; row.aev.nfrm = i; row.aev.rtel.dnfrm = i * 3;
+        row.aevsnd.celn = static_cast<int>(next() % 6); row.aevsnd.sty = static_cast<int>(next() % 4);
+        row.aevsnd.tag.sid = 2; row.aevsnd.tag.ctg = kctgMsnd; row.aevsnd.tag.cno = next();
+        row.aevsnd.vlm = static_cast<int>(next() % 1000); row.aevsnd.fLoop = static_cast<tribool>(i & 1);
+        row.aevsnd.fQueue = static_cast<tribool>((i >> 1) & 1); row.aevsnd.chid = i + 50;
+        // Retained DynamicArray implementation of _FInsertSmm is the oracle.
+        LegacyLong replace = -1;
+        for (LegacyLong j = 0; j < native->IvMac(); ++j)
+        {
+            ActorEvent::SoundMotionMatch old;
+            native->Get(j, &old);
+            if (old.aevsnd.celn == row.aevsnd.celn && old.aevsnd.sty == row.aevsnd.sty) { replace = j; break; }
+        }
+        if (replace >= 0) native->Put(replace, &row); else Check(native->FAdd(&row));
+        ThreeMMActorMotionSound input;
+        std::memcpy(&input, &row, sizeof(input));
+        Check(three_mm_actor_sounds_insert(list.Core(), &input.event, &input.sound));
+        if (i % 13 == 0 && native->IvMac()) { native->Delete(0); list.Delete(0); }
+        if (i % 17 == 0)
+        {
+            ActorSoundList clone;
+            Check(clone.FCloneFrom(list)); clone.Swap(list);
+            auto duplicate = native->PglDup(); Check(duplicate); ReleasePpo(&native); native = duplicate;
+        }
+        if (i % 61 == 0) { Check(native->FSetIvMac(0)); list.Clear(); }
+        Check(native->IvMac() == list.IvMac() && list.Valid());
+        const ThreeMMU32 count = static_cast<ThreeMMU32>(list.IvMac());
+        if (before) Check(std::fwrite(&count, 1, sizeof(count), before) == sizeof(count));
+        if (after) Check(std::fwrite(&count, 1, sizeof(count), after) == sizeof(count));
+        for (LegacyLong j = 0; j < list.IvMac(); ++j)
+        {
+            ActorEvent::SoundMotionMatch a, b;
+            native->Get(j, &a); list.Get(j, &b);
+            ThreeMMU32 expected[16], actual[16]; fields(a, expected); fields(b, actual);
+            Check(!std::memcmp(expected, actual, sizeof(actual)));
+            if (before) Check(std::fwrite(expected, 1, sizeof(expected), before) == sizeof(expected));
+            if (after) Check(std::fwrite(actual, 1, sizeof(actual), after) == sizeof(actual));
+        }
+    }
+    ReleasePpo(&native);
+    if (before) Check(std::fclose(before) == 0);
+    if (after) Check(std::fclose(after) == 0);
+}
 static void TestActorEntranceOrientation()
 {
     FILE *before = nullptr, *after = nullptr;
@@ -4463,6 +4531,7 @@ int main()
     TestActorValueEvaluation();
     TestActorMathBaseline();
     TestActorEntranceOrientation();
+    TestActorSoundStorage();
     TestActorPoseEvaluation();
     TestActorFrameSequencing();
     TestActorTimeline();

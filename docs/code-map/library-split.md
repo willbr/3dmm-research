@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -814,6 +814,43 @@ All 51 CLI baselines match. A headless scene-preview check also verifies repeate
 timeline reads preserve the live pose, sounds and rendered pixels. No Marcus UI
 tests were added. Native sound/motion-match
 policy, primitive resource implementations, editing and final integration remain.
+
+### Actor runtime sound policy and motion storage
+
+`actor_sound.c` owns motion-sound records using C collection storage, with the
+original two-record growth quantum. Records borrow track TAG references. Clear,
+indexed reads/writes/deletion, first cel/style replacement, append, transactional
+clone and ownership swap execute in C. Copy inputs can alias an existing record;
+cloning keeps independent storage without acquiring additional TAG references.
+
+The same C sound-event and motion-playback functions drive Studio and Marcus.
+Binding events store motion sounds without playing them twice. C selects matching
+cels using the original signed remainder, resolves imported runtime tags, chooses
+ordinary/loop/matcher priority, and orders fetch, queue and release. A missing
+motion resource records failure but permits later matches; resolution or queue
+failure stops. Failed motion resolution retains resolver writes in the list,
+whereas ordinary events publish only after successful resolution. Every fetched
+resource is released after successful or failed queue insertion. Nonpositive cel
+counts fail safely. Marcus uses cue-only services with its cached action count;
+resource resolution and device playback remain presentation adapters.
+
+`ActorSoundList` is a temporary typed native view over the C owner. Actor creation,
+loading, duplication, undo swap, editing accesses and destruction use that owner;
+Marcus's former vector is removed. Native value copies preserve distinct native
+long/C int types and TAG alignment. No native DynamicArray owns motion records.
+Sound editing/query control, primitive resource/audio implementations and final
+backend integration remain migration work.
+
+`engine-actor-sound-test` injects allocation, resolution, fetch and queue failures,
+checks partial tag writes and releases, and covers ordinary/cue-only dispatch,
+negative and minimum cels, metadata failures and empty-list queries. Forty-two
+standalone C checks, fifty-six native/preview checks, MSVC AddressSanitizer and
+27 regression-harness checks pass. Twenty-eight snapshots match, including a new
+43,328-byte comparison of 256 native DynamicArray/C list operations with cloning,
+deletion and clear. All 51 CLI baselines and the headless scene/timeline check pass.
+No Marcus UI tests were added. A dedicated generated actor-audio corpus case
+extends the existing scene-audio case with ordinary queues, two motion cels,
+binding replacement and sound-child remapping across scenes.
 
 ### Source names and directory discovery
 

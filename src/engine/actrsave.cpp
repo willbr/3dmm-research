@@ -181,9 +181,8 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     if (!pactr->_FOpenTags(pcrf))
         goto LFail;
-    if (pvNil == (pactr->_pglsmm = DynamicArray::PglNew(size(SoundMotionMatch), kcsmmGrow)))
+    if (!pactr->_motionSounds.FCreate())
         goto LFail;
-    pactr->_pglsmm->SetMinGrow(kcsmmGrow);
 
     // Now that the tags are open, fetch the Template
     pactr->_ptmpl = (PTemplate)vptagm->PbacoFetch(&pactr->_tagTmpl, Template::FReadTmpl);

@@ -5,6 +5,9 @@ These tests do not launch Marcus or simulate application UI.
 import sys
 sys.dont_write_bytecode = True
 import json
+import math
+import array
+import wave
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,9 +20,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from playback_store import Store, digest, frame_coverage, timing_metrics
 from playback_regression import compare_runs, compare_suite, load_manifest, review, capabilities, verify_feature_observations, import_presentations
 from playback_regression import preserve_warmup_presentations
+from playback_regression import verify_actor_audio
 
 
 class Measurements(unittest.TestCase):
+    def test_later_scene_tone_cannot_hide_a_missing_motion_cue(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'audio.wav'
+            rate = 8000
+            pcm = array.array('h', (int(500 * math.sin(2 * math.pi * (600 if i < rate // 2 else 1300) * i / rate))
+                                   for i in range(rate)))
+            if sys.byteorder != 'little':
+                pcm.byteswap()
+            with wave.open(str(path), 'wb') as target:
+                target.setparams((1, 2, rate, 0, 'NONE', 'not compressed'))
+                target.writeframes(pcm.tobytes())
+            verify_actor_audio(path) # Both tones exist somewhere in the movie.
+            report = {'trace': {'frames': [{'scene': 0, 'monotonic_ns': 500000000}]},
+                      'audio_anchor_sample': 0, 'command_before_ns': 0}
+            with self.assertRaises(RuntimeError):
+                verify_actor_audio(path, report)
+
+    def test_actor_audio_needs_both_ordinary_and_motion_tones(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'audio.wav'
+            rate = 8000
+            for tones in ((600, 1300), (600,), (1300,), ()):
+                pcm = array.array('h', (int(sum(500 * math.sin(2 * math.pi * tone * i / rate)
+                                               for tone in tones)) for i in range(rate // 2)))
+                if sys.byteorder != 'little':
+                    pcm.byteswap()
+                with wave.open(str(path), 'wb') as target:
+                    target.setparams((1, 2, rate, 0, 'NONE', 'not compressed'))
+                    target.writeframes(pcm.tobytes())
+                if len(tones) == 2:
+                    result = verify_actor_audio(path)
+                    self.assertTrue(all(v > 400 for v in result['tone_peak_amplitudes'].values()))
+                else:
+                    with self.assertRaises(RuntimeError):
+                        verify_actor_audio(path)
+
     def test_warmup_reuses_images_and_retains_each_observation(self):
         with tempfile.TemporaryDirectory() as directory:
             process = Path(directory) / 'process'

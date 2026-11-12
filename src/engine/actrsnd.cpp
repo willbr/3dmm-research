@@ -11,6 +11,7 @@
 ***************************************************************************/
 
 #include "soc.h"
+#include <cstring>
 
 ASSERTNAME
 
@@ -166,163 +167,65 @@ LFail:
     Enter non-motion match sounds in the Msq
 
 ***************************************************************************/
+ThreeMMActorSoundServices Actor::_SoundServices()
+{
+    ThreeMMActorSoundServices services = {};
+    services.context = this;
+    services.cel_count = [](void *context, ThreeMMI32 action, ThreeMMI32 *out) {
+        LegacyLong count = *out;
+        bool ok = static_cast<Actor *>(context)->_ptmpl->FGetCcelActn(action, &count);
+        *out = count;
+        return int(ok);
+    };
+    services.resolve = [](void *context, ThreeMMTag *value, ThreeMMU32 child) {
+        TAG tag;
+        std::memcpy(&tag, value, sizeof(tag));
+        bool ok = static_cast<Actor *>(context)->_pscen->Pmvie()->FResolveSndTag(&tag, child);
+        std::memcpy(value, &tag, sizeof(tag));
+        return int(ok);
+    };
+    services.write_event = [](void *context, ThreeMMI32 index, const ThreeMMActorSound *value) {
+        Sound sound;
+        std::memcpy(&sound, value, sizeof(sound));
+        static_cast<Actor *>(context)->_track.Events()->Put(index, &sound);
+    };
+    services.resolution_failed = [](void *) { Bug("Actrsnd: Expected to resolve snd tag"); };
+    services.fetch = [](void *, const ThreeMMTag *value) -> void * {
+        TAG tag;
+        std::memcpy(&tag, value, sizeof(tag));
+        return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    };
+    services.priority = [](void *, void *resource, int kind) -> ThreeMMI32 {
+        const long tools[] = {toolSounder, toolLooper, toolMatcher};
+        return static_cast<PMovieSoundMSND>(resource)->Spr(tools[kind]);
+    };
+    services.enqueue = [](void *context, void *resource, const ThreeMMActorSound *sound, ThreeMMI32 priority, int low) {
+        auto actor = static_cast<Actor *>(context);
+        return int(actor->_pscen->Pmvie()->Pmsq()->FEnqueue(static_cast<PMovieSoundMSND>(resource), actor->_arid,
+                   sound->loop, sound->queue, sound->volume, priority, fTrue, 0, low != 0));
+    };
+    services.release = [](void *, void *resource) {
+        auto sound = static_cast<PMovieSoundMSND>(resource);
+        ReleasePpo(&sound);
+    };
+    return services;
+}
 bool Actor::_FEnqueueSnd(long iaev)
 {
     AssertThis(0);
     AssertIn(iaev, 0, _track.Events()->IvMac());
-
-    Sound aevsnd;
-    PMovieSoundMSND pmsnd = pvNil;
-    long tool;
-
-    _track.Events()->Get(iaev, &aevsnd);
-
-    //
-    // Motion match sounds are not enqueued when event iaev is seen
-    // Otherwise the sound would be played twice
-    //
-    if (aevsnd.celn != smmNil)
-    {
-        // Insert Smm for this cel in the gl
-        return _FInsertSmm(iaev);
-    }
-
-    if (aevsnd.fLoop)
-        tool = toolLooper;
-    else
-        tool = toolSounder;
-
-    // If the scene was imported, the sound will need to be resolved
-    if (aevsnd.tag.sid == ksidUseCrf)
-    {
-        if (!_pscen->Pmvie()->FResolveSndTag(&aevsnd.tag, aevsnd.chid))
-        {
-            Bug("Actrsnd: Expected to resolve snd tag");
-            goto LFail;
-        }
-        _track.Events()->Put(iaev, &aevsnd); // Update event
-    }
-
-    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&aevsnd.tag, MovieSoundMSND::FReadMsnd);
-    if (pvNil == pmsnd)
-        goto LFail;
-
-    if (!_pscen->Pmvie()->Pmsq()->FEnqueue(pmsnd, _arid, aevsnd.fLoop, aevsnd.fQueue, aevsnd.vlm, pmsnd->Spr(tool),
-                                           fTrue))
-    {
-        goto LFail;
-    }
-
-    ReleasePpo(&pmsnd);
-    return fTrue;
-
-LFail:
-    ReleasePpo(&pmsnd);
-    return fFalse;
+    ThreeMMActorEvent event;
+    ThreeMMActorSound sound;
+    _track.Events()->GetFixed(iaev, &event);
+    _track.Events()->Get(iaev, &sound);
+    const auto services = _SoundServices();
+    return three_mm_actor_sound_event(_motionSounds.Core(), &event, &sound, iaev, &services) != 0;
 }
-
-/***************************************************************************
-
-    Play the motion match sounds appropriate to the current cel
-
-***************************************************************************/
 bool Actor::_FEnqueueSmmInMsq(void)
 {
     AssertThis(0);
-
-    long celn;
-    LegacyLong ccel;
-    long ismm;
-    SoundMotionMatch *psmm;
-    bool fSuccess = fTrue;
-    PMovieSoundMSND pmsnd = pvNil;
-
-    if (!_ptmpl->FGetCcelActn(_state.action, &ccel))
-        return fFalse;
-    celn = _state.cel % ccel;
-
-    for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
-    {
-        psmm = (SoundMotionMatch *)(_pglsmm->QvGet(ismm));
-        Assert(psmm->aevsnd.celn != smmNil, "Logic error in smm");
-        if (psmm->aevsnd.celn != celn)
-        {
-            continue;
-        }
-
-        if (psmm->aevsnd.tag.sid == ksidUseCrf)
-        {
-            if (!_pscen->Pmvie()->FResolveSndTag(&psmm->aevsnd.tag, psmm->aevsnd.chid))
-            {
-                Bug("Actrsnd: Expected to resolve snd tag");
-                goto LFail;
-            }
-            _pglsmm->Put(ismm, psmm); // Update event
-        }
-
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&psmm->aevsnd.tag, MovieSoundMSND::FReadMsnd);
-        if (pvNil == pmsnd)
-        {
-            fSuccess = fFalse;
-            continue;
-        }
-
-        // Motion match sounds need to be entered at low priority as sounds of the
-        // same type take precedence over them
-        if (!_pscen->Pmvie()->Pmsq()->FEnqueue(pmsnd, _arid, psmm->aevsnd.fLoop, psmm->aevsnd.fQueue, psmm->aevsnd.vlm,
-                                               pmsnd->Spr(toolMatcher), fTrue, 0, fTrue))
-        {
-            // Continuing would result in additional error
-            goto LFail;
-        }
-
-        ReleasePpo(&pmsnd);
-    }
-
-    return fSuccess;
-LFail:
-    ReleasePpo(&pmsnd);
-    return fFalse;
-}
-
-/***************************************************************************
-
-    Insert a motion match sound in the smm queue
-
-***************************************************************************/
-bool Actor::_FInsertSmm(long iaev)
-{
-    AssertThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac());
-
-    long ismm;
-    SoundMotionMatch smm;
-    SoundMotionMatch *psmm;
-    Base *paev;
-    Sound *paevsnd;
-
-    paev = (Base *)_track.Events()->QvFixedGet(iaev);
-    paevsnd = (Sound *)_track.Events()->QvGet(iaev);
-
-    smm.aev = *paev;
-    smm.aevsnd = *paevsnd;
-
-    for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
-    {
-        psmm = (SoundMotionMatch *)_pglsmm->QvGet(ismm);
-        if (psmm->aevsnd.celn != paevsnd->celn)
-            continue;
-        if (psmm->aevsnd.sty != paevsnd->sty)
-            continue;
-
-        // Replace the current smm with the new
-        _pglsmm->Put(ismm, &smm);
-        return fTrue;
-    }
-
-    // No sound for this cel was found
-    // Add a new mm sound
-    return _pglsmm->FAdd(&smm);
+    const auto services = _SoundServices();
+    return three_mm_actor_sound_motion(_motionSounds.Core(), _state.action, _state.cel, &services) != 0;
 }
 
 /***************************************************************************
@@ -494,9 +397,9 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     if (fMotionMatch)
     {
         // Adjust the volume in the smm also
-        for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
+        for (ismm = 0; ismm < _motionSounds.IvMac(); ismm++)
         {
-            _pglsmm->Get(ismm, &smm);
+            _motionSounds.Get(ismm, &smm);
             Assert(smm.aevsnd.celn != smmNil, "Logic error in smm");
 
             if (smm.aevsnd.celn != celn)
@@ -507,7 +410,7 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
 
             // Set the volume in the smm
             smm.aevsnd.vlm = vlm;
-            _pglsmm->Put(ismm, &smm);
+            _motionSounds.Put(ismm, &smm);
         }
     }
 
@@ -576,9 +479,9 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, lon
         celn = _state.cel % ccel;
 
         // Motion match sounds
-        for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
+        for (ismm = 0; ismm < _motionSounds.IvMac(); ismm++)
         {
-            _pglsmm->Get(ismm, &smm);
+            _motionSounds.Get(ismm, &smm);
             if (smm.aevsnd.sty != sty)
                 continue;
             if (smm.aevsnd.celn != celn)
@@ -670,14 +573,14 @@ bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
         celn = _state.cel % ccel;
 
         // Motion match sounds
-        for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
+        for (ismm = 0; ismm < _motionSounds.IvMac(); ismm++)
         {
-            _pglsmm->Get(ismm, &smm);
+            _motionSounds.Get(ismm, &smm);
             if (smm.aevsnd.sty != sty)
                 continue;
             if (smm.aevsnd.celn != celn)
                 continue;
-            _pglsmm->Delete(ismm);
+            _motionSounds.Delete(ismm);
             ismm--;
         }
     }

@@ -4,6 +4,7 @@
 #include <functional>
 #include "three_mm/preview.h"
 #include "soc_core.h"
+#include "actor_sound.h"
 
 namespace ThreeMM
 {
@@ -20,12 +21,12 @@ class PreviewActor
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool Apply(LegacyLong index);
     bool ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
-                    std::vector<ActorEvent::Sound> *motion = nullptr,
+                    ActorSoundList *motion = nullptr,
                     std::vector<PreviewSoundCue> *cues = nullptr) const;
     bool Position(bool selectCel);
     bool Evaluate(bool display);
     ActorStepSource Steps() const;
-    std::vector<ActorEvent::Sound> motionSounds;
+    ActorSoundList motionSounds;
     bool soundDisplay = false;
     PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
 

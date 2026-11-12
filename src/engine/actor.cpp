@@ -151,7 +151,6 @@ Actor::~Actor(void)
     _CloseTags();
     ReleasePpo(&_pbody);
     _track.Clear();
-    ReleasePpo(&_pglsmm);
     ReleasePpo(&_ptmpl);
 }
 
@@ -239,7 +238,7 @@ PActor Actor::PactrNew(TAG *ptagTmpl)
 
 /***************************************************************************
 
-    Create the groups _track.Events(), _track.Route() and _pglsmm
+    Create the groups _track.Events(), _track.Route() and motion-sound storage
 
 ***************************************************************************/
 bool Actor::_FCreateGroups(void)
@@ -249,9 +248,8 @@ bool Actor::_FCreateGroups(void)
     if (!_track.FCreate())
         return fFalse;
 
-    if (pvNil == (_pglsmm = DynamicArray::PglNew(size(SoundMotionMatch), kcsmmGrow)))
+    if (!_motionSounds.FCreate())
         return fFalse;
-    _pglsmm->SetMinGrow(kcsmmGrow);
 
     return fTrue;
 }
@@ -638,7 +636,7 @@ bool Actor::_FDoAevCore(long iaev)
         switch (command->operation)
         {
         case THREE_MM_EFFECT_CLEAR_SOUNDS:
-            actor->_pglsmm->FSetIvMac(0);
+            actor->_motionSounds.Clear();
             break;
         case THREE_MM_EFFECT_SET_ACTION_CEL:
             reply->success = actor->_ptmpl->FSetActnCel(actor->_pbody, command->first, command->second);
@@ -894,7 +892,7 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             Sound aevsnd;
             Sound aevsndNew;
             long ismm;
-            SoundMotionMatch *psmm;
+            SoundMotionMatch smm;
             // Check that the sound types match
             _track.Events()->Get(iaev, &aevsnd);
             _track.Events()->Get(iaevNew, &aevsndNew);
@@ -905,12 +903,12 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
                 continue;
             // Non queued sounds need to replace queued sounds of the same type
             // First, the _pggsmm needs to be updated
-            for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
+            for (ismm = 0; ismm < _motionSounds.IvMac(); ismm++)
             {
-                psmm = (SoundMotionMatch *)_pglsmm->QvGet(ismm);
-                if (psmm->aevsnd.sty == aevsnd.sty && aevsnd.celn == psmm->aevsnd.celn)
+                _motionSounds.Get(ismm, &smm);
+                if (smm.aevsnd.sty == aevsnd.sty && aevsnd.celn == smm.aevsnd.celn)
                 {
-                    _pglsmm->Delete(ismm);
+                    _motionSounds.Delete(ismm);
                     break;
                 }
             }
@@ -4515,7 +4513,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
     AssertNilOrPo(_ptmpl, 0);
     AssertPo(_track.Events(), 0);
     AssertPo(_track.Route(), 0);
-    AssertPo(_pglsmm, 0);
+    Assert(_motionSounds.Valid(), "invalid C motion sound storage");
 
     long iaevMac = _track.Events()->IvMac();
     long irptMac = _track.Route()->IvMac();
@@ -4671,7 +4669,6 @@ void Actor::MarkMem(void)
     MarkMemObj(_track.Route());
     MarkMemObj(_pbody);
     MarkMemObj(_ptmpl);
-    MarkMemObj(_pglsmm);
     _tagTmpl.MarkMem();
 }
 

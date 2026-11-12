@@ -1036,6 +1036,7 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/actor_track.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_route.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_state.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actor_sound.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_pose.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_frame.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor_timeline.cpp"
@@ -1435,7 +1436,7 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
 endforeach()
 
 add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnostic-test
-  engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test
+  engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test
   global-cleanup-test
   preview-checks
   mbmp-pixels-test

@@ -276,8 +276,7 @@ bool Actor::FDup(PActor *ppactr, bool fReset)
     // clone owns its TAG references independently and rolls back on failure.
     if (!pactrDest->_track.FCloneFrom(_track))
         goto LFail;
-    pactrDest->_pglsmm = _pglsmm->PglDup();
-    if (pactrDest->_pglsmm == pvNil)
+    if (!pactrDest->_motionSounds.FCloneFrom(_motionSounds))
         goto LFail;
 
     pactrDest->_CopyRuntimeStateFrom(*this);
@@ -313,7 +312,7 @@ void Actor::Restore(PActor pactr)
 
     _CopyRuntimeStateFrom(*pactr);
     _track.Swap(pactr->_track);
-    SwapVars(&_pglsmm, &pactr->_pglsmm);
+    _motionSounds.Swap(pactr->_motionSounds);
 
     pactr->_pscen->Pmvie()->InvalViews();
 

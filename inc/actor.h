@@ -29,11 +29,11 @@ using namespace BRender;
 //
 #include "actor_data.h"
 #include "actor_track.h"
+#include "actor_sound.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
 const long kcrptGrow = 32;                                         // quantum growth for rpt
-const long kcsmmGrow = 2;                                          // quantum growth for smm
 const long kctagSndGrow = 2;                                       // quantum growth for tagSnd
 const long smmNil = -1;                                            // Not motion match sound
 const BRS kzrDefault = BR_SCALAR(-25.0);                           // initial default z position
@@ -120,7 +120,7 @@ class Actor : public Actor_PAR
     bool _fLifeDirty : 1;    // Set if _nfrmLast requires recomputation
     bool _fPrerendered : 1;  // Set if actor is prerendered
     LegacyLong _nfrmLast;          // Latest known frame for this actor.
-    PDynamicArray _pglsmm;             // Current action motion match sounds
+    ActorSoundList _motionSounds;             // Current action motion match sounds
 
     // Path Recording State Information
     RouteLocation _rtelInsert;        // Joining information
@@ -156,9 +156,9 @@ class Actor : public Actor_PAR
     bool _FDoAevCore(long iaev);
     bool _FDoAetVar(long aet, void *pvVar, long cbVar);
 
+    ThreeMMActorSoundServices _SoundServices();
     bool _FEnqueueSnd(long iaev);
     bool _FEnqueueSmmInMsq(void);
-    bool _FInsertSmm(long iaev);
     bool _FRemoveAevMm(long anid);
     bool _FAddAevDefMm(long anid);
 

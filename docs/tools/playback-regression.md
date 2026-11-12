@@ -2647,3 +2647,95 @@ Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus, establishin
 audible capture rather than exact PCM preservation. Movie, ISO-resource and
 Marcus-content hashes remain unchanged. Together the final shared suites cover
 fifteen successful captures; one repetition does not establish general repeatability.
+
+## Shared C89 actor runtime sound policy (12 November 2026)
+
+Studio and Marcus now share C89 actor-sound dispatch and motion-match selection,
+backed by C-owned motion-list storage. C owns replacement by cel/style, cloning,
+deletion/clear, imported-tag update ordering, tool priority and resource queue/
+release policy. Missing motion resources allow later matches; resolution or
+enqueue failures stop. Failed motion resolution retains resolver output, while
+ordinary events publish only successful resolution. Marcus emits borrowed cues
+through the same selection policy. Native sound editing/query operations and
+primitive resource/device services remain work. See the
+[implementation boundary](../code-map/library-split.md#actor-runtime-sound-policy-and-motion-storage).
+
+Forty-two standalone C checks, fifty-six native/preview checks, MSVC
+AddressSanitizer, 27 harness checks and the headless scene/timeline integration
+check pass. All twenty-eight snapshots match, including a new 43,328-byte
+independent native DynamicArray/C list comparison across 256 varied operations.
+All 51 CLI baselines match, including six asset indexes covering 20,568 entries.
+No Marcus UI tests were added. Evidence is in
+`tmp/c89-actor-sound-before.bin`, `tmp/c89-actor-sound-after.bin`,
+`tmp/c89-actor-sound-snapshot-comparison.json`,
+`tmp/c89-actor-sound-output-comparison.json`, `tmp/c89-actor-sound-asan.log`,
+`tmp/c89-actor-sound-harness-tests.log` and `tmp/c89-actor-sound-timeline.log`.
+
+The existing sampled-audio case authors scene cues. The new `actor-audio` case
+authors two queued ordinary actor cues, two motion cels and a later replacement
+of one binding at lower volume. It shares the actor track between two scenes,
+with swapped sound-child mappings in the second scene. Embedded 600 Hz speech
+and 1300 Hz effect samples make both cue types audible without external assets.
+`prepare` now generates this case with explicit actor/motion sound coverage.
+It has no preceding-build capture; it adds retail comparison coverage rather
+than proving preservation against an older actor-audio build.
+
+Prepared actor-audio manifests carry `actor_audio_contract: 1`. During playback
+the harness checks the first scene's first PCM16 channel in 100 ms Hann windows
+using Goertzel measurements at 600 and 1300 Hz. The observed final frame of scene
+zero bounds the samples, using the recorded command/audio anchor. The later
+scene's swapped mapping cannot hide a missing first-scene cue type. Both peak
+tone amplitudes must exceed 50 PCM16
+units; per-run metrics are saved as `playback/actor-audio.json`. Missing either
+tone or silence fails the run. This checks cue-class presence, not exact queue
+timing, binding-replacement timing, waveform equality or full retail audio parity.
+The contract is also checked against all three recorded playback files below.
+
+Frozen-build evidence is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T230520Z-b33780cf` | New `actor-audio`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, nine different and four inconclusive components. |
+| `20261112T230647Z-dfebe82c` | `actor-events`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T233629Z-cafe0917` | Retried `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T234252Z-036262b4` | `sampled-audio` and `actor-audio`, retail/SDL/Marcus playback, one repetition; actor tone contract enabled | Six complete, no capture failures; verdict `different`, ten different and eight inconclusive components. |
+
+The new case visits all 60 authored frame positions in each run. Both fixture
+tones pass the permanent contract in all three players. Peak PCM16 values are
+3192 retail and 4081 SDL/Marcus; these establish audible output, not equality.
+Movies, ISO resources and Marcus content remain unchanged. Evidence is in
+`tmp/c89-actor-sound-dedicated-comparison.json` and
+`tmp/c89-actor-sound-tone-contract.json`.
+
+Against event-effects suite `20261112T223822Z-b130805c`, all 180 actor-event seek
+images match exactly; all six runs preserve the same 60 authored frame positions
+and 60 ordered image changes. The report is
+`tmp/c89-actor-sound-events-comparison.json`.
+
+Scrolling-text attempt `20261112T230911Z-7973c6d3` was interrupted when C: filled
+during retail playback. Its completed seek run and incomplete playback artifacts
+are retained; the playback row is marked interrupted after confirming its process
+terminated. SQLite's integrity check passes. This attempt is excluded from the
+successful-capture totals. The final retry follows lossless compression of build
+outputs and older temporary artifacts, with compression finished before capture.
+
+Against preceding scrolling suite `20261112T224100Z-17b4c1ca`, all 180 seek images
+match exactly; all six runs preserve 60 authored frame positions and the same
+ordered image changes (retail/SDL 328, Marcus 321). Against preceding scene-audio
+suite `20261112T224504Z-02af78e2`, all three runs preserve 60 authored frame
+positions and 60 ordered image changes. Its PCM16 peaks remain 2380 retail and
+2176 SDL/Marcus. The report is `tmp/c89-actor-sound-playback-comparison.json`.
+Only adjacent identical image/position records are collapsed; original raw
+presentation samples and timestamps remain available.
+
+The three final actor-audio playback runs pass the permanent first-scene tone
+contract in the capture harness itself and preserve the initial dedicated suite's
+60 authored frame positions and ordered pixel changes for each player. Their
+`playback/actor-audio.json` artifacts record the checked sample boundary and tone
+amplitudes. The report is `tmp/c89-actor-sound-contract-comparison.json`.
+
+The four successful suites total twenty-four complete captures: fifteen existing-
+case preservation runs and nine actor-audio runs, including the three contract-
+enabled follow-ups. Movie, ISO-resource and Marcus-content hashes remain unchanged.
+Existing cross-player pixel/audio differences remain. One repetition per suite
+does not establish general repeatability or full retail parity.
