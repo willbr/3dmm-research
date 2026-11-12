@@ -327,6 +327,34 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestContainerLifecycle()
+{
+    FILE *snapshot=nullptr;
+    if(const char *path=std::getenv("THREE_MM_LIFECYCLE_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
+    for(int writable=0;writable<2;++writable)
+    {
+        Filename name;Check(name.FGetTemp());auto file=ChunkyFile::PcflCreate(&name,fcflWriteEnable);Check(file!=nullptr);
+        byte payload[17]={};Check(file->FPutPv(payload,sizeof(payload),'LIFE',1) && file->FSave('LIFE'));ReleasePpo(&file);
+        file=ChunkyFile::PcflOpen(&name,writable?fcflWriteEnable:fcflNil);auto copy=ChunkyFile::PcflCreateTemp();Check(file && copy);
+        ChunkNumber first,same,packed,forest,reopened;
+        Check(file->FCopy('LIFE',1,copy,&first));file->SetPacked('LIFE',1,false);file->SetForest('LIFE',1,false);
+        Check(file->FCopy('LIFE',1,copy,&same) && same==first && copy->Ccki()==1);
+        file->SetPacked('LIFE',1,true);Check(file->FCopy('LIFE',1,copy,&packed) && packed!=first && copy->Ccki()==2);
+        file->SetForest('LIFE',1,true);Check(file->FCopy('LIFE',1,copy,&forest) && forest!=packed && copy->Ccki()==3);
+        file->SetPacked('LIFE',1,true);file->SetForest('LIFE',1,true);Check(file->FCopy('LIFE',1,copy,&same) && same==forest);
+        Check(file->FEnsureOnExtra('LIFE',1));const bool reopenedOk=file->FReopen();Check(reopenedOk==!writable);
+        Check(file->FPacked('LIFE',1)==!!writable && file->FForest('LIFE',1)==!!writable && file->FOnExtra('LIFE',1)==!!writable);
+        Check(file->FCopy('LIFE',1,copy,&reopened) && (writable?reopened==forest:reopened!=forest) && copy->Ccki()==(writable?3:4));
+        Check(file->FSetGrfcfl(fcflMark,fcflMark));auto identity=file;ReleasePpo(&file);Check(ChunkyFile::PcflFromFni(&name)==identity);
+        file=ChunkyFile::PcflOpen(&name,fcflNil);Check(file==identity);ReleasePpo(&file);ReleasePpo(&copy);
+        ChunkyFile::ClearMarks();ChunkyFile::CloseUnmarked();Check(ChunkyFile::PcflFromFni(&name)==nullptr);
+        uint32_t record[]={static_cast<uint32_t>(writable),first,same,packed,forest,reopened,reopenedOk};
+        if(snapshot)Check(std::fwrite(record,sizeof(record),1,snapshot)==1);
+        Check(name.FDelete());
+    }
+    if(snapshot)Check(std::fclose(snapshot)==0);
+}
+
 static void TestStorageRouting()
 {
     FILE *snapshot=nullptr;
@@ -3760,6 +3788,7 @@ int main()
     TestForestTransfer();
     TestFreeMapLoading();
     TestStorageRouting();
+    TestContainerLifecycle();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

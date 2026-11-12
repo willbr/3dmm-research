@@ -36,6 +36,31 @@ static void output(const ThreeMMChunkEdit *edit, const ThreeMMChunkLocation *loc
     if (edit->output)
         edit->output(edit->context, location, added);
 }
+int three_mm_chunk_set_flag(const ThreeMMChunkEdit *edit, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 flag,
+                            int enabled)
+{
+    ThreeMMChunkEntry entry;
+    ThreeMMU32 position, value = enabled ? flag : 0;
+    if (!readable(edit) || !edit->store ||
+        (flag != THREE_MM_CHUNK_LONER && flag != THREE_MM_CHUNK_PACKED && flag != THREE_MM_CHUNK_FOREST) ||
+        (flag != THREE_MM_CHUNK_LONER && !edit->reset_runtime))
+        return BAD;
+    if (!find(edit, type, number, &position))
+        return THREE_MM_CHUNK_NOT_FOUND;
+    edit->entry(edit->context, position, &entry);
+    if (flag == THREE_MM_CHUNK_LONER)
+    {
+        if (!enabled)
+            return entry.flags & LONER ? three_mm_chunk_delete(edit, type, number) : OK;
+    }
+    else if ((entry.flags & flag) == value)
+        return OK;
+    entry.flags = (entry.flags & ~flag) | value;
+    edit->store(edit->context, position, &entry, 0);
+    if (flag != THREE_MM_CHUNK_LONER)
+        edit->reset_runtime(edit->context, type, number);
+    return OK;
+}
 static void issue(const ThreeMMChunkEdit *edit, int kind)
 {
     if (edit->issue)

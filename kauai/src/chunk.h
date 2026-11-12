@@ -22,6 +22,7 @@
 #include "three_mm/chunk_metadata.h"
 #include "three_mm/chunk_loading.h"
 #include "three_mm/chunk_storage.h"
+#include "three_mm/chunk_lifecycle.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -128,6 +129,10 @@ class ChunkyFile : public ChunkyFile_PAR
 
     static LegacyUlong _GrffilFromGrfcfl(LegacyUlong grfcfl);
 
+    ThreeMMChunkReopenState _ReopenState();
+    void _PublishReopen(const ThreeMMChunkReopenState *);
+    static ThreeMMChunkRegistry _RegistryServices();
+    void _SetChunkFlag(ChunkTagOrType, ChunkNumber, ThreeMMU32, bool);
     bool _FReadIndex(void);
     ThreeMMChunkAccess _ChunkAccess();
     ThreeMMChunkEdit _EditServices(void *context);

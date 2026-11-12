@@ -461,8 +461,44 @@ static void links(void)
     CHECK(three_mm_chunk_unlink(&f.edit, 10, 0, &key) == THREE_MM_CHUNK_NOT_FOUND);
     CHECK(three_mm_chunk_adopt(&f.edit, 10, 99, &key, 1, 3) == THREE_MM_CHUNK_NOT_FOUND);
 }
+static void flag_cases(void)
+{
+    Fixture f;
+    Node original;
+    ThreeMMU32 flag;
+    for (flag = THREE_MM_CHUNK_PACKED; flag <= THREE_MM_CHUNK_FOREST; flag *= 4)
+    {
+        init(&f);
+        node(&f, 0, 5, 2, 1);
+        original = f.nodes[0];
+        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 0) == THREE_MM_CHUNK_OK && !f.resets && !f.stores);
+        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 1) == THREE_MM_CHUNK_OK && f.resets == 1 && f.stores == 1 &&
+              !f.nodes[0].runtime);
+        original.entry.flags |= flag;
+        original.runtime = 0;
+        CHECK(!memcmp(&f.nodes[0], &original, sizeof(original)));
+        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 1) == THREE_MM_CHUNK_OK && f.resets == 1 && f.stores == 1);
+        CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, flag, 0) == THREE_MM_CHUNK_OK && f.resets == 2 && f.stores == 2 &&
+              f.nodes[0].entry.flags == 2);
+    }
+    init(&f);
+    node(&f, 0, 5, 0, 1);
+    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 1) == THREE_MM_CHUNK_OK && f.nodes[0].entry.flags == 2 &&
+          !f.resets && f.nodes[0].runtime == 99);
+    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == THREE_MM_CHUNK_OK && !f.nodes[0].entry.flags && !f.begun &&
+          f.count == 1 && !f.resets);
+    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == THREE_MM_CHUNK_OK && f.count == 1 && !f.begun);
+    CHECK(three_mm_chunk_set_flag(&f.edit, 99, 5, 4, 1) == THREE_MM_CHUNK_NOT_FOUND);
+    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 1, 1) == THREE_MM_CHUNK_BAD_FILE);
+    init(&f);
+    node(&f, 0, 5, 2, 0);
+    f.delete_root = 5;
+    event(&f, 0, 5, 7, 0);
+    CHECK(three_mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == THREE_MM_CHUNK_OK && !f.count && f.begun == 1);
+}
 int main(void)
 {
+    flag_cases();
     put_cases();
     simple();
     deletes();

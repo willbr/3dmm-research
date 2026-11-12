@@ -69,6 +69,10 @@ extern "C"
     int three_mm_chunk_add(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 position,
                            ThreeMMU32 bytes, ThreeMMChunkLocation *);
     int three_mm_chunk_put(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 bytes);
+    /* PACKED/FOREST changes invalidate RTI only when changed; LONER enabling
+     * preserves RTI and disabling an existing LONER delegates to graph deletion. */
+    int three_mm_chunk_set_flag(const ThreeMMChunkEdit *, ThreeMMU32 type, ThreeMMU32 number,
+                                ThreeMMU32 flag, int enabled);
     int three_mm_chunk_remove(const ThreeMMChunkEdit *, ThreeMMU32 position);
     int three_mm_chunk_decrement(const ThreeMMChunkEdit *, ThreeMMU32 position, int *should_delete);
     /* Missing root is NOT_FOUND. Traversal remains a host service: C selects skip,

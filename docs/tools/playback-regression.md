@@ -1611,3 +1611,58 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 container options, flags and reopen ownership (12 November 2026)
+
+Container-to-file option mapping, sticky options, mark/zero-reference cleanup,
+packed/forest/loner mutation and reopen ownership sequencing now use C89. The
+reopen transaction publishes detached or restored owners before index I/O or
+cleanup, restores prior index/file/map/runtime owners on failure, and releases
+replaced or rejected owners. Deferred-map offset/size fields retain the legacy
+last-read behavior outside rollback. Native container construction/disposal,
+registry storage and resource ownership remain. See the
+[implementation boundary](../code-map/library-split.md#container-options-flags-and-reopen-ownership).
+
+All 56 native lifecycle snapshot bytes match. Native checks cover no-op/changed
+flag invalidation, graph-copy reuse, read-only reopen success versus writable
+denial, mark retention, repeated open and final unmarked closure. The previous
+572,367-byte chunk, 1,740-byte routing, 2,192-byte loading, 29,532-byte string and
+1,594-byte forest snapshots also match. Standalone tests cover 262,144 option/
+state/mask/file-flag/failure combinations, registry unlink order, release limits,
+loner deletion, and forced read/validation failure in the C reopen transaction.
+Allocated maps/runtime caches verify restoration and complete cleanup, with and
+without a compact cache. Forced failure in the real native file/index services
+is not covered; native integration verifies successful reopen and guard denial.
+
+Twenty-three standalone C checks, thirty-five focused native checks and both
+MSVC AddressSanitizer checks pass. Native statistics and expanded-index variants
+compile with `/Zs`; expanded-index runtime remains unverified. All 51 CLI
+baselines match, including six asset indexes covering 20,568 entries. Evidence
+includes `tmp/c89-lifecycle-before.bin`, `tmp/c89-lifecycle-after.bin`,
+`tmp/c89-lifecycle-chunks-after.bin`, `tmp/c89-lifecycle-routing-after.bin`,
+`tmp/c89-lifecycle-loading-after.bin`, `tmp/c89-lifecycle-strings-after.bin`,
+`tmp/c89-lifecycle-forest-after.bin` and `tmp/c89-lifecycle-output-comparison.json`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T145706Z-f201f768` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T150023Z-b2f27712` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding storage-routing suites `20261112T142853Z-e891a5e5` and
+`20261112T143448Z-5be8800c`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-lifecycle-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

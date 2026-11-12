@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,45 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Container options, flags and reopen ownership
+
+`chunk_lifecycle.c` owns container-to-file option mapping and sticky mark/add/read
+options. Even a zero option mask maps to deny-write. Physical flag changes are
+attempted before a noncritical lazy-map read and before options are latched;
+failed flag changes leave options unchanged. Native services retain the physical
+file flag implementation. The C registry walker selects zero-reference unmarked
+objects for destruction and reads the next token before destroying the current
+one. C release policy retains marked zero-reference containers.
+
+The C reopen transaction detaches the current index/storage, explicitly swaps
+the compact runtime cache, retains the main file, publishes the detached state
+and invokes index loading/validation. Success disposes the former owners; failure
+restores them and disposes rejected owners. Publication precedes cleanup callbacks.
+Deferred-map offset/size fields outside the transaction retain their last-read
+values, matching the legacy rollback limitation. Other container options remain
+unchanged. Native callbacks provide index materialization/validation, reference
+primitives and facade synchronization. An expanded index supplies no compact cache.
+
+`chunk_edit.c` now also owns packed/forest/loner mutation. Packed/forest changes
+invalidate runtime IDs only when their bit changes. Enabling loner preserves the
+ID; disabling an existing loner delegates to the shared graph deletion policy.
+Native fixed-record storage still preserves native-only fields.
+
+`engine-lifecycle-test` checks 262,144 option/state/mask/file-flag/failure
+combinations, registry unlink/next-before-delete behavior, release limits and
+reopen success/read failure/validation failure. Allocated free maps and runtime
+caches prove restored ownership and complete cleanup with and without a compact
+cache. Writable/invalid/locked-owner guards leave owners untouched. The extended
+edit check covers no-op/changed flag invalidation and loner deletion. Both pass
+MSVC AddressSanitizer. Native integration preserves the 56-byte lifecycle snapshot
+and checks copy reuse/invalidation, read-only reopen versus writable denial,
+mark retention, repeated open and final unmarked closure. All prior chunk,
+routing, loading, string and forest snapshots remain exact. Statistics and
+expanded-index variants compile; expanded-index runtime remains unverified.
+
+Native container construction, destructor/registry storage and resource ownership
+still require migration before the container/backend can stand alone in C.
+
 ### Storage selection and read-through caching
 
 `chunk_storage.c` owns main/extra allocation selection, cache copy/publication,
@@ -457,8 +496,8 @@ loading, string and forest snapshots remain exact.
 The native statistics and expanded-index variants compile with `/Zs`. The
 expanded variant exposed a pre-existing duplicate mask name; its alias now uses
 `kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
-runtime validation. Container flag/lifecycle policy and resource ownership still
-require conversion.
+runtime validation. Container option/flag/reopen policy now uses C above; native
+construction/disposal and resource ownership still require conversion.
 
 ### Index materialization and owning free maps
 
@@ -557,8 +596,8 @@ encodings, maximum lengths, malformed/truncated data and nonzero offsets.
 Additional cases cover read/write failure stages and UTF-16/big-endian output.
 The test passes MSVC AddressSanitizer. Native checks retain all 572,367 chunk
 snapshot bytes and all serialized-string snapshot bytes. Reopen cache ownership
-is checked at the C owner-swap boundary; a full forced native reopen rollback
-is not covered by this check.
+is checked by the lifecycle transaction above, including forced C read/validation
+failures. Forced failure in the real native file/index services is not covered.
 
 ### Chunk swaps, moves and graph copy/clone
 
@@ -798,7 +837,7 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, remaining container flag/lifecycle policy and
+Primitive memory/file services, native container construction/disposal and
 engine objects still prevent a complete C-only backend.
 
 ## Why the split exists

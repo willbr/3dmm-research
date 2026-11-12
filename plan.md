@@ -144,8 +144,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Main/extra storage selection, zero-size allocation rules, cache copy/rollback
   and read-through fetch fallback now use C89. Cached location publication
   preserves runtime IDs and other metadata. Native callbacks provide C heap
-  access, file creation/copy and fixed-record updates. Remaining container flag/
-  lifecycle policy and resource ownership are next.
+  access, file creation/copy and fixed-record updates.
+- Container option mapping/latching, mark/zero-reference cleanup, packed/forest/
+  loner mutation and reopen ownership sequencing now use C89. Failed reopen
+  restores the prior index, files, free maps and compact runtime cache; replaced
+  or rejected owners are disposed after publication. Native container construction,
+  destruction/registry storage and resource ownership remain to be migrated.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -241,7 +245,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations and forest transfer now have shared C89
 implementations behind temporary native facades. Continue with remaining
-container flag/lifecycle policy, then resource/engine objects and the
+container construction/disposal and resource ownership, then engine objects and the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.
