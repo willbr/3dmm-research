@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,39 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Container construction, lookup and disposal
+
+`chunk_container.c` owns open/create sequencing over native object/file/index
+primitives. Existing opens apply options before adding a reference; failure
+retains the existing owner and returns no new reference or open-error diagnostic.
+Creation rejects existing owners, forces write-enable, creates index then file,
+reserves the 128-byte prefix and publishes the logical end. Every failed new
+construction releases its partial owner and attached resources before reporting
+the open/create error. Initial option failure on a new owner remains diagnostic
+only, matching legacy release behavior. Optional new-owner diagnostics preserve
+the original validation points without adding full checks to existing opens.
+
+Registry matching uses borrowed file tokens, skips invalid-main wrappers and
+retains the extra-file collision diagnostic. Name resolution and native shell
+allocation remain host primitives. Disposal clears/publishes the owner view,
+then releases main file/map, extra file/map, index and runtime cache in legacy
+order. Repeated disposal of an empty state is safe. Locked map/cache owners are
+rejected before mutation. Shared main/extra file tokens consume two references;
+free maps remain unique owners.
+
+`engine-container-test` checks allocation/index/file/resize/read/validation failure
+stages, including readers that leave partial resources, existing opens and
+creation rejection, initial-option diagnostics and callback order. Disposal tests
+check shared file references, partial/empty states, repeated cleanup, compact/
+expanded-style cache ownership and lock guards. MSVC AddressSanitizer passes.
+All 597 native construction snapshot bytes match over ordinary/temp/relative-temp
+creation and saves; native checks also cover repeated open, corrupt-file rejection
+and temporary deletion. All previous snapshots remain exact. Native statistics
+and expanded-index variants compile; expanded-index runtime remains unverified.
+
+Native class allocation, forest destination setup and registry backing still exist. Resource-cache ownership
+and replacing native contexts remain necessary for a complete C-only backend.
+
 ### Container options, flags and reopen ownership
 
 `chunk_lifecycle.c` owns container-to-file option mapping and sticky mark/add/read
@@ -460,8 +493,8 @@ mark retention, repeated open and final unmarked closure. All prior chunk,
 routing, loading, string and forest snapshots remain exact. Statistics and
 expanded-index variants compile; expanded-index runtime remains unverified.
 
-Native container construction, destructor/registry storage and resource ownership
-still require migration before the container/backend can stand alone in C.
+Construction and associated-resource disposal now use C above. Native class/
+registry backing and resource-cache ownership still prevent a standalone C backend.
 
 ### Storage selection and read-through caching
 
@@ -497,7 +530,7 @@ The native statistics and expanded-index variants compile with `/Zs`. The
 expanded variant exposed a pre-existing duplicate mask name; its alias now uses
 `kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
 runtime validation. Container option/flag/reopen policy now uses C above; native
-construction/disposal and resource ownership still require conversion.
+class/registry backing and resource ownership still require conversion.
 
 ### Index materialization and owning free maps
 
@@ -837,7 +870,7 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, native container construction/disposal and
+Primitive memory/file services, native class/registry backing and
 engine objects still prevent a complete C-only backend.
 
 ## Why the split exists

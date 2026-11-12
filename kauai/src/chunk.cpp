@@ -388,16 +388,17 @@ ChunkyFile::ChunkyFile(void)
 ChunkyFile::~ChunkyFile(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_csto.pfil);
-    three_mm_free_map_close(_csto.free_map); _csto.free_map = nullptr;
-    ReleasePpo(&_cstoExtra.pfil);
-    three_mm_free_map_close(_cstoExtra.free_map); _cstoExtra.free_map = nullptr;
-    ReleasePpo(&_pggcrp);
+    auto state = _ReopenState();
+    ThreeMMChunkRuntime *runtime = nullptr;
 #ifndef CHUNK_BIG_INDEX
-    AssertDo(three_mm_chunk_runtime_dispose(&_runtime) == THREE_MM_CHUNK_OK, "invalid runtime cache disposal");
-#endif //! CHUNK_BIG_INDEX
+    runtime = &_runtime;
+#endif
+    const ThreeMMChunkDisposal services = {this,
+        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); },
+        [](void *, void *index) { static_cast<PGeneralGroup>(index)->Release(); },
+        [](void *c, const ThreeMMChunkReopenState *state) { static_cast<PChunkyFile>(c)->_PublishReopen(state); }};
+    AssertDo(three_mm_chunk_dispose(&state, runtime, &services) == THREE_MM_CHUNK_OK, "invalid container disposal");
 }
-
 /***************************************************************************
     Static method: open an existing file as a chunky file.  Increments the
     open count.
@@ -405,41 +406,11 @@ ChunkyFile::~ChunkyFile(void)
 PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
 {
     AssertPo(pfni, ffniFile);
-    PChunkyFile pcfl;
-    LegacyUlong grffil;
-
     Assert(!(grfcfl & fcflTemp), "can't open a file as temp");
-    if (pvNil != (pcfl = PcflFromFni(pfni)))
-    {
-        if (!pcfl->FSetGrfcfl(grfcfl))
-            return pvNil;
-        pcfl->AddRef();
-        return pcfl;
-    }
-
-    grffil = _GrffilFromGrfcfl(grfcfl);
-    if ((pcfl = NewObj ChunkyFile()) == pvNil)
-        goto LFail;
-
-    if ((pcfl->_csto.pfil = FileObject::PfilOpen(pfni, grffil)) == pvNil || !pcfl->_FReadIndex())
-    {
-        goto LFail;
-    }
-    if (tYes != pcfl->_TValidIndex())
-    {
-    LFail:
-        ReleasePpo(&pcfl);
-        PushErc(ercCflOpen);
-        return pvNil;
-    }
-    AssertDo(pcfl->FSetGrfcfl(grfcfl), 0);
-
-    // We don't assert with fcflGraph, because we've already
-    // called _TValidIndex.
-    AssertPo(pcfl, fcflFull);
-    return pcfl;
+    const auto services = _ConstructionServices(pfni);
+    auto owner = static_cast<PChunkyFile>(three_mm_chunk_construct(&services, grfcfl, 0));
+    return owner;
 }
-
 /***************************************************************************
     If the file is read-only, toss the index and extra file and re-read
     the index.
@@ -478,51 +449,47 @@ bool ChunkyFile::FReopen(void)
     AssertThis(0); return ok;
 }
 /***************************************************************************
-    Static method to get file options corresponding to the given chunky
-    file options.
+    Native object, file and collection primitives for the shared C
+    construction policy.
 ***************************************************************************/
-LegacyUlong ChunkyFile::_GrffilFromGrfcfl(LegacyUlong grfcfl)
+ThreeMMChunkConstruction ChunkyFile::_ConstructionServices(Filename *name)
 {
-    static_assert(ffilWriteEnable == 1 && ffilDenyWrite == 2 && ffilDenyRead == 4 && ffilTemp == 16, "file flag encoding" );
-    return three_mm_chunk_file_flags(grfcfl);
+    static_assert(ffilWriteEnable == 1 && ffilDenyWrite == 2 && ffilDenyRead == 4 && ffilTemp == 16, "file flag encoding");
+    return {name,
+        [](void *c) -> void * { return PcflFromFni(static_cast<Filename *>(c)); },
+        [](void *) -> void * { return NewObj ChunkyFile(); },
+        [](void *, void *owner) { static_cast<PChunkyFile>(owner)->AddRef(); },
+        [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
+        [](void *c, int create, ThreeMMU32 flags) -> void * {
+            return create ? FileObject::PfilCreate(static_cast<Filename *>(c), flags) : FileObject::PfilOpen(static_cast<Filename *>(c), flags);
+        },
+        [](void *) -> void * { return GeneralGroup::PggNew(sizeof(ChunkRepresentation)); },
+        [](void *, void *owner, void *file) { static_cast<PChunkyFile>(owner)->_csto.pfil = static_cast<PFileObject>(file); },
+        [](void *, void *owner, void *index) { static_cast<PChunkyFile>(owner)->_pggcrp = static_cast<PGeneralGroup>(index); },
+        [](void *, void *owner, ThreeMMU32 end) { static_cast<PChunkyFile>(owner)->_csto.fpMac = end; },
+        [](void *, void *file, ThreeMMU32 end) -> int { return static_cast<PFileObject>(file)->FSetFpMac(end); },
+        [](void *, void *owner) -> int { return static_cast<PChunkyFile>(owner)->_FReadIndex(); },
+        [](void *, void *owner) -> int { return static_cast<PChunkyFile>(owner)->_TValidIndex() == tYes; },
+        [](void *, void *owner, ThreeMMU32 flags) -> int { return static_cast<PChunkyFile>(owner)->FSetGrfcfl(flags); },
+        [](void *, int issue) {
+            if (issue == THREE_MM_CONTAINER_ALREADY_OPEN) Bug("trying to create an open file");
+            else if (issue == THREE_MM_CONTAINER_INITIAL_OPTIONS) Bug("initial container options failed");
+            else PushErc(issue == THREE_MM_CONTAINER_OPEN_FAILED ? ercCflOpen : ercCflCreate);
+        },
+        [](void *, void *owner, int create) {
+            AssertPo(static_cast<PChunkyFile>(owner), fcflFull | (create ? fcflGraph : 0));
+        }};
 }
-
 /***************************************************************************
     Static method: create a new file.  Increments the open count.
 ***************************************************************************/
 PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, LegacyUlong grfcfl)
 {
     AssertPo(pfni, ffniFile);
-    PChunkyFile pcfl;
-    LegacyUlong grffil;
-
-    grfcfl |= fcflWriteEnable;
-    grffil = _GrffilFromGrfcfl(grfcfl);
-
-    if (pvNil != (pcfl = ChunkyFile::PcflFromFni(pfni)))
-    {
-        Bug("trying to create an open file");
-        goto LFail;
-    }
-
-    if ((pcfl = NewObj ChunkyFile()) == pvNil)
-        goto LFail;
-
-    if ((pcfl->_pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation))) == pvNil ||
-        (pcfl->_csto.pfil = FileObject::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
-    {
-        ReleasePpo(&pcfl);
-    LFail:
-        PushErc(ercCflCreate);
-        return pvNil;
-    }
-    pcfl->_csto.fpMac = size(ChunkyFilePrefix);
-    AssertDo(pcfl->FSetGrfcfl(grfcfl), 0);
-
-    AssertPo(pcfl, fcflFull | fcflGraph);
-    return pcfl;
+    const auto services = _ConstructionServices(pfni);
+    auto owner = static_cast<PChunkyFile>(three_mm_chunk_construct(&services, grfcfl, 1));
+    return owner;
 }
-
 /***************************************************************************
     Static method to create a temporary chunky file in the same directory as
     *pfni and with the same ftg.  If pfni is nil, the file is created in
@@ -556,20 +523,14 @@ PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    PFileObject pfil;
-    PChunkyFile pcfl;
-
-    if ((pfil = FileObject::PfilFromFni(pfni)) == pvNil)
-        return pvNil;
-    for (pcfl = _pcflFirst; pcfl != pvNil; pcfl = pcfl->PcflNext())
-    {
-        Assert(pfil != pcfl->_cstoExtra.pfil, "who is using this Filename?");
-        if (pcfl->_csto.pfil == pfil && !pcfl->_fInvalidMainFile)
-            break;
-    }
-    return pcfl;
+    const ThreeMMChunkLookup services = {
+        [](void *c) -> void * { return static_cast<PChunkyFile>(c)->PcflNext(); },
+        [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_csto.pfil; },
+        [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_cstoExtra.pfil; },
+        [](void *c) -> int { return static_cast<PChunkyFile>(c)->_fInvalidMainFile; },
+        [](void *) { Bug("who is using this Filename?"); }};
+    return static_cast<PChunkyFile>(three_mm_chunk_find_container(_pcflFirst, FileObject::PfilFromFni(pfni), &services));
 }
-
 /***************************************************************************
     Embedded chunk descriptor on file. Chunks and their subtrees can
     be combined into a single stream by the following rules:

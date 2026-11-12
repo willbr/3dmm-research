@@ -23,6 +23,7 @@
 #include "three_mm/chunk_loading.h"
 #include "three_mm/chunk_storage.h"
 #include "three_mm/chunk_lifecycle.h"
+#include "three_mm/chunk_container.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -127,7 +128,7 @@ class ChunkyFile : public ChunkyFile_PAR
     ChunkyFile(void);
     ~ChunkyFile(void);
 
-    static LegacyUlong _GrffilFromGrfcfl(LegacyUlong grfcfl);
+    static ThreeMMChunkConstruction _ConstructionServices(Filename *);
 
     ThreeMMChunkReopenState _ReopenState();
     void _PublishReopen(const ThreeMMChunkReopenState *);

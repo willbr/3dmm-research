@@ -327,6 +327,34 @@ static void TestChunkPersistence()
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
+static void TestContainerConstruction()
+{
+    FILE *snapshot=nullptr;
+    if(const char *path=std::getenv("THREE_MM_CONTAINER_SNAPSHOT")){snapshot=std::fopen(path,"wb");Check(snapshot!=nullptr);}
+    for(int mode=0;mode<3;++mode)
+    {
+        Filename reference,name;Check(reference.FGetTemp());
+        auto file=mode==2?ChunkyFile::PcflCreateTemp(&reference):ChunkyFile::PcflCreate(&reference,mode==1?fcflTemp:fcflNil);
+        Check(file!=nullptr);file->GetFni(&name);Check(file->FTemp()==(mode!=0));
+        Check(file->FPutPv(const_cast<char *>("payload"),7,'CTOR',1) && file->FSave('CTOR'));
+        auto raw=FileObject::PfilFromFni(&name);Check(raw!=nullptr);byte bytes[2048];LegacyLong count=raw->FpMac();
+        Check(count<sizeof(bytes) && raw->FReadRgb(bytes,count,0));
+        uint32_t record[]={static_cast<uint32_t>(mode),static_cast<uint32_t>(count),static_cast<uint32_t>(name.Ftg()),file->FTemp()};
+        if(snapshot){Check(std::fwrite(record,sizeof(record),1,snapshot)==1);Check(std::fwrite(bytes,1,count,snapshot)==static_cast<size_t>(count));}
+        ReleasePpo(&file);
+        if(mode==0)
+        {
+            file=ChunkyFile::PcflOpen(&name,fcflNil);Check(file!=nullptr);auto same=ChunkyFile::PcflOpen(&name,fcflNil);Check(same==file);
+            ReleasePpo(&same);DataBlock block;Check(file->FFind('CTOR',1,&block) && block.FReadRgb(bytes,7,0,true) && !std::memcmp(bytes,"payload",7));
+            block.Free();ReleasePpo(&file);Check(name.FDelete());
+        }
+        else {raw=FileObject::PfilOpen(&name);Check(raw==nullptr);}
+    }
+    Filename bad;Check(bad.FGetTemp());auto raw=FileObject::PfilCreate(&bad);Check(raw && raw->FWriteRgb(const_cast<char *>("invalid"),7,0));ReleasePpo(&raw);
+    auto rejected=ChunkyFile::PcflOpen(&bad,fcflNil);Check(!rejected && !ChunkyFile::PcflFromFni(&bad));Check(bad.FDelete());
+    if(snapshot)Check(std::fclose(snapshot)==0);
+}
+
 static void TestContainerLifecycle()
 {
     FILE *snapshot=nullptr;
@@ -3789,6 +3817,7 @@ int main()
     TestFreeMapLoading();
     TestStorageRouting();
     TestContainerLifecycle();
+    TestContainerConstruction();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

@@ -1666,3 +1666,59 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 container construction, lookup and disposal (12 November 2026)
+
+Open/create sequencing, existing-owner matching and associated-resource disposal
+now use C89. Existing opens apply options before retaining; creation forces write,
+creates index then file, and reserves the 128-byte prefix. Failed new construction
+releases its partial owner before reporting failure. Initial option failure on a
+new owner remains diagnostic-only, matching legacy release behavior. Disposal
+clears/publishes the owner view, then releases main file/map, extra file/map,
+index and runtime storage in legacy order. Native class/registry backing and
+forest destination setup remain, along with resource-cache ownership. See the
+[implementation boundary](../code-map/library-split.md#container-construction-lookup-and-disposal).
+
+All 597 native construction baseline bytes match across ordinary, temporary and
+same-directory temporary creation and saves. Native checks verify repeated open,
+corrupt-file rejection and temporary deletion. The prior 572,367-byte chunk,
+56-byte lifecycle, 1,740-byte routing, 2,192-byte loading, 29,532-byte string and
+1,594-byte forest snapshots also match. Standalone checks cover owner/index/file/
+resize/read/validation failures, including readers leaving partial resources,
+existing-open failures and creation rejection, initial-option diagnostics,
+shared file references, cleared-state publication, locked-owner guards and
+repeated empty disposal. Lookup checks cover invalid-main wrappers and extra-file
+collision diagnostics. Native shell allocation and name resolution stay adapters.
+
+Twenty-four standalone C checks, thirty-six focused native checks and MSVC
+AddressSanitizer pass. Native statistics and expanded-index variants compile
+with `/Zs`; expanded-index runtime remains unverified. All 51 CLI baselines match,
+including six asset indexes covering 20,568 entries. Evidence includes
+`tmp/c89-container-before.bin`, `tmp/c89-container-after.bin`,
+`tmp/c89-container-chunks-after.bin`, `tmp/c89-container-lifecycle-after.bin`,
+`tmp/c89-container-routing-after.bin`, `tmp/c89-container-loading-after.bin`,
+`tmp/c89-container-strings-after.bin`, `tmp/c89-container-forest-after.bin` and
+`tmp/c89-container-output-comparison.json`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T152255Z-f6ca2e8e` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T152648Z-013c24c1` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding lifecycle suites `20261112T145706Z-f201f768` and
+`20261112T150023Z-b2f27712`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-container-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.
