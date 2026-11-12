@@ -13,7 +13,7 @@
     to the local hard disk, and caching resources in RAM using chunky
     resources (the ChunkyResourceFile and ChunkyResourceManager classes).
 
-    For each source, TagManager maintains (in an SourceFileStructure) a ChunkyResourceManager (Chunky Resource
+    For each source, TagManager maintains (in the C source catalogue) a ChunkyResourceManager (Chunky Resource
     Manager) of all the content	files on the source and a ChunkyResourceFile (Chunky
     Resource File), which is a single file on the HD which can be used
     for faster access to the source.  Both CRFs and CRMs can cache
@@ -47,26 +47,103 @@ RTCLASS(TagManager)
 
 const ByteOrderMask kbomSid = 0xc0000000;
 
-// Source File Structure...keeps track of known sources and caches
-struct SourceFileStructure
+namespace
+{
+class NativeSourcePaths : public BASE
 {
   public:
-    LegacyLong sid;             // ID for this source
-    Filename fniHD;            // Filename of the HD directory
-    Filename fniCD;            // Filename of the CD directory
-    PChunkyResourceManager pcrmSource;      // ChunkyResourceManager of files on the CD (or possibly HD)
-    tribool tContentOnHD; // Is the content on the HD or CD?
-
-  public:
-    void Clear(void) // Zeros out an SourceFileStructure
-    {
-        sid = ksidInvalid;
-        fniHD.SetNil();
-        fniCD.SetNil();
-        pcrmSource = pvNil;
-        tContentOnHD = tMaybe;
-    }
+    Filename local, media;
 };
+struct NativeSourceHost
+{
+    PTagManager manager;
+    PFilename output;
+    PString leaf;
+    const TAG *asset;
+    FileType type = ftgNil;
+};
+} // namespace
+ThreeMMSourceOwners TagManager::_SourceOwners()
+{
+    return {this, [](void *) -> void * { return NewObj NativeSourcePaths(); },
+            [](void *d, const void *s) {
+                auto to = static_cast<NativeSourcePaths *>(d);
+                auto from = const_cast<NativeSourcePaths *>(static_cast<const NativeSourcePaths *>(s));
+                to->local = from->local;
+                to->media = from->media;
+            },
+            [](void *p) { static_cast<NativeSourcePaths *>(p)->Release(); },
+            [](void *p) { static_cast<PChunkyResourceManager>(p)->Release(); }};
+}
+ThreeMMSourceServices TagManager::_SourceServices(void *context)
+{
+    static_assert(static_cast<int>(TagSourceAccess::Legacy) == THREE_MM_SOURCE_LEGACY &&
+                      static_cast<int>(TagSourceAccess::Available) == THREE_MM_SOURCE_AVAILABLE &&
+                      static_cast<int>(TagSourceAccess::Disabled) == THREE_MM_SOURCE_DISABLED &&
+                      static_cast<int>(TagSourceAccess::Missing) == THREE_MM_SOURCE_MISSING,
+                  "source access encoding");
+    ThreeMMSourceServices s = {};
+    s.context = context;
+    s.access = [](void *c, ThreeMMI32 sid, void *, int kind) -> int {
+        auto h = static_cast<NativeSourceHost *>(c);
+        return static_cast<int>(h->manager->SourceDirectory(sid, kind ? h->output : nullptr));
+    };
+    s.path_empty = [](void *p, int media) -> int {
+        auto paths = static_cast<NativeSourcePaths *>(p);
+        return (media ? paths->media : paths->local).Ftg() == ftgNil;
+    };
+    s.clear_local = [](void *p) { static_cast<NativeSourcePaths *>(p)->local.SetNil(); };
+    s.build_local = [](void *c, ThreeMMI32 sid, void *p, int *exists) -> int {
+        bool v = false;
+        const bool ok = static_cast<NativeSourceHost *>(c)->manager->_FBuildFniHD(
+            sid, &static_cast<NativeSourcePaths *>(p)->local, &v);
+        *exists = v;
+        return ok;
+    };
+    s.archive_source = [](void *c, ThreeMMI32 sid) -> int {
+        return static_cast<NativeSourceHost *>(c)->manager->HasArchiveSource(sid);
+    };
+    s.content = [](void *c, void *p, int *exists) -> int {
+        bool v = false;
+        const bool ok = static_cast<NativeSourceHost *>(c)->manager->_FDetermineIfContentOnFni(
+            &static_cast<NativeSourcePaths *>(p)->local, &v);
+        *exists = v;
+        return ok;
+    };
+    s.find_media = [](void *c, ThreeMMI32 sid, void *p, int *changed) -> int {
+        bool v = false;
+        const bool ok = static_cast<NativeSourceHost *>(c)->manager->_FFindFniCD(
+            sid, &static_cast<NativeSourcePaths *>(p)->media, &v);
+        *changed = v;
+        return ok;
+    };
+    s.retry = [](void *c, ThreeMMI32 sid) -> int {
+        auto h = static_cast<NativeSourceHost *>(c);
+        return h->manager->_FRetry(sid, h->asset);
+    };
+    s.new_manager = [](void *c, ThreeMMI32 sid, void *p, int media) -> void * {
+        auto paths = static_cast<NativeSourcePaths *>(p);
+        return static_cast<NativeSourceHost *>(c)->manager->_PcrmSourceNew(sid, media ? &paths->media : &paths->local);
+    };
+    s.output = [](void *c, void *p, int media) {
+        auto paths = static_cast<NativeSourcePaths *>(p);
+        *static_cast<NativeSourceHost *>(c)->output = media ? paths->media : paths->local;
+    };
+    s.moved_open_source = [](void *) { Bug("fniCD can't change once pcrm is opened!"); };
+    s.prepare_file = [](void *c) -> int {
+        auto h = static_cast<NativeSourceHost *>(c);
+        if (!h->output->FBuildFromPath(h->leaf))
+            return 0;
+        h->type = h->output->Ftg();
+        return 1;
+    };
+    s.find_leaf = [](void *c) -> int {
+        auto h = static_cast<NativeSourceHost *>(c);
+        return h->output->FSetLeaf(h->leaf, h->type) && h->output->FResolveCase();
+    };
+    s.clear_output = [](void *c) { static_cast<NativeSourceHost *>(c)->output->SetNil(); };
+    return s;
+}
 
 /***************************************************************************
     Initialize the tag manager
@@ -87,9 +164,12 @@ PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, Legacy
     ptagm->_cbCache = cbCache;
     ptagm->_pfninscd = pfninscd;
 
-    ptagm->_pglsfs = DynamicArray::PglNew(size(SourceFileStructure));
-    if (pvNil == ptagm->_pglsfs)
-        goto LFail;
+    {
+        const auto owners = ptagm->_SourceOwners();
+        const auto allocator = CollectionAllocator();
+        if (three_mm_source_init(&ptagm->_sources, &owners, &allocator) != THREE_MM_STORAGE_OK)
+            goto LFail;
+    }
 
     ptagm->_pgstSource = StringTable_GST::PgstNew(size(LegacyLong)); // extra data is sid
     if (pvNil == ptagm->_pgstSource)
@@ -108,19 +188,8 @@ LFail:
 TagManager::~TagManager(void)
 {
     AssertBaseThis(0);
-
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-
-    if (pvNil != _pglsfs)
-    {
-        for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
-        {
-            _pglsfs->Get(isfs, &sfs);
-            ReleasePpo(&sfs.pcrmSource);
-        }
-        ReleasePpo(&_pglsfs);
-    }
+    if (_sources.storage.allocator.release)
+        AssertDo(three_mm_source_dispose(&_sources) == THREE_MM_STORAGE_OK, "invalid source disposal");
     ReleasePpo(&_pgstSource);
 }
 
@@ -161,15 +230,7 @@ PStringTable_GST TagManager::PgstSource(void)
 
 void TagManager::InvalidateSource(LegacyLong sid)
 {
-    for (LegacyLong i = _pglsfs->IvMac(); i-- > 0;)
-    {
-        SourceFileStructure source;
-        _pglsfs->Get(i, &source);
-        if (source.sid != sid)
-            continue;
-        ReleasePpo(&source.pcrmSource);
-        _pglsfs->Delete(i);
-    }
+    AssertDo(three_mm_source_invalidate(&_sources, sid) == THREE_MM_STORAGE_OK, "invalid source invalidation");
 }
 
 /***************************************************************************
@@ -514,51 +575,38 @@ bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
     Builds the ChunkyResourceManager for the given sid's source.  pfniDir tells where the
     content files are.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename pfniDir)
+PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename directory)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
-    AssertPo(pfniDir, ffniDir);
-
-    String stn;
-    Filename fni;
-    PChunkyResourceManager pcrmSource = pvNil;
-    FileNameEnumerator fne;
-    FileType ftgChk = kftgContent;
-    PChunkyFile pcfl = pvNil;
-
-    pcrmSource = ChunkyResourceManager::PcrmNew(0);
-    if (pvNil == pcrmSource)
-        goto LFail;
-
-    if (HasArchiveSource(sid))
+    AssertPo(directory, ffniDir);
+    struct Host
     {
-        for (LegacyLong index = 0; SourceArchive(sid, ftgChk, index, &fni); ++index)
-        {
-            pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
-            if (!pcfl || !pcrmSource->FAddCfl(pcfl, _cbCache))
-                goto LFail;
-            ReleasePpo(&pcfl);
-        }
-        return pcrmSource;
-    }
-    // Add all chunky files in content directory to pcrmSource
-    if (!fne.FInit(pfniDir, &ftgChk, 1))
-        goto LFail;
-    while (fne.FNextFni(&fni))
-    {
-        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
-        if (pvNil == pcfl)
-            goto LFail;
-        if (!pcrmSource->FAddCfl(pcfl, _cbCache))
-            goto LFail;
-        ReleasePpo(&pcfl);
-    }
-    return pcrmSource;
-LFail:
-    ReleasePpo(&pcfl);
-    ReleasePpo(&pcrmSource);
-    return pvNil;
+        PTagManager manager;
+        PFilename directory;
+        Filename current;
+        FileNameEnumerator files;
+        FileType type = kftgContent;
+    } host = {this, directory};
+    const ThreeMMSourceBuildServices services = {
+        &host,
+        [](void *) -> void * { return ChunkyResourceManager::PcrmNew(0); },
+        [](void *c, ThreeMMI32 sid) -> int { return static_cast<Host *>(c)->manager->HasArchiveSource(sid); },
+        [](void *c) -> int {
+            auto h = static_cast<Host *>(c);
+            return h->files.FInit(h->directory, &h->type, 1);
+        },
+        [](void *c, ThreeMMI32 sid, ThreeMMU32 i, int archive) -> int {
+            auto h = static_cast<Host *>(c);
+            return archive ? h->manager->SourceArchive(sid, h->type, i, &h->current) : h->files.FNextFni(&h->current);
+        },
+        [](void *c) -> void * { return ChunkyFile::PcflOpen(&static_cast<Host *>(c)->current, fcflNil); },
+        [](void *m, void *f, ThreeMMI32 budget) -> int {
+            return static_cast<PChunkyResourceManager>(m)->FAddCfl(static_cast<PChunkyFile>(f), budget);
+        },
+        [](void *f) { static_cast<PChunkyFile>(f)->Release(); },
+        [](void *m) { static_cast<PChunkyResourceManager>(m)->Release(); }};
+    return static_cast<PChunkyResourceManager>(three_mm_source_build(sid, _cbCache, &services));
 }
 
 /***************************************************************************
@@ -566,111 +614,12 @@ LFail:
     new one if there isn't one already.  It verifies that the CD is still
     in the drive, unless fDontHitCD is fTrue.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool fDontHitCD, const TAG *asset)
+PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool localOnly, const TAG *asset)
 {
-    const auto access = SourceDirectory(sid);
-    if (access == TagSourceAccess::Disabled || access == TagSourceAccess::Missing)
-    {
-        if (!fDontHitCD)
-            _FRetry(sid, asset);
-        return pvNil;
-    }
-    AssertThis(0);
-    Assert(sid >= 0, "Invalid sid");
-
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-    bool fContentOnFni;
-    bool fFniChanged;
-    bool fExists;
-
-    for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
-    {
-        _pglsfs->Get(isfs, &sfs);
-        if (sid == sfs.sid)
-            goto LSetupSfs;
-    }
-    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
-    sfs.Clear();
-    sfs.sid = sid;
-    if (!_pglsfs->FAdd(&sfs, &isfs))
-        return pvNil;
-LSetupSfs:
-    if (sfs.tContentOnHD == tMaybe)
-    {
-        if (sfs.fniHD.Ftg() == ftgNil)
-        {
-            if (!_FBuildFniHD(sid, &sfs.fniHD, &fExists))
-                return pvNil;
-            if (!fExists)
-                sfs.tContentOnHD = tNo;
-            _pglsfs->Put(isfs, &sfs);
-        }
-        if (sfs.tContentOnHD == tMaybe)
-        {
-            if (HasArchiveSource(sid))
-                fContentOnFni = true;
-            else if (!_FDetermineIfContentOnFni(&sfs.fniHD, &fContentOnFni))
-                return pvNil;
-            sfs.tContentOnHD = (fContentOnFni ? tYes : tNo);
-            _pglsfs->Put(isfs, &sfs);
-        }
-    }
-    if (tYes == sfs.tContentOnHD)
-    {
-        if (pvNil == sfs.pcrmSource)
-        {
-            sfs.pcrmSource = _PcrmSourceNew(sid, &sfs.fniHD);
-            if (pvNil == sfs.pcrmSource)
-                return pvNil;
-            _pglsfs->Put(isfs, &sfs);
-        }
-        return sfs.pcrmSource;
-    }
-
-    // Else content is not on HD, so look at CD
-    if (!fDontHitCD)
-    {
-        // Verify that CD is where we thought it was, or find
-        // it if we haven't found it before
-        while (!_FFindFniCD(sid, &sfs.fniCD, &fFniChanged))
-        {
-            // Ask user to insert the CD
-            if (!_FRetry(sid, asset))
-                return pvNil;
-            // A newly installed local source must invalidate the cached HD
-            // miss too. An already-open CD manager retains its original path.
-            if (sfs.pcrmSource == pvNil)
-            {
-                sfs.tContentOnHD = tMaybe;
-                sfs.fniHD.SetNil();
-                goto LSetupSfs;
-            }
-        }
-        if (fFniChanged)
-        {
-            Assert(sfs.pcrmSource == pvNil, "fniCD can't change once pcrm is opened!");
-            _pglsfs->Put(isfs, &sfs); // update sfs.fniCD
-        }
-    }
-    if (pvNil == sfs.pcrmSource)
-    {
-        if (fDontHitCD)
-        {
-            // A document or portfolio preview may refer to an expansion
-            // that is not installed. A local-only lookup is allowed to
-            // miss, even when no source manager has been opened yet.
-            return pvNil;
-        }
-        else
-        {
-            sfs.pcrmSource = _PcrmSourceNew(sid, &sfs.fniCD);
-            if (pvNil == sfs.pcrmSource)
-                return pvNil;
-            _pglsfs->Put(isfs, &sfs);
-        }
-    }
-    return sfs.pcrmSource;
+    NativeSourceHost host = {this, nullptr, nullptr, asset};
+    NativeSourcePaths paths;
+    const auto services = _SourceServices(&host);
+    return static_cast<PChunkyResourceManager>(three_mm_source_manager(&_sources, sid, localOnly, &paths, &services));
 }
 
 /***************************************************************************
@@ -678,164 +627,54 @@ LSetupSfs:
     HD!)  Note that the function return value is whether the function
     completed without error, not whether the source is on HD.
 ***************************************************************************/
-bool TagManager::_FDetermineIfSourceHD(LegacyLong sid, bool *pfIsOnHD)
+bool TagManager::_FDetermineIfSourceHD(LegacyLong sid, bool *exists)
 {
     AssertThis(0);
-    Assert(sid >= 0, "Invalid sid");
-    AssertVarMem(pfIsOnHD);
-
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-    bool fContentOnFni;
-    bool fExists;
-
-    for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
-    {
-        _pglsfs->Get(isfs, &sfs);
-        if (sid == sfs.sid)
-            goto LSetupSfs;
-    }
-    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
-    sfs.Clear();
-    sfs.sid = sid;
-    if (!_pglsfs->FAdd(&sfs, &isfs))
-        return fFalse;
-LSetupSfs:
-    if (sfs.tContentOnHD == tMaybe)
-    {
-        if (sfs.fniHD.Ftg() == ftgNil)
-        {
-            if (!_FBuildFniHD(sid, &sfs.fniHD, &fExists))
-                return fFalse;
-            if (!fExists)
-                sfs.tContentOnHD = tNo;
-            _pglsfs->Put(isfs, &sfs);
-        }
-        if (sfs.tContentOnHD == tMaybe)
-        {
-            if (HasArchiveSource(sid))
-                fContentOnFni = true;
-            else if (!_FDetermineIfContentOnFni(&sfs.fniHD, &fContentOnFni))
-                return fFalse;
-            sfs.tContentOnHD = (fContentOnFni ? tYes : tNo);
-            _pglsfs->Put(isfs, &sfs);
-        }
-    }
-    *pfIsOnHD = (sfs.tContentOnHD == tYes);
-    return fTrue;
+    NativeSourceHost host = {this, nullptr, nullptr, nullptr};
+    NativeSourcePaths paths;
+    const auto services = _SourceServices(&host);
+    int value = 0;
+    const bool ok = three_mm_source_local_content(&_sources, sid, &paths, &value, &services) != 0;
+    if (ok)
+        *exists = value != 0;
+    return ok;
 }
 
 /***************************************************************************
     Get the Filename for the HD directory
 ***************************************************************************/
-bool TagManager::_FGetFniHD(LegacyLong sid, PFilename pfniHD)
+bool TagManager::_FGetFniHD(LegacyLong sid, PFilename output)
 {
-    const auto access = SourceDirectory(sid, pfniHD);
-    if (access != TagSourceAccess::Legacy)
-        return access == TagSourceAccess::Available;
-    AssertThis(0);
-    AssertVarMem(pfniHD);
-
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-    bool fExists;
-
-    for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
-    {
-        _pglsfs->Get(isfs, &sfs);
-        if (sid == sfs.sid)
-            goto LSetupSFS;
-    }
-    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
-    sfs.Clear();
-    sfs.sid = sid;
-    if (!_pglsfs->FAdd(&sfs, &isfs))
-        return fFalse;
-LSetupSFS:
-    if (sfs.fniHD.Ftg() == ftgNil)
-    {
-        if (!_FBuildFniHD(sid, &sfs.fniHD, &fExists) || !fExists)
-            return fFalse;
-    }
-    _pglsfs->Put(isfs, &sfs);
-    *pfniHD = sfs.fniHD;
-    return fTrue;
+    NativeSourceHost host = {this, output, nullptr, nullptr};
+    NativeSourcePaths paths;
+    const auto services = _SourceServices(&host);
+    return three_mm_source_local_path(&_sources, sid, &paths, &services) != 0;
 }
 
 /***************************************************************************
     Get the Filename for the CD directory
 ***************************************************************************/
-bool TagManager::_FGetFniCD(LegacyLong sid, PFilename pfniCD, bool fAskForCD)
+bool TagManager::_FGetFniCD(LegacyLong sid, PFilename output, bool ask)
 {
-    const auto access = SourceDirectory(sid, pfniCD);
-    if (access != TagSourceAccess::Legacy)
-    {
-        if (access != TagSourceAccess::Available && fAskForCD)
-            _FRetry(sid);
-        return access == TagSourceAccess::Available;
-    }
-    AssertThis(0);
-    AssertVarMem(pfniCD);
-
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-    bool fFniChanged;
-
-    for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
-    {
-        _pglsfs->Get(isfs, &sfs);
-        if (sid == sfs.sid)
-            goto LSetupSFS;
-    }
-    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
-    sfs.Clear();
-    sfs.sid = sid;
-    if (!_pglsfs->FAdd(&sfs, &isfs))
-        return fFalse;
-LSetupSFS:
-    while (!_FFindFniCD(sid, &sfs.fniCD, &fFniChanged))
-    {
-        if (!fAskForCD)
-            return fFalse;
-        if (!_FRetry(sid))
-            return fFalse;
-    }
-    if (fFniChanged)
-        _pglsfs->Put(isfs, &sfs);
-    *pfniCD = sfs.fniCD;
-    return fTrue;
+    NativeSourceHost host = {this, output, nullptr, nullptr};
+    NativeSourcePaths paths;
+    const auto services = _SourceServices(&host);
+    return three_mm_source_media_path(&_sources, sid, ask, &paths, &services) != 0;
 }
 
 /***************************************************************************
     Finds the file with name pstn on the HD or CD.
 ***************************************************************************/
-bool TagManager::FFindFile(LegacyLong sid, PString pstn, PFilename pfni, bool fAskForCD)
+bool TagManager::FFindFile(LegacyLong sid, PString leaf, PFilename output, bool ask)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
-    AssertPo(pstn, 0);
-    AssertVarMem(pfni);
-
-    FileType ftg;
-
-    if (!pfni->FBuildFromPath(pstn))
-        return fFalse;
-    ftg = pfni->Ftg();
-
-    // First, look on the HD
-    if (!_FGetFniHD(sid, pfni))
-        return fFalse;
-    if (pfni->FSetLeaf(pstn, ftg) && pfni->FResolveCase())
-        return fTrue;
-
-    // Now look on the CD, asking for it if fAskForCD
-    if (!_FGetFniCD(sid, pfni, fAskForCD))
-        return fFalse;
-    if (pfni->FSetLeaf(pstn, ftg) && pfni->FResolveCase())
-        return fTrue;
-
-    pfni->SetNil();
-    return fFalse; // file not found
+    AssertPo(leaf, 0);
+    AssertVarMem(output);
+    NativeSourceHost host = {this, output, leaf, nullptr};
+    NativeSourcePaths paths;
+    const auto services = _SourceServices(&host);
+    return three_mm_source_find_file(&_sources, sid, ask, &paths, &services) != 0;
 }
 
 /***************************************************************************
@@ -944,12 +783,13 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
     Assert(sid >= 0, "Invalid sid");
     const ThreeMMTagCacheServices services = {
         this,
-        [](void *c) -> ThreeMMU32 { return static_cast<PTagManager>(c)->_pglsfs->IvMac(); },
+        [](void *c) -> ThreeMMU32 { return static_cast<PTagManager>(c)->_sources.count; },
         [](void *c, ThreeMMU32 i, ThreeMMI32 *sid, void **manager) {
-            SourceFileStructure source;
-            static_cast<PTagManager>(c)->_pglsfs->Get(i, &source);
+            ThreeMMSourceRecord source;
+            AssertDo(three_mm_source_at(&static_cast<PTagManager>(c)->_sources, i, &source) == THREE_MM_STORAGE_OK,
+                     "invalid source index");
             *sid = source.sid;
-            *manager = source.pcrmSource;
+            *manager = source.manager;
         },
         [](void *c, ThreeMMI32 sid) -> void * { return static_cast<PTagManager>(c)->_PcrmSourceGet(sid); },
         [](void *m) -> ThreeMMU32 { return static_cast<PChunkyResourceManager>(m)->Ccrf(); },
@@ -1013,22 +853,20 @@ LegacyUlong TagManager::FcmpCompareTags(PTAG a, PTAG b)
 /***************************************************************************
     Assert the validity of the TagManager.
 ***************************************************************************/
-void TagManager::AssertValid(LegacyUlong grf)
+void TagManager::AssertValid(LegacyUlong flags)
 {
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-
     TagManager_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pglsfs, 0);
     AssertPo(_pgstSource, 0);
-    Assert(pvNil != _pfninscd, "bad _pfninscd");
-
-    for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
+    Assert(_pfninscd != nullptr, "bad source callback");
+    Assert(_sources.count <= _sources.storage.buffers[0].capacity / sizeof(ThreeMMSourceRecord), "bad source count");
+    for (ThreeMMU32 i = 0; i < _sources.count; ++i)
     {
-        _pglsfs->Get(isfs, &sfs);
-        AssertPo(&sfs.fniHD, ffniDir | ffniEmpty);
-        AssertPo(&sfs.fniCD, ffniDir | ffniEmpty);
-        AssertNilOrPo(sfs.pcrmSource, 0);
+        ThreeMMSourceRecord r;
+        AssertDo(three_mm_source_at(&_sources, i, &r) == THREE_MM_STORAGE_OK, "bad source index");
+        auto paths = static_cast<NativeSourcePaths *>(r.paths);
+        AssertPo(&paths->local, ffniDir | ffniEmpty);
+        AssertPo(&paths->media, ffniDir | ffniEmpty);
+        AssertNilOrPo(static_cast<PChunkyResourceManager>(r.manager), 0);
     }
 }
 
@@ -1038,17 +876,15 @@ void TagManager::AssertValid(LegacyUlong grf)
 void TagManager::MarkMem(void)
 {
     AssertThis(0);
-
-    LegacyLong isfs;
-    SourceFileStructure sfs;
-
     TagManager_PAR::MarkMem();
-    MarkMemObj(_pglsfs);
+    MarkPv(_sources.storage.buffers[0].data);
     MarkMemObj(_pgstSource);
-    for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
+    for (ThreeMMU32 i = 0; i < _sources.count; ++i)
     {
-        _pglsfs->Get(isfs, &sfs);
-        MarkMemObj(sfs.pcrmSource);
+        ThreeMMSourceRecord r;
+        AssertDo(three_mm_source_at(&_sources, i, &r) == THREE_MM_STORAGE_OK, "bad source index");
+        MarkMemObj(static_cast<NativeSourcePaths *>(r.paths));
+        MarkMemObj(static_cast<PChunkyResourceManager>(r.manager));
     }
 }
 #endif // DEBUG

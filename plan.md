@@ -170,8 +170,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   output no longer require GeneralGroup or native record methods.
 - Tag open/save/duplicate/close, child construction, fetch dispatch and cache
   clearing now use C89. TagList owns C group storage and preserves legacy sort,
-  duplicate and borrowed-reference behavior. Source catalogue/directory/media
-  discovery policy remains native, along with engine objects and final callers.
+  duplicate and borrowed-reference behavior.
+- The source catalogue now owns C records, path handles and manager references.
+  Local/media decisions, cached misses, retry/install sequencing, ordered manager
+  construction and file routing use C89. Native source-name tables, long/short
+  directory/drive discovery primitives, engine objects and final callers remain.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -267,7 +270,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-source catalogue/discovery policy and engine object ownership, then the
+source-name/directory-discovery adapters and engine object ownership, then the
 editing, actor evaluation and rendering integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the
 temporary facades with complete Studio/Marcus backend integration remains required.

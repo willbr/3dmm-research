@@ -1981,3 +1981,54 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 source catalogue, lookup and manager construction (12 November 2026)
+
+The source catalogue now owns C records, opaque path handles and resource-manager
+references, replacing the native SourceFileStructure array. C owns cached local
+content/misses, provider denial before cached access, local/media selection,
+retry/install sequencing, ordered manager construction and file routing. Work-path
+publication retains legacy mutation points and failure behavior. Native source
+names, long/short directory/drive discovery, physical filename operations and UI
+prompts remain adapters. See the [implementation boundary](../code-map/library-split.md#source-catalogue-lookup-and-manager-construction).
+
+Twenty-nine standalone C checks, forty-two focused native checks and MSVC
+AddressSanitizer pass. Source checks cover local-only misses without prompts,
+provider denial before cached managers, retry after installation, archived/local/
+media sources, probe/manager failure, path/array failure, relocating allocation,
+invalidation, locks and forward cleanup. They retain the legacy AVAILABLE-media
+shortcut's unchanged output and the lack of media fallback when local-directory
+lookup fails. Builder checks cover archive/directory selection and create/init/
+open/add failures with partial file/manager cleanup.
+
+All twelve binary snapshots match: the new 60-byte native prompt/retry trace plus
+the prior 336-byte tag, 2,188-byte GG, 120-byte registry, 597-byte construction,
+56-byte lifecycle, 1,740-byte routing, 2,192-byte loading, 572,367-byte chunk,
+29,532-byte string, 1,594-byte forest and 1,624-byte resource-cache baselines.
+All 51 CLI baselines match, including six asset indexes covering 20,568 entries.
+Evidence includes `tmp/c89-source-before.bin`, `tmp/c89-source-after.bin`,
+`tmp/c89-source-*-after.bin`, `tmp/c89-source-output-comparison.json` and
+`tmp/c89-source-asan.log`. No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T174305Z-0a5d4b28` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T174706Z-519940f5` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding tag suites `20261112T172035Z-ecee3a77` and
+`20261112T172353Z-da4a3e37`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-source-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

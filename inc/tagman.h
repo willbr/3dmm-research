@@ -42,6 +42,7 @@
 
 #include <cstdint>
 #include "three_mm/tag.h"
+#include "three_mm/source.h"
 
 const LegacyLong ksidInvalid = -1; // negative SIDs imply an invalid TAG
 const LegacyLong sidNil = 0;
@@ -158,7 +159,7 @@ class TagManager : public TagManager_PAR
   protected:
     Filename _fniHDRoot;     // Root HD directory to search for content
     LegacyLong _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
-    PDynamicArray _pglsfs;        // DynamicArray of source file structs
+    ThreeMMSourceCatalogue _sources;
     PStringTable_GST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
     TagSourceResolver _sourceResolver = nullptr;
@@ -172,6 +173,8 @@ class TagManager : public TagManager_PAR
     {
     }
     static ThreeMMTagServices _Services(void *);
+    ThreeMMSourceOwners _SourceOwners();
+    static ThreeMMSourceServices _SourceServices(void *);
     bool _FFindSid(LegacyLong sid, LegacyLong *pistn = pvNil);
     bool _FGetStnMergedOfSid(LegacyLong sid, PString pstn);
     bool _FGetStnSplitOfSid(LegacyLong sid, PString pstnLong, PString pstnShort);

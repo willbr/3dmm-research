@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,45 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Source catalogue, lookup and manager construction
+
+`source.c` owns source records and catalogue storage, persistent opaque path
+handles and resource-manager references. It replaces TagManager's DynamicArray
+of native SourceFileStructure values. Work paths are caller-owned scratch copied
+from persistent paths; C publishes at the same mutation points as before. Failed
+path creation or array growth releases partial owners. Invalidation scans in
+reverse; disposal releases managers forward, then path handles and storage.
+Catalogue records/managers returned to callers are borrowed.
+
+C owns local-content caching and local/media source selection. Provider denial
+precedes cached-manager access. Local-only misses never prompt or open media;
+already-open media managers can be reused locally. Media-enabled lookups verify
+media before returning cached managers. Retry after a local installation resets
+the cached local miss when no manager is open; existing managers retain their
+path. Explicit archive sets bypass content-directory probes and directory file
+enumeration. Ordered manager construction releases the current file and partial
+manager on any open/add/init failure.
+
+C also owns local/media path retrieval and file-search sequencing, preserving
+legacy output quirks: an AVAILABLE media-provider shortcut leaves the existing
+output unchanged; failure obtaining a local directory ends file search without
+trying media. Final output is cleared only after both leaf searches fail.
+Native callbacks provide path values, source availability, long/short directory
+and drive discovery, file I/O, names and UI prompts. Source-name tables and those
+remaining discovery adapters still require conversion; the full engine migration
+is incomplete. Path handles currently wrap native Filename pairs, without native
+source-policy fields. Callbacks may append other sources but cannot invalidate
+the active acquired record; disposal callbacks cannot re-enter.
+
+`engine-source-test` checks provider denial before cached access, local-only
+misses, retry installation, archive sources, cached misses and media managers,
+probe/manager failures, path/array allocation failure, relocating storage,
+invalidation, locked-owner guards, output quirks and forward cleanup order.
+Builder checks cover archive/directory selection and create/init/open/add failure.
+MSVC AddressSanitizer passes. All 60 native prompt-trace bytes match, as do the
+previous eleven snapshots and 51 CLI baselines. Twenty-nine standalone and
+forty-two focused native checks pass. No Marcus UI tests were added.
+
 ### Tag ownership, dispatch and owning lists
 
 `tag.c` owns embedded tag open/copy/save/redirect/duplicate/close policy. Copy
@@ -435,8 +474,8 @@ and disabled file-cache adapters avoid reading unopened cache fields.
 
 C dispatches child lookup and resource fetch through embedded caches or source
 managers, including local-only versus media-enabled requests and missing-tag
-callbacks. Source availability, directory/media discovery/retry and the source
-manager catalogue remain native provider policy. C owns cache clearing: resolve
+callbacks. Source catalogue, lookup and retry policy now use C above; source-name
+and low-level directory/drive discovery adapters remain native. C owns cache clearing: resolve
 media before file reopen, ignore reopen failure, and zero/restore memory budgets.
 File caching remains disabled, matching the previously unconditional return.
 
@@ -454,7 +493,7 @@ source/media dispatch, missing hooks, comparison, clear-cache order, allocation
 failures, list ordering, duplicates and cache-pass stops. MSVC AddressSanitizer
 passes. All 336 frozen native tag-baseline bytes match; previous snapshots and
 51 CLI baselines remain exact. Twenty-eight standalone and forty-one focused
-native checks pass. Source catalogue/discovery and engine-object integration
+native checks pass. Source-name/discovery adapters and engine-object integration
 remain the next work; full backend conversion is incomplete.
 
 ### Owning chunk tables and compact/expanded records
@@ -478,7 +517,7 @@ is supplied by the caller. Location words are restored after every write failure
 and active buffers are unlocked. Native `chunk.cpp` retains thin argument/result
 adapters, file I/O and legacy text conversion; it no longer allocates/calls a
 GeneralGroup or implements packed record methods. Full native container facade
-replacement, source catalogue/discovery and engine objects remain migration work.
+replacement, source-name/discovery adapters and engine objects remain migration work.
 
 `engine-chunk-table-test` retains a frozen native hash over 2,188 bytes covering
 both widths, reverse insertion, variable edits, moves, deletion, locking and wire
@@ -591,7 +630,7 @@ at 192 MiB each without allocating those payloads.
 primitives, diagnostics, file blocks and readers. Reader identity is passed as a
 function pointer and cast back before host comparison/calling; C never converts
 function pointers to data pointers or orders them. GenericHQ and generic-object
-wrappers remain native adapters. Native container adapters, source catalogue/discovery and engine objects remain
+wrappers remain native adapters. Native container adapters, source-name/discovery adapters and engine objects remain
 migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,

@@ -1442,6 +1442,7 @@ static void Changed(void *context)
 {
     ++static_cast<RenderHost *>(context)->changes;
 }
+static FILE *sourceSnapshot = nullptr;
 static int missingSourcePrompts = 0;
 static bool disabledSourcePrompt = false;
 static PFilename retrySourceDirectory = nullptr, retrySourceFile = nullptr;
@@ -1451,6 +1452,8 @@ static bool MissingSource(const MissingSourceRequest &request)
     Check(request.sid == 42 && request.title && request.folder && request.contentRoot);
     Check(request.asset && request.asset->sid == 42 && request.asset->ctg == kctgTmpl && request.asset->cno == 1);
     ++missingSourcePrompts;
+    if(sourceSnapshot){uint32_t row[]={static_cast<uint32_t>(request.sid),request.disabled,request.asset->ctg,request.asset->cno,retrySourceDirectory!=nullptr};Check(std::fwrite(row,sizeof(row),1,sourceSnapshot)==1);}
+
     if (request.disabled)
         return false;
     if (retrySourceDirectory && missingSourcePrompts == 1)
@@ -3749,6 +3752,8 @@ static void TestTagOwnershipBaseline()
 
 static void TestEngineServices()
 {
+    if(const char *path=std::getenv("THREE_MM_SOURCE_SNAPSHOT")){sourceSnapshot=std::fopen(path,"wb");Check(sourceSnapshot);}
+
     // Clear caches without an Application or native window existing.
     Filename root;
     String path;
@@ -3808,6 +3813,7 @@ static void TestEngineServices()
     retryDirectory.GetStnPath(&directoryPath);
     Check(retryFile.FDelete() && KauaiFiles::DeleteDirectory(directoryPath.Psz()));
     retrySourceDirectory = retrySourceFile = nullptr;
+    if(sourceSnapshot){Check(std::fclose(sourceSnapshot)==0);sourceSnapshot=nullptr;}
 
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
