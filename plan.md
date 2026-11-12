@@ -92,17 +92,20 @@ priority over the older Project 0-4 ordering wherever they conflict.
   DataBlock range/unpack policy and packed-envelope decode dispatch now use C89.
   Host callbacks still provide HQ ownership, file access and allocation diagnostics.
   KCDC/KCD2 algorithms and packed encoding now also use C89, preserving exact
-  native encoder bytes and decoded results. Codec registration, HQ transactions
-  and host allocation diagnostics remain C++ services.
+  native encoder bytes and decoded results. Codec registration and primitive
+  host allocation/lock services remain C++.
 - File-piece storage/lifetime, split/merge, memory/file/cross-stream replacements,
   rollback and compaction now use an owning C89 piece table. File references and
   positional I/O are host callbacks; a native GeneralGroup object is no longer
   required by FileByteStream.
 - DataBlock byte/HQ I/O routing, block/file copying, handle detach/normalization,
   codec HQ transactions and block packing now use C89 policy. Host callbacks
-  retain physical allocation, locks and file I/O. Temporary-file materialization,
-  remaining ownership/window adapters, allocator services and container
-  persistence are next.
+  retain physical allocation, locks and file I/O.
+- DataBlock now owns a C89 state record, including file/HQ lifetime, adoption,
+  replacement, temporary-storage selection and file materialization. Pack/unpack
+  commits and prior-file releases also live in C. Native diagnostics and primitive
+  services remain callbacks. Remaining write-window orchestration, allocator/file
+  services, file-text translation and container persistence are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

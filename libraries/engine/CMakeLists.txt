@@ -4,7 +4,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(CTest)
 endif()
 
-add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c)
+add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c src/block_owner.c)
 target_include_directories(three-mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -62,6 +62,11 @@ add_executable(engine-block-io-test EXCLUDE_FROM_ALL "${engine_block_test_source
 target_link_libraries(engine-block-io-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-block-io-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-block-io COMMAND engine-block-io-test)
+get_filename_component(engine_owner_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_block_owner_test.c" ABSOLUTE)
+add_executable(engine-block-owner-test EXCLUDE_FROM_ALL "${engine_owner_test_source}")
+target_link_libraries(engine-block-owner-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-block-owner-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-block-owner COMMAND engine-block-owner-test)
 if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
@@ -80,5 +85,6 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/codec.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/piece_table.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/block_io.c"
-    "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_codec_test_source}" "${engine_piece_test_source}" "${engine_block_test_source}")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/block_owner.c"
+    "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_codec_test_source}" "${engine_piece_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}")
 endif()

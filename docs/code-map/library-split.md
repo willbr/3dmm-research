@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -388,10 +388,43 @@ passes under MSVC AddressSanitizer. Native core checks compare 99,296 bytes
 captured before conversion and exercise real HQ allocation failure, copy-buffer
 fallback, sliced/failed packing and both codecs through HQ and file blocks.
 
-DataBlock object/file lifetime setters, temporary-file selection/materialization,
+### Owning DataBlock state and materialization
+
+`three_mm/block_owner.h` and `block_owner.c` now hold DataBlock's owning state.
+The C record owns one file reference or opaque handle; it is initialized once
+and cannot be copied/moved. File/handle services and their contexts are borrowed
+for its lifetime. I/O descriptors borrow that record and expire on mutation.
+The native DataBlock is a facade over this state, rather than a separate set of
+C++ file/HQ/range/packed fields.
+
+C owns clear, borrowed-file retention, independent-handle adoption, state
+replacement, temporary selection and file materialization. Temporary selection
+retains the strict below-8-MiB memory attempt, then file fallback; failure keeps
+the old state intact and success preserves its packed flag. Temporary file
+selection does not extend the file before writing. Materializing a memory
+slice creates a file with just its logical bytes and leaves the block unchanged.
+Materializing a file retains its existing file/range. Empty and zero-memory
+blocks return no file, while zero-length file blocks retain their file.
+Failure releases any new temporary file and leaves the caller's output intact.
+
+The owner also routes pack/unpack and handle-taking through the C transaction
+helpers, commits changed memory views and releases prior file references only
+after successful conversion. Failed sliced packing retains its normalized
+owning handle, as before. Native services retain physical file creation/I/O,
+reference-count primitives, HQ operations, diagnostics and memory marking.
+
+`engine-block-owner-test` checks a frozen native hash across 24 size/force/packed
+combinations (17,240 bytes), including both sides of the 8-MiB boundary, sliced
+materialization, zero-length distinctions and returned-file lifetime after
+clearing the block. Allocation/temporary/write/read/codec failure checks cover
+unchanged prior owners, unchanged output on failure, balanced locks/references
+and successful/failed conversion commits. The same check runs under MSVC
+AddressSanitizer. Native core checks compare the complete pre-conversion bytes
+and exercise the real failed-memory-to-file fallback.
+
 FileByteStream write-window orchestration, primitive memory/file services,
-file-text translation and chunk persistence remain C++. These and remaining
-engine objects still prevent a complete C-only backend.
+codec registration, file-text translation and chunk persistence remain C++.
+These and remaining engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

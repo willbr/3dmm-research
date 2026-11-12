@@ -990,3 +990,62 @@ All ten captures retain unchanged movie, ISO-resource and Marcus-content hashes.
 Existing cross-player pixel/audio differences and timing/alignment limitations
 remain. These checks establish frame/image preservation against the preceding
 build, not full retail parity, exact PCM equality or general repeatability.
+
+## C89 owning DataBlock state and materialization (12 November 2026)
+
+DataBlock now stores a C89 owning record for its file/HQ/range/packed state.
+Clear, adoption, retention, replacement, temporary-storage selection, file
+materialization and pack/unpack commits now live in C. Host callbacks retain
+physical allocation, file creation/I/O, reference-count primitives and debug
+diagnostics. This remains a slice of the shared backend conversion.
+
+Twelve standalone C-only checks and twenty-four focused native checks pass.
+The native pre-conversion snapshot covers 24 size/force/packed combinations,
+including zero length, memory slices and both sides of the 8-MiB threshold.
+All 17,240 captured bytes match the migrated native output exactly
+(`tmp/c89-owner-before.bin`, `tmp/c89-owner-after.bin`). The standalone
+`engine-block-owner` check verifies its frozen native hash independently.
+
+Failure checks cover memory allocation plus temporary-file creation failure,
+forced-file selection, failed materialization writes, output preservation,
+file read/codec failure, balanced locks/references, returned-file lifetime after
+clearing the block and normalized sliced storage after failed packing. They
+also pass under MSVC AddressSanitizer. Native checks exercise actual failed
+HQ allocation falling back to a file without extending it before writing.
+No Marcus UI tests were added.
+
+The strict below-8-MiB memory attempt, packed-state preservation, zero-memory
+versus zero-file distinction and existing-file reference semantics remain.
+See the [ownership boundary](../code-map/library-split.md#owning-datablock-state-and-materialization).
+Write-window orchestration, primitive services, file-text translation and
+container persistence remain further migration work.
+
+All 51 saved CLI baselines match: 45 movie/archive/legacy outputs or rejection
+results and six asset indexes covering 20,568 entries. The local report is
+`tmp/c89-owner-output-comparison.json`.
+
+Frozen Studio/Marcus builds were captured with no concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T095017Z-fdf75549` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T095527Z-185c32e2` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding block-I/O suites `20261112T091731Z-f92446d1` and
+`20261112T092213Z-c11c8a6b`, all 180 seek images match exactly. All nine runs
+retain the same 60 authored frame positions and ordered exact image changes:
+scrolling text retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The preservation report is
+`tmp/c89-owner-playback-comparison.json`.
+
+Observed PCM16 peaks are 2380 for retail and 2176 for SDL/Marcus. Retail matches
+the preceding reference audit `20261112T092451Z-0d872b87`; the earlier full-suite
+reference's first-second peak variation remains recorded above. These peaks
+establish audible capture, not exact PCM preservation or cross-player equality.
+
+All nine captures retain unchanged movie, ISO-resource and Marcus-content hashes.
+Existing cross-player pixel/audio differences and timing/alignment limitations
+remain. The results establish frame/image preservation against the preceding
+build, not full retail parity or repeatability from a single repetition.

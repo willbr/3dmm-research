@@ -360,6 +360,74 @@ static void TestBlockCopies()
 #endif
 }
 
+static void TestBlockMaterialization()
+{
+    const LegacyLong threshold = 1L << 23;
+    byte bytes[4096], actual[4096];
+    for (unsigned i = 0; i < sizeof(bytes); ++i) bytes[i] = static_cast<byte>(i * 19);
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_MATERIALIZE_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
+    }
+    for (LegacyLong size : {0L, 1L, 4096L, threshold - 1, threshold, threshold + 1})
+        for (int force = 0; force < 2; ++force)
+            for (int packed = 0; packed < 2; ++packed)
+            {
+                HQ seed;
+                Check(FAllocHq(&seed, 8, fmemClear, mprNormal));
+                DataBlock block(&seed, packed != 0);
+                Check(block.FSetTemp(size, force != 0) && block.Cb(true) == size && block.FPacked() == !!packed);
+                const bool fileExpected = force || size >= threshold;
+                Check(block.CbMem() == (fileExpected ? 0 : size));
+                FileLocation materialized = {};
+                if (size <= 4096)
+                {
+                    Check(block.FWriteRgb(bytes, size, 0, true));
+                    if (size == 4096) Check(block.FMoveMin(1) && block.FMoveLim(-2));
+                }
+                LegacyLong physical = -1;
+                if (size <= 4096 || fileExpected)
+                {
+                    Check(block.FGetFlo(&materialized, true));
+                    Check(!!materialized.pfil == (fileExpected || size != 0));
+                    if (materialized.pfil)
+                    {
+                        physical = materialized.pfil->FpMac();
+                        Check(materialized.cb == block.Cb(true));
+                        if (size <= 4096) Check(materialized.FRead(actual) && !std::memcmp(actual, bytes + (size == 4096), materialized.cb));
+                    }
+                }
+                LegacyLong record[] = {size, force, packed, block.Cb(true), block.CbMem(), !!materialized.pfil,
+                                       materialized.fp, materialized.cb, physical};
+                if (snapshot)
+                {
+                    Check(std::fwrite(record, sizeof(record), 1, snapshot) == 1);
+                    if (materialized.pfil && size <= 4096)
+                        Check(std::fwrite(actual, 1, materialized.cb, snapshot) == static_cast<size_t>(materialized.cb));
+                }
+                block.Free();
+                if (materialized.pfil)
+                {
+                    if (size <= 4096) Check(materialized.FRead(actual)); // Returned reference survives Free.
+                    ReleasePpo(&materialized.pfil);
+                }
+            }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+#ifdef DEBUG
+    DataBlock fallback;
+    Check(fallback.FSetTemp(4) && fallback.FWriteRgb(bytes, 4, 0));
+    vdmglob.dmaglHq.cactDo = 0; vdmglob.dmaglHq.cactFail = 1;
+    const bool created = fallback.FSetTemp(17);
+    const bool consumed = vdmglob.dmaglHq.cactFail == 0;
+    vdmglob.dmaglHq.cactFail = vdmglob.dmaglHq.cactDo = 0;
+    Check(created && consumed && fallback.Cb() == 17 && fallback.CbMem() == 0);
+    FileLocation region;
+    Check(fallback.FGetFlo(&region) && region.pfil->FpMac() == 0); // Temp selection does not extend the file.
+    ReleasePpo(&region.pfil);
+#endif
+}
+
 static void TestPieceEdits()
 {
     byte fileBytes[8192], model[30000], actual[30000], insert[16];
@@ -3210,6 +3278,7 @@ int main()
     TestCollectionWireAndMutations();
     TestDataStreams();
     TestBlockCopies();
+    TestBlockMaterialization();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

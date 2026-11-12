@@ -38,9 +38,13 @@ void *AllocateCopyBuffer(void *, void *, ThreeMMU32, ThreeMMU32 bytes, int prior
 }
 void ReleaseCopyBuffer(void *, void *buffer, ThreeMMU32) { FreePpv(&buffer); }
 const ThreeMMStorageAllocator copyAllocator = {nullptr, AllocateCopyBuffer, ReleaseCopyBuffer};
-struct PackBlockContext { PDataBlock block; LegacyLong format; };
-int ReadPackFile(void *context, void **handle) { return static_cast<PackBlockContext *>(context)->block->FReadHq(handle); }
-int PackHandle(void *context, void **handle) { return vpcodmUtil->FCompressPhq(handle, static_cast<PackBlockContext *>(context)->format); }
+void RetainBlockFile(void *, void *file) { static_cast<PFileObject>(file)->AddRef(); }
+void ReleaseBlockFile(void *, void *file) { static_cast<PFileObject>(file)->Release(); }
+void *CreateBlockTemp(void *) { return FileObject::PfilCreateTemp(); }
+int ReadOwnedFile(void *, void *file, ThreeMMU32 offset, void *bytes, size_t count) { return ReadBlockFile(file, offset, bytes, count); }
+int WriteOwnedFile(void *, void *file, ThreeMMU32 offset, const void *bytes, size_t count) { return WriteBlockFile(file, offset, bytes, count); }
+const ThreeMMBlockFileServices blockFiles = {nullptr, RetainBlockFile, ReleaseBlockFile, CreateBlockTemp, ReadOwnedFile, WriteOwnedFile};
+int PackHandle(void *context, void **handle) { return vpcodmUtil->FCompressPhq(handle, *static_cast<LegacyLong *>(context)); }
 }
 
 FileType FileObject::vftgCreator = '____';
@@ -608,45 +612,19 @@ void FileLocation::AssertValid(LegacyUlong grfflo)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-ThreeMMBlockView DataBlock::_BlockView()
-{
-    ThreeMMBlockView view = {};
-    view.packed = _fPacked;
-    if (_flo.pfil)
-    {
-        view.kind = THREE_MM_BLOCK_FILE; view.start = _flo.fp; view.length = _flo.cb;
-    }
-    else if (_hq)
-    {
-        view.kind = THREE_MM_BLOCK_MEMORY; view.memory = _hq;
-        view.start = _ibMin; view.length = _ibLim - _ibMin; view.capacity = CbOfHq(_hq);
-    }
-    return view;
-}
 ThreeMMBlockIO DataBlock::_IOView()
 {
-    ThreeMMBlockIO io = _flo.pfil ? FileBlock(&_flo) : ThreeMMBlockIO{};
-    io.view = _BlockView(); io.handles = KauaiHandleServices();
+    ThreeMMBlockIO io = {};
+    AssertDo(three_mm_owned_block_io(&_state, &io) == THREE_MM_DATA_OK, "invalid block state");
     return io;
 }
-int DataBlock::_ReadDecodeFile(void *context, void **handle)
-{
-    return static_cast<DataBlock *>(context)->_flo.FReadHq(handle);
-}
 int DataBlock::_DecodeHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
-void DataBlock::_ReleaseDecodeHandle(void *, void *handle) { FreePhq(&handle); }
-ThreeMMU32 DataBlock::_DecodeSize(void *, void *handle) { return CbOfHq(handle); }
 
 DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 {
     AssertBaseThis(0);
-    AssertPo(pflo, 0);
-
-    _flo = *pflo;
-    _flo.pfil->AddRef();
-    _hq = hqNil;
-    _fPacked = FPure(fPacked);
-    AssertThis(0);
+    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    Set(pflo, fPacked);
 }
 
 /***************************************************************************
@@ -655,15 +633,8 @@ DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked)
 {
     AssertBaseThis(0);
-    AssertPo(pfil, 0);
-
-    _flo.pfil = pfil;
-    _flo.pfil->AddRef();
-    _flo.fp = fp;
-    _flo.cb = cb;
-    _hq = hqNil;
-    _fPacked = FPure(fPacked);
-    AssertThis(0);
+    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    Set(pfil, fp, cb, fPacked);
 }
 
 /***************************************************************************
@@ -673,16 +644,8 @@ DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPac
 DataBlock::DataBlock(HQ *phq, bool fPacked)
 {
     AssertBaseThis(0);
-    AssertVarMem(phq);
-    AssertHq(*phq);
-
-    _flo.pfil = pvNil;
-    _hq = *phq;
-    *phq = hqNil;
-    _ibMin = 0;
-    _ibLim = CbOfHq(_hq);
-    _fPacked = FPure(fPacked);
-    AssertThis(0);
+    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
+    SetHq(phq, fPacked);
 }
 
 /***************************************************************************
@@ -691,9 +654,7 @@ DataBlock::DataBlock(HQ *phq, bool fPacked)
 DataBlock::DataBlock(void)
 {
     AssertBaseThis(0);
-    _flo.pfil = pvNil;
-    _hq = hqNil;
-    _fPacked = fFalse;
+    AssertDo(three_mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == THREE_MM_DATA_OK, "invalid block services");
     AssertThis(0);
 }
 
@@ -713,12 +674,7 @@ void DataBlock::Set(PFileLocation pflo, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
-
-    Free();
-    _flo = *pflo;
-    _flo.pfil->AddRef();
-    _fPacked = FPure(fPacked);
-    AssertThis(0);
+    Set(pflo->pfil, pflo->fp, pflo->cb, fPacked);
 }
 
 /***************************************************************************
@@ -728,13 +684,8 @@ void DataBlock::Set(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPack
 {
     AssertThis(0);
     AssertPo(pfil, 0);
-
-    Free();
-    _flo.pfil = pfil;
-    _flo.pfil->AddRef();
-    _flo.fp = fp;
-    _flo.cb = cb;
-    _fPacked = FPure(fPacked);
+    const ThreeMMBlockFile file = {pfil, static_cast<ThreeMMU32>(fp), static_cast<ThreeMMU32>(cb)};
+    AssertDo(three_mm_owned_block_set_file(&_state, &file, fPacked) == THREE_MM_DATA_OK, "invalid file block");
     AssertThis(0);
 }
 
@@ -747,13 +698,7 @@ void DataBlock::SetHq(HQ *phq, bool fPacked)
     AssertThis(0);
     AssertVarMem(phq);
     AssertHq(*phq);
-
-    Free();
-    _hq = *phq;
-    *phq = hqNil;
-    _ibMin = 0;
-    _ibLim = CbOfHq(_hq);
-    _fPacked = FPure(fPacked);
+    AssertDo(three_mm_owned_block_set_handle(&_state, phq, fPacked) == THREE_MM_DATA_OK, "invalid memory block");
     AssertThis(0);
 }
 
@@ -763,9 +708,7 @@ void DataBlock::SetHq(HQ *phq, bool fPacked)
 void DataBlock::Free(void)
 {
     AssertThis(0);
-    ReleasePpo(&_flo.pfil);
-    FreePhq(&_hq);
-    _fPacked = fFalse;
+    AssertDo(three_mm_owned_block_clear(&_state) == THREE_MM_DATA_OK, "invalid block release");
     AssertThis(0);
 }
 
@@ -778,20 +721,13 @@ void DataBlock::Free(void)
 HQ DataBlock::HqFree(bool fPackedOk)
 {
     AssertThis(0);
-    auto io = _IOView();
     HQ handle = nullptr;
     int shrinkFailed = 0;
-    const int result = three_mm_block_take_handle(&io, fPackedOk, &handle, &shrinkFailed);
+    const int result = three_mm_owned_block_take_handle(&_state, fPackedOk, &handle, &shrinkFailed);
     if (result == THREE_MM_DATA_PACKED) Bug("accessing packed data");
-    if (result != THREE_MM_DATA_OK) return nullptr;
-    if (!_flo.pfil)
-    {
-        _hq = io.view.memory;
-        _ibMin = io.view.start; _ibLim = io.view.start + io.view.length; _fPacked = io.view.packed;
-    }
     Assert(!shrinkFailed, "HQ shrink failed");
     AssertThis(0);
-    return handle;
+    return result == THREE_MM_DATA_OK ? handle : nullptr;
 }
 
 /***************************************************************************
@@ -800,12 +736,7 @@ HQ DataBlock::HqFree(bool fPackedOk)
 LegacyLong DataBlock::Cb(bool fPackedOk)
 {
     AssertThis(fPackedOk ? 0 : fblckUnpacked);
-
-    if (pvNil != _flo.pfil)
-        return _flo.cb;
-    if (hqNil != _hq)
-        return _ibLim - _ibMin;
-    return 0;
+    return _state.view.length;
 }
 
 /***************************************************************************
@@ -814,27 +745,9 @@ LegacyLong DataBlock::Cb(bool fPackedOk)
 bool DataBlock::FSetTemp(LegacyLong cb, bool fForceFile)
 {
     AssertThis(0);
-    PFileObject pfil;
-
-    if (!fForceFile && cb < (1L << 23) /* 8 MB */)
-    {
-        // try to allocate enough mem
-        HQ hq;
-
-        if (FAllocHq(&hq, cb, fmemNil, mprNormal))
-        {
-            SetHq(&hq, _fPacked);
-            return fTrue;
-        }
-    }
-
-    if (pvNil == (pfil = FileObject::PfilCreateTemp()))
-        return fFalse;
-
-    Set(pfil, 0, cb, _fPacked);
-    ReleasePpo(&pfil);
-
-    return fTrue;
+    const bool ok = three_mm_owned_block_set_temp(&_state, cb, fForceFile) == THREE_MM_DATA_OK;
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -845,11 +758,7 @@ bool DataBlock::FSetTemp(LegacyLong cb, bool fForceFile)
 bool DataBlock::FMoveMin(LegacyLong dib)
 {
     AssertThis(0);
-    auto view = _BlockView();
-    if (three_mm_block_move_min(&view, dib) != THREE_MM_DATA_OK) return false;
-    if (_flo.pfil) { _flo.fp = view.start; _flo.cb = view.length; }
-    else { _ibMin = view.start; _ibLim = view.start + view.length; }
-    return true;
+    return three_mm_block_move_min(&_state.view, dib) == THREE_MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -860,11 +769,7 @@ bool DataBlock::FMoveMin(LegacyLong dib)
 bool DataBlock::FMoveLim(LegacyLong dib)
 {
     AssertThis(0);
-    auto view = _BlockView();
-    if (three_mm_block_move_lim(&view, dib) != THREE_MM_DATA_OK) return false;
-    if (_flo.pfil) { _flo.fp = view.start; _flo.cb = view.length; }
-    else { _ibMin = view.start; _ibLim = view.start + view.length; }
-    return true;
+    return three_mm_block_move_lim(&_state.view, dib) == THREE_MM_DATA_OK;
 }
 
 /***************************************************************************
@@ -958,43 +863,12 @@ bool DataBlock::FGetFlo(PFileLocation pflo, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(pflo);
-
-    if (!fPackedOk && _fPacked)
-    {
-        Bug("accessing packed data");
-        return fFalse;
-    }
-
-    if (pvNil != _flo.pfil)
-    {
-        *pflo = _flo;
-        pflo->pfil->AddRef();
-        return fTrue;
-    }
-
-    if (hqNil != _hq && _ibLim > _ibMin)
-    {
-        bool fRet;
-
-        if (pvNil == (pflo->pfil = FileObject::PfilCreateTemp()))
-            goto LFail;
-        pflo->fp = 0;
-        pflo->cb = _ibLim - _ibMin;
-        fRet = pflo->FWrite(PvAddBv(PvLockHq(_hq), _ibMin));
-        UnlockHq(_hq);
-        if (!fRet)
-        {
-        LFail:
-            ReleasePpo(&pflo->pfil);
-            TrashVar(pflo);
-            return fFalse;
-        }
-        return fTrue;
-    }
-
-    pflo->pfil = pvNil;
-    pflo->fp = pflo->cb = 0;
-    return fTrue;
+    ThreeMMBlockFile file;
+    const int result = three_mm_owned_block_materialize(&_state, fPackedOk, &file);
+    if (result == THREE_MM_DATA_PACKED) { Bug("accessing packed data"); return false; }
+    if (result != THREE_MM_DATA_OK) { TrashVar(pflo); return false; }
+    pflo->pfil = static_cast<PFileObject>(file.file); pflo->fp = file.offset; pflo->cb = file.length;
+    return true;
 }
 
 /***************************************************************************
@@ -1006,13 +880,8 @@ bool DataBlock::FPacked(LegacyLong *pcfmt)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcfmt);
-
-    if (pvNil != pcfmt && (!_fPacked || !vpcodmUtil->FGetCfmtFromBlck(this, pcfmt)))
-    {
-        *pcfmt = cfmtNil;
-    }
-
-    return _fPacked;
+    if (pcfmt != pvNil && (!_state.view.packed || !vpcodmUtil->FGetCfmtFromBlck(this, pcfmt))) *pcfmt = cfmtNil;
+    return _state.view.packed != 0;
 }
 
 /***************************************************************************
@@ -1023,18 +892,8 @@ bool DataBlock::FPacked(LegacyLong *pcfmt)
 bool DataBlock::FPackData(LegacyLong cfmt)
 {
     AssertThis(0);
-    auto view = _BlockView();
-    PackBlockContext context = {this, cfmt};
-    const ThreeMMBlockDecoder code = {&context, ReadPackFile, PackHandle, _ReleaseDecodeHandle, _DecodeSize};
     int shrinkFailed = 0;
-    const int result = three_mm_block_pack(&view, &code, KauaiHandleServices(), &shrinkFailed);
-    if (view.kind == THREE_MM_BLOCK_MEMORY)
-    {
-        // A sliced memory handle may have been normalized even on failure.
-        // Successful coding already consumed the old handle; never free it twice.
-        if (_flo.pfil) ReleasePpo(&_flo.pfil);
-        _hq = view.memory; _ibMin = view.start; _ibLim = view.start + view.length; _fPacked = view.packed;
-    }
+    const int result = three_mm_owned_block_code(&_state, 1, &cfmt, PackHandle, &shrinkFailed);
     Assert(!shrinkFailed, "HQ shrink failed");
     AssertThis(0);
     return result == THREE_MM_DATA_OK;
@@ -1046,20 +905,9 @@ bool DataBlock::FPackData(LegacyLong cfmt)
 bool DataBlock::FUnpackData(void)
 {
     AssertThis(0);
-    auto view = _BlockView();
-    const bool wasPacked = _fPacked;
-    const bool wasFile = _flo.pfil != pvNil;
-    const ThreeMMBlockDecoder decoder = {this, _ReadDecodeFile, _DecodeHandle, _ReleaseDecodeHandle, _DecodeSize};
-    if (three_mm_block_unpack(&view, &decoder) != THREE_MM_DATA_OK) return false;
-    if (wasPacked)
-    {
-        // A successful memory decode already consumed its old handle. File
-        // references are released only after the C transaction succeeds.
-        if (wasFile) ReleasePpo(&_flo.pfil);
-        _hq = view.memory; _ibMin = view.start; _ibLim = view.start + view.length; _fPacked = false;
-        AssertThis(fblckUnpacked | fblckMemory);
-    }
-    return true;
+    const bool ok = three_mm_owned_block_code(&_state, 0, nullptr, _DecodeHandle, nullptr) == THREE_MM_DATA_OK;
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -1068,10 +916,7 @@ bool DataBlock::FUnpackData(void)
 LegacyLong DataBlock::CbMem(void)
 {
     AssertThis(0);
-
-    if (pvNil == _flo.pfil && hqNil != _hq)
-        return CbOfHq(_hq);
-    return 0;
+    return _state.view.kind == THREE_MM_BLOCK_MEMORY ? _state.view.capacity : 0;
 }
 
 #ifdef DEBUG
@@ -1081,25 +926,21 @@ LegacyLong DataBlock::CbMem(void)
 void DataBlock::AssertValid(LegacyUlong grfblck)
 {
     DataBlock_PAR::AssertValid(0);
-
-    if (pvNil != _flo.pfil)
+    Assert(three_mm_owned_block_check(&_state) == THREE_MM_DATA_OK, "invalid owning block");
+    if (_state.view.kind == THREE_MM_BLOCK_FILE)
     {
-        AssertPo(&_flo, (grfblck & fblckReadable) ? ffloReadable : 0);
-        Assert(hqNil == _hq, "both the _flo and _hq are non-nil");
+        FileLocation file = {static_cast<PFileObject>(_state.file), static_cast<LegacyLong>(_state.view.start), static_cast<LegacyLong>(_state.view.length)};
+        AssertPo(&file, (grfblck & fblckReadable) ? ffloReadable : 0);
         Assert(!(grfblck & fblckMemory) || (grfblck & fblckFile), "block should be memory based");
     }
-    else if (hqNil != _hq)
+    else if (_state.view.kind == THREE_MM_BLOCK_MEMORY)
     {
         Assert(!(grfblck & fblckFile) || (grfblck & fblckMemory), "block should be file based");
-        AssertHq(_hq);
-        LegacyLong cb = CbOfHq(_hq);
-
-        AssertIn(_ibMin, 0, cb + 1);
-        AssertIn(_ibLim, _ibMin, cb + 1);
+        AssertHq(_state.view.memory);
+        Assert(_state.view.capacity == static_cast<ThreeMMU32>(CbOfHq(_state.view.memory)), "wrong block capacity");
     }
-
-    Assert(_fPacked || !(grfblck & fblckPacked), "block should be packed");
-    Assert(!_fPacked || !(grfblck & fblckUnpacked), "block should be unpacked");
+    Assert(_state.view.packed || !(grfblck & fblckPacked), "block should be packed");
+    Assert(!_state.view.packed || !(grfblck & fblckUnpacked), "block should be unpacked");
 }
 
 /***************************************************************************
@@ -1109,7 +950,7 @@ void DataBlock::MarkMem(void)
 {
     AssertValid(0);
     DataBlock_PAR::MarkMem();
-    MarkHq(_hq);
+    MarkHq(_state.view.memory);
 }
 #endif // DEBUG
 
