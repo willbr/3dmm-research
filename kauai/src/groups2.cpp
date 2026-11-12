@@ -125,26 +125,17 @@ bool VirtualStringTable::_FDup(PVirtualStringTable pgstbDst)
     return fTrue;
 }
 
-// string table on file. Fixed 20-byte wire format on every architecture.
-struct StringTableOnFile
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t cbEntry;
-    int32_t ibstMac;
-    int32_t bstMac;
-    int32_t cbstFree;
-};
-static_assert(sizeof(StringTableOnFile) == 20, "StringTableOnFile wire format drift");
-const ByteOrderMask kbomGstf = 0x5FF00000L;
-
 /***************************************************************************
     Return the amount of space on file needed for the string table.
 ***************************************************************************/
 LegacyLong VirtualStringTable::CbOnFile(void)
 {
     AssertThis(0);
-    return size(StringTableOnFile) + LwMul(_ivMac, _cbEntry) + _bstMac;
+    ThreeMMCollectionHeader header = {};
+    header.kind = THREE_MM_COLLECTION_STRINGS; header.width = _cbEntry; header.count = _ivMac;
+    header.bytes = _bstMac; header.free_count = _cbstFree;
+    AssertDo(three_mm_collection_layout(&header) == THREE_MM_STORAGE_OK, "invalid GST layout");
+    return header.header_bytes + header.first_bytes + header.second_bytes;
 }
 
 /***************************************************************************
@@ -160,50 +151,23 @@ bool VirtualStringTable::FWrite(PDataBlock pblck, short bo, short osk)
     AssertPo(pblck, 0);
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
-
-    StringTableOnFile gstf;
-    bool fRet;
-
-    if (osk != koskCur)
+    int storedSystem;
+    if (!three_mm_strings_wire_system(koskCur, osk, &storedSystem))
     {
-        switch (osk)
-        {
-        case koskSbMac:
-        case koskUniMac:
-            osk = koskMac;
-            break;
-
-        case koskSbWin:
-        case koskUniWin:
-            osk = koskWin;
-            break;
-
-        default:
-            Bug("unknown osk");
-            return fFalse;
-        }
+        Bug("unknown osk");
+        return false;
     }
-
-    gstf.bo = kboCur;
-    gstf.osk = osk;
-    gstf.cbEntry = _cbEntry;
-    gstf.ibstMac = _ivMac;
-    gstf.bstMac = _bstMac;
-    gstf.cbstFree = _cbstFree;
-    if (kboOther == bo)
-    {
-        SwapBytesBom(&gstf, kbomGstf);
-        Assert(gstf.osk == osk, "osk not invariant under byte swapping");
-        _SwapBytesRgbst();
-    }
-    if (koskCur != osk)
-        _TranslateGrst(osk, fFalse);
-    fRet = _FWrite(pblck, &gstf, size(gstf), _bstMac, LwMul(_cbEntry, _ivMac));
-    if (koskCur != osk)
-        _TranslateGrst(osk, fTrue);
-    if (kboOther == bo)
-        _SwapBytesRgbst();
-    return fRet;
+    osk = static_cast<short>(storedSystem);
+    ThreeMMCollectionHeader header = {};
+    header.kind = THREE_MM_COLLECTION_STRINGS; header.width = _cbEntry; header.count = _ivMac;
+    header.bytes = _bstMac; header.free_count = _cbstFree;
+    if (three_mm_collection_layout(&header) != THREE_MM_STORAGE_OK) return false;
+    if (bo == kboOther) _SwapBytesRgbst();
+    if (osk != koskCur) _TranslateGrst(osk, false);
+    const bool ok = _WriteCollection(pblck, header, bo, osk);
+    if (osk != koskCur) _TranslateGrst(osk, true);
+    if (bo == kboOther) _SwapBytesRgbst();
+    return ok;
 }
 
 /***************************************************************************
@@ -212,65 +176,15 @@ bool VirtualStringTable::FWrite(PDataBlock pblck, short bo, short osk)
 bool VirtualStringTable::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(pbo);
-    AssertNilOrVarMem(posk);
-
-    StringTableOnFile gstf;
-    LegacyLong cbT;
-    short bo;
-    LegacyLong cb;
-    bool fRet = fFalse;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-
-    cb = pblck->Cb();
-    if (cb < size(gstf))
-        goto LBug;
-
-    if (!pblck->FReadRgb(&gstf, size(gstf), 0))
-        goto LFail;
-
-    if (pbo != pvNil)
-        *pbo = gstf.bo;
-    if (posk != pvNil)
-        *posk = gstf.osk;
-
-    if ((bo = gstf.bo) == kboOther)
-        SwapBytesBom(&gstf, kbomGstf);
-
-    cb -= size(gstf);
-    // don't use LwMul, in case the file is corrupted, we don't want to assert,
-    // we should detect it below.
-    cbT = gstf.cbEntry * gstf.ibstMac;
-    if (gstf.bo != kboCur || !FIn(gstf.cbEntry, size(LegacyLong), kcbMax) || (gstf.cbEntry % size(LegacyLong)) != 0 ||
-        !FIn(gstf.ibstMac, 0, kcbMax) || !FIn(gstf.bstMac, gstf.ibstMac - LwMax(0, gstf.cbstFree), kcbMax) ||
-        cb != cbT + gstf.bstMac || (gstf.cbstFree == cvNil) != (_cbstFree == cvNil) ||
-        gstf.cbstFree != cvNil && !FIn(gstf.cbstFree, 0, LwMax(1, gstf.ibstMac)))
-    {
-    LBug:
-        Warn("file corrupt or not a VirtualStringTable");
-        goto LFail;
-    }
-
-    _cbEntry = gstf.cbEntry;
-    _ivMac = gstf.ibstMac;
-    _bstMac = gstf.bstMac;
-    _cbstFree = gstf.cbstFree;
-    fRet = _FReadData(pblck, cb - cbT, cbT, size(gstf));
-    if (fRet)
-    {
-        if (bo == kboOther)
-            _SwapBytesRgbst();
-        if (koskCur != gstf.osk)
-            fRet = _FTranslateGrst(gstf.osk);
-    }
-
-LFail:
-    TrashVarIf(!fRet, pbo);
-    TrashVarIf(!fRet, posk);
-    return fRet;
+    ThreeMMCollectionHeader header;
+    if (!_ReadCollection(pblck, THREE_MM_COLLECTION_STRINGS, _cbstFree != cvNil, &header, pbo, posk)) return false;
+    _cbEntry = header.width; _ivMac = header.count; _bstMac = header.bytes; _cbstFree = header.free_count;
+    const short one = 1;
+    const bool nativeBig = reinterpret_cast<const byte *>(&one)[0] == 0;
+    if ((header.big_endian != 0) != nativeBig) _SwapBytesRgbst();
+    const bool ok = header.system == koskCur || _FTranslateGrst(static_cast<short>(header.system));
+    TrashVarIf(!ok, pbo); TrashVarIf(!ok, posk);
+    return ok;
 }
 
 /***************************************************************************

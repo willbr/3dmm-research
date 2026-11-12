@@ -32,6 +32,8 @@
 
 namespace Group {
 
+ThreeMMStorageAllocator CollectionAllocator();
+
 enum
 {
     fgrpNil = 0,

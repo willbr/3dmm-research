@@ -159,9 +159,14 @@ void VirtualGroup::_ApplyGroup(const ThreeMMGroup &view)
     _ivMac = view.count; _bvMac = view.bytes; _clocFree = view.free_count;
 }
 
+ThreeMMStorageAllocator CollectionAllocator()
+{
+    return {nullptr, ResizeCollection, FreeCollection};
+}
+
 GroupBase::GroupBase() : _cbMinGrow1(0), _cbMinGrow2(0), _ivMac(0)
 {
-    const ThreeMMStorageAllocator allocator = {nullptr, ResizeCollection, FreeCollection};
+    const auto allocator = CollectionAllocator();
     AssertDo(three_mm_storage_init(&_storage, &allocator) == THREE_MM_STORAGE_OK, "invalid collection allocator");
 }
 void GroupBase::_SetStorageGrowth()

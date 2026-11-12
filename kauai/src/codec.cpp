@@ -150,23 +150,38 @@ bool CodecManager::FCanDo(LegacyLong cfmt, bool fEncode)
     Gets the type of compression used on the block (assuming it is
     compressed).
 ***************************************************************************/
+namespace {
+int ReadPackedHeader(void *context, ThreeMMU32 offset, void *bytes, size_t count)
+{
+    if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
+    return static_cast<PDataBlock>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), offset, true);
+}
+} // namespace
+void *CodecManager::_FindDecoder(void *context, ThreeMMI32 format)
+{
+    PCodec codec = nullptr;
+    if (format == cfmtNil) return nullptr;
+    return static_cast<CodecManager *>(context)->_FFindCodec(false, format, &codec) ? codec : nullptr;
+}
+int CodecManager::_ConvertDecoder(void *codec, ThreeMMI32 format, const void *input, ThreeMMU32 bytes,
+                                  void *output, ThreeMMU32 capacity, ThreeMMI32 *written)
+{
+    LegacyLong count = *written;
+    const bool ok = static_cast<PCodec>(codec)->FConvert(false, format, const_cast<void *>(input), bytes, output, capacity, &count);
+    *written = static_cast<ThreeMMI32>(count);
+    return ok;
+}
 bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
     AssertVarMem(pcfmt);
-
-    byte rgb[4];
-
     TrashVar(pcfmt);
-    if (pblck->Cb(fTrue) < 2 * size(rgb))
-        return fFalse;
-
-    if (!pblck->FReadRgb(rgb, size(rgb), 0, fTrue))
-        return fFalse;
-
-    *pcfmt = LwFromBytes(rgb[0], rgb[1], rgb[2], rgb[3]);
-    return fTrue;
+    const ThreeMMReadStream input = {pblck, static_cast<ThreeMMU32>(pblck->Cb(true)), ReadPackedHeader};
+    ThreeMMI32 format;
+    if (three_mm_packed_format(&input, &format) != THREE_MM_DATA_OK) return false;
+    *pcfmt = format;
+    return true;
 }
 
 /***************************************************************************
@@ -307,35 +322,12 @@ bool CodecManager::_FCode(LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *
     }
     else
     {
-        // decode
-        if (0 >= (cbSrc -= kcbCodecHeader))
-            return fFalse;
-
-        // get the format and decompressed size
-        prgb = (byte *)pvSrc;
-        cfmt = LwFromBytes(prgb[0], prgb[1], prgb[2], prgb[3]);
-        *pcbDst = LwFromBytes(prgb[4], prgb[5], prgb[6], prgb[7]);
-        if (!FIn(*pcbDst, 1, pvNil == pvDst ? kcbMax : cbDst + 1))
-            return fFalse;
-
-        // make sure we have a codec for this format
-        if (!_FFindCodec(fFalse, cfmt, &pcodc))
-            return fFalse;
-
-        if (pvNil == pvDst)
-            return fTrue;
-
-        cbDst = *pcbDst;
-        if (!pcodc->FConvert(fFalse, cfmt, prgb + kcbCodecHeader, cbSrc, pvDst, cbDst, pcbDst))
-        {
-            return fFalse;
-        }
-
-        if (cbDst != *pcbDst)
-        {
-            Bug("decompressed to wrong size");
-            return fFalse;
-        }
+        const ThreeMMPackedDecoder decoder = {this, _FindDecoder, _ConvertDecoder};
+        ThreeMMI32 count = 0;
+        const int result = three_mm_packed_decode(&decoder, pvSrc, cbSrc, pvDst, cbDst, &count);
+        if (result != THREE_MM_DATA_ARGUMENT) *pcbDst = count;
+        if (result == THREE_MM_DATA_WRONG_SIZE) Bug("decompressed to wrong size");
+        return result == THREE_MM_DATA_OK;
     }
 
     return fTrue;

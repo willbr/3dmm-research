@@ -53,7 +53,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
 
 ## Shared C89 engine migration
 
-### Current status (11 November 2026)
+### Current status (12 November 2026)
 
 - The shared content VFS core, `libraries/content/src/content_vfs.c`, is C89;
   `content_vfs.cpp` remains a C++ adapter. Reuse the existing core.
@@ -87,9 +87,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   callbacks remain C++.
 - Dense/allocated array and group mutations and GL/AL/GG wire-header policy now
   use C89, including slot reuse, padded byte transfers and merges. The native
-  classes retain object/pointer/diagnostic adapters. Next convert GST headers
-  and byte-stream/DataBlock decoding, then codecs, remaining allocator services
-  and container persistence.
+  classes retain object/pointer/diagnostic adapters.
+- GST headers, memory-stream storage/edits, live file-piece lookup/fetch,
+  DataBlock range/unpack policy and packed-envelope decode dispatch now use C89.
+  Host callbacks still provide codec algorithms, HQ ownership and file access.
+  Next convert codec implementations and encoding, then file-piece editing,
+  remaining allocator services and container persistence.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

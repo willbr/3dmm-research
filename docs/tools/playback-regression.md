@@ -774,3 +774,54 @@ limitations remain; these checks establish preservation against earlier builds,
 not complete retail parity. One repetition does not establish repeatability.
 Earlier captures made before the final native assertion-level review remain in
 the database, separately from the final suites listed above.
+
+## C89 GST headers, streams and decode policy (12 November 2026)
+
+GST20 header encoding/decoding, memory-stream storage and edits, live file-piece
+lookup/fetch, DataBlock bounds/unpack transactions and packed-envelope decode
+dispatch now share C89 implementations. Native callbacks still own codec
+algorithms, HQ services and files; file-piece editing and container persistence
+remain further migration work. This is another slice of the shared backend,
+not completion of the engine conversion.
+
+Eight standalone C-only checks and twenty focused native checks pass.
+`engine-data-stream` covers independent GST layouts, checked ranges, decode
+failure ownership, packed subranges, codec query/error/size behavior, allocation
+fallback, growth hints, 3,000 stream-model edits, write locks/failures and piece
+read poisoning/continuation. It also passes under MSVC AddressSanitizer.
+Native checks cover real full-memory pack/unpack, memory/file decode failure
+retention, mixed file/memory reads, edits and compaction. String checks cover
+both endian orders, width-normalized encoding requests and empty allocated GST.
+No Marcus UI tests were added.
+
+The adapter fixes the old assignment-in-assert typo that failed valid
+full-memory unpack in debug builds. Packed memory subranges remain unsupported;
+their rejection now retains the owning handle safely. Historical stream growth
+hints and file-limit shift bounds remain preserved. See the
+[dependency boundary](../code-map/library-split.md#gst-headers-byte-streams-and-block-decoding).
+
+All 51 saved CLI baselines match: 45 movie/archive/legacy outputs or rejection
+results and six asset indexes covering 20,568 entries. The report is
+`tmp/c89-data-stream-output-comparison.json`.
+
+Frozen Studio/Marcus builds were captured with no concurrent builds in
+`tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T052155Z-259b682f` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T052622Z-74b6d2ac` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against the previous collection-slice suites `20261111T230920Z-3f3b70ad` and
+`20261111T231330Z-2dc96e5f`, all 180 seek images match exactly. All nine runs
+retain the same 60 authored frame positions and ordered exact image changes:
+scrolling text retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. PCM16 peaks remain 2380 for retail
+and 2176 for SDL and Marcus. The local preservation report is
+`tmp/c89-data-stream-playback-comparison.json`.
+
+Movie, ISO-resource and Marcus-content hashes remain unchanged in every run.
+Existing cross-player image/audio differences and timing/alignment limitations
+remain. These captures establish preservation against the previous build,
+not full retail parity, exact PCM equality or repeatability from one repetition.

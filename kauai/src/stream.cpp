@@ -25,9 +25,8 @@ RTCLASS(FileByteStream)
 ***************************************************************************/
 MemoryByteStream::MemoryByteStream(void)
 {
-    _hqrgb = hqNil;
-    _ibMac = 0;
-    _cbMinGrow = 0;
+    const auto allocator = Group::CollectionAllocator();
+    AssertDo(three_mm_byte_buffer_init(&_buffer, &allocator) == THREE_MM_STORAGE_OK, "invalid byte stream allocator");
     AssertThis(fobjAssertFull);
 }
 
@@ -37,8 +36,7 @@ MemoryByteStream::MemoryByteStream(void)
 MemoryByteStream::~MemoryByteStream(void)
 {
     AssertThis(fobjAssertFull);
-
-    FreePhq(&_hqrgb);
+    AssertDo(three_mm_storage_dispose(&_buffer.storage) == THREE_MM_STORAGE_OK, "freeing locked byte stream");
 }
 
 /***************************************************************************
@@ -48,8 +46,7 @@ void MemoryByteStream::SetMinGrow(LegacyLong cb)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
-
-    _cbMinGrow = cb;
+    _buffer.min_grow = cb;
 }
 
 /***************************************************************************
@@ -59,8 +56,8 @@ void MemoryByteStream::SetMinGrow(LegacyLong cb)
 bool MemoryByteStream::FEnsureSpace(LegacyLong cb, bool fShrink)
 {
     AssertThis(0);
-
-    return _FEnsureSize(_ibMac + cb, fShrink);
+    if (cb < 0 || static_cast<ThreeMMU32>(cb) >= THREE_MM_STORAGE_LIMIT - _buffer.length) return false;
+    return _FEnsureSize(_buffer.length + cb, fShrink);
 }
 
 /***************************************************************************
@@ -70,11 +67,10 @@ bool MemoryByteStream::FEnsureSpace(LegacyLong cb, bool fShrink)
 void *MemoryByteStream::PvLock(LegacyLong ib)
 {
     AssertThis(0);
-    AssertIn(ib, 0, _ibMac + 1);
-
-    if (hqNil == _hqrgb)
-        return pvNil;
-    return PvAddBv(PvLockHq(_hqrgb), ib);
+    AssertIn(ib, 0, static_cast<LegacyLong>(_buffer.length) + 1);
+    if (!_buffer.storage.buffers[0].data) return nullptr;
+    if (three_mm_storage_lock(&_buffer.storage, 0) != THREE_MM_STORAGE_OK) return nullptr;
+    return _buffer.storage.buffers[0].data + ib;
 }
 
 /***************************************************************************
@@ -83,9 +79,8 @@ void *MemoryByteStream::PvLock(LegacyLong ib)
 void MemoryByteStream::Unlock(void)
 {
     AssertThis(0);
-
-    if (hqNil != _hqrgb)
-        UnlockHq(_hqrgb);
+    if (!_buffer.storage.buffers[0].data) return;
+    AssertDo(three_mm_storage_unlock(&_buffer.storage, 0) == THREE_MM_STORAGE_OK, "byte stream not locked");
 }
 
 /***************************************************************************
@@ -94,12 +89,7 @@ void MemoryByteStream::Unlock(void)
 void MemoryByteStream::FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb)
 {
     AssertThis(0);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertIn(cb, 0, _ibMac + 1 - ib);
-    AssertPvCb(prgb, cb);
-
-    if (cb > 0)
-        CopyPb(PvAddBv(QvFromHq(_hqrgb), ib), prgb, cb);
+    AssertDo(three_mm_byte_buffer_read(&_buffer, ib, prgb, cb) == THREE_MM_STORAGE_OK, "invalid stream read");
 }
 
 /***************************************************************************
@@ -109,23 +99,9 @@ void MemoryByteStream::FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb)
 bool MemoryByteStream::FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(cbIns, 0, kcbMax);
-    AssertPvCb(prgb, cbIns);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertIn(cbDel, 0, _ibMac + 1 - ib);
-    byte *qrgb;
-
-    if (!_FEnsureSize(_ibMac + cbIns - cbDel, fFalse))
-        return fFalse;
-
-    qrgb = (byte *)QvFromHq(_hqrgb);
-    if (ib < _ibMac - cbDel && cbDel != cbIns)
-        BltPb(qrgb + ib + cbDel, qrgb + ib + cbIns, _ibMac - cbDel - ib);
-    if (cbIns > 0)
-        CopyPb(prgb, qrgb + ib, cbIns);
-    _ibMac += cbIns - cbDel;
+    const bool ok = three_mm_byte_buffer_replace(&_buffer, ib, cbDel, prgb, cbIns) == THREE_MM_STORAGE_OK;
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -143,53 +119,29 @@ bool MemoryByteStream::FWriteRgb(PFileLocation pflo, LegacyLong ib)
 /***************************************************************************
     Write the byte stream to a block.
 ***************************************************************************/
+namespace {
+int WriteByteStreamBlock(void *context, ThreeMMU32 offset, const void *bytes, size_t count)
+{
+    if (offset > 0x7fffffffUL || count > 0x7fffffffUL) return 0;
+    return static_cast<PDataBlock>(context)->FWriteRgb(const_cast<void *>(bytes), count, offset);
+}
+} // namespace
 bool MemoryByteStream::FWriteRgb(PDataBlock pblck, LegacyLong ib)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
-    AssertIn(ib, 0, CbOfHq(_hqrgb) - pblck->Cb() + 1);
-    bool fRet;
-
-    if (ib + pblck->Cb() > _ibMac)
-    {
-        Bug("blck is too big");
-        return fFalse;
-    }
-    if (pblck->Cb() == 0)
-        return fTrue;
-    fRet = pblck->FWrite(PvAddBv(PvLockHq(_hqrgb), ib));
-    UnlockHq(_hqrgb);
-    return fRet;
+    const ThreeMMStorageWriter writer = {pblck, static_cast<ThreeMMU32>(pblck->Cb()), WriteByteStreamBlock};
+    return three_mm_byte_buffer_write(&_buffer, ib, &writer) == THREE_MM_STORAGE_OK;
 }
 
 /***************************************************************************
-    Make sure the hq is at least cbMin bytes.  If fShrink is true, make the
-    hq exactly cbMin bytes long.
+    Ensure at least cbMin bytes, retaining the legacy growth hint even for
+    nonzero shrink requests.
 ***************************************************************************/
 bool MemoryByteStream::_FEnsureSize(LegacyLong cbMin, bool fShrink)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(cbMin, 0, kcbMax);
-    LegacyLong cb = hqNil == _hqrgb ? 0 : CbOfHq(_hqrgb);
-
-    if (cbMin <= cb && (!fShrink || cbMin == cb))
-        return fTrue;
-
-    if (cbMin == 0)
-    {
-        if (fShrink)
-            FreePhq(&_hqrgb);
-        return fTrue;
-    }
-
-    if (hqNil == _hqrgb)
-    {
-        return FAllocHq(&_hqrgb, LwMax(cbMin, _cbMinGrow), fmemNil, mprNormal) ||
-               _cbMinGrow > cbMin && FAllocHq(&_hqrgb, cbMin, fmemNil, mprNormal);
-    }
-
-    return FResizePhq(&_hqrgb, LwMax(cbMin, cb + _cbMinGrow), fmemNil, mprNormal) ||
-           cb + _cbMinGrow > cbMin && FResizePhq(&_hqrgb, cbMin, fmemNil, mprNormal);
+    return three_mm_byte_buffer_reserve(&_buffer, cbMin, fShrink) == THREE_MM_STORAGE_OK;
 }
 
 #ifdef DEBUG
@@ -199,15 +151,10 @@ bool MemoryByteStream::_FEnsureSize(LegacyLong cbMin, bool fShrink)
 void MemoryByteStream::AssertValid(LegacyUlong grf)
 {
     MemoryByteStream_PAR::AssertValid(grf);
-    AssertIn(_ibMac, 0, kcbMax);
-    AssertIn(_cbMinGrow, 0, kcbMax);
-    if (_ibMac > 0)
-    {
-        AssertHq(_hqrgb);
-        AssertIn(_ibMac, 0, CbOfHq(_hqrgb) + 1);
-    }
-    else if (hqNil != _hqrgb)
-        AssertHq(_hqrgb);
+    Assert(_buffer.length < THREE_MM_STORAGE_LIMIT && _buffer.min_grow < THREE_MM_STORAGE_LIMIT, "invalid byte stream size");
+    const auto &buffer = _buffer.storage.buffers[0];
+    Assert(_buffer.length <= buffer.capacity, "byte stream area too small");
+    if (buffer.data) AssertPvAlloced(buffer.data, buffer.capacity);
 }
 
 /***************************************************************************
@@ -217,7 +164,7 @@ void MemoryByteStream::MarkMem(void)
 {
     AssertValid(fobjAssertFull);
     MemoryByteStream_PAR::MarkMem();
-    MarkHq(_hqrgb);
+    MarkPv(_buffer.storage.buffers[0].data);
 }
 #endif // DEBUG
 
@@ -257,35 +204,45 @@ FileByteStream::~FileByteStream(void)
     Find the flo that contains the given ib and assign *pib the postion
     of the first byte in the flo and *pcb the size of the flo.
 ***************************************************************************/
+ThreeMMPieceReader FileByteStream::_PieceView()
+{
+    return {this, _pggflo ? static_cast<ThreeMMU32>(_pggflo->IvMac()) : 0,
+            static_cast<ThreeMMU32>(_ibMac), _PieceSize, _ReadPiece};
+}
+int FileByteStream::_PieceSize(void *context, ThreeMMU32 index, ThreeMMU32 *bytes)
+{
+    auto stream = static_cast<FileByteStream *>(context);
+    FileLocation piece;
+    stream->_pggflo->GetFixed(index, &piece);
+    if (piece.cb < 0) return 0;
+    *bytes = piece.cb;
+    return 1;
+}
+int FileByteStream::_ReadPiece(void *context, ThreeMMU32 index, ThreeMMU32 offset, void *bytes, ThreeMMU32 count)
+{
+    auto stream = static_cast<FileByteStream *>(context);
+    FileLocation piece;
+    stream->_pggflo->GetFixed(index, &piece);
+    if (!piece.pfil)
+    {
+        Assert(stream->_pggflo->Cb(index) == piece.cb, "group element wrong size");
+        stream->_pggflo->GetRgb(index, offset, count, bytes);
+        return 1;
+    }
+    const bool ok = piece.FReadRgb(bytes, count, offset);
+    if (!ok) Warn("read failed in fetch");
+    return ok;
+}
 LegacyLong FileByteStream::_IfloFind(LegacyLong ib, LegacyLong *pib, LegacyLong *pcb)
 {
     AssertBaseThis(0);
     AssertIn(ib, 0, _ibMac + 1);
-    AssertVarMem(pib);
-    AssertNilOrVarMem(pcb);
-    LegacyLong iflo, cb;
-    FileLocation flo;
-
-    iflo = 0;
-    if (_ibMac > 0)
-    {
-        for (cb = ib; iflo < _pggflo->IvMac(); iflo++)
-        {
-            _pggflo->GetFixed(iflo, &flo);
-            if (flo.cb > cb)
-            {
-                *pib = ib - cb;
-                if (pvNil != pcb)
-                    *pcb = flo.cb;
-                return iflo;
-            }
-            cb -= flo.cb;
-        }
-    }
-    *pib = _ibMac;
-    if (pvNil != pcb)
-        *pcb = 0;
-    return iflo;
+    const auto reader = _PieceView();
+    ThreeMMU32 index = 0, start = 0, bytes = 0;
+    AssertDo(three_mm_piece_find(&reader, ib, &index, &start, &bytes) == THREE_MM_DATA_OK, "invalid stream piece lookup");
+    *pib = start;
+    if (pcb) *pcb = bytes;
+    return index;
 }
 
 /***************************************************************************
@@ -746,38 +703,9 @@ void FileByteStream::FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb)
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(cb, 0, _ibMac - ib + 1);
     AssertPvCb(prgb, cb);
-    LegacyLong iflo, cbT, ibMin;
-    FileLocation flo;
-
-    iflo = _IfloFind(ib, &ibMin);
-    ib -= ibMin;
-    for (; cb > 0 && iflo < _pggflo->IvMac(); iflo++)
-    {
-        _pggflo->GetFixed(iflo, &flo);
-        Assert(flo.cb > ib, "_IfloFind messed up");
-
-        // get min(cb, flo.cb - ib) bytes from position ib
-        // then set ib to 0 and update cb
-        cbT = LwMin(cb, flo.cb - ib);
-        if (pvNil == flo.pfil)
-        {
-            // the data is in the GeneralGroup
-            Assert(_pggflo->Cb(iflo) == flo.cb, "group element wrong size");
-            _pggflo->GetRgb(iflo, ib, cbT, prgb);
-        }
-        else
-        {
-            // the data is on file
-            if (!flo.FReadRgb(prgb, cbT, ib))
-            {
-                Warn("read failed in fetch");
-                FillPb(prgb, cbT, kbGarbage);
-            }
-        }
-        prgb = PvAddBv(prgb, cbT);
-        ib = 0;
-        cb -= cbT;
-    }
+    const auto reader = _PieceView();
+    const int result = three_mm_piece_read(&reader, ib, prgb, cb);
+    Assert(result == THREE_MM_DATA_OK || result == THREE_MM_DATA_IO, "invalid stream fetch");
 }
 
 /***************************************************************************

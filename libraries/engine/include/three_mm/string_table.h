@@ -49,6 +49,9 @@ extern "C"
     int three_mm_strings_translate(ThreeMMStringTable *, int source_encoding, int current_encoding,
                                    ThreeMMStringConvert, void *);
     int three_mm_strings_translate_same(ThreeMMStringTable *, int other_encoding, int current_encoding, int to_current);
+    /* Saving chooses the requested Mac/Windows family with the current unit
+     * width. This is independent of native code-page conversion. */
+    int three_mm_strings_wire_system(int current_encoding, int requested_encoding, int *stored_encoding);
 #ifdef __cplusplus
 }
 #endif

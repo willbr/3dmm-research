@@ -278,6 +278,17 @@ static unsigned encoding_unit(int encoding)
         return 2;
     return 0;
 }
+int three_mm_strings_wire_system(int current, int requested, int *stored)
+{
+    unsigned unit = encoding_unit(current);
+    int mac;
+    if (!stored || !unit || !encoding_unit(requested))
+        return 0;
+    mac = requested == THREE_MM_TEXT_MAC || requested == THREE_MM_TEXT_UTF16_BE;
+    *stored = unit == 1 ? (mac ? THREE_MM_TEXT_MAC : THREE_MM_TEXT_WINDOWS)
+                        : (mac ? THREE_MM_TEXT_UTF16_BE : THREE_MM_TEXT_UTF16_LE);
+    return 1;
+}
 int three_mm_strings_translate_same(ThreeMMStringTable *t, int other, int current, int to_current)
 {
     ThreeMMU32 offset = 0, n, bytes, i;

@@ -14,6 +14,7 @@
 ***************************************************************************/
 #ifndef CODEC_H
 #define CODEC_H
+#include "three_mm/data_stream.h"
 
 /***************************************************************************
     Codec object.
@@ -47,6 +48,8 @@ class CodecManager : public CodecManager_PAR
     MARKMEM
 
   protected:
+    static void *_FindDecoder(void *, ThreeMMI32);
+    static int _ConvertDecoder(void *, ThreeMMI32, const void *, ThreeMMU32, void *, ThreeMMU32, ThreeMMI32 *);
     LegacyLong _cfmtDef;
     PCodec _pcodcDef;
     PDynamicArray _pglpcodc;

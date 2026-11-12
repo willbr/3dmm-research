@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -94,7 +94,7 @@ version policy. Standalone scene fixtures remain supported.
 | Remaining dependency | Responsibility retained in C++ |
 | --- | --- |
 | `ChunkyFile`, `DataBlock`, codecs | Chunk graph mutation/save policy, free maps, embedded-forest decoding, decompression and payload storage. Index reading, graph validation, live chunk/child queries and the underlying array/group algorithms now use C89. |
-| `StringTable_GST`, platform text services | Object lifetime, GST header adapters and native code-page/locale services. Storage ownership, ordered I/O, mutation, packed storage conversion and portable text rules now use C89. The host still supplies memory diagnostics and DataBlock callbacks. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
+| `StringTable_GST`, platform text services | Object lifetime, wire adapters and native code-page/locale services. GST header policy, storage ownership, ordered I/O, mutation, packed storage conversion and portable text rules now use C89. The host still supplies memory diagnostics and DataBlock callbacks. Studio's roll-call loader retains its existing GST acceptance rules; Archive's stricter checks are not imposed on it. |
 | `TagManager`, `ChunkyResourceFile` | Opening/closing runtime tags and resource references, including rollback after failed loads. |
 | `MovieData`, Studio document | Title/scene enumeration, transactional object replacement, editing and serialization. |
 
@@ -141,7 +141,7 @@ callback. Offset byte swapping never touches extras.
 
 `VirtualStringTable` supplies borrowed buffers and a reserve callback over the
 C-owned collection storage described below. C owns mutation rules and updates
-the logical counts; the adapter retains object lifetime, GST header checks and
+the logical counts; the adapter retains object lifetime, GST wire adaptation and
 `DataBlock` callbacks. A failed ordinary mutation retains data/counts, even if one
 allocation grew. As before, a failed loading translation can leave partial
 state and the loader discards that object. No stricter Archive GST acceptance
@@ -225,7 +225,8 @@ match, and an empty allocated GG can be written but its reader rejects it.
 Header decoding adds no bitmap or location-graph validator. The native facade
 retains the raw pre-swap OS-marker output. Array contents and GG fixed/variable
 payloads are not byte-swapped; GG location words are swapped and restored around
-writes, including failure paths. GST header handling remains a separate path.
+writes, including failure paths. GST20 now uses the same C header codec with
+its own acceptance rules, described below.
 
 `engine-collections-test` uses independent wire encodings, bitmap boundary/slot
 reuse checks, allocation failures and 12,800 deterministic model steps across
@@ -235,9 +236,48 @@ byte-transfer/merge, dense/sparse array state, both endian save/reopen paths,
 opaque payloads and the raw OS-marker result. C-only and strict C89 builds pass.
 
 Native collection objects, typed pointer access, diagnostics and callback
-adapters remain C++. Next convert the GST wire-header path and byte-stream/
-DataBlock decoding services, followed by codecs and chunk persistence. Remaining
-allocator services and engine objects still prevent a complete C-only backend.
+adapters remain C++.
+
+### GST headers, byte streams and block decoding
+
+`collection_headers.c` also owns GST20 encoding/decoding: checked stride/count
+products, dense/allocated mode, free count and exact payload length. It retains
+empty allocated GST acceptance, independently of GG's empty allocated rejection.
+Archive's stricter string-payload validator remains separate. Native adapters
+swap offsets and translate text around writes, restoring both on failure.
+`three_mm_strings_wire_system` retains the requested Mac/Windows family at the
+host string width, including requests with a different Unicode width.
+
+`three_mm/data_stream.h` and `data_stream.c` own memory-stream storage lifetime,
+growth/fallback, replacement and bounded read/write. The allocator remains the
+same host fixed-memory adapter used by collections, including HQ diagnostic
+accounting. Both allocation attempts retain NORMAL priority and the legacy
+nonzero shrink request's growth-hint behavior. Stream pointers are borrowed
+under explicit locks. Live file-piece metadata is borrowed through callbacks;
+C lookup/fetch retains EOF behavior and fills a failed read segment with 0xa3,
+continues reading later segments and reports failure.
+
+DataBlock range checks, signed boundary shifts and unpack transactions are C.
+File-limit shifts retain the original delta bound, rather than imposing a new
+bound on the resulting end. A failed file decode keeps the file reference and
+releases only its temporary handle; a failed memory decode retains its owning
+handle. Packed memory subranges remain unsupported and now reject safely while
+retaining storage. Successful full-memory unpack also removes the original
+assignment-in-assert typo that failed in debug builds. Packed format/decoded-size
+parsing, codec selection/query, conversion dispatch and wrong-size detection
+are shared C policy. Algorithms and encoding remain host codec services.
+
+`engine-data-stream-test` covers independent GST fixtures, overflow/range edges,
+failed decode ownership, packed dispatch failures, relocating/failing allocation,
+3,000 deterministic stream edits and failed piece reads. It passes under MSVC
+AddressSanitizer. Native core tests exercise real full-memory pack/unpack,
+rejected memory/file decodes, memory edits/locks/writes and mixed memory/file
+pieces. Native string checks cover both endian orders, requested encoding-width
+normalization and empty allocated GST save/reopen.
+
+Codec algorithms/encoding, HQ services, file-piece editing/compaction and chunk
+persistence remain C++; these and remaining engine objects still prevent a
+complete C-only backend.
 
 ## Why the split exists
 

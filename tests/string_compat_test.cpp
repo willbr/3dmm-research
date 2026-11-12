@@ -68,7 +68,7 @@ static void CheckStringStorage()
     // Preserve holes, entry extras and source storage through both endian writes.
     for (auto order : {kboCur, kboOther})
     {
-        for (auto encoding : {koskSbWin, koskSbMac})
+        for (auto encoding : {koskSbWin, koskSbMac, koskUniWin, koskUniMac})
         {
             for (int allocated = 0; allocated < 2; ++allocated)
             {
@@ -96,6 +96,14 @@ static void CheckStringStorage()
     Check(sparse->IstnMac() == 1);
     sparse->Delete(0);
     Check(sparse->IstnMac() == 0);
+    for (auto order : {kboCur, kboOther})
+    {
+        DataBlock empty;
+        Check(empty.FSetTemp(sparse->CbOnFile()) && sparse->FWrite(&empty, order));
+        auto copy = AllocatedStringTable::PastRead(&empty);
+        Check(copy && copy->IstnMac() == 0);
+        ReleasePpo(&copy);
+    }
     // Independently encoded UTF-16BE table; metadata is opaque to transcoding.
     byte wide[] = {0,1,4,4, 0,0,0,8, 0,0,0,1, 0,0,0,6, 255,255,255,255,
                    0,2,0,'A',0,'Z', 0,0,0,0, 1,2,3,4};

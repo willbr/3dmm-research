@@ -51,6 +51,7 @@ extern "C"
      * successful changes to the first. A failed shrink is best effort: retains its
      * actual capacity/data and does not fail the operation. Locked resizes fail. */
     int three_mm_storage_ensure(ThreeMMCollectionStorage *, ThreeMMU32 first, ThreeMMU32 second, int shrink);
+    int three_mm_storage_resize_exact(ThreeMMCollectionStorage *, unsigned section, ThreeMMU32 bytes, int priority);
     int three_mm_storage_lock(ThreeMMCollectionStorage *, unsigned section);
     int three_mm_storage_unlock(ThreeMMCollectionStorage *, unsigned section);
     /* Independent copies use only the requested prefixes and inherit growth hints

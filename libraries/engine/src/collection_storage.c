@@ -85,6 +85,13 @@ static int resize(ThreeMMCollectionStorage *storage, unsigned section, ThreeMMU3
     buffer->capacity = bytes;
     return THREE_MM_STORAGE_OK;
 }
+int three_mm_storage_resize_exact(ThreeMMCollectionStorage *storage, unsigned section, ThreeMMU32 bytes, int priority)
+{
+    if (!valid(storage) || section > 1 || bytes >= THREE_MM_STORAGE_LIMIT ||
+        (priority != THREE_MM_STORAGE_SPEED && priority != THREE_MM_STORAGE_NORMAL))
+        return THREE_MM_STORAGE_ARGUMENT;
+    return resize(storage, section, bytes, priority);
+}
 int three_mm_storage_ensure(ThreeMMCollectionStorage *storage, ThreeMMU32 first, ThreeMMU32 second, int shrink)
 {
     ThreeMMU32 sizes[2], extra, candidate;

@@ -21,6 +21,7 @@
 ***************************************************************************/
 #ifndef STREAM_H
 #define STREAM_H
+#include "three_mm/data_stream.h"
 
 using Group::PGeneralGroup;
 
@@ -38,9 +39,7 @@ class MemoryByteStream : public MemoryByteStream_PAR
     NOCOPY(MemoryByteStream)
 
   protected:
-    HQ _hqrgb;
-    LegacyLong _ibMac;
-    LegacyLong _cbMinGrow;
+    ThreeMMByteBuffer _buffer;
 
     bool _FEnsureSize(LegacyLong cbMin, bool fShrink);
 
@@ -55,7 +54,7 @@ class MemoryByteStream : public MemoryByteStream_PAR
 
     LegacyLong IbMac(void)
     {
-        return _ibMac;
+        return _buffer.length;
     }
     void FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb);
     bool FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel);
@@ -80,6 +79,9 @@ class FileByteStream : public FileByteStream_PAR
     PGeneralGroup _pggflo;
     LegacyLong _ibMac;
 
+    ThreeMMPieceReader _PieceView();
+    static int _PieceSize(void *, ThreeMMU32, ThreeMMU32 *);
+    static int _ReadPiece(void *, ThreeMMU32, ThreeMMU32, void *, ThreeMMU32);
     LegacyLong _IfloFind(LegacyLong ib, LegacyLong *pib, LegacyLong *pcb = pvNil);
     bool _FEnsureSplit(LegacyLong ib, LegacyLong *piflo = pvNil);
     void _AttemptMerge(LegacyLong ibMin, LegacyLong ibLim);

@@ -14,6 +14,8 @@
 #include "clok.h"
 #include "cmd_hooks.h"
 #include "platform_files.h"
+#include "stream.h"
+#include "codec.h"
 #if defined(TEST_ENGINE_CORE)
 #include "actor_frame_fixture.h"
 #include "studio_preferences.h"
@@ -151,6 +153,81 @@ static void TestCommandReplay()
     // automatic cleanup before releasing its final owner.
     file->SetTemp(true);
     ReleasePpo(&file);
+}
+
+class MemoryStreamProbe : public MemoryByteStream
+{
+  public:
+    ThreeMMU32 Capacity() const { return _buffer.storage.buffers[0].capacity; }
+};
+
+static void TestDataStreams()
+{
+    byte source[4096], actual[4100];
+    for (unsigned i = 0; i < sizeof(source); ++i) source[i] = static_cast<byte>(i % 7);
+    DataBlock block;
+    Check(block.FSetTemp(sizeof(source)) && block.FWrite(source));
+    Check(block.FPackData(kcfmtKauai2) && block.FPacked());
+    Check(block.FUnpackData() && !block.FPacked() && block.Cb() == sizeof(source));
+    Check(block.FRead(actual) && !std::memcmp(actual, source, sizeof(source)));
+
+    // Unknown packed format must retain the original owning handle on failure.
+    byte invalid[] = {'n','o','n','e', 0,0,0,4, 1,2,3,4};
+    HQ handle = pvNil;
+    Check(FAllocHq(&handle, sizeof(invalid), fmemNil, mprNormal));
+    CopyPb(invalid, PvLockHq(handle), sizeof(invalid));
+    UnlockHq(handle);
+    block.SetHq(&handle, true);
+    Check(handle == pvNil && !block.FUnpackData() && block.FPacked());
+    Check(block.Cb(true) == sizeof(invalid) && block.FRead(actual, true));
+    Check(!std::memcmp(actual, invalid, sizeof(invalid)));
+    Check(block.FMoveMin(1) && !block.FUnpackData() && block.FPacked());
+    Check(block.Cb(true) == sizeof(invalid) - 1 && block.FRead(actual, true));
+    Check(!std::memcmp(actual, invalid + 1, sizeof(invalid) - 1));
+
+    auto file = FileObject::PfilCreateTemp();
+    Check(file && file->FWriteRgb(invalid, sizeof(invalid), 0));
+    block.Set(file, 0, sizeof(invalid), true);
+    Check(!block.FUnpackData() && block.FPacked());
+    FileLocation location;
+    Check(block.FGetFlo(&location, true) && location.pfil == file && location.cb == sizeof(invalid));
+    Check(block.FRead(actual, true) && !std::memcmp(actual, invalid, sizeof(invalid)));
+    block.Free();
+    Check(file->FWriteRgb(source, sizeof(source), 0));
+
+    auto memory = NewObj MemoryStreamProbe();
+    Check(memory != pvNil);
+    Check(memory->PvLock(0) == pvNil);
+    memory->Unlock();
+    memory->SetMinGrow(16);
+    Check(memory->FReplace(source, 4, 0, 0) && memory->Capacity() == 16);
+    // Preserve the legacy nonzero shrink request's growth-hint behavior.
+    Check(memory->FEnsureSpace(0, true) && memory->Capacity() == 32);
+    Check(memory->FReplace(source + 4, 3, 1, 2) && memory->IbMac() == 5);
+    const byte expected[] = {0,4,5,6,3};
+    memory->FetchRgb(0, 5, actual);
+    Check(!std::memcmp(actual, expected, sizeof(expected)));
+    Check(*static_cast<byte *>(memory->PvLock(1)) == 4);
+    memory->Unlock();
+    Check(block.FSetTemp(3) && memory->FWriteRgb(&block, 2));
+    Check(block.FRead(actual) && !std::memcmp(actual, expected + 2, 3));
+    ReleasePpo(&memory);
+
+    auto pieces = NewObj FileByteStream();
+    Check(pieces && pieces->FReplace(source, 2, 0, 0));
+    location = {file, 0, sizeof(source)};
+    Check(pieces->FReplaceFlo(&location, false, 2, 0));
+    Check(pieces->FReplace(source + 2, 2, pieces->IbMac(), 0));
+    ReleasePpo(&file); // The stream owns its file piece independently.
+    pieces->FetchRgb(0, pieces->IbMac(), actual);
+    Check(pieces->IbMac() == 4100 && actual[0] == 0 && actual[1] == 1);
+    Check(!std::memcmp(actual + 2, source, sizeof(source)) && actual[4098] == 2 && actual[4099] == 3);
+    Check(pieces->FReplace(source + 4, 3, 1, 4));
+    pieces->FetchRgb(0, 8, actual);
+    Check(actual[0] == 0 && actual[1] == 4 && actual[2] == 5 && actual[3] == 6 && actual[4] == source[3]);
+    Check(pieces->FCompact());
+    pieces->FetchRgb(pieces->IbMac(), 0, actual);
+    ReleasePpo(&pieces);
 }
 
 static void TestFailedResize()
@@ -2918,6 +2995,7 @@ int main()
     TestFailedResize();
     TestCollectionStorage();
     TestCollectionWireAndMutations();
+    TestDataStreams();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();
     vpcex = CommandExecutionManager::PcexNew(20, 20);

@@ -359,7 +359,7 @@ void FileObject::AssertValid(LegacyUlong grf)
 ***************************************************************************/
 priv bool _FRangeIn(LegacyLong cbTot, LegacyLong cb, LegacyLong ib)
 {
-    return FIn(ib, 0, cbTot + 1) && FIn(cb, 0, cbTot - ib + 1);
+    return cbTot >= 0 && cb >= 0 && ib >= 0 && three_mm_range_contains(cbTot, ib, cb);
 }
 
 /***************************************************************************
@@ -630,6 +630,29 @@ void FileLocation::AssertValid(LegacyUlong grfflo)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
+ThreeMMBlockView DataBlock::_BlockView()
+{
+    ThreeMMBlockView view = {};
+    view.packed = _fPacked;
+    if (_flo.pfil)
+    {
+        view.kind = THREE_MM_BLOCK_FILE; view.start = _flo.fp; view.length = _flo.cb;
+    }
+    else if (_hq)
+    {
+        view.kind = THREE_MM_BLOCK_MEMORY; view.memory = _hq;
+        view.start = _ibMin; view.length = _ibLim - _ibMin; view.capacity = CbOfHq(_hq);
+    }
+    return view;
+}
+int DataBlock::_ReadDecodeFile(void *context, void **handle)
+{
+    return static_cast<DataBlock *>(context)->_flo.FReadHq(handle);
+}
+int DataBlock::_DecodeHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
+void DataBlock::_ReleaseDecodeHandle(void *, void *handle) { FreePhq(&handle); }
+ThreeMMU32 DataBlock::_DecodeSize(void *, void *handle) { return CbOfHq(handle); }
+
 DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 {
     AssertBaseThis(0);
@@ -857,25 +880,11 @@ bool DataBlock::FSetTemp(LegacyLong cb, bool fForceFile)
 bool DataBlock::FMoveMin(LegacyLong dib)
 {
     AssertThis(0);
-
-    if (pvNil != _flo.pfil)
-    {
-        if (!FIn(dib, -_flo.fp, _flo.cb + 1))
-            return fFalse;
-        _flo.fp += dib;
-        _flo.cb -= dib;
-        return fTrue;
-    }
-
-    if (hqNil != _hq)
-    {
-        if (!FIn(dib + _ibMin, 0, _ibLim + 1))
-            return fFalse;
-        _ibMin += dib;
-        return fTrue;
-    }
-
-    return fFalse;
+    auto view = _BlockView();
+    if (three_mm_block_move_min(&view, dib) != THREE_MM_DATA_OK) return false;
+    if (_flo.pfil) { _flo.fp = view.start; _flo.cb = view.length; }
+    else { _ibMin = view.start; _ibLim = view.start + view.length; }
+    return true;
 }
 
 /***************************************************************************
@@ -886,24 +895,11 @@ bool DataBlock::FMoveMin(LegacyLong dib)
 bool DataBlock::FMoveLim(LegacyLong dib)
 {
     AssertThis(0);
-
-    if (pvNil != _flo.pfil)
-    {
-        if (!FIn(dib, -_flo.cb, kcbMax - _flo.fp))
-            return fFalse;
-        _flo.cb += dib;
-        return fTrue;
-    }
-
-    if (hqNil != _hq)
-    {
-        if (!FIn(dib + _ibLim, _ibMin, CbOfHq(_hq) + 1))
-            return fFalse;
-        _ibLim += dib;
-        return fTrue;
-    }
-
-    return fFalse;
+    auto view = _BlockView();
+    if (three_mm_block_move_lim(&view, dib) != THREE_MM_DATA_OK) return false;
+    if (_flo.pfil) { _flo.fp = view.start; _flo.cb = view.length; }
+    else { _ibMin = view.start; _ibLim = view.start + view.length; }
+    return true;
 }
 
 /***************************************************************************
@@ -914,16 +910,12 @@ bool DataBlock::FReadRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk)
     AssertThis(0);
     AssertPvCb(pv, cb);
 
-    if (!fPackedOk && _fPacked)
+    const auto view = _BlockView();
+    const int rangeResult = three_mm_block_check(&view, ib, cb, fPackedOk, nullptr);
+    if (rangeResult != THREE_MM_DATA_OK)
     {
-        Bug("reading packed data");
-        return fFalse;
-    }
-
-    if (!_FRangeIn(Cb(fTrue), cb, ib))
-    {
-        Bug("reading outside blck");
-        return fFalse;
+        Bug((rangeResult == THREE_MM_DATA_PACKED ? "reading packed data" : "reading outside blck"));
+        return false;
     }
 
     if (pvNil != _flo.pfil)
@@ -947,16 +939,12 @@ bool DataBlock::FWriteRgb(void *pv, LegacyLong cb, LegacyLong ib, bool fPackedOk
     AssertThis(0);
     AssertPvCb(pv, cb);
 
-    if (!fPackedOk && _fPacked)
+    const auto view = _BlockView();
+    const int rangeResult = three_mm_block_check(&view, ib, cb, fPackedOk, nullptr);
+    if (rangeResult != THREE_MM_DATA_OK)
     {
-        Bug("writing packed data");
-        return fFalse;
-    }
-
-    if (!_FRangeIn(Cb(fTrue), cb, ib))
-    {
-        Bug("writing outside blck");
-        return fFalse;
+        Bug((rangeResult == THREE_MM_DATA_PACKED ? "writing packed data" : "writing outside blck"));
+        return false;
     }
 
     if (pvNil != _flo.pfil)
@@ -981,16 +969,12 @@ bool DataBlock::FReadHq(HQ *phq, LegacyLong cb, LegacyLong ib, bool fPackedOk)
     AssertVarMem(phq);
 
     *phq = hqNil;
-    if (!fPackedOk && _fPacked)
+    const auto view = _BlockView();
+    const int rangeResult = three_mm_block_check(&view, ib, cb, fPackedOk, nullptr);
+    if (rangeResult != THREE_MM_DATA_OK)
     {
-        Bug("reading packed data");
-        return fFalse;
-    }
-
-    if (!_FRangeIn(Cb(fTrue), cb, ib))
-    {
-        Bug("reading outside blck 2");
-        return fFalse;
+        Bug((rangeResult == THREE_MM_DATA_PACKED ? "reading packed data" : "reading outside blck"));
+        return false;
     }
 
     if (pvNil != _flo.pfil)
@@ -1017,16 +1001,12 @@ bool DataBlock::FWriteHq(HQ hq, LegacyLong ib, bool fPackedOk)
     AssertHq(hq);
     LegacyLong cb = CbOfHq(hq);
 
-    if (!fPackedOk && _fPacked)
+    const auto view = _BlockView();
+    const int rangeResult = three_mm_block_check(&view, ib, cb, fPackedOk, nullptr);
+    if (rangeResult != THREE_MM_DATA_OK)
     {
-        Bug("writing packed data");
-        return fFalse;
-    }
-
-    if (!_FRangeIn(Cb(fTrue), cb, ib))
-    {
-        Bug("writing outside blck 2");
-        return fFalse;
+        Bug((rangeResult == THREE_MM_DATA_PACKED ? "writing packed data" : "writing outside blck"));
+        return false;
     }
 
     if (pvNil != _flo.pfil)
@@ -1231,46 +1211,20 @@ bool DataBlock::FPackData(LegacyLong cfmt)
 bool DataBlock::FUnpackData(void)
 {
     AssertThis(0);
-    HQ hq;
-
-    if (!_fPacked)
-        return fTrue;
-
-    if (pvNil != _flo.pfil)
+    auto view = _BlockView();
+    const bool wasPacked = _fPacked;
+    const bool wasFile = _flo.pfil != pvNil;
+    const ThreeMMBlockDecoder decoder = {this, _ReadDecodeFile, _DecodeHandle, _ReleaseDecodeHandle, _DecodeSize};
+    if (three_mm_block_unpack(&view, &decoder) != THREE_MM_DATA_OK) return false;
+    if (wasPacked)
     {
-        if (!_flo.FReadHq(&hq))
-            return fFalse;
-        if (!vpcodmUtil->FDecompressPhq(&hq))
-        {
-            FreePhq(&hq);
-            AssertThis(fblckPacked | fblckFile);
-            return fFalse;
-        }
-        SetHq(&hq, fFalse);
+        // A successful memory decode already consumed its old handle. File
+        // references are released only after the C transaction succeeds.
+        if (wasFile) ReleasePpo(&_flo.pfil);
+        _hq = view.memory; _ibMin = view.start; _ibLim = view.start + view.length; _fPacked = false;
+        AssertThis(fblckUnpacked | fblckMemory);
     }
-    else if (hqNil == _hq)
-        return fFalse;
-    else
-    {
-        AssertHq(_hq);
-        if (_ibMin != 0 || _ibLim != CbOfHq(_hq))
-        {
-            hq = HqFree();
-            SetHq(&hq, fTrue);
-        }
-        Assert(_ibMin = 0 && _ibLim == CbOfHq(_hq), 0);
-        if (!vpcodmUtil->FDecompressPhq(&_hq))
-        {
-            AssertThis(fblckPacked | fblckMemory);
-            return fFalse;
-        }
-        _ibMin = 0;
-        _ibLim = CbOfHq(_hq);
-        _fPacked = fFalse;
-    }
-
-    AssertThis(fblckUnpacked | fblckMemory);
-    return fTrue;
+    return true;
 }
 
 /***************************************************************************

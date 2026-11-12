@@ -61,7 +61,8 @@ extern "C"
     {
         THREE_MM_COLLECTION_ARRAY,
         THREE_MM_COLLECTION_ALLOCATED_ARRAY,
-        THREE_MM_COLLECTION_GROUP
+        THREE_MM_COLLECTION_GROUP,
+        THREE_MM_COLLECTION_STRINGS
     };
     /* Wire records are decoded values, never native structures to write to disk.
      * Layout checks products/subtractions before arithmetic. Read preserves legacy

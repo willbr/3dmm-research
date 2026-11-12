@@ -27,7 +27,16 @@ int three_mm_collection_layout(ThreeMMCollectionHeader *header)
     h = *header;
     if (h.count > 0x7fffffffUL || h.width > 0x7fffffffUL)
         return THREE_MM_STORAGE_ARGUMENT;
-    if (h.kind == THREE_MM_COLLECTION_GROUP)
+    if (h.kind == THREE_MM_COLLECTION_STRINGS)
+    {
+        if (h.width < 4 || h.width >= LIMIT || h.width % 4 || h.count >= LIMIT || h.count > (LIMIT - 1) / h.width ||
+            h.bytes >= LIMIT)
+            return THREE_MM_STORAGE_ARGUMENT;
+        h.header_bytes = 20;
+        h.first_bytes = h.bytes;
+        h.second_bytes = h.count * h.width;
+    }
+    else if (h.kind == THREE_MM_COLLECTION_GROUP)
     {
         if (h.width >= LIMIT || h.bytes >= LIMIT || h.count > (LIMIT - 1) / 8)
             return THREE_MM_STORAGE_ARGUMENT;
@@ -56,9 +65,9 @@ int three_mm_collection_header_read(const ThreeMMReadStream *stream, int kind, i
     ThreeMMCollectionHeader h;
     ThreeMMU32 n;
     int result;
-    if (!stream || !out || kind < THREE_MM_COLLECTION_ARRAY || kind > THREE_MM_COLLECTION_GROUP)
+    if (!stream || !out || kind < THREE_MM_COLLECTION_ARRAY || kind > THREE_MM_COLLECTION_STRINGS)
         return THREE_MM_STORAGE_ARGUMENT;
-    n = kind == THREE_MM_COLLECTION_GROUP ? 20 : kind == THREE_MM_COLLECTION_ARRAY ? 12 : 16;
+    n = kind >= THREE_MM_COLLECTION_GROUP ? 20 : kind == THREE_MM_COLLECTION_ARRAY ? 12 : 16;
     if (stream->length < n)
         return THREE_MM_STORAGE_ARGUMENT;
     if (!three_mm_read_exact(stream, 0, p, n))
@@ -70,7 +79,18 @@ int three_mm_collection_header_read(const ThreeMMReadStream *stream, int kind, i
     else if (p[0] != 1 || p[1] != 0)
         return THREE_MM_STORAGE_ARGUMENT;
     h.system = h.big_endian ? (p[2] << 8) | p[3] : p[2] | (p[3] << 8);
-    if (kind == THREE_MM_COLLECTION_GROUP)
+    if (kind == THREE_MM_COLLECTION_STRINGS)
+    {
+        h.width = u32(p + 4, h.big_endian);
+        h.count = u32(p + 8, h.big_endian);
+        h.bytes = u32(p + 12, h.big_endian);
+        h.free_count = signed32(u32(p + 16, h.big_endian));
+        if ((h.free_count == -1) != (!allocated) ||
+            (h.free_count != -1 && (h.free_count < 0 || (ThreeMMU32)h.free_count >= (h.count ? h.count : 1))) ||
+            h.bytes < h.count - (h.free_count > 0 ? (ThreeMMU32)h.free_count : 0))
+            return THREE_MM_STORAGE_ARGUMENT;
+    }
+    else if (kind == THREE_MM_COLLECTION_GROUP)
     {
         h.count = u32(p + 4, h.big_endian);
         h.bytes = u32(p + 8, h.big_endian);
@@ -111,7 +131,14 @@ int three_mm_collection_header_write(const ThreeMMCollectionHeader *header, unsi
     output[1] = (unsigned char)(h.big_endian ? 1 : 0);
     output[h.big_endian ? 2 : 3] = (unsigned char)(h.system >> 8);
     output[h.big_endian ? 3 : 2] = (unsigned char)h.system;
-    if (h.kind == THREE_MM_COLLECTION_GROUP)
+    if (h.kind == THREE_MM_COLLECTION_STRINGS)
+    {
+        put32(output + 4, h.width, h.big_endian);
+        put32(output + 8, h.count, h.big_endian);
+        put32(output + 12, h.bytes, h.big_endian);
+        put32(output + 16, (ThreeMMU32)h.free_count, h.big_endian);
+    }
+    else if (h.kind == THREE_MM_COLLECTION_GROUP)
     {
         put32(output + 4, h.count, h.big_endian);
         put32(output + 8, h.bytes, h.big_endian);

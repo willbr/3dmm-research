@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef FILE_H
 #define FILE_H
+#include "three_mm/data_stream.h"
 
 /****************************************
     Byte order issues
@@ -226,6 +227,11 @@ class DataBlock : public DataBlock_PAR
     MARKMEM
 
   protected:
+    ThreeMMBlockView _BlockView();
+    static int _ReadDecodeFile(void *, void **);
+    static int _DecodeHandle(void *, void **);
+    static void _ReleaseDecodeHandle(void *, void *);
+    static ThreeMMU32 _DecodeSize(void *, void *);
     bool _fPacked;
 
     // for file based blocks
