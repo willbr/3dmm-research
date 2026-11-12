@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -421,6 +421,39 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Chunk insertion, replacement and deletion policy
+
+`chunk_edit.c` owns first-unused chunk-number selection, blank-index insertion
+before storage allocation, failed-add rollback, create-or-replace selection,
+payload commit, runtime-ID invalidation selection, reference decrement and the
+deletion visitor's skip/descent/removal decisions. It preserves names, children,
+parent counts, loner/packed/forest flags and native-only runtime fields during
+replacement; new fixed records are zero-initialized. Primitive services transfer
+decoded values rather than retaining pointers into movable index storage.
+
+An existing allocation failure leaves the caller's output block intact. Failed
+writes free the newly reserved storage and clear the output; failed new writes
+also remove the new record. Successful replacement frees the old extent before
+publishing the new location, then resets its runtime ID. Storage/map operations
+use the preceding C89 heap policy; native callbacks still implement block/file
+I/O and record transfer over the C89 collection storage.
+
+Deletion clears the root's loner flag, retains referenced roots, decrements
+non-root references and removes unreferenced non-loners on post events. Shared
+descendants and loners stop descent. Traversal errors retain the legacy fallback:
+decrement children in reverse order but do not recursively delete those newly
+unreferenced children. This intentionally does not introduce orphan repair.
+The existing native graph enumerator supplies events and owns its stack; that
+dependency, child-link editing and other graph operations remain to migrate.
+
+The native 550,737-byte baseline matches after conversion. It extends the heap
+snapshot with named diamond/duplicate-edge graphs, replacement preserving child
+lists, retained loner subtrees and cascading child deletion. Standalone C checks
+inject insertion/allocation/write failures across new/existing and empty/nonempty
+chunks, check exact callback/output/reset order, preserve source metadata and
+verify reference/deletion/error-fallback decisions. These also pass MSVC
+AddressSanitizer.
+
 ### Save-a-copy and chunk heap policy
 
 `three_mm_chunk_save_copy` now owns the save-a-copy traversal and commit order.
@@ -484,8 +517,9 @@ reference/map cleanup and untouched early-failure state, and retry after late
 failures. They cover valid/invalid old mains, temporary status, empty files,
 empty chunk offsets, retained flags and signed file-position overflow, including
 under MSVC AddressSanitizer. Save-a-copy and heap decisions now use the separate
-C89 algorithms above. General chunk editing and host file/map services remain
-further migration work.
+C89 algorithms above. The mutation policy above shares insertion/replacement/
+deletion decisions too; remaining graph operations and host services still need
+migration.
 
 ### Chunk index persistence
 
@@ -511,7 +545,7 @@ limits, untouched guards and the maximum signed file position. They also pass
 under MSVC AddressSanitizer.
 
 The whole-file save sequence above now shares relocation/recovery policy too.
-General graph/index mutation and free-map loading remain native. These slices
+Graph traversal, child-link mutation and free-map loading remain native. These slices
 do not complete the container editor or whole-engine conversion.
 
 ### Piece write windows and file-text conversion
@@ -554,8 +588,8 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, codec registration, chunk persistence and
-remaining engine objects still prevent a complete C-only backend.
+Primitive memory/file services, codec registration, remaining chunk graph
+operations and engine objects still prevent a complete C-only backend.
 
 ## Why the split exists
 

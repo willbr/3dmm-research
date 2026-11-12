@@ -118,8 +118,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Save-a-copy now uses C89 for pinned record traversal, payload-copy/insertion
   order, destination locations and final commit. First-fit free-space allocation,
   adjacent-hole coalescing and logical-tail trimming also use C89. File selection,
-  lazy free-map loading and physical I/O remain native services. General chunk
-  editing, codec registration and remaining primitive adapters are next.
+  lazy free-map loading and physical I/O remain native services.
+- Unique chunk numbers, low-level insertion, replace/create rollback, payload
+  commit, runtime-ID invalidation selection, reference decrement and deletion
+  sequencing now use C89. Native traversal still supplies pre/post/error events;
+  graph enumeration/stack storage and child-link edits remain next, alongside
+  codec registration and remaining primitive adapters.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

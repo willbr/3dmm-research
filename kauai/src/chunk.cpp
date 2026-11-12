@@ -78,6 +78,7 @@
 #include "util.h"
 #include "three_mm/chunk_save.h"
 #include "three_mm/chunk_heap.h"
+#include "three_mm/chunk_edit.h"
 ASSERTNAME
 
 namespace Chunky {
@@ -2000,32 +2001,95 @@ bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *p
 /***************************************************************************
     Find an unused cno for the given ctg.  Fill in *picrp and *pcno.
 ***************************************************************************/
+namespace {
+struct ChunkEditHost
+{
+    ChunkyFile *owner;
+    PDataBlock output, source, temporary;
+    void *bytes;
+    ChunkGraphEnumerator *enumerator;
+};
+}
+ThreeMMChunkEdit ChunkyFile::_EditServices(void *context)
+{
+    ThreeMMChunkEdit edit = {};
+    edit.context = context;
+    edit.count = [](void *c) -> ThreeMMU32 { return static_cast<ChunkEditHost *>(c)->owner->_pggcrp->IvMac(); };
+    edit.entry = [](void *c, ThreeMMU32 i, ThreeMMChunkEntry *entry) {
+        SaveEntry(static_cast<ChunkEditHost *>(c)->owner->_pggcrp, i, entry);
+    };
+    edit.child = [](void *c, ThreeMMU32 parent, ThreeMMU32 i, ThreeMMChunkChild *entry) {
+        ChildChunkIdentification child;
+        static_cast<ChunkEditHost *>(c)->owner->_pggcrp->GetRgb(parent, i * sizeof(child), sizeof(child), &child);
+        *entry = {child.cki.ctg, child.cki.cno, child.chid};
+    };
+    edit.insert = [](void *c, ThreeMMU32 i) -> int { return static_cast<ChunkEditHost *>(c)->owner->_pggcrp->FInsert(i, 0); };
+    edit.store = [](void *c, ThreeMMU32 i, const ThreeMMChunkEntry *entry, int initialize) {
+        auto row = static_cast<ChunkRepresentation *>(static_cast<ChunkEditHost *>(c)->owner->_pggcrp->QvFixedGet(i));
+        if (initialize) ClearPb(row, sizeof(*row));
+        row->cki.ctg = entry->type; row->cki.cno = entry->number; row->fp = entry->offset;
+        row->SetCb(entry->bytes); row->AssignGrfcrp(entry->flags);
+        row->ckid = entry->child_count; row->ccrpRef = entry->parent_count;
+    };
+    edit.erase = [](void *c, ThreeMMU32 i) { static_cast<ChunkEditHost *>(c)->owner->_pggcrp->Delete(i); };
+    edit.allocate = [](void *c, ThreeMMU32 bytes, ThreeMMChunkLocation *location) -> int {
+        auto self = static_cast<ChunkEditHost *>(c)->owner;
+        FileLocation native;
+        if (!self->_FAllocFlo(bytes, &native)) return 0;
+        *location = {native.pfil, static_cast<ThreeMMU32>(native.fp), static_cast<ThreeMMU32>(native.cb),
+            native.pfil == self->_cstoExtra.pfil ? 1U : 0U};
+        return 1;
+    };
+    edit.free_space = [](void *c, int extra, ThreeMMU32 offset, ThreeMMU32 bytes) {
+        static_cast<ChunkEditHost *>(c)->owner->_FreeFpCb(extra != 0, offset, bytes);
+    };
+    edit.output = [](void *c, const ThreeMMChunkLocation *location, int added) {
+        auto host = static_cast<ChunkEditHost *>(c);
+        auto block = host->output ? host->output : added ? host->temporary : nullptr;
+        if (!block) return;
+        if (!location) { block->Free(); return; }
+        FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
+            static_cast<LegacyLong>(location->bytes)};
+        block->Set(&native);
+    };
+    edit.write = [](void *c, const ThreeMMChunkLocation *location, int added) -> int {
+        auto host = static_cast<ChunkEditHost *>(c);
+        auto block = host->output ? host->output : host->temporary;
+        FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
+            static_cast<LegacyLong>(location->bytes)};
+        if (host->bytes) return added ? block->FWrite(host->bytes) : native.FWrite(host->bytes);
+        if (host->source) return added ? host->source->FWriteToBlck(block, fTrue) : host->source->FWriteToFlo(&native, fTrue);
+        return 1;
+    };
+    edit.reset_runtime = [](void *c, ThreeMMU32 type, ThreeMMU32 number) {
+        static_cast<ChunkEditHost *>(c)->owner->_FSetRti(type, number, rtiNil);
+    };
+    edit.begin_delete = [](void *c, ThreeMMU32 type, ThreeMMU32 number) {
+        auto host = static_cast<ChunkEditHost *>(c); host->enumerator->Init(host->owner, type, number);
+    };
+    edit.next_delete = [](void *c, int skip, ThreeMMChunkDeleteEvent *event) -> int {
+        ChildChunkIdentification child; LegacyUlong flags;
+        if (!static_cast<ChunkEditHost *>(c)->enumerator->FNextKid(&child, nullptr, &flags, skip ? fcgeSkipToSib : fcgeNil)) return 0;
+        event->type = child.cki.ctg; event->number = child.cki.cno;
+        event->flags = (flags & fcgePre ? THREE_MM_DELETE_PRE : 0) | (flags & fcgePost ? THREE_MM_DELETE_POST : 0) |
+            (flags & fcgeRoot ? THREE_MM_DELETE_ROOT : 0) | (flags & fcgeError ? THREE_MM_DELETE_ERROR : 0);
+        return 1;
+    };
+    edit.issue = [](void *, int kind) {
+        if (kind == THREE_MM_EDIT_LOW_MEMORY) Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
+        else Bug("invalid chunk deletion reference");
+    };
+    return edit;
+}
 void ChunkyFile::_GetUniqueCno(ChunkTagOrType ctg, LegacyLong *picrp, ChunkNumber *pcno)
 {
     AssertBaseThis(0);
-    AssertVarMem(picrp);
-    AssertVarMem(pcno);
-
-    LegacyLong icrp, ccrp;
-    ChunkNumber cno;
-    ChunkRepresentation *qcrp;
-
-    if (!_FFindCtgCno(ctg, 0, picrp))
-    {
-        *pcno = 0;
-        return;
-    }
-
-    // 0 already exists so do a linear search for the first useable slot
-    ccrp = _pggcrp->IvMac();
-    for (icrp = *picrp + 1, cno = 1; icrp < ccrp; icrp++, cno++)
-    {
-        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-        if (qcrp->cki.ctg != ctg || qcrp->cki.cno != cno)
-            break;
-    }
-    *picrp = icrp;
-    *pcno = cno;
+    AssertVarMem(picrp); AssertVarMem(pcno);
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    ThreeMMU32 position, number;
+    AssertDo(three_mm_chunk_unique(&edit, ctg, &position, &number) == THREE_MM_CHUNK_OK, "invalid chunk index");
+    *picrp = position; *pcno = number;
 }
 
 /***************************************************************************
@@ -2183,44 +2247,12 @@ bool ChunkyFile::FAddChildHq(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChu
 ***************************************************************************/
 bool ChunkyFile::_FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck)
 {
-    AssertBaseThis(0);
-    AssertIn(cb, 0, kcbMax);
-    AssertNilOrPo(pblck, 0);
-
-    ChunkRepresentation *qcrp;
-    FileLocation flo;
-
-    if (!_pggcrp->FInsert(icrp, 0))
-    {
-        if (pvNil != pblck)
-            pblck->Free();
-        return fFalse;
-    }
-
-    if (!_FAllocFlo(cb, &flo))
-    {
-        _pggcrp->Delete(icrp);
-        AssertThis(0);
-        if (pvNil != pblck)
-            pblck->Free();
-        return fFalse;
-    }
-    Assert(flo.pfil == _csto.pfil || flo.pfil == _cstoExtra.pfil, 0);
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    ClearPb(qcrp, size(ChunkRepresentation));
-    qcrp->cki.ctg = ctg;
-    qcrp->cki.cno = cno;
-    qcrp->fp = flo.fp;
-    qcrp->SetCb(flo.cb);
-    if (flo.pfil == _cstoExtra.pfil)
-        qcrp->SetGrfcrp(fcrpOnExtra);
-    qcrp->SetGrfcrp(fcrpLoner);
-
-    if (pvNil != pblck)
-        pblck->Set(&flo);
+    AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertNilOrPo(pblck, 0);
+    ChunkEditHost host = {this, pblck, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    const bool ok = three_mm_chunk_add(&edit, ctg, cno, icrp, cb, nullptr) == THREE_MM_CHUNK_OK;
     AssertThis(0);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -2288,85 +2320,14 @@ bool ChunkyFile::FPutBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber c
 ***************************************************************************/
 bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv)
 {
-    AssertBaseThis(0);
-    AssertIn(cb, 0, kcbMax);
-    AssertNilOrPo(pblck, 0);
-    AssertNilOrPo(pblckSrc, 0);
-
-    LegacyLong icrp;
-    ChunkRepresentation *qcrp;
-    FileLocation flo;
-
-    if (!_FFindCtgCno(ctg, cno, &icrp))
-    {
-        DataBlock blck;
-
-        if (pvNil == pblck)
-            pblck = &blck;
-
-        if (!_FAdd(cb, ctg, cno, icrp, pblck))
-            return fFalse;
-
-        if (pv != pvNil)
-        {
-            Assert(pvNil == pblckSrc, 0);
-            if (!pblck->FWrite(pv))
-                goto LFailNew;
-        }
-        else if (pvNil != pblckSrc && !pblckSrc->FWriteToBlck(pblck, fTrue))
-        {
-        LFailNew:
-            Delete(ctg, cno);
-            pblck->Free();
-            AssertThis(0);
-            return fFalse;
-        }
-
-        AssertThis(0);
-        return fTrue;
-    }
-
-    if (!_FAllocFlo(cb, &flo))
-    {
-        AssertThis(0);
-        return fFalse;
-    }
-    Assert(flo.pfil == _csto.pfil || flo.pfil == _cstoExtra.pfil, 0);
-    if (pvNil != pblck)
-        pblck->Set(&flo);
-
-    if (pv != pvNil)
-    {
-        Assert(pvNil == pblckSrc, 0);
-        if (!flo.FWrite(pv))
-            goto LFailOld;
-    }
-    else if (pvNil != pblckSrc && !pblckSrc->FWriteToFlo(&flo, fTrue))
-    {
-    LFailOld:
-        _FreeFpCb(_fAddToExtra, flo.fp, flo.cb);
-        if (pvNil != pblck)
-            pblck->Free();
-        AssertThis(0);
-        return fFalse;
-    }
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    Assert(qcrp->cki.ctg == ctg, 0);
-    Assert(qcrp->cki.cno == cno, 0);
-    _FreeFpCb(qcrp->Grfcrp(fcrpOnExtra), qcrp->fp, qcrp->Cb());
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    qcrp->fp = flo.fp;
-    qcrp->SetCb(flo.cb);
-    if (flo.pfil == _cstoExtra.pfil)
-        qcrp->SetGrfcrp(fcrpOnExtra);
-    else
-        qcrp->ClearGrfcrp(fcrpOnExtra);
-    _FSetRti(ctg, cno, rtiNil);
-
+    AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertNilOrPo(pblck, 0); AssertNilOrPo(pblckSrc, 0);
+    Assert(!pv || !pblckSrc, 0);
+    DataBlock temporary;
+    ChunkEditHost host = {this, pblck, pblckSrc, &temporary, pv, nullptr};
+    const auto edit = _EditServices(&host);
+    const bool ok = three_mm_chunk_put(&edit, ctg, cno, cb) == THREE_MM_CHUNK_OK;
     AssertThis(0);
-    return fTrue;
+    return ok;
 }
 
 /***************************************************************************
@@ -2534,64 +2495,11 @@ void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew
 void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    LegacyLong icrp;
-    ChunkGraphEnumerator cge;
-    LegacyUlong grfcgeIn, grfcge;
-    ChildChunkIdentification kid;
-    ChunkRepresentation *qcrp;
-
-    if (!_FFindCtgCno(ctg, cno, &icrp))
-    {
-        Bug("chunk not there");
-        return;
-    }
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    Assert(qcrp->Grfcrp(fcrpLoner) || qcrp->ccrpRef == 0, "can't directly delete a child chunk");
-    qcrp->ClearGrfcrp(fcrpLoner);
-    if (qcrp->ccrpRef > 0)
-        return;
-
-    cge.Init(this, ctg, cno);
-    for (grfcgeIn = fcgeNil; cge.FNextKid(&kid, pvNil, &grfcge, grfcgeIn);)
-    {
-        grfcgeIn = fcgeSkipToSib;
-        if (!_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrp))
-        {
-            Bug("MIA");
-            continue;
-        }
-        if (grfcge & fcgePre)
-        {
-            if (!(grfcge & fcgeRoot) && !_FDecRefCount(icrp))
-                continue;
-            grfcgeIn = fcgeNil;
-        }
-        if (grfcge & fcgePost)
-        {
-            // actually delete the node
-            if (grfcge & fcgeError)
-            {
-                Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
-                // memory failure - adjust the ref counts of this chunk's
-                // children, but don't try to delete them
-                LegacyLong ikid, icrpChild;
-                ChildChunkIdentification kid;
-
-                qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-                for (ikid = qcrp->ckid; ikid-- != 0;)
-                {
-                    _pggcrp->GetRgb(icrp, _BvKid(ikid), size(kid), &kid);
-                    if (!_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrpChild))
-                    {
-                        Bug("child not there");
-                        continue;
-                    }
-                    _FDecRefCount(icrpChild);
-                }
-            }
-            _DeleteCore(icrp);
-        }
-    }
+    ChunkGraphEnumerator enumerator;
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, &enumerator};
+    const auto edit = _EditServices(&host);
+    const int result = three_mm_chunk_delete(&edit, ctg, cno);
+    if (result != THREE_MM_CHUNK_OK) { Bug("chunk not deletable or missing"); return; }
     AssertThis(fcflFull);
 }
 
@@ -2722,15 +2630,11 @@ void ChunkyFile::DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTag
 bool ChunkyFile::_FDecRefCount(LegacyLong icrp)
 {
     AssertBaseThis(0);
-    ChunkRepresentation *qcrp;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    if (qcrp->ccrpRef <= 0)
-    {
-        Bug("ref count wrong");
-        return fFalse;
-    }
-    return --(qcrp->ccrpRef) == 0 && !qcrp->Grfcrp(fcrpLoner);
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    int remove = 0;
+    if (three_mm_chunk_decrement(&edit, icrp, &remove) != THREE_MM_CHUNK_OK) Bug("ref count wrong");
+    return remove != 0;
 }
 
 /***************************************************************************
@@ -2739,14 +2643,9 @@ bool ChunkyFile::_FDecRefCount(LegacyLong icrp)
 void ChunkyFile::_DeleteCore(LegacyLong icrp)
 {
     AssertBaseThis(0);
-    ChunkRepresentation *qcrp;
-    ChunkIdentification cki;
-
-    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
-    cki = qcrp->cki;
-    _FreeFpCb(qcrp->Grfcrp(fcrpOnExtra), qcrp->fp, qcrp->Cb());
-    _FSetRti(cki.ctg, cki.cno, rtiNil);
-    _pggcrp->Delete(icrp);
+    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr, nullptr};
+    const auto edit = _EditServices(&host);
+    AssertDo(three_mm_chunk_remove(&edit, icrp) == THREE_MM_CHUNK_OK, "invalid chunk removal");
 }
 
 /***************************************************************************

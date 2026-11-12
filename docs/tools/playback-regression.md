@@ -1258,3 +1258,54 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 chunk insertion, replacement and deletion policy (12 November 2026)
+
+Unique-number selection, low-level add and replace/create rollback, payload
+commit, runtime-ID invalidation selection, reference decrement and deletion
+visitor decisions now use C89. Replacement preserves names, children, parent
+counts and loner/packed/forest flags. Existing allocation failure retains an output block; write
+failure clears it and releases new storage. Failed new writes remove the new
+record. Deletion retains shared descendants and loners. Its low-memory fallback
+drops child references in reverse order without recursively deleting those
+children, retaining legacy behavior rather than adding orphan repair.
+
+The native graph enumerator still supplies traversal events and stack storage;
+child-link editing and other graph operations remain further migration work.
+See the [mutation boundary](../code-map/library-split.md#chunk-insertion-replacement-and-deletion-policy).
+
+All 550,737 baseline bytes match: the preceding main/extra heap and saved-file
+cases plus named graphs with shared descendants, duplicate child links, retained
+loner subtrees, replacement preserving children and cascading child deletion.
+Standalone C checks inject insertion/allocation/write failures, assert exact
+callback/output/runtime-reset order and verify deletion/reference decisions,
+including a simulated traversal-memory failure.
+
+Sixteen standalone C checks, twenty-eight focused native checks and MSVC
+AddressSanitizer pass. All 51 CLI baselines match, including six asset indexes
+covering 20,568 entries. Local evidence includes `tmp/c89-chunk-edit-before.bin`,
+`tmp/c89-chunk-edit-after.bin` and `tmp/c89-chunk-edit-output-comparison.json`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T120259Z-5d079f4d` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T120607Z-933904f5` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding copy/heap suites `20261112T114441Z-31358a76` and
+`20261112T114750Z-2bcfa83e`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-chunk-edit-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

@@ -19,6 +19,8 @@
 #include <cstdint>
 #include "three_mm/chunky_file.h"
 
+struct ThreeMMChunkEdit;
+
 namespace Chunky {
 
 using namespace Group;
@@ -133,6 +135,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
     bool _FReadIndex(void);
     ThreeMMChunkAccess _ChunkAccess();
+    ThreeMMChunkEdit _EditServices(void *context);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
     bool _FCreateExtra(void);

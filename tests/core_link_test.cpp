@@ -215,6 +215,35 @@ static void TestChunkPersistence()
         file->SetTemp(true); ReleasePpo(&file);
         file = ChunkyFile::PcflOpen(&copy, fcflNil); Check(file); file->SetTemp(true); ReleasePpo(&file);
     }
+    {
+        Filename source; Check(source.FGetTemp());
+        auto file = ChunkyFile::PcflCreate(&source, fcflWriteEnable);
+        ChunkNumber nodes[8];
+        for (int i = 0; i < 8; ++i)
+        {
+            Check(file->FAddPv(payload, 19 + i, 'GRPH', &nodes[i]));
+            String name(PszLit("Named graph node")); Check(file->FSetName('GRPH', nodes[i], &name));
+        }
+        Check(file->FAdoptChild('GRPH', nodes[0], 'GRPH', nodes[1], 1));
+        Check(file->FAdoptChild('GRPH', nodes[0], 'GRPH', nodes[3], 3));
+        Check(file->FAdoptChild('GRPH', nodes[1], 'GRPH', nodes[2], 5));
+        Check(file->FAdoptChild('GRPH', nodes[3], 'GRPH', nodes[2], 5));
+        Check(file->FAdoptChild('GRPH', nodes[3], 'GRPH', nodes[2], 6));
+        Check(file->FAdoptChild('GRPH', nodes[0], 'GRPH', nodes[4], 4, false));
+        for (int i = 4; i < 7; ++i) Check(file->FAdoptChild('GRPH', nodes[i], 'GRPH', nodes[i+1], i));
+        Check(file->FSave('GRPH')); capture(source);
+        Check(file->FPutPv(payload, 37, 'GRPH', nodes[0]));
+        Check(file->Ckid('GRPH', nodes[0]) == 3 && file->CckiRef('GRPH', nodes[2]) == 3);
+        file->Delete('GRPH', nodes[0]);
+        for (int i = 0; i < 8; ++i) Check(file->FFind('GRPH', nodes[i]) == (i >= 4));
+        Check(file->CckiRef('GRPH', nodes[4]) == 0 && file->Ckid('GRPH', nodes[4]) == 1);
+        Check(file->FSave('LEFT')); capture(source);
+        file->DeleteChild('GRPH', nodes[4], 'GRPH', nodes[5], 4);
+        for (int i = 5; i < 8; ++i) Check(!file->FFind('GRPH', nodes[i]));
+        file->Delete('GRPH', nodes[4]);
+        Check(file->FSave('NONE')); capture(source);
+        file->SetTemp(true); ReleasePpo(&file);
+    }
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
 
