@@ -876,3 +876,54 @@ Existing cross-player pixel/audio differences and timing/alignment limitations
 remain. These checks establish preservation against the preceding build;
 they do not establish full retail parity, exact PCM equality or repeatability
 from a single repetition.
+
+## C89 owning file-piece tables (12 November 2026)
+
+FileByteStream now uses C89-owned piece storage, split/merge, memory/file
+replacement, cross-stream copying, insert-before-delete rollback and compaction.
+The native GeneralGroup object is removed from this path. Host callbacks retain
+file references and positional I/O; general DataBlock windowed copying remains
+a native adapter. The backend conversion is still incomplete.
+
+Ten standalone C-only checks and twenty-two focused native checks pass.
+`engine-piece-table` includes a frozen native snapshot hash for 180 mixed edits
+and file/cross-stream copies. Its 601,476 pre-conversion bytes match the migrated
+native output exactly (`tmp/c89-pieces-before.bin`, `tmp/c89-pieces-after.bin`).
+Independent byte models, whole-piece copies, twelve allocation-failure positions
+for each of three operations, temporary/read/write/copy failures, rollback and
+balanced reference cleanup also pass under MSVC AddressSanitizer. Both C and
+native checks preserve same-stream memory append without relocation.
+
+Repeated single-file compaction now checks piece zero rather than the old
+out-of-range `Cb(1)` lookup. Empty and small-memory compaction are also checked.
+The existing file threshold, copy/reference choice, growth hints and best-effort
+shrink remain. Full-stream writes retain the DataBlock lock/window protocol;
+no new general partial-write or overlapping self-copy guarantees are claimed.
+See the [piece-table dependency boundary](../code-map/library-split.md#owning-file-piece-tables).
+No Marcus UI tests were added.
+
+All 51 saved CLI baselines match: 45 movie/archive/legacy outputs or rejection
+results and six asset indexes covering 20,568 entries. The local report is
+`tmp/c89-pieces-output-comparison.json`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T074206Z-11e2b8a2` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T074704Z-feeb5715` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against the preceding codec-slice suites `20261112T061451Z-2eb68cb9` and
+`20261112T061954Z-da0299a5`, all 180 seek images match exactly. All nine runs
+retain the same 60 authored frame positions and ordered exact image changes:
+scrolling text retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. PCM16 peak magnitudes remain 2380
+for retail and 2176 for SDL and Marcus. The local report is
+`tmp/c89-pieces-playback-comparison.json`.
+
+Movie, ISO-resource and Marcus-content hashes are unchanged in every run.
+Existing cross-player pixel/audio differences and timing/alignment limitations
+remain. The captures establish preservation against the preceding build,
+not complete retail parity, exact PCM equality or repeatability from one run.

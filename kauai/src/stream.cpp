@@ -14,9 +14,6 @@
 #include "util.h"
 ASSERTNAME
 
-// min size of initial piece on file
-const LegacyLong kcbMinFloFile = 2048;
-
 RTCLASS(MemoryByteStream)
 RTCLASS(FileByteStream)
 
@@ -173,696 +170,163 @@ void MemoryByteStream::MarkMem(void)
 ***************************************************************************/
 FileByteStream::FileByteStream(void)
 {
-    _pggflo = pvNil;
-    _ibMac = 0;
+    const auto allocator = Group::CollectionAllocator();
+    const ThreeMMPieceFiles files = {this, _RetainFile, _ReleaseFile, _CreateTemp, _ReadFile, _WriteFile, _CopyFile};
+    int trash = 0;
+#ifdef DEBUG
+    trash = 1;
+#endif
+    AssertDo(three_mm_piece_table_init(&_pieces, &allocator, &files, trash) == THREE_MM_DATA_OK, "invalid piece table");
     AssertThis(fobjAssertFull);
 }
-
-/***************************************************************************
-    Destructor for a stream.
-***************************************************************************/
 FileByteStream::~FileByteStream(void)
 {
     AssertThis(fobjAssertFull);
-    LegacyLong iflo;
-    FileLocation flo;
-
-    if (0 < _ibMac)
-    {
-        // release all our reference counts
-        for (iflo = _pggflo->IvMac(); iflo-- > 0;)
-        {
-            _pggflo->GetFixed(iflo, &flo);
-            if (pvNil != flo.pfil)
-                ReleasePpo(&flo.pfil);
-        }
-    }
-    ReleasePpo(&_pggflo);
+    AssertDo(three_mm_piece_table_dispose(&_pieces) == THREE_MM_DATA_OK, "freeing locked piece table");
 }
-
-/***************************************************************************
-    Find the flo that contains the given ib and assign *pib the postion
-    of the first byte in the flo and *pcb the size of the flo.
-***************************************************************************/
-ThreeMMPieceReader FileByteStream::_PieceView()
+namespace {
+FileLocation NativePiece(const ThreeMMFilePiece &piece)
 {
-    return {this, _pggflo ? static_cast<ThreeMMU32>(_pggflo->IvMac()) : 0,
-            static_cast<ThreeMMU32>(_ibMac), _PieceSize, _ReadPiece};
+    return {static_cast<PFileObject>(piece.file), static_cast<LegacyLong>(piece.offset), static_cast<LegacyLong>(piece.length)};
 }
-int FileByteStream::_PieceSize(void *context, ThreeMMU32 index, ThreeMMU32 *bytes)
-{
-    auto stream = static_cast<FileByteStream *>(context);
-    FileLocation piece;
-    stream->_pggflo->GetFixed(index, &piece);
-    if (piece.cb < 0) return 0;
-    *bytes = piece.cb;
-    return 1;
 }
-int FileByteStream::_ReadPiece(void *context, ThreeMMU32 index, ThreeMMU32 offset, void *bytes, ThreeMMU32 count)
+void FileByteStream::_RetainFile(void *, void *file) { static_cast<PFileObject>(file)->AddRef(); }
+void FileByteStream::_ReleaseFile(void *, void *file) { static_cast<PFileObject>(file)->Release(); }
+void *FileByteStream::_CreateTemp(void *) { return FileObject::PfilCreateTemp(); }
+int FileByteStream::_ReadFile(void *, const ThreeMMFilePiece *piece, void *output)
 {
-    auto stream = static_cast<FileByteStream *>(context);
-    FileLocation piece;
-    stream->_pggflo->GetFixed(index, &piece);
-    if (!piece.pfil)
-    {
-        Assert(stream->_pggflo->Cb(index) == piece.cb, "group element wrong size");
-        stream->_pggflo->GetRgb(index, offset, count, bytes);
-        return 1;
-    }
-    const bool ok = piece.FReadRgb(bytes, count, offset);
+    auto location = NativePiece(*piece);
+    const bool ok = location.FRead(output);
     if (!ok) Warn("read failed in fetch");
     return ok;
 }
-LegacyLong FileByteStream::_IfloFind(LegacyLong ib, LegacyLong *pib, LegacyLong *pcb)
+int FileByteStream::_WriteFile(void *, const ThreeMMFilePiece *piece, const void *input)
 {
-    AssertBaseThis(0);
-    AssertIn(ib, 0, _ibMac + 1);
-    const auto reader = _PieceView();
-    ThreeMMU32 index = 0, start = 0, bytes = 0;
-    AssertDo(three_mm_piece_find(&reader, ib, &index, &start, &bytes) == THREE_MM_DATA_OK, "invalid stream piece lookup");
-    *pib = start;
-    if (pcb) *pcb = bytes;
-    return index;
+    auto location = NativePiece(*piece);
+    return location.FWrite(const_cast<void *>(input));
 }
-
-/***************************************************************************
-    Make sure ib is on a piece boundary.
-***************************************************************************/
-bool FileByteStream::_FEnsureSplit(LegacyLong ib, LegacyLong *piflo)
+int FileByteStream::_CopyFile(void *, const ThreeMMFilePiece *source, const ThreeMMFilePiece *destination)
 {
-    AssertBaseThis(0);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertNilOrVarMem(piflo);
-    LegacyLong iflo, ibMin, cbT;
-    FileLocation flo;
-
-    if (pvNil == _pggflo)
-    {
-        if (pvNil == (_pggflo = GeneralGroup::PggNew(size(FileLocation))))
-            return fFalse;
-        // REVIEW shonk: what values should we use for SetMinGrow?
-        //_pggflo->SetMinGrow(2, 100);
-    }
-
-    iflo = _IfloFind(ib, &ibMin, &cbT);
-    AssertIn(ib, ibMin, ibMin + cbT + (ibMin == _ibMac));
-    if (ib == ibMin)
-    {
-        if (pvNil != piflo)
-            *piflo = iflo;
-        return fTrue;
-    }
-
-    _pggflo->GetFixed(iflo, &flo);
-    Assert(cbT == flo.cb, 0);
-
-    cbT = ib - ibMin;
-    flo.cb -= cbT;
-    if (pvNil != flo.pfil)
-        flo.fp += cbT;
-    if (!_pggflo->FInsert(iflo + 1, 0, pvNil, &flo))
-    {
-        TrashVar(piflo);
-        return fFalse;
-    }
-    if (pvNil == flo.pfil && !_pggflo->FMoveRgb(iflo, cbT, iflo + 1, 0, flo.cb))
-    {
-        _pggflo->Delete(iflo + 1);
-        TrashVar(piflo);
-        return fFalse;
-    }
-    flo.cb = cbT;
-    if (pvNil != flo.pfil)
-    {
-        flo.fp -= cbT;
-        flo.pfil->AddRef();
-    }
-    _pggflo->PutFixed(iflo, &flo);
-    if (pvNil != piflo)
-        *piflo = iflo + 1;
-    return fTrue;
+    auto from = NativePiece(*source), to = NativePiece(*destination);
+    return from.FCopy(&to);
 }
-
-/***************************************************************************
-    Enumerate over all pieces spanning ibMin to ibLim and attempt to merge
-    any adjacent ones.
-***************************************************************************/
-void FileByteStream::_AttemptMerge(LegacyLong ibMin, LegacyLong ibLim)
+bool FileByteStream::FReplace(void *bytes, LegacyLong count, LegacyLong offset, LegacyLong remove)
 {
-    AssertBaseThis(0);
-    AssertIn(ibMin, 0, _ibMac + 1);
-    AssertIn(ibLim, ibMin, _ibMac + 1);
-    LegacyLong iflo, ib;
-    FileLocation flo, floT;
-
-    if (pvNil == _pggflo)
-        return;
-
-    iflo = _IfloFind(LwMax(0, ibMin - 1), &ib);
-    while (ib < ibLim && iflo < _pggflo->IvMac() - 1)
-    {
-        _pggflo->GetFixed(iflo, &flo);
-        _pggflo->GetFixed(iflo + 1, &floT);
-        if (flo.pfil != floT.pfil || pvNil != flo.pfil && flo.fp + flo.cb != floT.fp)
-        {
-            // cant merge them, try the next
-            iflo++;
-            ib += flo.cb;
-            continue;
-        }
-
-        if (pvNil == flo.pfil)
-            _pggflo->Merge(iflo + 1, iflo);
-        else
-        {
-            // merge the two file based flo's
-            _pggflo->Delete(iflo + 1);
-            ReleasePpo(&floT.pfil);
-            AssertPo(flo.pfil, 0);
-        }
-        flo.cb += floT.cb;
-        _pggflo->PutFixed(iflo, &flo);
-    }
+    AssertThis(fobjAssertFull);
+    const bool ok = three_mm_piece_table_replace(&_pieces, offset, remove, bytes, count) == THREE_MM_DATA_OK;
+    AssertThis(fobjAssertFull);
+    return ok;
 }
-
-/***************************************************************************
-    Replace a range in this bsf with the range in the given bsf.  This
-    does the complete insertion, then the deletion.
-***************************************************************************/
-bool FileByteStream::FReplaceBsf(PFileByteStream pbsfSrc, LegacyLong ibSrc, LegacyLong cbSrc, LegacyLong ibDst, LegacyLong cbDel)
+bool FileByteStream::FReplaceFlo(PFileLocation location, bool copy, LegacyLong offset, LegacyLong remove)
 {
     AssertThis(fobjAssertFull);
-    AssertPo(pbsfSrc, 0);
-    AssertIn(ibSrc, 0, pbsfSrc->_ibMac + 1);
-    AssertIn(cbSrc, 0, pbsfSrc->_ibMac + 1 - ibSrc);
-    AssertIn(ibDst, 0, _ibMac + 1);
-    AssertIn(cbDel, 0, _ibMac + 1 - ibDst);
-
-    LegacyLong ifloMinSrc, ifloLimSrc, ifloMinWhole, ifloDst, iflo;
-    LegacyLong ibMinSrc, ibLimSrc, ibMinWhole, ib;
-    LegacyLong cbMinFlo, cbLimFlo, cbIns, cbT;
-    FileLocation flo;
-    byte *pb;
-    bool fRet;
-
-    // REVIEW shonk: if we're only inserting a non-file piece of pbsfSrc, should
-    // we optimize and redirect this to FReplace?
-
-    if (cbSrc == 0 && cbDel == 0)
-        return fTrue;
-
-    // make sure the piece table exists and is split at ibDst
-    if (!_FEnsureSplit(ibDst, &ifloDst))
-        return fFalse;
-
-    // cbIns is the number of bytes already inserted (for cleanup)
-    cbIns = 0;
-
-    // get the flo's to insert
-    ifloMinSrc = pbsfSrc->_IfloFind(ibSrc, &ibMinSrc, &cbMinFlo);
-    ifloLimSrc = pbsfSrc->_IfloFind(ibSrc + cbSrc, &ibLimSrc, &cbLimFlo);
-
-    if (ifloMinSrc < ifloLimSrc)
-    {
-        // first insert the whole pieces
-        if (ibSrc > ibMinSrc)
-        {
-            ifloMinWhole = ifloMinSrc + 1;
-            ibMinWhole = ibMinSrc + cbMinFlo;
-        }
-        else
-        {
-            ifloMinWhole = ifloMinSrc;
-            ibMinWhole = ibMinSrc;
-        }
-        if (ifloMinWhole < ifloLimSrc)
-        {
-            if (!_pggflo->FCopyEntries(pbsfSrc->_pggflo, ifloMinWhole, ifloDst, ifloLimSrc - ifloMinWhole))
-            {
-                goto LFail;
-            }
-            cbIns = ibLimSrc - ibMinWhole;
-            _ibMac += cbIns;
-
-            // adjust the usage counts on the file pieces
-            for (iflo = ifloDst + ifloLimSrc - ifloMinWhole; iflo-- > ifloDst;)
-            {
-                _pggflo->GetFixed(iflo, &flo);
-                if (pvNil != flo.pfil)
-                    flo.pfil->AddRef();
-            }
-        }
-
-        // insert the front piece
-        if (ifloMinSrc < ifloMinWhole)
-        {
-            cbT = cbMinFlo - ibSrc + ibMinSrc;
-            pbsfSrc->_pggflo->GetFixed(ifloMinSrc, &flo);
-            if (pvNil == flo.pfil)
-            {
-                // a memory piece
-                pb = (byte *)pbsfSrc->_pggflo->PvLock(ifloMinSrc);
-                fRet = FReplace(pb + ibSrc - ibMinSrc, cbT, ibDst, 0);
-                pbsfSrc->_pggflo->Unlock();
-            }
-            else
-            {
-                // a file piece
-                flo.fp += ibSrc - ibMinSrc;
-                flo.cb = cbT;
-                fRet = FReplaceFlo(&flo, fFalse, ibDst, 0);
-            }
-            if (!fRet)
-                goto LFail;
-            cbIns += cbT;
-        }
-        else
-            _AttemptMerge(ibDst, ibDst);
-    }
-
-    // insert the back piece
-    Assert(ibLimSrc <= ibSrc + cbSrc, 0);
-    if (ibLimSrc < ibSrc + cbSrc || cbDel > 0)
-    {
-        ib = LwMax(ibSrc, ibLimSrc);
-        cbT = ibSrc + cbSrc - ib;
-        Assert(cbIns + cbT == cbSrc, "didn't insert the correct amount!");
-        if (cbT <= 0)
-            fRet = FReplace(pvNil, 0, ibDst + cbIns, cbDel);
-        else
-        {
-            pbsfSrc->_pggflo->GetFixed(ifloLimSrc, &flo);
-            if (pvNil == flo.pfil)
-            {
-                // a memory piece
-                pb = (byte *)pbsfSrc->_pggflo->PvLock(ifloLimSrc);
-                fRet = FReplace(pb + ib - ibLimSrc, cbT, ibDst + cbIns, cbDel);
-                pbsfSrc->_pggflo->Unlock();
-            }
-            else
-            {
-                // a file piece
-                flo.fp += ib - ibLimSrc;
-                flo.cb = cbT;
-                fRet = FReplaceFlo(&flo, fFalse, ibDst + cbIns, cbDel);
-            }
-        }
-        if (!fRet)
-        {
-        LFail:
-            if (cbIns > 0)
-                AssertDo(FReplace(pvNil, 0, ibDst, cbIns), "cleanup failed!");
-            AssertThis(fobjAssertFull);
-            return fFalse;
-        }
-    }
-    else
-    {
-        Assert(cbIns == cbSrc, "didn't insert the correct amount!");
-        _AttemptMerge(ibDst + cbSrc, ibDst + cbSrc);
-    }
-
+    AssertPo(location, ffloReadable);
+    const ThreeMMFilePiece piece = {location->pfil, static_cast<ThreeMMU32>(location->fp), static_cast<ThreeMMU32>(location->cb)};
+    const bool ok = three_mm_piece_table_replace_file(&_pieces, offset, remove, &piece, copy) == THREE_MM_DATA_OK;
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
-
-/***************************************************************************
-    Replace the range [ib, ib + cbDel) with cbIns bytes from prgb.
-***************************************************************************/
-bool FileByteStream::FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel)
+bool FileByteStream::FReplaceBsf(PFileByteStream source, LegacyLong from, LegacyLong count, LegacyLong offset, LegacyLong remove)
 {
     AssertThis(fobjAssertFull);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertIn(cbDel, 0, _ibMac - ib + 1);
-    AssertIn(cbIns, 0, kcbMax);
-    AssertPvCb(prgb, cbIns);
-    LegacyLong ibT;
-    LegacyLong iflo, cbT;
-    FileLocation flo;
-
-    if (cbDel == 0 && cbIns == 0)
-        return fTrue;
-
-    // make sure the _pggflo exists
-    if (!_FEnsureSplit(0))
-        return fFalse;
-
-    // get the flo of interest and the ibMin of the flo
-    iflo = _IfloFind(ib, &ibT);
-
-    // from here on, ibT is the offset into the current flo (iflo)
-    ibT = ib - ibT;
-
-    // if ib is in a file flo, split it
-    if (ibT > 0)
-    {
-        _pggflo->GetFixed(iflo, &flo);
-        if (pvNil != flo.pfil)
-        {
-            if (!_FEnsureSplit(ib, &iflo))
-                goto LFail;
-            ibT = 0;
-        }
-    }
-    if (cbIns > 0 && !_pggflo->FEnsureSpace(1, cbIns))
-    {
-    LFail:
-        _AttemptMerge(ib, ib);
-        AssertThis(fobjAssertFull);
-        return fFalse;
-    }
-
-    if (ibT > 0 && cbDel > 0)
-    {
-        // we need to start deleting in the middle of a piece
-        _pggflo->GetFixed(iflo, &flo);
-        Assert(pvNil == flo.pfil, "why wasn't this flo split?");
-        if (ibT + cbDel < flo.cb)
-        {
-            // deleting just part of this piece and no others
-            _pggflo->DeleteRgb(iflo, ibT, cbDel);
-            flo.cb -= cbDel;
-            _pggflo->PutFixed(iflo, &flo);
-            _ibMac -= cbDel;
-            cbDel = 0;
-        }
-        else
-        {
-            // deleting to the end of this piece
-            cbT = flo.cb - ibT;
-            _pggflo->DeleteRgb(iflo, ibT, cbT);
-            flo.cb = ibT;
-            _pggflo->PutFixed(iflo, &flo);
-            _ibMac -= cbT;
-            cbDel -= cbT;
-            iflo++;
-            ibT = 0;
-        }
-    }
-
-    Assert(ibT == 0 || cbDel == 0, "wrong ib");
-    while (cbDel > 0 && iflo < _pggflo->IvMac())
-    {
-        // deleting from the beginning of the flo
-        _pggflo->GetFixed(iflo, &flo);
-        if (cbDel < flo.cb)
-        {
-            // just remove the first part
-            if (pvNil != flo.pfil)
-                flo.fp += cbDel;
-            else
-                _pggflo->DeleteRgb(iflo, 0, cbDel);
-            flo.cb -= cbDel;
-            _ibMac -= cbDel;
-            cbDel = 0;
-            _pggflo->PutFixed(iflo, &flo);
-        }
-        else
-        {
-            // delete the whole flo
-            ReleasePpo(&flo.pfil);
-            _pggflo->Delete(iflo);
-            cbDel -= flo.cb;
-            _ibMac -= flo.cb;
-        }
-    }
-
-    // now insert the new stuff
-    if (cbIns > 0)
-    {
-        if (iflo < _pggflo->IvMac())
-        {
-            _pggflo->GetFixed(iflo, &flo);
-            if (pvNil == flo.pfil)
-                goto LInsertInMem;
-        }
-        Assert(ibT == 0, "wrong ib 2");
-        if (iflo > 0)
-        {
-            // see if the previous flow is a memory one
-            _pggflo->GetFixed(iflo - 1, &flo);
-            if (pvNil == flo.pfil)
-            {
-                iflo--;
-                ibT = flo.cb;
-            LInsertInMem:
-                AssertDo(_pggflo->FInsertRgb(iflo, ibT, cbIns, prgb), "this shouldn't fail!");
-                flo.cb += cbIns;
-                _pggflo->PutFixed(iflo, &flo);
-                _ibMac += cbIns;
-                goto LTryMerge;
-            }
-        }
-        // create a new memory flo
-        flo.pfil = pvNil;
-        flo.cb = cbIns;
-        flo.fp = 0;
-        AssertDo(_pggflo->FInsert(iflo, cbIns, prgb, &flo), "why fail?");
-        _ibMac += cbIns;
-    }
-
-LTryMerge:
-    _AttemptMerge(ib, ib + cbIns);
+    AssertPo(source, 0);
+    const bool ok = three_mm_piece_table_replace_table(&_pieces, offset, remove, &source->_pieces, from, count) == THREE_MM_DATA_OK;
     AssertThis(fobjAssertFull);
-    return fTrue;
+    return ok;
 }
-
-/***************************************************************************
-    Replace the range [ib, ib + cbDel) with the flo.
-***************************************************************************/
-bool FileByteStream::FReplaceFlo(PFileLocation pflo, bool fCopy, LegacyLong ib, LegacyLong cbDel)
+void FileByteStream::FetchRgb(LegacyLong offset, LegacyLong count, void *output)
 {
     AssertThis(fobjAssertFull);
-    AssertPo(pflo, ffloReadable);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertIn(cbDel, 0, _ibMac - ib + 1);
-    LegacyLong iflo;
-    FileLocation flo;
-    bool fRet;
-
-    if (pflo->cb <= 0)
-        return FReplace(pvNil, 0, ib, cbDel);
-
-    if (pflo->cb < kcbMinFloFile)
-    {
-        // use a memory piece
-        HQ hq;
-
-        if (!pflo->FReadHq(&hq))
-            return fFalse;
-        fRet = FReplace(PvLockHq(hq), pflo->cb, ib, cbDel);
-        UnlockHq(hq);
-        FreePhq(&hq);
-        return fRet;
-    }
-
-    // insert a file flo
-    if (fCopy)
-    {
-        if (pvNil == (flo.pfil = FileObject::PfilCreateTemp()))
-            return fFalse;
-        flo.cb = pflo->cb;
-        flo.fp = 0;
-        if (!pflo->FCopy(&flo))
-        {
-            ReleasePpo(&flo.pfil);
-            AssertThis(fobjAssertFull);
-            return fFalse;
-        }
-        pflo = &flo;
-    }
-    else
-        pflo->pfil->AddRef();
-
-    if (!_FEnsureSplit(ib, &iflo) || !_pggflo->FInsert(iflo, 0, pvNil, pflo))
-    {
-        pflo->pfil->Release();
-        _AttemptMerge(ib, ib);
-        AssertThis(fobjAssertFull);
-        return fFalse;
-    }
-
-    _ibMac += pflo->cb;
-    if (cbDel > 0)
-    {
-        // this shouldn't fail because we've already ensured a split
-        // at ib + pflo->cb
-        AssertDo(FReplace(pvNil, 0, ib + pflo->cb, cbDel), 0);
-    }
-    _AttemptMerge(ib, ib + pflo->cb);
-    AssertThis(fobjAssertFull);
-    return fTrue;
-}
-
-/***************************************************************************
-    Fetch cb bytes from position ib into prgb.
-***************************************************************************/
-void FileByteStream::FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb)
-{
-    AssertThis(fobjAssertFull);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertIn(cb, 0, _ibMac - ib + 1);
-    AssertPvCb(prgb, cb);
-    const auto reader = _PieceView();
-    const int result = three_mm_piece_read(&reader, ib, prgb, cb);
+    const int result = three_mm_piece_table_read(&_pieces, offset, output, count);
     Assert(result == THREE_MM_DATA_OK || result == THREE_MM_DATA_IO, "invalid stream fetch");
 }
-
-/***************************************************************************
-    Write a portion of a FileByteStream to the given flo.
-***************************************************************************/
-bool FileByteStream::FWriteRgb(PFileLocation pflo, LegacyLong ib)
+bool FileByteStream::FWriteRgb(PFileLocation location, LegacyLong offset)
 {
     AssertThis(0);
-    AssertPo(pflo, 0);
-    DataBlock blck(pflo);
-
-    return FWriteRgb(&blck, ib);
+    AssertPo(location, 0);
+    DataBlock block(location);
+    return FWriteRgb(&block, offset);
 }
-
-/***************************************************************************
-    Write a portion of a FileByteStream to the given block.
-***************************************************************************/
-bool FileByteStream::FWriteRgb(PDataBlock pblck, LegacyLong ib)
+// Retain the original DataBlock window/lock protocol; only piece-table storage
+// and editing moved to C. General block-copy policy remains a host service.
+bool FileByteStream::FWriteRgb(PDataBlock block, LegacyLong offset)
 {
     AssertThis(fobjAssertFull);
-    AssertPo(pblck, 0);
-    AssertIn(ib, 0, _ibMac + 1);
-    AssertIn(pblck->Cb(), 0, kcbMax);
-    LegacyLong iflo;
-    FileLocation flo;
-    LegacyLong cb, ibT, ibDst;
-    LegacyLong cbWrite = pblck->Cb();
-    bool fRet = fTrue;
-
-    if (ib + cbWrite > _ibMac)
+    AssertPo(block, 0);
+    const LegacyLong total = block->Cb();
+    if (offset < 0 || total < 0 || !three_mm_range_contains(_pieces.length, offset, total))
     {
         Bug("blck is too big");
-        return fFalse;
+        return false;
     }
-
-    if (cbWrite <= 0)
-        return fTrue;
-
-    iflo = _IfloFind(ib, &ibT);
-    ib -= ibT;
-    _pggflo->Lock();
-    AssertDo(pblck->FMoveLim(-cbWrite), 0);
-    for (ibDst = 0; fRet && ibDst < cbWrite && iflo < _pggflo->IvMac(); iflo++)
+    if (!total) return true;
+    ThreeMMU32 index = 0, start = 0;
+    ThreeMMFilePiece piece;
+    while (index < _pieces.group.count)
     {
-        Assert(pblck->Cb() == 0, 0);
-        _pggflo->GetFixed(iflo, &flo);
-        Assert(flo.cb > ib, "_IfloFind messed up");
-
-        // write min(cbWrite, flo.cb - ib) bytes from position ib
-        // then set ib to 0 and update cbWrite
-        cb = LwMin(cbWrite, flo.cb - ib);
-        AssertDo(pblck->FMoveLim(cb), 0);
-        Assert(pblck->Cb() == cb, 0);
-        if (pvNil == flo.pfil)
-        {
-            // the data is in the GeneralGroup
-            Assert(_pggflo->Cb(iflo) == flo.cb, "group element wrong size");
-            fRet = pblck->FWrite(PvAddBv(_pggflo->QvGet(iflo), ib));
-        }
-        else
-        {
-            // the data is on file
-            DataBlock blck(flo.pfil, flo.fp + ib, cb);
-            fRet = blck.FWriteToBlck(pblck);
-        }
-        ib = 0;
-        ibDst += cb;
-        AssertDo(pblck->FMoveMin(cb), 0);
+        AssertDo(three_mm_piece_table_get(&_pieces, index, &piece, nullptr) == THREE_MM_DATA_OK, "invalid piece");
+        if (static_cast<ThreeMMU32>(offset) - start < piece.length) break;
+        start += piece.length; ++index;
     }
-    Assert(!fRet || ibDst == cbWrite, "wrong number of bytes written!");
-    Assert(pblck->Cb() == 0, 0);
-    AssertDo(pblck->FMoveMin(-ibDst), 0);
-    AssertDo(pblck->FMoveLim(cbWrite - ibDst), 0);
-    Assert(pblck->Cb() == cbWrite, 0);
-    _pggflo->Unlock();
-
-    return fRet;
+    offset -= start;
+    AssertDo(three_mm_storage_lock(&_pieces.storage, 0) == THREE_MM_STORAGE_OK, "piece lock failed");
+    AssertDo(three_mm_storage_lock(&_pieces.storage, 1) == THREE_MM_STORAGE_OK, "piece lock failed");
+    AssertDo(block->FMoveLim(-total), 0);
+    bool ok = true;
+    LegacyLong written = 0;
+    for (; ok && written < total && index < _pieces.group.count; ++index)
+    {
+        const unsigned char *memory;
+        AssertDo(three_mm_piece_table_get(&_pieces, index, &piece, &memory) == THREE_MM_DATA_OK, "invalid piece");
+        const LegacyLong count = LwMin(total, piece.length - offset);
+        AssertDo(block->FMoveLim(count), 0);
+        if (piece.file)
+        {
+            DataBlock source(static_cast<PFileObject>(piece.file), piece.offset + offset, count);
+            ok = source.FWriteToBlck(block);
+        }
+        else ok = block->FWrite(const_cast<unsigned char *>(memory + offset));
+        offset = 0;
+        written += count;
+        AssertDo(block->FMoveMin(count), 0);
+    }
+    Assert(!ok || written == total, "wrong number of bytes written!");
+    AssertDo(block->FMoveMin(-written), 0);
+    AssertDo(block->FMoveLim(total - written), 0);
+    AssertDo(three_mm_storage_unlock(&_pieces.storage, 1) == THREE_MM_STORAGE_OK, "piece unlock failed");
+    AssertDo(three_mm_storage_unlock(&_pieces.storage, 0) == THREE_MM_STORAGE_OK, "piece unlock failed");
+    return ok;
 }
-
-/***************************************************************************
-    Write the stream out to a temp file and redirect the stream to just
-    refernce the temp file.  This makes the stream's memory footprint
-    minimal.
-***************************************************************************/
 bool FileByteStream::FCompact(void)
 {
     AssertThis(fobjAssertFull);
-    FileLocation flo;
-    bool fRet = fFalse;
-
-    if (_ibMac == 0 || _pggflo->IvMac() == 1 && _pggflo->Cb(1) == 0)
-    {
-        fRet = fTrue;
-        goto LShrinkGg;
-    }
-
-    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp()))
-        goto LShrinkGg;
-
-    flo.fp = 0;
-    flo.cb = _ibMac;
-    fRet = FWriteRgb(&flo) && FReplaceFlo(&flo, fFalse, 0, _ibMac);
-    ReleasePpo(&flo.pfil);
-
-LShrinkGg:
-    if (pvNil != _pggflo)
-        _pggflo->FEnsureSpace(0, fgrpShrink);
-
+    const bool ok = three_mm_piece_table_compact(&_pieces) == THREE_MM_DATA_OK;
     AssertThis(fobjAssertFull);
-    return fRet;
+    return ok;
 }
-
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a byte stream (FileByteStream).
-***************************************************************************/
-void FileByteStream::AssertValid(LegacyUlong grfobj)
+void FileByteStream::AssertValid(LegacyUlong flags)
 {
-    FileByteStream_PAR::AssertValid(grfobj);
-    if (pvNil == _pggflo)
+    FileByteStream_PAR::AssertValid(flags);
+    Assert(_pieces.length < THREE_MM_STORAGE_LIMIT, "invalid piece table length");
+    for (const auto &buffer : _pieces.storage.buffers)
+        if (buffer.data) AssertPvAlloced(buffer.data, buffer.capacity);
+    if (!(flags & fobjAssertFull)) return;
+    ThreeMMU32 total = 0;
+    for (ThreeMMU32 i = 0; i < _pieces.group.count; ++i)
     {
-        AssertVar(0 == _ibMac, "wrong _ibMac", &_ibMac);
-        return;
+        ThreeMMFilePiece piece;
+        AssertDo(three_mm_piece_table_get(&_pieces, i, &piece, nullptr) == THREE_MM_DATA_OK, "invalid piece");
+        if (piece.file) AssertPo(static_cast<PFileObject>(piece.file), 0);
+        total += piece.length;
     }
-    AssertPo(_pggflo, 0);
-    if (!(grfobj & fobjAssertFull))
-        return;
-
-    LegacyLong cb, cbT, iflo;
-    FileLocation flo;
-
-    for (cb = 0, iflo = _pggflo->IvMac(); iflo-- > 0;)
-    {
-        _pggflo->GetFixed(iflo, &flo);
-        cbT = _pggflo->Cb(iflo);
-        if (pvNil == flo.pfil)
-            Assert(cbT == flo.cb, "wrong sized entry");
-        else
-        {
-            AssertPo(flo.pfil, 0);
-            Assert(cbT == 0, "wrong sized file entry");
-            AssertIn(flo.fp, 0, kcbMax);
-            AssertIn(flo.cb, 0, kcbMax);
-            cbT = flo.cb;
-        }
-        cb += cbT;
-    }
-    AssertVar(cb == _ibMac, "bad _ibMac", &_ibMac);
+    Assert(total == _pieces.length, "bad piece table length");
 }
-
-/***************************************************************************
-    Mark memory for the FileByteStream.
-***************************************************************************/
 void FileByteStream::MarkMem(void)
 {
     AssertThis(fobjAssertFull);
     FileByteStream_PAR::MarkMem();
-    MarkMemObj(_pggflo);
+    MarkPv(_pieces.storage.buffers[0].data);
+    MarkPv(_pieces.storage.buffers[1].data);
 }
-#endif // DEBUG
+#endif

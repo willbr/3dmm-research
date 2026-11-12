@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -312,8 +312,46 @@ also records exact native output for before/after binary comparison; its
 existing thirteen round trips remain intact. Core link tests exercise real
 allocator failure hooks and both formats through DataBlock pack/unpack.
 
-HQ services, file-piece editing/compaction and chunk persistence remain C++;
-these and remaining engine objects still prevent a complete C-only backend.
+### Owning file-piece tables
+
+`three_mm/piece_table.h` and `piece_table.c` own FileByteStream's piece storage
+and file-reference lifecycle over C89 groups. The native `GeneralGroup` object
+is no longer required. Memory bytes and opaque file identities share one table;
+host callbacks retain/release files and supply positional reads/writes, temporary
+files and copies. File callbacks are not allowed to edit/re-enter a table.
+Cross-table copies require the same file ownership domain.
+
+C implements split/merge, memory replacement, file-copy versus shared-reference
+insertion, cross-table whole/partial-piece copying and insert-before-delete
+rollback. File pieces below 2048 bytes retain the memory-read policy. Allocation
+uses the existing collection allocator, growth hints, padding and failure hooks;
+locked storage can still be edited when no relocation is needed. The native
+wrapper no longer allocates a separate group object. Inputs to ordinary memory
+replacement must not alias storage. A same-stream memory append that fits the
+existing storage is covered; general overlapping self-copies have no new
+compatibility guarantee, and whole-entry copies still reject shared storage.
+
+Compaction writes to a temporary file before replacing the original table,
+retains original bytes/references on I/O or allocation failure and applies the
+existing best-effort storage shrink. Empty, small-memory, mixed and single-file
+cases are covered. The single-file fast path now checks entry zero: the old
+native condition called `Cb(1)` for a table with only one entry and asserted.
+Compacting an already single-file stream now safely keeps that file reference.
+
+`engine-piece-table-test` checks the frozen pre-conversion native snapshot hash
+for 180 mixed memory/file/cross-stream edits (601,476 bytes), independent byte
+models, whole-piece copying, allocation failures at twelve positions for three
+operations, temporary/read/write/copy failures, rollback and balanced references.
+It also runs under MSVC AddressSanitizer. Native core checks save/compare the
+same edit snapshot and exercise repeated single-file compaction and same-stream
+memory append. No Marcus UI checks are added.
+
+General DataBlock destination windowing/copy policy remains in the native
+`FWriteRgb` adapter, with its existing lock and window restoration protocol.
+This slice verifies full-stream writes and compaction, not new partial-write
+or overlapping-self-copy guarantees. HQ transactions, remaining allocator
+services, chunk persistence and engine objects still prevent a complete C-only
+backend.
 
 ## Why the split exists
 

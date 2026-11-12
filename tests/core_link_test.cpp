@@ -249,6 +249,89 @@ static void TestDataStreams()
     ReleasePpo(&pieces);
 }
 
+static void TestPieceEdits()
+{
+    byte fileBytes[8192], model[30000], actual[30000], insert[16];
+    for (unsigned i = 0; i < sizeof(fileBytes); ++i) fileBytes[i] = static_cast<byte>(i * 37 + i / 256);
+    auto file = FileObject::PfilCreateTemp();
+    auto stream = NewObj FileByteStream();
+    auto source = NewObj FileByteStream();
+    Check(file && stream && source && file->FWriteRgb(fileBytes, sizeof(fileBytes), 0));
+    FileLocation whole = {file, 0, sizeof(fileBytes)};
+    FileLocation small = {file, 47, 31};
+    Check(source->FReplace(fileBytes, 13, 0, 0) && source->FReplaceFlo(&whole, false, 13, 0));
+    Check(source->FReplace(fileBytes + 20, 11, source->IbMac(), 0));
+    byte sourceBytes[sizeof(fileBytes) + 24];
+    source->FetchRgb(0, source->IbMac(), sourceBytes);
+    LegacyLong length = 0;
+    unsigned state = 12345;
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_PIECE_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb");
+        Check(snapshot != nullptr);
+    }
+    for (int step = 0; step < 180; ++step)
+    {
+        state = state * 1664525u + 1013904223u;
+        LegacyLong offset = state % (length + 1);
+        LegacyLong remove = length ? (state >> 16) % (length - offset + 1) : 0;
+        LegacyLong count;
+        const byte *bytes;
+        if (step % 7 == 0)
+        {
+            FileLocation piece = {file, static_cast<LegacyLong>(step % 256), 2048};
+            count = piece.cb; bytes = fileBytes + piece.fp;
+            Check(stream->FReplaceFlo(&piece, step % 2 != 0, offset, remove));
+        }
+        else if (step % 7 == 1)
+        {
+            count = small.cb; bytes = fileBytes + small.fp;
+            Check(stream->FReplaceFlo(&small, true, offset, remove));
+        }
+        else if (step % 7 == 2)
+        {
+            LegacyLong from = step % 17, amount = 4096 + step;
+            count = amount; bytes = sourceBytes + from;
+            Check(stream->FReplaceBsf(source, from, amount, offset, remove));
+        }
+        else
+        {
+            count = step % 16;
+            for (LegacyLong i = 0; i < count; ++i) insert[i] = static_cast<byte>(step + i);
+            bytes = insert;
+            Check(stream->FReplace(insert, count, offset, remove));
+        }
+        Check(length - remove + count < sizeof(model));
+        std::memmove(model + offset + count, model + offset + remove, length - offset - remove);
+        std::memcpy(model + offset, bytes, count);
+        length += count - remove;
+        Check(stream->IbMac() == length);
+        stream->FetchRgb(0, length, actual);
+        Check(!std::memcmp(model, actual, length));
+        if (snapshot)
+        {
+            Check(std::fwrite(&length, sizeof(length), 1, snapshot) == 1);
+            Check(std::fwrite(actual, 1, length, snapshot) == static_cast<size_t>(length));
+        }
+    }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+    Check(stream->FCompact());
+    stream->FetchRgb(0, length, actual);
+    Check(!std::memcmp(model, actual, length));
+    Check(stream->FCompact()); // Already a single file piece.
+    Check(source->FCompact() && source->FCompact());
+    source->FetchRgb(0, source->IbMac(), actual);
+    Check(!std::memcmp(sourceBytes, actual, sizeof(sourceBytes)));
+    auto self = NewObj FileByteStream();
+    byte selfBytes[] = {'a','b','c','d','e','f'};
+    Check(self && self->FReplace(selfBytes, 6, 0, 0) && self->FReplaceBsf(self, 0, 3, 6, 0));
+    self->FetchRgb(0, 9, actual);
+    Check(!std::memcmp(actual, "abcdefabc", 9));
+    ReleasePpo(&self);
+    ReleasePpo(&stream); ReleasePpo(&source); ReleasePpo(&file);
+}
+
 static void TestFailedResize()
 {
 #ifdef DEBUG
@@ -3015,6 +3098,7 @@ int main()
     TestCollectionStorage();
     TestCollectionWireAndMutations();
     TestDataStreams();
+    TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();
     vpcex = CommandExecutionManager::PcexNew(20, 20);

@@ -22,6 +22,7 @@
 #ifndef STREAM_H
 #define STREAM_H
 #include "three_mm/data_stream.h"
+#include "three_mm/piece_table.h"
 
 using Group::PGeneralGroup;
 
@@ -76,16 +77,13 @@ class FileByteStream : public FileByteStream_PAR
     NOCOPY(FileByteStream)
 
   protected:
-    PGeneralGroup _pggflo;
-    LegacyLong _ibMac;
-
-    ThreeMMPieceReader _PieceView();
-    static int _PieceSize(void *, ThreeMMU32, ThreeMMU32 *);
-    static int _ReadPiece(void *, ThreeMMU32, ThreeMMU32, void *, ThreeMMU32);
-    LegacyLong _IfloFind(LegacyLong ib, LegacyLong *pib, LegacyLong *pcb = pvNil);
-    bool _FEnsureSplit(LegacyLong ib, LegacyLong *piflo = pvNil);
-    void _AttemptMerge(LegacyLong ibMin, LegacyLong ibLim);
-    bool _FReplaceCore(void *prgb, LegacyLong cbIns, PFileLocation pflo, LegacyLong ib, LegacyLong cbDel);
+    ThreeMMPieceTable _pieces;
+    static void _RetainFile(void *, void *);
+    static void _ReleaseFile(void *, void *);
+    static void *_CreateTemp(void *);
+    static int _ReadFile(void *, const ThreeMMFilePiece *, void *);
+    static int _WriteFile(void *, const ThreeMMFilePiece *, const void *);
+    static int _CopyFile(void *, const ThreeMMFilePiece *, const ThreeMMFilePiece *);
 
   public:
     FileByteStream(void);
@@ -93,7 +91,7 @@ class FileByteStream : public FileByteStream_PAR
 
     LegacyLong IbMac(void)
     {
-        return _ibMac;
+        return _pieces.length;
     }
     void FetchRgb(LegacyLong ib, LegacyLong cb, void *prgb);
     bool FReplace(void *prgb, LegacyLong cbIns, LegacyLong ib, LegacyLong cbDel);

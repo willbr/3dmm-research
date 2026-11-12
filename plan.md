@@ -90,11 +90,15 @@ priority over the older Project 0-4 ordering wherever they conflict.
   classes retain object/pointer/diagnostic adapters.
 - GST headers, memory-stream storage/edits, live file-piece lookup/fetch,
   DataBlock range/unpack policy and packed-envelope decode dispatch now use C89.
-  Host callbacks still provide codec algorithms, HQ ownership and file access.
+  Host callbacks still provide HQ ownership, file access and allocation diagnostics.
   KCDC/KCD2 algorithms and packed encoding now also use C89, preserving exact
   native encoder bytes and decoded results. Codec registration, HQ transactions
-  and host allocation diagnostics remain C++ services. Next convert file-piece
-  editing, remaining allocator services and container persistence.
+  and host allocation diagnostics remain C++ services.
+- File-piece storage/lifetime, split/merge, memory/file/cross-stream replacements,
+  rollback and compaction now use an owning C89 piece table. File references and
+  positional I/O are host callbacks; a native GeneralGroup object is no longer
+  required by FileByteStream. General DataBlock write-window/copy policy, HQ
+  transactions, remaining allocator services and container persistence are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
