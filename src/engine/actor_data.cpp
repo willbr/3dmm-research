@@ -1,328 +1,118 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
+#include "engine_read_stream.h"
+#include "three_mm/actor_data.h"
 #include <cstddef>
-#include <cstring>
 ASSERTNAME
 using namespace ActorEvent;
-
-bool ActorData::FReadHeader(PDataBlock pblck, ActorChunkOnFile *pactf)
-{
-    AssertPo(pblck, 0);
-    AssertVarMem(pactf);
-    bool fOldActf = fFalse;
-
-    if (!pblck->FUnpackData())
-        return fFalse;
-
-    if (pblck->Cb() != size(ActorChunkOnFile))
-    {
-        if (pblck->Cb() != size(ActorChunkOnFile) - size(int32_t))
-            return fFalse;
-        fOldActf = fTrue;
-    }
-
-    if (!pblck->FReadRgb(pactf, pblck->Cb(), 0))
-        return fFalse;
-
-    if (fOldActf)
-    {
-        const size_t offsetLast = offsetof(ActorChunkOnFile, nfrmLast);
-        byte *bytes = reinterpret_cast<byte *>(pactf);
-        std::memmove(bytes + offsetLast + sizeof(int32_t), bytes + offsetLast,
-                     sizeof(ActorChunkOnFile) - offsetLast - sizeof(int32_t));
-    }
-
-    if (kboOther == pactf->bo)
-        SwapBytesBom(pactf, kbomActf);
-    if (kboCur != pactf->bo)
-    {
-        return fFalse;
-    }
-
-    if (fOldActf)
-        pactf->nfrmLast = knfrmInvalid;
-    return fTrue;
-}
-
-bool ActorData::FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header)
-{
-    return file->FPutPv(header, sizeof(*header), kctgActr, number);
-}
-
-bool ActorData::FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta)
-{
-    ActorChunkOnFile header;
-    DataBlock block;
-    if (!file->FFind(kctgActr, number, &block) || !FReadHeader(&block, &header))
-        return fFalse;
-    const int64_t adjusted = static_cast<int64_t>(header.arid) + delta;
-    if (adjusted < INT32_MIN || adjusted > INT32_MAX)
-        return fFalse;
-    header.arid = static_cast<int32_t>(adjusted);
-    return FWriteHeader(file, number, &header);
-}
-
+static_assert(sizeof(ActorChunkOnFile) == sizeof(ThreeMMActorHeader) && offsetof(ActorChunkOnFile, dxyzFullRte) == 4 &&
+                  offsetof(ActorChunkOnFile, arid) == 16 && offsetof(ActorChunkOnFile, nfrmFirst) == 20 &&
+                  offsetof(ActorChunkOnFile, nfrmLast) == 24 && offsetof(ActorChunkOnFile, tagTmpl) == 28,
+              "actor header ABI");
+static_assert(sizeof(TAG) == sizeof(ThreeMMTag) && offsetof(TAG, sid) == offsetof(ThreeMMTag, sid) &&
+                  offsetof(TAG, pcrf) == offsetof(ThreeMMTag, cache) &&
+                  offsetof(TAG, ctg) == offsetof(ThreeMMTag, type) &&
+                  offsetof(TAG, cno) == offsetof(ThreeMMTag, number),
+              "actor tag ABI");
+static_assert(sizeof(tribool) == 4 && sizeof(Costume) == sizeof(ThreeMMActorCostume) &&
+                  offsetof(Costume, tag) == offsetof(ThreeMMActorCostume, tag) && offsetof(Costume, fCmtl) == 8 &&
+                  sizeof(Sound) == sizeof(ThreeMMActorSound) &&
+                  offsetof(Sound, tag) == offsetof(ThreeMMActorSound, tag) && offsetof(Sound, chid) == 24,
+              "actor runtime payload ABI");
+static_assert(sizeof(Base) == 20 && sizeof(RouteDistancePoint) == 16 && sizeof(RoutePoint) == 12 &&
+                  sizeof(BMAT34) == 48 && sizeof(Add) == 20 && offsetof(Add, xa) == 12 && offsetof(Add, ya) == 14 &&
+                  offsetof(Add, za) == 16 && sizeof(Action) == 8 && sizeof(Stretch) == 12,
+              "actor scalar payload ABI");
+static_assert(aetAdd == THREE_MM_ACTOR_ADD && aetActn == THREE_MM_ACTOR_ACTION && aetCost == THREE_MM_ACTOR_COSTUME &&
+                  aetRotF == THREE_MM_ACTOR_ROTATE_FORWARD && aetPull == THREE_MM_ACTOR_STRETCH &&
+                  aetSize == THREE_MM_ACTOR_SIZE && aetSnd == THREE_MM_ACTOR_SOUND && aetMove == THREE_MM_ACTOR_MOVE &&
+                  aetFreeze == THREE_MM_ACTOR_FREEZE && aetTweak == THREE_MM_ACTOR_TWEAK &&
+                  aetStep == THREE_MM_ACTOR_STEP && aetRem == THREE_MM_ACTOR_REMOVE &&
+                  aetRotH == THREE_MM_ACTOR_ROTATE_HERE,
+              "actor event kinds");
 namespace
 {
-bool ValidEvents(PGeneralGroup group, bool wire, short bo)
+int Order(short bo)
 {
-    if (group->CbFixed() != size(Base))
-        return false;
-    for (LegacyLong i = 0; i < group->IvMac(); ++i)
-    {
-        Base event;
-        group->GetFixed(i, &event);
-        if (bo == kboOther)
-            SwapBytesBom(&event, kbomAev);
-        LegacyLong bytes;
-        switch (event.aet)
-        {
-        case aetAdd:
-            bytes = size(Add);
-            break;
-        case aetActn:
-            bytes = size(Action);
-            break;
-        case aetCost:
-            bytes = wire ? size(CostumeOnFile) : size(Costume);
-            break;
-        case aetSnd:
-            bytes = wire ? size(SoundOnFile) : size(Sound);
-            break;
-        case aetRotF:
-        case aetRotH:
-            bytes = size(BMAT34);
-            break;
-        case aetPull:
-            bytes = size(Stretch);
-            break;
-        case aetSize:
-        case aetFreeze:
-        case aetStep:
-            bytes = 4;
-            break;
-        case aetMove:
-        case aetTweak:
-            bytes = size(RoutePoint);
-            break;
-        case aetRem:
-            bytes = 0;
-            break;
-        default:
-            return false;
-        }
-        if (group->Cb(i) != bytes)
-            return false;
-    }
-    return true;
+    return bo == kboCur ? THREE_MM_ACTOR_NATIVE : bo == kboOther ? THREE_MM_ACTOR_OTHER : THREE_MM_ACTOR_INVALID_ORDER;
 }
-
-PGeneralGroup MarshalFromWire(PGeneralGroup pggOnFile)
+struct HeaderHost
 {
-    AssertPo(pggOnFile, 0);
-
-    LegacyLong iaev, iaevMac;
-    Base aev;
-    CostumeOnFile costOnFile;
-    Costume cost;
-    SoundOnFile sndOnFile;
-    Sound snd;
-    PGeneralGroup pggRuntime;
-
-    pggRuntime = GeneralGroup::PggNew(size(Base));
-    if (pvNil == pggRuntime)
-        goto LFail;
-
-    iaevMac = pggOnFile->IvMac();
-    for (iaev = 0; iaev < iaevMac; iaev++)
-    {
-        pggOnFile->GetFixed(iaev, &aev);
-        switch (aev.aet)
-        {
-        case aetCost:
-            // Variable part is CostumeOnFile -> Costume marshal.
-            Assert(pggOnFile->Cb(iaev) == size(CostumeOnFile), "bad CostumeOnFile size");
-            CopyPb(pggOnFile->QvGet(iaev), &costOnFile, size(CostumeOnFile));
-            cost.ibset = costOnFile.ibset;
-            cost.cmid = costOnFile.cmid;
-            cost.fCmtl = costOnFile.fCmtl;
-            TagFromOnFile(&cost.tag, costOnFile.tag);
-            if (!pggRuntime->FInsert(iaev, size(Costume), &cost, &aev))
-                goto LFail;
-            break;
-        case aetSnd:
-            // Variable part is SoundOnFile -> Sound marshal.
-            Assert(pggOnFile->Cb(iaev) == size(SoundOnFile), "bad SoundOnFile size");
-            CopyPb(pggOnFile->QvGet(iaev), &sndOnFile, size(SoundOnFile));
-            snd.fLoop = sndOnFile.fLoop;
-            snd.fQueue = sndOnFile.fQueue;
-            snd.vlm = sndOnFile.vlm;
-            snd.celn = sndOnFile.celn;
-            snd.sty = sndOnFile.sty;
-            snd.fNoSound = sndOnFile.fNoSound;
-            snd.chid = sndOnFile.chid;
-            TagFromOnFile(&snd.tag, sndOnFile.tag);
-            if (!pggRuntime->FInsert(iaev, size(Sound), &snd, &aev))
-                goto LFail;
-            break;
-        default:
-            // No TAG embed: variable part is identical on disk and in runtime.
-            if (!pggRuntime->FInsert(iaev, pggOnFile->Cb(iaev), pggOnFile->QvGet(iaev), &aev))
-                goto LFail;
-            break;
-        }
-    }
-
-    ReleasePpo(&pggOnFile);
-    return pggRuntime;
-
-LFail:
-    ReleasePpo(&pggOnFile);
-    ReleasePpo(&pggRuntime);
-    return pvNil;
-}
-
-void SwapWireEvents(PGeneralGroup pggaev)
+    PChunkyFile file;
+    DataBlock block;
+};
+ThreeMMActorHeaderIO HeaderIO(HeaderHost *host)
 {
-    AssertPo(pggaev, 0);
-
-    LegacyLong iaev;
-
-    for (iaev = 0; iaev < pggaev->IvMac(); iaev++)
-    {
-        SwapBytesBom(pggaev->QvFixedGet(iaev), kbomAev);
-        switch (((Base *)pggaev->QvFixedGet(iaev))->aet)
-        {
-        case aetCost:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevcost);
-            break;
-        case aetSnd:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevsnd);
-            break;
-        case aetSize:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevsize);
-            break;
-        case aetPull:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevpull);
-            break;
-        case aetRotF:
-        case aetRotH:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevrot);
-            break;
-        case aetActn:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevactn);
-            break;
-        case aetAdd:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevadd);
-            break;
-        case aetFreeze:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevfreeze);
-            break;
-        case aetMove:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevmove);
-            break;
-        case aetTweak:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevtweak);
-            break;
-        case aetStep:
-            SwapBytesBom(pggaev->QvGet(iaev), kbomAevstep);
-            break;
-        case aetRem:
-            // no var data
-            break;
-        default:
-            Bug("Unknown ActorEventType");
-            break;
-        }
-    }
+    return {host,
+            [](void *c, ThreeMMU32 number, ThreeMMReadStream *stream) -> int {
+                auto h = static_cast<HeaderHost *>(c);
+                if (!h->file->FFind(kctgActr, number, &h->block) || !h->block.FUnpackData())
+                    return 0;
+                *stream = EngineReadStream::FromBlock(h->block);
+                return 1;
+            },
+            [](void *c, ThreeMMU32 number, const void *header, ThreeMMU32 bytes) -> int {
+                return static_cast<HeaderHost *>(c)->file->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
+            }};
 }
-
+ThreeMMActorEventServices Events()
+{
+    return {nullptr,
+            [](void *g) -> ThreeMMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
+            [](void *g) -> ThreeMMU32 { return static_cast<PGeneralGroup>(g)->IvMac(); },
+            [](void *g, ThreeMMU32 i) -> void * { return static_cast<PGeneralGroup>(g)->QvFixedGet(i); },
+            [](void *g, ThreeMMU32 i) -> ThreeMMI32 { return static_cast<PGeneralGroup>(g)->Cb(i); },
+            [](void *g, ThreeMMU32 i) -> void * { return static_cast<PGeneralGroup>(g)->QvGet(i); },
+            [](void *, ThreeMMU32 fixed) -> void * { return GeneralGroup::PggNew(fixed); },
+            [](void *g, ThreeMMU32 i, ThreeMMU32 bytes, const void *variable, const void *fixed) -> int {
+                return static_cast<PGeneralGroup>(g)->FInsert(i, bytes, const_cast<void *>(variable),
+                                                              const_cast<void *>(fixed));
+            },
+            [](void *g) { static_cast<PGeneralGroup>(g)->Release(); }};
+}
 } // namespace
-
+bool ActorData::FReadHeader(PDataBlock block, ActorChunkOnFile *header)
+{
+    AssertPo(block, 0);
+    AssertVarMem(header);
+    if (!block->FUnpackData())
+        return false;
+    const auto stream = EngineReadStream::FromBlock(*block);
+    return three_mm_actor_read_header(&stream, header) != 0;
+}
+bool ActorData::FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header)
+{
+    HeaderHost host = {file};
+    const auto io = HeaderIO(&host);
+    return three_mm_actor_write_header(number, header, &io) != 0;
+}
+bool ActorData::FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta)
+{
+    HeaderHost host = {file};
+    const auto io = HeaderIO(&host);
+    return three_mm_actor_adjust_id(number, delta, &io) != 0;
+}
 PDynamicArray ActorData::PglReadRoute(PDataBlock block)
 {
-    short bo;
-    PDynamicArray route = DynamicArray::PglRead(block, &bo);
-    if (route == pvNil)
-        return pvNil;
-    if (route->CbEntry() != size(RouteDistancePoint) || (bo != kboCur && bo != kboOther))
-    {
-        ReleasePpo(&route);
-        return pvNil;
-    }
-    if (bo == kboOther && route->IvMac() > 0)
-        SwapBytesRglw(route->QvGet(0), LwMul(route->IvMac(), size(RouteDistancePoint) / size(int32_t)));
-    return route;
+    short bo = kboCur;
+    auto route = DynamicArray::PglRead(block, &bo);
+    const ThreeMMActorRouteServices services = {
+        [](void *g) -> ThreeMMU32 { return static_cast<PDynamicArray>(g)->CbEntry(); },
+        [](void *g) -> ThreeMMU32 { return static_cast<PDynamicArray>(g)->IvMac(); },
+        [](void *g) -> void * { return static_cast<PDynamicArray>(g)->QvGet(0); },
+        [](void *g) { static_cast<PDynamicArray>(g)->Release(); }};
+    return static_cast<PDynamicArray>(three_mm_actor_finish_route(route, Order(bo), &services));
 }
-
 PGeneralGroup ActorData::PggReadEvents(PDataBlock block)
 {
-    short bo;
-    PGeneralGroup wire = GeneralGroup::PggRead(block, &bo);
-    if (wire == pvNil)
-        return pvNil;
-    if ((bo != kboCur && bo != kboOther) || !ValidEvents(wire, true, bo))
-    {
-        ReleasePpo(&wire);
-        return pvNil;
-    }
-    if (bo == kboOther)
-        SwapWireEvents(wire);
-    return MarshalFromWire(wire); // consumes wire on either outcome
+    short bo = kboCur;
+    auto wire = GeneralGroup::PggRead(block, &bo);
+    const auto services = Events();
+    return static_cast<PGeneralGroup>(three_mm_actor_read_events(wire, Order(bo), &services));
 }
-
 PGeneralGroup ActorData::PggWriteEvents(PGeneralGroup events)
 {
-    if (!ValidEvents(events, false, kboCur))
-        return pvNil;
-    PGeneralGroup pggaevOnFile = GeneralGroup::PggNew(size(Base));
-    if (pvNil == pggaevOnFile)
-        return pvNil;
-    LegacyLong iaevSave, iaevMacSave = events->IvMac();
-    Base aevSave;
-    Costume costSave;
-    CostumeOnFile costSaveOnFile;
-    Sound sndSave;
-    SoundOnFile sndSaveOnFile;
-    bool fOk = fTrue;
-    for (iaevSave = 0; iaevSave < iaevMacSave && fOk; iaevSave++)
-    {
-        events->GetFixed(iaevSave, &aevSave);
-        switch (aevSave.aet)
-        {
-        case aetCost:
-            events->GetRgb(iaevSave, 0, size(Costume), &costSave);
-            costSaveOnFile.ibset = costSave.ibset;
-            costSaveOnFile.cmid = costSave.cmid;
-            costSaveOnFile.fCmtl = costSave.fCmtl;
-            costSaveOnFile.tag.From(costSave.tag);
-            if (!pggaevOnFile->FInsert(iaevSave, size(CostumeOnFile), &costSaveOnFile, &aevSave))
-                fOk = fFalse;
-            break;
-        case aetSnd:
-            events->GetRgb(iaevSave, 0, size(Sound), &sndSave);
-            sndSaveOnFile.fLoop = sndSave.fLoop;
-            sndSaveOnFile.fQueue = sndSave.fQueue;
-            sndSaveOnFile.vlm = sndSave.vlm;
-            sndSaveOnFile.celn = sndSave.celn;
-            sndSaveOnFile.sty = sndSave.sty;
-            sndSaveOnFile.fNoSound = sndSave.fNoSound;
-            sndSaveOnFile.chid = sndSave.chid;
-            sndSaveOnFile.tag.From(sndSave.tag);
-            if (!pggaevOnFile->FInsert(iaevSave, size(SoundOnFile), &sndSaveOnFile, &aevSave))
-                fOk = fFalse;
-            break;
-        default:
-            if (!pggaevOnFile->FInsert(iaevSave, events->Cb(iaevSave), events->QvGet(iaevSave), &aevSave))
-                fOk = fFalse;
-            break;
-        }
-    }
-    if (!fOk)
-    {
-        ReleasePpo(&pggaevOnFile);
-        return pvNil;
-    }
-    return pggaevOnFile;
+    const auto services = Events();
+    return static_cast<PGeneralGroup>(three_mm_actor_write_events(events, &services));
 }

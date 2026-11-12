@@ -1909,6 +1909,18 @@ static void TestScenePersistence()
 
 static void TestActorPersistence()
 {
+    FILE *actorSnapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_ACTOR_DATA_SNAPSHOT")) { actorSnapshot = std::fopen(path, "wb"); Check(actorSnapshot); }
+    const auto recordBlock = [&](DataBlock &value) {
+        if (!actorSnapshot) return;
+        uint32_t length = value.Cb(); byte bytes[8192]; Check(length <= sizeof(bytes) && value.FReadRgb(bytes, length, 0));
+        Check(std::fwrite(&length, sizeof(length), 1, actorSnapshot) == 1 && std::fwrite(bytes, 1, length, actorSnapshot) == length);
+    };
+    const auto recordHeader = [&](DataBlock &value) {
+        ActorChunkOnFile output; std::memset(&output, 0xa5, sizeof(output));
+        uint32_t ok = ActorData::FReadHeader(&value, &output);
+        if (actorSnapshot) Check(std::fwrite(&ok, sizeof(ok), 1, actorSnapshot) == 1 && std::fwrite(&output, sizeof(output), 1, actorSnapshot) == 1);
+    };
     ActorChunkOnFile header = {};
     header.bo = kboCur;
     header.osk = koskCur;
@@ -1921,12 +1933,14 @@ static void TestActorPersistence()
     header.tagTmpl.cno = 11;
     DataBlock block;
     Check(block.FSetTemp(sizeof(header)) && block.FWriteRgb(&header, sizeof(header), 0));
+    recordHeader(block);
     ActorChunkOnFile read;
     Check(ActorData::FReadHeader(&block, &read));
     Check(read.arid == 17 && read.nfrmFirst == -3 && read.nfrmLast == 25);
     SwapBytesRgsw(&header.bo, 2);
     SwapBytesRglw(&header.dxyzFullRte, 10);
     Check(block.FWriteRgb(&header, sizeof(header), 0));
+    recordHeader(block);
     Check(ActorData::FReadHeader(&block, &read));
     Check(read.tagTmpl.sid == 2 && read.dxyzFullRte.dxr == BR_SCALAR(2.5));
     SwapBytesRgsw(&header.bo, 2);
@@ -1937,6 +1951,14 @@ static void TestActorPersistence()
     std::memcpy(legacy, &header, lastOffset);
     std::memcpy(legacy + lastOffset, &header.tagTmpl, sizeof(header.tagTmpl));
     Check(block.FSetTemp(sizeof(legacy)) && block.FWriteRgb(legacy, sizeof(legacy), 0));
+    recordHeader(block);
+    {
+        auto bad = header; bad.bo = 3;
+        DataBlock input; Check(input.FSetTemp(sizeof(bad)) && input.FWrite(&bad)); recordHeader(input);
+        std::memcpy(legacy, &bad, lastOffset); std::memcpy(legacy + lastOffset, &bad.tagTmpl, sizeof(bad.tagTmpl));
+        Check(input.FSetTemp(sizeof(legacy)) && input.FWriteRgb(legacy, sizeof(legacy), 0)); recordHeader(input);
+        Check(input.FSetTemp(20)); recordHeader(input);
+    }
     Check(ActorData::FReadHeader(&block, &read));
     Check(read.nfrmLast == knfrmInvalid && read.tagTmpl.cno == 11);
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
@@ -1947,6 +1969,7 @@ static void TestActorPersistence()
     Check(ActorData::FAdjustId(file, number, 3));
     Check(file->FFind(kctgActr, number, &block) && ActorData::FReadHeader(&block, &read));
     Check(read.arid == 20);
+    recordHeader(block);
     ReleasePpo(&file);
 
     PDynamicArray route = DynamicArray::PglNew(sizeof(RouteDistancePoint));
@@ -1961,6 +1984,7 @@ static void TestActorPersistence()
     RouteDistancePoint readPoint;
     readRoute->Get(0, &readPoint);
     Check(readPoint.xyz.dyr == point.xyz.dyr && readPoint.dwr == point.dwr);
+    { DataBlock saved; Check(saved.FSetTemp(readRoute->CbOnFile()) && readRoute->FWrite(&saved)); recordBlock(saved); }
     ReleasePpo(&readRoute);
     ReleasePpo(&route);
 
@@ -2058,6 +2082,44 @@ static void TestActorPersistence()
     Check(events->FInsert(0, sizeof(shortPayload), &shortPayload, &event));
     Check(ActorData::PggWriteEvents(events) == pvNil);
     ReleasePpo(&events);
+    // Every event kind, including ignored cache identity and mixed-width Add.
+    events = GeneralGroup::PggNew(sizeof(ActorEvent::Base)); Check(events);
+    const LegacyLong widths[] = {sizeof(ActorEvent::Add), sizeof(ActorEvent::Action), sizeof(ActorEvent::Costume),
+        sizeof(BMAT34), sizeof(ActorEvent::Stretch), 4, sizeof(ActorEvent::Sound), 12, 4, 12, 4, 0, sizeof(BMAT34)};
+    for (int kind = 0; kind < ActorEvent::aetLim; ++kind)
+    {
+        byte payload[64]; std::memset(payload, 0x31 + kind, sizeof(payload));
+        ActorEvent::Base e = {}; e.aet = kind; e.nfrm = -10 + kind; e.rtel.irpt = kind; e.rtel.dnfrm = -7;
+        if (kind == ActorEvent::aetCost)
+        {
+            ActorEvent::Costume c = {}; c.ibset = -7; c.cmid = 99; c.fCmtl = static_cast<tribool>(2);
+            c.tag = {1, reinterpret_cast<PChunkyResourceFile>(uintptr_t(1)), kctgMtrl, 42}; std::memcpy(payload, &c, sizeof(c));
+        }
+        if (kind == ActorEvent::aetSnd)
+        {
+            ActorEvent::Sound s = {}; s.fLoop = static_cast<tribool>(2); s.fQueue = tMaybe; s.vlm = -99; s.chid = 73;
+            s.tag = {1, reinterpret_cast<PChunkyResourceFile>(uintptr_t(1)), kctgMsnd, 41}; std::memcpy(payload, &s, sizeof(s));
+        }
+        Check(events->FInsert(kind, widths[kind], payload, &e));
+    }
+    wire = ActorData::PggWriteEvents(events); Check(wire);
+    for (int foreign = 0; foreign < 2; ++foreign)
+    {
+        if (foreign) for (LegacyLong i = 0; i < wire->IvMac(); ++i)
+        {
+            ActorEvent::Base e; wire->GetFixed(i, &e);
+            if (e.aet == ActorEvent::aetAdd) { SwapBytesRglw(wire->QvGet(i), 3); SwapBytesRgsw(static_cast<byte *>(wire->QvGet(i)) + 12, 3); }
+            else if (wire->Cb(i)) SwapBytesRglw(wire->QvGet(i), wire->Cb(i) / 4);
+            SwapBytesRglw(&e, 5); wire->PutFixed(i, &e);
+        }
+        Check(block.FSetTemp(wire->CbOnFile()) && wire->FWrite(&block, foreign ? kboOther : kboCur)); recordBlock(block);
+        auto decoded = ActorData::PggReadEvents(&block); Check(decoded && decoded->IvMac() == ActorEvent::aetLim);
+        auto canonical = ActorData::PggWriteEvents(decoded); Check(canonical);
+        DataBlock saved; Check(saved.FSetTemp(canonical->CbOnFile()) && canonical->FWrite(&saved)); recordBlock(saved);
+        ReleasePpo(&canonical); ReleasePpo(&decoded);
+    }
+    ReleasePpo(&wire); ReleasePpo(&events);
+    if (actorSnapshot) Check(std::fclose(actorSnapshot) == 0);
 }
 
 static void TestActorTrackOwnership()

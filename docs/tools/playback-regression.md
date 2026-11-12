@@ -2270,3 +2270,48 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 actor header, route and event persistence (12 November 2026)
+
+C now owns actor header normalization and checked ID adjustment, route validation
+and byte swapping, and all thirteen event wire/runtime layouts. Native file,
+block and group operations remain temporary adapters. Track/tag lifetime and
+actor evaluation/editing remain migration work. See the
+[implementation boundary](../code-map/library-split.md#actor-header-route-and-event-persistence).
+
+Thirty-five standalone C checks, forty-eight focused native checks and MSVC
+AddressSanitizer pass. Checks cover both header sizes and byte orders, partial
+failed reads, invalid-order output, ID overflow, empty/foreign routes, all event
+layouts, mixed-width Add fields, unopened tag fields and every insertion failure.
+All eighteen binary snapshots match, including a new 2,896-byte actor baseline
+and seventeen prior snapshots. All 51 CLI baselines match, including six asset
+indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-actor-data-before.bin`, `tmp/c89-actor-data-after.bin`,
+`tmp/c89-actor-data-snapshot-comparison.json`,
+`tmp/c89-actor-data-output-comparison.json` and `tmp/c89-actor-data-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Initial
+scrolling suite `20261112T194604Z-aa6d9428` had five complete runs and one
+incomplete SDL playback run: presentation capture reported failure, although
+its authored-frame traversal completed. That failed attempt is retained. A full
+repeat, `20261112T195016Z-384726c3`, completed all six runs without capture
+failures (verdict `different`, six different and five inconclusive components).
+Against preceding scene suite `20261112T191948Z-6d4ffbd8`, all 180 seek images
+match exactly, and ordered exact image changes remain retail/SDL 328 and Marcus
+321. Each run preserves the same 60 authored frame positions.
+
+Sampled-audio suite `20261112T195348Z-84a9a960` completed all three players with
+no capture failures (verdict `different`, five different and four inconclusive
+components). Against preceding scene suite `20261112T192401Z-3a37bc95`, all
+three runs preserve the same 60 authored positions and ordered exact image
+changes. Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus;
+these establish audible capture, not exact PCM preservation.
+
+All nine successful captures retain unchanged movie, ISO-resource and Marcus-
+content hashes. Only adjacent identical image/position records are collapsed;
+raw presentation samples and timestamps remain available. The report is
+`tmp/c89-actor-data-playback-comparison.json`; captures and integrity records are
+in `tmp/c89-movie-data-regression/playback.sqlite`. Existing cross-player pixel/
+audio differences and timing/alignment limitations remain; this is preservation
+against the preceding build, not full retail parity or general repeatability.

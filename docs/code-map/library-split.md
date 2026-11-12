@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -583,6 +583,36 @@ still exercises actual archive allocation failures and retained old child links.
 Thirty-four standalone C checks, forty-seven focused native checks, MSVC
 AddressSanitizer, seventeen binary snapshots and all 51 CLI baselines pass. The
 new scene/name/header/event snapshot is 526 bytes. No Marcus UI tests were added.
+
+### Actor header, route and event persistence
+
+`actor_data.c` replaces the actor persistence policy formerly in native ActorData.
+It reads 40/44-byte headers, expands the old missing-last-frame layout, swaps scalar
+bits and performs checked signed ID adjustment without C99 arithmetic types. As in
+the native reader, read failures may modify header output; invalid byte order leaves
+read/expanded bytes visible, and the old last-frame sentinel is assigned only after
+byte-order validation. Scalar/header payload values remain accepted as before.
+
+C validates route widths and normalizes foreign-order scalar bits. Empty routes
+never request a first-row pointer. Invalid routes are released. Event code validates
+all thirteen type/size combinations, preserving signed payload lengths and existing
+value/frame-order acceptance. C owns foreign-order swaps and wire/runtime conversion;
+Add uses three 32-bit scalar swaps plus three 16-bit angle swaps, leaving padding
+opaque. Runtime Costume/Sound records use public C structs, with native ABI assertions.
+
+Reading consumes wire groups on every outcome, normalizing before allocation and
+releasing wire before partial runtime storage on failure. Writing borrows runtime
+groups and releases only partial output on failure. Tags stay unopened/unretained;
+read sets runtime cache pointers to null, while write zeros wire pointer slots and
+ignores cache identity. Native file/block/group services and typed interfaces remain
+temporary adapters. Track/tag ownership and actor evaluation/editing remain work.
+
+`engine-actor-data-test` covers old/current headers, partial failed reads, invalid
+byte-order outputs, ID overflow, empty/foreign routes, all event layouts, Add padding,
+tag fields, and allocation/insertion failures at every row. Thirty-five standalone
+C checks, forty-eight focused native checks, MSVC AddressSanitizer, eighteen binary
+snapshots and all 51 CLI baselines pass. The new header/all-event snapshot is 2,896
+bytes. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 
