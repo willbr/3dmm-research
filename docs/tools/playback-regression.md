@@ -1103,3 +1103,52 @@ All nine captures retain unchanged movie, ISO-resource and Marcus-content hashes
 Existing cross-player pixel/audio differences and timing/alignment limitations
 remain. These checks establish frame/image preservation against the preceding
 build, not full retail parity or repeatability from one repetition.
+
+## C89 CHN2 index persistence (12 November 2026)
+
+Studio and Marcus now use C89 policy for CHN2 index/free-map positioning,
+index-then-map-then-prefix commit order and explicit 128-byte v5/back-v4 header
+serialization. Existing C89 collection serialization remains shared; native
+callbacks perform physical I/O. File relocation, naming and recovery remain
+future work. See the [persistence boundary](../code-map/library-split.md#chunk-index-persistence).
+
+The native baseline freezes twenty complete save outputs across five payload
+sizes, interior free maps, shortened indexes, save-a-copy and read-only save-as.
+All 10,570 bytes match. Standalone C checks reproduce the twenty original
+prefixes (FNV32 `0x012f9b07`), round-trip both byte orders, inject each commit
+stage's failure and check required callbacks, position overflow and untouched
+guards. A serialized index is allowed to exceed an individual collection
+section's 128-MiB limit when its signed file positions fit.
+
+The writer retains trailing physical bytes and the legacy partial-write failure
+contract: a failed body write suppresses the prefix callback, but a failed prefix
+write can already have modified bytes. No flush or atomic replacement guarantee
+was added. No Marcus UI tests were added.
+
+Thirteen standalone C checks, twenty-five focused native checks and MSVC
+AddressSanitizer pass. All 51 CLI baselines match, including six asset indexes
+covering 20,568 entries. Local evidence includes `tmp/c89-chunk-save-before.bin`,
+`tmp/c89-chunk-save-after.bin` and `tmp/c89-chunk-save-output-comparison.json`.
+
+Final Studio/Marcus builds were held fixed during capture. Evidence is in
+`tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T105451Z-d1ed0d49` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T105918Z-d36600ef` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding file-policy suites `20261112T103136Z-1ea36fb4` and
+`20261112T103649Z-359097ec`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-chunk-save-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

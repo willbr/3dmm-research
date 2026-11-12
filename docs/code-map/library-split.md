@@ -421,6 +421,33 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Chunk index persistence
+
+`three_mm_chunk_write_index` now owns the CHN2 index-commit policy shared by
+Studio and Marcus: checked index/free-map positions, the exact 128-byte v5/
+back-v4 prefix, byte order and zeroed reserved fields. It writes the index,
+optional free map, then the prefix. The native `_FWriteIndex` supplies collection
+serialization callbacks, which already use C89 collection headers/storage, and
+physical file writes. This removes native struct layout from prefix writing.
+
+The operation retains physical trailing bytes and does not flush, truncate or
+promise an atomic write. Failed index/map callbacks suppress prefix publication;
+a failed prefix callback can already have changed bytes. Optional output metadata
+is published only on success. Invalid extents, missing required callbacks and
+signed-32-bit file-position overflow are rejected before any callback.
+
+Native regression snapshots freeze twenty complete outputs across five payload
+sizes: an interior free map, shortened index, compacted save-a-copy and read-only
+save-as. All 10,570 pre/post bytes match. Standalone C checks independently
+reproduce the twenty native prefixes (FNV32 `0x012f9b07`), round-trip both byte
+orders and map-presence cases, inject every commit-stage failure and check size
+limits, untouched guards and the maximum signed file position. They also pass
+under MSVC AddressSanitizer.
+
+Whole-file save relocation and index mutation, filesystem rename/swap recovery,
+file lifetime and free-space allocation remain native. This is an index-commit
+slice, not a completed container editor or whole-engine conversion.
+
 ### Piece write windows and file-text conversion
 
 `three_mm_piece_table_write` in `piece_table.c` owns piece selection, both storage

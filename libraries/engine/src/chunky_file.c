@@ -65,6 +65,58 @@ int three_mm_chunk_read_header(const ThreeMMReadStream *stream, ThreeMMChunkHead
     *header = result;
     return THREE_MM_CHUNK_OK;
 }
+static void write16(unsigned char *bytes, unsigned int value, int big)
+{
+    bytes[big ? 1 : 0] = (unsigned char)value;
+    bytes[big ? 0 : 1] = (unsigned char)(value >> 8);
+}
+static void write32(unsigned char *bytes, ThreeMMU32 value, int big)
+{
+    int i;
+    for (i = 0; i < 4; ++i)
+        bytes[big ? 3 - i : i] = (unsigned char)(value >> (8 * i));
+}
+int three_mm_chunk_write_index(const ThreeMMChunkSave *save, const ThreeMMChunkWriter *writer,
+                               ThreeMMChunkHeader *committed)
+{
+    unsigned char bytes[THREE_MM_CHUNK_PREFIX_BYTES];
+    ThreeMMChunkHeader header;
+    if (!save || !writer || !writer->index || !writer->prefix || (save->map_bytes && !writer->map) ||
+        (save->big_endian != 0 && save->big_endian != 1) || save->system < -32768 || save->system > 32767 ||
+        save->index_offset < sizeof(bytes) || save->index_offset > 0x7fffffffUL || !save->index_bytes ||
+        save->index_bytes > 0x7fffffffUL - save->index_offset ||
+        save->map_bytes > 0x7fffffffUL - save->index_offset - save->index_bytes)
+        return THREE_MM_CHUNK_BAD_FILE;
+    header.creator = save->creator;
+    header.version = THREE_MM_CHUNK_CURRENT_VERSION;
+    header.backward_version = THREE_MM_CHUNK_BACKWARD_VERSION;
+    header.big_endian = save->big_endian;
+    header.system = save->system;
+    header.index_offset = save->index_offset;
+    header.index_bytes = save->index_bytes;
+    header.map_offset = header.index_offset + header.index_bytes;
+    header.map_bytes = save->map_bytes;
+    header.logical_end = header.map_offset + header.map_bytes;
+    memset(bytes, 0, sizeof(bytes));
+    memcpy(bytes, "CHN2", 4);
+    write32(bytes + 4, header.creator, header.big_endian);
+    write16(bytes + 8, (unsigned)header.version, header.big_endian);
+    write16(bytes + 10, (unsigned)header.backward_version, header.big_endian);
+    write16(bytes + 12, 1, header.big_endian);
+    write16(bytes + 14, (unsigned)header.system, header.big_endian);
+    write32(bytes + 16, header.logical_end, header.big_endian);
+    write32(bytes + 20, header.index_offset, header.big_endian);
+    write32(bytes + 24, header.index_bytes, header.big_endian);
+    write32(bytes + 28, header.map_offset, header.big_endian);
+    write32(bytes + 32, header.map_bytes, header.big_endian);
+    if (!writer->index(writer->context, header.index_offset, header.index_bytes) ||
+        (header.map_bytes && !writer->map(writer->context, header.map_offset, header.map_bytes)) ||
+        !writer->prefix(writer->context, bytes, sizeof(bytes)))
+        return THREE_MM_CHUNK_IO;
+    if (committed)
+        *committed = header;
+    return THREE_MM_CHUNK_OK;
+}
 int three_mm_chunk_at(const ThreeMMChunkAccess *access, ThreeMMU32 position, ThreeMMChunkEntry *entry)
 {
     ThreeMMChunkEntry result;

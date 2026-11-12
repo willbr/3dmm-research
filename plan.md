@@ -108,8 +108,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - FileByteStream destination-window orchestration and FileLocation text/BOM/
   encoding-selection policy now use C89, with bounded fallback buffers and
   explicit guards for legacy write-window overshoot. Host code-page conversion
-  remains a callback. Container persistence, codec registration and remaining
-  primitive service adapters are next.
+  remains a callback.
+- CHN2 index persistence now computes index/free-map positions, serializes the
+  fixed prefix and commits index, optional free map and header in C89. Existing
+  collection serialization remains shared. Whole-file relocation, filesystem
+  rename/recovery, codec registration and remaining primitive adapters are next.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

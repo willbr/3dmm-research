@@ -115,6 +115,59 @@ static void TestReadOnlyEmptyChunkSave()
     ReleasePpo(&file);
 }
 
+static void TestChunkPersistence()
+{
+    FILE *snapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_CHUNK_SAVE_SNAPSHOT"))
+    {
+        snapshot = std::fopen(path, "wb"); Check(snapshot != nullptr);
+    }
+    byte payload[1024], bytes[16384];
+    for (unsigned i = 0; i < sizeof(payload); ++i) payload[i] = static_cast<byte>(i * 37 + i / 13);
+    auto capture = [&](Filename &name) {
+        auto raw = FileObject::PfilOpen(&name);
+        Check(raw && raw->FpMac() < sizeof(bytes));
+        const LegacyLong count = raw->FpMac();
+        Check(raw->FReadRgb(bytes, count, 0));
+        if (snapshot)
+        {
+            Check(std::fwrite(&count, sizeof(count), 1, snapshot) == 1);
+            Check(std::fwrite(bytes, 1, count, snapshot) == static_cast<size_t>(count));
+        }
+        ReleasePpo(&raw);
+    };
+    for (LegacyLong length : {0L,1L,3L,257L,1024L})
+    {
+        Filename source, copy, destination;
+        Check(source.FGetTemp() && copy.FGetTemp() && destination.FGetTemp());
+        auto file = ChunkyFile::PcflCreate(&source, fcflWriteEnable);
+        ChunkNumber first, hole, last;
+        Check(file && file->FAddPv(payload, length, 'TEST', &first));
+        Check(file->FAddPv(payload, 17, 'TEST', &hole) && file->FAddPv(payload, 31, 'TEST', &last));
+        String name(PszLit("Persistent chunk name"));
+        Check(file->FSetName('TEST', first, &name));
+        file->Delete('TEST', hole); // Interior free space, including an empty first chunk.
+        Check(file->FSave('SAVE'));
+        capture(source);
+        Check(file->FSetName('TEST', first, nullptr) && file->FSave('NEXT'));
+        capture(source); // Shorter index retains physical trailing bytes.
+        Check(file->FSaveACopy('COPY', &copy));
+        capture(copy);
+        ReleasePpo(&file);
+        file = ChunkyFile::PcflOpen(&source, fcflNil);
+        Check(file && file->FSave('AS  ', &destination));
+        capture(destination);
+        file->SetTemp(true); ReleasePpo(&file);
+        file = ChunkyFile::PcflOpen(&copy, fcflNil);
+        DataBlock block;
+        Check(file && file->FFind('TEST', first, &block) && block.Cb() == length);
+        Check(block.FRead(bytes) && !std::memcmp(bytes, payload, length));
+        file->SetTemp(true); ReleasePpo(&file);
+        Check(source.FDelete());
+    }
+    if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
 static void TestCommandReplay()
 {
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
@@ -3353,6 +3406,7 @@ int main()
     TestBlockCopies();
     TestBlockMaterialization();
     TestFilePolicies();
+    TestChunkPersistence();
     TestPieceEdits();
     TestRichTextPersistence();
     TestReadOnlyEmptyChunkSave();

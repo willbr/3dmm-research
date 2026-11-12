@@ -112,8 +112,6 @@ const auto kcvnMinGrfcrp = 4;
 const auto kcvnMinSmallIndex = 4;
 const auto kcvnMinForest = 5;
 
-const LegacyLong klwMagicChunky = BigLittle('CHN2', '2NHC'); // chunky file signature
-
 // chunky file prefix. Fixed 128-byte wire format on every architecture.
 // FilePosition fields and trailing reserved array are pinned to int32_t so
 // LP64 doesn't silently widen the file header.
@@ -1556,38 +1554,44 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 /***************************************************************************
     Write the chunky index and free map to the end of the file.
 ***************************************************************************/
+namespace {
+struct ChunkIndexOutput
+{
+    PFileObject file;
+    PGeneralGroup index;
+    PDynamicArray map;
+};
+int WriteChunkIndex(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
+{
+    auto output = static_cast<ChunkIndexOutput *>(context);
+    DataBlock block(output->file, offset, bytes);
+    return output->index->FWrite(&block);
+}
+int WriteChunkMap(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
+{
+    auto output = static_cast<ChunkIndexOutput *>(context);
+    DataBlock block(output->file, offset, bytes);
+    return output->map->FWrite(&block);
+}
+int WriteChunkPrefix(void *context, const void *bytes, size_t count)
+{
+    return static_cast<ChunkIndexOutput *>(context)->file->FWriteRgb(const_cast<void *>(bytes), count, 0);
+}
+}
 bool ChunkyFile::_FWriteIndex(ChunkTagOrType ctgCreator)
 {
     AssertBaseThis(0);
     AssertPo(_pggcrp, 0);
     AssertPo(_csto.pfil, 0);
 
-    ChunkyFilePrefix cfp;
-    DataBlock blck;
-
-    ClearPb(&cfp, size(cfp));
-    cfp.lwMagic = klwMagicChunky;
-    cfp.ctgCreator = ctgCreator;
-    cfp.dver.Set(kcvnCur, kcvnBack);
-    cfp.bo = kboCur;
-    cfp.osk = koskCur;
-
-    blck.Set(_csto.pfil, cfp.fpIndex = _csto.fpMac, cfp.cbIndex = _pggcrp->CbOnFile());
-    if (!_pggcrp->FWrite(&blck))
-        return fFalse;
-    cfp.fpMap = cfp.fpIndex + cfp.cbIndex;
-    if (_csto.pglfsm != pvNil)
-    {
-        AssertDo(blck.FMoveMin(cfp.cbIndex), 0);
-        AssertDo(blck.FMoveLim(cfp.cbMap = _csto.pglfsm->CbOnFile()), 0);
-        if (!_csto.pglfsm->FWrite(&blck))
-            return fFalse;
-    }
-    else
-        cfp.cbMap = 0;
-
-    cfp.fpMac = cfp.fpMap + cfp.cbMap;
-    return _csto.pfil->FWriteRgb(&cfp, size(cfp), 0);
+    const short one = 1;
+    ChunkIndexOutput output = {_csto.pfil, _pggcrp, _csto.pglfsm};
+    const ThreeMMChunkSave save = {ctgCreator, static_cast<ThreeMMU32>(_csto.fpMac),
+        static_cast<ThreeMMU32>(_pggcrp->CbOnFile()),
+        _csto.pglfsm ? static_cast<ThreeMMU32>(_csto.pglfsm->CbOnFile()) : 0,
+        reinterpret_cast<const byte *>(&one)[0] == 0, koskCur};
+    const ThreeMMChunkWriter writer = {&output, WriteChunkIndex, WriteChunkMap, WriteChunkPrefix};
+    return three_mm_chunk_write_index(&save, &writer, nullptr) == THREE_MM_CHUNK_OK;
 }
 
 /***************************************************************************

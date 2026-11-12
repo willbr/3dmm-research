@@ -1,4 +1,4 @@
-/* Chunk index reading and lookup converted from the original Kauai engine.
+/* Chunk index persistence and lookup converted from the original Kauai engine.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef THREE_MM_ENGINE_CHUNKY_FILE_H
 #define THREE_MM_ENGINE_CHUNKY_FILE_H
@@ -80,6 +80,27 @@ extern "C"
      * runtime width and expanded-index pre-swap compatibility checks. Names remain
      * encoded bytes; pre-v3 name conversion stays with the legacy text host. */
     int three_mm_chunk_read_header(const ThreeMMReadStream *stream, ThreeMMChunkHeader *header);
+    typedef struct ThreeMMChunkSave
+    {
+        ThreeMMU32 creator, index_offset, index_bytes, map_bytes;
+        int big_endian, system;
+    } ThreeMMChunkSave;
+    typedef struct ThreeMMChunkWriter
+    {
+        void *context;
+        int (*index)(void *, ThreeMMU32 offset, ThreeMMU32 bytes);
+        int (*map)(void *, ThreeMMU32 offset, ThreeMMU32 bytes);
+        int (*prefix)(void *, const void *bytes, size_t count);
+    } ThreeMMChunkWriter;
+    /* Commit the existing serialized index and optional free map, then publish a
+     * zero-reserved CHN2 v5/back-v4 prefix. No truncation, flush or rollback is
+     * implied: failed callbacks can leave partial body/prefix writes, as in retail.
+     * Validation precedes I/O. Callbacks are exact, synchronous and may not mutate
+     * or re-enter this request. Zero map_bytes omits the map callback. Optional
+     * committed output is unchanged on failure. Filesystem naming/ownership stays
+     * with the host; index/map serialization uses the existing collection backend. */
+    int three_mm_chunk_write_index(const ThreeMMChunkSave *save, const ThreeMMChunkWriter *writer,
+                                   ThreeMMChunkHeader *committed);
     int three_mm_chunk_index_open(const ThreeMMReadStream *stream, const ThreeMMChunkPolicy *policy,
                                   ThreeMMChunkIndex **index);
     void three_mm_chunk_index_close(ThreeMMChunkIndex *index);

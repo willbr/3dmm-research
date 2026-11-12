@@ -335,11 +335,214 @@ static void deep_graph(void)
     access.child = chain_child;
     CHECK(three_mm_chunk_validate_graph(&access, 65535) == THREE_MM_CHUNK_OK);
 }
+typedef struct WriteProbe
+{
+    unsigned char source[1024], output[1024];
+    ThreeMMU32 index_offset, index_bytes, map_bytes;
+    int calls, fail, dry;
+} WriteProbe;
+static int write_index(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
+{
+    WriteProbe *p = (WriteProbe *)context;
+    CHECK(++p->calls == 1 && offset == p->index_offset && bytes == p->index_bytes);
+    if (!p->dry)
+        memcpy(p->output + offset, p->source + offset, bytes);
+    return p->fail != p->calls;
+}
+static int write_map(void *context, ThreeMMU32 offset, ThreeMMU32 bytes)
+{
+    WriteProbe *p = (WriteProbe *)context;
+    CHECK(++p->calls == 2 && offset == p->index_offset + p->index_bytes && bytes == p->map_bytes);
+    if (!p->dry)
+        memcpy(p->output + offset, p->source + offset, bytes);
+    return p->fail != p->calls;
+}
+static int write_prefix(void *context, const void *bytes, size_t count)
+{
+    WriteProbe *p = (WriteProbe *)context;
+    CHECK(++p->calls == (p->map_bytes ? 3 : 2) && count == 128);
+    /* Failure may already have changed bytes; no atomic-write guarantee. */
+    memcpy(p->output, bytes, p->fail == p->calls ? 7 : count);
+    return p->fail != p->calls;
+}
+static void init_write(WriteProbe *p, const ThreeMMChunkSave *save)
+{
+    memset(p, 0, sizeof(*p));
+    memset(p->output, 0xa5, sizeof(p->output));
+    p->index_offset = save->index_offset;
+    p->index_bytes = save->index_bytes;
+    p->map_bytes = save->map_bytes;
+}
+static void writes(void)
+{
+    WriteProbe probe;
+    ThreeMMChunkWriter writer;
+    ThreeMMChunkSave save;
+    ThreeMMChunkHeader header, readback, sentinel;
+    ThreeMMMemoryStream stream;
+    ThreeMMChunkIndex *index;
+    ThreeMMChunkPolicy policy = {0, 0, 516};
+    ThreeMMU32 total, hash = 2166136261UL;
+    int big, map, fail, i, j;
+    static const ThreeMMU32 lengths[] = {0, 1, 3, 257, 1024};
+    static const ThreeMMU32 creators[] = {0x53415645UL, 0x4e455854UL, 0x434f5059UL, 0x41532020UL};
+    writer.context = &probe;
+    writer.index = write_index;
+    writer.map = write_map;
+    writer.prefix = write_prefix;
+    memset(&sentinel, 0x6b, sizeof(sentinel));
+    for (big = 0; big < 2; ++big)
+        for (map = 0; map < 2; ++map)
+        {
+            memset(&save, 0, sizeof(save));
+            save.creator = 0x54455354UL;
+            save.index_offset = 136;
+            save.big_endian = big;
+            save.system = 0x0303;
+            total = (ThreeMMU32)fixture(probe.source, big, big, 20, 5);
+            save.index_bytes = total - save.index_offset;
+            save.map_bytes = map ? 20 : 0;
+            for (fail = 0; fail <= (map ? 3 : 2); ++fail)
+            {
+                init_write(&probe, &save);
+                total = (ThreeMMU32)fixture(probe.source, big, big, 20, 5);
+                if (map)
+                {
+                    put32(probe.source + 16, total + 20, big);
+                    put32(probe.source + 32, 20, big);
+                    memset(probe.source + total, 0x3c, 20);
+                }
+                probe.fail = fail;
+                header = sentinel;
+                CHECK(three_mm_chunk_write_index(&save, &writer, &header) ==
+                      (fail ? THREE_MM_CHUNK_IO : THREE_MM_CHUNK_OK));
+                CHECK(probe.calls == (fail ? fail : (map ? 3 : 2)));
+                if (fail)
+                {
+                    CHECK(!memcmp(&header, &sentinel, sizeof(header)));
+                    if (fail < (map ? 3 : 2))
+                        for (i = 0; i < 128; ++i)
+                            CHECK(probe.output[i] == 0xa5);
+                    continue;
+                }
+                CHECK(!memcmp(probe.output, probe.source, 128));
+                CHECK(!memcmp(probe.output + 136, probe.source + 136, total + save.map_bytes - 136));
+                for (i = 128; i < 136; ++i)
+                    CHECK(probe.output[i] == 0xa5);
+                for (i = (int)(total + save.map_bytes); i < 1024; ++i)
+                    CHECK(probe.output[i] == 0xa5); /* No truncation/tail clearing. */
+                CHECK(three_mm_memory_stream_init(&stream, probe.output, sizeof(probe.output)));
+                CHECK(three_mm_chunk_read_header(&stream.stream, &readback) == THREE_MM_CHUNK_OK);
+                CHECK(readback.logical_end == header.logical_end && readback.creator == save.creator &&
+                      readback.big_endian == big && readback.map_bytes == save.map_bytes);
+                index = NULL;
+                CHECK(three_mm_chunk_index_open(&stream.stream, &policy, &index) == THREE_MM_CHUNK_OK);
+                three_mm_chunk_index_close(index);
+            }
+        }
+    /* Frozen prefixes from twenty native pre-conversion save outputs, including
+     * free maps, compacted copies, save-as and shortened physical files. */
+    for (i = 0; i < 5; ++i)
+        for (j = 0; j < 4; ++j)
+        {
+            save.creator = creators[j];
+            save.index_offset = lengths[i] + (j < 2 ? 176 : 159);
+            save.index_bytes = j == 0 ? 104 : 76;
+            save.map_bytes = j < 2 ? 20 : 0;
+            save.big_endian = 0;
+            save.system = 0x0303;
+            init_write(&probe, &save);
+            probe.dry = 1;
+            CHECK(three_mm_chunk_write_index(&save, &writer, NULL) == THREE_MM_CHUNK_OK);
+            for (big = 0; big < 128; ++big)
+                hash = (hash ^ probe.output[big]) * 16777619UL;
+        }
+    CHECK(hash == 0x012f9b07UL);
+    /* Validate all extents and required callbacks before touching the sink. */
+    for (i = 0; i < 12; ++i)
+    {
+        save.creator = 0xffffffffUL;
+        save.index_offset = 128;
+        save.index_bytes = 20;
+        save.map_bytes = 20;
+        save.big_endian = 0;
+        save.system = -32768;
+        writer.index = write_index;
+        writer.map = write_map;
+        writer.prefix = write_prefix;
+        switch (i)
+        {
+        case 0:
+            save.index_offset = 127;
+            break;
+        case 1:
+            save.index_offset = 0x80000000UL;
+            break;
+        case 2:
+            save.index_bytes = 0;
+            break;
+        case 3:
+            save.index_bytes = 0x80000000UL;
+            break;
+        case 4:
+            save.map_bytes = 0x80000000UL;
+            break;
+        case 5:
+            save.index_offset = 0x7ffffff0UL;
+            break;
+        case 6:
+            save.index_offset = 0x7fffffe0UL;
+            break;
+        case 7:
+            save.big_endian = 2;
+            break;
+        case 8:
+            save.system = 32768;
+            break;
+        case 9:
+            writer.index = NULL;
+            break;
+        case 10:
+            writer.map = NULL;
+            break;
+        case 11:
+            writer.prefix = NULL;
+            break;
+        }
+        init_write(&probe, &save);
+        header = sentinel;
+        CHECK(three_mm_chunk_write_index(&save, &writer, &header) == THREE_MM_CHUNK_BAD_FILE);
+        CHECK(!probe.calls && !memcmp(&header, &sentinel, sizeof(header)));
+    }
+    writer.index = write_index;
+    writer.map = NULL;
+    writer.prefix = write_prefix;
+    save.index_offset = 0x7fffffffUL - 20;
+    save.index_bytes = 20;
+    save.map_bytes = 0;
+    init_write(&probe, &save);
+    probe.dry = 1;
+    CHECK(three_mm_chunk_write_index(&save, &writer, &header) == THREE_MM_CHUNK_OK);
+    CHECK(header.logical_end == 0x7fffffffUL && header.creator == 0xffffffffUL && header.system == -32768);
+    /* Collection sections are individually bounded; a serialized index can
+     * exceed one section's 128-MiB limit. Commit extents use signed file bounds. */
+    writer.map = write_map;
+    save.index_offset = 128;
+    save.index_bytes = 0x08000014UL;
+    save.map_bytes = 0x0800000cUL;
+    init_write(&probe, &save);
+    probe.dry = 1;
+    CHECK(three_mm_chunk_write_index(&save, &writer, &header) == THREE_MM_CHUNK_OK);
+    CHECK(header.logical_end == 128 + save.index_bytes + save.map_bytes);
+    CHECK(three_mm_chunk_write_index(NULL, &writer, NULL) == THREE_MM_CHUNK_BAD_FILE);
+    CHECK(three_mm_chunk_write_index(&save, NULL, NULL) == THREE_MM_CHUNK_BAD_FILE);
+}
 int main(void)
 {
     wire_indexes();
     graphs();
     io_failures();
     deep_graph();
+    writes();
     return 0;
 }
