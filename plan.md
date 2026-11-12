@@ -197,8 +197,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   table handles from this state; physical table implementations remain adapters.
 - Actor value-state initialization, rewind/origin updates and pure events now
   use C89, together with route advancement/interpolation and guarded 16.16
-  arithmetic. Native state value translation, sequencers, pose/timeline/seek
-  evaluation, resource effects and editing still remain.
+  arithmetic. Native state value translation, pose/timeline/seek evaluation,
+  resource effects and editing still remain.
+- Actor one-frame command sequencing now uses C89-owned sequencer state. Entrance
+  pre-scan/order, acknowledgement protocol, sound suppression, cel latches, failure
+  continuation/abort and result flags execute in C. Native state/table adapters and
+  typed commands remain temporary facades.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -294,7 +298,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-actor sequencing, pose/timeline/seek evaluation and remaining stored-data persistence, alongside the remaining
+actor pose/timeline/seek evaluation and remaining stored-data persistence, alongside the remaining
 physical path/file adapters, then the editing, actor evaluation and rendering
 integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the

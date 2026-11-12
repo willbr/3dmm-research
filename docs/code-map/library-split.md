@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -669,7 +669,7 @@ reciprocal/saturation policy. It uses unsigned 16-bit partial products and binar
 long division, with no C99 integer types or floating-point approximation. The native
 adapter asserts fixed-point ABI and every copied route/event/transform layout.
 Native ActorFrameState still translates its value fields into/out of the C record;
-this temporary facade, remaining sequencing/pose/timeline/seek logic and physical
+this temporary facade, remaining pose/timeline/seek logic and physical
 table services must be removed as migration continues.
 
 `engine-actor-motion-test` covers fixed-point boundary cases, subroute termination,
@@ -679,6 +679,38 @@ native checks and MSVC AddressSanitizer pass. Native checks compare 4,096 arithm
 pairs against BRender and match new 33,384-byte route/arithmetic and 4,142-byte state
 snapshots. All twenty-one binary snapshots and 51 CLI baselines match. No Marcus UI
 tests were added.
+
+### Actor frame command sequencing
+
+`actor_frame.c` owns one-frame sequencing in `ThreeMMActorFrame`. C advances the
+route, prescans entrances, emits entrance queries and event commands, accepts host
+acknowledgements and computes final result flags. Host effects still execute
+between Next and Complete; typed native commands/results and state translation
+are temporary facades. The host may refresh event frame caches and state but
+cannot structurally edit the borrowed tables or increment the event cursor.
+
+C retains ordinary versus ordered entrance handling, initial freeze latching,
+Action cel suppression, terminal-route cel rules and X/Z-based rotation selection.
+Ordinary sounds are skipped during hidden frames or sound suppression while
+motion-match registrations still produce commands. Displayed suppressed sounds
+still set soundInFrame. Ordinary failure marks failure and advances the scan while
+retaining nextEvent; following commands deliberately target that retained cursor.
+Entrance failure aborts without final body/pose/cel work.
+
+Next rejects an unanswered entrance query without changing storage/output, while
+an event command can be fetched repeatedly until acknowledged. Complete rejects
+an empty pending slot without changes. All policy executes in C; callbacks only
+read table metadata/rows. State conversion helpers are shared with native value/
+route adapters. Pose, timeline, seek, host effects and editing remain migration work.
+
+`engine-actor-frame-test` exercises entrance order, protocol rejection, repeated
+requests, both entrance abort paths, ordinary retry ordering, all sound display/
+suppression combinations, recording/rejoining, freeze/action latches, vertical
+motion and terminal-route behavior. Thirty-eight standalone C checks, fifty-one
+focused native checks and MSVC AddressSanitizer pass. Twenty-two binary snapshots
+and all 51 CLI baselines match, including a new 170,230-byte native frame trace
+covering command/state/result/effect records during sequential playback and seeks.
+No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

@@ -3,6 +3,7 @@
 #ifndef ACTOR_FRAME_H
 #define ACTOR_FRAME_H
 #include "actor_state.h"
+#include "three_mm/actor_frame.h"
 
 struct ActorFrameInputs
 {
@@ -64,34 +65,10 @@ class ActorFrameEvaluator
     static bool FSubrouteEventsDone(const ActorTrack &track, LegacyLong index, RouteLocation location);
 
   private:
-    enum class Phase
-    {
-        Entrances,
-        Events,
-        Done
-    };
-    enum class Pending
-    {
-        None,
-        EntranceQuery,
-        EntranceEvent,
-        OrderedEntranceQuery,
-        OrderedEntranceEvent,
-        Event
-    };
     ActorFrameState &_state;
     const ActorTrack &_track;
-    ActorFrameInputs _inputs;
+    ThreeMMActorFrame _sequence = {};
     ActorFrameResult _result;
-    Phase _phase;
-    Pending _pending = Pending::None;
-    LegacyLong _scan = 0;
-    LegacyLong _entranceScan;
-    LegacyLong _entrance = ivNil;
-    bool _freezeCel;
-    bool _endRoute;
-    RoutePoint _oldPosition;
-    void _Finish();
-    void _Abort();
+    void _SyncResult();
 };
 #endif

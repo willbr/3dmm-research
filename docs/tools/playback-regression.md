@@ -2419,3 +2419,62 @@ image changes. Both baselines use the same movie SHA-256. Movie, ISO-resource an
 Marcus-content hashes remain unchanged. The comparison is
 `tmp/c89-actor-motion-events-comparison.json`. These six captures extend the nine
 above; the actor-event baseline is older than the immediately preceding build.
+
+## C89 actor frame sequencing (12 November 2026)
+
+Actor one-frame sequencing now uses C-owned sequencer state: route advance,
+entrance queries, event commands, acknowledgements, cel latches, sound filtering,
+failure continuation/abort and final result flags execute in C89. Hosts still
+apply requested effects; native state translation, typed commands/results and
+physical table operations remain adapters. Pose/timeline/seek control and editing
+remain migration work. See the
+[implementation boundary](../code-map/library-split.md#actor-frame-command-sequencing).
+
+Thirty-eight standalone C checks, fifty-one focused native checks and MSVC
+AddressSanitizer pass. Checks cover entrance ordering, query/event protocol,
+ordinary-failure cursor retention, entrance aborts, recording/rejoining, hidden/
+suppressed ordinary sounds versus motion-match registration, initial freeze/Action
+cel latches, vertical movement and terminal-route rules. All twenty-two binary
+snapshots match, including a new 170,230-byte command/state/result/effect trace
+from native sequential-playback and seek scenarios plus twenty-one prior
+snapshots. The trace serializes fields without native padding. All 51 CLI
+baselines match, including six asset indexes covering 20,568 entries. No Marcus
+UI tests were added.
+
+Evidence includes `tmp/c89-actor-frame-before.bin`, `tmp/c89-actor-frame-after.bin`,
+`tmp/c89-actor-frame-snapshot-comparison.json`,
+`tmp/c89-actor-frame-output-comparison.json` and `tmp/c89-actor-frame-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence is
+in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T205341Z-f0ca8c87` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T205913Z-56bc5122` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding motion-kernel suites `20261112T202116Z-57a9fe56` and
+`20261112T202443Z-9d7e49de`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-actor-frame-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.
+
+The existing `actor-events` movie also ran in all three players, in both seek and
+continuous playback, to exercise rotation, scale, stretch, freeze and entrance/
+exit behavior. Suite `20261112T210026Z-7ffde7d1` completed all six runs without
+capture failures (verdict `different`, six different and five inconclusive
+components). Against preceding actor-event suite `20261112T202637Z-00e43c69`,
+all 180 seek images match exactly. All six runs preserve 60 authored frame
+positions and 60 ordered image changes. Movie, ISO-resource and Marcus-content
+hashes remain unchanged. The report is
+`tmp/c89-actor-frame-events-comparison.json`; these six captures extend the nine
+above, for fifteen successful captures across the three cases.

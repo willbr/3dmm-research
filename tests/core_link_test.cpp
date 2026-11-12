@@ -2596,15 +2596,42 @@ struct FrameTrace
     LegacyLong refreshed = 0;
 };
 
+static FILE *actorFrameSnapshot = nullptr;
+static bool actorFrameSnapshotInitialized = false;
+static void RecordActorFrameBytes(const void *p, size_t n)
+{
+    if (actorFrameSnapshot) Check(std::fwrite(p, 1, n, actorFrameSnapshot) == n);
+}
+static void RecordActorFrameState(const ActorFrameState &s)
+{
+    if (!actorFrameSnapshot) return;
+    int flags[] = {s.onStage,s.frozen,s.useCurrentRotation}; RecordActorFrameBytes(flags,sizeof(flags));
+    LegacyLong values[] = {s.step,s.action,s.celCount,s.cel,s.frame,s.nextEvent,s.firstEventInFrame,s.actionEvent,s.addEvent};
+    RecordActorFrameBytes(values,sizeof(values)); RecordActorFrameBytes(&s.actionFlags,4);
+    RecordActorFrameBytes(&s.routeTranslation,12); RecordActorFrameBytes(&s.subrouteTranslation,12);
+    RecordActorFrameBytes(&s.location,12); RecordActorFrameBytes(&s.position,12);
+    RecordActorFrameBytes(&s.transform.bmat34Fwd,48); RecordActorFrameBytes(&s.transform.aevpull,12);
+    RecordActorFrameBytes(&s.transform.rScaleStep,4); RecordActorFrameBytes(&s.transform.bmat34Cur,48);
+    RecordActorFrameBytes(&s.transform.xaPath,2); RecordActorFrameBytes(&s.transform.yaPath,2); RecordActorFrameBytes(&s.transform.zaPath,2);
+}
+
 // A headless resource/effect adapter with fixed action facts. No renderer,
 // audio device or application is involved; sound requests are counted only.
 static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, const ActorFrameInputs &inputs,
                                      bool dirty, FrameTrace &trace)
 {
+    if (!actorFrameSnapshotInitialized) {
+        actorFrameSnapshotInitialized = true;
+        if (const char *path = std::getenv("THREE_MM_ACTOR_FRAME_SNAPSHOT")) { actorFrameSnapshot = std::fopen(path,"wb"); Check(actorFrameSnapshot); }
+    }
+    LegacyLong inputValues[] = {inputs.firstFrame,inputs.step,inputs.stepSucceeded,inputs.recording,inputs.rejoining,inputs.displayFrame,inputs.suppressSounds,dirty};
+    RecordActorFrameBytes(inputValues,sizeof(inputValues)); RecordActorFrameState(state);
     ActorFrameEvaluator evaluator(state, track, inputs, dirty);
     for (;;)
     {
         ActorFrameCommand command = evaluator.Next();
+        LegacyLong commandValues[] = {static_cast<LegacyLong>(command.kind),command.eventIndex};
+        RecordActorFrameBytes(commandValues,sizeof(commandValues)); RecordActorFrameState(state);
         if (command.kind == ActorFrameCommandKind::Finished)
             break;
         Check(trace.count < 128);
@@ -2691,6 +2718,10 @@ static ActorFrameResult RunCoreFrame(ActorFrameState &state, ActorTrack &track, 
         BMAT34 matrix;
         ActorPoseEvaluator::Update(state, track, poseInputs, &state.position, &matrix);
     }
+    int flags[] = {result.success,result.aborted,result.positionDirty,result.soundInFrame,result.considerMotionSounds,result.positionBody,result.updatePose,result.selectCel};
+    RecordActorFrameBytes(flags,sizeof(flags)); RecordActorFrameState(state);
+    LegacyLong effects[] = {trace.ordinarySounds,trace.motionRegistrations,trace.failures,trace.refreshed};
+    RecordActorFrameBytes(effects,sizeof(effects));
     return result;
 }
 
@@ -4254,6 +4285,7 @@ int main()
     TestMoviePlaybackControl();
     TestMoviePlayStartup();
     TestTextBoxPersistence();
+    if (actorFrameSnapshot) Check(std::fclose(actorFrameSnapshot) == 0);
 #endif
     return 0;
 }

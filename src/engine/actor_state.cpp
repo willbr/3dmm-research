@@ -3,53 +3,7 @@
 #include "soc_core.h"
 #include "engine_actor_motion.h"
 ASSERTNAME
-namespace
-{
-ThreeMMActorState Core(const ActorFrameState &native)
-{
-    ThreeMMActorState out = {};
-    out.onStage = native.onStage;
-    out.frozen = native.frozen;
-    out.useCurrentRotation = native.useCurrentRotation;
-    out.step = native.step;
-    out.action = native.action;
-    out.celCount = native.celCount;
-    out.cel = native.cel;
-    out.frame = native.frame;
-    out.nextEvent = native.nextEvent;
-    out.firstEventInFrame = native.firstEventInFrame;
-    out.actionEvent = native.actionEvent;
-    out.addEvent = native.addEvent;
-    out.actionFlags = native.actionFlags;
-    std::memcpy(&out.routeTranslation, &native.routeTranslation, sizeof(out.routeTranslation));
-    std::memcpy(&out.subrouteTranslation, &native.subrouteTranslation, sizeof(out.subrouteTranslation));
-    std::memcpy(&out.location, &native.location, sizeof(out.location));
-    std::memcpy(&out.position, &native.position, sizeof(out.position));
-    std::memcpy(&out.transform, &native.transform, sizeof(out.transform));
-    return out;
-}
-void Publish(ActorFrameState &native, const ThreeMMActorState &value)
-{
-    native.onStage = value.onStage != 0;
-    native.frozen = value.frozen != 0;
-    native.useCurrentRotation = value.useCurrentRotation != 0;
-    native.step = value.step;
-    native.action = value.action;
-    native.celCount = value.celCount;
-    native.cel = value.cel;
-    native.frame = value.frame;
-    native.nextEvent = value.nextEvent;
-    native.firstEventInFrame = value.firstEventInFrame;
-    native.actionEvent = value.actionEvent;
-    native.addEvent = value.addEvent;
-    native.actionFlags = value.actionFlags;
-    std::memcpy(&native.routeTranslation, &value.routeTranslation, sizeof(value.routeTranslation));
-    std::memcpy(&native.subrouteTranslation, &value.subrouteTranslation, sizeof(value.subrouteTranslation));
-    std::memcpy(&native.location, &value.location, sizeof(value.location));
-    std::memcpy(&native.position, &value.position, sizeof(value.position));
-    std::memcpy(&native.transform, &value.transform, sizeof(value.transform));
-}
-} // namespace
+using namespace EngineActorMotion;
 ActorFrameState::ActorFrameState()
 {
     ThreeMMActorState value;
