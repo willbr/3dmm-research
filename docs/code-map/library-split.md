@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -424,6 +424,41 @@ and successful/failed conversion commits. The same check runs under MSVC
 AddressSanitizer. Native core checks compare the complete pre-conversion bytes
 and exercise the real failed-memory-to-file fallback.
 
+### Persistent container owner state
+
+`chunk_owner.c` owns the persistent container record: main/extra file and index
+references, free-space maps, compact runtime cache, flags and deferred-map
+positions. `ChunkyFile` retains this C record and typed borrowed getters; its
+native storage structs, bitfields and duplicated reopen-state publication are
+removed. The owner initializes explicitly, is unique and cannot be copied or
+moved. Expanded-index owners omit compact runtime initialization/disposal.
+
+Reopen and disposal operate directly on the live C file/index/map record.
+Callbacks see the cleared/new/restored state at the existing publication points.
+Failed reopen restores prior owners and runtime cache, while retaining last-read
+deferred-map positions as before. Mark/add/read flags survive reopen unchanged.
+Save transaction views borrow aliases to owner references, without retaining or
+creating independent owners. C publication updates only file/map/end/invalid/add/
+unread fields; index, mark/read flags, deferred positions and runtime cache survive.
+The existing save policy publishes before releasing replaced references.
+
+C also owns option latching, storage-policy views and file error aggregation /
+reset. Errors query main then extra; resetting lowers only levels above the
+requested value and retains the original callback order. Native services provide
+physical file flags, I/O, index creation and reference-count primitives. The
+GeneralGroup index object and native chunk-record adapters remain C++ migration
+work; this does not complete the engine or container backend.
+
+`engine-chunk-owner-test` checks successful reopen and read/validation failure
+with live state aliases, guard denial, compact-cache restoration, expanded-owner
+state, partial-owner cleanup and repeated disposal. It checks option-read
+callback visibility, save publication preserving unrelated state, lock guards,
+and 1,000 error-level/reset combinations with callback ordering. MSVC
+AddressSanitizer passes. All nine native snapshots and 51 CLI baselines remain
+exact. Twenty-six standalone and thirty-nine focused native checks pass.
+Expanded-index runtime integration remains unverified; native statistics and
+expanded-index variants compile with `/Zs`.
+
 ### Container registry and forest destination construction
 
 `chunk_context.c` owns container registry links through explicit independent C
@@ -437,8 +472,9 @@ after associated-resource disposal and before freeing owner storage.
 BaseLinkedList storage and native registry head. Its temporary native facade
 supplies a default process context; the C API supports independent contexts.
 `PcflFirst`/`PcflNext` keep their borrowed traversal contract. Existing C marked/
-zero-reference cleanup policy traverses those links. Native class allocation,
-typed owner/index state and other object adapters remain to be converted.
+zero-reference cleanup policy traverses those links. Persistent owner state is
+converted above. Native class allocation, typed index primitives and other object
+adapters remain to be converted.
 
 `three_mm_chunk_construct_forest` owns destination construction. Copied imports
 create a temporary file and reserve the 128-byte prefix. Borrowed imports retain
@@ -489,7 +525,7 @@ at 192 MiB each without allocating those payloads.
 primitives, diagnostics, file blocks and readers. Reader identity is passed as a
 function pointer and cast back before host comparison/calling; C never converts
 function pointers to data pointers or orders them. GenericHQ and generic-object
-wrappers remain native adapters. Native owner-state/index replacement, tag ownership and engine objects remain
+wrappers remain native adapters. Native index/chunk-record replacement, tag ownership and engine objects remain
 migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
@@ -530,9 +566,9 @@ creation and saves; native checks also cover repeated open, corrupt-file rejecti
 and temporary deletion. All previous snapshots remain exact. Native statistics
 and expanded-index variants compile; expanded-index runtime remains unverified.
 
-Native class allocation and typed owner/index adapters still exist. Registry links
-and forest destination construction now use C above; replacing the remaining
-native owner state is necessary for a complete C-only backend.
+Native class allocation and typed index/chunk-record adapters still exist.
+Registry links, forest destination construction and persistent owner state now
+use C above; replacing the index adapters remains necessary for a C-only backend.
 
 ### Container options, flags and reopen ownership
 
@@ -571,7 +607,7 @@ routing, loading, string and forest snapshots remain exact. Statistics and
 expanded-index variants compile; expanded-index runtime remains unverified.
 
 Construction and associated-resource disposal now use C above. Native class/
-typed owner/index adapters still prevent a standalone C backend.
+typed index/chunk-record adapters still prevent a standalone C backend.
 
 ### Storage selection and read-through caching
 
@@ -607,7 +643,7 @@ The native statistics and expanded-index variants compile with `/Zs`. The
 expanded variant exposed a pre-existing duplicate mask name; its alias now uses
 `kbomCrp`, as the compact branch does. This is compile coverage, not expanded-index
 runtime validation. Container option/flag/reopen policy now uses C above; native
-native owner-state/index adapters still require conversion.
+native index/chunk-record adapters still require conversion.
 
 ### Index materialization and owning free maps
 
@@ -947,7 +983,7 @@ and explicit signature/no-op behavior. It also passes under MSVC AddressSanitize
 Native core tests compare the complete pre-conversion snapshot using the real
 code-page and file services.
 
-Primitive memory/file services, native owner-state/index adapters and
+Primitive memory/file services, native index/chunk-record adapters and
 engine objects still prevent a complete C-only backend.
 
 ## Why the split exists

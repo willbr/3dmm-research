@@ -4,7 +4,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   include(CTest)
 endif()
 
-add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c src/block_owner.c src/file_text.c src/chunk_save.c src/chunk_heap.c src/chunk_edit.c src/chunk_graph.c src/chunk_ops.c src/chunk_metadata.c src/string_wire.c src/codec_registry.c src/chunk_forest.c src/chunk_loading.c src/chunk_storage.c src/chunk_lifecycle.c src/chunk_container.c src/chunk_context.c src/wide.c src/resource_cache.c src/resource_manager.c)
+add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c src/block_owner.c src/file_text.c src/chunk_save.c src/chunk_heap.c src/chunk_edit.c src/chunk_graph.c src/chunk_ops.c src/chunk_metadata.c src/string_wire.c src/codec_registry.c src/chunk_forest.c src/chunk_loading.c src/chunk_storage.c src/chunk_lifecycle.c src/chunk_container.c src/chunk_context.c src/chunk_owner.c src/wide.c src/resource_cache.c src/resource_manager.c)
 target_include_directories(three-mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -132,6 +132,11 @@ add_executable(engine-resource-cache-test EXCLUDE_FROM_ALL "${engine_resource_te
 target_link_libraries(engine-resource-cache-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-resource-cache-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-resource-cache COMMAND engine-resource-cache-test)
+get_filename_component(engine_chunk_owner_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_chunk_owner_test.c" ABSOLUTE)
+add_executable(engine-chunk-owner-test EXCLUDE_FROM_ALL "${engine_chunk_owner_test_source}")
+target_link_libraries(engine-chunk-owner-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-chunk-owner-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-chunk-owner COMMAND engine-chunk-owner-test)
 if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
@@ -166,8 +171,9 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunk_lifecycle.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunk_container.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunk_context.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/chunk_owner.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/wide.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/resource_cache.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/resource_manager.c"
-    "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_piece_test_source}" "${engine_codec_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}" "${engine_file_policy_test_source}" "${engine_chunk_save_test_source}" "${engine_chunk_heap_test_source}" "${engine_chunk_edit_test_source}" "${engine_chunk_graph_test_source}" "${engine_chunk_ops_test_source}" "${engine_metadata_test_source}" "${engine_forest_test_source}" "${engine_loading_test_source}" "${engine_chunk_storage_test_source}" "${engine_lifecycle_test_source}" "${engine_container_test_source}" "${engine_resource_test_source}")
+    "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_piece_test_source}" "${engine_codec_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}" "${engine_file_policy_test_source}" "${engine_chunk_save_test_source}" "${engine_chunk_heap_test_source}" "${engine_chunk_edit_test_source}" "${engine_chunk_graph_test_source}" "${engine_chunk_ops_test_source}" "${engine_metadata_test_source}" "${engine_forest_test_source}" "${engine_loading_test_source}" "${engine_chunk_storage_test_source}" "${engine_lifecycle_test_source}" "${engine_container_test_source}" "${engine_resource_test_source}" "${engine_chunk_owner_test_source}")
 endif()

@@ -1824,3 +1824,54 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 persistent container owner state (12 November 2026)
+
+The persistent container record now uses C89 for file/index references, free maps,
+compact runtime cache, flags and deferred-map positions. Native storage structs,
+bitfields and duplicate reopen-state publication are removed. Reopen/disposal
+operate on the live C record. Save publication, storage-policy views and file
+error aggregation/reset now use C as well. Native GeneralGroup index objects,
+chunk-record adapters and physical file/reference primitives remain dependencies.
+See the [implementation boundary](../code-map/library-split.md#persistent-container-owner-state).
+
+Twenty-six standalone C checks, thirty-nine focused native checks and MSVC
+AddressSanitizer pass. The new owner test checks successful reopen, read/validation
+rollback, writable/invalid-main guard denial, callback visibility, compact runtime
+restoration, expanded-owner state, partial cleanup and repeated disposal. Save
+publication preserves unrelated state; lock guards reject disposal before
+mutation. Error checks cover 1,000 main/extra/reset combinations and callback
+order. Native statistics and expanded-index variants compile with `/Zs`;
+expanded-index runtime integration remains unverified.
+
+All nine binary snapshots match: the 120-byte registry, 597-byte construction,
+56-byte lifecycle, 1,740-byte routing, 2,192-byte loading, 572,367-byte chunk,
+29,532-byte string, 1,594-byte forest and 1,624-byte resource-cache baselines.
+All 51 CLI baselines match, including six asset indexes covering 20,568 entries.
+Evidence includes `tmp/c89-owner-registry-after.bin`,
+`tmp/c89-owner-resource-after.bin`, `tmp/c89-owner-*-after.bin`,
+`tmp/c89-owner-output-comparison.json` and `tmp/c89-owner-asan.log`.
+No Marcus UI tests were added.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T163041Z-fc0766de` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T163404Z-47eeea2a` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding context suites `20261112T161703Z-903a37a1` and
+`20261112T162023Z-248551ea`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-owner-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

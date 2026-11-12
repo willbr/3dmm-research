@@ -25,6 +25,7 @@
 #include "three_mm/chunk_lifecycle.h"
 #include "three_mm/chunk_container.h"
 #include "three_mm/chunk_context.h"
+#include "three_mm/chunk_owner.h"
 
 struct ThreeMMChunkEdit;
 struct ThreeMMChunkEndpoint;
@@ -94,31 +95,10 @@ class ChunkyFile : public ChunkyFile_PAR
     MARKMEM
 
   private:
-    // chunk storage
-    struct ChunkStorage
-    {
-        PFileObject pfil;  // the file
-        FilePosition fpMac;   // logical end of file (for writing new chunks)
-        ThreeMMChunkFreeMap *free_map; // free space map
-    };
-
-    PGeneralGroup _pggcrp;     // the index
-    ChunkStorage _csto;      // the main file
-    ChunkStorage _cstoExtra; // the scratch file
-
-    bool _fAddToExtra : 1;
-    bool _fMark : 1;
-    int _fFreeMapNotRead;
-    bool _fReadFromExtra : 1;
-    bool _fInvalidMainFile : 1;
-
-    // for deferred reading of the free map
-    FilePosition _fpFreeMap;
-    LegacyLong _cbFreeMap;
-
-#ifndef CHUNK_BIG_INDEX
-    ThreeMMChunkRuntime _runtime;
-#endif //! CHUNK_BIG_INDEX
+    ThreeMMChunkOwner _owner;
+    PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
+    PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
+    PGeneralGroup _Index() { return static_cast<PGeneralGroup>(_owner.files.index); }
 
     // static member variables
     static ThreeMMChunkContext _context;
@@ -131,8 +111,6 @@ class ChunkyFile : public ChunkyFile_PAR
 
     static ThreeMMChunkConstruction _ConstructionServices(Filename *);
 
-    ThreeMMChunkReopenState _ReopenState();
-    void _PublishReopen(const ThreeMMChunkReopenState *);
     static ThreeMMChunkRegistry _RegistryServices();
     void _SetChunkFlag(ChunkTagOrType, ChunkNumber, ThreeMMU32, bool);
     bool _FReadIndex(void);
@@ -190,23 +168,23 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FSetGrfcfl(LegacyUlong grfcfl, LegacyUlong grfcflMask = (LegacyUlong)~0);
     void Mark(void)
     {
-        _fMark = fTrue;
+        _owner.marked = fTrue;
     }
     void SetTemp(bool f)
     {
-        _csto.pfil->SetTemp(f);
+        _MainFile()->SetTemp(f);
     }
     bool FTemp(void)
     {
-        return _csto.pfil->FTemp();
+        return _MainFile()->FTemp();
     }
     void GetFni(Filename *pfni)
     {
-        _csto.pfil->GetFni(pfni);
+        _MainFile()->GetFni(pfni);
     }
     bool FSetFni(Filename *pfni)
     {
-        return _csto.pfil->FSetFni(pfni);
+        return _MainFile()->FSetFni(pfni);
     }
     LegacyLong ElError(void);
     void ResetEl(LegacyLong el = elNil);
