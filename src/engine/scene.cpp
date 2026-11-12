@@ -528,10 +528,6 @@ Scene::Scene(PMovie pmvie)
     AssertNilOrPo(pmvie, 0);
 
     _pmvie = pmvie;
-    _data.currentFrame = 1;
-    _data.lastFrame = 1;
-    _data.firstFrame = 1;
-    _data.transition = transCut; // default transition
     _pglpactrSelExtra = pvNil;
 
     //
@@ -836,7 +832,7 @@ void Scene::AssertValid(LegacyUlong grf)
 
     Scene_PAR::AssertValid(fobjAllocated);
 
-    AssertPo(&_data.name, 0);
+    Assert(_data.name.count <= 255 && _data.name.unit == sizeof(achar), "bad scene name");
     AssertNilOrPo(_pactrSelected, 0);
     AssertNilOrPo(_pglpactrSelExtra, 0);
     if (_pglpactrSelExtra != pvNil)
@@ -945,7 +941,7 @@ bool Scene::FSetName(PString pstn)
 
     if (psunt != pvNil)
     {
-        psunt->SetName(&_data.name);
+        String oldName; _data.GetName(&oldName); psunt->SetName(&oldName);
     }
 
     if (psunt == pvNil)
@@ -3905,7 +3901,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
                 }
 
                 AssertPo(_pbkgd, 0);
-                _pbkgd->GetName(&_data.name);
+                String name; _pbkgd->GetName(&name); _data.SetName(&name);
                 goto LSuccess;
             }
         }
@@ -3933,7 +3929,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
     }
 
     AssertPo(_pbkgd, 0);
-    _pbkgd->GetName(&_data.name);
+    { String name; _pbkgd->GetName(&name); _data.SetName(&name); }
     _MarkMovieDirty();
 
 LSuccess:
@@ -4598,7 +4594,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Read Name
     //
-    pcfl->FGetName(kctgScen, cno, &pscen->_data.name);
+    pscen->_data.LoadName(pcfl, cno);
 
     AssertPo(pscen, 0);
 
@@ -6299,7 +6295,7 @@ bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptran
     SceneData metadata;
     if (!metadata.FRead(pcrf->Pcfl(), cno))
         return fFalse;
-    *ptrans = metadata.transition;
+    *ptrans = static_cast<TRANS>(metadata.transition);
     return fTrue;
 }
 

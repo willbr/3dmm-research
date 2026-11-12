@@ -223,11 +223,11 @@ class Scene : public Scene_PAR
     void SetMvie(PMovie pmvie); // Sets the associated movie.
     void GetName(PString pstn)    // Gets name of current scene.
     {
-        *pstn = _data.name;
+        _data.GetName(pstn);
     }
     void SetNameCore(PString pstn) // Sets name of current scene.
     {
-        _data.name = *pstn;
+        _data.SetName(pstn);
     }
     bool FSetName(PString pstn); // Sets name of current scene, and undo
     bool FChopCore(void);     // Chops off the rest of the scene.
@@ -245,7 +245,7 @@ class Scene : public Scene_PAR
     bool FSetTransition(TRANS trans); // Set the final transition to be and undo.
     TRANS Trans(void)
     {
-        return _data.transition;
+        return static_cast<TRANS>(_data.transition);
     } // Returns the transition setting.
     // These two operate a specific Scene chunk rather than a Scene in memory
     static bool FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans);

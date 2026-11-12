@@ -2223,3 +2223,50 @@ unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
 pixel/audio differences and timing/alignment limitations remain; this is
 preservation against the preceding build, not full retail parity or general
 repeatability from one repetition.
+
+## C89 scene state and event persistence (12 November 2026)
+
+Scene metadata and counted names now use C state. C owns header read/write,
+event-layout validation, frame/start child replacement, creation and cleanup.
+Live Scene, Archive and Preview use these shared paths through temporary native
+adapters. Group objects still wrap C collection storage; physical operations are
+host callbacks. Runtime scene objects, event marshalling/playback/editing and
+final facade removal remain migration work. See the
+[implementation boundary](../code-map/library-split.md#scene-state-and-event-persistence).
+
+Thirty-four standalone C checks, forty-seven focused native checks and MSVC
+AddressSanitizer pass. Checks cover both byte orders, signed frame limits,
+type/size rules, sound-array counts, metadata I/O/name failures, six event-list
+replacement failures, allocation failures and ordered cleanup. Validation retains
+legacy payload/frame-order acceptance. The existing native scene check still
+exercises actual archive allocation failures and preservation of old child links.
+All seventeen binary snapshots match, including a new 526-byte scene/name/header/
+event baseline and sixteen prior snapshots. All 51 CLI baselines match, including
+six asset indexes covering 20,568 entries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-scene-before.bin`, `tmp/c89-scene-after.bin`,
+`tmp/c89-scene-snapshot-comparison.json`, `tmp/c89-scene-output-comparison.json`
+and `tmp/c89-scene-asan.log`.
+
+Frozen Studio/Marcus builds were captured without concurrent builds. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261112T191948Z-6d4ffbd8` | `scrolling-text`, retail/SDL/Marcus seek and playback, one repetition | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261112T192401Z-3a37bc95` | `sampled-audio`, retail/SDL/Marcus playback, one repetition | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+Against preceding title/root suites `20261112T185329Z-fb5455e5` and
+`20261112T185640Z-e36976c1`, all 180 seek images match exactly. All nine runs
+preserve the same 60 authored frame positions and ordered exact image changes:
+scrolling retail/SDL 328 and Marcus 321, sampled audio 60 for each player.
+Only adjacent identical image/position records are collapsed; raw presentation
+samples and timestamps remain available. The report is
+`tmp/c89-scene-playback-comparison.json`.
+
+Observed PCM16 peaks remain 2380 for retail and 2176 for SDL/Marcus. These
+establish audible capture, not exact PCM preservation. All nine captures retain
+unchanged movie, ISO-resource and Marcus-content hashes. Existing cross-player
+pixel/audio differences and timing/alignment limitations remain; this is
+preservation against the preceding build, not full retail parity or general
+repeatability from one repetition.

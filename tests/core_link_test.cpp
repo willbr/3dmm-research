@@ -1513,7 +1513,7 @@ static void TestMoviePersistence()
         DataBlock block;
         SceneData sceneState;
         sceneState.lastFrame = 12;
-        sceneState.name.SetSzs(PszLit("Headless scene"));
+        String sceneName(PszLit("Headless scene")); sceneState.SetName(&sceneName);
         Check(sceneState.FCreate(file, &scene));
         Check(file->FAdd(sizeof(payload), kctgTmpl, &actorTemplate, &block));
         Check(block.FWriteRgb(payload, sizeof(payload), 0));
@@ -1764,9 +1764,28 @@ static void TestScenePersistence()
     scene.firstFrame = 3;
     scene.lastFrame = 18;
     scene.transition = transDissolve;
-    scene.name.SetSzs(PszLit("Scene data"));
+    String sceneName(PszLit("Scene data")); scene.SetName(&sceneName);
     ChunkNumber number;
     Check(scene.FCreate(file, &number));
+    FILE *sceneSnapshot = nullptr;
+    if (const char *path = std::getenv("THREE_MM_SCENE_DATA_SNAPSHOT")) { sceneSnapshot = std::fopen(path, "wb"); Check(sceneSnapshot); }
+    const auto recordScene = [&](SceneData &state) {
+        if (!sceneSnapshot) return;
+        uint32_t fields[] = {static_cast<uint32_t>(state.firstFrame), static_cast<uint32_t>(state.lastFrame),
+                             static_cast<uint32_t>(state.currentFrame), static_cast<uint32_t>(state.transition),
+                             static_cast<uint32_t>(state.name.count)};
+        Check(std::fwrite(fields, sizeof(fields), 1, sceneSnapshot) == 1);
+        Check(std::fwrite(three_mm_movie_title_text(&state.name), sizeof(achar), state.name.count, sceneSnapshot) == static_cast<size_t>(state.name.count));
+        DataBlock saved;
+        for (int part = 0; part < 3; ++part)
+        {
+            if (part == 0) Check(file->FFind(kctgScen, number, &saved));
+            else { ChildChunkIdentification child; Check(file->FGetKidChidCtg(kctgScen, number, part - 1, part == 1 ? kctgFrmGg : kctgStartGg, &child)); Check(file->FFind(child.cki.ctg, child.cki.cno, &saved)); }
+            byte bytes[2048]; uint32_t length = saved.Cb(); Check(length <= sizeof(bytes) && saved.FReadRgb(bytes, length, 0));
+            Check(std::fwrite(&length, sizeof(length), 1, sceneSnapshot) == 1 && std::fwrite(bytes, 1, length, sceneSnapshot) == length);
+        }
+    };
+    recordScene(scene);
     PGeneralGroup frames = GeneralGroup::PggNew(size(SceneEvent));
     PGeneralGroup starts = GeneralGroup::PggNew(size(SceneEvent));
     Check(frames != pvNil && starts != pvNil);
@@ -1795,7 +1814,8 @@ static void TestScenePersistence()
     SceneData loaded;
     Check(loaded.FRead(file, number));
     Check(loaded.firstFrame == 3 && loaded.lastFrame == 18 && loaded.currentFrame == 2);
-    Check(loaded.transition == transDissolve && loaded.name.FEqualSz(PszLit("Scene data")));
+    loaded.GetName(&sceneName); Check(loaded.transition == transDissolve && sceneName.FEqualSz(PszLit("Scene data")));
+    recordScene(loaded);
     ChildChunkIdentification child;
     Check(file->FGetKidChidCtg(kctgScen, number, 0, kctgFrmGg, &child));
     DataBlock block;
@@ -1869,6 +1889,7 @@ static void TestScenePersistence()
     Check(loaded.FRead(file, number) && loaded.transition == transDissolve);
     loaded.transition = transBlack;
     Check(loaded.FWrite(file, number));
+    recordScene(loaded);
     event = {3, sevtChngCamera};
     SwapBytesBom(&event, kbomSev);
     SwapBytesBom(&camera, kbomSceneLong);
@@ -1883,6 +1904,7 @@ static void TestScenePersistence()
     ReleasePpo(&frames);
     ReleasePpo(&starts);
     ReleasePpo(&file);
+    if (sceneSnapshot) Check(std::fclose(sceneSnapshot) == 0);
 }
 
 static void TestActorPersistence()

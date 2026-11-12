@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -552,6 +552,37 @@ title preservation on failed replacement. The native save/load check covers a
 cancelled save callback mutating the title. Thirty-three standalone C checks,
 forty-six focused native checks, MSVC AddressSanitizer, sixteen binary snapshots
 and all 51 CLI baselines pass. No Marcus UI tests were added.
+
+### Scene state and event persistence
+
+`scene_data.c` owns SceneData's frame cursor/range, transition and counted name.
+The native SceneData adapter inherits this C record without duplicate fields.
+Header decoding/writing and scene read/write/create policy use C. A failed read
+preserves all old state; a successful read sets the cursor to firstFrame minus one.
+Frame/transition acceptance and the 16-byte header remain unchanged. Header writes
+precede names and are not rolled back on name failure.
+
+C validates scene event fixed widths, signed payload lengths, type/size combinations
+and sound tag-array lengths in either byte order. It retains legacy acceptance
+of payload values and frame ordering. Event-list persistence validates both groups before file changes,
+adopts both new children before removing old links, and clears loner flags only
+after success. Failure cleanup proceeds frame then start, removing adopted links
+or newly created chunks as appropriate. Scene creation allocates both temporary
+groups before publishing nil, releases them in order, and removes a successfully
+created root on later failure.
+
+Live Scene, Archive and Preview continue through the native adapters to the same
+C state/validation/persistence. Native group objects still wrap C collection
+storage, and physical file/group operations remain host callbacks. Runtime scene
+objects, event marshalling/playback/editing and final facade removal remain work.
+
+`engine-scene-data-test` covers both byte orders, signed frame limits, event-size
+and sound-count rules, metadata read/write failures, six replacement failure stages,
+creation allocation failures and cleanup order. The existing native scene check
+still exercises actual archive allocation failures and retained old child links.
+Thirty-four standalone C checks, forty-seven focused native checks, MSVC
+AddressSanitizer, seventeen binary snapshots and all 51 CLI baselines pass. The
+new scene/name/header/event snapshot is 526 bytes. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

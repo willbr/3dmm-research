@@ -4,6 +4,7 @@
 #define SCENE_DATA_H
 #include "kauai_core.h"
 #include <cstdint>
+#include "three_mm/scene_data.h"
 
 enum TRANS
 {
@@ -70,13 +71,12 @@ const auto kbomScenh = 0x5FC00000;
 
 // Scene state shared by persistence and playback. currentFrame is a runtime
 // cursor; it is not stored in the scene header. Objects/audio live in Scene.
-struct SceneData
+struct SceneData : ThreeMMSceneState
 {
-    LegacyLong currentFrame = 1;
-    LegacyLong firstFrame = 1;
-    LegacyLong lastFrame = 1;
-    TRANS transition = transCut;
-    String name;
+    SceneData() { three_mm_scene_init(this, sizeof(achar)); }
+    void GetName(PString) const;
+    void SetName(PString);
+    void LoadName(PChunkyFile, ChunkNumber);
     bool FRead(PChunkyFile file, ChunkNumber number);
     bool FWrite(PChunkyFile file, ChunkNumber number);
     bool FCreate(PChunkyFile file, ChunkNumber *number);
