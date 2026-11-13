@@ -283,6 +283,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   ordering. Existing costume-duplication and failed-removal ownership quirks are
   preserved and documented. Copy/paste/clipboard integration and the remaining
   movie/scene/body/resource/runtime implementations still require conversion.
+- Full-actor and route-only copy now use C89 for event selection/merging,
+  sound-tag update sequencing, current-cel rewriting, relative event locations,
+  route slicing and failure cleanup. Native actor/template creation, movie
+  sound-tag resolution and underlying representations remain temporary engine
+  dependencies; paste and clipboard policy still need conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

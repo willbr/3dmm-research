@@ -40,6 +40,7 @@ using namespace BRender;
 #include "three_mm/actor_transform_edit.h"
 #include "three_mm/actor_owner.h"
 #include "three_mm/actor_transaction.h"
+#include "three_mm/actor_copy.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
@@ -184,6 +185,7 @@ class Actor : public Actor_PAR
     struct EditContext;
     static ThreeMMActorTransactionServices _TransactionServices(EditContext *);
     static ThreeMMActorDeleteServices _DeleteServices(EditContext *);
+    ThreeMMActorCopyServices _CopyServices();
     ThreeMMActorSoundEditServices _SoundEditServices();
     bool _FEnqueueSnd(long iaev);
     bool _FEnqueueSmmInMsq(void);

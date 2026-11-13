@@ -3734,3 +3734,76 @@ repetition does not establish general repeatability or full retail parity.
 Copy/paste/clipboard, movie/scene/body/resource implementations, queue/runtime
 integration and final facade removal remain unfinished. No Marcus UI tests
 were added.
+
+### Actor and route copying C89 conversion (13 November 2026)
+
+`actor_copy.c` owns full-actor/route-only copy policy: event filtering, current
+cel replacement, source sound-tag resolution/write ordering, relative event
+locations, subroute boundaries, route slicing and release-before-output-clear
+failure cleanup. Full copy preserves original node coordinates with shortened
+stored distance; route-only copy interpolates coordinates and recomputes the
+remaining distance, retaining epsilon 1 for zero length. Payloads stay locked
+across insertion and unlock before merge/destruction. Source sound-tag updates
+remain even if the sound is filtered out or a later copy operation fails.
+
+The 405,760-byte native-before trace `tmp/c89-copy-before.bin` matches exactly
+across 320 synthetic runtime scenarios in private movies. It covers both scopes,
+node offsets/holds/endpoints, earlier/future event selection, cached templates,
+owning material/sound tags, allocation/resolve failures, source/destination
+tables, rewound state and references. Pointers and Add padding are normalized
+only in serialization. Fixture sound chunks exercise mapping without decoding
+audio. C tests additionally cover locked payload views, partial resolve/insert
+failure, resize/reservation failure, current versus future action cels, BUG1950
+filtering, hold clamping, zero-row bulk copy, unknown-event diagnostics and
+interpolated/epsilon paths. No Marcus UI tests were added.
+
+Native actor/template creation and movie sound resolution remain C++ integration
+dependencies. Paste/clipboard, scene/body/resource/runtime implementations and
+facade removal still require conversion; this does not complete the backend.
+
+Both hosts build. All 57 standalone C checks (including strict C89 syntax), 71
+focused native checks and MSVC AddressSanitizer pass. All 42 snapshot comparisons
+and 51 CLI baselines match, and the headless scene/timeline check passes. Evidence
+includes `tmp/c89-copy-standalone.log`, `tmp/c89-copy-native-checks.log`,
+`tmp/c89-copy-asan.log`, `tmp/c89-copy-snapshot-comparison.json`,
+`tmp/c89-copy-output-comparison.json` and `tmp/c89-copy-timeline.log`.
+
+Both binaries were frozen before capture, without concurrent builds or
+compaction. Completed older captures and older build symbol/library files were
+transparently compressed beforehand to retain headroom on C:. Their contents,
+raw evidence and prior failed runs remain. SDL reused the recorded warm package
+cache with private processes, settings and working movies; OS caching remains
+uncontrolled. Same-player baselines are the preceding transaction suites:
+actor-audio `20261113T062938Z-fda4f0e1`, actor-events
+`20261113T063106Z-7d5beb21`, scrolling-text `20261113T063251Z-5cef53e5` and
+sampled-audio `20261113T063715Z-290bcbd6`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T071739Z-44096303` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T071943Z-6d08a35a` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T072143Z-04f39e28` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T072500Z-62e4e35f` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match each player's preceding results. Only adjacent
+identical position/image observations are collapsed; raw timestamps and
+observations remain. Actor cases retain 60 ordered changes per player;
+scrolling retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Retail/Marcus actor peaks remain
+3192/4081. SDL peaks at 4080 rather than the immediate baseline's 4081, within
+the one-unit range already observed with an unchanged binary in the ownership
+slice. The delta is retained explicitly; this does not prove its cause or exact
+peak equality. Scene-audio peaks remain 2380 retail and 2176 SDL/Marcus.
+Coverage/peaks do not establish exact waveform/timing parity.
+
+The combined report is
+`tmp/c89-copy-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with image/change counts and all before/after peaks in
+`tmp/c89-copy-playback-audit.json`. Raw evidence remains under
+`tmp/c89-movie-data-regression`. Existing cross-player differences remain; one
+repetition does not establish general repeatability or full retail parity.
+Paste/clipboard, movie sound resolution, actor/template creation, scene/body/
+resource/runtime implementations and final facade removal remain unfinished.

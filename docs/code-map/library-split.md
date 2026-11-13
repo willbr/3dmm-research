@@ -66,6 +66,7 @@ cmake --build build/engine-c89 --target engine-actor-owner-test
 cmake --build build/engine-c89 --target engine-actor-undo-test
 cmake --build build/engine-c89 --target engine-group-undo-test
 cmake --build build/engine-c89 --target engine-actor-transaction-test
+cmake --build build/engine-c89 --target engine-actor-copy-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1348,6 +1349,45 @@ undo registration, resource balance and native allocation failures. It matches
 exactly. Native object/resource/scene representations remain intermediate;
 copy/paste/clipboard, movie/scene/body/resource policy, queue runtime and facade
 removal still need conversion.
+
+### Actor and route copying
+
+`actor_copy.c` owns full-actor and route-only copy policy. Full copy selects
+earlier events from the current subroute, rewrites action cels to the current
+cel, resolves/writes source sound tags before deciding whether to retain each
+sound, filters Remove and older Tweak/RotateHere events, resets earlier event
+locations and inserts/merges them. Future events retain payloads, adjust route
+indices/offsets/holds and stop at the next Add for a subroute-only copy once the
+destination has events. The active BUG1950 setting is passed explicitly.
+
+Source payloads remain locked across insertion, including the action's stack
+replacement, and unlock before merge or failure destruction. Successful source
+sound-tag rewrites remain even when a later operation fails. Destination tag
+ownership uses the existing C insertion/merge/destruction implementations.
+Creation publishes the output; failure releases the partial actor before
+clearing it. Source actor state is read-only except those sound payload writes.
+
+Full copy keeps the current node's original coordinates and subtracts the
+current offset from its stored distance. Route-only copy interpolates the first
+point and recomputes distance to the next node with the existing external C
+BRender primitive, retaining epsilon 1 for zero length. Endpoints, subroute
+boundaries, bulk copy (including zero rows), reservation and rewind sequencing
+remain distinct between the operations.
+
+Native callbacks marshal typed payloads/tables and provide array operations,
+unapplied C event insertion/merge and C rewind. Native actor/template creation
+and movie sound-tag resolution are still temporary C++ engine dependencies, not
+final host interfaces or converted resource policy. Paste/clipboard, scene/body/
+resource/runtime implementation and final facade removal remain unfinished.
+
+`engine-actor-copy-test` checks locks, source mutation before filtering, partial
+resolution/insert failure, resource cleanup, result publication, optional BUG1950
+filtering, future offsets/holds, full versus interpolated points, epsilon and
+endpoint paths. The 405,760-byte native-before trace spans 320 synthetic runtime
+scenarios in private movies, including both copy scopes, cached templates,
+owning material/sound tags, allocation/resolve failures, tables, rewound state
+and reference counts. It matches exactly. Fixture sound chunks support tag
+mapping without decoding audio; the playback corpus supplies actual audio checks.
 
 ### Source names and directory discovery
 

@@ -30,226 +30,60 @@ RTCLASS(ActorUndo)
     the end of subroute or (if fEntireScene) the end of the scene
 
 ***************************************************************************/
+ThreeMMActorCopyServices Actor::_CopyServices()
+{
+    static_assert(sizeof(Sound)==sizeof(ThreeMMActorSound),"Copy sound ABI");
+    static_assert(sizeof(Action)==2*sizeof(ThreeMMI32),"Copy action ABI");
+    static_assert(sizeof(RouteDistancePoint)==sizeof(ThreeMMActorRoutePoint),"Copy point ABI");
+    ThreeMMActorCopyServices s{}; s.context=this; s.motion=EngineActorMotion::Services();
+    s.create_actor=[](void *p)->void * { return PactrNew(&static_cast<Actor *>(p)->_tagTmpl); };
+    s.release_actor=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
+    s.route=[](void *,void *p)->void * { return static_cast<PActor>(p)->_track.Route(); };
+    s.events=[](void *,void *p)->void * { return static_cast<PActor>(p)->_track.Events(); };
+    s.lock_events=[](void *,void *p) { static_cast<PGeneralGroup>(p)->Lock(); };
+    s.unlock_events=[](void *,void *p) { static_cast<PGeneralGroup>(p)->Unlock(); };
+    s.payload_view=[](void *,void *p,ThreeMMI32 i)->const void * { return static_cast<PGeneralGroup>(p)->QvGet(i); };
+    s.write_payload=[](void *,void *p,ThreeMMI32 i,const void *data) { static_cast<PGeneralGroup>(p)->Put(i,const_cast<void *>(data)); };
+    s.resolve_sound=[](void *p,ThreeMMActorSound *value) {
+        Sound sound; std::memcpy(&sound,value,sizeof(sound));
+        bool ok=static_cast<Actor *>(p)->_pscen->Pmvie()->FResolveSndTag(&sound.tag,sound.chid);
+        std::memcpy(value,&sound,sizeof(sound)); return int(ok);
+    };
+    s.insert_event=[](void *,void *p,ThreeMMI32 i,ThreeMMU32 bytes,const void *data,const ThreeMMActorEvent *value) {
+        Base event; std::memcpy(&event,value,sizeof(event));
+        return int(static_cast<PActor>(p)->_FInsertAev(i,bytes,const_cast<void *>(data),&event,false));
+    };
+    s.merge_event=[](void *,void *p,ThreeMMI32 first,ThreeMMI32 added) { static_cast<PActor>(p)->_MergeAev(first,added); };
+    s.insert_point=[](void *,void *p,ThreeMMI32 i,const ThreeMMActorRoutePoint *value) {
+        RouteDistancePoint point; std::memcpy(&point,value,sizeof(point)); return int(static_cast<PDynamicArray>(p)->FInsert(i,&point));
+    };
+    s.write_point=[](void *,void *p,ThreeMMI32 i,const ThreeMMActorRoutePoint *value) {
+        RouteDistancePoint point; std::memcpy(&point,value,sizeof(point)); static_cast<PDynamicArray>(p)->Put(i,&point);
+    };
+    s.resize_route=[](void *,void *p,ThreeMMI32 count) { return int(static_cast<PDynamicArray>(p)->FSetIvMac(count)); };
+    s.reserve_route=[](void *,void *p,ThreeMMI32 count) { return int(static_cast<PDynamicArray>(p)->FEnsureSpace(count,fgrpNil)); };
+    s.copy_points=[](void *,void *source,ThreeMMI32 first,void *destination,ThreeMMI32 to,ThreeMMI32 count) {
+        CopyPb(static_cast<PDynamicArray>(source)->QvGet(first),static_cast<PDynamicArray>(destination)->QvGet(to),LwMul(count,size(RouteDistancePoint)));
+    };
+    s.distance=[](void *,const ThreeMMActorPoint *v)->ThreeMMI32 { return BR_LENGTH3(v->dxr,v->dyr,v->dzr); };
+    s.rewind_actor=[](void *,void *p) { static_cast<PActor>(p)->_SetStateRewound(); };
+    s.unknown_event=[](void *) { Bug("Unknown event type... Copy or Not?"); };
+    return s;
+}
+
 bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 {
-    AssertThis(0);
-    AssertVarMem(ppactr);
-
-    long iaev;
-    long iaevLast;
-    Base aev;
-    Action aevactn;
-    Sound aevsnd;
-    RouteDistancePoint rpt;
-    RouteDistancePoint rptOld;
-    RouteDistancePoint *prptSrc;
-    RouteDistancePoint *prptDest;
-
-    (*ppactr) = PactrNew(&_tagTmpl);
-
-    if (*ppactr == pvNil)
-    {
-        return fFalse;
-    }
-
-    // If the current point is between nodes, a node will
-    // be inserted.  Compute its dwr.
-    _track.Route()->Get(_state.location.irpt, &rpt);
-    rptOld.dwr = rpt.dwr;
-    rpt.dwr = BrsSub(rptOld.dwr, _state.location.dwrOffset);
-
-    //
-    // Gather all earlier events & move to the current one
-    // It is sufficient to begin with the current subroute
-    // Note: Add events will require later translation of nfrm
-    //
-    for (iaev = _state.addEvent; iaev < _state.nextEvent; iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-        // Is this an event we want to copy?
-        switch (aev.aet)
-        {
-        case aetActn: // Copy, editing current cel only
-            _track.Events()->Get(iaev, &aevactn);
-            aevactn.celn = _state.cel;
-            break;
-
-        // copy
-        case aetAdd:
-        case aetCost:
-        case aetPull:
-        case aetSize:
-        case aetRotF:
-        case aetFreeze:
-        case aetStep:
-        case aetMove:
-            break;
-
-        // The following events are not automatically copied
-        case aetSnd:
-            _track.Events()->Get(iaev, &aevsnd);
-            // Update the cno for the chid from the original movie
-            // The scene this came from may be lost later
-            if (!_pscen->Pmvie()->FResolveSndTag(&aevsnd.tag, aevsnd.chid))
-            {
-                goto LFail;
-            }
-            _track.Events()->Put(iaev, &aevsnd);
-            if (aevsnd.celn == smmNil && iaev >= _state.firstEventInFrame)
-                break;
-            if (iaev > _state.actionEvent && aevsnd.celn != smmNil)
-            {
-                // Retain current motion match sounds
-                break;
-            }
-            continue;
-        case aetTweak:
-        case aetRotH:
+    AssertThis(0); AssertVarMem(ppactr); const auto state=EngineActorMotion::Core(_state); const auto services=_CopyServices();
+    ThreeMMActorCopyResult out{}; out.context=ppactr;
+    out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
 #ifdef BUG1950
-            // REVIEW (*****):  Postponed till v2.0
-            if (iaev >= _state.nextEvent) // Code change not yet verified
-#else                             //! BUG1950
-            if (iaev >= _state.firstEventInFrame)
-#endif                            //! BUG1950
-            {
-                // Retain these events from this frame
-                break;
-            }
-            continue;
-        case aetRem:
-            continue; // Do not copy
-
-        default:
-            Bug("Unknown event type... Copy or Not?");
-            break;
-        }
-
-        // set the event to happen right here.
-        aev.rtel.dnfrm = 0;
-        aev.rtel.irpt = 0;
-        aev.rtel.dwrOffset = 0;
-        iaevLast = (*ppactr)->_track.Events()->IvMac();
-
-        // Insert aev.  Tag ref count will be updated.
-        _track.Events()->Lock();
-        if (!(*ppactr)->_FInsertAev(iaevLast, _track.Events()->Cb(iaev),
-                                    (aev.aet == aetActn) ? &aevactn : _track.Events()->QvGet(iaev), &aev, fFalse))
-        {
-            _track.Events()->Unlock();
-            goto LFail;
-        }
-        _track.Events()->Unlock();
-        (*ppactr)->_MergeAev(0, iaevLast);
-    }
-
-    //
-    // Copy remaining events, adjusting their locations
-    //
-    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-        if ((!fEntireScene) && (aetAdd == aev.aet) && (*ppactr)->_track.Events()->IvMac() > 0)
-        {
-            break;
-        }
-
-        // Adjust the event indicies.
-        aev.rtel.irpt -= _state.location.irpt;
-
-        if (aev.rtel.irpt == 0)
-        {
-            if (aev.rtel.dwrOffset == _state.location.dwrOffset)
-            {
-                aev.rtel.dwrOffset = rZero;
-                if (aev.rtel.dnfrm < _state.location.dnfrm)
-                {
-                    aev.rtel.dnfrm = 0;
-                }
-                else
-                {
-                    aev.rtel.dnfrm -= _state.location.dnfrm;
-                }
-            }
-            else
-            {
-                if (rpt.dwr == rZero)
-                    aev.rtel.dwrOffset = rZero;
-                else
-                {
-                    aev.rtel.dwrOffset = BrsSub(aev.rtel.dwrOffset, _state.location.dwrOffset);
-                }
-            }
-        }
-
-        // Insert will update the tag ref count
-        iaevLast = (*ppactr)->_track.Events()->IvMac();
-        _track.Events()->Lock();
-        if (!(*ppactr)->_FInsertAev(iaevLast, _track.Events()->Cb(iaev), _track.Events()->QvGet(iaev), &aev, fFalse))
-        {
-            _track.Events()->Unlock();
-            goto LFail;
-        }
-        _track.Events()->Unlock();
-    }
-
-    //
-    // Add the point we are at.
-    //
-    if (!(*ppactr)->_track.Route()->FInsert(0, &rpt))
-    {
-        goto LFail;
-    }
-
-    //
-    // Copy the rest of the subroute or route
-    //
-    if ((_state.location.irpt + 1) < _track.Route()->IvMac())
-    {
-        // Locate the amount of route to copy
-        //
-        long irptLim = _track.Route()->IvMac();
-        long irpt;
-
-        if (!fEntireScene)
-        {
-            for (irpt = _state.location.irpt; irpt < irptLim; irpt++)
-            {
-                _track.Route()->Get(irpt, &rpt);
-                if (rZero == rpt.dwr)
-                {
-                    irptLim = irpt + 1;
-                    break;
-                }
-            }
-        }
-
-        if (!(*ppactr)->_track.Route()->FSetIvMac((*ppactr)->_track.Route()->IvMac() + irptLim -
-                                                (_state.location.irpt + 1)))
-        {
-            goto LFail;
-        }
-
-        prptSrc = (RouteDistancePoint *)_track.Route()->QvGet(_state.location.irpt + 1);
-        prptDest = (RouteDistancePoint *)(*ppactr)->_track.Route()->QvGet(1);
-        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_state.location.irpt + 1), size(RouteDistancePoint)));
-    }
-    else
-    {
-        // Mark the end of the path
-        rpt.dwr = rZero;
-        (*ppactr)->_track.Route()->Put(0, &rpt);
-    }
-
-    (*ppactr)->_SetStateRewound();
-
-    AssertPo(*ppactr, 0);
-    return fTrue;
-
-LFail:
-    ReleasePpo(ppactr);
-    return fFalse;
+    const int postponed=1;
+#else
+    const int postponed=0;
+#endif
+    bool ok=three_mm_actor_copy(&state,_track.Route(),_track.Events(),fEntireScene,postponed,&out,&services)!=0;
+    if (ok) { AssertPo(*ppactr,0); }
+    return ok;
 }
 
 /***************************************************************************
@@ -351,100 +185,10 @@ void Actor::_CopyRuntimeStateFrom(const Actor &source)
 ***************************************************************************/
 bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 {
-    AssertThis(0);
-    AssertVarMem(ppactr);
-
-    long irpt;
-    long dnrpt;
-    long irptLim;
-    RouteDistancePoint rpt;
-    RouteDistancePoint rpt1;
-    RouteDistancePoint rptNode;
-
-    (*ppactr) = PactrNew(&_tagTmpl);
-    if (*ppactr == pvNil)
-    {
-        return fFalse;
-    }
-
-    //
-    // Insert the current point
-    //
-    _GetXyzFromRtel(&_state.location, &rpt.xyz);
-    _track.Route()->Get(_state.location.irpt, &rptNode);
-    rpt.dwr = rZero;
-
-    if (_state.location.dwrOffset == rZero)
-    {
-        rpt.dwr = rptNode.dwr;
-    }
-    else if (rptNode.dwr > rZero && _state.location.irpt < _track.Route()->IvMac() - 1)
-    {
-        _track.Route()->Get(_state.location.irpt + 1, &rpt1);
-        rpt.dwr = BR_LENGTH3(BrsSub(rpt1.xyz.dxr, rpt.xyz.dxr), BrsSub(rpt1.xyz.dyr, rpt.xyz.dyr),
-                             BrsSub(rpt1.xyz.dzr, rpt.xyz.dzr));
-        if (rZero == rpt.dwr)
-        {
-            rpt.dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-        }
-    }
-
-    if (!(*ppactr)->_track.Route()->FInsert(0, &rpt))
-    {
-        goto LFail;
-    }
-
-    if ((!fEntireScene) && rpt.dwr == rZero)
-    {
-        goto LEnd;
-    }
-
-    //
-    // If copying subroute only, determine amount to copy
-    //
-    irptLim = _track.Route()->IvMac();
-    if (!fEntireScene)
-    {
-        for (irpt = _state.location.irpt + 1; irpt < irptLim; irpt++)
-        {
-            _track.Route()->Get(irpt, &rpt);
-            if (rZero == rpt.dwr)
-            {
-                irptLim = irpt + 1;
-                break;
-            }
-        }
-    }
-
-    //
-    // Copy indicated portion of the route
-    //
-    dnrpt = irptLim - (_state.location.irpt + 1);
-    if (dnrpt > 0 && !(*ppactr)->_track.Route()->FEnsureSpace(dnrpt, fgrpNil))
-        goto LFail;
-
-    for (irpt = _state.location.irpt + 1; irpt < irptLim; irpt++)
-    {
-        _track.Route()->Get(irpt, &rpt);
-
-        if (!(*ppactr)->_track.Route()->FInsert(irpt - _state.location.irpt, &rpt))
-        {
-            goto LFail;
-        }
-
-        if ((!fEntireScene) && (rZero == rpt.dwr))
-        {
-            break;
-        }
-    }
-
-LEnd:
-    (*ppactr)->_SetStateRewound();
-    return fTrue;
-
-LFail:
-    ReleasePpo(ppactr);
-    return fFalse;
+    AssertThis(0); AssertVarMem(ppactr); const auto state=EngineActorMotion::Core(_state); const auto services=_CopyServices();
+    ThreeMMActorCopyResult out{}; out.context=ppactr;
+    out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
+    return three_mm_actor_copy_route(&state,_track.Route(),fEntireScene,&out,&services)!=0;
 }
 
 /***************************************************************************
