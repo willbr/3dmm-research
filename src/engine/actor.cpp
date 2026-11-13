@@ -1469,42 +1469,15 @@ void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 ***************************************************************************/
 bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmtl)
 {
-    AssertThis(0);
-    Assert(fCmtl || ibsetClicked >= 0, "Invalid ibsetClicked argument");
-    AssertVarMem(ptag);
-
-    Costume aevcost;
-    PCustomMaterial_CMTL pcmtl;
-    long ibsetApply;
-
-    // For custom materials, the ibset is a property of the CustomMaterial_CMTL itself,
-    // so read it from the CustomMaterial_CMTL rather than using the clicked ibset.
-    if (fCmtl)
-    {
-        pcmtl = _ptmpl->PcmtlFetch(cmid);
-        if (pvNil == pcmtl)
-            return fFalse;
-        ibsetApply = pcmtl->Ibset();
-        ReleasePpo(&pcmtl);
-    }
-    else
-    {
-        ibsetApply = ibsetClicked;
-    }
-
-    aevcost.ibset = ibsetApply;
-    aevcost.tag = *ptag;
-    aevcost.cmid = cmid;
-    aevcost.fCmtl = fCmtl;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarCost, fgrpNil))
-        return fFalse;
-
-    _PrepCostFill(_state.nextEvent, &aevcost);
-    if (!_FAddDoAev(aetCost, kcbVarCost, &aevcost))
-        return fFalse;
-
-    return fTrue;
+    AssertThis(0); Assert(fCmtl || ibsetClicked>=0,"Invalid body set"); AssertVarMem(ptag);
+    ThreeMMTag tag; std::memcpy(&tag,ptag,sizeof(tag));
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_CostumeEditServices();
+    bool ok=three_mm_actor_edit_set_costume(&state,_motionSounds.Core(),_track.Events(),_arid,ibsetClicked,
+                                            &tag,cmid,fCmtl,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -2479,91 +2452,36 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
             costume being inserted
 
 ***************************************************************************/
+ThreeMMActorCostumeEditServices Actor::_CostumeEditServices()
+{
+    ThreeMMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
+    services.reserve_events=[](void *p,ThreeMMU32 entries,ThreeMMU32 bytes) {
+        return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(entries,bytes,fgrpNil));
+    };
+    services.current=[](void *p,ThreeMMI32 set,int *custom)->void * {
+        bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
+        static_cast<Actor *>(p)->_pbody->GetPartSetMaterial(set,&ordinary,&material,&costume);
+        *custom=!ordinary;
+        return ordinary ? static_cast<void *>(material) : static_cast<void *>(costume);
+    };
+    services.fetch_material=[](void *,const ThreeMMTag *value)->void * {
+        TAG tag; std::memcpy(&tag,value,sizeof(tag));
+        return vptagm->PbacoFetch(&tag,Material_MTRL::FReadMtrl);
+    };
+    services.fetch_custom=[](void *p,ThreeMMI32 costume)->void * { return static_cast<Actor *>(p)->_ptmpl->PcmtlFetch(costume); };
+    services.body_set=[](void *,void *resource)->ThreeMMI32 { return static_cast<PCustomMaterial_CMTL>(resource)->Ibset(); };
+    services.release=[](void *,void *resource) { static_cast<PBaseCacheableObject>(resource)->Release(); };
+    return services;
+}
 void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
-    AssertBaseThis(0);
-    AssertIn(iaevMin, 0, _track.Events()->IvMac() + 1);
-    AssertVarMem(paevcost);
-
-    long iaev;
-    Base aev;
-    Costume aevcost;
-    bool fMtrl;
-    bool fCmtl;
-    Material_MTRL *pmtrlCmp;
-    CustomMaterial_CMTL *pcmtlCmp;
-    Material_MTRL *pmtrl = pvNil;
-    CustomMaterial_CMTL *pcmtl = pvNil;
-    bool fReplacePrev = fTrue;
-
-    // Locate the most current costume for this body part
-    _pbody->GetPartSetMaterial(paevcost->ibset, &fMtrl, &pmtrlCmp, &pcmtlCmp);
-    fCmtl = !fMtrl;
-
-    for (iaev = iaevMin; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-        // Stage entrance events are boundaries to edits
-        if (aetAdd == aev.aet)
-            goto LEnd;
-
-        if (aetCost != aev.aet)
-            continue;
-
-        _track.Events()->Get(iaev, &aevcost);
-        if (aevcost.ibset != paevcost->ibset)
-            continue;
-
-        if (fReplacePrev)
-        {
-            // Delete the event if the costumes are the same
-            if ((fCmtl == aevcost.fCmtl) &&
-                ((!fCmtl && (pmtrlCmp == (pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl)))) ||
-                 (fCmtl && (pcmtlCmp == (pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid))))))
-            {
-                goto LDelete;
-            }
-
-            // This event does not match the one being replaced
-            // Prepare to test for a match with the event being inserted
-            fReplacePrev = fFalse;
-            if (!paevcost->fCmtl)
-            {
-                pmtrlCmp = (PMaterial_MTRL)vptagm->PbacoFetch(&paevcost->tag, Material_MTRL::FReadMtrl);
-                pcmtlCmp = pvNil;
-            }
-            else
-            {
-                pcmtlCmp = _ptmpl->PcmtlFetch(paevcost->cmid);
-                pmtrlCmp = pvNil;
-            }
-        }
-
-        ReleasePpo(&pcmtl);
-        ReleasePpo(&pmtrl);
-        Assert(!fReplacePrev, "Logic error");
-        if (paevcost->fCmtl != aevcost.fCmtl ||
-            (!aevcost.fCmtl && (pmtrlCmp != (pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl)))) ||
-            (aevcost.fCmtl && (pcmtlCmp != (pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid)))))
-        {
-            // If the costumes differ
-            goto LEnd;
-        }
-    LDelete:
-        ReleasePpo(&pcmtl);
-        ReleasePpo(&pmtrl);
-        _RemoveAev(iaev);
-        iaev--;
-    }
-LEnd:
-    if (!fReplacePrev)
-    {
-        ReleasePpo(&pmtrlCmp);
-        ReleasePpo(&pcmtlCmp);
-    }
-    ReleasePpo(&pmtrl);
-    ReleasePpo(&pcmtl);
+    AssertBaseThis(0); AssertIn(iaevMin,0,_track.Events()->IvMac()+1); AssertVarMem(paevcost);
+    ThreeMMActorCostume costume; std::memcpy(&costume,paevcost,sizeof(costume));
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_CostumeEditServices();
+    three_mm_actor_edit_costume_fill(&state,_track.Events(),iaevMin,&costume,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************

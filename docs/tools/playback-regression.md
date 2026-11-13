@@ -2945,3 +2945,71 @@ Baselines are actor-audio suite `20261113T004516Z-48a25044`, actor-events suite
 scene-audio suite `20261113T005117Z-579a56bd`.
 Existing cross-player differences remain. One repetition
 per suite does not establish general repeatability or full retail parity.
+
+## C89 actor costume editing and fill (13 November 2026)
+
+Costume setting and fill now execute in C89, including custom body-set resolution,
+reservation, current-to-incoming costume comparison, event deletion/application
+and ownership cleanup. Native adapters supply body/template/material lookup,
+resource fetch/release and table/scene primitives. See the
+[implementation boundary](../code-map/library-split.md#actor-costume-editing-and-fill).
+
+The conversion retains pointer identity including NULL equality, exact custom-flag
+values, unrelated body-set skipping, stage-entrance boundaries and partial edits
+after failure. A transition event can be fetched twice. Borrowed current materials
+are never released; owning candidate/comparison releases retain their distinct
+orders. Custom costume lookup, body-set extraction and release precede event
+reservation; the custom material determines its body set independently of the
+clicked set. No material/resource behavior was intentionally repaired in this slice.
+
+All 46 standalone C-only Clang checks (including strict C89 syntax), 60 focused
+native checks, MSVC AddressSanitizer, all 51 CLI baselines and the headless scene/
+timeline check pass. All 32 snapshots match. The new 47,536-byte native trace was
+frozen before conversion and covers 160 real-material/custom-costume scenarios,
+including final body identities and resource reference counts. Standalone tests
+check the exact transition fetch/release trace, NULL matches, 42 type/fetch-failure
+combinations, raw custom flags, early resolution failure, reservation ordering and
+partial failed edits. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-costume-edit-before.bin`, `tmp/c89-costume-edit-after.bin`,
+`tmp/c89-costume-edit-snapshot-comparison.json`, `tmp/c89-costume-edit-native-tests.log`,
+`tmp/c89-costume-edit-standalone.log`, `tmp/c89-costume-edit-asan.log`,
+`tmp/c89-costume-edit-output-comparison.json` and `tmp/c89-costume-edit-timeline.log`.
+
+Frozen Studio/Marcus binaries ran without concurrent builds or compaction. SDL
+reused the explicitly recorded warm package cache from the preceding slices;
+process workspaces, settings, registry isolation and working movies remained
+separate. OS file caching remains uncontrolled. Evidence is in
+`tmp/c89-movie-data-regression/playback.sqlite` and adjacent suite artifacts:
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T012702Z-d81906ec` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T012846Z-0fe30a43` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T013023Z-e524888d` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T013339Z-d6edfa4b` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+The actor cases preserve each player's preceding authored positions and pixels,
+including 60 ordered playback changes per player. Actor-audio passes the permanent
+first-scene 600/1300 Hz tone checks and retains PCM16 peaks of 3192 retail and
+4081 SDL/Marcus. Peaks establish audible coverage, not exact waveform/timing parity.
+
+Scrolling preserves all 180 seek images, 60 authored positions per run and ordered
+playback changes (328 retail/SDL, 321 Marcus). Only adjacent identical position/
+image records are collapsed; original raw samples and timestamps remain available.
+
+All 21 captures completed without retries; all 540 seek images and each player's
+preceding authored positions and ordered playback changes match. Scene-audio
+retains 60 changes per player and PCM16 peaks of 2380 retail and 2176 SDL/Marcus.
+Movie identities match the preceding captures, and every suite's movie,
+ISO-resource and Marcus-content integrity checks pass. The combined report is
+`tmp/c89-costume-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+Baselines are actor-audio suite `20261113T010422Z-230669bf`, actor-events suite
+`20261113T010616Z-5e5e6368`, and the preceding successful scrolling runs from
+`20261113T010856Z-aedbe7ab`, `20261113T011229Z-78ab78f2` (SDL playback retry) and
+`20261113T011353Z-37941a26` (Marcus seek/playback retries). Scene-audio uses suite
+`20261113T011523Z-a52f9236`. Existing cross-player differences remain; one repetition
+per suite does not establish general repeatability or full retail parity.
+Subroute/recording edits, general undo, queue/runtime integration, resource/body
+implementations and final C++ facade removal remain unfinished.

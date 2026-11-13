@@ -124,6 +124,17 @@ class TrackTestTemplate : public Template
     }
 
   public:
+    static bool FReadCostumeFixture(PChunkyResourceFile,ChunkTagOrType,ChunkNumber,PDataBlock,
+                                    PBaseCacheableObject *out,LegacyLong *bytes)
+    {
+        *bytes=sizeof(TrackTestTemplate);
+        if (!out) return true;
+        auto tmpl=NewObj TrackTestTemplate();
+        *out=tmpl;
+        if (!tmpl || !tmpl->FInit()) { ReleasePpo(out); return false; }
+        tmpl->_ccmid=3;
+        return true;
+    }
     void FailAfter(int calls) { _failAfterFetch = calls; }
     void FailNextFetch()
     {
@@ -168,6 +179,77 @@ class TrackTestTemplate : public Template
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestCostumeEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,
+                          const ChunkNumber *materials,const ChunkNumber *customs)
+    {
+        using namespace ActorEvent;
+        auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadCostumeFixture));
+        if (!tmpl) return false;
+        ReleasePpo(&_ptmpl); _ptmpl=tmpl;
+        auto a=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materials[0],Material_MTRL::FReadMtrl));
+        auto b=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materials[1],Material_MTRL::FReadMtrl));
+        auto ca=static_cast<PCustomMaterial_CMTL>(resource->PbacoFetch(kctgCmtl,customs[0],CustomMaterial_CMTL::FReadCmtl));
+        auto cb=static_cast<PCustomMaterial_CMTL>(resource->PbacoFetch(kctgCmtl,customs[1],CustomMaterial_CMTL::FReadCmtl));
+        if (!a || !b || !ca || !cb) return false;
+        PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
+        short parent=-1,set=0;
+        bool ok=parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
+        set=1; ok=ok && parents->FAdd(&parent) && sets->FAdd(&set);
+        ReleasePpo(&_pbody); _pbody=ok ? Body::PbodyNew(parents,sets) : pvNil;
+        ReleasePpo(&parents); ReleasePpo(&sets);
+        if (!_pbody) return false;
+        _pbody->SetPartSetMtrl(0,a); _pbody->SetPartSetMtrl(1,a);
+        if (mode&4) _pbody->SetPartSetCmtl(ca);
+        ActorTrack track; ok=track.FCreate();
+        RouteDistancePoint point={{rZero,rZero,rZero},rZero};
+        Base event={aetAdd,1,{0,rZero,0}}; Add add={};
+        ok=ok && track.Route()->FInsert(0,&point) && track.Events()->FInsert(0,sizeof(add),&add,&event);
+        auto append=[&](int type,int material,int bodySet,int frame) {
+            Costume costume={}; costume.ibset=bodySet; costume.fCmtl=static_cast<tribool>(type); costume.cmid=material;
+            costume.tag={ksidUseCrf,resource,kctgMtrl,materials[material%2]};
+            event={aetCost,frame,{0,rZero,frame-1}};
+            if (!type) TagManager::DupTag(&costume.tag);
+            if (track.Events()->FInsert(track.Events()->IvMac(),sizeof(costume),&costume,&event)) return true;
+            if (!type) TagManager::CloseTag(&costume.tag);
+            return false;
+        };
+        int oldType=(mode&8)?1:0;
+        ok=ok && append(oldType,0,0,2) && append(oldType,0,1,3) && append((mode&16)?1:0,1,0,4) &&
+            append((mode&16)?1:0,1,0,5) && append((mode&32)?1:0,0,0,6);
+        event={aetAdd,7,{0,rZero,6}};
+        ok=ok && track.Events()->FInsert(track.Events()->IvMac(),sizeof(add),&add,&event) && append(oldType,0,0,8);
+        if (!ok) return false;
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
+        _state.frame=2; _state.location={0,rZero,1}; _state.onStage=true;
+        _state.firstEventInFrame=_state.nextEvent=1; _state.actionEvent=-1; _state.addEvent=0;
+        _nfrmFirst=1; _nfrmLast=8;
+        Costume fresh={}; fresh.ibset=(mode&64)?1:0; fresh.fCmtl=static_cast<tribool>(mode%3);
+        fresh.cmid=(mode>=128 && (mode&8))?2:1; fresh.tag={ksidUseCrf,resource,kctgMtrl,materials[1]};
+        if (mode>=128) ok=FSetCostumeCore(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl);
+        else _PrepCostFill(1,&fresh);
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,_nfrmFirst,_nfrmLast,_track.Events()->IvMac()};
+        bool saved=record(state,sizeof(state));
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base fixed; _track.Events()->GetFixed(i,&fixed); saved=record(&fixed,sizeof(fixed));
+            if (fixed.aet==aetCost)
+            {
+                Costume costume; _track.Events()->Get(i,&costume);
+                LegacyLong fields[]={costume.ibset,costume.fCmtl,costume.cmid,static_cast<LegacyLong>(costume.tag.cno)};
+                saved=saved && record(fields,sizeof(fields));
+            }
+        }
+        bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL custom;
+        _pbody->GetPartSetMaterial(0,&ordinary,&material,&custom);
+        LegacyLong body[]={ordinary,ordinary ? (material==a?0:material==b?1:2) : (custom==ca?0:custom==cb?1:2)};
+        saved=saved && record(body,sizeof(body));
+        _track.Clear(); ReleasePpo(&_pbody);
+        LegacyLong refs[]={a->CactRef(),b->CactRef(),ca->CactRef(),cb->CactRef()};
+        saved=saved && record(refs,sizeof(refs));
+        ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&ca); ReleasePpo(&cb);
+        return saved;
+    }
     bool FTestFillEdit(int mode, FILE *snapshot)
     {
         using namespace ActorEvent;
@@ -827,6 +909,33 @@ static bool TestActorFillEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorCostumeEditing(PScene scene)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_COSTUME_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,1024*1024) : pvNil;
+    ChunkNumber materials[2]={},customs[2]={},templateNumber=0;
+    byte dummy=0;
+    bool ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&templateNumber);
+    for (int i=0;ok && i<2;++i)
+    {
+        MaterialOnFile material={kboCur,koskCur,0xffffff,0,0,0,static_cast<byte>(32+i*16),15,rOne};
+        CustomMaterialOnFile custom={kboCur,koskCur,0};
+        ok=file->FAddPv(&material,sizeof(material),kctgMtrl,&materials[i]) &&
+            file->FAddPv(&custom,sizeof(custom),kctgCmtl,&customs[i]) &&
+            file->FAdoptChild(kctgCmtl,customs[i],kctgMtrl,materials[i],0) &&
+            file->FAdoptChild(kctgTmpl,templateNumber,kctgCmtl,customs[i],i);
+    }
+    auto actor=NewObj TrackTestActor();
+    ok=ok && actor && actor->FInit(scene,resource);
+    for (int mode=0;ok && mode<160;++mode) ok=actor->FTestCostumeEdit(mode,snapshot,resource,templateNumber,materials,customs);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
 class QueueTestSound : public MovieSoundMSND
 {
   public:
@@ -1275,6 +1384,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor event editing failed");
     if (!TestActorFillEditing(pmvie->Pscen()))
         BAIL("actor fill editing failed");
+    if (!TestActorCostumeEditing(pmvie->Pscen()))
+        BAIL("actor costume editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

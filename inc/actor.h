@@ -32,6 +32,7 @@ using namespace BRender;
 #include "actor_sound.h"
 #include "three_mm/actor_sound_edit.h"
 #include "three_mm/actor_action_edit.h"
+#include "three_mm/actor_costume_edit.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
@@ -161,6 +162,7 @@ class Actor : public Actor_PAR
     ThreeMMActorSoundServices _SoundServices();
     ThreeMMActorEditServices _EventEditServices();
     ThreeMMActorFillServices _FillEditServices();
+    ThreeMMActorCostumeEditServices _CostumeEditServices();
     ThreeMMActorSoundEditServices _SoundEditServices();
     bool _FEnqueueSnd(long iaev);
     bool _FEnqueueSmmInMsq(void);

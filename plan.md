@@ -231,8 +231,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   now execute in C89. Action edits call the existing C sound editor and event
   evaluator directly. Metadata failure, partial edits, lifetime invalidation,
   freeze/step ordering and borrowed transform-comparison views are retained.
-  Costume fill, general subroute/recording edits, undo and queue/runtime integration
-  still need conversion.
+  General subroute/recording edits, undo and queue/runtime integration remain.
+- Costume setting and costume fill now execute in C89, including custom body-set
+  resolution, reservation, current-to-incoming comparison, tag-aware deletion and
+  resource release ordering. Native services retain material/template/body lookup;
+  these resource/body implementations still need conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
