@@ -410,6 +410,16 @@ within dependency groups 3-5; those groups are not complete as a whole.
 
 The immediate sequence is sound-format factory implementations and remaining
 body geometry/render hooks.
+Work paused at the user's request on 13 November 2026, after completed commit
+`35d3cd38` (ThreeDText lifecycle/resources). The next sound-resource conversion
+has only a native baseline and an unintegrated, unvalidated C draft. The local
+resume checkpoint is `tmp/c89-sound-resource-paused/README.txt`; its draft files
+and test-integration patch are saved there, outside the active source/build.
+Both native baseline captures match 97,273 bytes (SHA-256
+`308B3769F7042688AD00D7BEC21CE681ED873354D1C48082DDAFACBE550B3F73`),
+covering 1,320 attempts. Sound production code remains unchanged. Resume with
+service integration and C-only failure/publication coverage before running the
+full host/playback gates; the draft is not evidence of a completed conversion.
 Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting
 body/template/resource implementations and physical file adapters as their
