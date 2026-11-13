@@ -3757,6 +3757,15 @@ failure, resize/reservation failure, current versus future action cels, BUG1950
 filtering, hold clamping, zero-row bulk copy, unknown-event diagnostics and
 interpolated/epsilon paths. No Marcus UI tests were added.
 
+Coverage correction from the subsequent clipboard audit: that initial native
+trace exercised factory failures in all 320 cases. A prefetched test template
+uses a different reader key from `Template::FReadTmpl`; the dummy chunk could
+not satisfy the normal actor factory. Thus its success-path coverage claim
+above was overstated. The C tests remain separate evidence. The clipboard
+conversion section below records a corrected, complete template/action graph,
+explicit expected outcomes and a fresh original-C++ versus converted comparison.
+The original trace is preserved; it is not silently replaced or relabeled.
+
 Native actor/template creation and movie sound resolution remain C++ integration
 dependencies. Paste/clipboard, scene/body/resource/runtime implementations and
 facade removal still require conversion; this does not complete the backend.
@@ -3955,3 +3964,102 @@ with counts and before/after peaks in `tmp/c89-actor-paste-playback-audit.json`.
 Raw evidence remains under `tmp/c89-movie-data-regression`. Clipboard control,
 remaining actor/template creation and movie sound integration, scene/body/
 resource/runtime implementations and final C++ facade removal remain unfinished.
+
+### Actor clipboard C89 conversion and copy-coverage correction (13 November 2026)
+
+`actor_clipboard.c` owns clipboard creation, route/full copying, raw prefix
+comparison, naming order, actor ownership, paste dispatch, reset duplication
+and removal/release after rename failure. The native document facade stores the
+plain C actor/route state and retains its String name representation. String
+assignment/append, movie/view paste and movie/scene operations remain native
+conversion dependencies. These are temporary adapters, not the final host API.
+
+The 41,344-byte `tmp/c89-clipboard-before.bin` native trace has SHA-256
+`EF8280D642EB068C595B035BBDA174497E375A2287A38A323AE81BB208DD1FB6`
+and matches the converted controller exactly across 64 successful creations.
+Cases cover full/subroute scopes, route-only copies, raw case-sensitive prefixes,
+empty and embedded-zero prefixes, names beginning with the prefix without a
+word boundary, copied/source state and tables, names and reference balance.
+Headless full paste rejects the missing MovieView, and route paste rejects the
+missing selection. This fixture does not claim native successful clipboard
+paste coverage. C tests separately cover successful route/full paste, reset
+selection, duplicate/paste/rename failures, removal before release, repeated ID
+lookup after rename, visible ownership during release and stored-actor retention.
+The full actor-paste native fixture remains separate transfer/edit evidence.
+
+Name overflow preserves the existing native leak: the copied actor is assigned
+to the clipboard only after name construction succeeds, so failed append
+releases the empty clipboard and leaks the local actor. C tests exercise this
+with nonallocating reference counters, including partial truncation and
+append-space short-circuiting. The native fixture does not intentionally leak
+allocated actors. This is recorded legacy behavior, not an unnoticed cleanup
+change. No Marcus UI tests were added.
+
+The clipboard fixture exposed a gap in the earlier native copy fixture. Resource
+keys include reader identity, so prefetching the test reader did not satisfy the
+normal `Template::FReadTmpl` factory request. All 320 cases in the original
+405,760-byte `tmp/c89-copy-before.bin` were factory failures. That artifact and
+its previous comparisons remain preserved; their success-path coverage claim
+was incorrect. Direct C tests were separate evidence and remain valid.
+
+The corrected fixture writes an actual named template, hierarchy/body-set/
+costume tables, an action header, four cels and a transform table. The normal
+native reader and actor factory must succeed. It now asserts each expected
+outcome: 128 normal successes, 128 injected allocation failures, 32 invalid-child
+full-copy failures and 32 invalid-child route-copy successes. Its new 449,472-byte
+trace `tmp/c89-copy-valid-template-native-before.bin` has SHA-256
+`4EE560D25882CC123B79951206B309A4B4DCFF58A906DAF6D8D93EEA2E9FDC5D`.
+The original `Actor::FCopy`/`FCopyRte` implementations from `c789578c^` were
+temporarily compiled against the same current primitives/fixture, captured and
+then restored to the C-backed implementation. Both copy and clipboard traces
+match exactly. This explicitly supersedes the inadequate copy baseline; it
+does not relax a comparison or discard the old raw evidence. Dummy sound chunks
+still test tag mapping/adoption without decoding audio.
+
+Both hosts build. All 60 standalone C checks (including strict C89 syntax), 74
+focused native checks and MSVC AddressSanitizer pass. All 45 snapshot comparisons
+and 51 freshly linked CLI baselines match, and headless scene/timeline playback
+passes. Evidence includes `tmp/c89-clipboard-standalone.log`,
+`tmp/c89-clipboard-native-tests.log`, `tmp/c89-clipboard-asan.log`,
+`tmp/c89-clipboard-snapshot-comparison.json`,
+`tmp/c89-clipboard-output-comparison.json`, `tmp/c89-clipboard-preview-scene.log`
+and `tmp/c89-copy-valid-template-native-before.log`.
+
+Playback binary contents were frozen before capture, without concurrent builds
+or compaction. Symbols/libraries were transparently compressed beforehand, and
+completed captures/build executables between terminal suites, to retain headroom
+on C:. Executable hashes remain unchanged. SDL reused the recorded warm package
+cache with private processes, settings and working movies; OS caching remains
+uncontrolled.
+Same-player baselines are actor-audio `20261113T082527Z-60a851d4`, actor-events
+`20261113T082656Z-7c0ed243`, scrolling-text `20261113T082845Z-140ed208` and
+sampled-audio `20261113T083256Z-8eafb346`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T085701Z-0e308e23` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T085845Z-cf20758a` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T090135Z-17ae6b6e` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T090610Z-87806dc5` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match the preceding same-player results. Only adjacent
+identical position/image observations are collapsed; raw observations and
+timestamps remain. Actor cases retain 60 ordered changes per player; scrolling
+retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Actor PCM peaks remain 3192 retail
+and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176 SDL/Marcus.
+All measured before/after peak deltas are zero. These observations do not prove
+exact waveform/timing parity or general repeatability. The previously documented
+SDL 4080/4081 variation, cross-player differences and one-repeat inconclusive
+comparisons remain part of the evidence.
+
+The combined report is
+`tmp/c89-clipboard-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts and before/after peaks in `tmp/c89-clipboard-playback-audit.json`.
+Raw evidence remains under `tmp/c89-movie-data-regression`. Remaining actor/
+template creation, native String mutations, movie sound/view integration,
+scene/body/resource/runtime implementations and final C++ facade removal remain
+unfinished. Clipboard control does not complete the shared C89 backend.

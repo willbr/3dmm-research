@@ -328,117 +328,51 @@ RTCLASS(ActorClipboard)
     This is from the current frame forward
 
 ***************************************************************************/
+ThreeMMActorClipboardServices ActorClipboard::_Services()
+{
+    ThreeMMActorClipboardServices s{}; s.unit=sizeof(achar);
+    s.create=[](void *)->void * { return NewObj ActorClipboard(); };
+    s.release_clipboard=[](void *,void *p) { static_cast<PActorClipboard>(p)->Release(); };
+    s.copy=[](void *,void *p,int route,int entire,void **out) {
+        PActor actor=nullptr; bool ok=route?static_cast<PActor>(p)->FCopyRte(&actor,entire!=0):static_cast<PActor>(p)->FCopy(&actor,entire!=0);
+        *out=actor; return int(ok);
+    };
+    s.source_name=[](void *,void *p,void *name) { static_cast<PActor>(p)->GetName(static_cast<PString>(name)); };
+    s.copy_prefix=[](void *,void *p,void *name) { static_cast<PActor>(p)->Pscen()->Pmvie()->Pmcc()->GetStn(idsEngineCopyOf,static_cast<PString>(name)); };
+    s.text=[](void *p)->const void * { return static_cast<PString>(p)->Psz(); };
+    s.assign_name=[](void *p,void *name) { static_cast<PActorClipboard>(p)->_stnName=*static_cast<PString>(name); };
+    s.append_space=[](void *p) { return int(static_cast<PActorClipboard>(p)->_stnName.FAppendCh(kchSpace)); };
+    s.append_name=[](void *p,void *name) { return int(static_cast<PActorClipboard>(p)->_stnName.FAppendStn(static_cast<PString>(name))); };
+    s.name_too_long=[](void *) { PushErc(ercSocNameTooLong); };
+    s.set=[](void *p,void *actor,int route) {
+        auto clipboard=static_cast<PActorClipboard>(p); clipboard->_clipboard.actor=actor; clipboard->_clipboard.route_only=route;
+    };
+    s.release_actor=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
+    s.duplicate=[](void *,void *p,int reset,void **out) {
+        PActor actor=nullptr; bool ok=static_cast<PActor>(p)->FDup(&actor,reset!=0); *out=actor; return int(ok);
+    };
+    s.paste_route=[](void *,void *movie,void *actor) { return int(static_cast<PMovie>(movie)->FPasteActrPath(static_cast<PActor>(actor))); };
+    s.paste_actor=[](void *,void *movie,void *actor) { return int(static_cast<PMovie>(movie)->FPasteActr(static_cast<PActor>(actor))); };
+    s.actor_id=[](void *p)->ThreeMMI32 { return static_cast<PActor>(p)->Arid(); };
+    s.rename=[](void *,void *movie,ThreeMMI32 actor,void *name) { return int(static_cast<PMovie>(movie)->FNameActr(actor,static_cast<PString>(name))); };
+    s.remove=[](void *,void *movie,ThreeMMI32 actor) { static_cast<PMovie>(movie)->Pscen()->RemActrCore(actor); };
+    return s;
+}
 PActorClipboard ActorClipboard::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 {
-    AssertPo(pactr, 0);
-    Assert(!fRteOnly || !fEntireScene, "Expecting subroute only");
-
-    PActorClipboard paclp;
-    PActor pactrTmp;
-    String stn, stnCopyOf;
-
-    paclp = NewObj ActorClipboard();
-
-    if (paclp == pvNil)
-    {
-        return (pvNil);
-    }
-
-    if (fRteOnly)
-    {
-        if (!pactr->FCopyRte(&pactrTmp, fEntireScene))
-        {
-            ReleasePpo(&paclp);
-            return (pvNil);
-        }
-    }
-    else
-    {
-        if (!pactr->FCopy(&pactrTmp, fEntireScene))
-        {
-            ReleasePpo(&paclp);
-            return (pvNil);
-        }
-        AssertPo(pactrTmp, 0);
-
-        pactr->GetName(&stn);
-
-        pactr->Pscen()->Pmvie()->Pmcc()->GetStn(idsEngineCopyOf, &stnCopyOf);
-
-        if (!FEqualRgb(stn.Psz(), stnCopyOf.Psz(), CchSz(stnCopyOf.Psz()) * size(achar)))
-        {
-            paclp->_stnName = stnCopyOf;
-            if (!paclp->_stnName.FAppendCh(kchSpace) || !paclp->_stnName.FAppendStn(&stn))
-            {
-                PushErc(ercSocNameTooLong);
-                ReleasePpo(&paclp);
-                return (pvNil);
-            }
-        }
-        else
-        {
-            paclp->_stnName = stn;
-        }
-    }
-
-    paclp->_pactr = pactrTmp;
-    paclp->_fRteOnly = fRteOnly;
-    AssertPo(paclp, 0);
-
-    return (paclp);
+    AssertPo(pactr,0); Assert(!fRteOnly || !fEntireScene,"Expecting subroute only");
+    String name,prefix; auto services=_Services(); services.name=&name; services.prefix=&prefix;
+    auto clipboard=static_cast<PActorClipboard>(three_mm_actor_clipboard_create(pactr,fRteOnly,fEntireScene,&services));
+    AssertNilOrPo(clipboard,0); return clipboard;
 }
-
-/***************************************************************************
-
-    Destroys an actor clipboard object
-
-***************************************************************************/
 ActorClipboard::~ActorClipboard(void)
 {
-    ReleasePpo(&_pactr);
+    const auto services=_Services(); three_mm_actor_clipboard_dispose(&_clipboard,&services);
 }
-
-/***************************************************************************
-
-    Pastes an actor clipboard object
-
-***************************************************************************/
 bool ActorClipboard::FPaste(PMovie pmvie)
 {
-    AssertThis(0);
-    AssertPo(pmvie, 0);
-
-    PActor pactrNew;
-
-    if (_fRteOnly)
-    {
-        return (pmvie->FPasteActrPath(_pactr));
-    }
-
-    //
-    // Duplicate the actor
-    //
-    if (!_pactr->FDup(&pactrNew, fTrue))
-    {
-        return (fFalse);
-    }
-    AssertPo(pactrNew, 0);
-
-    if (!pmvie->FPasteActr(pactrNew))
-    {
-        ReleasePpo(&pactrNew);
-        return (fFalse);
-    }
-
-    if (!pmvie->FNameActr(pactrNew->Arid(), &_stnName))
-    {
-        pmvie->Pscen()->RemActrCore(pactrNew->Arid());
-        ReleasePpo(&pactrNew);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pactrNew);
-    return (fTrue);
+    AssertThis(0); AssertPo(pmvie,0); const auto services=_Services();
+    return three_mm_actor_clipboard_paste(&_clipboard,&_stnName,pmvie,&services)!=0;
 }
 
 #ifdef DEBUG
@@ -456,7 +390,7 @@ bool ActorClipboard::FPaste(PMovie pmvie)
 void ActorClipboard::MarkMem(void)
 {
     ActorClipboard_PAR::MarkMem();
-    MarkMemObj(_pactr);
+    MarkMemObj(static_cast<PActor>(_clipboard.actor));
 }
 
 /***************************************************************************
@@ -472,7 +406,7 @@ void ActorClipboard::MarkMem(void)
 void ActorClipboard::AssertValid(LegacyUlong grf)
 {
     ActorClipboard_PAR::AssertValid(fobjAllocated);
-    _pactr->AssertValid(grf);
+    static_cast<PActor>(_clipboard.actor)->AssertValid(grf);
 }
 
 #endif

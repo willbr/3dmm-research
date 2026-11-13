@@ -42,6 +42,7 @@ using namespace BRender;
 #include "three_mm/actor_transaction.h"
 #include "three_mm/actor_copy.h"
 #include "three_mm/actor_route_paste.h"
+#include "three_mm/actor_clipboard.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
@@ -477,12 +478,13 @@ class ActorClipboard : public ActorClipboard_PAR
     ASSERT
 
   protected:
-    PActor _pactr;
-    bool _fRteOnly;
+    ThreeMMActorClipboard _clipboard;
     String _stnName;
+    static ThreeMMActorClipboardServices _Services();
 
     ActorClipboard(void)
     {
+        three_mm_actor_clipboard_init(&_clipboard);
     }
 
   public:
@@ -499,7 +501,7 @@ class ActorClipboard : public ActorClipboard_PAR
 
     bool FRouteOnly(void)
     {
-        return _fRteOnly;
+        return _clipboard.route_only!=0;
     }
 };
 

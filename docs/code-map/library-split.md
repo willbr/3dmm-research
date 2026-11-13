@@ -69,6 +69,7 @@ cmake --build build/engine-c89 --target engine-actor-transaction-test
 cmake --build build/engine-c89 --target engine-actor-copy-test
 cmake --build build/engine-c89 --target engine-route-paste-test
 cmake --build build/engine-c89 --target engine-actor-paste-test
+cmake --build build/engine-c89 --target engine-actor-clipboard-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1386,11 +1387,18 @@ final facade removal remain unfinished.
 `engine-actor-copy-test` checks locks, source mutation before filtering, partial
 resolution/insert failure, resource cleanup, result publication, optional BUG1950
 filtering, future offsets/holds, full versus interpolated points, epsilon and
-endpoint paths. The 405,760-byte native-before trace spans 320 synthetic runtime
-scenarios in private movies, including both copy scopes, cached templates,
-owning material/sound tags, allocation/resolve failures, tables, rewound state
-and reference counts. It matches exactly. Fixture sound chunks support tag
-mapping without decoding audio; the playback corpus supplies actual audio checks.
+endpoint paths. The initial 405,760-byte native-before trace matched, but a later
+clipboard audit found all 320 copies failed at template creation: cache keys
+include the reader, so prefetching a test reader did not satisfy the factory's
+normal template reader. That trace proves negative paths only. The corrected
+fixture writes a valid template/action graph and asserts every expected outcome.
+Its 449,472-byte trace matches the original C++ copy implementations from
+`c789578c^` exactly: 128 normal successes, 128 injected allocation failures,
+32 invalid-child full-copy failures and 32 invalid-child route-copy successes.
+It records owning material/sound tags, tables, rewound state and reference counts.
+The original trace remains preserved rather than silently relabeled. Fixture
+sound chunks support tag mapping without decoding audio; the playback corpus
+supplies actual audio checks.
 
 ### Actor route paste
 
@@ -1459,6 +1467,37 @@ resource representations and diagnostics. These callbacks are temporary
 conversion dependencies, not the final host boundary. Clipboard control,
 actor/template creation, movie/scene/body/resource/runtime implementations and
 final facade removal remain unfinished.
+
+### Actor clipboard control
+
+`actor_clipboard.c` owns clipboard creation, copy dispatch, name-prefix policy,
+actor ownership, route/full-paste dispatch, reset duplication and rename-failure
+removal/release ordering. `ThreeMMActorClipboard` stores the owned actor and
+route flag as plain C data. The native document facade retains the existing
+String name representation and provides primitive string assignment/append,
+movie/view operations and resource integration. Those String mutations and
+movie/scene/view dependencies still require conversion; they are not final
+backend host services.
+
+The prefix comparison is raw and case-sensitive, scans to the prefix's first
+zero and does not require a following word boundary. Assignment and append
+retain counted embedded zeros. Failed append retains truncation. Creation
+assigns the copied actor after naming succeeds, preserving the known native
+name-overflow leak: the empty clipboard is released while its unassigned local
+actor is leaked. The C tests expose this with nonallocating reference-count
+objects; the native fixture avoids intentionally leaking actual actors.
+
+The 41,344-byte native-before trace spans 64 successful clipboard creations with
+both scopes, case/empty/embedded-zero prefixes, preexisting prefix variations,
+stored names, copied/source actor tables/state and balanced references. It
+matches exactly, including native full-paste rejection without a MovieView and
+route-paste rejection without a selected target. Those headless rejection paths
+do not prove native paste success; C tests separately cover successful route and
+full paste, duplicate/paste/rename failure, removal before release, changed IDs
+between rename/removal, ownership visibility and source immutability. No Marcus
+UI tests were added. The separate full actor-paste native fixture still covers
+actual template/sound transfer. Actor/template creation, movie/scene/body/
+resource/runtime implementation and facade removal remain unfinished.
 
 ### Source names and directory discovery
 

@@ -49,10 +49,13 @@ class TestMcc : public MovieClientCallbacks
     long disabled = 0;
     WaitReason pause = witNil;
     bool testingTitle = false;
+    bool testingClipboard = false;
+    String clipboardPrefix;
     long titleUpdates = 0;
     void GetStn(long ids, PString value) override
     {
         if (testingTitle && ids == idsEngineDefaultTitle) value->SetSzs(PszLit("Default movie"));
+        if (testingClipboard && ids == idsEngineCopyOf) *value=clipboardPrefix;
     }
     void UpdateTitle(PString value) override
     {
@@ -125,6 +128,26 @@ class TrackTestTemplate : public Template
     }
 
   public:
+    static bool FWriteFixture(PChunkyFile file,ChunkNumber *number)
+    {
+        auto tmpl=NewObj TrackTestTemplate();
+        auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
+        bool ok=tmpl && tmpl->FInit() && cels && matrices;
+        if (ok) { tmpl->_stn.SetSzs(PszLit("Fixture template")); ok=tmpl->_FWriteTmplf(file,kctgTmpl,number); }
+        AnimationCel cel={chidNil,rOne}; BMAT34 matrix; BrMatrix34Identity(&matrix);
+        for (int i=0;ok && i<4;++i) { cel.dwr=BR_SCALAR(i+1); ok=cels->FInsert(i,0,nullptr,&cel); }
+        ok=ok && matrices->FAdd(&matrix);
+        auto table=[&](ChunkTagOrType parent,ChunkNumber root,ChunkTagOrType type,auto *data) {
+            ChunkNumber child; DataBlock block;
+            return file->FAddChild(parent,root,0,data->CbOnFile(),type,&child,&block) && data->FWrite(&block);
+        };
+        ChunkNumber action=0; ActionChunkOnFile header={kboCur,koskCur,factnRotateY};
+        ok=ok && table(kctgTmpl,*number,kctgGlpi,tmpl->_pglibactPar) && table(kctgTmpl,*number,kctgGlbs,tmpl->_pglibset) &&
+            table(kctgTmpl,*number,kctgGgcm,tmpl->_pggcmid) &&
+            file->FAddChild(kctgTmpl,*number,0,sizeof(header),kctgActn,&action) && file->FPutPv(&header,sizeof(header),kctgActn,action) &&
+            table(kctgActn,action,kctgGgcl,cels) && table(kctgActn,action,kctgGlxf,matrices);
+        ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
+    }
     static bool FReadCostumeFixture(PChunkyResourceFile,ChunkTagOrType,ChunkNumber,PDataBlock,
                                     PBaseCacheableObject *out,LegacyLong *bytes)
     {
@@ -221,6 +244,47 @@ class StageTestScene : public Scene
 class TrackTestActor : public Actor
 {
   public:
+    bool FInitClipboard(PChunkyResourceFile resource,ChunkNumber number)
+    {
+        using namespace ActorEvent;
+        auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,number,TrackTestTemplate::FReadSubrouteFixture));
+        if (!tmpl) return false;
+        ReleasePpo(&_ptmpl); _ptmpl=tmpl; TagManager::CloseTag(&_tagTmpl);
+        _tagTmpl={ksidUseCrf,resource,kctgTmpl,number}; TagManager::DupTag(&_tagTmpl);
+        ActorTrack track; if (!track.FCreate()) return false;
+        RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
+        ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
+        if (!track.Route()->FAdd(&first) || !track.Route()->FAdd(&last) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
+        event.aet=aetActn; if (!track.Events()->FInsert(1,sizeof(action),&action,&event)) return false;
+        event.aet=aetStep; if (!track.Events()->FInsert(2,sizeof(step),&step,&event)) return false;
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.frame=1; _state.nextEvent=3; _state.firstEventInFrame=0; _state.addEvent=0; _state.actionEvent=1;
+        _state.celCount=4; _state.actionFlags=factnRotateY; _nfrmFirst=1; _nfrmLast=10; _fLifeDirty=false;
+        return true;
+    }
+    static bool RecordClipboardActor(PActor actor,FILE *snapshot)
+    {
+        using namespace ActorEvent;
+        auto trackMember=&TrackTestActor::_track; auto stateMember=&TrackTestActor::_state;
+        auto firstMember=&TrackTestActor::_nfrmFirst; auto lastMember=&TrackTestActor::_nfrmLast;
+        auto templateMember=&TrackTestActor::_ptmpl; auto tagMember=&TrackTestActor::_tagTmpl;
+        auto &track=actor->*trackMember; const auto &state=actor->*stateMember;
+        const auto &tag=actor->*tagMember;
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={actor->Arid(),actor->*firstMember,actor->*lastMember,state.frame,state.nextEvent,state.firstEventInFrame,
+            state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,state.location.dnfrm,state.step,state.frozen,
+            track.Route()->IvMac(),track.Events()->IvMac(),(actor->*templateMember)->CactRef(),tag.pcrf->CactRef()};
+        bool ok=record(values,sizeof(values)) && record(&state.position,sizeof(state.position)) && record(&state.transform,sizeof(state.transform));
+        for (long i=0;ok && i<track.Route()->IvMac();++i) { RouteDistancePoint point; track.Route()->Get(i,&point); ok=record(&point,sizeof(point)); }
+        for (long i=0;ok && i<track.Events()->IvMac();++i)
+        {
+            ActorEvent::Base event; track.Events()->GetFixed(i,&event); LegacyLong bytes=track.Events()->Cb(i);
+            unsigned char data[48]={}; if (bytes>sizeof(data)) return false;
+            track.Events()->Get(i,data); if (event.aet==aetAdd) data[18]=data[19]=0;
+            ok=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(data,bytes);
+        }
+        return ok;
+    }
     bool FTestOwner(int mode,FILE *snapshot)
     {
         using namespace ActorEvent;
@@ -458,6 +522,12 @@ class TrackTestActor : public Actor
 #ifdef DEBUG
         vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
 #endif
+        bool expected=(mode<128 || mode>=256) && (mode<256 || (mode&1));
+#ifndef DEBUG
+        if (mode>=128 && mode<256) expected=true;
+#endif
+        if (changed!=expected || (copy!=nullptr)!=expected)
+        { std::fprintf(stderr,"Copy fixture outcome mismatch mode %d: %d expected %d\n",mode,changed,expected); ReleasePpo(&copy); return false; }
         vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,copy!=nullptr,_ptmpl->CactRef(),resource->CactRef(),_state.frame,_state.cel};
@@ -1864,6 +1934,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_actor_copy_fixture.h"
 #include "engine_route_paste_fixture.h"
 #include "engine_actor_paste_fixture.h"
+#include "engine_actor_clipboard_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2456,6 +2527,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor route paste failed");
     if (!TestActorPaste(pmvie))
         BAIL("actor paste failed");
+    if (!TestActorClipboard(pmvie))
+        BAIL("actor clipboard failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 
