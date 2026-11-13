@@ -41,12 +41,19 @@ int FramePreviews(char **argv)
         if (argv[5][consumed] || scene < 0) throw std::runtime_error("Invalid frame thumbnail scene.");
         if (!marcus_open(player.get(), argv[1], argv[2], argv[4]) ||
             !marcus_select_scene(player.get(), scene)) throw std::runtime_error(marcus_error(player.get()));
+        int requestedScene, selectedScene = scene;
         long long frame;
-        while (std::cin >> frame)
+        while (std::cin >> requestedScene >> frame)
         {
             BrowserPreview preview;
             MarcusImage image = {};
-            if (frame < (std::numeric_limits<long>::min)() || frame > (std::numeric_limits<long>::max)() ||
+            bool selected = true;
+            if (requestedScene != selectedScene)
+            {
+                selected = marcus_select_scene(player.get(), requestedScene) != 0;
+                if (selected) selectedScene = requestedScene;
+            }
+            if (!selected || frame < (std::numeric_limits<long>::min)() || frame > (std::numeric_limits<long>::max)() ||
                 !marcus_seek(player.get(), static_cast<long>(frame)) ||
                 !marcus_render(player.get(), 160, 120, 1, 0, 0, 1, &image))
                 preview.error = marcus_error(player.get())[0] ? marcus_error(player.get()) : "Invalid preview frame.";

@@ -3530,7 +3530,7 @@ int main(int argc, char **argv)
     SDL_Event event;
     const char *input, *font, *capture, *browse;
     int i, result, frames, requested_scene, requested_object, requested_zip, have_frame, show_settings;
-    int requested_renderer, browser_entry;
+    int requested_renderer, browser_entry, chosen_scene;
     MarcusMovieInput *browser_input;
     char browser_path[4096];
     long requested_frame, parsed, chosen_frame;
@@ -3762,8 +3762,11 @@ int main(int argc, char **argv)
         i = scene_organiser_take(app.scene_organiser);
         if (i >= 0)
             select_scene(&app, i);
-        if (scene_organiser_take_frame(app.scene_organiser, &chosen_frame))
-            seek(&app, chosen_frame);
+        if (scene_organiser_take_frame(app.scene_organiser, &chosen_scene, &chosen_frame))
+        {
+            if (chosen_scene == app.info.scene || select_scene(&app, chosen_scene))
+                seek(&app, chosen_frame);
+        }
         browser_input = browser_take(app.browser, &browser_entry, browser_path, sizeof(browser_path));
         if (browser_input && !open_input(&app, browser_input, browser_entry, browser_path))
         {

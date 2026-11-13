@@ -4,6 +4,8 @@
 #include <cmath>
 #include <new>
 #include <limits>
+#include <vector>
+#include <iterator>
 
 namespace
 {
@@ -48,6 +50,7 @@ struct Layout
 {
     SDL_FRect panel, grid, track, thumb, cancel, confirm;
     SDL_FRect zoomOut, zoomIn, zoomTrack, zoomThumb;
+    SDL_FRect wholeMovie;
     int columns, rows, maxScroll;
     float cellWidth, cellHeight, spacing;
 };
@@ -76,6 +79,10 @@ struct MarcusSceneOrganiser
     int previewWidth = 160, previewHeight = 120;
     bool previewSizeKnown = false;
     bool zoomDragging = false;
+    struct SceneFrames { long first; int count, offset; };
+    std::vector<SceneFrames> scenes;
+    int movieFrameCount = 0;
+    bool wholeMovie = false;
 };
 namespace
 {
@@ -124,6 +131,7 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
     const float zoomRange = std::max(0.001f, 1.0f - MinimumZoom(s));
     l.zoomThumb = {l.zoomTrack.x + (l.zoomTrack.w - 10) * (s->frameZoom - MinimumZoom(s)) / zoomRange,
                    l.zoomTrack.y + 4, 10, 20};
+    l.wholeMovie = {l.panel.x + l.panel.w - 300, l.panel.y + 10, 144, 28};
     return l;
 }
 void SetZoom(MarcusSceneOrganiser *s, float zoom, int width, int height)
@@ -159,9 +167,44 @@ void Confirm(MarcusSceneOrganiser *s)
     marcus_frame_previews_destroy(s->framePreviews);
     s->framePreviews = nullptr;
 }
-long FrameAt(const MarcusSceneOrganiser *s, int index)
+MarcusFramePosition PositionAt(const MarcusSceneOrganiser *s, int index)
 {
-    return static_cast<long>(static_cast<long long>(s->firstFrame) + index);
+    if (!s->wholeMovie) return {s->sourceScene, static_cast<long>(static_cast<long long>(s->firstFrame) + index)};
+    const auto next = std::upper_bound(s->scenes.begin(), s->scenes.end(), index,
+                                      [](int value, const MarcusSceneOrganiser::SceneFrames &scene) {
+                                          return value < scene.offset;
+                                      });
+    const auto scene = std::prev(next);
+    return {int(scene - s->scenes.begin()), static_cast<long>(static_cast<long long>(scene->first) + index - scene->offset)};
+}
+int IndexAt(const MarcusSceneOrganiser *s, int scene, long frame)
+{
+    if (scene < 0 || scene >= int(s->scenes.size())) return -1;
+    const auto &range = s->scenes[scene];
+    const auto local = static_cast<long long>(frame) - range.first;
+    if (local < 0 || local >= range.count || (!s->wholeMovie && scene != s->sourceScene)) return -1;
+    return static_cast<int>(local) + (s->wholeMovie ? range.offset : 0);
+}
+void ToggleWholeMovie(MarcusSceneOrganiser *s)
+{
+    if (!s->movieFrameCount) return;
+    const auto position = PositionAt(s, s->selected);
+    s->wholeMovie = !s->wholeMovie;
+    s->sourceScene = position.scene;
+    s->firstFrame = s->scenes[position.scene].first;
+    s->count = s->wholeMovie ? s->movieFrameCount : s->scenes[position.scene].count;
+    s->selected = IndexAt(s, position.scene, position.frame);
+    s->scroll = -1;
+    s->dragging = s->zoomDragging = false;
+    for (auto &t : s->thumbnails)
+    {
+        SDL_DestroyTexture(t.texture);
+        t = {};
+    }
+    // A request already being rendered may finish; its scene/frame identity is
+    // remapped into the new scope when consumed, rather than reusing a tile ID.
+    std::array<MarcusFramePosition, 1> none;
+    marcus_frame_previews_request_positions(s->framePreviews, none.data(), 0);
 }
 Thumbnail &OldestThumbnail(MarcusSceneOrganiser *s)
 {
@@ -217,23 +260,23 @@ void UpdateFrameThumbnails(MarcusSceneOrganiser *s, SDL_Renderer *renderer, cons
             s->frameZoom = std::clamp(s->frameZoom, MinimumZoom(s), 1.0f);
             s->previewSizeKnown = true;
         }
-        const auto index = static_cast<long long>(image.frame) - s->firstFrame;
+        const auto index = IndexAt(s, image.scene, image.frame);
         if (index >= 0 && index < s->count) StoreThumbnail(s, renderer, static_cast<int>(index), image);
     }
     if (s->frameError[0]) return;
-    std::array<long, 32> requests;
+    std::array<MarcusFramePosition, 32> requests;
     int count = 0;
     const int first = s->scroll * l.columns;
     const int end = int(std::min(static_cast<long long>(s->count), static_cast<long long>(first) + l.rows * l.columns));
     auto request = [&](int index) {
         if (count == int(requests.size())) return;
         if (std::none_of(s->thumbnails.begin(), s->thumbnails.end(),
-                         [&](const Thumbnail &t) { return t.scene == index; })) requests[count++] = FrameAt(s, index);
+                         [&](const Thumbnail &t) { return t.scene == index; })) requests[count++] = PositionAt(s, index);
     };
     if (s->selected >= first && s->selected < end) request(s->selected);
     for (int index = first; index < end; ++index)
         if (index != s->selected) request(index);
-    marcus_frame_previews_request(s->framePreviews, requests.data(), count);
+    marcus_frame_previews_request_positions(s->framePreviews, requests.data(), count);
 }
 }
 extern "C"
@@ -255,6 +298,8 @@ void scene_organiser_close(MarcusSceneOrganiser *s)
     s->previewSizeKnown = false;
     s->previewWidth = 160;
     s->previewHeight = 120;
+    s->scenes.clear();
+    s->movieFrameCount = 0;
     for (auto &t : s->thumbnails)
     {
         SDL_DestroyTexture(t.texture);
@@ -286,14 +331,26 @@ int scene_organiser_show_frames(MarcusSceneOrganiser *s, MarcusPlayer *player)
     if (!marcus_info(player, &info)) return 0;
     const auto count = static_cast<long long>(info.last_frame) - info.first_frame + 1;
     if (count <= 0 || count > (std::numeric_limits<int>::max)()) return 0;
+    long long total = 0;
+    for (int index = 0; index < info.scene_count; ++index)
+    {
+        MarcusScene scene = {};
+        if (!marcus_scene(player, index, &scene)) return 0;
+        const auto length = static_cast<long long>(scene.last_frame) - scene.first_frame + 1;
+        if (length <= 0 || length > (std::numeric_limits<int>::max)() ||
+            total + length > (std::numeric_limits<int>::max)()) return 0;
+        s->scenes.push_back({scene.first_frame, int(length), int(total)});
+        total += length;
+    }
+    s->movieFrameCount = int(total);
     s->framePreviews = marcus_frame_previews_create(player);
     if (!s->framePreviews) return 0;
     s->player = player;
     s->frames = true;
     s->sourceScene = info.scene;
     s->firstFrame = info.first_frame;
-    s->count = static_cast<int>(count);
-    s->current = s->selected = static_cast<int>(static_cast<long long>(info.frame) - info.first_frame);
+    s->count = s->wholeMovie ? s->movieFrameCount : static_cast<int>(count);
+    s->current = s->selected = IndexAt(s, info.scene, info.frame);
     s->scroll = -1;
     s->open = true;
     return 1;
@@ -343,6 +400,7 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
         const auto x = event->button.x, y = event->button.y;
         if (Inside(x, y, l.cancel)) scene_organiser_close(s);
         else if (Inside(x, y, l.confirm)) Confirm(s);
+        else if (s->frames && Inside(x, y, l.wholeMovie)) ToggleWholeMovie(s);
         else if (s->frames && Inside(x, y, l.zoomOut)) SetZoom(s, s->frameZoom - 0.125f, width, height);
         else if (s->frames && Inside(x, y, l.zoomIn)) SetZoom(s, s->frameZoom + 0.125f, width, height);
         else if (s->frames && Inside(x, y, l.zoomTrack))
@@ -391,10 +449,12 @@ int scene_organiser_take(MarcusSceneOrganiser *s)
     s->result = -1;
     return result;
 }
-int scene_organiser_take_frame(MarcusSceneOrganiser *s, long *frame)
+int scene_organiser_take_frame(MarcusSceneOrganiser *s, int *scene, long *frame)
 {
-    if (!s || !s->frames || s->result < 0 || !frame) return 0;
-    *frame = FrameAt(s, s->result);
+    if (!s || !s->frames || s->result < 0 || !scene || !frame) return 0;
+    const auto position = PositionAt(s, s->result);
+    *scene = position.scene;
+    *frame = position.frame;
     s->result = -1;
     return 1;
 }
@@ -419,6 +479,9 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     char text[256];
     SDL_snprintf(text, sizeof(text), "%d %s", s->count, s->frames ? "frames" : "scenes");
     ui_text(ui, l.panel.x + l.panel.w - 126, l.panel.y + 16, text, 0xc5cedd);
+    if (s->frames)
+        ui_button_sized(ui, l.wholeMovie.x, l.wholeMovie.y, l.wholeMovie.w, l.wholeMovie.h,
+                        "Whole movie", s->wholeMovie, s->movieFrameCount > 0);
     bool loaded = false;
     MarcusScene selectedScene = {};
     if (!s->frames) marcus_scene(s->player, s->selected, &selectedScene);
@@ -445,7 +508,14 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
             ui_fill(ui, x, y, picture.w, picture.h, 0x0b0e15);
             auto &t = GetThumbnail(s, ui->renderer, index, loaded);
             if (t.scene == index && t.texture)
-                SDL_RenderTexture(ui->renderer, t.texture, nullptr, &picture);
+            {
+                // Different scenes may use different camera aspect ratios.
+                const auto scale = std::min(picture.w / t.width, picture.h / t.height);
+                const SDL_FRect dest = {picture.x + (picture.w - t.width * scale) / 2,
+                                        picture.y + (picture.h - t.height * scale) / 2,
+                                        t.width * scale, t.height * scale};
+                SDL_RenderTexture(ui->renderer, t.texture, nullptr, &dest);
+            }
             continue;
         }
         ui_fill(ui, x - 2, y - 2, l.cellWidth + 4, cardHeight + 4,

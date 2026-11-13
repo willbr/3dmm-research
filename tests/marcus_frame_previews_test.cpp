@@ -78,6 +78,41 @@ int main(int argc, char **argv)
             check(live == std::vector<unsigned char>(livePixels, livePixels + live.size()), "Live image unchanged");
         }
         check(count == 3, "Thumbnail completion");
+        check(marcus_seek(player.get(), 1) && marcus_render(player.get(), 160, 120, 1, 0, 0, 1, &image),
+              "Second-scene reference");
+        std::vector<unsigned char> other;
+        const int cropLeft = (image.width - expected[0].width) / 2;
+        const int cropTop = (image.height - expected[0].height) / 2;
+        for (int y = 0; y < expected[0].height; ++y)
+        {
+            const auto row = image.rgba + (y + cropTop) * image.pitch + cropLeft * 4;
+            other.insert(other.end(), row, row + expected[0].width * 4);
+        }
+        check(other != expected[0].pixels, "Scenes must have different pixels at frame 1");
+        check(marcus_seek(player.get(), 10), "Restore live playhead");
+        const MarcusFramePosition acrossScenes[] = {{1, 1}, {0, 1}};
+        marcus_frame_previews_request_positions(previews.get(), acrossScenes, 2);
+        std::array<bool, 2> scenesReceived = {};
+        const auto movieDeadline = SDL_GetTicks() + 30000;
+        int movieCount = 0;
+        while (movieCount < 2 && SDL_GetTicks() < movieDeadline)
+        {
+            const auto status = marcus_frame_previews_take(previews.get(), &image, error, sizeof(error));
+            if (status < 0) throw std::runtime_error(error);
+            if (!status) { SDL_Delay(5); continue; }
+            check(image.scene >= 0 && image.scene < 2 && image.frame == 1 && !scenesReceived[image.scene],
+                  "Cross-scene thumbnail identity");
+            const auto &pixels = image.scene == 0 ? expected[0].pixels : other;
+            check(image.width == expected[0].width && image.height == expected[0].height &&
+                  pixels == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height),
+                  "Cross-scene pixels must match the requested scene");
+            scenesReceived[image.scene] = true;
+            ++movieCount;
+            MarcusInfo info = {};
+            check(marcus_info(player.get(), &info) && info.scene == 1 && info.frame == 10,
+                  "Whole-movie previews leave the live scene and frame unchanged");
+        }
+        check(movieCount == 2, "Cross-scene preview completion");
         const long invalid = 31;
         marcus_frame_previews_request(previews.get(), &invalid, 1);
         bool failed = false;

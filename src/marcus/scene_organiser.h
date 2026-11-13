@@ -15,7 +15,7 @@ int scene_organiser_event(MarcusSceneOrganiser *organiser, const SDL_Event *even
 void scene_organiser_draw(MarcusSceneOrganiser *organiser, MarcusUI *ui, int width, int height);
 /* Returns a confirmed scene once, or -1. */
 int scene_organiser_take(MarcusSceneOrganiser *organiser);
-int scene_organiser_take_frame(MarcusSceneOrganiser *organiser, long *frame);
+int scene_organiser_take_frame(MarcusSceneOrganiser *organiser, int *scene, long *frame);
 #ifdef __cplusplus
 }
 #endif

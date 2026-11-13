@@ -6,6 +6,10 @@
 
 namespace
 {
+bool SamePosition(const MarcusFramePosition &a, const MarcusFramePosition &b)
+{
+    return a.scene == b.scene && a.frame == b.frame;
+}
 void ReadExact(SDL_IOStream *stream, void *data, std::size_t size, const std::atomic<bool> &cancel)
 {
     const auto deadline = SDL_GetTicks() + 60000;
@@ -28,6 +32,7 @@ void ReadExact(SDL_IOStream *stream, void *data, std::size_t size, const std::at
 }
 MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources,
                                        std::string content, int scene)
+    : sourceScene(scene)
 {
     const auto base = SDL_GetBasePath();
     const auto executable = base ? std::string(base) + "marcus-preview"
@@ -57,17 +62,17 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
             if (!input || !stream) throw std::runtime_error("Cannot communicate with the frame preview helper.");
             while (!cancel)
             {
-                long frame;
+                MarcusFramePosition position;
                 {
                     std::unique_lock<std::mutex> lock(mutex);
                     wake.wait(lock, [&] { return cancel || (!pending.empty() && ready.size() < 32); });
                     if (cancel) break;
-                    frame = pending.front();
+                    position = pending.front();
                     pending.pop_front();
                     busy = true;
-                    active = frame;
+                    active = position;
                 }
-                const auto request = std::to_string(frame) + "\n";
+                const auto request = std::to_string(position.scene) + " " + std::to_string(position.frame) + "\n";
                 std::size_t sent = 0;
                 const auto deadline = SDL_GetTicks() + 60000;
                 while (sent < request.size())
@@ -96,7 +101,7 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
                 if (!preview.width || !preview.height) throw std::runtime_error("The frame thumbnail is empty.");
                 {
                     std::lock_guard<std::mutex> lock(mutex);
-                    ready.push_back({frame, std::move(preview)});
+                    ready.push_back({position, std::move(preview)});
                     busy = false;
                 }
             }
@@ -131,16 +136,24 @@ void marcus_frame_previews_destroy(MarcusFramePreviews *previews) { delete previ
 void marcus_frame_previews_request(MarcusFramePreviews *previews, const long *frames, int count)
 {
     if (!previews || !frames || count < 0 || count > 32) return;
+    std::array<MarcusFramePosition, 32> positions;
+    for (int i = 0; i < count; ++i) positions[i] = {previews->sourceScene, frames[i]};
+    marcus_frame_previews_request_positions(previews, positions.data(), count);
+}
+void marcus_frame_previews_request_positions(MarcusFramePreviews *previews, const MarcusFramePosition *positions, int count)
+{
+    if (!previews || !positions || count < 0 || count > 32) return;
     std::lock_guard<std::mutex> lock(previews->mutex);
     previews->pending.clear();
     for (int i = 0; i < count; ++i)
     {
-        const auto frame = frames[i];
-        if ((previews->busy && previews->active == frame) ||
+        const auto position = positions[i];
+        if ((previews->busy && SamePosition(previews->active, position)) ||
             std::any_of(previews->ready.begin(), previews->ready.end(),
-                        [&](const MarcusFramePreviews::Result &r) { return r.frame == frame; }) ||
-            std::find(previews->pending.begin(), previews->pending.end(), frame) != previews->pending.end()) continue;
-        previews->pending.push_back(frame);
+                        [&](const MarcusFramePreviews::Result &r) { return SamePosition(r.position, position); }) ||
+            std::any_of(previews->pending.begin(), previews->pending.end(),
+                        [&](const MarcusFramePosition &p) { return SamePosition(p, position); })) continue;
+        previews->pending.push_back(position);
     }
     previews->wake.notify_all();
 }
@@ -154,7 +167,8 @@ int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image
         previews->output = std::move(previews->ready.front());
         previews->ready.pop_front();
         const auto &p = previews->output.preview;
-        image->frame = previews->output.frame;
+        image->scene = previews->output.position.scene;
+        image->frame = previews->output.position.frame;
         image->width = p.width; image->height = p.height; image->pitch = p.width * 4;
         image->rgba = p.rgba.data();
         previews->wake.notify_all();

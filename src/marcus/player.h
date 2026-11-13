@@ -13,6 +13,11 @@ extern "C"
     typedef struct MarcusPlayer MarcusPlayer;
     typedef struct MarcusMovieInput MarcusMovieInput;
     typedef struct MarcusFramePreviews MarcusFramePreviews;
+    typedef struct MarcusFramePosition
+    {
+        int scene;
+        long frame;
+    } MarcusFramePosition;
     typedef struct MarcusMovieEntry
     {
         char name[1024];
@@ -235,6 +240,10 @@ extern "C"
     MarcusFramePreviews *marcus_frame_previews_create(MarcusPlayer *player);
     void marcus_frame_previews_destroy(MarcusFramePreviews *previews);
     void marcus_frame_previews_request(MarcusFramePreviews *previews, const long *frames, int count);
+    /* Movie-wide requests identify both the zero-based scene and authored frame.
+     * Returned MarcusImage records include both scene and frame. */
+    void marcus_frame_previews_request_positions(MarcusFramePreviews *previews,
+                                                 const MarcusFramePosition *positions, int count);
     int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image, char *error, int error_size);
     int marcus_select_scene(MarcusPlayer *player, int index);
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */

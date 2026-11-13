@@ -193,6 +193,14 @@ native pixels; zooming out packs more frames into the window. The minimum size
 keeps previews at least 40 pixels wide and 30 pixels high. The chosen
 size lasts for this Marcus session. The wheel without Ctrl still scrolls.
 
+The **Whole movie** toggle switches the grid between one scene and every authored
+frame across all scenes, in movie order. It keeps the selected frame in view and
+retains the zoom setting. Turning it off shows the scene containing the selection.
+Confirming a frame in another scene changes scenes and seeks to that exact frame;
+cancelling still leaves the live movie unchanged. The scope choice lasts for this
+Marcus session. Thumbnails remain generated on demand, with scene and frame
+identities kept separate so equal frame numbers in different scenes cannot collide.
+
 Frame thumbnails render silently within 160x120 through the authored camera,
 including captions at their seek position. The renderer's surrounding letterbox
 canvas is removed using the camera aspect ratio, preserving black areas inside
