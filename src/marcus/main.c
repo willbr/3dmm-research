@@ -342,7 +342,10 @@ static void toggle_second_view(App *app)
 
 static void fail(App *app, const char *message)
 {
-    SDL_strlcpy(app->error, message, sizeof(app->error));
+    /* Keep the initiating failure while its dialog is open. A subsequent
+     * redraw of an invalid preview must not replace it with a generic error. */
+    if (!app->error[0])
+        SDL_strlcpy(app->error, message, sizeof(app->error));
     app->playing = 0;
     marcus_stop(app->player);
     app->dragging = app->orbiting = app->panning = 0;

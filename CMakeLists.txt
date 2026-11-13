@@ -360,6 +360,12 @@ target_sources(actor-render-test PRIVATE
     "${PROJECT_SOURCE_DIR}/tests/actor_render_test.cpp"
 )
 target_link_libraries(actor-render-test PRIVATE engine-core)
+add_executable(sparse-costume-test EXCLUDE_FROM_ALL tests/sparse_costume_test.cpp)
+target_compile_features(sparse-costume-test PRIVATE cxx_std_17)
+target_link_libraries(sparse-costume-test PRIVATE engine-core)
+if(BUILD_TESTING)
+  add_test(NAME sparse-costume COMMAND sparse-costume-test)
+endif()
 
 # Movie save/load round-trip regression test. Creates a blank movie,
 # saves it to a real on-disk .3MM, releases, reopens, releases again.
@@ -1443,7 +1449,7 @@ add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnosti
   global-cleanup-test
   preview-checks
   mbmp-pixels-test
-  actor-render-test extract-bmdl inspect-chunks three-mm three-mm-fixture
+  actor-render-test sparse-costume-test extract-bmdl inspect-chunks three-mm three-mm-fixture
   nick-expansion nick-expansion-test
   platform-services-test file-services-test user-services-test settings-store-test filename-test text-services-test
   text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)

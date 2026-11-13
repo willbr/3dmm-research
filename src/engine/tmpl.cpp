@@ -644,7 +644,11 @@ bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 ***************************************************************************/
 PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
 {
-    AssertThis(0); AssertIn(cmid, 0, _ccmid);
+    AssertThis(0);
+    // A CMID is a child ID, not an ordinal. Imported templates may have gaps
+    // (for example, children 0 and 2), so _ccmid is not an upper bound on IDs.
+    if (cmid < 0)
+        return pvNil;
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
     return static_cast<PCustomMaterial_CMTL>(three_mm_template_fetch_child(this, cmid, THREE_MM_TEMPLATE_CUSTOM, &s));
 }

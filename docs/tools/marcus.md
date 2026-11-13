@@ -7,6 +7,15 @@ It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
 The dark layout has a camera viewport, object and sound dope sheets, scene object list
 and properties pane. The existing Studio application is unchanged.
 
+Imported templates can use sparse costume child IDs, such as 0 and 2. The shared
+engine resolves those IDs directly instead of asserting against a contiguous
+costume count. This fixes Batman Sneak Peek stopping at scene 1/frame 3 in debug
+builds. A headless native regression covers applying a sparse costume and looking
+up a missing ID. The rebuilt Marcus sought and rendered all 1,362 frames across
+the movie's 15 scenes with zero errors; the local journal is
+`tmp/batman-playback-fixed.jsonl`. Error dialogs also retain the initiating failure
+when later redraw attempts fail.
+
 Playback compatibility targets retail 3D Movie Maker, with v3dmm as an additional
 comparison baseline. Marcus should reuse the SDL port's shared engine policy
 rather than independently approximate it. That policy can be migrated to C
