@@ -25,6 +25,7 @@
 #define MOVIE_H
 #include "movie_playback.h"
 #include "movie_container.h"
+#include "three_mm/movie_sound.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -643,10 +644,8 @@ class Movie : public Movie_PAR
     bool _FDoGarbageCollection(PChunkyFile pcfl);        // Remove unused chunks from movie.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
     bool _FDoMtrlTmplGC(PChunkyFile pcfl);               // Material and template garbage collection
-    ChildChunkID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
-    ChildChunkID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
+    ThreeMMMovieSoundServices _SoundServices();
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
-    bool _FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     bool _FSetPfilSave(PFilename pfni);
 
   public:
@@ -783,10 +782,7 @@ class Movie : public Movie_PAR
     // Auto save stuff
     //
     bool FAutoSave(PFilename pfni = pvNil, bool fCleanRollCall = fFalse); // Save movie in temp file
-    bool FSaveTagSnd(TAG *ptag)
-    {
-        return TagManager::FSaveTag(ptag, _data.Resources(), fTrue);
-    }
+    bool FSaveTagSnd(TAG *ptag);
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);

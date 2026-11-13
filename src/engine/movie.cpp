@@ -1291,41 +1291,78 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 }
 
 /******************************************************************************
-    _FIsChild
-        Enumerates the children of the Movie chunk and reports whether the
-        given (ctg, cno) chunk is an actual child of the Movie chunk.
-
-    Arguments:
-        PChunkyFile pcfl  --  the file on which to check
-        ChunkTagOrType ctg    --  these are self-explanatory
-        ChunkNumber cno
-
-    Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the Movie
+    Native resource primitives for the shared C movie sound controller.
 
 ************************************************************ PETED ***********/
-bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+ThreeMMMovieSoundServices Movie::_SoundServices()
 {
-    bool fIsChild = fFalse;
-    long ckid, ikid;
-    ChildChunkIdentification kid;
-
-    ckid = pcfl->Ckid(kctgMvie, _data.movieNumber);
-    for (ikid = 0; ikid < ckid; ikid++)
-    {
-        if (!pcfl->FGetKid(kctgMvie, _data.movieNumber, ikid, &kid))
-        {
-            Bug("ChunkyFile returned bogus ckid");
-            break;
+    static_assert(kctgMvie==THREE_MM_SOUND_MOVIE && kctgScen==THREE_MM_SOUND_SCENE &&
+        kctgMsnd==THREE_MM_SOUND_CHUNK && kctgSoc==THREE_MM_SOUND_CREATOR && kchidSnd==0 && ksidUseCrf==0,"Movie sound ABI");
+    static_assert(sizeof(TAG)==sizeof(ThreeMMTag) && sizeof(ChunkNumber)==sizeof(ThreeMMU32) &&
+        sizeof(ChildChunkID)==sizeof(ThreeMMU32),"Movie sound record ABI");
+    ThreeMMMovieSoundServices s{}; s.context=this;
+    s.read=[](void *p,ThreeMMMovieSoundState *state) {
+        auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_iscen;
+    };
+    s.file=[](void *p)->void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.count=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
+    s.child=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMI32 index,ThreeMMChunkChild *out) {
+        ChildChunkIdentification child; bool ok=static_cast<PChunkyFile>(p)->FGetKid(type,number,index,&child);
+        if (ok) *out={child.cki.ctg,child.cki.cno,child.chid}; return int(ok);
+    };
+    s.find=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 slot,ThreeMMU32 childType,ThreeMMU32 *out) {
+        ChildChunkIdentification child; bool ok=static_cast<PChunkyFile>(p)->FGetKidChidCtg(type,number,slot,childType,&child);
+        if (ok) *out=child.cki.cno; return int(ok);
+    };
+    s.adopt=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 childType,ThreeMMU32 child,ThreeMMU32 slot) {
+        return int(static_cast<PChunkyFile>(p)->FAdoptChild(type,number,childType,child,slot));
+    };
+    s.open_tag=[](void *,ThreeMMTag *v,void *cache) {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FOpenTag(&tag,static_cast<PChunkyResourceFile>(cache));
+        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
+    };
+    s.close_tag=[](void *,ThreeMMTag *v) { TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::CloseTag(&tag); std::memcpy(v,&tag,sizeof(tag)); };
+    s.save_tag=[](void *,ThreeMMTag *v,void *cache,int redirect) {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FSaveTag(&tag,static_cast<PChunkyResourceFile>(cache),redirect!=0);
+        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
+    };
+    s.ensure_autosave=[](void *p) { return int(static_cast<PMovie>(p)->FEnsureAutosave()); };
+    s.use_temp=[](void *p) { return int(static_cast<PMovie>(p)->_FUseTempFile()); };
+    s.inspect_source=[](void *p) { Filename filename; static_cast<PChunkyFile>(p)->GetFni(&filename); };
+    s.copy_chunk=[](void *p,ThreeMMU32 type,ThreeMMU32 number,void *destination,ThreeMMU32 *out) {
+        ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=static_cast<PChunkyFile>(p)->FCopy(type,number,static_cast<PChunkyFile>(destination),&value);
+        std::memcpy(out,&value,sizeof(value)); return int(ok);
+    };
+    s.delete_chunk=[](void *p,ThreeMMU32 type,ThreeMMU32 number) { static_cast<PChunkyFile>(p)->Delete(type,number); };
+    s.save_file=[](void *p,ThreeMMU32 creator) { return int(static_cast<PChunkyFile>(p)->FSave(creator)); };
+    s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
+    s.copy_midi=[](void *p,void *destination,ThreeMMU32 *out,void *name) {
+        ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=MovieSoundMSND::FCopyMidi(static_cast<PFileObject>(p),static_cast<PChunkyFile>(destination),&value,static_cast<PString>(name));
+        std::memcpy(out,&value,sizeof(value)); return int(ok);
+    };
+    s.copy_wave=[](void *p,void *destination,ThreeMMI32 style,ThreeMMU32 *out,void *name) {
+        ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=MovieSoundMSND::FCopyWave(static_cast<PFileObject>(p),static_cast<PChunkyFile>(destination),style,&value,static_cast<PString>(name));
+        std::memcpy(out,&value,sizeof(value)); return int(ok);
+    };
+    s.has_bad_sound_error=[](void *) { return int(vpers->FIn(ercSocBadSoundFile)); };
+    s.mark_gc=[](void *p) { static_cast<PMovie>(p)->_fGCSndsOnClose=true; };
+    s.sound_count=[](void *p)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->CckiCtg(kctgMsnd); };
+    s.sound_at=[](void *p,ThreeMMI32 index,ThreeMMU32 *out) {
+        ChunkIdentification chunk; bool ok=static_cast<PChunkyFile>(p)->FGetCkiCtg(kctgMsnd,index,&chunk);
+        if (ok) *out=chunk.cno; return int(ok);
+    };
+    s.references=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type,number); };
+    s.child_at_slot=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 slot) { ChildChunkIdentification child; return int(static_cast<PChunkyFile>(p)->FGetKidChid(type,number,slot,&child)); };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault) {
+        case THREE_MM_SOUND_BAD_CHILD_ENUM: Bug("ChunkyFile returned bogus ckid"); break;
+        case THREE_MM_SOUND_NO_CURRENT_SCENE: Bug("Scene chunk doesn't exist!"); break;
+        case THREE_MM_SOUND_CANNOT_COPY: PushErc(ercSocCantCopyMsnd); break;
+        case THREE_MM_SOUND_BAD_CHUNK_ENUM: Bug("Should never fail"); break;
+        default: Bug("Unknown movie sound diagnostic"); break;
         }
-
-        if (kid.cki.ctg == ctg && kid.cki.cno == cno)
-        {
-            fIsChild = fTrue;
-            break;
-        }
-    }
-
-    return fIsChild;
+    };
+    return s;
 }
 
 /****************************************************
@@ -1344,39 +1381,8 @@ bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
  ****************************************************/
 bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 {
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-
-    ChildChunkID chidMvie;
-    long ckid, ikid;
-    ChildChunkIdentification kid;
-
-    ckid = pcfl->Ckid(kctgScen, cnoScen);
-    for (ikid = 0; ikid < ckid; ikid++)
-    {
-        if (!pcfl->FGetKid(kctgScen, cnoScen, ikid, &kid))
-        {
-            Bug("ChunkyFile returned bogus ckid");
-            break;
-        }
-
-        if (kid.cki.ctg == kctgMsnd)
-        {
-            if (!_FIsChild(pcfl, kctgMsnd, kid.cki.cno))
-            {
-                // Adopt as a child of the movie
-                chidMvie = _ChidMvieNewSnd();
-                if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgMsnd, kid.cki.cno, chidMvie))
-                {
-                    goto LFail;
-                }
-            }
-        }
-    }
-
-    return fTrue;
-LFail:
-    return fFalse;
+    AssertThis(0); AssertPo(pcfl,0); const auto services=_SoundServices();
+    return three_mm_movie_sound_adopt(pcfl,cnoScen,&services)!=0;
 }
 
 /****************************************************
@@ -1397,42 +1403,15 @@ LFail:
  ****************************************************/
 bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
 {
-    AssertThis(0);
+    AssertThis(0); AssertVarMem(ptag); AssertNilOrVarMem(pcrf); const auto services=_SoundServices();
+    ThreeMMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); bool ok=three_mm_movie_sound_resolve(&tag,chid,cnoScen,pcrf,&services)!=0;
+    std::memcpy(ptag,&tag,sizeof(tag)); return ok;
+}
+bool Movie::FSaveTagSnd(TAG *ptag)
+{
     AssertVarMem(ptag);
-    AssertNilOrVarMem(pcrf);
-
-    ChildChunkIdentification kidScen;
-    ChildChunkIdentification kid;
-    TAG tagNew = *ptag;
-    PChunkyFile pcfl;
-
-    if (pvNil == pcrf)
-        pcrf = _data.Resources();
-    pcfl = pcrf->Pcfl();
-
-    if (ptag->sid != ksidUseCrf)
-        return fTrue;
-    if (cnoNil == cnoScen)
-    {
-        if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
-            return fFalse;
-        cnoScen = kidScen.cki.cno;
-    }
-
-    if (!pcfl->FGetKidChidCtg(kctgScen, cnoScen, chid, kctgMsnd, &kid))
-        return fFalse;
-
-    if (ptag->cno != kid.cki.cno)
-    {
-        // As the pcrf has not changed, it is not essential
-        // to close & open the respective tags.
-        tagNew.cno = kid.cki.cno;
-        if (!TagManager::FOpenTag(&tagNew, pcrf))
-            return fFalse;
-        TagManager::CloseTag(ptag);
-        *ptag = tagNew;
-    }
-    return fTrue;
+    ThreeMMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); const auto services=_SoundServices();
+    bool ok=three_mm_movie_sound_save(&tag,&services)!=0; std::memcpy(ptag,&tag,sizeof(tag)); return ok;
 }
 
 /****************************************************
@@ -1450,34 +1429,9 @@ bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PC
  ****************************************************/
 bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 {
-    AssertThis(0);
-    AssertVarMem(pchid);
-
-    ChildChunkIdentification kidScen;
-    ChildChunkIdentification kid;
-    long ckid;
-    long ikid;
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
-        return fFalse;
-    ckid = pcfl->Ckid(kctgScen, kidScen.cki.cno);
-    for (ikid = 0; ikid < ckid; ikid++)
-    {
-        if (!pcfl->FGetKid(kctgScen, kidScen.cki.cno, ikid, &kid))
-            return fFalse;
-        if (kid.cki.ctg != kctgMsnd)
-            continue;
-        if (kid.cki.cno != cno)
-            continue;
-        *pchid = kid.chid;
-        return fTrue;
-    }
-
-    *pchid = _ChidScenNewSnd();
-    if (!pcfl->FAdoptChild(kctgScen, kidScen.cki.cno, kctgMsnd, cno, *pchid))
-        return fFalse;
-    return fTrue;
+    AssertThis(0); AssertVarMem(pchid); const auto services=_SoundServices();
+    ThreeMMU32 child; std::memcpy(&child,pchid,sizeof(child)); bool ok=three_mm_movie_sound_child(cno,&child,&services)!=0;
+    std::memcpy(pchid,&child,sizeof(child)); return ok;
 }
 
 /****************************************************
@@ -1496,58 +1450,9 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
  ****************************************************/
 bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
-    AssertThis(0);
-    AssertVarMem(pfilSrc);
-    AssertVarMem(pcno);
-    AssertNilOrPo(pstn, 0);
-    Assert(_data.Resources() != pvNil, "Bad working file.");
-
-    PChunkyFile pcfl;
-    Filename fniSrc;
-    ChildChunkID chid;
-    ChildChunkIdentification kidScen;
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // Ensure we will be writing to the temp file
-    //
-    if (!_FUseTempFile())
-    {
-        return fFalse;
-    }
-
-    pfilSrc->GetFni(&fniSrc);
-    if (fniSrc.Ftg() == kftgMidi)
-    {
-        if (!MovieSoundMSND::FCopyMidi(pfilSrc, pcfl, pcno, pstn))
-            goto LFail;
-    }
-    else
-    {
-        if (!MovieSoundMSND::FCopyWave(pfilSrc, pcfl, sty, pcno, pstn))
-            goto LFail;
-    }
-
-    AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen),
-             "Scene chunk doesn't exist!");
-
-    chid = _ChidMvieNewSnd();
-    if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgMsnd, *pcno, chid))
-    {
-        pcfl->Delete(kctgMsnd, *pcno);
-        return fFalse;
-    }
-    if (!pcfl->FSave(kctgSoc))
-        return fFalse;
-
-    _fGCSndsOnClose = fTrue;
-
-    return fTrue;
-LFail:
-    if (!vpers->FIn(ercSocBadSoundFile))
-        PushErc(ercSocCantCopyMsnd);
-    return fFalse;
+    AssertThis(0); AssertVarMem(pfilSrc); AssertVarMem(pcno); AssertNilOrPo(pstn,0); Assert(_data.Resources()!=nullptr,"Bad working file.");
+    const auto services=_SoundServices(); ThreeMMU32 number; std::memcpy(&number,pcno,sizeof(number));
+    bool ok=three_mm_movie_sound_import(pfilSrc,sty,&number,pstn,&services)!=0; std::memcpy(pcno,&number,sizeof(number)); return ok;
 }
 
 /****************************************************
@@ -1564,97 +1469,9 @@ LFail:
  ****************************************************/
 bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
-    AssertBaseThis(0);
-    AssertPo(pcflSrc, 0);
-    AssertVarMem(pcnoDest);
-
-    PChunkyFile pcflDest;
-    ChildChunkIdentification kidScen;
-    ChildChunkID chid;
-    Filename fni;
-
-    if (!FEnsureAutosave())
-        return fFalse;
-    pcflDest = _data.Resources()->Pcfl();
-    pcflSrc->GetFni(&fni);
-
-    // Copy the msnd chunk from one movie to another
-    // Wave or Midi
-    if (!pcflSrc->FCopy(kctgMsnd, cnoSrc, pcflDest, pcnoDest))
-        return fFalse;
-
-    AssertDo(pcflDest->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen),
-             "Scene chunk doesn't exist!");
-
-    chid = _ChidMvieNewSnd(); // Find a unique chid for the new sound
-    if (!pcflDest->FAdoptChild(kctgMvie, _data.movieNumber, kctgMsnd, *pcnoDest, chid))
-    {
-        pcflDest->Delete(kctgMsnd, *pcnoDest);
-        return fFalse;
-    }
-    if (!pcflDest->FSave(kctgSoc))
-        return fFalse;
-    return fTrue;
-}
-
-/****************************************************
- *
- * Choose Scene Chid for New Sound
- * Note: _data.Resources() is expected to be current
- * Parameters:
- *	none
- *
- * Returns:
- *  unique chid for new msnd chunk child of scene
- *
- ****************************************************/
-ChildChunkID Movie::_ChidScenNewSnd(void)
-{
-    AssertBaseThis(0);
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-    long ckid;
-    long chid;
-    ChildChunkIdentification kidScen;
-    ChildChunkIdentification kid;
-
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen))
-        return fFalse;
-
-    ckid = pcfl->Ckid(kctgScen, kidScen.cki.cno);
-    for (chid = 0; chid < ckid; chid++)
-    {
-        if (!pcfl->FGetKidChidCtg(kctgScen, kidScen.cki.cno, chid, kctgMsnd, &kid))
-            return (ChildChunkID)chid;
-    }
-    return (ChildChunkID)chid;
-}
-
-/****************************************************
- *
- * Choose Mvie Chid for New Sound
- * Note: _data.Resources() is expected to be current
- * Parameters:
- *	none
- *
- * Returns:
- *  unique chid for new msnd chunk child of scene
- *
- ****************************************************/
-ChildChunkID Movie::_ChidMvieNewSnd(void)
-{
-    AssertBaseThis(0);
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-    long ckid;
-    long chid;
-    ChildChunkIdentification kid;
-
-    ckid = pcfl->Ckid(kctgMvie, _data.movieNumber);
-    for (chid = 0; chid < ckid; chid++)
-    {
-        if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, chid, kctgMsnd, &kid))
-            return (ChildChunkID)chid;
-    }
-    return (ChildChunkID)chid;
+    AssertBaseThis(0); AssertPo(pcflSrc,0); AssertVarMem(pcnoDest); const auto services=_SoundServices();
+    ThreeMMU32 number; std::memcpy(&number,pcnoDest,sizeof(number)); bool ok=three_mm_movie_sound_copy(pcflSrc,cnoSrc,&number,&services)!=0;
+    std::memcpy(pcnoDest,&number,sizeof(number)); return ok;
 }
 
 /****************************************************
@@ -5618,45 +5435,9 @@ long Movie::LwSetMoviePos(long lwScene, long lwFrame)
 
 bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(pfHaveValid);
-
-    bool fUnused = fFalse;
-    long icki, ccki;
-    PChunkyFile pcfl;
-
-    if (pfHaveValid != pvNil)
-        *pfHaveValid = fFalse;
-
-    if (pvNil == _data.Resources())
-        return fFalse;
-
-    pcfl = _data.Resources()->Pcfl();
-    ccki = pcfl->CckiCtg(kctgMsnd);
-    for (icki = 0; icki < ccki; icki++)
-    {
-        ChunkIdentification cki;
-        ChildChunkIdentification kid;
-
-        AssertDo(pcfl->FGetCkiCtg(kctgMsnd, icki, &cki), "Should never fail");
-        // Retail also scans sounds without a movie-root link. Keep its
-        // reference-count test and the existing close-time purge prompt.
-        if (pcfl->CckiRef(cki.ctg, cki.cno) < 2)
-        {
-            fUnused = fTrue;
-            if (pfHaveValid != pvNil)
-            {
-                if (pcfl->FGetKidChid(cki.ctg, cki.cno, kchidSnd, &kid))
-                {
-                    *pfHaveValid = fTrue;
-                    break;
-                }
-            }
-            else
-                break;
-        }
-    }
-    return fUnused;
+    AssertThis(0); AssertNilOrVarMem(pfHaveValid); const auto services=_SoundServices(); int valid=0;
+    bool unused=three_mm_movie_sound_unused(pfHaveValid?&valid:nullptr,&services)!=0;
+    if (pfHaveValid) *pfHaveValid=valid!=0; return unused;
 }
 
 /***************************************************************************

@@ -71,6 +71,7 @@ cmake --build build/engine-c89 --target engine-route-paste-test
 cmake --build build/engine-c89 --target engine-actor-paste-test
 cmake --build build/engine-c89 --target engine-actor-clipboard-test
 cmake --build build/engine-c89 --target engine-actor-create-test
+cmake --build build/engine-c89 --target engine-movie-sound-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1529,9 +1530,49 @@ exactly. Zero-part bodies isolate binding policy; model/rig construction is not
 proved by this fixture. `engine-actor-create-test` separately checks acquisition
 and publication ordering, short-circuiting, partial flags on failure, real C owner
 disposal, direct-call cleanup responsibility, recording reset and retained failed
-bindings. No Marcus UI tests were added. Movie sound integration, template/body
-construction, remaining scene/movie/resource/runtime implementations and final
-facade removal remain unfinished.
+bindings. No Marcus UI tests were added. Movie sound integration control is
+described next. Template/body construction, remaining scene/movie/resource/
+runtime implementations and final facade removal remain unfinished.
+
+### Movie sound integration
+
+`movie_sound.c` owns sound tag resolution/saving, scene/movie child lookup and
+adoption, first-free IDs, cross-movie graph copying, physical MIDI/WAV import
+dispatch, failure cleanup, close-time GC marking and unused-sound discovery.
+The private C++ child/ID helpers are removed. Native adapters supply C-backed
+graph/tag operations, autosave/temp switching, physical sound-format factories,
+file save, filenames and diagnostics. Decoder/encoder implementations, sound
+garbage collection itself, native representations and physical file adapters
+still require conversion; these are not final backend host services.
+
+Equal chunk numbers preserve the existing tag cache even with a different
+selected cache. Changed numbers open locally before closing/replacing the old
+tag. Media tags obtain the selected file before returning unchanged. Adoption
+publishes a candidate ID before its potentially failed graph edit. Free slots
+count all children but probe only sound links; movie-wide adoption into another
+file still chooses IDs from the working file. Existing enumeration failures
+remain distinct: child lookup returns false; movie adoption diagnoses and stops
+with success. Missing current scene in sound copy diagnoses and continues, since
+that lookup's output was unused. Failed adoption deletes the copied root while
+retaining the output number; failed save leaves the adoption. Only successful
+physical-file import marks GC. Unused scanning includes unlinked sounds and
+checks fewer than two parent references, optionally requiring any child at zero.
+Its trusted-enumeration failure was undefined after the native assertion; C
+initializes that otherwise undefined number to zero before diagnosing/continuing.
+
+The 15,580-byte native and 15,592-byte SDL before traces each cover 68 cases and
+match their respective converted implementations exactly. Graph/tag cases assert
+success across child gaps, unrelated child types, repeated adoption, cache
+identity, missing children, resource ownership, graph copying and unused checks.
+Four physical-file cases add valid/invalid WAV and MIDI. SDL imports both valid
+formats; the Windows fallback AudioMan stub rejects WAV import, so that native
+configuration verifies the existing rejection and successful MIDI import. This
+is an explicit platform coverage limit, not a claim that the stub works. C tests
+also cover primitive failures, cross-file ID selection, open-before-close,
+failed-adoption output, save failure, refreshed working state versus captured
+destination, error suppression and GC ordering. No Marcus UI tests were added.
+Template/body construction, sound-format factories, remaining movie/scene/
+resource/runtime policy and final facade removal remain unfinished.
 
 ### Source names and directory discovery
 

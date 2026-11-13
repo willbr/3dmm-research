@@ -18,6 +18,7 @@
  * Links engine + kauai (gui side too -- ApplicationBase lives there).
  */
 
+#include <vector>
 #include "soc.h"
 #include "actor_frame_fixture.h"
 #include "three_mm/actor_placement.h"
@@ -1936,6 +1937,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_actor_paste_fixture.h"
 #include "engine_actor_clipboard_fixture.h"
 #include "engine_actor_create_fixture.h"
+#include "engine_movie_sound_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2532,6 +2534,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor clipboard failed");
     if (!TestActorCreation(pmvie))
         BAIL("actor creation failed");
+    if (!TestMovieSoundIntegration(pmvie))
+        BAIL("movie sound integration failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

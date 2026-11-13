@@ -4142,3 +4142,96 @@ Raw evidence remains under `tmp/c89-movie-data-regression`. Movie sound
 integration, template/body construction, native String mutations, remaining
 scene/movie/resource/runtime implementations and final C++ facade removal
 remain unfinished. Actor creation control does not complete the C89 backend.
+
+### Movie sound integration C89 conversion (13 November 2026)
+
+`movie_sound.c` owns sound tag resolution/saving, first-free scene/movie child
+IDs, scene/movie adoption, graph copying, physical-file MIDI/WAV dispatch,
+failure cleanup, GC marking and unused-sound discovery. Private C++ child/ID
+helpers are removed. Adapters provide C-backed graph/tag operations, autosave/
+temp switching, file save, source metadata, diagnostics and existing sound-format
+factories. Audio decoding/encoding, sound garbage collection itself and native
+file/resource representations remain conversion dependencies, not final backend
+host services. No Marcus UI tests were added.
+
+The 15,580-byte native-before trace `tmp/c89-movie-sound-before.bin` has SHA-256
+`C17678F29FB493845362CCF85A2BA30C2F87E47716B580E546977C52480FB891`.
+The 15,592-byte SDL-before trace `tmp/c89-movie-sound-sdl-before.bin` has SHA-256
+`70868559E696693F64AB49DF00A14FCFF692955AC862B08ABF94D416D9E2779C`.
+Both match their respective converted implementations exactly across 68 cases
+each. The 64 graph/tag cases assert successful child lookup/adoption, repeated
+lookup, tag resolution/saving, graph copy and movie adoption; they cover gaps,
+other child types, cache identity, missing sound children, graph rows, reference
+counts and unused checks. Dummy sound envelopes exercise ownership/mapping
+without decoding audio.
+
+Four additional physical-file cases use valid and truncated WAV/MIDI inputs.
+The SDL configuration successfully imports both valid formats and rejects both
+truncated inputs. The native Windows configuration without the original AudioMan
+library uses its existing E_NOTIMPL fallback: WAV imports fail, while valid MIDI
+imports succeed. That limitation is asserted and recorded, not counted as working
+WAV import. Availability is derived from the configured AudioMan dependency.
+The SDL headless round-trip runs with dummy video/audio drivers; it is not a
+Marcus UI test or proof of playback through an audio device.
+
+C tests cover changed-number open-before-close, equal-number cache retention,
+explicit scene/cache selection, enum failures, current-scene requery, external
+graph IDs chosen from the working file, output publication before failed
+adoption, copy/import failures, deletion versus retained adoption, temp/autosave
+state changes, captured destinations, BadSoundFile error suppression, GC order
+and unlinked/invalid unused sounds. Missing-scene copy diagnostics retain native
+continue behavior because that result was unused. Trusted sound enumeration
+failure was undefined after a native assertion; C initializes the otherwise
+undefined number to zero before diagnosing/continuing. Supported graph behavior
+and normal failure outputs match the native traces. Scalar output bridges use
+representation copies, preserving untouched outputs without reading potentially
+uninitialized caller values as typed integers.
+
+Both hosts build. All 62 standalone C checks (including strict C89 syntax), 76
+focused native checks, the additional SDL headless round-trip and MSVC
+AddressSanitizer pass. All 48 snapshot comparisons and 51 freshly linked CLI
+baselines match; headless scene/timeline playback passes. Evidence includes
+`tmp/c89-movie-sound-standalone.log`, `tmp/c89-movie-sound-native-tests.log`,
+`tmp/c89-movie-sound-sdl-after.log`, `tmp/c89-movie-sound-asan.log`,
+`tmp/c89-movie-sound-snapshot-comparison.json`,
+`tmp/c89-movie-sound-output-comparison.json` and
+`tmp/c89-movie-sound-preview-scene.log`.
+
+Playback binary contents were frozen before capture without concurrent builds
+or compaction. Build symbols/libraries/executables were transparently compressed
+beforehand, and completed capture folders between terminal suites, to retain
+headroom on C: while preserving their bytes. SDL reused the
+recorded warm package cache with private processes, settings and working movies;
+OS caching remains uncontrolled. Same-player baselines are actor-audio
+`20261113T092935Z-1e509d17`, actor-events `20261113T093127Z-5028ba80`,
+scrolling-text `20261113T093558Z-0bb8626f` and sampled-audio
+`20261113T094247Z-09d05586`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T103101Z-714068a5` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T103237Z-bebaf194` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T103515Z-b0b4e0b8` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T103921Z-30d32ca3` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match the preceding same-player results. Only adjacent
+identical position/image observations are collapsed; raw observations and
+timestamps remain. Actor cases retain 60 ordered changes per player; scrolling
+retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Actor peaks remain 3192 retail,
+4080 SDL and 4081 Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All measured before/after peak deltas are zero. The previously
+documented SDL 4080/4081 variation remains part of the evidence; coverage/peaks
+do not establish exact waveform/timing parity. Existing cross-player differences
+and one-repeat inconclusive comparisons remain.
+
+The combined report is
+`tmp/c89-movie-sound-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts and before/after peaks in `tmp/c89-movie-sound-playback-audit.json`.
+Raw evidence remains under `tmp/c89-movie-data-regression`. Template/body
+construction, sound-format factories, sound garbage collection, native String
+mutations, remaining movie/scene/resource/runtime implementations and final C++
+facade removal remain unfinished. This does not complete the shared C89 backend.
