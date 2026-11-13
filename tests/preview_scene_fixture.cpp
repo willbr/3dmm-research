@@ -508,6 +508,15 @@ int main(int argc, char **argv)
     {
         ChunkNumber root, child;
         DataBlock block;
+        // Saved first-scene thumbnail; the second scene deliberately has none.
+        byte pixels[8 * 6];
+        std::memset(pixels, 32, sizeof(pixels));
+        RC bounds(0, 0, 8, 6);
+        auto thumbnail = MaskedBitmapMBMP::PmbmpNew(pixels, 8, 6, &bounds, 0, 0, 0);
+        ok = ok && thumbnail &&
+             file->FAddChild(kctgScen, sceneNumber, 0, thumbnail->CbOnFile(), kctgThumbMbmp, &child, &block) &&
+             thumbnail->FWrite(&block);
+        ReleasePpo(&thumbnail);
         auto sources = StringTable_GST::PgstNew(sizeof(LegacyLong));
         String name;
         name.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));

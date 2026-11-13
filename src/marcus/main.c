@@ -3,6 +3,7 @@
 #include "settings.h"
 #include "camera_guide.h"
 #include "movie_browser.h"
+#include "scene_organiser.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,6 +85,7 @@ typedef struct App
     MarcusUI ui;
     MarcusPlayer *player;
     MarcusBrowser *browser;
+    MarcusSceneOrganiser *scene_organiser;
     MarcusMovieInput *movie_input, *zip_input;
     int movie_entry, zip_selected, zip_scroll;
     char zip_path[1024];
@@ -613,6 +615,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
 {
     char title[2200];
     MarcusMovieEntry member;
+    scene_organiser_close(app->scene_organiser);
     finish_movie_scrub(app);
     app->playing = 0;
     release_camera(app);
@@ -1504,6 +1507,14 @@ static void mouse_down(App *app, float x, float y, int button)
         if (ui_inside(x, y, app->sidebar / 2 - 65, 280, 130, 28))
             choose_file(app, 0);
     }
+    else if (ui_inside(x, y, 16, app->timeline_y + SCENE_NAV_Y, 156, UI_NAVIGATION_HEIGHT))
+    {
+        app->playing = 0;
+        release_camera(app);
+        app->dragging = app->orbiting = app->panning = 0;
+        app->sheet_menu = 0;
+        scene_organiser_show(app->scene_organiser, app->player);
+    }
     else if (ui_inside(x, y, SCENE_NAV_X, app->timeline_y + SCENE_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
         action = (int)((x - SCENE_NAV_X) / NAV_STEP);
@@ -1755,6 +1766,14 @@ static void handle_event(App *app, const SDL_Event *event)
     SDL_Keymod modifiers;
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
+    else if (!app->error[0] && scene_organiser_event(app->scene_organiser, event, app->width, app->height))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
     else if (!app->error[0] && browser_event(app->browser, event))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -2771,6 +2790,8 @@ static void draw_timeline(App *app)
         ui_transport_readout(ui, 16, y + FRAME_NAV_Y, 0, label, 1);
         SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
         ui_transport_readout(ui, 16, y + SCENE_NAV_Y, 1, label, 1);
+        if (ui_inside(ui->mouse_x, ui->mouse_y, 16, y + SCENE_NAV_Y, 156, UI_NAVIGATION_HEIGHT))
+            ui->hint = "Open scene organiser";
         if (marcus_scene(app->player, app->info.scene, &scene))
             ui_label(ui, LOOP_X + 72, y + SCENE_NAV_Y + 1, 112, scene.name, TEXT);
     }
@@ -3410,6 +3431,7 @@ static void draw(App *app)
         draw_settings(app);
     if (app->zip_input)
         draw_zip(app);
+    scene_organiser_draw(app->scene_organiser, &app->ui, app->width, app->height);
     browser_draw(app->browser, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
@@ -3663,6 +3685,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.scene_organiser = scene_organiser_create();
+    if (!app.scene_organiser)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.dialog_event = SDL_RegisterEvents(1);
     layout(&app);
     reset_view(&app);
@@ -3720,6 +3748,9 @@ int main(int argc, char **argv)
             SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
             handle_event(&app, &event);
         }
+        i = scene_organiser_take(app.scene_organiser);
+        if (i >= 0)
+            select_scene(&app, i);
         browser_input = browser_take(app.browser, &browser_entry, browser_path, sizeof(browser_path));
         if (browser_input && !open_input(&app, browser_input, browser_entry, browser_path))
         {
@@ -3787,6 +3818,7 @@ cleanup:
     if (result && !app.error[0])
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
+    scene_organiser_destroy(app.scene_organiser);
     ui_destroy(&app.ui);
     SDL_DestroyTexture(app.picture);
     SDL_DestroyTexture(app.movie_picture);

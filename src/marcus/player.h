@@ -214,6 +214,9 @@ extern "C"
     int marcus_open_input(MarcusPlayer *player, MarcusMovieInput *input, int index, const char *resources,
                           const char *content_directory);
     int marcus_scene(const MarcusPlayer *player, int index, MarcusScene *scene);
+    /* Saved thumbnail only; empty when absent. Pixels live until the next
+     * thumbnail request, open or destruction, independently of rendered images. */
+    int marcus_scene_thumbnail(MarcusPlayer *player, int index, MarcusImage *image);
     int marcus_select_scene(MarcusPlayer *player, int index);
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */
     int marcus_select_scene_keep_view(MarcusPlayer *player, int index);

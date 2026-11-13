@@ -57,6 +57,7 @@ struct MarcusPlayer
     int renderer = MARCUS_RENDERER_BRENDER;
     MarcusRenderOptions renderOptions = {};
     ThreeMM::PreviewImage image;
+    ThreeMM::PreviewImage thumbnail;
     ThreeMM::PreviewImage movieImage;
     int movieImageScene = -1;
     std::int32_t movieImageFrame = 0;
@@ -623,6 +624,23 @@ extern "C"
             return 0;
         *scene = player->sceneInfo[index];
         return 1;
+    }
+    int marcus_scene_thumbnail(MarcusPlayer *player, int index, MarcusImage *image)
+    {
+        if (!image)
+            return 0;
+        *image = {};
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (index < 0 || static_cast<std::size_t>(index) >= player->scenes.size())
+                return false;
+            if (!player->preview.ReadSceneThumbnail(player->scenes[index], player->thumbnail, error))
+                return false;
+            image->width = player->thumbnail.width;
+            image->height = player->thumbnail.height;
+            image->pitch = image->width * 4;
+            image->rgba = player->thumbnail.rgba.empty() ? nullptr : player->thumbnail.rgba.data();
+            return true;
+        });
     }
     int marcus_select_scene(MarcusPlayer *player, int index)
     {

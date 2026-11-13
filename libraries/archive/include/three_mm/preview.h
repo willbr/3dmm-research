@@ -203,6 +203,9 @@ class Preview
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
+    // Saved scene thumbnail; no scene selection, rendering or playback changes.
+    // Missing thumbnails succeed with an empty image.
+    bool ReadSceneThumbnail(Id scene, PreviewImage &image, Error &error);
     // Captions, pauses and all scene/actor cues in one read, without seeking.
     bool ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error);
     // Authored scene cues and actor sound events, without seeking or playing.

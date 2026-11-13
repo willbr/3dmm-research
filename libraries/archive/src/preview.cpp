@@ -803,6 +803,67 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to open preview resources.");
 }
+bool Preview::ReadSceneThumbnail(Id scene, PreviewImage &image, Error &error)
+try
+{
+    image = {};
+    error = {};
+    auto file = static_cast<PChunkyFile>(_impl->assets.NativeFile());
+    if (!file || scene.type != kctgScen)
+        return Fail(error, ErrorCode::invalid_argument, "Open a movie before reading scene thumbnails.");
+    ChildChunkIdentification kid;
+    if (!file->FGetKidChidCtg(scene.type, scene.number, 0, kctgThumbMbmp, &kid))
+        return true;
+    DataBlock block;
+    if (!file->FFind(kid.cki.ctg, kid.cki.cno, &block) || block.Cb() > 1024 * 1024)
+        return Fail(error, ErrorCode::decode_failed, "Cannot read the saved scene thumbnail.");
+    auto bitmap = MaskedBitmapMBMP::PmbmpRead(&block);
+    if (!bitmap)
+        return Fail(error, ErrorCode::decode_failed, "Cannot decode the saved scene thumbnail.");
+    const auto releaseBitmap = [](MaskedBitmapMBMP *value) { ReleasePpo(&value); };
+    std::unique_ptr<MaskedBitmapMBMP, decltype(releaseBitmap)> bitmapOwner(bitmap, releaseBitmap);
+    RC bounds;
+    bitmap->GetRc(&bounds);
+    const auto width = bounds.Dxp(), height = bounds.Dyp();
+    if (width <= 0 || height <= 0 || width > 1024 || height > 1024)
+    {
+        return Fail(error, ErrorCode::decode_failed, "Invalid saved scene thumbnail dimensions.");
+    }
+    std::vector<byte> indices(static_cast<std::size_t>(width) * height, 0);
+    image.rgba.resize(indices.size() * 4);
+    bitmap->Draw(indices.data(), width, height, -bounds.xpLeft, -bounds.ypTop);
+    Color palette[256];
+    std::memcpy(palette, _impl->palette, sizeof(palette));
+    auto resources = static_cast<PChunkyFile>(_impl->resources.NativeFile());
+    if (resources->FFind(kctgColorTable, 0x20001, &block))
+    {
+        short order;
+        auto colours = DynamicArray::PglRead(&block, &order);
+        if (colours && colours->CbEntry() == sizeof(Color) && colours->IvMac() == 256)
+        {
+            if (order == kboOther)
+                SwapBytesRglw(colours->QvGet(0), colours->IvMac());
+            std::memcpy(palette, colours->QvGet(0), sizeof(palette));
+        }
+        ReleasePpo(&colours);
+    }
+    image.width = width;
+    image.height = height;
+    for (std::size_t i = 0; i < indices.size(); ++i)
+    {
+        const auto &colour = palette[indices[i]];
+        image.rgba[i * 4] = colour.bRed;
+        image.rgba[i * 4 + 1] = colour.bGreen;
+        image.rgba[i * 4 + 2] = colour.bBlue;
+        image.rgba[i * 4 + 3] = 255;
+    }
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    image = {};
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for the saved scene thumbnail.");
+}
 bool Preview::AddContent(std::int32_t sourceId, const std::string &path, Error &error)
 try
 {

@@ -26,7 +26,7 @@ int main(int argc, char **argv)
     MarcusAnimationInfo animation;
     MarcusActionSpan action_span;
     MarcusAnimationEvent animation_event;
-    MarcusImage image, pick_image;
+    MarcusImage image, pick_image, thumbnail;
     MarcusCamera camera, moved;
     MarcusProjection authored, orbit, manual, flight, panned;
     float guide_depth[2];
@@ -57,6 +57,12 @@ int main(int argc, char **argv)
     CHECK(marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           fabs(movie_time.duration_seconds - 10) < 1e-6);
     CHECK(marcus_scene(player, 0, &scene) && scene.first_frame == 1 && scene.last_frame == 30);
+    CHECK(!marcus_scene_thumbnail(player, -1, &thumbnail) && !thumbnail.rgba && !thumbnail.width);
+    CHECK(marcus_scene_thumbnail(player, 0, &thumbnail));
+    CHECK(thumbnail.rgba && thumbnail.width == 8 && thumbnail.height == 6 && thumbnail.pitch == 32);
+    CHECK(thumbnail.rgba[3] == 255);
+    CHECK(marcus_scene_thumbnail(player, 1, &thumbnail) && !thumbnail.rgba && !thumbnail.width);
+    CHECK(marcus_info(player, &info) && info.scene == 0 && info.frame == 1);
     CHECK(marcus_object(player, 0, &first));
     CHECK(!strcmp(first.name, "Animated actor") && first.visible && !first.prop && first.has_lifetime);
     CHECK(marcus_object(player, 1, &prop) && prop.prop);

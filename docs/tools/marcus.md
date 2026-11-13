@@ -166,6 +166,17 @@ The FRAME/SCENE readouts use black Arial Black labels on beveled silver panels,
 with centered counts in lighter inset fields. Their scalable surround is
 `src/marcus/icons/transport_readout.svg`.
 
+Click the **SCENE** readout to open the scene organiser. It pauses playback and
+shows a scrollable grid in movie order, with saved thumbnails, scene names,
+frame counts and a marker for the current scene. Select a card and press Enter
+or the green OK button, or double-click it, to jump to that scene's first frame.
+Arrow keys, Page Up/Down, Home/End, the wheel and the draggable scrollbar navigate
+the grid. Escape or the red X closes it without seeking; playback stays paused.
+Missing thumbnails use a placeholder. Thumbnail decoding leaves the live scene
+and cameras untouched, loads at most one saved image per draw, and uses a bounded
+texture cache. The organiser currently supports browsing and scene selection;
+scene reordering, deletion and movie saving are not implemented.
+
 The existing timeline playhead uses a blue beveled SVG thumb; the existing
 movie-wide scrubber uses a green one, including in the expanded movie view.
 The artwork is `frame_slider.svg` and `scene_slider.svg` in the same directory.
