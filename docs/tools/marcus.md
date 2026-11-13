@@ -452,6 +452,14 @@ truly coincident faces can still fight. Picking and caption occlusion use the
 same fitted projection as the rendered work view.
 Use Orbit or Fly in the work view; hold its right mouse button and use WASD/QE to
 fly while the movie continues. C switches that work view between Orbit and Fly.
+The **Orbit** split button activates the current orbit mode when its label is
+clicked; only its arrow opens the **Scene centre** and **Selection** menu. Scene centre
+fits the scene; Selection fits the selected actor/prop's posed bounds and follows
+its movement during playback or scrubbing. Selecting another object changes the
+pivot. Selection is available for on-stage objects; clearing the selection or an
+object leaving the stage falls back to the scene centre. Switching orbit modes
+refits the view, while right drag, Shift+right drag and the wheel still rotate,
+pan and zoom around the chosen pivot.
 Drag the divider to resize either viewport. The strip's arrow collapses and
 reopens the work camera; its pose and divider position are kept.
 Only the movie view consumes viewport clicks for click-to-continue pauses.

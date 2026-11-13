@@ -111,6 +111,7 @@ typedef struct App
     int settings_open, rendering_settings, settings_work_camera, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
     int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
+    int orbit_selection, orbit_menu, orbit_target;
     int continue_click, muted;
     int flying, fly_ready, camera_ready, fly_keys;
     int work_matched, work_needs_match;
@@ -252,6 +253,7 @@ static void release_camera(App *app)
 }
 static void view_mode(App *app, int mode)
 {
+    app->orbit_menu = 0;
     if (mode != 1) app->shortcuts.work_view.axis_view = 0;
     release_camera(app);
     if (mode == 2 && app->authored != 2)
@@ -263,6 +265,20 @@ static void view_mode(App *app, int mode)
     app->camera_ready = 0;
     app->orbiting = app->dragging = app->panning = 0;
     app->dirty = 1;
+}
+static int orbit_selection_available(App *app)
+{
+    MarcusBounds bounds;
+    return app->selected >= 0 && marcus_object_bounds(app->player, app->selected, &bounds) && bounds.valid;
+}
+static void choose_orbit_mode(App *app, int selection)
+{
+    view_mode(app, 0);
+    app->orbit_selection = selection;
+    app->orbit_target = -2;
+    app->work_matched = app->work_needs_match = app->fly_ready = 0;
+    app->zoom = 1;
+    marcus_reset_framing(app->player);
 }
 
 static double maximum(double a, double b)
@@ -1432,6 +1448,19 @@ static void mouse_down(App *app, float x, float y, int button)
             settings_click(app, x, y);
         return;
     }
+    if (app->orbit_menu)
+    {
+        if (button == SDL_BUTTON_LEFT)
+        {
+            if (ui_inside(x, y, right - 220, 130, 180, 28))
+                choose_orbit_mode(app, 0);
+            else if (ui_inside(x, y, right - 220, 160, 180, 28) && orbit_selection_available(app))
+                choose_orbit_mode(app, 1);
+            else
+                app->orbit_menu = 0;
+        }
+        return;
+    }
     if (app->movie_only)
     {
         if (button == SDL_BUTTON_LEFT)
@@ -1616,7 +1645,12 @@ static void mouse_down(App *app, float x, float y, int button)
         perform_action(app, MARCUS_FIRST_SCENE + action);
     }
     else if (app->second_view && ui_inside(x, y, right - 220, 96, 72, 28))
-        view_mode(app, 0);
+    {
+        if (x >= right - 170)
+            app->orbit_menu = 1;
+        else
+            view_mode(app, 0);
+    }
     else if (app->second_view && ui_inside(x, y, right - 140, 96, 60, 28))
         view_mode(app, 2);
     else if (app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
@@ -1624,7 +1658,12 @@ static void mouse_down(App *app, float x, float y, int button)
     else if (!app->second_view && ui_inside(x, y, right - 312, 96, 84, 28))
         view_mode(app, 1);
     else if (!app->second_view && ui_inside(x, y, right - 220, 96, 72, 28))
-        view_mode(app, 0);
+    {
+        if (x >= right - 170)
+            app->orbit_menu = 1;
+        else
+            view_mode(app, 0);
+    }
     else if (!app->second_view && ui_inside(x, y, right - 140, 96, 60, 28))
         view_mode(app, 2);
     else if (!app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
@@ -1691,6 +1730,12 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
     long step;
     int action;
+    if (app->orbit_menu)
+    {
+        if (key == SDLK_ESCAPE)
+            app->orbit_menu = 0;
+        return;
+    }
     if (app->movie_only)
         movie_activity(app);
     if ((key == SDLK_RETURN || key == SDLK_KP_ENTER) &&
@@ -2321,7 +2366,7 @@ static void draw_view(App *app)
     MarcusImage image;
     SDL_FRect destination, settings;
     char label[256];
-    int rendered, render_width, render_height, work;
+    int rendered, render_width, render_height, work, target;
     float left, width, right;
     MarcusUI *ui;
     Uint64 started;
@@ -2330,6 +2375,20 @@ static void draw_view(App *app)
     right = view_right(app);
     width = right - left;
     work = app->second_view || app->authored != 1;
+    if (app->loaded)
+    {
+        target = app->orbit_selection && app->selected >= 0 && app->selected < app->info.object_count
+                     ? app->selected : -1;
+        if (target != app->orbit_target)
+        {
+            app->orbit_target = target;
+            app->dirty = 1;
+            if (app->orbit_selection && !app->authored)
+                app->work_matched = app->work_needs_match = 0;
+        }
+        if (!marcus_set_orbit_target(app->player, target))
+            fail(app, marcus_error(app->player));
+    }
     if (work && app->loaded && app->work_needs_match &&
         (app->shortcuts.work_view.orthographic || app->shortcuts.work_view.axis_view))
         match_work_camera(app);
@@ -2350,17 +2409,21 @@ static void draw_view(App *app)
              work ? "Work camera" : "Movie camera", MUTED);
     if (app->second_view)
     {
-        ui_button(ui, right - 220, 96, 72, "Orbit", !app->authored, app->loaded);
+        ui_button(ui, right - 220, 96, 50, "Orbit", !app->authored, app->loaded);
+        ui_button(ui, right - 170, 96, 22, "", app->orbit_menu, app->loaded);
         ui_button(ui, right - 140, 96, 60, "Fly", app->authored == 2, app->loaded);
         ui_button(ui, right - 72, 96, 56, "Reset", 0, app->loaded);
     }
     else
     {
         ui_button(ui, right - 312, 96, 84, "Camera", app->authored == 1, app->loaded);
-        ui_button(ui, right - 220, 96, 72, "Orbit", !app->authored, app->loaded);
+        ui_button(ui, right - 220, 96, 50, "Orbit", !app->authored, app->loaded);
+        ui_button(ui, right - 170, 96, 22, "", app->orbit_menu, app->loaded);
         ui_button(ui, right - 140, 96, 60, "Fly", app->authored == 2, app->loaded);
         ui_button(ui, right - 72, 96, 56, "Reset", 0, app->loaded);
     }
+    ui_line(ui, right - 160, 108, right - 157, 111, MUTED);
+    ui_line(ui, right - 157, 111, right - 154, 108, MUTED);
     if (!app->loaded)
     {
         ui_text(ui, app->sidebar / 2 - 100, 207, "A new view of your movies", TEXT);
@@ -3549,6 +3612,18 @@ static void draw(App *app)
     draw_sidebar(app);
     draw_timeline(app);
     draw_sheet_menu(app);
+    if (app->orbit_menu && app->loaded)
+    {
+        float menu_x;
+        menu_x = view_right(app) - 220;
+        ui_fill(&app->ui, menu_x - 2, 128, 184, 62, LINE);
+        ui_fill(&app->ui, menu_x - 1, 129, 182, 60, PANEL);
+        ui_button_sized(&app->ui, menu_x, 130, 180, 28, "Scene centre", !app->orbit_selection, 1);
+        ui_button_sized(&app->ui, menu_x, 160, 180, 28, "Selection", app->orbit_selection,
+                        orbit_selection_available(app));
+        if (!orbit_selection_available(app) && ui_inside(app->ui.mouse_x, app->ui.mouse_y, menu_x, 160, 180, 28))
+            app->ui.hint = "Select an on-stage actor or prop to orbit it";
+    }
     ui_fill(&app->ui, 0, (float)app->height - 24, (float)app->width, 24, 0x303339);
     ui_label(&app->ui, 16, (float)app->height - 21, (float)app->width - 235,
              app->ui.hint ? app->ui.hint

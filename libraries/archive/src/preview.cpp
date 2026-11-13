@@ -198,6 +198,8 @@ struct Preview::Impl
     bool running = false, ready = false;
     bool orbitFramed = false, orbitIncludesCamera = false;
     float orbitCenter[3] = {}, orbitRadius = 1;
+    int orbitFramedObject = -1;
+    float orbitAnchor[3] = {};
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
     std::string resolveError;
@@ -423,6 +425,7 @@ bool Preview::MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error 
         _impl->orbitCenter[axis] = position[axis] - backward[axis] * focus;
     _impl->orbitRadius = focus * std::min(1.f, outputAspect) / 2.8f;
     _impl->orbitFramed = _impl->orbitIncludesCamera = true;
+    _impl->orbitFramedObject = -1;
     camera.moveSpeed = std::max(.1f, std::min(1000.f, focus * .25f));
     return true;
 }
@@ -1342,11 +1345,43 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             squared += (high[axis] - low[axis]) * (high[axis] - low[axis]) * .25f;
         }
         float radius = std::max(.1f, std::sqrt(squared));
+        int orbitObject = -1;
+        float anchor[3] = {};
+        if (!bg && !view.authoredCamera && !view.freeCamera && view.orbitObject >= 0)
+        {
+            PreviewBounds bounds;
+            if (!ObjectBounds(view.orbitObject, bounds, error))
+                return false;
+            if (bounds.valid)
+            {
+                orbitObject = view.orbitObject;
+                float objectLow[3], objectHigh[3];
+                std::copy(bounds.corners, bounds.corners + 3, objectLow);
+                std::copy(objectLow, objectLow + 3, objectHigh);
+                for (int corner = 1; corner < 8; ++corner)
+                    for (int axis = 0; axis < 3; ++axis)
+                    {
+                        objectLow[axis] = std::min(objectLow[axis], bounds.corners[corner * 3 + axis]);
+                        objectHigh[axis] = std::max(objectHigh[axis], bounds.corners[corner * 3 + axis]);
+                    }
+                squared = 0;
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    center[axis] = anchor[axis] = (objectLow[axis] + objectHigh[axis]) * .5f;
+                    squared += (objectHigh[axis] - objectLow[axis]) * (objectHigh[axis] - objectLow[axis]) * .25f;
+                }
+                radius = std::max(.1f, std::sqrt(squared));
+            }
+        }
         if (view.stableOrbit && !bg)
         {
-            if (_impl->orbitFramed && _impl->orbitIncludesCamera == view.frameSceneCamera)
+            if (_impl->orbitFramed && _impl->orbitIncludesCamera == view.frameSceneCamera &&
+                _impl->orbitFramedObject == orbitObject)
             {
                 std::copy(_impl->orbitCenter, _impl->orbitCenter + 3, center);
+                if (orbitObject >= 0)
+                    for (int axis = 0; axis < 3; ++axis)
+                        center[axis] += anchor[axis] - _impl->orbitAnchor[axis];
                 radius = _impl->orbitRadius;
             }
             else
@@ -1356,6 +1391,9 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 _impl->orbitFramed = true;
                 _impl->orbitIncludesCamera = view.frameSceneCamera;
             }
+            std::copy(center, center + 3, _impl->orbitCenter);
+            std::copy(anchor, anchor + 3, _impl->orbitAnchor);
+            _impl->orbitFramedObject = orbitObject;
         }
         const float aspect = float(width) / height;
         const float distance = radius * 2.8f / std::min(1.f, aspect) / view.zoom;

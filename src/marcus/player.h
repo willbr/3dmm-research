@@ -294,6 +294,9 @@ extern "C"
     void marcus_set_muted(MarcusPlayer *player, int muted);
     /* Refit Orbit on its next render. */
     void marcus_reset_framing(MarcusPlayer *player);
+    /* Orbit the selected object's posed bounds, following its movement.
+     * -1 restores the scene centre. Off-stage objects fall back to the scene. */
+    int marcus_set_orbit_target(MarcusPlayer *player, int object_index);
     /* Match inspection framing to the active shot; width/height describe the
      * inspection image. Does not seek, render, or alter the movie camera. */
     int marcus_match_camera(MarcusPlayer *player, int width, int height, MarcusCamera *camera);

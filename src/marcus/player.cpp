@@ -57,6 +57,7 @@ struct MarcusPlayer
     std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizers[MARCUS_RENDERER_COUNT];
     int renderer = MARCUS_RENDERER_BRENDER;
     MarcusRenderOptions renderOptions = {};
+    int orbitObject = -1;
     ThreeMM::PreviewImage image;
     ThreeMM::PreviewImage thumbnail;
     ThreeMM::PreviewImage movieImage;
@@ -330,6 +331,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
             return false;
         player->selected = -1;
         player->objects.clear();
+        player->orbitObject = -1;
         player->animations.clear();
         player->sounds.clear();
         player->soundTracks.clear();
@@ -1075,6 +1077,22 @@ extern "C"
             player->inspectionMatched = false;
         }
     }
+    int marcus_set_orbit_target(MarcusPlayer *player, int object)
+    {
+        return Guard(player, [&](ThreeMM::Error &error) {
+            if (object < -1 || (object >= 0 && static_cast<std::size_t>(object) >= player->objects.size()))
+            {
+                error.message = "Select a scene object before orbiting the selection.";
+                return false;
+            }
+            if (player->orbitObject != object)
+            {
+                player->orbitObject = object;
+                marcus_reset_framing(player);
+            }
+            return true;
+        });
+    }
     int marcus_match_camera(MarcusPlayer *player, int width, int height, MarcusCamera *camera)
     {
         return Guard(player, [&](ThreeMM::Error &error) {
@@ -1124,6 +1142,7 @@ extern "C"
             view.authoredCamera = authored != 0;
             view.frameSceneCamera = !view.authoredCamera;
             view.stableOrbit = !view.authoredCamera;
+            view.orbitObject = player->orbitObject;
             view.yaw = yaw;
             view.pitch = pitch;
             view.zoom = zoom;

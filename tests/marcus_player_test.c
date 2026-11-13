@@ -14,6 +14,26 @@
         }                                                                                                              \
     } while (0)
 
+static int orbit_centred(const MarcusProjection *projection, const MarcusBounds *bounds)
+{
+    double center[3], offset;
+    int axis, corner, row;
+    for (axis = 0; axis < 3; ++axis)
+    {
+        center[axis] = 0;
+        for (corner = 0; corner < 8; ++corner)
+            center[axis] += bounds->corners[corner * 3 + axis] / 8.0;
+    }
+    for (row = 0; row < 2; ++row)
+    {
+        offset = 0;
+        for (axis = 0; axis < 3; ++axis)
+            offset += (center[axis] - projection->transform[9 + axis]) * projection->transform[row * 3 + axis];
+        if (fabs(offset) > 0.1)
+            return 0;
+    }
+    return bounds->valid;
+}
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -201,6 +221,24 @@ int main(int argc, char **argv)
     CHECK(marcus_seek(player, 1));
     marcus_reset_framing(player);
     CHECK(!marcus_pan_orbit(player, 0.1f, 0, 25, 12, 1));
+    CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+    CHECK(!memcmp(orbit.transform, image.projection.transform, sizeof(orbit.transform)));
+    /* Selection orbit follows posed bounds while retaining orientation. */
+    CHECK(!marcus_set_orbit_target(player, -2));
+    CHECK(!marcus_set_orbit_target(player, info.object_count));
+    CHECK(marcus_set_orbit_target(player, 0));
+    CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+    CHECK(marcus_object_bounds(player, 0, &bounds) && orbit_centred(&image.projection, &bounds));
+    CHECK(memcmp(orbit.transform + 9, image.projection.transform + 9, 3 * sizeof(float)));
+    manual = image.projection;
+    CHECK(marcus_seek(player, 10) && marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
+    CHECK(marcus_object_bounds(player, 0, &bounds) && orbit_centred(&image.projection, &bounds));
+    CHECK(!memcmp(manual.transform, image.projection.transform, 9 * sizeof(float)));
+    CHECK(memcmp(manual.transform + 9, image.projection.transform + 9, 3 * sizeof(float)));
+    CHECK(marcus_set_orbit_target(player, 1));
+    CHECK(marcus_render(player, 480, 360, 0, 65, 5, 1, &image));
+    CHECK(marcus_object_bounds(player, 1, &bounds) && orbit_centred(&image.projection, &bounds));
+    CHECK(marcus_seek(player, 1) && marcus_set_orbit_target(player, -1));
     CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
     CHECK(!memcmp(orbit.transform, image.projection.transform, sizeof(orbit.transform)));
     CHECK(marcus_seek(player, 1) && marcus_render(player, 480, 360, 0, 25, 12, 1, &image));

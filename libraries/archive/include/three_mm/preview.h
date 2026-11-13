@@ -37,6 +37,7 @@ struct PreviewView
     float cameraX = 0, cameraY = 0, cameraZ = 0;
     bool frameSceneCamera = false; // Include the authored camera guide when fitting an orbit view.
     bool stableOrbit = false;      // Keep orbit fit / free-view clip reference until refitting is requested.
+    int orbitObject = -1;          // Scene object index to follow; -1 fits the scene.
     bool includeDepth = false;     // Return camera-forward distances for host composition.
     bool fitSceneDepth = false;    // Fit inspection clip distances to visible scene geometry.
     int displayMode = 0;           // Host-selected built-in material/edge mode; zero preserves authored materials.
