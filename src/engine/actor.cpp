@@ -1221,66 +1221,45 @@ BRA Actor::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
+ThreeMMActorTransformEditServices Actor::_TransformEditServices()
+{
+    static_assert(fnormSize==THREE_MM_NORMAL_SIZE && fnormRotate==THREE_MM_NORMAL_ROTATE &&
+                  fmafGround==THREE_MM_MOVE_GROUND && fmafOrient==THREE_MM_MOVE_ORIENT &&
+                  fmafEntireScene==THREE_MM_MOVE_SCENE && fmafEntireSubrte==THREE_MM_MOVE_SUBROUTE &&
+                  krScaleMinFactor==6553 && krScaleMin==16384 && krScaleMax==655360 && krAngleMax==26214,
+                  "Actor transform edit ABI");
+    Assert(krScaleMaxFactor==three_mm_fixed_div(65536,6553) && krPullMax==262144 &&
+           krAngleMinRcp==three_mm_fixed_div(65536,6553),"Actor transform bounds ABI");
+    ThreeMMActorTransformEditServices s{}; s.subroute=_SubrouteEditServices(); s.fill=_FillEditServices();
+    s.scene_present=[](void *p) { return int(static_cast<Actor *>(p)->_pscen!=nullptr); };
+    s.normalise=[](void *,ThreeMMActorMatrix *value) {
+        BMAT34 matrix,normal; std::memcpy(&matrix,value,sizeof(matrix)); BrMatrix34LPNormalise(&normal,&matrix);
+        std::memcpy(value,&normal,sizeof(normal));
+    };
+    s.distance=[](void *,const ThreeMMActorPoint *point) { return ThreeMMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
+    s.publish_origin=[](void *p,const ThreeMMActorPoint *origin) { std::memcpy(&static_cast<Actor *>(p)->_dxyzFullRte,origin,sizeof(*origin)); };
+    s.seek_scene=[](void *p,ThreeMMActorState *state,ThreeMMI32 frame) {
+        auto actor=static_cast<Actor *>(p); bool ok=actor->_pscen->FGotoFrm(frame);
+        *state=EngineActorMotion::Core(actor->_state); return int(ok);
+    };
+    s.scrollbars=[](void *p) { static_cast<Actor *>(p)->_pscen->Pmvie()->Pmcc()->UpdateScrollbars(); };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault) {
+        case THREE_MM_TRANSFORM_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
+        case THREE_MM_TRANSFORM_ADD_FAILED: Bug("EnsureSpace insufficient"); break;
+        case THREE_MM_TRANSFORM_MOVE_ROTATE_FAILED: Bug("Should have ensured space"); break;
+        }
+    };
+    return s;
+}
 bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
-
-    BMAT34 *pbmat34;
-    long aet;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarRot, fgrpNil))
-        return fFalse;
-
-    if (fFromHereFwd)
-    {
-        aet = aetRotF;
-        pbmat34 = &_state.transform.bmat34Fwd;
-        if (_state.useCurrentRotation) // _state.transform.bmat34Cur has last been used
-        {
-            // _state.transform.bmat34Cur stores the complete (no path added) orientation
-            BrMatrix34Copy(pbmat34, &_state.transform.bmat34Cur);
-            // Back the path orientation out from this matrix.
-            // Otherwise the actor will jump in angle
-            // This MUST be done in z then y then x order
-            // Note: matrix inversion unnecessary
-            if (_state.transform.zaPath != aZero)
-                BrMatrix34PostRotateZ(pbmat34, -_state.transform.zaPath);
-            if (_state.transform.yaPath != aZero)
-                BrMatrix34PostRotateY(pbmat34, -_state.transform.yaPath);
-            if (_state.transform.xaPath != aZero)
-                BrMatrix34PostRotateX(pbmat34, -_state.transform.xaPath);
-        }
-    }
-    else
-    {
-        // _state.transform.bmat34Cur is kept current at <all> frames so that
-        // rotations can be post applied to it
-        aet = aetRotH;
-        pbmat34 = &_state.transform.bmat34Cur;
-    }
-
-    if (aZero != xa)
-    {
-        BrMatrix34PreRotateX(pbmat34, xa);
-    }
-    if (aZero != ya)
-    {
-        BrMatrix34PreRotateY(pbmat34, ya);
-    }
-    if (aZero != za)
-    {
-        BrMatrix34PreRotateZ(pbmat34, za);
-    }
-
-    Assert(_state.nextEvent <= _track.Events()->IvMac(), "_state.nextEvent bug");
-
-    // Add the event
-    if (fFromHereFwd)
-        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _state.nextEvent, ivNil, faetNil);
-    AssertDo(_FAddDoAev(aet, kcbVarRot, pbmat34), "Ensure space insufficient");
-
-    _PositionBody(&_state.position);
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    bool ok=three_mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                             xa,ya,za,fFromHereFwd,0,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1306,77 +1285,11 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
-
-    // No rotation requested -> no-op. Without this guard the rotation calls
-    // below would still apply identity transforms via BrMatrix34Post*, and
-    // accumulated FP error across many ticks (when the user holds the mouse
-    // button without moving) would visibly drift the actor's matrix toward
-    // a contraction.
-    if (xa == aZero && ya == aZero && za == aZero)
-        return fTrue;
-
-    BMAT34 *pbmat34;
-    long aet;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarRot, fgrpNil))
-        return fFalse;
-
-    if (fFromHereFwd)
-    {
-        aet = aetRotF;
-        pbmat34 = &_state.transform.bmat34Fwd;
-        if (_state.useCurrentRotation)
-        {
-            BrMatrix34Copy(pbmat34, &_state.transform.bmat34Cur);
-            if (_state.transform.zaPath != aZero)
-                BrMatrix34PostRotateZ(pbmat34, -_state.transform.zaPath);
-            if (_state.transform.yaPath != aZero)
-                BrMatrix34PostRotateY(pbmat34, -_state.transform.yaPath);
-            if (_state.transform.xaPath != aZero)
-                BrMatrix34PostRotateX(pbmat34, -_state.transform.xaPath);
-        }
-    }
-    else
-    {
-        aet = aetRotH;
-        pbmat34 = &_state.transform.bmat34Cur;
-    }
-
-    // BRender uses row-vector convention. PostRotate (right-multiply) of
-    // bmat34 by R applies R as a world-frame rotation to the rendered
-    // matrix pbmat = TS * bmat34. That gives a rigid-body group rotation
-    // when paired with the world-axis orbit translation in MovieView.
-    //
-    // The user's tool labels reference the actor-canonical frame (after TS
-    // is applied -- for the typical face-camera TS = Ry(90deg), "rotateX"
-    // means tip around the actor's right axis = world Z; "rotateZ" means
-    // lay around the actor's forward axis = world X). The world-frame
-    // PostRotate above doesn't know about TS, so we swap X and Z here to
-    // match what the tool icons claim to do. This is correct only for
-    // actors with the canonical face-camera rest orientation, but that's
-    // the overwhelming common case in 3DMM movies.
-    if (za != aZero)
-        BrMatrix34PostRotateX(pbmat34, za);
-    if (ya != aZero)
-        BrMatrix34PostRotateY(pbmat34, ya);
-    if (xa != aZero)
-        BrMatrix34PostRotateZ(pbmat34, xa);
-
-    // Re-orthonormalise. Each PostRotate composes one matrix multiplication
-    // worth of FP error; across hundreds of drag ticks that drifts the
-    // rotation part of bmat34 away from length-preserving, which the user
-    // sees as the group slowly shrinking. LPNormalise restores the rows to
-    // unit length.
-    BMAT34 bmatNorm;
-    BrMatrix34LPNormalise(&bmatNorm, pbmat34);
-    *pbmat34 = bmatNorm;
-
-    if (fFromHereFwd)
-        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _state.nextEvent, ivNil, faetNil);
-    AssertDo(_FAddDoAev(aet, kcbVarRot, pbmat34), "Ensure space insufficient");
-
-    _PositionBody(&_state.position);
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    bool ok=three_mm_actor_transform_rotate(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                             xa,ya,za,fFromHereFwd,1,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1389,51 +1302,11 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FNormalizeCore(ulong grfnorm)
 {
     AssertThis(0);
-    long rScaleStepOld = _state.transform.rScaleStep;
-    ulong faet;
-    long cbVar = 0;
-
-    if (grfnorm & fnormRotate)
-        cbVar += kcbVarRot;
-    if (grfnorm & fnormSize)
-        cbVar += kcbVarSize + kcbVarPull;
-
-    if (!_track.Events()->FEnsureSpace(3, cbVar, fgrpNil))
-        return fFalse;
-
-    if (grfnorm & fnormRotate)
-    {
-        _InitXfrmRot(&_state.transform.bmat34Fwd);
-        _InitXfrmRot(&_state.transform.bmat34Cur);
-        _PrepXfrmFill(aetRotF, &_state.transform.bmat34Fwd, kcbVarRot, _state.nextEvent);
-        AssertDo(_FAddDoAev(aetRotF, kcbVarRot, &_state.transform.bmat34Fwd), "EnsureSpace insufficient");
-    }
-
-    if (grfnorm & fnormSize)
-    {
-        _state.transform.aevpull.rScaleX = rOne;
-        _state.transform.aevpull.rScaleY = rOne;
-        _state.transform.aevpull.rScaleZ = rOne;
-        faet = (_state.transform.rScaleStep != rOne) ? faetTweak : faetNil;
-        _state.transform.rScaleStep = rOne;
-        _PrepXfrmFill(aetPull, &_state.transform.aevpull, kcbVarPull, _state.nextEvent);
-        _PrepXfrmFill(aetSize, &_state.transform.rScaleStep, kcbVarSize, _state.nextEvent, ivNil, faet);
-
-        AssertDo(_FAddDoAev(aetPull, kcbVarPull, &_state.transform.aevpull), "EnsureSpace insufficient");
-        AssertDo(_FAddDoAev(aetSize, kcbVarSize, &_state.transform.rScaleStep), "EnsureSpace insufficient");
-
-        // Possibly extend life of actor if shrunk
-        if (rScaleStepOld > rOne && pvNil != _pscen && _state.location.irpt < _track.Route()->IvMac() - 1) // optimization
-        {
-            _fLifeDirty = fTrue;
-            _pscen->InvalFrmRange();
-        }
-    }
-
-    Assert(_state.nextEvent <= _track.Events()->IvMac(), "_state.nextEvent bug");
-
-    _PositionBody(&_state.position);
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    bool ok=three_mm_actor_transform_normalize(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                                grfnorm,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1449,41 +1322,11 @@ bool Actor::FNormalizeCore(ulong grfnorm)
 bool Actor::FScale(BRS rScale)
 {
     AssertThis(0);
-
-    ulong faet = faetNil;
-    long rScaleStep;
-    long rScaleStepOld = _state.transform.rScaleStep;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarSize, fgrpNil))
-        return fFalse;
-
-    rScale = LwBound(rScale, krScaleMinFactor, krScaleMaxFactor);
-
-    rScaleStep = BrsMul(_state.transform.rScaleStep, rScale);
-    _state.transform.rScaleStep = LwBound(rScaleStep, krScaleMin, krScaleMax);
-
-    // Remove tweaks when a transformation that changes stepsize occurs
-    faet = (_state.transform.rScaleStep != rScale) ? faetTweak : faetNil;
-    _PrepXfrmFill(aetSize, &_state.transform.rScaleStep, kcbVarSize, _state.nextEvent, ivNil, faet);
-
-    if (!_FAddDoAev(aetSize, kcbVarSize, &_state.transform.rScaleStep))
-        return fFalse;
-
-    Assert(_state.nextEvent <= _track.Events()->IvMac(), "_state.nextEvent bug");
-
-    if (_state.transform.rScaleStep != rScale)
-        _GetXyzFromRtel(&_state.location, &_state.position);
-    _PositionBody(&_state.position);
-
-    // Possibly extend life of actor if shrunk
-    if (rScaleStepOld != _state.transform.rScaleStep && pvNil != _pscen &&
-        _state.location.irpt < _track.Route()->IvMac() - 1) // optimization
-    {
-        _fLifeDirty = fTrue;
-        _pscen->InvalFrmRange();
-    }
-
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    bool ok=three_mm_actor_transform_scale(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                            rScale,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1495,88 +1338,10 @@ bool Actor::FScale(BRS rScale)
 bool Actor::FSoonerLater(long dnfrm)
 {
     AssertThis(0);
-
-    Base aev;
-    Base *paevPrev;
-    long nfrmSav;
-    long iaev;
-    long fSuccess;
-    long dnfrmSub;
-    long dnfrmT;
-
-    if (0 == dnfrm)
-        return fTrue;
-
-    if (_fLifeDirty)
-    {
-        if (!_FComputeLifetime(pvNil))
-            PushErc(ercSocBadFrameSlider);
-    }
-
-    Assert(_state.addEvent >= 0, "Invalid value for _state.addEvent");
-
-    // On a Sooner operation, slide the earlier subroutes
-    // backward in time
-    if (dnfrm < 0)
-    {
-        dnfrmT = (-dnfrm);
-        // The times of past events need to be correct.
-        for (iaev = _state.nextEvent - 1; dnfrmT > 0 && iaev >= 0; iaev--)
-        {
-            _track.Events()->GetFixed(iaev, &aev);
-            if (aev.aet != aetAdd || iaev == 0)
-            {
-                aev.nfrm -= dnfrmT;
-                _track.Events()->PutFixed(iaev, &aev);
-                continue;
-            }
-
-            // Account for subroute gaps
-            paevPrev = (Base *)_track.Events()->QvFixedGet(iaev - 1);
-            dnfrmSub = aev.nfrm - (paevPrev->nfrm);
-            aev.nfrm -= dnfrmT;
-            _track.Events()->PutFixed(iaev, &aev);
-            dnfrmT -= (dnfrmSub - 1);
-        }
-    }
-    else
-    {
-        // Later
-        dnfrmT = dnfrm;
-        for (iaev = _state.addEvent; dnfrmT > 0 && iaev < _track.Events()->IvMac(); iaev++)
-        {
-            _track.Events()->GetFixed(iaev, &aev);
-            if (aev.aet != aetAdd || iaev == _state.addEvent)
-            {
-                nfrmSav = aev.nfrm;
-                aev.nfrm += dnfrmT;
-                _track.Events()->PutFixed(iaev, &aev);
-                continue;
-            }
-            // Adjust for the gap between subroutes
-            dnfrmSub = aev.nfrm - nfrmSav;
-            dnfrmT -= (dnfrmSub - 1);
-            if (dnfrmT <= 0)
-                break;
-            aev.nfrm += dnfrmT;
-            _track.Events()->PutFixed(iaev, &aev);
-        }
-    }
-    _track.Events()->GetFixed(0, &aev);
-    _nfrmFirst = aev.nfrm;
-    _track.Events()->GetFixed(_track.Events()->IvMac() - 1, &aev);
-    _nfrmLast = aev.nfrm;
-
-    _state.frame += dnfrm;
-
-    // Invalidate, but do not recompute the range
-    _pscen->InvalFrmRange();
-
-    if (fSuccess = _pscen->FGotoFrm(_pscen->Nfrm() + dnfrm))
-    {
-        _pscen->Pmvie()->Pmcc()->UpdateScrollbars();
-    }
-    return fSuccess;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    bool ok=three_mm_actor_transform_time(&state,_track.Route(),_track.Events(),dnfrm,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1590,35 +1355,12 @@ bool Actor::FSoonerLater(long dnfrm)
 bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 {
     AssertThis(0);
-
-    BRS rScaleXT;
-    BRS rScaleYT;
-    BRS rScaleZT;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarPull, fgrpNil))
-        return fFalse;
-
-    rScaleX = LwBound(rScaleX, krScaleMinFactor, krScaleMaxFactor);
-    rScaleY = LwBound(rScaleY, krScaleMinFactor, krScaleMaxFactor);
-    rScaleZ = LwBound(rScaleZ, krScaleMinFactor, krScaleMaxFactor);
-
-    rScaleXT = BrsMul(_state.transform.aevpull.rScaleX, rScaleX);
-    rScaleYT = BrsMul(_state.transform.aevpull.rScaleY, rScaleY);
-    rScaleZT = BrsMul(_state.transform.aevpull.rScaleZ, rScaleZ);
-
-    _state.transform.aevpull.rScaleX = LwBound(rScaleXT, krPullMin, krPullMax);
-    _state.transform.aevpull.rScaleY = LwBound(rScaleYT, krPullMin, krPullMax);
-    _state.transform.aevpull.rScaleZ = LwBound(rScaleZT, krPullMin, krPullMax);
-
-    _PrepXfrmFill(aetPull, &_state.transform.aevpull, kcbVarPull, _state.nextEvent);
-
-    if (!_FAddDoAev(aetPull, kcbVarPull, &_state.transform.aevpull))
-        return fFalse;
-
-    Assert(_state.nextEvent <= _track.Events()->IvMac(), "_state.nextEvent bug");
-
-    _PositionBody(&_state.position);
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    const ThreeMMActorStretch stretch{rScaleX,rScaleY,rScaleZ};
+    bool ok=three_mm_actor_transform_pull(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                           &stretch,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1633,27 +1375,12 @@ bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 {
     AssertThis(0);
-
-    RoutePoint xyz;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarTweak, fgrpNil))
-        return fFalse;
-
-    xyz.dxr = BrsAdd(_state.position.dxr, dxr);
-    xyz.dyr = BrsAdd(_state.position.dyr, dyr);
-    xyz.dzr = BrsAdd(_state.position.dzr, dzr);
-
-    if ((grfmaf & fmafGround) && (BrsAdd(_state.position.dyr, _state.routeTranslation.dyr) >= rZero) &&
-        (BrsAdd(xyz.dyr, _state.routeTranslation.dyr) < rZero))
-    {
-        xyz.dyr = -_state.routeTranslation.dyr;
-    }
-
-    if (!_FAddDoAev(aetTweak, kcbVarTweak, &xyz))
-        return fFalse;
-
-    _PositionBody(&xyz);
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
+    const ThreeMMActorPoint delta{dxr,dyr,dzr};
+    bool ok=three_mm_actor_transform_tweak(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                            &delta,grfmaf,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************
@@ -1688,192 +1415,17 @@ void Actor::_UpdateXyzRte(void)
 bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 {
     AssertThis(0);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     AssertNilOrVarMem(pfMoved);
-
-    Add aevadd;
-    Base *paev;
-    long iaev;
-    bool fMoved;
-    LegacyUlong grfbra;
-    RoutePoint dxyz;
-    BRS yrCurOld;
-    BRA xa;
-    BRA ya;
-    BRA za;
-
-    fMoved = (rZero != dxr || rZero != dyr || rZero != dzr);
-    if (pvNil != pfMoved)
-        *pfMoved = fMoved;
-
-    if (!fMoved)
-        return fTrue;
-
-    if (!_track.Events()->FEnsureSpace(2, kcbVarMove + kcbVarRot, fgrpNil))
-        return fFalse;
-
-    // Edit dyr to respect ground
-    yrCurOld = BrsAdd(_state.position.dyr, _state.routeTranslation.dyr);
-    if (FPure(grfmaf & fmafGround) && (yrCurOld >= rZero) && (BrsAdd(dyr, yrCurOld) < rZero))
-    {
-        dyr = BrsSub(rZero, yrCurOld);
-    }
-
-    // Update Actor's orientation
-    if (FPure(grfmaf & fmafOrient) && !_ptmpl->FIsTdt())
-    {
-        dxyz.dxr = dxr;
-        dxyz.dyr = dyr;
-        dxyz.dzr = dzr;
-
-        // Back the path orientation out from this matrix & replace
-        // with new orientation
-        if (_state.transform.zaPath != aZero)
-            BrMatrix34PostRotateZ(&_state.transform.bmat34Cur, -_state.transform.zaPath);
-        if (_state.transform.yaPath != aZero)
-            BrMatrix34PostRotateY(&_state.transform.bmat34Cur, -_state.transform.yaPath);
-        if (_state.transform.xaPath != aZero)
-            BrMatrix34PostRotateX(&_state.transform.bmat34Cur, -_state.transform.xaPath);
-
-        _ApplyRotFromVec(&dxyz, pvNil, &xa, &ya, &za, &grfbra);
-        SetAddOrient(xa, ya, za, grfbra, &dxyz);
-
-        // Force speed to be inversely proportional to angular rotation
-        if (_state.addEvent != ivNil)
-        {
-            BRS dwra, drxa, drya, drza;
-            BRS ra1, ra2;
-#ifdef DEBUG
-            {
-                Base *paev;
-                paev = (Base *)_track.Events()->QvFixedGet(_state.addEvent);
-                Assert(_state.frame == paev->nfrm, "Unsupported use of fmafOrient");
-            }
-#endif // DEBUG
-       //  Set dwra = angular change (in scalar form)
-            _track.Events()->Get(_state.addEvent, &aevadd);
-            ra1 = BrAngleToScalar(xa);
-            ra2 = BrAngleToScalar(aevadd.xa);
-            drxa = BrsAbs(BrsSub(ra1, ra2));
-            if (drxa > rOneHalf)
-            {
-                if (ra2 > ra1)
-                    ra1 = BrsAdd(rOne, ra1);
-                else
-                    ra2 = BrsAdd(rOne, ra2);
-                drxa = BrsAbs(BrsSub(ra1, ra2));
-            }
-
-            ra1 = BrAngleToScalar(ya);
-            ra2 = BrAngleToScalar(aevadd.ya);
-            drya = BrsAbs(BrsSub(ra1, ra2));
-            if (drya > rOneHalf)
-            {
-                if (ra2 > ra1)
-                    ra1 = BrsAdd(rOne, ra1);
-                else
-                    ra2 = BrsAdd(rOne, ra2);
-                drya = BrsAbs(BrsSub(ra1, ra2));
-            }
-
-            ra1 = BrAngleToScalar(za);
-            ra2 = BrAngleToScalar(aevadd.za);
-            drza = BrsAbs(BrsSub(ra1, ra2));
-            if (drza > rOneHalf)
-            {
-                if (ra2 > ra1)
-                    ra1 = BrsAdd(rOne, ra1);
-                else
-                    ra2 = BrsAdd(rOne, ra2);
-                drza = BrsAbs(BrsSub(ra1, ra2));
-            }
-
-            dwra = BR_LENGTH3(drxa, drya, drza);
-
-            // Compute a bounded inverse of the angular change
-            dwra = LwBound(dwra, krAngleMin, krAngleMax);
-            dwra = BrsDiv(BrsRcp(dwra), krAngleMinRcp);
-            AssertIn(dwra, rZero, BrsAdd(rOne, rEps));
-
-            // Adjust the distances
-            dxr = BrsMul(dxr, dwra);
-            dyr = BrsMul(dyr, dwra);
-            dzr = BrsMul(dzr, dwra);
-        }
-
-        // _state.transform.bmat34Cur is to hold the current full rotation
-        _LoadAddOrien(&aevadd, fTrue);
-
-        // Update any type of rotate event in this frame
-        for (iaev = _state.addEvent + 1; iaev < _state.nextEvent; iaev++)
-        {
-            paev = (Base *)_track.Events()->QvFixedGet(iaev);
-            if (aetRotH == paev->aet)
-                _track.Events()->Put(iaev, &_state.transform.bmat34Cur);
-            if (aetRotF == paev->aet)
-            {
-                // Insert orientation-rotation event
-                if (!_FAddDoAev(aetRotH, kcbVarRot, &_state.transform.bmat34Cur))
-                {
-                    Bug("Should have ensured space");
-                    return fFalse;
-                }
-            }
-        }
-    }
-
-    // Update actor's position
-    if (FPure(grfmaf & fmafEntireScene))
-    {
-        _dxyzFullRte.dxr = BrsAdd(dxr, _dxyzFullRte.dxr);
-        _dxyzFullRte.dyr = BrsAdd(dyr, _dxyzFullRte.dyr);
-        _dxyzFullRte.dzr = BrsAdd(dzr, _dxyzFullRte.dzr);
-    }
-    else
-    {
-        if (_state.addEvent == ivNil)
-            return fFalse;
-
-        if (!FPure(grfmaf & fmafEntireSubrte))
-        {
-            // Move actor just from this frame on (this subpath only)
-            // Note: FAddDoAev will update _state.subrouteTranslation
-            dxyz.dxr = dxr;
-            dxyz.dyr = dyr;
-            dxyz.dzr = dzr;
-            if (!_FAddDoAev(aetMove, kcbVarMove, &dxyz))
-                return fFalse;
-        }
-        else
-        {
-            // Translating whole subroute
-#ifdef DEBUG
-            long cbVar = _track.Events()->Cb(_state.addEvent);
-            Assert(cbVar == kcbVarAdd, "Corrupt aev");
-#endif // DEBUG
-       //  Adjust the translation state variables
-            _state.subrouteTranslation.dxr = BrsAdd(dxr, _state.subrouteTranslation.dxr);
-            _state.subrouteTranslation.dyr = BrsAdd(dyr, _state.subrouteTranslation.dyr);
-            _state.subrouteTranslation.dzr = BrsAdd(dzr, _state.subrouteTranslation.dzr);
-
-            // Adjust the position in the add event
-            _track.Events()->Get(_state.addEvent, &aevadd);
-            aevadd.dxr = BrsAdd(aevadd.dxr, dxr);
-            aevadd.dyr = BrsAdd(aevadd.dyr, dyr);
-            aevadd.dzr = BrsAdd(aevadd.dzr, dzr);
-            _track.Events()->Put(_state.addEvent, &aevadd);
-        }
-    }
-    _UpdateXyzRte();
-
-    _pscen->MarkDirty();
-
-    // Update Brender model
-    fMoved = FPure(rZero != dxr || rZero != dyr || rZero != dzr);
-
-    if (fMoved)
-        _PositionBody(&_state.position);
-
-    return fTrue;
+    const ThreeMMActorPoint delta{dxr,dyr,dzr}; ThreeMMActorPoint origin;
+    std::memcpy(&origin,&_dxyzFullRte,sizeof(origin));
+    ThreeMMActorMoveResult result{}; result.context=pfMoved;
+    result.publish=[](void *p,int moved) { if (p) *static_cast<bool *>(p)=moved!=0; };
+    bool ok=three_mm_actor_transform_move(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                           &origin,&delta,grfmaf,&result,&tables,&services)!=0;
+    std::memcpy(&_dxyzFullRte,&origin,sizeof(origin));
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************

@@ -61,6 +61,7 @@ cmake --build build/engine-c89 --target engine-subroute-edit-test
 cmake --build build/engine-c89 --target engine-placement-test
 cmake --build build/engine-c89 --target engine-stage-edit-test
 cmake --build build/engine-c89 --target engine-record-test
+cmake --build build/engine-c89 --target engine-transform-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1177,8 +1178,55 @@ tag ownership through merging/deletion, Add boundaries, epsilon joins, end failu
 cleanup and poisoned table handles after restoration. A 439,824-byte native-before
 trace across 640 scenarios matches exactly, including complete recording sequences
 and real undo restoration. An additional native aliased-output check passes.
-Remaining transform/time edits, undo, queue/runtime integration, body/resource
-implementations and final facade removal remain unfinished.
+Transform/time edits are described next. Undo, queue/runtime integration,
+body/resource implementations and final facade removal remain unfinished.
+
+### Actor transform and time edits
+
+`actor_transform_edit.c` owns local/world rotation, normalization, uniform scale,
+stretch, route tweaks, composed movement and sooner/later shifting. Native actor
+methods now adapt state and host services. Matrix composition, path-orientation
+removal, transform fill, event sequencing, bounds, ground policy, lifetime/range
+decisions and partial failures execute in the C-only library.
+
+Local rotations retain pre-X/Y/Z order; world rotations retain swapped X/Z
+post-rotation and BRender low-precision normalization. Zero world rotation returns
+before reservation or normalization. Reverting still reserves three events even
+with no requested flags. Scale/stretch bounds have exclusive upper endpoints;
+scale's tweak-removal and position-refresh condition compares the new absolute
+scale with the clamped factor, preserving the native comparison rather than
+substituting the previous scale. Rotation/revert retain diagnostic-and-continue
+ordering after a supposedly reserved event fails; scale/stretch/tweak return
+failure with preceding state/table mutations retained.
+
+Movement publishes the requested moved flag before reservation/clipping. Ground
+clipping can stop all physical movement while that flag remains true. Orienting
+movement removes prior path angles in Z/Y/X order, uses the shared C vector and
+weighted entrance policies, applies bounded inverse angular throttling, restores
+entrance orientation and updates/inserts current rotation events. Entire-scene
+translation takes precedence over entire-subroute translation; otherwise Move
+events retain the enabled BUG1870 policy. C then refreshes the cached origin,
+marks dirty and positions only when the resulting delta is nonzero.
+
+Sooner/later edits absorb subroute gaps in the native traversal order, publish
+first/last caches and the shifted actor frame, invalidate the range and seek the
+shifted scene frame. Failed lifetime queries report a diagnostic but editing
+continues. Failed seeking retains those edits and skips scrollbar notification.
+
+Native callbacks supply BRender distance/normalization primitives, scene/body
+effects, cached-origin writes and host scrollbar notification. BRender remains
+the existing external C dependency; those callbacks do not retain edit policy.
+Project-owned body/resource/scene implementations and native ownership adapters
+still need conversion.
+
+`engine-transform-edit-test` covers exclusive bounds, the scale/tweak comparison,
+reservation/failure order, zero world rotation, revert, primitive normalization,
+moved publication, clipped movement, translation precedence, text/orient handling,
+partial orientation failure, costume ownership, gap shifting, failed lifetime
+queries and failed seeks. The native-before trace has 1,032,004 bytes across 1,152
+scenarios and matches exactly, including all transformed matrices, event payloads,
+origin caches, frame/range values and results. Undo, queue/runtime integration,
+body/resource implementations and final facade removal remain unfinished.
 
 ### Source names and directory discovery
 

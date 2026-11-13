@@ -3387,3 +3387,81 @@ and count/peak verification in `tmp/c89-record-playback-summary.json`.
 Remaining transform/time edits, undo, queue/runtime integration, body/resource
 implementations and final facade removal remain unfinished. No Marcus UI tests
 were added.
+
+### C89 actor transform and time edits (13 November 2026)
+
+`actor_transform_edit.c` now owns local/world rotation, normalization, scale,
+stretch, route tweaks, composed movement and sooner/later edits. Native methods
+adapt state and primitive services. The port preserves path-angle removal in
+Z/Y/X order, local pre-rotation, world X/Z swapping/post-rotation/normalization,
+the zero-world-rotation early return, exclusive upper bounds, transform fill
+and the original scale-versus-factor tweak/position comparison.
+
+Movement publishes requested movement before reservation and ground clipping;
+that output remains true when clipping stops all actual movement. C owns weighted
+entrance orientation, wrapped angular differences, bounded inverse speed, current
+rotation event updates, scene/subroute precedence, origin refresh and dirty/body
+sequencing. Sooner/later edits preserve gap absorption order, range/frame cache
+publication before scene seeking, continuation after lifetime failure and partial
+changes after failed seeking. Scrollbars update only on success.
+
+The native-before trace `tmp/c89-transform-before.bin` contains 1,032,004 bytes
+across 1,152 cases. It matches the converted trace exactly, including matrices,
+positions, cached origins, frames/ranges, event payloads and return values. Cases
+cover both rotation scopes, old current/path orientations, text, boundary scale/
+stretch factors, ground clipping, all movement scopes, orienting movement, zero
+deltas, positive/negative time shifts and failed lifetime queries. BRender's
+distance and matrix normalization remain primitive callbacks into the existing
+external C implementation; edit policy is C89.
+
+The C test covers bounds, retained/removed tweaks, reservation and partial-apply
+failure ordering, zero world rotation, primitive normalization, revert, output
+publication before reservation, clipped movement, translation precedence, text/
+orientation handling, partial orientation failure, tag ownership, gap absorption,
+failed lifetime queries and failed scene seeks. Both hosts build successfully.
+All 52 standalone C checks (including strict C89 syntax), 66 focused native checks
+and MSVC AddressSanitizer pass. All 37 snapshots and 51 CLI baselines match, and
+the headless scene/timeline check passes. Logs include
+`tmp/c89-transform-standalone.log`, `tmp/c89-transform-native-tests.log`,
+`tmp/c89-transform-asan.log`, `tmp/c89-transform-snapshot-comparison.json`,
+`tmp/c89-transform-output-comparison.json` and `tmp/c89-transform-timeline.log`.
+
+Frozen Studio/Marcus binaries ran without concurrent builds or compaction.
+Completed older and current evidence was transparently compressed between suites
+to provide headroom, including before the final scene-audio suite. All raw files
+and prior failed-run records remain. SDL reused the recorded warm package cache
+with private processes, settings, workspaces and working movies; OS file caching
+remains uncontrolled. Final suites record `final transform/time revision`:
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T043400Z-f1048e22` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T043644Z-25feb92b` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T044139Z-83a82af0` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T044726Z-c4b76d53` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Baselines are actor-audio
+`20261113T040127Z-ddcff15b`, actor-events `20261113T040301Z-83bdf6d0`, scrolling
+`20261113T040519Z-8ccdbc49`, retail/SDL scene audio
+`20261113T040827Z-29d273c9` and the successful Marcus scene-audio retry
+`20261113T041118Z-cb6c1040`. The latter suite is used only for Marcus; its preceding
+failed attempt remains an error. No capture policy was weakened.
+
+All 540 seek images, authored positions and ordered playback changes match each
+player's preceding results. Only adjacent identical position/image records are
+collapsed; raw observations/timestamps remain. Movie identities match and every
+suite's movie/resource/content integrity checks pass. Actor cases retain 60
+ordered changes per player; scrolling retains 328 for retail/SDL and 321 for
+Marcus. Actor audio retains first-scene 600/1300 Hz coverage and PCM16 peaks of
+3192 retail and 4081 SDL/Marcus. Scene audio retains 60 changes and peaks of 2380
+retail and 2176 SDL/Marcus.
+
+The combined report is
+`tmp/c89-transform-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with count/peak checks in `tmp/c89-transform-playback-summary.json`. Captures remain
+under `tmp/c89-movie-data-regression`. Audible coverage/peaks do not establish
+exact waveform/timing parity. Existing cross-player differences remain; one
+repetition does not establish general repeatability or full retail parity. Native
+edit traces and direct C tests cover editing policy; captures check retained
+playback behavior. Undo, queue/runtime integration, body/resource implementations
+and final facade removal remain unfinished. No Marcus UI tests were added.

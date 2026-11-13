@@ -221,6 +221,89 @@ class StageTestScene : public Scene
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestTransformEdit(int mode,FILE *snapshot,StageTestScene *scene)
+    {
+        using namespace ActorEvent;
+        const int group=mode/128;
+        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl); tmpl->FailAfter(0); tmpl->SetTestText((mode&4)!=0);
+        ReleasePpo(&_pbody); _pbody=_ptmpl->PbodyCreate(); if (!_pbody) return false;
+        ActorTrack track; if (!track.FCreate()) return false;
+        const int coordinates[]={0,4,10,14,30};
+        for (int i=0;i<5;++i)
+        {
+            RouteDistancePoint point={{BR_SCALAR(coordinates[i]),rZero,rZero},(i==0 || i==2)?BR_SCALAR(4):rZero};
+            if (!track.Route()->FInsert(i,&point)) return false;
+        }
+        auto append=[&](int type,int frame,int node,int offset,int hold,const void *payload,long bytes) {
+            Base event={type,frame,{node,BR_SCALAR(offset),hold}};
+            return track.Events()->FInsert(track.Events()->IvMac(),bytes,const_cast<void *>(payload),&event);
+        };
+        Add entrance={}; Action action={0,0}; int32_t freeze=1; BRS step=0,scale=BR_SCALAR(2);
+        BMAT34 forward,current; BrMatrix34Identity(&forward); BrMatrix34PreRotateX(&forward,0x1000);
+        BrMatrix34PreRotateY(&forward,0x2345); BrMatrix34Identity(&current); BrMatrix34PostRotateY(&current,0x4567);
+        forward.m[3][0]=123; current.m[3][2]=-456;
+        RoutePoint tweak={BR_SCALAR(10),(mode&8)?-rOne:rOne,rZero};
+        Stretch pull={BR_SCALAR(2),rOneHalf,rOne};
+        if (!append(aetAdd,5,0,0,0,&entrance,sizeof(entrance)) || !append(aetActn,5,0,0,0,&action,sizeof(action)) ||
+            !append(aetFreeze,5,0,0,0,&freeze,sizeof(freeze)) || !append(aetStep,5,0,0,0,&step,sizeof(step)) ||
+            !append(aetAdd,20,2,0,0,&entrance,sizeof(entrance)) || !append(aetActn,20,2,0,0,&action,sizeof(action)) ||
+            !append(aetRotF,20,2,0,0,&forward,sizeof(forward)) || !append(aetRotH,20,2,0,0,&current,sizeof(current)) ||
+            !append(aetTweak,20,2,0,0,&tweak,sizeof(tweak)) || !append(aetSize,22,2,2,0,&scale,sizeof(scale)) ||
+            !append(aetPull,23,3,0,0,&pull,sizeof(pull)) || !append(aetFreeze,24,3,0,1,&freeze,sizeof(freeze)) ||
+            !append(aetAdd,40,4,0,0,&entrance,sizeof(entrance)) || !append(aetActn,40,4,0,0,&action,sizeof(action))) return false;
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.frame=20; _state.location={2,rZero,0}; _state.position=tweak; _state.onStage=true; _pbody->Show();
+        _state.addEvent=4; _state.actionEvent=5; _state.firstEventInFrame=4; _state.nextEvent=9;
+        _state.celCount=4; _state.actionFlags=(mode&32)?factnRotateX|factnRotateY|factnRotateZ:factnRotateY;
+        _state.transform.bmat34Fwd=forward; _state.transform.bmat34Cur=current; _state.useCurrentRotation=(mode&2)!=0;
+        _state.transform.xaPath=(mode&8)?0:0x1234; _state.transform.yaPath=0x4000; _state.transform.zaPath=(mode&16)?0xFFF0:0;
+        const BRS oldScales[]={rOne,BR_SCALAR(2),krScaleMin,krScaleMax-rEps};
+        _state.transform.rScaleStep=oldScales[(mode/8)%4]; _state.transform.aevpull=pull;
+        _state.routeTranslation={BR_SCALAR(3),rOne,BR_SCALAR(2)}; _dxyzFullRte=_state.routeTranslation;
+        _nfrmFirst=5; _nfrmLast=50; _fLifeDirty=group==8 && (mode&16); _fModeRecord=_fRejoin=false;
+        if (!scene->TrackActor(this,_state.frame)) return false;
+        if (_fLifeDirty && (mode&32)) tmpl->FailAfter(1);
+        const BRA angles[]={0,1,0x1234,0x4000,0x8000,0xFFF0,0x1000,0};
+        BRA x=angles[(mode/4)%8],y=angles[(mode/8)%8],z=angles[(mode/16)%8];
+        const BRS factors[]={-rOne,0,krScaleMinFactor-1,krScaleMinFactor,krScaleMinFactor+1,rOne,rOneHalf,
+                             BR_SCALAR(1.5),krScaleMaxFactor-1,krScaleMaxFactor,krScaleMaxFactor+1,0x7fffffff};
+        const long count=sizeof(factors)/sizeof(factors[0]); BRS factor=factors[mode%count];
+        BRS dx=(mode&16)?0:rOne,dy=(mode&32)?-BR_SCALAR(4):rOneHalf,dz=(mode&4)?0:rOneHalf;
+        if (mode&64) dx=dy=dz=0;
+        ulong flags=((mode&1)?fmafEntireScene:0)|((mode&2)?fmafEntireSubrte:0)|((mode&8)?fmafGround:0)|((group==7)?fmafOrient:0);
+        bool moved=false,ok=false;
+        std::fprintf(stderr,"[transform fixture] mode=%d\n",mode);
+        switch (group)
+        {
+        case 0: ok=FRotate(x,y,z,(mode&1)!=0); break;
+        case 1: ok=FRotateAroundWorld(x,y,z,(mode&1)!=0); break;
+        case 2: ok=FNormalizeCore(mode%4); break;
+        case 3: ok=FScale(factor); break;
+        case 4: ok=FPull(factor,factors[(mode/3)%count],factors[(mode/5)%count]); break;
+        case 5: ok=FTweakRoute(dx,dy,dz,flags); break;
+        case 6: case 7: ok=FMoveRoute(dx,dy,dz,&moved,flags); break;
+        case 8: { const long shifts[]={0,1,-1,4,-3,12,25,-18}; ok=FSoonerLater(shifts[mode%8]); break; }
+        }
+        tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,ok,moved,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
+            _state.useCurrentRotation,_state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,scene->Nfrm(),
+            _track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
+            record(&_state.transform,sizeof(_state.transform)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation)) &&
+            record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
+            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        return saved;
+    }
     bool FTestRecording(int mode,FILE *snapshot,StageTestScene *scene,bool aliasOutputs=false)
     {
         using namespace ActorEvent;
@@ -1400,6 +1483,19 @@ static bool TestActorSubrouteEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorTransformEditing(PMovie movie)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_TRANSFORM_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    auto scene=NewObj StageTestScene(movie); PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil; auto actor=NewObj TrackTestActor();
+    bool ok=scene && scene->Init() && resource && actor && actor->FInitPlayback(scene,resource);
+    for (int mode=0;ok && mode<1152;++mode) ok=actor->FTestTransformEdit(mode,snapshot,scene);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file); ReleasePpo(&scene);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;
+}
+
 static bool TestActorRecording(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -1944,6 +2040,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor stage editing failed");
     if (!TestActorRecording(pmvie))
         BAIL("actor recording failed");
+    if (!TestActorTransformEditing(pmvie))
+        BAIL("actor transform editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

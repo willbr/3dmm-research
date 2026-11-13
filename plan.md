@@ -261,7 +261,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Timestamp differences wrap at 32 bits; displaced event/tag handling, end-of-
   route freeze/step and BUG1961/BUG1973 behavior retain native ordering. Native
   services still provide BRender distance, scene seeking and a temporary undo
-  restoration transaction. Remaining transform/time edits and undo need conversion.
+  restoration transaction. Undo and remaining runtime integration need conversion.
+- Local/world rotation, normalization, scale/stretch, route tweaks and composed
+  movement now execute in C89, including orientation weighting/angular throttling,
+  ground clipping, event fill and partial-failure ordering. Sooner/later subroute
+  shifting is C89 too. Native callbacks retain BRender primitives, scene/body
+  operations, cached origin publication and scrollbar notification. Undo,
+  remaining actor/movie/scene integration and final facade removal remain.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
