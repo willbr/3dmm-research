@@ -390,12 +390,12 @@ Playback policy, movie-data decoding, collections/strings, block/stream ownershi
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
-copy, route-paste, full actor-paste and clipboard policy have also moved into
-C89. These are completed slices within dependency groups 3-5; those groups are
-not complete as a whole.
+copy, route-paste, full actor-paste, clipboard and actor creation/binding control
+have also moved into C89. These are completed slices within dependency groups
+3-5; those groups are not complete as a whole.
 
-The immediate actor sequence is remaining actor/template creation and movie
-sound-tag integration. Continue through the remaining scene/movie
+The immediate sequence is movie sound-tag integration and remaining template/
+body construction. Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting
 body/template/resource implementations and physical file adapters as their
 dependencies require. Extend the C API and regression coverage as each C++

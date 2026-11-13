@@ -1935,6 +1935,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_route_paste_fixture.h"
 #include "engine_actor_paste_fixture.h"
 #include "engine_actor_clipboard_fixture.h"
+#include "engine_actor_create_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2529,6 +2530,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor paste failed");
     if (!TestActorClipboard(pmvie))
         BAIL("actor clipboard failed");
+    if (!TestActorCreation(pmvie))
+        BAIL("actor creation failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

@@ -153,27 +153,32 @@ Actor::~Actor(void)
     The actor will not yet be grounded to any initial scene frame.
 
 ***************************************************************************/
+ThreeMMActorCreateServices Actor::_CreateServices()
+{
+    ThreeMMActorCreateServices s{}; s.owner=_OwnerServices();
+    s.fetch_template=[](void *,const ThreeMMTag *value)->void * {
+        TAG tag; std::memcpy(&tag,value,sizeof(tag));
+        return static_cast<PTemplate>(vptagm->PbacoFetch(&tag,Template::FReadTmpl));
+    };
+    s.create_track=[](void *,void *p) { return int(static_cast<PActor>(p)->_track.FCreate()); };
+    s.create_sounds=[](void *,void *p) { return int(static_cast<PActor>(p)->_motionSounds.FCreate()); };
+    s.action_flags=[](void *,void *p,ThreeMMI32 action,ThreeMMU32 *flags) {
+        LegacyUlong value=*flags; bool ok=static_cast<PTemplate>(p)->FGetGrfactn(action,&value);
+        *flags=value; return int(ok);
+    };
+    s.create_body=[](void *,void *p)->void * { return static_cast<PTemplate>(p)->PbodyCreate(); };
+    s.bind_body=[](void *,void *body,void *scene) { BodyWorld::Bind(static_cast<PBody>(body),static_cast<PScene>(scene)->Pmvie()->Pbwld()); };
+    s.diagnostic=[](void *,int fault) {
+        if (fault==THREE_MM_CREATE_WRONG_SCENE) { Bug("SetPscen logic error"); }
+        else { Assert(fault==THREE_MM_CREATE_BOUND_WITHOUT_BODY || fault==THREE_MM_CREATE_BODY_WITHOUT_SCENE,"Unknown binding fault"); Bug("Bad body pointer"); }
+    };
+    return s;
+}
 bool Actor::_FInit(TAG *ptagTmpl)
 {
-    AssertBaseThis(0);
-    AssertVarMem(ptagTmpl);
-
-    _ptmpl = (PTemplate)vptagm->PbacoFetch(ptagTmpl, Template::FReadTmpl);
-    if (pvNil == _ptmpl)
-        return fFalse;
-
-    AssertPo(_ptmpl, 0);
-    _tagTmpl = *ptagTmpl;
-    TagManager::DupTag(&_tagTmpl);
-
-    if (!_FCreateGroups())
-        return fFalse;
-
-    _SetStateRewound();
-    if (!_ptmpl->FGetGrfactn(0, &_state.actionFlags))
-        return fFalse;
-
-    return fTrue;
+    AssertBaseThis(0); AssertVarMem(ptagTmpl);
+    ThreeMMTag tag; std::memcpy(&tag,ptagTmpl,sizeof(tag)); const auto services=_CreateServices();
+    return three_mm_actor_initialize(this,&tag,&services)!=0;
 }
 
 /***************************************************************************
@@ -214,19 +219,8 @@ void Actor::_InitXfrmRot(BMAT34 *pbmat34)
 PActor Actor::PactrNew(TAG *ptagTmpl)
 {
     AssertVarMem(ptagTmpl);
-
-    PActor pactr;
-
-    if ((pactr = NewObj Actor()) == pvNil)
-        return pvNil;
-
-    if (!pactr->_FInit(ptagTmpl))
-    {
-        ReleasePpo(&pactr);
-        return pvNil;
-    }
-
-    return pactr;
+    ThreeMMTag tag; std::memcpy(&tag,ptagTmpl,sizeof(tag)); const auto services=_CreateServices();
+    return static_cast<PActor>(three_mm_actor_create(&tag,&services));
 }
 
 /***************************************************************************
@@ -236,15 +230,8 @@ PActor Actor::PactrNew(TAG *ptagTmpl)
 ***************************************************************************/
 bool Actor::_FCreateGroups(void)
 {
-    AssertBaseThis(0);
-
-    if (!_track.FCreate())
-        return fFalse;
-
-    if (!_motionSounds.FCreate())
-        return fFalse;
-
-    return fTrue;
+    AssertBaseThis(0); const auto services=_CreateServices();
+    return three_mm_actor_create_groups(this,&services)!=0;
 }
 
 /***************************************************************************
@@ -254,25 +241,8 @@ bool Actor::_FCreateGroups(void)
 ***************************************************************************/
 void Actor::SetPscen(Scene *pscen)
 {
-    AssertBaseThis(0);
-
-    AssertVarMem(pscen);
-    Assert(_pscen == pvNil || _pscen == pscen, "SetPscen logic error");
-
-    if (_pscen != pvNil)
-    {
-        Assert(_pbody != pvNil, "Bad body pointer");
-        return;
-    }
-
-    Assert(_pbody == pvNil, "Bad body pointer");
-    _pscen = pscen;
-
-    // Create the body parts
-    if (pvNil == (_pbody = _ptmpl->PbodyCreate()))
-        return;
-
-    BodyWorld::Bind(_pbody, pscen->Pmvie()->Pbwld());
+    AssertBaseThis(0); AssertVarMem(pscen); const auto services=_CreateServices();
+    three_mm_actor_bind_scene(this,pscen,&services);
 }
 
 /***************************************************************************

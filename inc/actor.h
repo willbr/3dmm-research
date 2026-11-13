@@ -43,6 +43,7 @@ using namespace BRender;
 #include "three_mm/actor_copy.h"
 #include "three_mm/actor_route_paste.h"
 #include "three_mm/actor_clipboard.h"
+#include "three_mm/actor_create.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
@@ -184,6 +185,7 @@ class Actor : public Actor_PAR
     ThreeMMActorRuntime _Runtime() const;
     void _PublishRuntime(const ThreeMMActorRuntime &);
     static ThreeMMActorOwnerServices _OwnerServices();
+    static ThreeMMActorCreateServices _CreateServices();
     struct EditContext;
     static ThreeMMActorTransactionServices _TransactionServices(EditContext *);
     static ThreeMMActorDeleteServices _DeleteServices(EditContext *);

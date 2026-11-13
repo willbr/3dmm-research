@@ -70,6 +70,7 @@ cmake --build build/engine-c89 --target engine-actor-copy-test
 cmake --build build/engine-c89 --target engine-route-paste-test
 cmake --build build/engine-c89 --target engine-actor-paste-test
 cmake --build build/engine-c89 --target engine-actor-clipboard-test
+cmake --build build/engine-c89 --target engine-actor-create-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1496,8 +1497,41 @@ do not prove native paste success; C tests separately cover successful route and
 full paste, duplicate/paste/rename failure, removal before release, changed IDs
 between rename/removal, ownership visibility and source immutability. No Marcus
 UI tests were added. The separate full actor-paste native fixture still covers
-actual template/sound transfer. Actor/template creation, movie/scene/body/
-resource/runtime implementation and facade removal remain unfinished.
+actual template/sound transfer. Actor creation control is described next.
+Template/body construction, movie/scene/resource/runtime implementation and
+facade removal remain unfinished.
+
+### Actor creation and scene binding
+
+`actor_create.c` owns factory failure release, template/tag acquisition order,
+track-before-sound initialization, rewind/recording reset, action-zero metadata
+and scene/body binding order. It calls the shared C route rewind and owner
+disposal paths. `_FInit`, `_FCreateGroups`, `PactrNew` and `SetPscen` are native
+facades over this controller. Allocation, template fetching/metadata, existing
+table/sound owners, body creation and world binding remain primitive adapters.
+Template/body implementations and native object representations still require
+conversion; this does not make them final host dependencies.
+
+Failed initialization retains partial fields/storage for owner disposal. Failed
+body creation retains the assigned scene with a NULL body. Repeated scene
+binding returns immediately and never recreates the body; a missing body or
+different scene diagnoses the existing broken precondition. A valid repeated
+binding does not add references or bind twice. Direct group/initialization APIs
+leave cleanup to their caller; only the factory releases a failed actor.
+
+The 10,120-byte native-before trace spans 120 cold/warm-cache cases with a valid
+serialized template/action graph, invalid template data, missing action cels,
+BASE allocation failures, successful body/world binding, failed body creation,
+repeat binding, actor state/tables and reference balance. Each expected factory
+outcome is asserted. There are 29 successful creations, including seven body
+failures that retain their scene, and 91 factory failures. The trace matches
+exactly. Zero-part bodies isolate binding policy; model/rig construction is not
+proved by this fixture. `engine-actor-create-test` separately checks acquisition
+and publication ordering, short-circuiting, partial flags on failure, real C owner
+disposal, direct-call cleanup responsibility, recording reset and retained failed
+bindings. No Marcus UI tests were added. Movie sound integration, template/body
+construction, remaining scene/movie/resource/runtime implementations and final
+facade removal remain unfinished.
 
 ### Source names and directory discovery
 
