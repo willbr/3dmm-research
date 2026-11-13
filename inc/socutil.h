@@ -12,6 +12,7 @@
 
 #ifndef SOCUTIL_H
 #define SOCUTIL_H
+#include "three_mm/actor_undo.h"
 
 extern "C"
 {
@@ -100,6 +101,10 @@ class ActorUndo : public ActorUndo_PAR
     bool _fSndUndo;
     long _nfrmLast;
     String _stn; // actor's name
+    struct UndoContext;
+    ThreeMMActorUndoState _UndoState() const;
+    void _PublishUndo(const ThreeMMActorUndoState &);
+    static ThreeMMActorUndoServices _UndoServices(UndoContext *);
     ActorUndo(void)
     {
     }

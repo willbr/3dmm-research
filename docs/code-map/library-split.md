@@ -63,6 +63,7 @@ cmake --build build/engine-c89 --target engine-stage-edit-test
 cmake --build build/engine-c89 --target engine-record-test
 cmake --build build/engine-c89 --target engine-transform-edit-test
 cmake --build build/engine-c89 --target engine-actor-owner-test
+cmake --build build/engine-c89 --target engine-actor-undo-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1252,8 +1253,37 @@ releases the template and disposes sound storage explicitly in C.
 resource reference balance, reset, restore swaps and ignored seek failure.
 Native traces cover 128 ownership scenarios and 32 real movie/scene undo cases,
 including undo creation, undo/redo replacement, name swapping and removal.
-They establish ownership integration behavior; the undo controller itself still
-needs conversion, along with body/resource/scene policy and final facade removal.
+They establish ownership integration behavior. The undo controller is described
+next; body/resource/scene policy and final facade removal remain unfinished.
+
+### Actor undo controller
+
+`actor_undo.c` owns actor undo creation, snapshot reference lifetime, undo toggle
+and redo frame switching. `ThreeMMActorUndoState` holds plain movie/snapshot
+handles, identifiers, frames and flags. The native undo object marshals these
+fields and supplies primitive movie/scene operations and temporary String scratch
+storage. C controls name capture, ignored rename failure and captured-name swap;
+the existing String implementation is already C-backed. These native object
+representations and movie/scene implementations remain temporary dependencies.
+
+Toggle preserves scene-switch versus seek-failure handling: only the latter
+clears undo, then returns without touching an owner that clearing can destroy.
+It retains the outgoing actor before removal/replacement, publishes changed IDs
+before insertion, retains name/ID mutations on insertion failure, and releases
+the incoming snapshot before clearing its pointer. Range invalidation precedes
+transferring/resetting the outgoing actor. Sound undo plays the queue; other undo
+flushes it. Redo preserves virtual undo dispatch and restores its temporary frame
+even on failure, without overwriting snapshot/ID changes made during the toggle.
+Creation clears failed registration before release; success releases its local
+undo reference before detaching/resetting the snapshot.
+
+`engine-actor-undo-test` checks callback order, references, name capture/rename
+failure, changed IDs, view/text selection, absent actors, removal, scene/seek/add
+failure, owner destruction on seek failure, redo failure/frame restoration,
+set/dispose and allocation/registration failure during creation. Both the
+3,240-byte native undo trace (32 cases) and 94,208-byte ownership trace (128 cases)
+remain identical. Composite undo, remaining edit/clipboard wrappers, movie/scene/
+body/resource implementations, queue runtime and facade removal remain work.
 
 ### Source names and directory discovery
 

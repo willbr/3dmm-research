@@ -947,39 +947,18 @@ void ActorClipboard::AssertValid(LegacyUlong grf)
 ***************************************************************************/
 bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
 {
-    AssertPo(pactrDup, 0);
-    AssertNilOrPo(pstn, 0);
-
-    PActorUndo paund;
-
-    paund = ActorUndo::PaundNew();
-
-    if (paund == pvNil)
-    {
-        return fFalse;
-    }
-
-    paund->SetPactr(pactrDup);
-    paund->SetArid(_arid);
-    paund->SetSndUndo(fSndUndo);
-    if (pvNil != pstn)
-        paund->SetStn(pstn);
-
-    if (!_pscen->Pmvie()->FAddUndo(paund))
-    {
-        _pscen->Pmvie()->ClearUndo();
-        ReleasePpo(&paund);
-        return (fFalse);
-    }
-
-    ReleasePpo(&paund);
-
-    //
-    // Detach from the scene
-    //
-    pactrDup->Reset();
-
-    return (fTrue);
+    AssertPo(pactrDup,0); AssertNilOrPo(pstn,0);
+    ThreeMMActorUndoCreateServices s{}; s.context=this;
+    s.create=[](void *)->void * { return ActorUndo::PaundNew(); };
+    s.set_actor=[](void *,void *p,void *actor) { static_cast<PActorUndo>(p)->SetPactr(static_cast<PActor>(actor)); };
+    s.set_id=[](void *,void *p,ThreeMMI32 id) { static_cast<PActorUndo>(p)->SetArid(id); };
+    s.set_sound=[](void *,void *p,int sound) { static_cast<PActorUndo>(p)->SetSndUndo(sound!=0); };
+    s.set_name=[](void *,void *p,const void *name) { static_cast<PActorUndo>(p)->SetStn(static_cast<PString>(const_cast<void *>(name))); };
+    s.add=[](void *p,void *undo) { return int(static_cast<PActor>(p)->_pscen->Pmvie()->FAddUndo(static_cast<PActorUndo>(undo))); };
+    s.clear=[](void *p) { static_cast<PActor>(p)->_pscen->Pmvie()->ClearUndo(); };
+    s.release=[](void *,void *p) { static_cast<PActorUndo>(p)->Release(); };
+    s.reset_actor=[](void *,void *p) { static_cast<PActor>(p)->Reset(); };
+    return three_mm_actor_undo_create(pactrDup,_arid,fSndUndo,pstn,&s)!=0;
 }
 
 /***************************************************************************
@@ -1273,10 +1252,57 @@ PActorUndo ActorUndo::PaundNew()
  * Destructor for actor undo objects
  *
  ****************************************************/
+struct ActorUndo::UndoContext
+{
+    ActorUndo *owner;
+    PDocumentBase document;
+    String captured;
+};
+ThreeMMActorUndoState ActorUndo::_UndoState() const
+{
+    ThreeMMActorUndoState s{}; s.movie=_pmvie; s.actor=_pactr; s.scene=_iscen; s.frame=_nfrm;
+    s.last_frame=_nfrmLast; s.actor_id=_arid; s.sooner_later=_fSoonerLater; s.sound=_fSndUndo; return s;
+}
+void ActorUndo::_PublishUndo(const ThreeMMActorUndoState &s)
+{
+    _pmvie=static_cast<PMovie>(s.movie); _pactr=static_cast<PActor>(s.actor); _iscen=s.scene; _nfrm=s.frame;
+    _nfrmLast=s.last_frame; _arid=s.actor_id; _fSoonerLater=s.sooner_later!=0; _fSndUndo=s.sound!=0;
+}
+ThreeMMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
+{
+    ThreeMMActorUndoServices s{}; s.context=context;
+    s.read=[](void *p,ThreeMMActorUndoState *state) { *state=static_cast<UndoContext *>(p)->owner->_UndoState(); };
+    s.publish=[](void *p,const ThreeMMActorUndoState *state) { static_cast<UndoContext *>(p)->owner->_PublishUndo(*state); };
+    s.invoke_undo=[](void *p) { auto c=static_cast<UndoContext *>(p); return int(c->owner->FUndo(c->document)); };
+    s.switch_scene=[](void *,void *p,ThreeMMI32 i) { return int(static_cast<PMovie>(p)->FSwitchScen(i)); };
+    s.current_scene=[](void *,void *p)->void * { return static_cast<PMovie>(p)->Pscen(); };
+    s.seek=[](void *,void *p,ThreeMMI32 frame) { return int(static_cast<PScene>(p)->FGotoFrm(frame)); };
+    s.clear_undo=[](void *,void *p) { static_cast<PMovie>(p)->ClearUndo(); };
+    s.flush=[](void *,void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
+    s.play=[](void *,void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
+    s.find_actor=[](void *,void *p,ThreeMMI32 id)->void * { return static_cast<PScene>(p)->PactrFromArid(id); };
+    s.retain=[](void *,void *p) { static_cast<PActor>(p)->AddRef(); };
+    s.release=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
+    s.actor_id=[](void *,void *p)->ThreeMMI32 { return static_cast<PActor>(p)->Arid(); };
+    s.remove_actor=[](void *,void *p,ThreeMMI32 id) { static_cast<PScene>(p)->RemActrCore(id); };
+    s.add_actor=[](void *,void *p,void *actor) { return int(static_cast<PScene>(p)->FAddActrCore(static_cast<PActor>(actor))); };
+    s.has_name=[](void *p) { return int(static_cast<UndoContext *>(p)->owner->_stn.Cch()!=0); };
+    s.capture_name=[](void *p,void *movie,ThreeMMI32 id) { return int(static_cast<PMovie>(movie)->FGetName(id,&static_cast<UndoContext *>(p)->captured)); };
+    s.assign_name=[](void *p,void *movie,ThreeMMI32 id) { static_cast<PMovie>(movie)->FNameActr(id,&static_cast<UndoContext *>(p)->owner->_stn); };
+    s.store_name=[](void *p) { auto c=static_cast<UndoContext *>(p); c->owner->_stn=c->captured; };
+    s.view=[](void *,void *p)->void * { return static_cast<PMovie>(p)->PddgGet(0); };
+    s.text_mode=[](void *,void *p) { return int(static_cast<PMovieView>(p)->FTextMode()); };
+    s.select_actor=[](void *,void *p,void *actor) { static_cast<PScene>(p)->SelectActr(static_cast<PActor>(actor)); };
+    s.invalidate_range=[](void *,void *p) { static_cast<PScene>(p)->InvalFrmRange(); };
+    s.reset_actor=[](void *,void *p) { static_cast<PActor>(p)->Reset(); };
+    return s;
+}
+
 ActorUndo::~ActorUndo(void)
 {
-    AssertBaseThis(0);
-    ReleasePpo(&_pactr);
+    AssertBaseThis(0); UndoContext context{this,nullptr};
+    const auto services=_UndoServices(&context); auto state=_UndoState();
+    three_mm_actor_undo_dispose(&state,&services);
 }
 
 /****************************************************
@@ -1292,25 +1318,9 @@ ActorUndo::~ActorUndo(void)
  ****************************************************/
 bool ActorUndo::FDo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    long nfrmTmp;
-    bool fRet;
-
-    if (!_fSoonerLater)
-    {
-        return (FUndo(pdocb));
-    }
-
-    nfrmTmp = _nfrm;
-    _nfrm = _nfrmLast;
-
-    fRet = FUndo(pdocb);
-
-    _nfrm = nfrmTmp;
-
-    return (fRet);
+    AssertThis(0); AssertPo(pdocb,0); UndoContext context{this,pdocb};
+    const auto services=_UndoServices(&context); auto state=_UndoState();
+    return three_mm_actor_undo_redo(&state,&services)!=0;
 }
 
 /****************************************************
@@ -1326,99 +1336,9 @@ bool ActorUndo::FDo(PDocumentBase pdocb)
  ****************************************************/
 bool ActorUndo::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    PActor pactr;
-    PMovieView pmvu;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        return (fFalse);
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    pactr = _pmvie->Pscen()->PactrFromArid(_arid);
-    AssertNilOrPo(pactr, 0);
-
-    if (pactr != pvNil)
-    {
-        pactr->AddRef();
-    }
-
-    //
-    // Have scene replace the old actor with this one
-    //
-    if (_pactr == pvNil)
-    {
-        _pmvie->Pscen()->RemActrCore(pactr->Arid());
-    }
-    else
-    {
-        if (_stn.Cch() != 0)
-        {
-            // Undo actor name change
-            String stn;
-            if (_pmvie->FGetName(_arid, &stn))
-            {
-                // If FNameActr fails, the actor will not have
-                // the correct name...not great, but the user's document
-                // won't be corrupted or anything.  Someone will push a
-                // ercOom, so I ignore the return value here.
-                _pmvie->FNameActr(_pactr->Arid(), &_stn);
-                _stn = stn;
-            }
-        }
-
-        if (_arid != _pactr->Arid())
-        {
-            _pmvie->Pscen()->RemActrCore(_arid);
-            _arid = _pactr->Arid();
-        }
-
-        if (!_pmvie->Pscen()->FAddActrCore(_pactr))
-        {
-            ReleasePpo(&pactr);
-            return (fFalse);
-        }
-
-        pmvu = (PMovieView)_pmvie->PddgGet(0);
-        AssertNilOrPo(pmvu, 0);
-
-        if ((pmvu != pvNil) && !pmvu->FTextMode())
-        {
-            _pmvie->Pscen()->SelectActr(_pactr);
-        }
-
-        ReleasePpo(&_pactr);
-    }
-
-    _pmvie->Pscen()->InvalFrmRange();
-
-    _pactr = pactr;
-
-    if (pactr != pvNil)
-    {
-        pactr->Reset();
-    }
-
-    if (_fSndUndo)
-    {
-        _pmvie->Pmsq()->PlayMsq();
-    }
-    else
-    {
-        _pmvie->Pmsq()->FlushMsq();
-    }
-
-    return (fTrue);
+    AssertThis(0); AssertPo(pdocb,0); UndoContext context{this,pdocb};
+    const auto services=_UndoServices(&context); auto state=_UndoState();
+    return three_mm_actor_undo_toggle(&state,&services)!=0;
 }
 
 /****************************************************
@@ -1433,10 +1353,9 @@ bool ActorUndo::FUndo(PDocumentBase pdocb)
  ****************************************************/
 void ActorUndo::SetPactr(PActor pactr)
 {
-    AssertThis(0);
-
-    _pactr = pactr;
-    pactr->AddRef();
+    AssertThis(0); UndoContext context{this,nullptr};
+    const auto services=_UndoServices(&context); auto state=_UndoState();
+    three_mm_actor_undo_set_actor(&state,pactr,&services);
 }
 
 #ifdef DEBUG

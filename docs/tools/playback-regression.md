@@ -3533,3 +3533,74 @@ changes, the explicit peak exception and diagnostic repeat. Existing cross-playe
 differences remain; these captures do not establish general repeatability or
 full retail parity. Undo controller/edit wrappers, queue/runtime integration,
 scene/body/resource implementations and final facade removal remain unfinished.
+
+### Actor undo controller C89 conversion (13 November 2026)
+
+`actor_undo.c` now owns undo creation, snapshot reference lifetime, toggle and
+redo frame switching. C controls scene-switch/seek failure, outgoing-actor
+retention, name capture and swap (including ignored rename failure), ID changes,
+scene replacement/removal, view selection, range invalidation, snapshot reset
+and sound queue play/flush selection. The native undo object supplies field
+marshaling, temporary String scratch storage and primitive movie/scene calls.
+Movie/scene/body/resource implementations and composite undo remain native work.
+
+The 3,240-byte native-before undo trace across 32 real movie/scene cases and
+94,208-byte ownership trace across 128 cases both remain identical. Direct C
+tests additionally cover scene-switch failure, seek failure that destroys its
+owner, actor insertion failure with retained name/ID mutations, missing actors,
+text/view selection, failed name capture/rename, removal, references, allocation/
+registration failure, optional creation names, redo dispatch and frame
+restoration on success/failure. The seek-failure path clears undo and returns
+without publishing into a potentially destroyed owner. Redo retains its original
+caller-lifetime requirement and reads back changes before restoring only its
+temporary frame.
+
+Both hosts build. All 54 standalone C checks (including strict C89 syntax), 68
+focused native checks and MSVC AddressSanitizer pass. All 39 snapshot comparisons
+and 51 CLI baselines match; the headless scene/timeline check passes. Evidence
+includes `tmp/c89-undo-controller-standalone.log`,
+`tmp/c89-undo-controller-native-checks.log`, `tmp/c89-undo-controller-asan.log`,
+`tmp/c89-undo-controller-snapshot-comparison.json`,
+`tmp/c89-undo-controller-output-comparison.json` and
+`tmp/c89-undo-controller-timeline.log`.
+
+The native and Studio binaries were frozen before capture; no builds or
+compaction ran concurrently. Older completed evidence was transparently
+compressed before the captures, retaining raw files and prior failed runs on C:.
+SDL reused the recorded warm package cache with private processes, settings and
+working movies; OS caching remains uncontrolled. Same-player baselines are the
+preceding ownership suites: actor-audio `20261113T051808Z-7594ae43`, actor-events
+`20261113T052216Z-6bb1efdf`, scrolling-text `20261113T052423Z-f2d7b0db` and
+sampled-audio `20261113T052909Z-08d1d9aa`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T053949Z-c358d10a` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T054149Z-272cc1de` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T054310Z-ef4de7c2` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T054623Z-03c510c6` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 captures completed without retries. Movie identities and all source/
+resource/content integrity checks pass. All 540 seek images, authored positions
+and ordered playback changes match each player's preceding results. Only
+adjacent identical position/image observations are collapsed; raw timestamps
+and observations remain. Actor cases retain 60 ordered changes per player;
+scrolling retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Retail/Marcus actor-audio peaks
+remain 3192/4081. SDL peaks at 4081, one unit above the immediate baseline's
+4080 and equal to the preceding unchanged-binary diagnostic repeat's 4081.
+That earlier same-binary variation remains documented above; this audit records
+the delta explicitly and does not claim exact peak equality. Scene-audio peaks
+remain 2380 retail and 2176 SDL/Marcus. Audible coverage/peaks do not establish
+waveform/timing parity, and the cause of the one-unit variation is not proven.
+
+The combined report is
+`tmp/c89-undo-controller-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`;
+`tmp/c89-undo-controller-playback-audit.json` records image/change counts and all
+before/after peaks, including the SDL delta. Raw captures remain under
+`tmp/c89-movie-data-regression`. Existing cross-player differences remain; one
+repetition does not establish general repeatability or full retail parity.
+Composite undo, actor edit/clipboard wrappers, scene/body/resource implementations,
+queue/runtime integration and final facade removal remain unfinished. No Marcus
+UI tests were added.

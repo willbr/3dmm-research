@@ -1445,7 +1445,7 @@ add_custom_target(core-checks DEPENDS geometry-test codec-test brender-diagnosti
   platform-services-test file-services-test user-services-test settings-store-test filename-test text-services-test
   text-portable-test string-compat-test kauai-core-link-test brender-core-link-test engine-core-link-test)
 add_dependencies(core-checks picture-data-test dialog-resource-test dialog-api-check dialog-controller-api-check dialog-model-test legacy-math-test pixel-canvas-test font-services-test cursor-data-test)
-add_dependencies(core-checks resource-cache-test engine-event-edit-test engine-action-edit-test engine-costume-edit-test engine-route-edit-test engine-subroute-edit-test engine-placement-test engine-stage-edit-test engine-record-test engine-transform-edit-test engine-actor-owner-test)
+add_dependencies(core-checks resource-cache-test engine-event-edit-test engine-action-edit-test engine-costume-edit-test engine-route-edit-test engine-subroute-edit-test engine-placement-test engine-stage-edit-test engine-record-test engine-transform-edit-test engine-actor-owner-test engine-actor-undo-test)
 add_dependencies(core-checks debug-checks-test)
 add_dependencies(core-checks kidspace-descriptor-test)
 add_dependencies(core-checks mcp-io-test)
