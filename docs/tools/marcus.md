@@ -191,8 +191,9 @@ UI font; heading styling is explicit, so uppercase movie and object names retain
 their usual appearance.
 
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
-shows a scrollable grid in movie order, with saved thumbnails, scene names,
-frame counts and a marker for the current scene. Select a card and press Enter
+shows a compact scrollable grid in movie order, with saved thumbnails and a
+single scene-name line. The footer shows the selected scene's frame count and
+current-scene status. Select a card and press Enter
 or the green OK button, or double-click it, to jump to that scene's first frame.
 Arrow keys, Page Up/Down, Home/End, the wheel and the draggable scrollbar navigate
 the grid. Escape or the red X closes it without seeking; playback stays paused.
@@ -200,10 +201,10 @@ Missing thumbnails use a placeholder. Thumbnail decoding leaves the live scene
 and cameras untouched, loads at most one saved image per draw, and uses a bounded
 texture cache. The organiser currently supports browsing and scene selection;
 scene reordering, deletion and movie saving are not implemented.
-Each card also shows the four retail transition symbols in sorter order: Cut,
+Each card shows the four retail transition symbols down its right side in sorter order: Cut,
 Dissolve, Fade to black and Fade to white. A red outline marks the saved outgoing
-effect, which runs after that scene. The card names it (Black/White abbreviate the
-fades); the footer gives the full effect name for the selection or hovered symbol.
+effect, which runs after that scene. The footer gives the full effect name for
+the selection or hovered symbol.
 These indicators display the authored setting without editing it.
 
 Click **FRAME** to open the same organiser for every authored frame in the current

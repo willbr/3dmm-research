@@ -10,7 +10,8 @@
 
 namespace
 {
-constexpr int cardHeight = 192, gap = 12;
+constexpr int sceneGap = 8, sceneInset = 4, transitionWidth = 22, transitionHeight = 20;
+constexpr int transitionGap = 2, sceneLabelHeight = 20;
 constexpr int frameThumbnailLimit = 4096;
 // Retail scene sorter order (not the order of the on-disk transition IDs).
 constexpr int transitions[] = {MARCUS_TRANSITION_CUT, MARCUS_TRANSITION_DISSOLVE,
@@ -102,8 +103,8 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
     l.panel.x = (width - l.panel.w) / 2;
     l.panel.y = (height - l.panel.h) / 2;
     l.grid = {l.panel.x + 24, l.panel.y + 74, l.panel.w - 68, l.panel.h - 156};
-    l.spacing = s->frames ? 2.0f : float(gap);
-    l.cellHeight = s->frames ? s->previewHeight * s->frameZoom : float(cardHeight);
+    l.spacing = s->frames ? 2.0f : float(sceneGap);
+    l.cellHeight = s->previewHeight * s->frameZoom;
     if (s->frames)
     {
         l.grid.y = l.panel.y + 66;
@@ -113,8 +114,12 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
     }
     else
     {
-        l.columns = std::max(1, int((l.grid.w + gap) / 188));
-        l.cellWidth = (l.grid.w - (l.columns - 1) * gap) / l.columns;
+        l.grid = {l.panel.x + 12, l.panel.y + 62, l.panel.w - 44, l.panel.h - 142};
+        l.columns = std::max(1, int((l.grid.w + l.spacing) / 188));
+        l.cellWidth = (l.grid.w - (l.columns - 1) * l.spacing) / l.columns;
+        const float pictureWidth = std::max(1.f, l.cellWidth - 3 * sceneInset - transitionWidth);
+        const float pictureHeight = std::max(pictureWidth * 9 / 16, float(4 * transitionHeight + 3 * transitionGap));
+        l.cellHeight = pictureHeight + 2 * sceneInset + sceneLabelHeight;
     }
     l.rows = std::max(1, int((l.grid.h + l.spacing) / (l.cellHeight + l.spacing)));
     const int totalRows = std::max(l.rows, int((static_cast<long long>(s->count) + l.columns - 1) / l.columns));
@@ -529,8 +534,9 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     MarcusScene selectedScene = {};
     if (!s->frames) marcus_scene(s->player, s->selected, &selectedScene);
     char transitionHint[192];
-    SDL_snprintf(transitionHint, sizeof(transitionHint), "After scene %d: %s", s->selected + 1,
-                 TransitionName(selectedScene.transition));
+    SDL_snprintf(transitionHint, sizeof(transitionHint), "Scene %d / %ld frames%s / After scene: %s", s->selected + 1,
+                 selectedScene.last_frame - selectedScene.first_frame + 1,
+                 s->selected == s->current ? " / Current" : "", TransitionName(selectedScene.transition));
     if (s->frames)
         SDL_snprintf(transitionHint, sizeof(transitionHint), "Scene %d / Frame %d%s", s->sourceScene + 1,
                      s->selected + 1, s->frameError[0] ? " / Thumbnails unavailable" : "");
@@ -561,10 +567,11 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
             }
             continue;
         }
-        ui_fill(ui, x - 2, y - 2, l.cellWidth + 4, cardHeight + 4,
+        ui_fill(ui, x - 1, y - 1, l.cellWidth + 2, l.cellHeight + 2,
                 selected ? 0x9edbd0 : hovered ? 0x7387a6 : 0x45516a);
-        ui_fill(ui, x, y, l.cellWidth, cardHeight, selected ? 0x3c5060 : 0x1c2331);
-        SDL_FRect picture = {x + 14, y + 10, l.cellWidth - 28, 100};
+        ui_fill(ui, x, y, l.cellWidth, l.cellHeight, selected ? 0x3c5060 : 0x1c2331);
+        const SDL_FRect picture = {x + sceneInset, y + sceneInset,
+            l.cellWidth - 3 * sceneInset - transitionWidth, l.cellHeight - 2 * sceneInset - sceneLabelHeight};
         ui_fill(ui, picture.x, picture.y, picture.w, picture.h, 0x0b0e15);
         auto &t = GetThumbnail(s, ui->renderer, index, loaded);
         if (t.scene == index && t.texture)
@@ -574,33 +581,23 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
                               picture.y + (picture.h - t.height * scale) / 2, t.width * scale, t.height * scale};
             SDL_RenderTexture(ui->renderer, t.texture, nullptr, &dest);
         }
-        else ui_text(ui, picture.x + 12, picture.y + 40,
-                     s->frames && s->frameError[0] ? "Unavailable" : t.scene == index ? "No thumbnail" : "Loading...", 0x909cb0);
-        for (int hole = 0; hole < 6; ++hole)
-        {
-            ui_fill(ui, x + 4, y + 12 + hole * 16, 5, 8, 0x8792a4);
-            ui_fill(ui, x + l.cellWidth - 9, y + 12 + hole * 16, 5, 8, 0x8792a4);
-        }
+        else ui_label(ui, picture.x + 4, picture.y + picture.h / 2 - 8, picture.w - 8,
+                      t.scene == index ? "No thumbnail" : "Loading...", 0x909cb0);
         MarcusScene scene = {};
         marcus_scene(s->player, index, &scene);
         SDL_snprintf(text, sizeof(text), "%d. %s", index + 1, scene.name[0] ? scene.name : "Untitled scene");
-        ui_label(ui, x + 10, y + 118, l.cellWidth - 20, text, 0xe7edf5);
-        SDL_snprintf(text, sizeof(text), "%ld frames%s", scene.last_frame - scene.first_frame + 1,
-                     index == s->current ? " / Current" : "");
-        ui_label(ui, x + 10, y + 140, l.cellWidth - 20, text, 0xafbdce);
+        ui_label(ui, x + sceneInset, y + l.cellHeight - sceneLabelHeight,
+                 l.cellWidth - 2 * sceneInset, text, 0xe7edf5);
         for (int effect = 0; effect < 4; ++effect)
         {
-            const float iconX = x + 10 + effect * 26;
-            TransitionSymbol(ui, iconX, y + 164, transitions[effect], scene.transition == transitions[effect]);
-            if (ui_inside(ui->mouse_x, ui->mouse_y, iconX, y + 164, 22, 20))
+            const float iconX = x + l.cellWidth - sceneInset - transitionWidth;
+            const float iconY = picture.y + effect * (transitionHeight + transitionGap);
+            TransitionSymbol(ui, iconX, iconY, transitions[effect], scene.transition == transitions[effect]);
+            if (ui_inside(ui->mouse_x, ui->mouse_y, iconX, iconY, transitionWidth, transitionHeight))
                 SDL_snprintf(transitionHint, sizeof(transitionHint), "After scene %d: %s%s", index + 1,
                              TransitionName(transitions[effect]),
                              scene.transition == transitions[effect] ? " (saved)" : "");
         }
-        const char *shortName = scene.transition == MARCUS_TRANSITION_FADE_BLACK ? "Black" :
-                                scene.transition == MARCUS_TRANSITION_FADE_WHITE ? "White" :
-                                TransitionName(scene.transition);
-        ui_label(ui, x + 116, y + 166, l.cellWidth - 126, shortName, 0xc5cedd);
     }
     ui_fill(ui, l.track.x, l.track.y, l.track.w, l.track.h, 0x151b28);
     if (l.maxScroll) ui_fill(ui, l.thumb.x, l.thumb.y, l.thumb.w, l.thumb.h, s->dragging ? 0x9edbd0 : 0x7387a6);
