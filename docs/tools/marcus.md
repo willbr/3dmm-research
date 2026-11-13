@@ -645,13 +645,19 @@ internally.
 Movie playback presents 2D captions in the authored Camera view, using their
 stored lifetime, bounds, font sizes/styles, colours and paragraph formatting.
 Text is decoded from the stored Windows, Mac or UTF-16 encoding. Missing font
-families fall back to the system font. Scrolling credits hold their first frame
+families fall back to the system font. Enlarged views rasterize font outlines at
+the render resolution with supersampled edge coverage, instead of enlarging the
+original glyph pixels. Layout, line breaks, baselines and scrolling still use
+the original 480x360 metrics; native-size movie rendering retains its retail
+glyph masks. Repeated high-resolution glyphs share a bounded 64 MiB cache.
+Scrolling credits hold their first frame
 and move one original pixel every five 60 Hz ticks until the overflow is visible,
 then playback continues. Scrubbing resets their scroll position. Orbit and Fly
 render the same captions onto a transparent quad at the authored camera's amber
 display frame, 10 world units in front of that camera. The quad preserves its
 field of view, aspect, roll and camera cuts. It stays with the movie camera while
-the inspection camera moves, and nearer actor geometry can occlude it. Both sides
+the inspection camera moves, and nearer actor geometry can occlude it. Its caption
+texture scales with the work render resolution, up to 4096 pixels wide. Both sides
 are visible; text viewed from behind is mirrored. Caption lifetimes and scrolling
 apply in all three views. Scenes without a background/camera use a stable default
 caption plane at world Z=0, which Orbit includes when fitting the scene.

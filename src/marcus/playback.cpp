@@ -331,7 +331,45 @@ struct Glyph
     Style style;
     int x = 0, y = 0, advance = 0, height = 0, ascent = 0;
     std::uint16_t character = 0;
+    std::uint16_t following = 0;
 };
+struct CaptionRaster
+{
+    KauaiFonts::Mask mask;
+    int ascent = 0;
+};
+// Average supersampled coverage rather than magnifying monochrome font pixels.
+KauaiFonts::Mask ReduceCaptionMask(const KauaiFonts::Mask &source)
+{
+    KauaiFonts::Mask result;
+    result.left = static_cast<int>(std::floor(source.left / 2.0));
+    result.top = static_cast<int>(std::floor(source.top / 2.0));
+    result.width = static_cast<int>(std::ceil((source.left + source.width) / 2.0)) - result.left;
+    result.height = static_cast<int>(std::ceil((source.top + source.height) / 2.0)) - result.top;
+    result.pitch = result.width;
+    const auto reduce = [&](const std::vector<std::uint8_t> &input, std::vector<std::uint8_t> &output) {
+        if (input.empty())
+            return;
+        output.resize(std::size_t(result.width) * result.height);
+        for (int y = 0; y < result.height; ++y)
+            for (int x = 0; x < result.width; ++x)
+            {
+                unsigned sum = 0;
+                for (int dy = 0; dy < 2; ++dy)
+                    for (int dx = 0; dx < 2; ++dx)
+                    {
+                        const int sx = (result.left + x) * 2 + dx - source.left;
+                        const int sy = (result.top + y) * 2 + dy - source.top;
+                        if (sx >= 0 && sy >= 0 && sx < source.width && sy < source.height)
+                            sum += input[std::size_t(sy) * source.pitch + sx];
+                    }
+                output[std::size_t(y) * result.pitch + x] = static_cast<std::uint8_t>((sum + 2) / 4);
+            }
+    };
+    reduce(source.coverage, result.coverage);
+    reduce(source.background, result.background);
+    return result;
+}
 struct CaptionImage
 {
     PreviewCaption data;
@@ -368,6 +406,8 @@ struct MarcusPlayback::Impl
     std::vector<CaptionImage> captions;
     std::map<FaceKey, std::unique_ptr<KauaiFonts::Face>> faces;
     std::size_t captionBytes = 0;
+    std::map<std::tuple<std::string, int, int, std::uint32_t>, CaptionRaster> captionRasters;
+    std::size_t rasterBytes = 0;
     Audio audio;
     RetailScrollPlayback scrollPlayback;
     bool entered = false, wasPlaying = false, scrolling = false, restoreMusic = true;
@@ -406,6 +446,39 @@ struct MarcusPlayback::Impl
         auto result = face.get();
         faces.emplace(key, std::move(face));
         return result;
+    }
+    const CaptionRaster *Raster(const Glyph &glyph, int scale, Error &error)
+    {
+        Style style = glyph.style;
+        style.pixels *= scale * 2;
+        const std::uint16_t units[] = {glyph.character == '\t' ? std::uint16_t(' ') : glyph.character,
+                                       glyph.following};
+        const auto key = std::make_tuple(style.font, style.pixels, style.flags,
+                                        std::uint32_t(units[0]) | (std::uint32_t(units[1]) << 16));
+        auto found = captionRasters.find(key);
+        if (found != captionRasters.end())
+            return &found->second;
+        auto face = Face(style);
+        KauaiFonts::Metrics metrics;
+        KauaiFonts::Mask mask;
+        const KauaiFonts::Text text{units, glyph.following ? 2u : 1u, KauaiFonts::Encoding::utf16};
+        if (!face || !face->Measure(text, metrics) || !face->Rasterize(text, mask, true))
+        {
+            Fail(error, "Cannot render a high-resolution caption glyph.");
+            return nullptr;
+        }
+        CaptionRaster raster;
+        raster.mask = ReduceCaptionMask(mask);
+        raster.ascent = metrics.ascent;
+        const auto bytes = raster.mask.coverage.size() + raster.mask.background.size();
+        // Share repeated characters and bound the cache across camera sizes.
+        if (rasterBytes + bytes > 64u * 1024 * 1024)
+        {
+            captionRasters.clear();
+            rasterBytes = 0;
+        }
+        rasterBytes += bytes;
+        return &captionRasters.emplace(key, std::move(raster)).first->second;
     }
     bool Layout(CaptionImage &caption, Error &error)
     {
@@ -508,6 +581,8 @@ struct MarcusPlayback::Impl
                                           ? 2
                                           : 1;
             auto text = KauaiFonts::Text{&data.text[index], units, KauaiFonts::Encoding::utf16};
+            if (units == 2)
+                glyph.following = data.text[index + 1];
             std::uint16_t space = ' ';
             if (c == '\t')
                 text = {&space, 1, KauaiFonts::Encoding::utf16};
@@ -610,6 +685,8 @@ bool MarcusPlayback::Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bo
         Stop();
     impl->captions.clear();
     impl->captionBytes = 0;
+    impl->captionRasters.clear();
+    impl->rasterBytes = 0;
     if (!preview.ReadPresentation(impl->scene, error))
         return false;
     for (auto &caption : impl->scene.captions)
@@ -817,9 +894,11 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
         auto canvas = &image;
         if (!authored)
         {
-            layer.width = 480;
-            layer.height = 360;
-            layer.rgba.assign(480 * 360 * 4, 0);
+            // Give the perspective caption plane enough texels for the work
+            // viewport, including angled views and moderate close inspection.
+            layer.width = std::min(4096u, std::max({480u, image.width * 2, image.height * 8 / 3}));
+            layer.height = layer.width * 3 / 4;
+            layer.rgba.assign(std::size_t(layer.width) * layer.height * 4, 0);
             canvas = &layer;
         }
         const float aspect = authored && image.sceneCamera.valid ? image.sceneCamera.aspect : 4.f / 3;
@@ -860,16 +939,26 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
                     paint(x, y, data.background, 255);
             for (const auto &glyph : caption.glyphs)
             {
-                const auto &mask = glyph.mask;
-                int gx = glyph.x + mask.left + 14, gy = glyph.y + mask.top - int(caption.scroll) + 5;
-                const int right = left + int((data.left + gx + mask.width) * sx);
-                const int bottom = top + int((data.top + gy + mask.height) * sy);
+                // Keep native metrics for layout and scrolling; only the ink
+                // is rerasterized. Align new masks to the original baseline.
+                const int scale = std::min(std::max(1, 1024 / glyph.style.pixels),
+                                           static_cast<int>(std::ceil(std::max(sx, sy))));
+                const CaptionRaster *raster = scale > 1 ? impl->Raster(glyph, scale, error) : nullptr;
+                if (scale > 1 && !raster)
+                    return false;
+                const auto &mask = raster ? raster->mask : glyph.mask;
+                const float density = raster ? float(scale) : 1.f;
+                const float gx = glyph.x + mask.left / density + 14;
+                const float gy = glyph.y + mask.top / density - int(caption.scroll) + 5 +
+                                 (raster ? glyph.ascent - raster->ascent / (density * 2) : 0);
+                const int right = left + int((data.left + gx + mask.width / density) * sx);
+                const int bottom = top + int((data.top + gy + mask.height / density) * sy);
                 const int startX = left + int((data.left + gx) * sx), startY = top + int((data.top + gy) * sy);
                 for (int y = std::max(y0, startY); y < std::min(y1, bottom); ++y)
                     for (int x = std::max(x0, startX); x < std::min(x1, right); ++x)
                     {
-                        const auto px = std::min(mask.width - 1, int((x - startX) / sx));
-                        const auto py = std::min(mask.height - 1, int((y - startY) / sy));
+                        const auto px = std::min(mask.width - 1, int((x - startX) * density / sx));
+                        const auto py = std::min(mask.height - 1, int((y - startY) * density / sy));
                         const auto index = py * mask.pitch + px;
                         if (!mask.background.empty())
                             paint(x, y, glyph.style.back, mask.background[index]);

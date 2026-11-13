@@ -739,6 +739,29 @@ int main(int argc, char **argv)
     CHECK(marcus_audio_stats(player, &sheetStats) && !sheetStats.wave_sounds && !sheetStats.midi_sounds);
     const auto title = Image();
     CHECK(std::count(title.begin(), title.end(), byte(255)) > 1000);
+    // Enlarged captions must contain newly rasterized, smoothed font edges,
+    // rather than replicas of the native glyph pixels. Layout/time stays native.
+    const auto captionFrame = Info().frame;
+    const auto sharpTitle = Image(1, 1440, 1080);
+    std::size_t smoothEdges = 0, changedPixels = 0;
+    for (int y = 0; y < 1080; ++y)
+        for (int x = 0; x < 1440; ++x)
+        {
+            const auto pixel = std::size_t(y * 1440 + x) * 4;
+            const auto native = std::size_t((y / 3) * 480 + x / 3) * 4;
+            smoothEdges += sharpTitle[pixel] > 0 && sharpTitle[pixel] < 255 && sharpTitle[pixel + 2] == 255;
+            changedPixels += std::memcmp(&sharpTitle[pixel], &title[native], 4) != 0;
+        }
+    CHECK(smoothEdges > 100 && changedPixels > 100);
+    CHECK(Info().frame == captionFrame && Image() == title);
+    CHECK(Image(1, 1440, 1080) == sharpTitle);
+    const auto sharpWorkTitle = Image(0, 1440, 1080);
+    smoothEdges = 0;
+    for (std::size_t pixel = 0; pixel < sharpWorkTitle.size(); pixel += 4)
+        smoothEdges += sharpWorkTitle[pixel] > 0 && sharpWorkTitle[pixel] < 255 &&
+                       sharpWorkTitle[pixel + 2] == 255;
+    CHECK(smoothEdges > 100 && Image(0, 1440, 1080) == sharpWorkTitle);
+    CHECK(Image() == title && Info().frame == captionFrame);
     const auto orbitTitle = Image(0);
     CHECK(title != orbitTitle && Visible(orbitTitle) > 100);
     MarcusImage inspection;
