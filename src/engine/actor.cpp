@@ -961,107 +961,35 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
     Add the initialization events for costumes, xforms, etc from the
     preceding or subsequent subroute.
 ***************************************************************************/
+ThreeMMActorStageEditServices Actor::_StageEditServices()
+{
+    static_assert(knfrmInvalid==2147483647 && kcbVarAdd==20 && kcbVarActn==8 &&
+                  kcbVarFreeze==4 && kcbVarStep==4 && kcbVarRot==48 && kcbVarSize==4 && kcbVarPull==12,
+                  "Stage edit ABI");
+    ThreeMMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
+    s.reserve_points=[](void *route,ThreeMMU32 count) {
+        return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil));
+    };
+    s.placement=[](void *p,ThreeMMActorPoint *point,ThreeMMActorPoint *origin,unsigned short *yaw) {
+        auto actor=static_cast<Actor *>(p); BRS x,y,z;
+        actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
+        std::memcpy(origin,&actor->_dxyzFullRte,sizeof(*origin));
+        *yaw=actor->_pscen->Pbkgd()->BraRotYCamera();
+    };
+    s.diagnostic=[](void *,int fault) { Assert(fault==THREE_MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
+    return s;
+}
 bool Actor::FAddOnStageCore(void)
 {
     AssertThis(0);
-
-    BRS xr;
-    BRS yr;
-    BRS zr;
-    LegacyLong cbVar;
-    Add aevadd;
-    bool fUpdateFrmRange = fFalse;
-
-    cbVar = kcbVarAdd + kcbVarActn + kcbVarStep + kcbVarFreeze;
-    if (_track.Events()->IvMac() == 0)
-    {
-        if (!_track.Events()->FEnsureSpace(4, cbVar, fgrpNil) || !_track.Route()->FEnsureSpace(1, fgrpNil))
-            return fFalse;
-    }
-    else
-    {
-        cbVar += kcbVarCost + kcbVarRot + kcbVarSize + kcbVarPull;
-        if (!_track.Events()->FEnsureSpace(8, cbVar, fgrpNil) || !_track.Route()->FEnsureSpace(1, fgrpNil))
-        {
-            return fFalse;
-        }
-    }
-
-    _GetNewOrigin(&xr, &yr, &zr);
-    aevadd.dxr = BrsSub(xr, _dxyzFullRte.dxr);
-    aevadd.dyr = BrsSub(yr, _dxyzFullRte.dyr);
-    aevadd.dzr = BrsSub(zr, _dxyzFullRte.dzr);
-    aevadd.xa = aevadd.za = aZero;
-
-    // Rotate the actor to be facing the camera
-    // NOTE: 3D spletter code uses this also.
-    aevadd.ya = _pscen->Pbkgd()->BraRotYCamera();
-
-    if (_state.frame < _nfrmFirst)
-    {
-        fUpdateFrmRange = fTrue;
-        _nfrmFirst = _state.frame;
-    }
-    if (_state.frame > _nfrmLast)
-    {
-        fUpdateFrmRange = fTrue;
-        _nfrmLast = _state.frame;
-    }
-
-    RouteDistancePoint rptNil = {rZero, rZero, rZero, rZero};
-
-    if (_state.onStage) // May have walked offstage
-    {
-        // Delete the remnant subroute (non-inclusive of current frame)
-        _DeleteFwdCore(fFalse);
-    }
-
-    _state.location.dnfrm = 0;
-    _state.location.dwrOffset = rZero;
-    if (_state.addEvent < 0)
-        _state.location.irpt = 0;
-    else
-        _state.location.irpt++;
-
-    AssertDo(_FInsertGgRpt(_state.location.irpt, &rptNil), "Logic error");
-    _AdjustAevForRteIns(_state.location.irpt, 0);
-
-    _GetXyzFromRtel(&_state.location, &_state.position);
-
-    if (!_FAddDoAev(aetAdd, kcbVarAdd, &aevadd))
-        return fFalse;
-
-    // Copy costume and transform events forward if this is
-    // the earliest Add event : each subroute needs all
-    // initialization events.
-    // Note: _state.nextEvent is already incremented at this point
-    if (1 == _state.nextEvent)
-    {
-        // The earliest Add.  Gather later events and insert them
-        if (!_FAddAevFromLater())
-            return fFalse;
-    }
-    else
-    {
-        // Not the earliest Add.  Gather earlier events	and insert them
-        ulong grfaet = faetActn | faetCost | faetPull | faetSize | faetRotF;
-        if (!_FAddAevFromPrev(_state.nextEvent - 1, grfaet))
-            return fFalse;
-    }
-
-    _PositionBody(&_state.position);
-
-    if (!FSetStep(rZero))
-        return fFalse;
-    if (!_FFreeze())
-        return fFalse;
-
-    if (fUpdateFrmRange)
-    {
-        _pscen->InvalFrmRange();
-    }
-
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_StageEditServices();
+    ChildChunkID external=0; TrashVar(&external);
+    bool ok=three_mm_actor_stage_add(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                      external,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -1161,25 +1089,13 @@ void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 bool Actor::FRemFromStageCore(void)
 {
     AssertThis(0);
-    Base *paev;
-
-    if (!_state.onStage)
-        return fTrue;
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarStep, fgrpNil)) // step
-        return fFalse;
-
-    AssertIn(_state.addEvent, 0, _track.Events()->IvMac());
-    paev = (Base *)_track.Events()->QvFixedGet(_state.addEvent);
-    if (_state.frame == paev->nfrm)
-    {
-        if (!_FDeleteEntireSubrte())
-            return fFalse;
-    }
-
-    if (_state.onStage)
-        return _FAddDoAev(aetRem, kcbVarZero, pvNil);
-    return fTrue;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_StageEditServices();
+    bool ok=three_mm_actor_stage_remove(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                         &tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -1191,35 +1107,14 @@ bool Actor::FRemFromStageCore(void)
 bool Actor::_FDeleteEntireSubrte(void)
 {
     AssertThis(0);
-    Base *paev;
-    long nfrmSav;
-
-    paev = (Base *)_track.Events()->QvFixedGet(_state.addEvent);
-    Assert(paev->nfrm == _state.frame, "Logic error: trying to delete whole route from the middle");
-
-    // Delete forward from here	(exclusive of current point)
-    _DeleteFwdCore(fFalse, pvNil, _state.nextEvent);
-
-    // Delete events & path for the sole remaining Add frame
-    _DelAddFrame(_state.addEvent, _state.nextEvent);
-
-    // A hide should be done separately from event execution
-    // because no subroute exists in this case
-    _Hide();
-    if (_ptmpl != pvNil && _pbody != pvNil)
-        _ptmpl->FSetDefaultCost(_pbody);
-    _SetStateRewound();
-    nfrmSav = _state.frame;
-    _state.frame = knfrmInvalid;
-    if (_track.Events()->IvMac() > 0)
-    {
-        paev = (Base *)_track.Events()->QvFixedGet(0);
-        Assert(paev->aet == aetAdd, "Corrupt event list");
-        _nfrmFirst = paev->nfrm;
-        return FGotoFrame(nfrmSav);
-    }
-    _nfrmFirst = knfrmInvalid;
-    return fTrue;
+    Assert(static_cast<Base *>(_track.Events()->QvFixedGet(_state.addEvent))->nfrm==_state.frame,
+           "Logic error: trying to delete whole route from the middle");
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SubrouteEditServices();
+    bool ok=three_mm_actor_stage_delete_subroute(&state,_track.Route(),_track.Events(),&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************

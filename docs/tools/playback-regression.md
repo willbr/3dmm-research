@@ -3229,3 +3229,76 @@ the combined comparison is
 Stage entrance/removal, recording, remaining transform/time edits, undo,
 queue/runtime integration, body/resource implementations and final facade removal
 remain unfinished. No Marcus UI tests were added.
+
+### C89 actor stage entrance and removal (13 November 2026)
+
+`actor_stage_edit.c` now owns stage entrance, removal and entire-subroute deletion.
+The native actor methods delegate to it. Entrance preserves event-before-route
+reservation, placement/origin/yaw, early lifetime-cache extension, obsolete-tail
+deletion, point/event relocation, Add and neighboring-event inheritance, body
+positioning, zero step and freeze. Final range invalidation is deferred until
+success, while completed mutations remain on failure.
+
+Offstage removal does nothing. At the entrance frame, removal deletes the subroute,
+hides the body, restores default costume best-effort, rewinds recording/state and
+seeks the saved frame if events remain. Empty tracks retain the invalid frame and
+first-frame sentinel. Seeking can reveal an earlier onstage subroute, which then
+receives Remove. Failed seeks retain partial changes. Native adapters still supply
+table capacity, primitive body/resource/scene operations and the existing C seek
+integration. Placement policy itself was converted in the preceding slice.
+
+The native-before trace `tmp/c89-stage-edit-before.bin` contains 129,568 bytes
+across 256 scenarios covering first/earlier/later entrances, active route
+truncation, offstage/interior/entrance removal, text, recording flags, cached range
+extensions and metadata failures. The converted trace matches after ignoring only
+the Add payload's two unused ABI-padding bytes. No event fields or meaningful
+payload bytes are ignored.
+
+The standalone C test checks capacity requests and reservation short-circuiting,
+route preservation on early failure, partial edits at apply/insert/reservation
+failures, deferred invalidation, owning costume inheritance in both directions,
+empty-track sentinels, revealed earlier subroutes and seek failure. The earlier
+subroute tests share their unchanged table/service fixture with this test.
+Studio and Marcus rebuild successfully. All 50 standalone C checks, including
+strict C89 syntax, all 64 focused native checks and MSVC AddressSanitizer pass.
+All 35 snapshots, 51 CLI baselines and the headless scene/timeline check pass.
+Evidence is in `tmp/c89-stage-standalone.log`, `tmp/c89-stage-native-tests.log`,
+`tmp/c89-stage-asan.log`, `tmp/c89-stage-snapshot-comparison.json`,
+`tmp/c89-stage-output-comparison.json` and `tmp/c89-stage-timeline.log`.
+
+Frozen Studio/Marcus binaries ran without concurrent builds or compaction.
+Completed evidence was transparently compressed between suites to provide
+headroom; raw captures and prior failed runs remain available. SDL reused the
+recorded warm package cache with private processes, settings, workspaces and
+working movies. OS file caching remains uncontrolled.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T032810Z-c3670af5` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T032931Z-4f7d0c4c` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T033130Z-d3270cae` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T033449Z-146d21f9` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 captures completed without retries. Same-player baselines are the placement
+suites: actor-audio `20261113T030833Z-b6764518`, actor-events
+`20261113T031001Z-729f380d`, scrolling-text `20261113T031149Z-562d7321` and
+sampled-audio `20261113T031456Z-bd5204b0`. All 540 seek images, authored positions
+and ordered playback changes match. Only adjacent identical position/image records
+are collapsed; raw timestamps and samples remain available. Movie IDs match and
+all movie/resource/content integrity checks pass.
+
+Actor cases retain 60 playback changes per player. Scrolling retains 328 for
+retail/SDL and 321 for Marcus. Actor audio retains first-scene 600/1300 Hz coverage
+and PCM16 peaks of 3192 retail and 4081 SDL/Marcus; scene audio retains 60 changes
+and peaks of 2380 retail and 2176 SDL/Marcus. These audio checks establish audible
+coverage, not exact waveform/timing parity. Existing cross-player differences
+remain; one repetition does not establish general repeatability or full retail
+parity. The captures preserve playback behavior; direct engine edit tests and the
+native-before trace cover stage-edit policy itself.
+
+Evidence remains under `tmp/c89-movie-data-regression`, with the combined report
+`tmp/c89-stage-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and counts/peak verification in `tmp/c89-stage-playback-summary.json`.
+Recording, remaining transform/time edits, undo, queue/runtime integration,
+body/resource implementations and final facade removal remain unfinished.
+No Marcus UI tests were added.

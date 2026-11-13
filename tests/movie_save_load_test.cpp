@@ -185,9 +185,104 @@ class TrackTestTemplate : public Template
     }
 };
 
+class StageTestBackground : public Background
+{
+  public:
+    bool Init()
+    {
+        _ccam=1; _cbactLight=1;
+        _xrPlace=BR_SCALAR(100); _yrPlace=BR_SCALAR(2); _zrPlace=-BR_SCALAR(30);
+        _braRotY=0x1234;
+        return FAllocPv((void **)&_prgbactLight,sizeof(BACT),fmemClear,mprNormal) &&
+               FAllocPv((void **)&_prgblitLight,sizeof(BLIT),fmemClear,mprNormal);
+    }
+};
+class StageTestScene : public Scene
+{
+  public:
+    StageTestScene(PMovie movie) : Scene(movie) {}
+    bool Init()
+    {
+        _pggsevFrm=GeneralGroup::PggNew(sizeof(SceneEvent));
+        _pggsevStart=GeneralGroup::PggNew(sizeof(SceneEvent));
+        _pglpactr=DynamicArray::PglNew(sizeof(PActor));
+        _pglptbox=DynamicArray::PglNew(sizeof(PTBOX));
+        auto background=NewObj StageTestBackground(); _pbkgd=background;
+        _data.firstFrame=1; _data.lastFrame=20; _data.currentFrame=3;
+        return _pggsevFrm && _pggsevStart && _pglpactr && _pglptbox && background && background->Init();
+    }
+};
+
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestStageEdit(int mode,FILE *snapshot)
+    {
+        using namespace ActorEvent;
+        const int kind=mode/32;
+        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        tmpl->FailAfter(0); tmpl->SetTestText((mode&1)!=0);
+        ReleasePpo(&_pbody); _pbody=_ptmpl->PbodyCreate();
+        if (!_pbody) return false;
+        ActorTrack track; if (!track.FCreate()) return false;
+        auto append=[&](long type,long frame,int node,const void *payload,long bytes) {
+            Base event={static_cast<int32_t>(type),static_cast<int32_t>(frame),{node,rZero,0}};
+            return track.Events()->FInsert(track.Events()->IvMac(),bytes,const_cast<void *>(payload),&event);
+        };
+        Add addition={}; Action action={0,0}; int32_t step=0; BRS scale=BR_SCALAR(2);
+        if (kind)
+        {
+            RouteDistancePoint p={{rZero,rZero,rZero},kind==3?BR_SCALAR(5):rZero};
+            if (!track.Route()->FInsert(0,&p)) return false;
+            if (kind==3) { p={{BR_SCALAR(5),rZero,rZero},rZero}; if (!track.Route()->FInsert(1,&p)) return false; }
+            long first=kind==1?5:1;
+            if (!append(aetAdd,first,0,&addition,sizeof(addition)) || !append(aetActn,first,0,&action,sizeof(action)) ||
+                !append(aetStep,first,0,&step,sizeof(step)) || !append(aetSize,first,0,&scale,sizeof(scale))) return false;
+            if (mode&16) if (!append(aetRem,5,0,nullptr,0)) return false;
+            p={{BR_SCALAR(20),rZero,rZero},rZero};
+            int node=track.Route()->IvMac();
+            if (!track.Route()->FInsert(node,&p) || !append(aetAdd,10,node,&addition,sizeof(addition)) ||
+                !append(aetActn,10,node,&action,sizeof(action)) || !append(aetStep,10,node,&step,sizeof(step))) return false;
+        }
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.action=0; _state.celCount=4; _state.actionFlags=factnRotateY;
+        _state.frame=kind==0?3:kind==1?1:kind==2?7:kind==6?1:kind==7?10:3;
+        _state.onStage=kind==3 || kind>=5;
+        if (_state.onStage) _pbody->Show();
+        _state.addEvent=kind<=1?-1:kind==7?((mode&16)?5:4):0;
+        _state.nextEvent=kind<=1?0:kind==7?_track.Events()->IvMac():4;
+        _state.firstEventInFrame=kind==7?_state.addEvent:0;
+        _state.actionEvent=kind<=1?-1:kind==7?_state.addEvent+1:1;
+        _state.location.irpt=kind==7?1:0;
+        if (kind==3) _state.location.dwrOffset=BR_SCALAR(1);
+        _state.routeTranslation={BR_SCALAR(2),BR_SCALAR(3),BR_SCALAR(4)};
+        _dxyzFullRte={BR_SCALAR(11),BR_SCALAR(12),BR_SCALAR(13)};
+        _nfrmFirst=(mode&2)?4:1; _nfrmLast=(mode&2)?5:20;
+        _fLifeDirty=false; _fModeRecord=(mode&4)!=0; _fRejoin=false;
+        tmpl->FailAfter((mode&8)?((mode&16)?3:1):0);
+        bool ok=kind<4?FAddOnStageCore():FRemFromStageCore();
+        tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
+            _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,
+            _track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
+            record(&_state.position,sizeof(_state.position)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event);
+            LegacyLong bytes=_track.Events()->Cb(i); if (bytes>sizeof(payload)) return false;
+            _track.Events()->Get(i,payload);
+            // The native Add's final two bytes are uninitialized ABI padding.
+            if (event.aet==aetAdd) payload[18]=payload[19]=0;
+            saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        return saved;
+    }
     bool FTestSubrouteEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,ChunkNumber materialNumber,bool owningCopy=false)
     {
         using namespace ActorEvent;
@@ -1214,6 +1309,22 @@ static bool TestActorSubrouteEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorStageEditing(PMovie movie)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_STAGE_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    auto scene=NewObj StageTestScene(movie);
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil;
+    auto actor=NewObj TrackTestActor();
+    bool ok=scene && scene->Init() && resource && actor && actor->FInitPlayback(scene,resource);
+    for (int mode=0;ok && mode<256;++mode) ok=actor->FTestStageEdit(mode,snapshot);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file); ReleasePpo(&scene);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
 /* Independent native BRender oracle for the original _GetNewOrigin policy.
  * Exercise clipping boundaries and non-cardinal, fractional camera matrices. */
 static bool TestActorPlacement()
@@ -1721,6 +1832,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor subroute editing failed");
     if (!TestActorPlacement())
         BAIL("actor placement failed");
+    if (!TestActorStageEditing(pmvie))
+        BAIL("actor stage editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

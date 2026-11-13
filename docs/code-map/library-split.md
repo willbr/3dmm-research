@@ -59,6 +59,7 @@ cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
 cmake --build build/engine-c89 --target engine-subroute-edit-test
 cmake --build build/engine-c89 --target engine-placement-test
+cmake --build build/engine-c89 --target engine-stage-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1091,8 +1092,8 @@ addition. No BRender object or C++ type crosses the public interface.
 
 The native adapter supplies the authored point, camera matrix/clipping planes
 and template-kind flag. Its camera callback remains lazy. Studio and Marcus
-link the same C implementation; stage entrance/removal orchestration is still
-C++ and will move separately.
+link the same C implementation. Stage entrance/removal orchestration now uses
+the shared stage-edit module below.
 
 `engine-placement-test` checks single-coordinate authored points, camera query
 counts, floor/text policy, the exact 25-unit boundary, fractional midpoint
@@ -1100,6 +1101,41 @@ rounding, matrix translation and scalar wrapping. The native save/load test
 compares 4,096 authored/fallback/text/clipping/matrix combinations against the
 original BRender formula. Playback captures check existing movie behavior;
 they do not themselves exercise interactive actor placement.
+
+### Actor stage entrance and removal
+
+`actor_stage_edit.c` owns `FAddOnStageCore`, `FRemFromStageCore` and
+`_FDeleteEntireSubrte` policy. Entrance reserves event storage before one route
+point, then obtains placement, subtracts the cached route origin and assigns
+camera yaw. Lifetime caches extend before editing; the final range notification
+is deferred until successful completion. Existing C helpers delete obsolete
+route tails, insert/relocate points, apply Add, inherit initialization events
+from the appropriate neighbor, position the body, set zero step and freeze.
+Completed mutations remain on failure, as in the native implementation.
+
+Offstage removal performs no reservation. Removing at the entrance frame deletes
+the entire subroute, hides the body, best-effort restores default costume and
+rewinds recording/state before seeking the saved frame. Empty tracks retain the
+invalid frame/first-frame sentinel. A successful seek can reveal an earlier
+onstage subroute, which then receives Remove. Seek failure preserves its partial
+state. Whole-subroute deletion does not introduce an extra lifetime invalidation.
+
+Native callbacks provide table capacity, the already C-owned placement result,
+cached origin/yaw and diagnostics. Subroute services still bridge primitive
+body/resource/scene operations and the existing C seek evaluator. Valid runtime
+tables are required; successful point reservation guarantees the next insertion.
+An impossible insertion failure retains the native diagnostic/continuation order.
+
+`engine-stage-edit-test` covers reservation short-circuiting, exact capacity
+requests, apply/insert/reservation failure boundaries, deferred range invalidation,
+both directions of costume ownership, empty-track removal, revealed earlier
+subroutes and seek failure. The subroute tests share their existing table/service
+fixture through `engine_subroute_edit_fixture.h`. A 129,568-byte trace captured
+before conversion covers 256 native entrance/removal scenarios, including text,
+recording flags, early/late range caches and metadata failures. The converted
+results match exactly after ignoring only the Add payload's two unused padding
+bytes. Recording, remaining transform/time edits, undo, queue/runtime integration,
+body/resource implementations and final facade removal remain unfinished.
 
 ### Source names and directory discovery
 
