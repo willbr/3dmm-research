@@ -25,8 +25,8 @@
     store them in the user's document.
 
     Rather than fetching ActionDefinitions and the default costume from child chunks
-    of the Template, ThreeDTexts generate them in memory and store them in _pactnCache
-    and _pmtrlDefault.  _pactnCache keeps a copy of the last requested
+    of the Template, ThreeDTexts generate them in memory and store them in _generated.action
+    and _generated.material.  _generated.action keeps a copy of the last requested
     action so that it doesn't have to be continuously recomputed.
 
     The user can change a ThreeDText's text, shape, and/or font with FChange().
@@ -44,9 +44,6 @@ RTCLASS(ThreeDText)
 
 const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under Template chunk
 
-// All actions have a step size of kdwrStep, except tdaWalk
-const BRS kdwrStepWalk = BR_SCALAR(1.0); // step size for walk action
-const BRS kdwrStep = BR_SCALAR(5.0);     // step size for all other actions
 
 PStringTable_GST ThreeDText::_pgstAction = pvNil;
 
@@ -213,63 +210,52 @@ bool ThreeDText::_FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cn
     _stn and _tdts.  This function unwinds completely on failure (the
     ThreeDText's members are untouched).
 ***************************************************************************/
+ThreeMMTextGenerationServices ThreeDText::_GenerationServices()
+{
+    ThreeMMTextGenerationServices s = {};
+    static_assert(sizeof(BMAT34) == sizeof(ThreeMMActorMatrix) && sizeof(short) == 2, "text generation ABI");
+    static_assert(krPi == 205887 && krTwoPi == 411774 && krThreePi == 617662 && krHalfPi == 102943 && BR_SCALAR(0.5 / PI) == 10430, "text constants");
+    static_assert(tdtsLim == THREE_MM_TEXT_SHAPE_COUNT && tdaLim == THREE_MM_TEXT_ACTION_COUNT && tdtsCircleZ == 6 && tdaWalk == 13 && tdaStretch == 15, "text enums");
+    s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_generated; };
+    s.length = [](void *, void *object) -> ThreeMMI32 { return static_cast<PThreeDText>(object)->_stn.Cch(); };
+    s.character = [](void *, void *object, ThreeMMI32 i) -> ThreeMMI32 { return static_cast<uchar>(static_cast<PThreeDText>(object)->_stn.Psz()[i]); };
+    s.shape = [](void *, void *object) -> ThreeMMI32 { return static_cast<PThreeDText>(object)->_tdts; };
+    s.template_read = [](void *, void *object, ThreeMMTemplateState *out) {
+        auto t = static_cast<PThreeDText>(object);
+        *out = {t->_pglibactPar, t->_pglibset, t->_pggcmid, t->_cbset, t->_ccmid, t->_cactn, t->_xaRest, t->_yaRest, t->_zaRest, t->_grftmpl};
+    };
+    s.template_write = [](void *, void *object, const ThreeMMTemplateState *in) {
+        auto t = static_cast<PThreeDText>(object);
+        t->_pglibactPar = static_cast<PDynamicArray>(in->parents); t->_pglibset = static_cast<PDynamicArray>(in->sets); t->_pggcmid = static_cast<PGeneralGroup>(in->costumes);
+        t->_cbset = in->set_count; t->_ccmid = in->custom_count; t->_cactn = in->action_count;
+        t->_xaRest = static_cast<BRA>(in->x); t->_yaRest = static_cast<BRA>(in->y); t->_zaRest = static_cast<BRA>(in->z); t->_grftmpl = in->flags;
+    };
+    s.list_new = [](void *, ThreeMMI32 bytes, ThreeMMI32 capacity) -> void * { return DynamicArray::PglNew(bytes, capacity); };
+    s.list_count = [](void *, void *list, ThreeMMI32 count) { AssertDo(static_cast<PDynamicArray>(list)->FSetIvMac(count), "PglNew should have ensured space!"); };
+    s.list_put = [](void *, void *list, ThreeMMI32 index, const void *data) { static_cast<PDynamicArray>(list)->Put(index, const_cast<void *>(data)); };
+    s.group_new = [](void *, ThreeMMI32 fixed, ThreeMMI32 rows, ThreeMMI32 bytes) -> void * { return GeneralGroup::PggNew(fixed, rows, bytes); };
+    s.group_add = [](void *, void *group, const void *fixed, ThreeMMI32 bytes, const void *data) -> int { return static_cast<PGeneralGroup>(group)->FAdd(bytes, nullptr, const_cast<void *>(data), const_cast<void *>(fixed)); };
+    s.allocate = [](void *, ThreeMMI32 bytes, void **out) -> int { return FAllocPv(out, bytes, fmemClear, mprNormal); };
+    s.free_memory = [](void *, void **out) { FreePpv(out); };
+    s.material_new = [](void *) -> void * { return Material_MTRL::PmtrlNew(); };
+    s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.font = [](void *, void *object) -> void * { return static_cast<PThreeDText>(object)->_FetchFont(); };
+    s.font_width = [](void *, void *font, ThreeMMI32 ch) -> ThreeMMI32 { return static_cast<PThreeDFont>(font)->DxrChar(ch); };
+    s.font_height = [](void *, void *font, ThreeMMI32 ch) -> ThreeMMI32 { return static_cast<PThreeDFont>(font)->DyrChar(ch); };
+    s.font_maximum = [](void *, void *font) -> ThreeMMI32 { return static_cast<PThreeDFont>(font)->DyrMax(); };
+    s.glyph = [](void *, void *font, ThreeMMI32 ch) -> void * { return static_cast<PThreeDFont>(font)->PmodlFetch(ch); };
+    s.action_new = [](void *, void *cels, void *matrices, ThreeMMU32 flags) -> void * { return ActionDefinition::PactnNew(static_cast<PGeneralGroup>(cels), static_cast<PDynamicArray>(matrices), flags); };
+    s.body_shape = [](void *, void *body, void *parents, void *sets) -> int { return static_cast<PBody>(body)->FChangeShape(static_cast<PDynamicArray>(parents), static_cast<PDynamicArray>(sets)); };
+    s.body_material = [](void *, void *body, ThreeMMI32 set, void *material) { static_cast<PBody>(body)->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(material)); };
+    return s;
+}
+
 bool ThreeDText::_FInitLists(void)
 {
-    AssertBaseThis(0);
-    AssertPo(&_stn, 0);
-    AssertIn(_tdts, 0, tdtsLim);
-
-    LegacyLong cch;
-    PDynamicArray pglibactParNew = pvNil;
-    PDynamicArray pglibsetNew = pvNil;
-    PGeneralGroup pggcmidNew = pvNil;
-    PMaterial_MTRL pmtrlDefaultNew = pvNil;
-
-    pglibactParNew = _PglibactParBuild();
-    if (pvNil == pglibactParNew)
-        goto LFail;
-    pglibsetNew = _PglibsetBuild();
-    if (pvNil == pglibsetNew)
-        goto LFail;
-    pggcmidNew = _PggcmidBuild();
-    if (pvNil == pggcmidNew)
-        goto LFail;
-    cch = _stn.Cch();
-    if (pvNil == _pmtrlDefault)
-    {
-        pmtrlDefaultNew = Material_MTRL::PmtrlNew(); // get default solid-color material
-    }
-    else
-    {
-        pmtrlDefaultNew = _pmtrlDefault; // keep _pmtrlDefault the same
-        pmtrlDefaultNew->AddRef();
-    }
-    if (pvNil == pmtrlDefaultNew)
-        goto LFail;
-
-    // We're home free: the function will succeed. Update member variables.
-    ReleasePpo(&_pglibactPar);
-    _pglibactPar = pglibactParNew;
-    ReleasePpo(&_pglibset);
-    _pglibset = pglibsetNew;
-    ReleasePpo(&_pggcmid);
-    _pggcmid = pggcmidNew;
-    ReleasePpo(&_pmtrlDefault);
-    _pmtrlDefault = pmtrlDefaultNew;
-    ReleasePpo(&_pactnCache);
-    _tdaCache = tdaNil;
-    _cactn = tdaLim;
-    _ccmid = 1;
-    _cbset = 1;
-    _grftmpl |= ftmplTdt;
-
-    return fTrue;
-LFail:
-    ReleasePpo(&pglibactParNew);
-    ReleasePpo(&pglibsetNew);
-    ReleasePpo(&pggcmidNew);
-    ReleasePpo(&pmtrlDefaultNew);
-    return fFalse;
+    AssertBaseThis(0); AssertPo(&_stn, 0); AssertIn(_tdts, 0, tdtsLim);
+    auto services = _GenerationServices();
+    return three_mm_text_initialize_lists(this, &services) != 0;
 }
 
 /***************************************************************************
@@ -278,21 +264,9 @@ LFail:
 ***************************************************************************/
 PActionDefinition ThreeDText::_PactnFetch(LegacyLong tda)
 {
-    AssertThis(0);
-    AssertIn(tda, 0, tdaLim);
-
-    if (tda != _tdaCache)
-    {
-        ReleasePpo(&_pactnCache);
-        _tdaCache = tdaNil;
-        _pactnCache = _PactnBuild(tda);
-    }
-    if (pvNil != _pactnCache)
-    {
-        _pactnCache->AddRef();
-        _tdaCache = tda;
-    }
-    return _pactnCache;
+    AssertThis(0); AssertIn(tda, 0, tdaLim);
+    auto services = _GenerationServices();
+    return static_cast<PActionDefinition>(three_mm_text_fetch_action(this, tda, &services));
 }
 
 /***************************************************************************
@@ -300,31 +274,9 @@ PActionDefinition ThreeDText::_PactnFetch(LegacyLong tda)
 ***************************************************************************/
 PActionDefinition ThreeDText::_PactnBuild(LegacyLong tda)
 {
-    AssertThis(0);
-    AssertIn(tda, 0, tdaLim);
-
-    PActionDefinition pactn;
-    PGeneralGroup pggcel;
-    PDynamicArray pglbmat34 = pvNil;
-    LegacyUlong grfactn;
-
-    pggcel = _PggcelBuild(tda);
-    if (pvNil == pggcel)
-        goto LFail;
-    pglbmat34 = _Pglbmat34Build(tda);
-    if (pvNil == pglbmat34)
-        goto LFail;
-    grfactn = factnStatic | factnRotateY;
-    pactn = ActionDefinition::PactnNew(pggcel, pglbmat34, grfactn);
-    if (pvNil == pactn)
-        goto LFail;
-    ReleasePpo(&pggcel);
-    ReleasePpo(&pglbmat34);
-    return pactn;
-LFail:
-    ReleasePpo(&pggcel);
-    ReleasePpo(&pglbmat34);
-    return pvNil;
+    AssertThis(0); AssertIn(tda, 0, tdaLim);
+    auto services = _GenerationServices();
+    return static_cast<PActionDefinition>(three_mm_text_build_action(this, tda, &services));
 }
 
 /***************************************************************************
@@ -364,18 +316,9 @@ bool ThreeDText::FGetActnName(LegacyLong anid, PString pstn)
 ***************************************************************************/
 PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
 {
-    AssertThis(0);
-    AssertIn(chidModl, 0, _stn.Cch());
-
-    PThreeDFont ptdf;
-    PModel pmodl;
-
-    ptdf = _FetchFont();
-    if (pvNil == ptdf)
-        return pvNil;
-    pmodl = ptdf->PmodlFetch((uchar)_stn.Psz()[chidModl]);
-    ReleasePpo(&ptdf);
-    return pmodl;
+    AssertThis(0); AssertIn(chidModl, 0, _stn.Cch());
+    auto services = _GenerationServices();
+    return static_cast<PModel>(three_mm_text_fetch_model(this, chidModl, &services));
 }
 
 /***************************************************************************
@@ -385,19 +328,8 @@ PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
 PDynamicArray ThreeDText::_PglibactParBuild(void)
 {
     AssertBaseThis(0);
-
-    LegacyLong cch = _stn.Cch();
-    LegacyLong ich;
-    short ibactPar = ivNil;
-    PDynamicArray pglibactPar;
-
-    pglibactPar = DynamicArray::PglNew(size(short), cch); // ibacts are shorts
-    if (pvNil == pglibactPar)
-        return pvNil;
-    AssertDo(pglibactPar->FSetIvMac(cch), "PglNew should have ensured space!");
-    for (ich = 0; ich < cch; ich++)
-        pglibactPar->Put(ich, &ibactPar);
-    return pglibactPar;
+    auto services = _GenerationServices();
+    return static_cast<PDynamicArray>(three_mm_text_build_indices(this, 0, &services));
 }
 
 /***************************************************************************
@@ -407,19 +339,8 @@ PDynamicArray ThreeDText::_PglibactParBuild(void)
 PDynamicArray ThreeDText::_PglibsetBuild(void)
 {
     AssertBaseThis(0);
-
-    LegacyLong cch = _stn.Cch();
-    LegacyLong ich;
-    short ibset = 0;
-    PDynamicArray pglibset;
-
-    pglibset = DynamicArray::PglNew(size(short), cch);
-    if (pvNil == pglibset)
-        return pvNil;
-    AssertDo(pglibset->FSetIvMac(cch), "PglNew should have ensured space!");
-    for (ich = 0; ich < cch; ich++)
-        pglibset->Put(ich, &ibset);
-    return pglibset;
+    auto services = _GenerationServices();
+    return static_cast<PDynamicArray>(three_mm_text_build_indices(this, 1, &services));
 }
 
 /***************************************************************************
@@ -429,21 +350,8 @@ PDynamicArray ThreeDText::_PglibsetBuild(void)
 PGeneralGroup ThreeDText::_PggcmidBuild(void)
 {
     AssertBaseThis(0);
-
-    LegacyLong cch = _stn.Cch();
-    LegacyLong lwOne = 1;
-    PGeneralGroup pggcmid;
-    LegacyLong cmid = 0;
-
-    pggcmid = GeneralGroup::PggNew(size(LegacyLong), 1, size(LegacyLong));
-    if (pvNil == pggcmid)
-        return pvNil;
-    if (!pggcmid->FAdd(size(LegacyLong), pvNil, &cmid, &lwOne))
-    {
-        ReleasePpo(&pggcmid);
-        return pvNil;
-    }
-    return pggcmid;
+    auto services = _GenerationServices();
+    return static_cast<PGeneralGroup>(three_mm_text_build_costumes(&services));
 }
 
 /***************************************************************************
@@ -451,105 +359,9 @@ PGeneralGroup ThreeDText::_PggcmidBuild(void)
 ***************************************************************************/
 PDynamicArray ThreeDText::_Pglbmat34Build(LegacyLong tda)
 {
-    AssertBaseThis(0);
-    AssertIn(tda, 0, tdaLim);
-
-    PThreeDFont ptdf;
-    LegacyLong cch = _stn.Cch();
-    LegacyLong ich;
-    BMAT34 bmat34;
-    PDynamicArray pglbmat34 = pvNil;
-    BRS dxrTotal;     // width of string (before scaling)
-    BRS dxrTotal2;    // width of string (after scaling)
-    BRS dxrHalf;      // half width of string (before scaling)
-    BRS xrChar;       // "insertion point" of character in string
-    BRS xrCharCenter; // origin of character in string (after scaling)
-    BRS dxrChar;      // width of each character
-    LegacyLong ccel;
-    LegacyLong icel;
-    BRS dyrChar;  // height of each character
-    BRS dyrTotal; // total height of string, if vertical shape
-    BRS dyrHalf;  // half of height of string, if vertical shape
-    BRS yrChar;   // position of char in string
-
-    ptdf = _FetchFont();
-    if (pvNil == ptdf)
-        goto LFail;
-
-    ccel = _CcelOfTda(tda);
-
-    pglbmat34 = DynamicArray::PglNew(size(BMAT34), LwMul(ccel, cch));
-    if (pvNil == pglbmat34)
-        goto LFail;
-    AssertDo(pglbmat34->FSetIvMac(LwMul(ccel, cch)), "PglNew should have ensured space!");
-
-    dxrTotal = rZero;
-    for (ich = 0; ich < cch; ich++)
-        dxrTotal += ptdf->DxrChar((uchar)_stn.Psz()[ich]);
-    dxrHalf = BrsHalf(dxrTotal);
-
-    dyrTotal = rZero;
-    for (ich = 0; ich < cch; ich++)
-        dyrTotal += ptdf->DyrChar((uchar)_stn.Psz()[ich]);
-    dyrHalf = BrsHalf(dyrTotal);
-
-    for (icel = 0; icel < ccel; icel++)
-    {
-        xrChar = -dxrHalf;
-        yrChar = rZero;
-        for (ich = 0; ich < cch; ich++)
-        {
-            dxrChar = ptdf->DxrChar((uchar)_stn.Psz()[ich]);
-            dyrChar = ptdf->DyrChar((uchar)_stn.Psz()[ich]);
-            xrCharCenter = xrChar + BrsHalf(dxrChar);
-
-            BrMatrix34Identity(&bmat34);
-            // The only exception to my "apply shape, then action" approach
-            // is tdaStretch, which has to change dxrTotal2 before calling
-            // _ApplyShape.
-            if (tda == tdaStretch)
-            {
-                BRS rPhase;
-                BRS rTheta;
-                BRA aTheta;
-                BRS dxr;
-                BRS rFractStretch;
-                BRS rT;
-
-                rPhase = BrsDiv(BrIntToScalar(icel), BrIntToScalar(ccel));
-                rTheta = BrsMul(rPhase, krTwoPi) + krPi + krHalfPi;
-                aTheta = BrRadianToAngle(rTheta);
-                dxr = BR_SIN(aTheta);
-                rFractStretch = BR_SCALAR(1.5) + BrsHalf(dxr);
-                rT = BrsMul(xrCharCenter, rFractStretch);
-                xrCharCenter = rT;
-                rT = BrsMul(dxrTotal, rFractStretch);
-                dxrTotal2 = rT;
-            }
-            else
-            {
-                dxrTotal2 = dxrTotal;
-            }
-            // apply shape
-            _ApplyShape(&bmat34, _tdts, cch, ich, xrCharCenter, dxrTotal2, yrChar + dyrChar, ptdf->DyrMax(), dyrTotal);
-            // apply transforms based on the action
-            _ApplyAction(&bmat34, tda, ich, ccel, icel, xrCharCenter, dxrTotal2);
-
-            if (_tdts == tdtsCircleZ)
-            {
-                BrMatrix34PostTranslate(&bmat34, rZero, BrsDiv(dxrTotal, krTwoPi) + ptdf->DyrMax(), rZero);
-            }
-            xrChar += dxrChar;
-            yrChar += dyrChar;
-            pglbmat34->Put(LwMul(icel, cch) + ich, &bmat34);
-        }
-    }
-    ReleasePpo(&ptdf);
-    return pglbmat34;
-LFail:
-    ReleasePpo(&ptdf);
-    ReleasePpo(&pglbmat34);
-    return pvNil;
+    AssertBaseThis(0); AssertIn(tda, 0, tdaLim);
+    auto services = _GenerationServices();
+    return static_cast<PDynamicArray>(three_mm_text_build_matrices(this, tda, &services));
 }
 
 /***************************************************************************
@@ -557,45 +369,9 @@ LFail:
 ***************************************************************************/
 PGeneralGroup ThreeDText::_PggcelBuild(LegacyLong tda)
 {
-    AssertBaseThis(0);
-    AssertIn(tda, 0, tdaLim);
-
-    LegacyLong cch = _stn.Cch();
-    LegacyLong ich;
-    PGeneralGroup pggcel;
-    AnimationCel cel;
-    CelPartSpec *prgcps = pvNil;
-    LegacyLong iv;
-    LegacyLong ccel;
-    LegacyLong icel;
-
-    ccel = _CcelOfTda(tda);
-
-    pggcel = GeneralGroup::PggNew(size(AnimationCel));
-    if (pvNil == pggcel)
-        goto LFail;
-    if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CelPartSpec)), fmemClear, mprNormal))
-    {
-        goto LFail;
-    }
-    for (icel = 0; icel < ccel; icel++)
-    {
-        cel.chidSnd = 0;
-        cel.dwr = (tda == tdaWalk ? kdwrStepWalk : kdwrStep);
-        for (ich = 0; ich < cch; ich++)
-        {
-            prgcps[ich].chidModl = (short)ich;
-            prgcps[ich].imat34 = (short)(LwMul(icel, cch) + ich);
-        }
-        if (!pggcel->FAdd(LwMul(cch, size(CelPartSpec)), &iv, prgcps, &cel))
-            goto LFail;
-    }
-    FreePpv((void **)&prgcps);
-    return pggcel;
-LFail:
-    FreePpv((void **)&prgcps);
-    ReleasePpo(&pggcel);
-    return pvNil;
+    AssertBaseThis(0); AssertIn(tda, 0, tdaLim);
+    auto services = _GenerationServices();
+    return static_cast<PGeneralGroup>(three_mm_text_build_cels(this, tda, &services));
 }
 
 /***************************************************************************
@@ -604,9 +380,8 @@ LFail:
 ThreeDText::~ThreeDText(void)
 {
     AssertBaseThis(0);
-
-    ReleasePpo(&_pmtrlDefault);
-    ReleasePpo(&_pactnCache);
+    auto services = _GenerationServices();
+    three_mm_text_dispose(&_generated, &services);
 }
 
 /***************************************************************************
@@ -696,12 +471,9 @@ void ThreeDText::GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 ***************************************************************************/
 bool ThreeDText::FAdjustBody(PBody pbody)
 {
-    AssertThis(0);
-    AssertPo(pbody, 0);
-
-    if (!pbody->FChangeShape(_pglibactPar, _pglibset))
-        return fFalse;
-    return fTrue;
+    AssertThis(0); AssertPo(pbody, 0);
+    auto services = _GenerationServices();
+    return three_mm_text_adjust_body(this, pbody, &services) != 0;
 }
 
 /***************************************************************************
@@ -710,11 +482,9 @@ bool ThreeDText::FAdjustBody(PBody pbody)
 ***************************************************************************/
 bool ThreeDText::FSetDefaultCost(PBody pbody)
 {
-    AssertThis(0);
-    AssertPo(pbody, 0);
-
-    pbody->SetPartSetMtrl(0, _pmtrlDefault);
-    return fTrue;
+    AssertThis(0); AssertPo(pbody, 0);
+    auto services = _GenerationServices();
+    return three_mm_text_default_costume(this, pbody, &services) != 0;
 }
 
 /***************************************************************************
@@ -768,40 +538,8 @@ bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 ***************************************************************************/
 LegacyLong ThreeDText::_CcelOfTda(LegacyLong tda)
 {
-    AssertThis(0);
-    AssertIn(tda, 0, tdaLim);
-
-    LegacyLong ccel;
-
-    switch (tda)
-    {
-    case tdaRest:
-        ccel = 1;
-        break;
-    case tdaLetterRotX:
-    case tdaLetterRotY:
-    case tdaLetterRotZ:
-    case tdaSwingX:
-    case tdaSwingY:
-    case tdaSwingZ:
-    case tdaPulse:
-    case tdaHop:
-    case tdaStretch:
-        ccel = 12;
-        break;
-    case tdaWordRotX:
-    case tdaWordRotY:
-    case tdaWordRotZ:
-    case tdaWave:
-    case tdaReveal:
-    case tdaWalk:
-        ccel = 24;
-        break;
-    default:
-        Bug("Unknown tda");
-        break;
-    }
-    return ccel;
+    AssertThis(0); AssertIn(tda, 0, tdaLim);
+    return three_mm_text_cel_count(tda);
 }
 
 /***************************************************************************
@@ -811,171 +549,10 @@ LegacyLong ThreeDText::_CcelOfTda(LegacyLong tda)
 ***************************************************************************/
 void ThreeDText::_ApplyAction(BMAT34 *pbmat34, LegacyLong tda, LegacyLong ich, LegacyLong ccel, LegacyLong icel, BRS xrChar, BRS dxrText)
 {
-    AssertThis(0);
-    AssertVarMem(pbmat34);
-    AssertIn(tda, 0, tdaLim);
-    AssertIn(ccel, 0, klwMax);
-    AssertIn(icel, 0, ccel);
-
-    BRS dxrTextHalf = BrsHalf(dxrText);
-    // fraction of width of text that this char is at
-    BRS xrFract = BrsDiv(xrChar + dxrTextHalf, dxrText);
-    BRS rFractCel = BrsDiv(BrIntToScalar(icel), BrIntToScalar(ccel));
-    BRS rSwing = BR_SIN(BrRadianToAngle(BrsMul(krTwoPi, rFractCel)));
-
-    switch (tda)
-    {
-    case tdaRest:
-        break;
-    case tdaLetterRotX:
-        BrMatrix34PreRotateX(pbmat34, BrRadianToAngle(BrsMul(rFractCel, krTwoPi)));
-        break;
-    case tdaLetterRotY:
-        BrMatrix34PreRotateY(pbmat34, BrRadianToAngle(BrsMul(rFractCel, krTwoPi)));
-        break;
-    case tdaLetterRotZ:
-        BrMatrix34PreRotateZ(pbmat34, BrRadianToAngle(BrsMul(rFractCel, krTwoPi)));
-        break;
-    case tdaSwingX:
-        BrMatrix34PreShearY(pbmat34, BrsMul(krQuarter, rSwing), rZero);
-        break;
-    case tdaSwingY:
-        BrMatrix34PreShearZ(pbmat34, rZero, BrsHalf(rSwing));
-        break;
-    case tdaSwingZ:
-        BrMatrix34PreShearY(pbmat34, rZero, BrsHalf(rSwing));
-        break;
-    case tdaPulse:
-        BrMatrix34PreScale(pbmat34, rOne + BrsMul(krQuarter, rSwing), rOne + BrsMul(krQuarter, rSwing),
-                           rOne + BrsMul(krQuarter, rSwing));
-        break;
-    case tdaWordRotX:
-        BrMatrix34PostRotateX(pbmat34, BrRadianToAngle(BrsMul(rFractCel, krTwoPi)));
-        break;
-    case tdaWordRotY:
-        BrMatrix34PostRotateY(pbmat34, -BrRadianToAngle(BrsMul(rFractCel, krTwoPi)));
-        break;
-    case tdaWordRotZ:
-        BrMatrix34PostRotateZ(pbmat34, BrRadianToAngle(BrsMul(rFractCel, krTwoPi)));
-        break;
-    case tdaWave: {
-        BRS rTheta;
-        BRA aTheta;
-        BRS rScaleY;
-
-        rTheta = BrsMul(xrFract - rFractCel, krThreePi);
-        if (rTheta < -krTwoPi)
-            rTheta += krThreePi;
-        rTheta = LwBound(rTheta, rZero, krPi);
-        aTheta = BrRadianToAngle(rTheta);
-        rScaleY = rOne + BR_SIN(aTheta);
-        BrMatrix34PreScale(pbmat34, rOne, rScaleY, rOne);
-    }
-    break;
-    case tdaReveal: {
-        BRS dxr;
-        BRS rTheta;
-        BRA aTheta;
-        BRS rScaleY;
-
-        if (icel < ccel / 2)
-        {
-            dxr = BrsDiv(BrIntToScalar(icel), BrIntToScalar(ccel / 2));
-            dxr = BrsDiv(BrsMul(dxr, BR_SCALAR(4.0)), BR_SCALAR(3.0));
-            rTheta = BrsMul(xrFract - dxr, krThreePi);
-            rTheta += krPi + krHalfPi;
-            rTheta = LwBound(rTheta, krHalfPi, krPi + krHalfPi);
-        }
-        else
-        {
-            dxr = BrsDiv(BrIntToScalar(icel - ccel / 2), BrIntToScalar(ccel / 2));
-            dxr = BrsDiv(BrsMul(dxr, BR_SCALAR(4.0)), BR_SCALAR(3.0));
-            rTheta = BrsMul(xrFract - dxr, krThreePi);
-            rTheta += krPi;
-            rTheta = LwBound(rTheta, -krHalfPi, krHalfPi);
-        }
-        aTheta = BrRadianToAngle(rTheta);
-        rScaleY = BR_SCALAR(0.1) + BR_SCALAR(0.5) + BrsMul(BR_SCALAR(0.5), BR_SIN(aTheta));
-        BrMatrix34PreScale(pbmat34, rOne, rScaleY, rOne);
-    }
-    break;
-    case tdaWalk: {
-        bool fOdd = (ich % 2 != 0);
-        BRS rPhase;
-        BRS rTheta;
-        BRA aTheta;
-        BRS dyr;
-        BRS dzr;
-
-        rPhase = BrsDiv(BrIntToScalar(icel), BrIntToScalar(ccel));
-        rTheta = BrsMul(rPhase, krTwoPi);
-        if (fOdd)
-        {
-            if (icel < ccel / 2)
-                dzr = BrsMul(BrIntToScalar(ccel / 2 - icel), kdwrStepWalk);
-            else
-                dzr = BrsMul(BrIntToScalar(icel - ccel / 2), kdwrStepWalk);
-        }
-        else
-        {
-            if (icel < ccel / 2)
-                dzr = BrsMul(BrIntToScalar(icel), kdwrStepWalk);
-            else
-                dzr = BrsMul(BrIntToScalar(ccel - icel), kdwrStepWalk);
-        }
-        if (fOdd)
-            rTheta -= krPi;
-        rTheta = LwBound(rTheta, rZero, krPi);
-        aTheta = BrRadianToAngle(rTheta);
-        dyr = BR_SIN(aTheta);
-        BrMatrix34PreTranslate(pbmat34, rZero, dyr, dzr);
-    }
-    break;
-    case tdaHop: {
-        BRS rPhase;
-        BRS rTheta;
-        BRA aTheta;
-        BRS dyr = rZero;
-        BRS yrScale = rOne;
-
-        if (icel < ccel * 2 / 3)
-        {
-            rPhase = BrsDiv(BrIntToScalar(icel), BrIntToScalar(ccel * 2 / 3));
-            rTheta = BrsMul(rPhase, krPi);
-            aTheta = BrRadianToAngle(rTheta);
-            dyr = BR_SIN(aTheta);
-        }
-        else
-        {
-            rPhase = BrsDiv(BrIntToScalar(icel - (ccel * 2 / 3)), BrIntToScalar(ccel / 3));
-            // rTheta goes from krPi to krTwoPi
-            rTheta = BrsMul(rPhase, krPi) + krPi;
-            aTheta = BrRadianToAngle(rTheta);
-            yrScale = rOne + BrsDiv(BR_SIN(aTheta), rTwo);
-        }
-        BrMatrix34PreTranslate(pbmat34, rZero, dyr, rZero);
-        BrMatrix34PreScale(pbmat34, rOne, yrScale, rOne);
-    }
-    break;
-    case tdaStretch: {
-        BRS rPhase;
-        BRS rTheta;
-        BRA aTheta;
-        BRS dyr = rZero;
-        BRS yrScale = rOne;
-
-        rPhase = BrsDiv(BrIntToScalar(icel), BrIntToScalar(ccel));
-        rTheta = BrsMul(rPhase, krTwoPi) + krPi + krHalfPi;
-        aTheta = BrRadianToAngle(rTheta);
-        dyr = BR_SIN(aTheta);
-
-        BrMatrix34PreScale(pbmat34, BR_SCALAR(1.5) + BrsHalf(dyr), rOne, rOne);
-    }
-    break;
-    default:
-        Bug("Unknown tda");
-        break;
-    }
+    AssertThis(0); AssertVarMem(pbmat34); AssertIn(tda, 0, tdaLim); AssertIn(icel, 0, ccel);
+    ThreeMMActorMatrix matrix; std::memcpy(&matrix, pbmat34, sizeof(matrix));
+    three_mm_text_apply_action(&matrix, tda, ich, ccel, icel, xrChar, dxrText);
+    std::memcpy(pbmat34, &matrix, sizeof(matrix));
 }
 
 /***************************************************************************
@@ -989,66 +566,10 @@ void ThreeDText::_ApplyAction(BMAT34 *pbmat34, LegacyLong tda, LegacyLong ich, L
 void ThreeDText::_ApplyShape(BMAT34 *pbmat34, LegacyLong tdts, LegacyLong cch, LegacyLong ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
                       BRS dyrTotal)
 {
-    AssertThis(0);
-    AssertVarMem(pbmat34);
-    AssertIn(tdts, 0, tdtsLim);
-    AssertIn(cch, 0, kcchMaxStn);
-    AssertIn(ich, 0, cch);
-
-    BRS dxr = rZero;
-    BRS dyr = rZero;
-    BRS dzr = rZero;
-
-    BRS dxrTextHalf = BrsHalf(dxrText);
-    BRS dxrTextQuarter = BrsHalf(dxrTextHalf);
-    // fraction of width of text that this char is at
-    BRS xrFract = BrsDiv(xrChar + dxrTextHalf, dxrText);
-    BRS rRadius = BrsDiv(dxrText, krTwoPi);
-
-    switch (tdts)
-    {
-    case tdtsNormal:
-        BrMatrix34PostTranslate(pbmat34, xrChar, rZero, rZero);
-        break;
-    case tdtsArchPositive:
-        dyr = BrsMul(dxrTextQuarter, BR_SIN(BrRadianToAngle(BrsMul(krPi, xrFract))));
-        BrMatrix34PostTranslate(pbmat34, xrChar, dyr, rZero);
-        break;
-    case tdtsArchNegative:
-        dyr = BrsMul(dxrTextQuarter, rOne - BR_SIN(BrRadianToAngle(BrsMul(krPi, xrFract))));
-        BrMatrix34PostTranslate(pbmat34, xrChar, dyr, rZero);
-        break;
-    case tdtsCircleY:
-        BrMatrix34PostTranslate(pbmat34, rZero, rZero, rRadius);
-        BrMatrix34PostRotateY(pbmat34, BrRadianToAngle(BrsMul(krTwoPi, xrFract)));
-        break;
-    case tdtsLargeMiddle:
-        BrMatrix34PostTranslate(pbmat34, xrChar, rZero, rZero);
-        BrMatrix34PostScale(pbmat34, rOne, rOne + BR_SIN(BrRadianToAngle(BrsMul(krPi, xrFract))), rOne);
-        break;
-    case tdtsArchZ:
-        dzr = BrsMul(dxrTextQuarter, BR_SIN(BrRadianToAngle(BrsMul(krPi, xrFract))));
-        BrMatrix34PostTranslate(pbmat34, xrChar, rZero, dzr);
-        break;
-    case tdtsCircleZ:
-        BrMatrix34PostTranslate(pbmat34, rZero, rRadius, rZero);
-        BrMatrix34PostRotateZ(pbmat34, -BrRadianToAngle(BrsMul(krTwoPi, xrFract)));
-        break;
-    case tdtsVertical:
-        BrMatrix34PostTranslate(pbmat34, rZero, dyrTotal - yrChar, rZero);
-        break;
-    case tdtsGrowRight:
-        BrMatrix34PostTranslate(pbmat34, xrChar, rZero, rZero);
-        BrMatrix34PostScale(pbmat34, rOne, rOne + xrFract, rOne);
-        break;
-    case tdtsGrowLeft:
-        BrMatrix34PostTranslate(pbmat34, xrChar, rZero, rZero);
-        BrMatrix34PostScale(pbmat34, rOne, rOne + (rOne - xrFract), rOne);
-        break;
-    default:
-        Bug("unknown tdts");
-        break;
-    }
+    AssertThis(0); AssertVarMem(pbmat34); AssertIn(tdts, 0, tdtsLim); AssertIn(cch, 0, kcchMaxStn); AssertIn(ich, 0, cch);
+    ThreeMMActorMatrix matrix; std::memcpy(&matrix, pbmat34, sizeof(matrix));
+    three_mm_text_apply_shape(&matrix, tdts, cch, ich, xrChar, dxrText, yrChar, dyrMax, dyrTotal);
+    std::memcpy(pbmat34, &matrix, sizeof(matrix));
 }
 
 #ifdef DEBUG
@@ -1060,15 +581,15 @@ void ThreeDText::AssertValid(LegacyUlong grf)
     ThreeDText_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pgstAction, 0); // Localized action names are optional in headless hosts.
     Assert(_tagTdf.ctg != ctgNil, "ThreeDText has bad _tagTdf");
-    AssertPo(_pmtrlDefault, 0);
-    if (tdaNil != _tdaCache)
+    AssertPo(static_cast<PMaterial_MTRL>(_generated.material), 0);
+    if (tdaNil != _generated.action_id)
     {
-        AssertIn(_tdaCache, 0, tdaLim);
-        AssertPo(_pactnCache, 0);
+        AssertIn(_generated.action_id, 0, tdaLim);
+        AssertPo(static_cast<PActionDefinition>(_generated.action), 0);
     }
     else
     {
-        Assert(pvNil == _pactnCache, "_tdaCache is wrong");
+        Assert(pvNil == _generated.action, "_generated.action_id is wrong");
     }
     AssertIn(_tdts, 0, tdtsLim);
 }
@@ -1082,9 +603,9 @@ void ThreeDText::MarkMem(void)
 
     ThreeDText_PAR::MarkMem();
 
-    MarkMemObj(_pmtrlDefault);
-    if (tdaNil != _tdaCache)
-        MarkMemObj(_pactnCache);
+    MarkMemObj(static_cast<PMaterial_MTRL>(_generated.material));
+    if (tdaNil != _generated.action_id)
+        MarkMemObj(static_cast<PActionDefinition>(_generated.action));
 }
 
 /***************************************************************************

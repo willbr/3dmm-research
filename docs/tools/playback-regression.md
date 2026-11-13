@@ -4915,3 +4915,101 @@ preserving observations, summaries, diagnostics, current results and latest
 baselines/failures. Evidence is in
 `tmp/c89-font-resource-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
 and `tmp/c89-font-resource-playback-audit.json`.
+
+## ThreeDText generation and animation C89 conversion (13 November 2026)
+
+`text_generation.c` owns parent/set/costume construction, atomic generated-list/
+material replacement, cel/matrix/action generation, the action cache, glyph fetch
+control, body adjustment/default costumes and generated-resource disposal.
+`ThreeMMTextGenerated` replaces the separate C++ material/action/cache-ID owner
+fields. Native services provide primitive containers, retained font/metric/glyph
+access, material/action factories, body operations and template field views.
+String/tag construction, top-level change/save/load orchestration, localized
+action names, remaining resources/formats/runtime and final facade removal keep
+the full C89 backend unfinished.
+
+`text_generation_math.c` implements all ten shapes and sixteen action formulas
+using shared C fixed-point/BAM/matrix primitives, without native BRender linkage.
+It retains the exact Pi/radian conversion constants, downward negative halves,
+exclusive upper clamps, pre/post transform order and zero-angle rotations (whose
+cosine is 65534 rather than 65536). Stretch adjusts position/total width before
+shape application; Circle-Z applies its final offset after action transforms.
+Cels retain sound ID zero, step 65536 for walk and 327680 otherwise. Matrices are
+48 bytes; part model/matrix indices remain signed shorts. Native bounded string,
+index and scalar-sum preconditions apply. Invalid cel-count queries return zero;
+out-of-range action inputs were not a valid native domain.
+
+Initialization acquires all replacements before publishing fields; failure
+unwinds locals in native order without changing the old owner. Success replaces
+parent/set/costume/material owners in order, then releases the cached action and
+publishes counts/flags. Reused materials retain before their old owner releases.
+Cache misses release the old action before building and leave NULL/id -1 on
+failure. Hits retain without rebuilding; cache ID publishes after retain. Disposal
+releases material then action, leaving the old ID as native destruction did.
+Retained font providers remain external services and glyph lookup preserves
+unsigned-byte character indexing. Existing native change orchestration exercises
+the C initializer's failure atomicity and its string/tag rollback behavior.
+
+`tmp/c89-text-generation-before.bin` and `tmp/c89-text-generation-after.bin`
+match all 4,378,609 bytes without masking, SHA-256
+`0B4A2F9FAE01D081ADFB7B2FEA37F3A7ADF5F4E2AF15728745E397B35404AA8F`.
+There are 800 complete generation cases (five strings × ten shapes × sixteen
+actions), including empty-string normalization, high byte characters, fractional
+metrics and every generated cel/part/matrix. Four bound body poses per action
+exercise first/middle/last/negative-wrap application and cached-action identity/
+reference counts. A further 1,008 cases cover construction, change rollback/body
+adjustment, cache misses, direct matrix/cel builders, missing fonts and BASE/HQ/Pv
+allocation injection. Debug has 678 successful fault-test operations; SDL release
+has 720. Allocation counts return to their starting values after cleanup. These
+native comparisons do not claim dedicated retail captures for every shape/action.
+
+C-only tests cover all initialization/action-build failure phases, partial
+cleanup, existing-material retain/release order, unchanged owners on failure,
+cache invalidation/hit behavior and cache-ID visibility at retain/release, missing fonts/
+glyphs, empty lists, body boundaries, cel layouts and math invariants. All 70
+standalone C checks pass with assertions enabled, including strict C89 syntax.
+MSVC AddressSanitizer compiles the generation/math code and its shared arithmetic
+dependencies as C. All 84 focused native checks, SDL save/load round-trip,
+56 snapshot comparisons and 51 freshly linked CLI baselines pass. Both hosts
+build and headless real-content scene/timeline playback passes. No Marcus UI
+tests were added. Evidence includes `tmp/c89-text-generation-standalone.log`,
+`tmp/c89-text-generation-native-tests.log`, `tmp/c89-text-generation-asan.log`,
+`tmp/c89-text-generation-sdl-after.log`,
+`tmp/c89-text-generation-snapshot-comparison.json`,
+`tmp/c89-text-generation-output-comparison.json` and
+`tmp/c89-text-generation-preview-scene.log`.
+
+Playback binary SHA-256 values remained frozen:
+`28EFF3FE1220F05F026B0489B061650F6250E0C9CE596E40037CA15574978126` (SDL) and
+`CE6179DFE786AA5A9F2C0D9370F7A28790E6E015111F3EA0FCD356AB5DD585B0`
+(Marcus regression). Same-player baselines are actor-audio
+`20261113T143605Z-6a799a7e`, actor-events `20261113T143738Z-c5c2a9b2`,
+scrolling-text `20261113T143955Z-8fcfe9aa` and sampled-audio
+`20261113T144359Z-bf5ff1b1`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T153100Z-435bbe3f` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T153402Z-b5c56cdd` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T153805Z-808f45a7` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T154115Z-2320e37b` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes. Actor peaks remain
+3192 retail and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All measured peak deltas are zero. Previously documented 4080/4081
+SDL variation remains a coverage limitation, and peaks/tone coverage do not prove
+waveform/timing parity. Existing cross-player differences and one-repeat
+inconclusive comparisons remain.
+
+Captures reused the sole default shared SDL package cache, with private processes,
+settings and working movies, and uncontrolled OS caching. No builds or compaction
+ran during capture. Automatic retention pruned superseded raw media, preserving
+observations, summaries, diagnostics, current results and latest baselines/
+failures. Evidence is in
+`tmp/c89-text-generation-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and `tmp/c89-text-generation-playback-audit.json`.

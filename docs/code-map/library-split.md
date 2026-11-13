@@ -1787,8 +1787,9 @@ coverage limits are recorded in `docs/tools/playback-regression.md`.
 resource estimates, loading, authoring, disposal, metric queries and glyph lookup.
 ThreeDFont is now a temporary facade around that C state. Native services provide
 primitive allocation, blocks, child lists/graph operations, retained model fetches,
-model bounds and diagnostics. ThreeDText construction, list/action/matrix
-generation, shapes and animations remain native dependencies.
+model bounds and diagnostics. ThreeDText generation now uses the C implementation
+described below; its string/tag construction, change/wire orchestration and
+localized action-name policy remain native dependencies.
 
 Loading publishes character count before exact-length validation, maximum height
 after validation, then each buffer before its read. Direct failure retains
@@ -1817,6 +1818,45 @@ the old leaked model reference; converted checks require no extra model referenc
 and balanced allocations. Additional checks reload authored fonts and resolve
 their glyphs. All 69 standalone C checks run with assertions enabled. Full gate
 evidence and remaining coverage limits are in `docs/tools/playback-regression.md`.
+
+### Three-dimensional text generation
+
+`text_generation.c` owns parent/set/costume list construction, atomic replacement
+of generated lists/material references, cel/matrix/action generation, the action
+cache, glyph fetch control, body adjustment/default costumes and generated-owner
+disposal. `ThreeMMTextGenerated` holds the material, cached action and cache ID;
+these are no longer separate C++ owner fields. Native services expose primitive
+container/material/action factories, retained font providers, metric/glyph access,
+body operations and template field views. String/tag construction, top-level
+change/save/load orchestration, localized names, remaining resources and final
+native facade removal still keep the full C89 backend unfinished.
+
+`text_generation_math.c` owns all ten shapes and sixteen animation formulas,
+reusing the shared C fixed-point/BAM/matrix primitives without a native BRender
+dependency. It preserves the original Pi constants, negative arithmetic halves,
+exclusive upper clamps, pre/post multiplication order, zero-angle rotations,
+stretch-before-shape calculation and Circle-Z's final offset. Cel matrices remain
+48 bytes and part specs remain two signed shorts. Byte characters preserve the
+legacy unsigned-character font lookup; valid counts/indices/scalar sums follow
+the native bounds.
+
+List initialization acquires every replacement owner before publishing anything;
+failure releases locals in native order and leaves existing members untouched.
+Success replaces parents/sets/costumes/material in order, releases the cached
+action and publishes counts/flags. A reused material is retained before replacing
+its old owner. Cache misses release the old action before building; failure leaves
+NULL/id -1. Cache hits retain without rebuilding, and cache ID publishes after
+retain. Disposal releases material then action and retains the old ID, as native.
+
+The 4,378,609-byte native trace matches without masking across all 800 shape/action
+combinations for five strings, including empty normalization and high byte values.
+Every generated cel/part/matrix and selected bound body poses are recorded. A
+further 1,008 cases exercise construction, change rollback/body adjustment, cache
+misses, direct builders, missing fonts and allocation injection. C-only tests cover
+ownership/publication order, failure phases, cache invalidation/hits, zero-length lists,
+glyph failures, body boundaries and math invariants. All 70 standalone C checks
+run with assertions enabled; full gate evidence is in
+`docs/tools/playback-regression.md`.
 
 ### Source names and directory discovery
 
