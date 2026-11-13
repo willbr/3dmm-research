@@ -18,6 +18,8 @@
 #define MUTED 0x969da8UL
 #define ACCENT 0x78cbc4UL
 #define ROW_HEIGHT 28
+#define OBJECT_LIST_TOP 126
+#define OBJECT_LIST_FOOTER 32
 #define FRAME_NAV_X 192
 #define SCENE_NAV_X FRAME_NAV_X
 #define FRAME_NAV_Y 4
@@ -113,6 +115,8 @@ typedef struct App
     int flying, fly_ready, camera_ready, fly_keys;
     int work_matched, work_needs_match;
     int row_scroll, object_scroll, width, height;
+    int object_scroll_drag, resizing_objects, properties_scroll;
+    float object_split, object_drag_offset, object_split_drag_offset;
     int animation_expanded;
     char animation_hint[640];
     int sheet_mode, sound_scroll, selected_sound, selected_sound_track;
@@ -212,6 +216,7 @@ static const char *sheet_name(int mode)
 }
 static void set_sheet_mode(App *app, int mode)
 {
+    app->properties_scroll = 0;
     app->sheet_mode = mode;
     app->sheet_menu = 0;
     if (mode != SHEET_BOTH)
@@ -219,6 +224,7 @@ static void set_sheet_mode(App *app, int mode)
 }
 static void show_object_tracks(App *app)
 {
+    app->properties_scroll = 0;
     if (app->sheet_mode == SHEET_SOUNDS)
         app->sheet_mode = SHEET_OBJECTS;
     app->sound_inspector = 0;
@@ -238,6 +244,7 @@ static int animation_lane(int kind)
 }
 static void release_camera(App *app)
 {
+    app->object_scroll_drag = app->resizing_objects = 0;
     if (app->window && SDL_GetWindowRelativeMouseMode(app->window))
         SDL_SetWindowRelativeMouseMode(app->window, 0);
     app->flying = app->orbiting = app->panning = 0;
@@ -427,12 +434,51 @@ static void refresh(App *app)
         app->sound_scroll = app->both_scroll = 0;
     }
 }
+static int object_list_rows(const App *app)
+{
+    return (int)maximum(1, floor((app->object_split - OBJECT_LIST_TOP - OBJECT_LIST_FOOTER) / ROW_HEIGHT));
+}
+static void scroll_objects(App *app, int scroll)
+{
+    int limit;
+    limit = app->loaded ? app->info.object_count - object_list_rows(app) : 0;
+    app->object_scroll = (int)maximum(0, minimum(maximum(0, limit), scroll));
+}
+static int object_scrollbar(const App *app, SDL_FRect *track, SDL_FRect *thumb)
+{
+    int rows, limit;
+    rows = object_list_rows(app);
+    limit = app->info.object_count - rows;
+    if (!app->loaded || limit <= 0)
+        return 0;
+    track->x = (float)app->width - 14;
+    track->y = OBJECT_LIST_TOP;
+    track->w = 8;
+    track->h = (float)(rows * ROW_HEIGHT);
+    *thumb = *track;
+    thumb->h = (float)maximum(20, track->h * rows / app->info.object_count);
+    thumb->y += (track->h - thumb->h) * app->object_scroll / limit;
+    return 1;
+}
+static int properties_scroll_limit(const App *app)
+{
+    int content;
+    if (app->sheet_mode == SHEET_SOUNDS || (app->sheet_mode == SHEET_BOTH && app->sound_inspector))
+        content = app->selected_sound >= 0 ? 440 : 190;
+    else
+        content = app->selected >= 0 ? 400 : 100;
+    return (int)maximum(0, content - (app->height - 24 - app->object_split));
+}
 static void layout(App *app)
 {
     int rows;
     float height;
     SDL_GetRenderOutputSize(app->renderer, &app->width, &app->height);
     app->sidebar = (float)app->width - 300;
+    app->object_split = (float)maximum(OBJECT_LIST_TOP + ROW_HEIGHT + OBJECT_LIST_FOOTER,
+                                      minimum(app->height - 184, app->object_split));
+    scroll_objects(app, app->object_scroll);
+    app->properties_scroll = (int)maximum(0, minimum(properties_scroll_limit(app), app->properties_scroll));
     height = (float)maximum(TIMELINE_MIN_HEIGHT, minimum(app->height - VIEWPORT_MIN_BOTTOM, app->timeline_height));
     app->timeline_y = (float)app->height - height;
     app->viewport_bottom = app->timeline_y - TIMELINE_HANDLE_HEIGHT;
@@ -1009,6 +1055,7 @@ static int select_timeline_row(App *app, float x, float y, int grid)
     }
     row = object;
     app->sound_inspector = 1;
+    app->properties_scroll = 0;
     previous = app->selected_sound;
     app->selected_sound = -1;
     if (row < 0 || row >= app->info.sound_track_count)
@@ -1339,8 +1386,9 @@ static void pick_object(App *app, float x, float y)
     show_object_tracks(app);
     if (index < app->object_scroll)
         app->object_scroll = index;
-    if (index >= app->object_scroll + 6)
-        app->object_scroll = index - 5;
+    if (index >= app->object_scroll + object_list_rows(app))
+        app->object_scroll = index - object_list_rows(app) + 1;
+    scroll_objects(app, app->object_scroll);
     rows = (int)maximum(1, (app->height - app->timeline_y - 112) / ROW_HEIGHT);
     track_row = index + (app->sheet_mode == SHEET_BOTH ? 1 : 0);
     scroll = sheet_scroll(app);
@@ -1351,7 +1399,7 @@ static void pick_object(App *app, float x, float y)
 }
 static void mouse_down(App *app, float x, float y, int button)
 {
-    SDL_FRect rect;
+    SDL_FRect rect, track, thumb;
     int row, action;
     float right;
     right = view_right(app);
@@ -1395,6 +1443,28 @@ static void mouse_down(App *app, float x, float y, int button)
     }
     if (button == SDL_BUTTON_LEFT)
     {
+        if (ui_inside(x, y, app->sidebar, app->object_split - 4, 300, 8))
+        {
+            release_camera(app);
+            app->dragging = app->resizing_view = app->resizing_timeline = 0;
+            app->resizing_objects = 1;
+            app->object_split_drag_offset = y - app->object_split;
+            return;
+        }
+        if (object_scrollbar(app, &track, &thumb) &&
+            ui_inside(x, y, track.x - 3, track.y, track.w + 6, track.h))
+        {
+            release_camera(app);
+            app->dragging = app->resizing_view = app->resizing_timeline = 0;
+            if (y >= thumb.y && y < thumb.y + thumb.h)
+            {
+                app->object_scroll_drag = 1;
+                app->object_drag_offset = y - thumb.y;
+            }
+            else
+                scroll_objects(app, app->object_scroll + (y < thumb.y ? -object_list_rows(app) : object_list_rows(app)));
+            return;
+        }
         rect = camera_settings_rect(app, 0);
         if (ui_inside(x, y, rect.x, rect.y, rect.w, rect.h))
         {
@@ -1579,9 +1649,9 @@ static void mouse_down(App *app, float x, float y, int button)
         zoom_timeline(app, 1.25f, app->grid_x + app->grid_width / 2);
     else if (ui_inside(x, y, app->sidebar - 56, app->timeline_y + PLAY_Y, 40, UI_PLAY_HEIGHT))
         fit_timeline(app);
-    else if (ui_inside(x, y, app->sidebar + 1, 126, 298, 168))
+    else if (ui_inside(x, y, app->sidebar + 1, OBJECT_LIST_TOP, 282, (float)(object_list_rows(app) * ROW_HEIGHT)))
     {
-        row = (int)((y - 126) / ROW_HEIGHT) + app->object_scroll;
+        row = (int)((y - OBJECT_LIST_TOP) / ROW_HEIGHT) + app->object_scroll;
         if (row < app->info.object_count)
         {
             app->selected = row;
@@ -1772,7 +1842,7 @@ static void update_flight(App *app, double seconds)
 static void handle_event(App *app, const SDL_Event *event)
 {
     DialogRequest *request;
-    SDL_FRect viewport;
+    SDL_FRect viewport, object_track, object_thumb;
     int rows, maximum_scroll, *scroll;
     float x, y, delta;
     SDL_Keymod modifiers;
@@ -1885,6 +1955,14 @@ static void handle_event(App *app, const SDL_Event *event)
                 app->work_matched = 0;
             app->dirty = 1;
         }
+        if (app->resizing_objects)
+        {
+            app->object_split = event->motion.y - app->object_split_drag_offset;
+            layout(app);
+        }
+        if (app->object_scroll_drag && object_scrollbar(app, &object_track, &object_thumb))
+            scroll_objects(app, (int)floor(0.5 + (event->motion.y - app->object_drag_offset - object_track.y) *
+                           (app->info.object_count - object_list_rows(app)) / (object_track.h - object_thumb.h)));
         if (app->resizing_timeline)
         {
             app->timeline_height = (float)maximum(TIMELINE_MIN_HEIGHT, minimum(app->height - VIEWPORT_MIN_BOTTOM,
@@ -1898,7 +1976,10 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         if (!app->flying && !app->orbiting)
         {
-            if (app->timeline_cursor && (app->resizing_timeline ||
+            if (app->timeline_cursor && (app->resizing_objects ||
+                ui_inside(event->motion.x, event->motion.y, app->sidebar, app->object_split - 4, 300, 8)))
+                SDL_SetCursor(app->timeline_cursor);
+            else if (app->timeline_cursor && (app->resizing_timeline ||
                 ui_inside(event->motion.x, event->motion.y, 0, app->viewport_bottom,
                           app->sidebar, TIMELINE_HANDLE_HEIGHT)))
                 SDL_SetCursor(app->timeline_cursor);
@@ -1948,6 +2029,7 @@ static void handle_event(App *app, const SDL_Event *event)
         }
         if (event->button.button == SDL_BUTTON_LEFT)
         {
+            app->object_scroll_drag = app->resizing_objects = 0;
             if (app->movie_scrubbing)
             {
                 seek_movie(app, movie_scrub_time(app, event->button.x));
@@ -1995,17 +2077,12 @@ static void handle_event(App *app, const SDL_Event *event)
         modifiers = SDL_GetModState();
         if (app->flying || (app->authored == 2 && inside_work(app, x, y)))
             app->flight.move_speed = (float)minimum(10000, maximum(0.1, app->flight.move_speed * pow(1.25, delta)));
-        else if (x >= app->sidebar && y >= 126 && y < 318)
+        else if (x >= app->sidebar && y >= OBJECT_LIST_TOP && y < app->object_split - 4)
         {
-            maximum_scroll = app->info.object_count - 6;
-            if (maximum_scroll < 0)
-                maximum_scroll = 0;
-            app->object_scroll -= (int)delta;
-            if (app->object_scroll < 0)
-                app->object_scroll = 0;
-            if (app->object_scroll > maximum_scroll)
-                app->object_scroll = maximum_scroll;
+            scroll_objects(app, app->object_scroll - (int)delta);
         }
+        else if (x >= app->sidebar && y >= app->object_split && y < app->height - 24)
+            app->properties_scroll = (int)maximum(0, minimum(properties_scroll_limit(app), app->properties_scroll - delta * 28));
         else if (y >= app->timeline_y && x < app->sidebar)
         {
             if (modifiers & SDL_KMOD_CTRL)
@@ -2399,37 +2476,38 @@ static void draw_view(App *app)
 }
 static void property(App *app, float y, const char *label, const char *value)
 {
+    y += app->object_split - 326 - app->properties_scroll;
     ui_text(&app->ui, app->sidebar + 18, y, label, MUTED);
     ui_label(&app->ui, app->sidebar + 120, y, 162, value, TEXT);
 }
-static void draw_sound_properties(App *app)
+static void draw_sound_properties(App *app, float offset)
 {
     MarcusSound sound;
     MarcusSoundTrack track;
     MarcusWaveformInfo waveform;
     MarcusWaveformColumn peak;
     char label[192];
-    ui_heading(&app->ui, app->sidebar + 18, 340, "SOUND PROPERTIES", MUTED);
+    ui_heading(&app->ui, app->sidebar + 18, offset + 340, "SOUND PROPERTIES", MUTED);
     if (!app->loaded || !marcus_sound(app->player, app->selected_sound, &sound))
     {
         if (app->loaded && marcus_sound_track(app->player, app->selected_sound_track, &track))
         {
-            ui_label(&app->ui, app->sidebar + 18, 377, 264, track.name, TEXT);
+            ui_label(&app->ui, app->sidebar + 18, offset + 377, 264, track.name, TEXT);
             SDL_snprintf(label, sizeof(label), "%d sound cues / clips", track.cue_count);
-            ui_text(&app->ui, app->sidebar + 18, 405, label, MUTED);
+            ui_text(&app->ui, app->sidebar + 18, offset + 405, label, MUTED);
         }
         else
-            ui_text(&app->ui, app->sidebar + 18, 377, "Select a sound track", TEXT);
-        ui_text(&app->ui, app->sidebar + 18, 435, "Click a cue or waveform.", MUTED);
-        ui_text(&app->ui, app->sidebar + 18, 463, "Markers show authored events.", MUTED);
-        ui_text(&app->ui, app->sidebar + 18, 487, "Motion cues mark cel bindings.", MUTED);
+            ui_text(&app->ui, app->sidebar + 18, offset + 377, "Select a sound track", TEXT);
+        ui_text(&app->ui, app->sidebar + 18, offset + 435, "Click a cue or waveform.", MUTED);
+        ui_text(&app->ui, app->sidebar + 18, offset + 463, "Markers show authored events.", MUTED);
+        ui_text(&app->ui, app->sidebar + 18, offset + 487, "Motion cues mark cel bindings.", MUTED);
         return;
     }
-    ui_label(&app->ui, app->sidebar + 18, 374, 264, sound.name, TEXT);
-    ui_heading(&app->ui, app->sidebar + 18, 400,
+    ui_label(&app->ui, app->sidebar + 18, offset + 374, 264, sound.name, TEXT);
+    ui_heading(&app->ui, app->sidebar + 18, offset + 400,
             sound.style == MARCUS_SOUND_MUSIC ? "MUSIC"
             : sound.style == MARCUS_SOUND_SPEECH ? "SPEECH" : "SOUND EFFECT", 0xe4b575);
-    ui_line(&app->ui, app->sidebar + 18, 435, (float)app->width - 18, 435, LINE);
+    ui_line(&app->ui, app->sidebar + 18, offset + 435, (float)app->width - 18, offset + 435, LINE);
     property(app, 450, "Owner", sound.owner);
     if (sound.carried)
         SDL_snprintf(label, sizeof(label), "%d / frame %.0f", sound.origin_scene + 1, sound.origin_frame);
@@ -2455,74 +2533,36 @@ static void draw_sound_properties(App *app)
             property(app, 702, "Duration", label);
         }
         else
-            ui_label(&app->ui, app->sidebar + 18, 702, 264, waveform.message, MUTED);
+            ui_label(&app->ui, app->sidebar + 18, offset + 702, 264, waveform.message, MUTED);
     }
-    ui_text(&app->ui, app->sidebar + 18, 738,
+    ui_text(&app->ui, app->sidebar + 18, offset + 738,
             sound.carried ? "Continues from an earlier scene." : "Scrubbing is silent.", MUTED);
 }
-static void draw_sidebar(App *app)
+static void draw_object_properties(App *app, float offset)
 {
     MarcusUI *ui;
     MarcusObject object;
     char label[192];
-    int row, index;
-    float y;
-    unsigned long tint;
     ui = &app->ui;
-    ui_fill(ui, app->sidebar, 89, 300, (float)app->height - 113, PANEL);
-    ui_line(ui, app->sidebar, 89, app->sidebar, (float)app->height - 24, LINE);
-    ui_heading(ui, app->sidebar + 18, 103, "SCENE OBJECTS", MUTED);
-    SDL_snprintf(label, sizeof(label), "%d", app->loaded ? app->info.object_count : 0);
-    ui_text(ui, app->sidebar + 263, 103, label, MUTED);
-    for (row = 0; row < 6 && app->loaded; ++row)
-    {
-        index = row + app->object_scroll;
-        if (!marcus_object(app->player, index, &object))
-            break;
-        y = 126 + (float)(row * ROW_HEIGHT);
-        if (index == app->selected)
-        {
-            ui_fill(ui, app->sidebar + 1, y, 298, ROW_HEIGHT, 0x34464c);
-            ui_fill(ui, app->sidebar + 1, y, 3, ROW_HEIGHT, ACCENT);
-        }
-        tint = object.text ? 0xd2b780 : object.prop ? 0xb3a4d6 : ACCENT;
-        ui_fill(ui, app->sidebar + 19, y + 10, 7, 7, tint);
-        ui_label(ui, app->sidebar + 36, y + 5, 230, object.name, object.visible ? TEXT : MUTED);
-        if (object.visible)
-            ui_fill(ui, app->sidebar + 280, y + 11, 4, 4, ACCENT);
-    }
-    if (app->loaded && app->info.object_count > 6)
-    {
-        SDL_snprintf(label, sizeof(label), "%d-%d of %d  /  scroll for more", app->object_scroll + 1,
-                     app->object_scroll + 6 < app->info.object_count ? app->object_scroll + 6 : app->info.object_count,
-                     app->info.object_count);
-        ui_text(ui, app->sidebar + 18, 300, label, MUTED);
-    }
-    ui_line(ui, app->sidebar, 326, (float)app->width, 326, LINE);
-    if (app->sheet_mode == SHEET_SOUNDS || (app->sheet_mode == SHEET_BOTH && app->sound_inspector))
-    {
-        draw_sound_properties(app);
-        return;
-    }
-    ui_heading(ui, app->sidebar + 18, 340, "OBJECT PROPERTIES", MUTED);
+    ui_heading(ui, app->sidebar + 18, offset + 340, "OBJECT PROPERTIES", MUTED);
     if (!app->loaded || app->selected < 0 || !marcus_object(app->player, app->selected, &object))
     {
-        ui_text(ui, app->sidebar + 18, 377, "Select an actor or prop", TEXT);
-        ui_text(ui, app->sidebar + 18, 401, "in the object list or timeline.", MUTED);
+        ui_text(ui, app->sidebar + 18, offset + 377, "Select an actor or prop", TEXT);
+        ui_text(ui, app->sidebar + 18, offset + 401, "in the object list or timeline.", MUTED);
         return;
     }
-    ui_label(ui, app->sidebar + 18, 374, 264, object.name, TEXT);
-    ui_heading(ui, app->sidebar + 18, 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
-    ui_line(ui, app->sidebar + 18, 435, (float)app->width - 18, 435, LINE);
+    ui_label(ui, app->sidebar + 18, offset + 374, 264, object.name, TEXT);
+    ui_heading(ui, app->sidebar + 18, offset + 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
+    ui_line(ui, app->sidebar + 18, offset + 435, (float)app->width - 18, offset + 435, LINE);
     property(app, 450, "Visibility", object.visible ? "On stage" : "Off stage");
-    ui_heading(ui, app->sidebar + 18, 484, "WORLD POSITION", MUTED);
+    ui_heading(ui, app->sidebar + 18, offset + 484, "WORLD POSITION", MUTED);
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.x);
     property(app, 511, "X", object.has_lifetime ? label : "--");
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.y);
     property(app, 537, "Y", object.has_lifetime ? label : "--");
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.z);
     property(app, 563, "Z", object.has_lifetime ? label : "--");
-    ui_line(ui, app->sidebar + 18, 597, (float)app->width - 18, 597, LINE);
+    ui_line(ui, app->sidebar + 18, offset + 597, (float)app->width - 18, offset + 597, LINE);
     SDL_snprintf(label, sizeof(label), "%ld", object.actor_id);
     property(app, 614, "Actor ID", label);
     SDL_snprintf(label, sizeof(label), "%ld / %ld", object.action, object.cel);
@@ -2536,6 +2576,76 @@ static void draw_sidebar(App *app)
     property(app, 666, "Lifetime", object.has_lifetime ? label : "No entrance");
     SDL_snprintf(label, sizeof(label), "%ld : %08lX", object.source_id, object.template_chunk);
     property(app, 692, "Template", label);
+}
+static void draw_sidebar(App *app)
+{
+    MarcusUI *ui;
+    MarcusObject object;
+    char label[192];
+    int row, index, rows, clipped;
+    float y, offset;
+    SDL_FRect track, thumb;
+    SDL_Rect clip, previous_clip;
+    unsigned long tint;
+    ui = &app->ui;
+    ui_fill(ui, app->sidebar, 89, 300, (float)app->height - 113, PANEL);
+    ui_line(ui, app->sidebar, 89, app->sidebar, (float)app->height - 24, LINE);
+    ui_heading(ui, app->sidebar + 18, 103, "SCENE OBJECTS", MUTED);
+    SDL_snprintf(label, sizeof(label), "%d", app->loaded ? app->info.object_count : 0);
+    ui_text(ui, app->sidebar + 263, 103, label, MUTED);
+    rows = object_list_rows(app);
+    for (row = 0; row < rows && app->loaded; ++row)
+    {
+        index = row + app->object_scroll;
+        if (!marcus_object(app->player, index, &object))
+            break;
+        y = OBJECT_LIST_TOP + (float)(row * ROW_HEIGHT);
+        if (index == app->selected)
+        {
+            ui_fill(ui, app->sidebar + 1, y, 282, ROW_HEIGHT, 0x34464c);
+            ui_fill(ui, app->sidebar + 1, y, 3, ROW_HEIGHT, ACCENT);
+        }
+        tint = object.text ? 0xd2b780 : object.prop ? 0xb3a4d6 : ACCENT;
+        ui_fill(ui, app->sidebar + 19, y + 10, 7, 7, tint);
+        ui_label(ui, app->sidebar + 36, y + 5, 220, object.name, object.visible ? TEXT : MUTED);
+        if (object.visible)
+            ui_fill(ui, app->sidebar + 268, y + 11, 4, 4, ACCENT);
+    }
+    if (app->loaded && app->info.object_count > rows)
+    {
+        SDL_snprintf(label, sizeof(label), "%d-%d of %d", app->object_scroll + 1,
+                     app->object_scroll + rows < app->info.object_count ? app->object_scroll + rows : app->info.object_count,
+                     app->info.object_count);
+        ui_text(ui, app->sidebar + 18, app->object_split - 26, label, MUTED);
+    }
+    if (object_scrollbar(app, &track, &thumb))
+    {
+        ui_fill(ui, track.x, track.y, track.w, track.h, 0x16191e);
+        ui_fill(ui, thumb.x, thumb.y, thumb.w, thumb.h,
+                app->object_scroll_drag || ui_inside(ui->mouse_x, ui->mouse_y, thumb.x - 3, thumb.y,
+                                                    thumb.w + 6, thumb.h) ? ACCENT : 0x606976);
+        if (ui_inside(ui->mouse_x, ui->mouse_y, track.x - 3, track.y, track.w + 6, track.h))
+            ui->hint = "Drag to scroll scene objects / click the track to move one page";
+    }
+    ui_fill(ui, app->sidebar + 1, app->object_split - 4, 299, 8,
+            app->resizing_objects ? 0x3b4650 : LINE);
+    ui_line(ui, app->sidebar + 142, app->object_split - 1, app->sidebar + 158, app->object_split - 1, MUTED);
+    ui_line(ui, app->sidebar + 142, app->object_split + 1, app->sidebar + 158, app->object_split + 1, MUTED);
+    if (app->resizing_objects || ui_inside(ui->mouse_x, ui->mouse_y, app->sidebar, app->object_split - 4, 300, 8))
+        ui->hint = "Drag to resize Scene Objects and Properties";
+    offset = app->object_split - 326 - app->properties_scroll;
+    clip.x = (int)app->sidebar + 1;
+    clip.y = (int)app->object_split + 5;
+    clip.w = 299;
+    clip.h = (int)maximum(0, app->height - 24 - clip.y);
+    clipped = SDL_RenderClipEnabled(app->renderer);
+    SDL_GetRenderClipRect(app->renderer, &previous_clip);
+    SDL_SetRenderClipRect(app->renderer, &clip);
+    if (app->sheet_mode == SHEET_SOUNDS || (app->sheet_mode == SHEET_BOTH && app->sound_inspector))
+        draw_sound_properties(app, offset);
+    else
+        draw_object_properties(app, offset);
+    SDL_SetRenderClipRect(app->renderer, clipped ? &previous_clip : NULL);
 }
 static void draw_sound_waveform(App *app, int index, const MarcusSound *sound, int row)
 {
@@ -3555,6 +3665,7 @@ int main(int argc, char **argv)
     app.zoom = 1;
     app.split_fraction = 0.5f;
     app.timeline_height = 300;
+    app.object_split = 326;
     app.second_mode = 2;
     app.movie_dirty = 1;
     find_defaults(&app);

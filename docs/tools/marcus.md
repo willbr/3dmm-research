@@ -163,6 +163,14 @@ Opening a movie or changing scenes clears object and sound selection, including
 scene changes during playback. Objects are selected only by explicit input,
 such as a click or the `--object` command-line option.
 
+The **Scene Objects** list has a draggable scrollbar when there are more objects
+than visible rows. Clicking above or below its thumb moves one page; the wheel
+continues to scroll the list. Drag the horizontal grip above **Object Properties**
+to change the list height. The row count, scroll range and thumb size update with
+the divider, and object/sound properties move with it. Use the wheel over the
+properties pane to read fields that no longer fit. The divider position lasts
+for the Marcus session and is constrained to keep both panes usable.
+
 The playback controls show the current movie position and total duration as
 `m:ss / m:ss`, or `h:mm:ss / h:mm:ss` for movies lasting an hour or more.
 Frame and scene navigation, including the movie overlay, use scalable SVG redrawings of 3DMM's
