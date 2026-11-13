@@ -985,6 +985,17 @@ static int sound_has_marker(App *app, int index, const MarcusSound *sound)
     return !marcus_sound_waveform(app->player, index, 0, 1, 1, &peak, &waveform) ||
            waveform.kind != MARCUS_WAVEFORM_SAMPLED;
 }
+static int frame_has_sound(App *app)
+{
+    MarcusSound sound;
+    int index;
+    /* Retail marks cue frames, including stop/silence cues, rather than every
+     * frame covered by a playing clip or a sound carried from another scene. */
+    for (index = 0; index < app->info.sound_count; ++index)
+        if (marcus_sound(app->player, index, &sound) && !sound.carried && sound.frame == app->info.frame)
+            return 1;
+    return 0;
+}
 static int animation_event_at(App *app, int object, int lane, int row, float x, float y)
 {
     MarcusAnimationInfo info;
@@ -2827,7 +2838,7 @@ static void draw_movie_scrubber(App *app, int available)
     x = rect.x + (float)(rect.w * fraction);
     hovered = available && ui_inside(ui->mouse_x, ui->mouse_y, rect.x, rect.y, rect.w, rect.h);
     ui_slider_thumb(ui, (float)maximum(rect.x, minimum(rect.x + rect.w - 10, x - 5)), center - 10,
-                    1, available, hovered || app->movie_scrubbing);
+                    1, available, hovered || app->movie_scrubbing, 0);
     if (hovered || app->movie_scrubbing)
     {
         ui->hint = "Movie scrubber: drag to seek across scenes; ticks mark scene boundaries";
@@ -3088,7 +3099,8 @@ static void draw_timeline(App *app)
         x = frame_x(app, app->info.frame + 0.5);
         ui_line(ui, x, y + 48, x, (float)app->height - 32, 0x6d77d0);
         ui_slider_thumb(ui, x - 5, y + 48, 0, 1,
-                        app->dragging || ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 10, 20));
+                        app->dragging || ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 10, 20),
+                        frame_has_sound(app));
     }
     SDL_SetRenderClipRect(app->renderer, NULL);
     ui_line(ui, app->grid_x, y + 48, app->grid_x, (float)app->height - 32, LINE);

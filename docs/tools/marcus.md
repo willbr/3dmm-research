@@ -462,6 +462,10 @@ objects have no box. Selecting from the scene list or dope sheet shows the same
 box, and clicking empty space or pressing Escape clears it. Escape also clears
 selected sound cues/tracks, and clearing a selection keeps movie playback running.
 
+The purple frame-slider thumb displays a musical note on frames containing a
+scene or actor sound cue, including silence cues, as in retail 3DMM. The note
+marks the cue frame rather than the full duration of a playing sound.
+
 Picking uses the displayed camera, evaluated model faces, texture transparency and depth;
 3D text is selectable on its letter surfaces, with gaps between letters left empty.
 Ray tests use face planes in the prepared vertices' coordinate system, including

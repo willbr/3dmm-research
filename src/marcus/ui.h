@@ -51,7 +51,7 @@ void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active);
 /* action: 0 first, 1 previous, 2 next, 3 last. */
 void ui_navigation_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
 void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, const char *hint);
-void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int active);
+void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int active, int sound);
 void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char *text, int enabled);
 #define UI_DIALOG_BUTTON_WIDTH 46
 #define UI_DIALOG_BUTTON_HEIGHT 43

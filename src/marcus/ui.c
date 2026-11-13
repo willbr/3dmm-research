@@ -502,13 +502,24 @@ void ui_frame_button(MarcusUI *ui, float x, float y, int action, int enabled, co
     if (hovered)
         ui->hint = hint;
 }
-void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int active)
+void ui_slider_thumb(MarcusUI *ui, float x, float y, int scene, int enabled, int active, int sound)
 {
     float brightness;
+    unsigned long ink;
     brightness = !enabled ? 0.55f : active ? 1.15f : 1;
     draw_vector_scaled(ui, x, y, scene ? marcus_vector_scene_slider : marcus_vector_frame_slider,
                        scene ? MARCUS_VECTOR_SCENE_SLIDER_COUNT : MARCUS_VECTOR_FRAME_SLIDER_COUNT,
                        1, 1, brightness, enabled);
+    if (!scene && sound)
+    {
+        /* Replace the grip with a small eighth note, as on the retail thumb. */
+        ui_fill(ui, x + 2, y + 2, 6, 16, active ? 0x4f54af : 0x454998);
+        ink = !enabled ? 0x8c8c8c : active ? 0xffffff : 0xf3f3ff;
+        ui_fill(ui, x + 6, y + 4, 1, 10, ink);
+        ui_fill(ui, x + 7, y + 5, 1, 3, ink);
+        ui_fill(ui, x + 3, y + 12, 4, 3, ink);
+        ui_fill(ui, x + 2, y + 13, 1, 2, ink);
+    }
 }
 void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char *text, int enabled)
 {
