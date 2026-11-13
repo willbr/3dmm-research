@@ -81,12 +81,39 @@ for a smoke run but does not establish original repeatability.
 When including Marcus, supply
 `--marcus build/marcus-x64/src/marcus/marcus-regression.exe` as well.
 
-`--sdl-cache PATH` optionally reuses an existing SDL package cache instead of
-copying one beneath every run. Only package data is shared: process workspaces,
-settings, registry isolation and working movie files remain separate. The selected
-path is recorded as `sdl_package_cache` in the suite environment. This is warm
-package-cache coverage; omit the option for the default per-run cache layout.
-OS file caching remains uncontrolled in either mode.
+SDL package data is shared by default under `OUTPUT/sdl-cache`, avoiding a
+fresh extracted copy for every player/mode/repetition. `--sdl-cache PATH` selects
+another shared cache. Processes, settings, registry isolation and working movie
+files remain private. The path is recorded as `sdl_package_cache`; this is warm
+package-cache coverage, with OS file caching uncontrolled. The existing C89 warm
+cache was moved into `tmp/c89-movie-data-regression/sdl-cache` without copying it.
+
+Raw capture retention defaults to the latest two completed runs for each
+case/player/mode/preparation/repetition key, plus the latest failure for each key,
+active runs, the latest suite and explicitly pinned suites. A suite remains while
+any of its runs is needed. Cleanup runs before and after a suite; it refuses to
+delete while another capture is running. SQLite observations/hashes/timestamps
+remain unchanged, and summaries/diagnostic JSON/logs are archived under
+`retained-metadata`. `pruned-suites.json` records removed raw directories.
+Historical sections below describe evidence available when recorded; superseded
+raw images/audio have since been pruned, with observations and metadata retained.
+
+`--keep-captures N` changes the completed-run limit (`0` disables automatic
+pruning). `--pin-suite ID` protects additional suites for an invocation; a JSON
+array in `OUTPUT/retention-pins.json` supplies persistent pins. Manual cleanup is
+preview-only until `--apply` is supplied:
+
+```powershell
+python tools/playback_regression.py prune --database tmp/c89-movie-data-regression/playback.sqlite
+python tools/playback_regression.py prune --database tmp/c89-movie-data-regression/playback.sqlite --apply
+```
+
+Capture also requires 4096 MiB free before input preparation and every player
+run (`--min-free-mib` adjusts this). On 13 November, superseded captures had
+grown `tmp` to roughly 90 GiB on disk; pruning them reduced it to roughly 28 GiB.
+The current baselines/results and latest failures were retained. Thirty-six
+harness tests cover retention boundaries, metadata preservation, shared-cache
+selection, path/link safety and the free-space guard; no Marcus UI tests are used.
 
 `--preparations fresh-process,replay` additionally plays the complete movie once
 before the recorded pass in the **same process**. Its warm-up artifacts are kept
