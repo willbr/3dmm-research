@@ -6,11 +6,12 @@
 #include <limits>
 #include <vector>
 #include <iterator>
+#include <unordered_map>
 
 namespace
 {
 constexpr int cardHeight = 192, gap = 12;
-constexpr int frameThumbnailLimit = 2048;
+constexpr int frameThumbnailLimit = 4096;
 // Retail scene sorter order (not the order of the on-disk transition IDs).
 constexpr int transitions[] = {MARCUS_TRANSITION_CUT, MARCUS_TRANSITION_DISSOLVE,
                                MARCUS_TRANSITION_FADE_BLACK, MARCUS_TRANSITION_FADE_WHITE};
@@ -70,6 +71,7 @@ struct MarcusSceneOrganiser
     float dragOffset = 0;
     unsigned long clock = 0;
     std::array<Thumbnail, frameThumbnailLimit> thumbnails;
+    std::unordered_map<int, Thumbnail *> thumbnailByIndex;
     Thumbnail empty;
     bool frames = false;
     int sourceScene = 0;
@@ -89,7 +91,7 @@ namespace
 {
 float MinimumZoom(const MarcusSceneOrganiser *s)
 {
-    return std::min(1.0f, std::max({0.20f, 20.0f / s->previewWidth, 12.0f / s->previewHeight}));
+    return std::min(1.0f, std::max({0.10f, 16.0f / s->previewWidth, 9.0f / s->previewHeight}));
 }
 Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
 {
@@ -197,6 +199,7 @@ void ToggleWholeMovie(MarcusSceneOrganiser *s)
     s->selected = IndexAt(s, position.scene, position.frame);
     s->scroll = -1;
     s->dragging = s->zoomDragging = false;
+    s->thumbnailByIndex.clear();
     for (auto &t : s->thumbnails)
     {
         SDL_DestroyTexture(t.texture);
@@ -214,11 +217,14 @@ Thumbnail &OldestThumbnail(MarcusSceneOrganiser *s)
 }
 void StoreThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int index, const MarcusImage &image)
 {
-    auto &t = OldestThumbnail(s);
+    const auto existing = s->thumbnailByIndex.find(index);
+    auto &t = existing == s->thumbnailByIndex.end() ? OldestThumbnail(s) : *existing->second;
+    if (t.scene >= 0) s->thumbnailByIndex.erase(t.scene);
     SDL_DestroyTexture(t.texture);
     t = {};
     t.scene = index;
     t.used = ++s->clock;
+    s->thumbnailByIndex[index] = &t;
     if (!image.rgba || !image.width || !image.height) return;
     t.width = image.width;
     t.height = image.height;
@@ -232,12 +238,12 @@ void StoreThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int index, 
 }
 Thumbnail &GetThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int scene, bool &loaded)
 {
-    for (auto &t : s->thumbnails)
-        if (t.scene == scene)
-        {
-            t.used = ++s->clock;
-            return t;
-        }
+    const auto found = s->thumbnailByIndex.find(scene);
+    if (found != s->thumbnailByIndex.end())
+    {
+        found->second->used = ++s->clock;
+        return *found->second;
+    }
     if (s->frames) return s->empty;
     // Decode at most one saved thumbnail per draw to keep input responsive.
     if (loaded) return s->empty;
@@ -271,8 +277,7 @@ void UpdateFrameThumbnails(MarcusSceneOrganiser *s, SDL_Renderer *renderer, cons
     const int end = int(std::min(static_cast<long long>(s->count), static_cast<long long>(first) + l.rows * l.columns));
     auto request = [&](int index) {
         if (count == int(requests.size())) return;
-        if (std::none_of(s->thumbnails.begin(), s->thumbnails.end(),
-                         [&](const Thumbnail &t) { return t.scene == index; })) requests[count++] = PositionAt(s, index);
+        if (s->thumbnailByIndex.find(index) == s->thumbnailByIndex.end()) requests[count++] = PositionAt(s, index);
     };
     if (s->selected >= first && s->selected < end) request(s->selected);
     for (int index = first; index < end; ++index)
@@ -301,6 +306,7 @@ void scene_organiser_close(MarcusSceneOrganiser *s)
     s->previewHeight = 120;
     s->scenes.clear();
     s->movieFrameCount = 0;
+    s->thumbnailByIndex.clear();
     for (auto &t : s->thumbnails)
     {
         SDL_DestroyTexture(t.texture);
