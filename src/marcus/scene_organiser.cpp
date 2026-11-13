@@ -11,7 +11,7 @@
 namespace
 {
 constexpr int sceneGap = 8, sceneInset = 4, transitionWidth = 22, transitionHeight = 20;
-constexpr int transitionGap = 2, sceneLabelHeight = 20;
+constexpr int transitionGap = 2;
 constexpr int frameThumbnailLimit = 4096;
 // Retail scene sorter order (not the order of the on-disk transition IDs).
 constexpr int transitions[] = {MARCUS_TRANSITION_CUT, MARCUS_TRANSITION_DISSOLVE,
@@ -119,7 +119,7 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
         l.cellWidth = (l.grid.w - (l.columns - 1) * l.spacing) / l.columns;
         const float pictureWidth = std::max(1.f, l.cellWidth - 3 * sceneInset - transitionWidth);
         const float pictureHeight = std::max(pictureWidth * 9 / 16, float(4 * transitionHeight + 3 * transitionGap));
-        l.cellHeight = pictureHeight + 2 * sceneInset + sceneLabelHeight;
+        l.cellHeight = pictureHeight + 2 * sceneInset;
     }
     l.rows = std::max(1, int((l.grid.h + l.spacing) / (l.cellHeight + l.spacing)));
     const int totalRows = std::max(l.rows, int((static_cast<long long>(s->count) + l.columns - 1) / l.columns));
@@ -571,7 +571,7 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
                 selected ? 0x9edbd0 : hovered ? 0x7387a6 : 0x45516a);
         ui_fill(ui, x, y, l.cellWidth, l.cellHeight, selected ? 0x3c5060 : 0x1c2331);
         const SDL_FRect picture = {x + sceneInset, y + sceneInset,
-            l.cellWidth - 3 * sceneInset - transitionWidth, l.cellHeight - 2 * sceneInset - sceneLabelHeight};
+            l.cellWidth - 3 * sceneInset - transitionWidth, l.cellHeight - 2 * sceneInset};
         ui_fill(ui, picture.x, picture.y, picture.w, picture.h, 0x0b0e15);
         auto &t = GetThumbnail(s, ui->renderer, index, loaded);
         if (t.scene == index && t.texture)
@@ -585,9 +585,6 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
                       t.scene == index ? "No thumbnail" : "Loading...", 0x909cb0);
         MarcusScene scene = {};
         marcus_scene(s->player, index, &scene);
-        SDL_snprintf(text, sizeof(text), "%d. %s", index + 1, scene.name[0] ? scene.name : "Untitled scene");
-        ui_label(ui, x + sceneInset, y + l.cellHeight - sceneLabelHeight,
-                 l.cellWidth - 2 * sceneInset, text, 0xe7edf5);
         for (int effect = 0; effect < 4; ++effect)
         {
             const float iconX = x + l.cellWidth - sceneInset - transitionWidth;

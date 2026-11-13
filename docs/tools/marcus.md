@@ -191,8 +191,8 @@ UI font; heading styling is explicit, so uppercase movie and object names retain
 their usual appearance.
 
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
-shows a compact scrollable grid in movie order, with saved thumbnails and a
-single scene-name line. The footer shows the selected scene's frame count and
+shows a compact scrollable grid in movie order, with saved thumbnails and
+transition icons. The footer shows the selected scene's frame count and
 current-scene status. Select a card and press Enter
 or the green OK button, or double-click it, to jump to that scene's first frame.
 Arrow keys, Page Up/Down, Home/End, the wheel and the draggable scrollbar navigate
