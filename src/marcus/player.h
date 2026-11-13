@@ -19,11 +19,21 @@ extern "C"
         int zipped;
     } MarcusMovieEntry;
 
+    enum MarcusTransition
+    {
+        MARCUS_TRANSITION_NONE = -1,
+        MARCUS_TRANSITION_CUT = 0,
+        MARCUS_TRANSITION_FADE_BLACK = 1,
+        MARCUS_TRANSITION_FADE_WHITE = 2,
+        MARCUS_TRANSITION_DISSOLVE = 3,
+        MARCUS_TRANSITION_BLACK = 4
+    };
     typedef struct MarcusScene
     {
         char name[192];
         unsigned long chunk;
         long first_frame, last_frame;
+        int transition; /* Outgoing effect, after this scene. MarcusTransition. */
     } MarcusScene;
 
     typedef struct MarcusObject

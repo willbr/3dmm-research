@@ -176,6 +176,11 @@ Missing thumbnails use a placeholder. Thumbnail decoding leaves the live scene
 and cameras untouched, loads at most one saved image per draw, and uses a bounded
 texture cache. The organiser currently supports browsing and scene selection;
 scene reordering, deletion and movie saving are not implemented.
+Each card also shows the four retail transition symbols in sorter order: Cut,
+Dissolve, Fade to black and Fade to white. A red outline marks the saved outgoing
+effect, which runs after that scene. The card names it (Black/White abbreviate the
+fades); the footer gives the full effect name for the selection or hovered symbol.
+These indicators display the authored setting without editing it.
 
 The existing timeline playhead uses a blue beveled SVG thumb; the existing
 movie-wide scrubber uses a green one, including in the expanded movie view.

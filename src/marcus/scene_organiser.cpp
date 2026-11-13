@@ -6,7 +6,43 @@
 
 namespace
 {
-constexpr int cardHeight = 166, gap = 12;
+constexpr int cardHeight = 192, gap = 12;
+// Retail scene sorter order (not the order of the on-disk transition IDs).
+constexpr int transitions[] = {MARCUS_TRANSITION_CUT, MARCUS_TRANSITION_DISSOLVE,
+                               MARCUS_TRANSITION_FADE_BLACK, MARCUS_TRANSITION_FADE_WHITE};
+const char *TransitionName(int transition)
+{
+    switch (transition)
+    {
+    case MARCUS_TRANSITION_NONE: return "None";
+    case MARCUS_TRANSITION_CUT: return "Cut";
+    case MARCUS_TRANSITION_DISSOLVE: return "Dissolve";
+    case MARCUS_TRANSITION_FADE_BLACK: return "Fade to black";
+    case MARCUS_TRANSITION_FADE_WHITE: return "Fade to white";
+    case MARCUS_TRANSITION_BLACK: return "Black";
+    default: return "Unknown";
+    }
+}
+void TransitionSymbol(MarcusUI *ui, float x, float y, int transition, bool active)
+{
+    // Scalable versions of retail's e3trn1..4 motifs: a hard cut, a ramp,
+    // white through black, and black through white. Red marks the saved choice.
+    ui_fill(ui, x, y, 22, 20, active ? 0xec2020 : 0x67758b);
+    for (int column = 0; column < 16; ++column)
+    {
+        float value;
+        const float position = column / 15.0f;
+        if (transition == MARCUS_TRANSITION_CUT) value = column < 8 ? 1.0f : 0.0f;
+        else if (transition == MARCUS_TRANSITION_DISSOLVE) value = 1.0f - position;
+        else
+        {
+            value = std::clamp((std::abs(position - 0.5f) - 0.1f) / 0.3f, 0.0f, 1.0f);
+            if (transition == MARCUS_TRANSITION_FADE_WHITE) value = 1.0f - value;
+        }
+        const unsigned long shade = 11 + static_cast<unsigned long>(238 * value);
+        ui_fill(ui, x + 3 + column, y + 3, 1, 14, shade * 0x010101UL);
+    }
+}
 struct Layout
 {
     SDL_FRect panel, grid, track, thumb, cancel, confirm;
@@ -230,6 +266,11 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     SDL_snprintf(text, sizeof(text), "%d scenes", s->count);
     ui_text(ui, l.panel.x + l.panel.w - 126, l.panel.y + 16, text, 0xc5cedd);
     bool loaded = false;
+    MarcusScene selectedScene = {};
+    marcus_scene(s->player, s->selected, &selectedScene);
+    char transitionHint[192];
+    SDL_snprintf(transitionHint, sizeof(transitionHint), "After scene %d: %s", s->selected + 1,
+                 TransitionName(selectedScene.transition));
     for (int n = 0; n < l.rows * l.columns; ++n)
     {
         const int index = s->scroll * l.columns + n;
@@ -264,10 +305,24 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
         SDL_snprintf(text, sizeof(text), "%ld frames%s", scene.last_frame - scene.first_frame + 1,
                      index == s->current ? " / Current" : "");
         ui_label(ui, x + 10, y + 140, l.cellWidth - 20, text, 0xafbdce);
+        for (int effect = 0; effect < 4; ++effect)
+        {
+            const float iconX = x + 10 + effect * 26;
+            TransitionSymbol(ui, iconX, y + 164, transitions[effect], scene.transition == transitions[effect]);
+            if (ui_inside(ui->mouse_x, ui->mouse_y, iconX, y + 164, 22, 20))
+                SDL_snprintf(transitionHint, sizeof(transitionHint), "After scene %d: %s%s", index + 1,
+                             TransitionName(transitions[effect]),
+                             scene.transition == transitions[effect] ? " (saved)" : "");
+        }
+        const char *shortName = scene.transition == MARCUS_TRANSITION_FADE_BLACK ? "Black" :
+                                scene.transition == MARCUS_TRANSITION_FADE_WHITE ? "White" :
+                                TransitionName(scene.transition);
+        ui_label(ui, x + 116, y + 166, l.cellWidth - 126, shortName, 0xc5cedd);
     }
     ui_fill(ui, l.track.x, l.track.y, l.track.w, l.track.h, 0x151b28);
     if (l.maxScroll) ui_fill(ui, l.thumb.x, l.thumb.y, l.thumb.w, l.thumb.h, s->dragging ? 0x9edbd0 : 0x7387a6);
-    ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 48, l.panel.w - 180,
+    ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 66, l.panel.w - 180, transitionHint, 0xe7edf5);
+    ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 44, l.panel.w - 180,
              "Select a scene / Enter or double-click to open / Esc to cancel", 0xc5cedd);
     ui_dialog_button(ui, l.cancel.x, l.cancel.y, 0, 1, "Cancel / Escape");
     ui_dialog_button(ui, l.confirm.x, l.confirm.y, 1, 1, "Open selected scene / Enter");

@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     size_t bytes;
     int index, scene_count, picked, pick_x, pick_y, x, y, hits, renderer, expected_pick, span_index, event_index,
         active;
-    if (argc != 8)
+    if (argc != 9)
         return 2;
     player = marcus_create();
     other = NULL;
@@ -57,6 +57,8 @@ int main(int argc, char **argv)
     CHECK(marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           fabs(movie_time.duration_seconds - 10) < 1e-6);
     CHECK(marcus_scene(player, 0, &scene) && scene.first_frame == 1 && scene.last_frame == 30);
+    CHECK(scene.transition == MARCUS_TRANSITION_CUT);
+    CHECK(marcus_scene(player, 1, &scene) && scene.transition == MARCUS_TRANSITION_CUT);
     CHECK(!marcus_scene_thumbnail(player, -1, &thumbnail) && !thumbnail.rgba && !thumbnail.width);
     CHECK(marcus_scene_thumbnail(player, 0, &thumbnail));
     CHECK(thumbnail.rgba && thumbnail.width == 8 && thumbnail.height == 6 && thumbnail.pitch == 32);
@@ -318,6 +320,10 @@ int main(int argc, char **argv)
         CHECK(marcus_render(player, 480, 360, 0, 25, 12, 1, &image));
     }
     CHECK(!marcus_render(player, 1, 1, 0, 0, 0, 1, &image) && !image.rgba);
+    CHECK(marcus_open(player, argv[8], argv[2], argv[3]));
+    CHECK(marcus_scene(player, 0, &scene) && scene.transition == MARCUS_TRANSITION_DISSOLVE);
+    CHECK(marcus_scene(player, 1, &scene) && scene.transition == MARCUS_TRANSITION_CUT);
+    CHECK(marcus_info(player, &info) && info.scene == 0 && info.frame == 1);
     marcus_destroy(player);
     player = marcus_create();
     CHECK(marcus_open(player, argv[1], argv[2], argv[3]));

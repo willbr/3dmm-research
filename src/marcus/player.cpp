@@ -567,6 +567,7 @@ extern "C"
                 scene.chunk = id.number;
                 scene.first_frame = record.scene.firstFrame;
                 scene.last_frame = record.scene.lastFrame;
+                scene.transition = record.scene.transition;
                 const auto &name = archive.Chunks()[index].name;
                 Copy(scene.name, name.empty() ? "Scene " + std::to_string(sceneInfo.size() + 1) : name);
                 sceneInfo.push_back(scene);
