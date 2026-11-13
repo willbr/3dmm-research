@@ -203,156 +203,27 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 ***************************************************************************/
 bool Actor::FPasteRte(PActor pactr)
 {
-    AssertThis(0);
-    AssertVarMem(pactr);
-
-    Base aev;
-    RouteDistancePoint rpt;
-    RouteDistancePoint rptCur;
-    RoutePoint dxyz;
-    long iaev;
-    long irpt;
+    AssertThis(0); AssertVarMem(pactr);
+    static_assert(kdwrNil==-65536 && factnStatic==8 && kcbVarStep==4 && kcbVarFreeze==4,"Route paste ABI");
+    auto state=EngineActorMotion::Core(_state); const auto motion=EngineActorMotion::Services();
+    ThreeMMActorRoutePasteServices s{}; s.subroute=_SubrouteEditServices();
+    s.reserve_points=[](void *route,ThreeMMU32 count) { return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil)); };
+    s.distance=[](void *,const ThreeMMActorPoint *p)->ThreeMMI32 { return BR_LENGTH3(p->dxr,p->dyr,p->dzr); };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault) {
+        case THREE_MM_ROUTE_PASTE_EMPTY: PushErc(ercSocNothingToPaste); break;
+        case THREE_MM_ROUTE_PASTE_INSERT_FAILED: Bug("Logic error"); break;
+        case THREE_MM_ROUTE_PASTE_NO_ACTION: Assert(false,"Actor has no action"); break;
+        }
+    };
 #ifdef STATIC
-    bool fStatic;
-#endif // STATIC
-    long crptDel = 0;
-    long crptNew = pactr->_track.Route()->IvMac() - 1;
-
-    if (crptNew <= 0)
-    {
-        PushErc(ercSocNothingToPaste);
-        return fFalse;
-    }
-
-    if (!_track.Route()->FEnsureSpace(crptNew, fgrpNil) || !_track.Events()->FEnsureSpace(1, kcbVarStep, fgrpNil))
-    {
-        return fFalse;
-    }
-
-    //
-    // May be positioned between nodes -> potentially
-    // insert the current point
-    //
-    _GetXyzFromRtel(&_state.location, &rptCur.xyz);
-    if (rZero != _state.location.dwrOffset)
-    {
-        BRS dwrCur = _state.location.dwrOffset;
-        _state.location.irpt++;
-        _state.location.dwrOffset = rZero;
-        _state.location.dnfrm = 0;
-        if (!_FInsertGgRpt(_state.location.irpt, &rptCur, dwrCur))
-            return fFalse;
-        _GetXyzFromRtel(&_state.location, &_state.position);
-        _AdjustAevForRteIns(_state.location.irpt, 0);
-    }
-
-    //
-    // Delete to the end of this *sub*route
-    //
-    for (irpt = _state.location.irpt + 1; irpt < _track.Route()->IvMac(); irpt++)
-    {
-        _track.Route()->Get(irpt, &rpt);
-        crptDel++;
-        if (rpt.dwr == rZero)
-        {
-            break;
-        }
-    }
-    if (crptDel > 0)
-    {
-        _track.Route()->Delete(_state.location.irpt, crptDel);
-    }
-
-    //
-    // Remove events until the end of the *sub*route
-    // Space optimization: should precede paste
-    // Update location pointer of events of later subroutes
-    //
-    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt > _state.location.irpt + crptDel)
-        {
-            aev.rtel.irpt += crptNew - crptDel;
-            _track.Events()->PutFixed(iaev, &aev);
-            continue;
-        }
-        else
-        {
-            _RemoveAev(iaev, fFalse);
-            iaev--;
-        }
-    }
-
-    //
-    // Paste in the new route.
-    // Translate the points of this section of route
-    // Adjust the aev presently
-    //
-    pactr->_track.Route()->Get(0, &rpt);
-    dxyz.dxr = BrsSub(rptCur.xyz.dxr, rpt.xyz.dxr);
-    dxyz.dyr = BrsSub(rptCur.xyz.dyr, rpt.xyz.dyr);
-    dxyz.dzr = BrsSub(rptCur.xyz.dzr, rpt.xyz.dzr);
-    for (irpt = 1; irpt <= crptNew; irpt++)
-    {
-        pactr->_track.Route()->Get(irpt, &rpt);
-        rpt.xyz.dxr = BrsAdd(rpt.xyz.dxr, dxyz.dxr);
-        rpt.xyz.dyr = BrsAdd(rpt.xyz.dyr, dxyz.dyr);
-        rpt.xyz.dzr = BrsAdd(rpt.xyz.dzr, dxyz.dzr);
-        AssertDo(_track.Route()->FInsert(_state.location.irpt + irpt, &rpt), "Logic error");
-    }
-
-    //
-    // Set the right dwr distance from the current point to
-    // the first point on the new section of route
-    //
-    _track.Route()->Get(_state.location.irpt + 1, &rpt);
-    rptCur.dwr = BR_LENGTH3(BrsSub(rpt.xyz.dxr, rptCur.xyz.dxr), BrsSub(rpt.xyz.dyr, rptCur.xyz.dyr),
-                            BrsSub(rpt.xyz.dzr, rptCur.xyz.dzr));
-    if (rZero == rptCur.dwr)
-        rptCur.dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-    _track.Route()->Put(_state.location.irpt, &rptCur);
-
-#ifdef STATIC
-    //
-    // Force floating behavior on a static action
-    //
-    Assert(_state.actionEvent >= 0, "Actor has no action");
-    if (!_FGetStatic(_state.action, &fStatic))
-        return fFalse;
-    if (fStatic)
-    {
-        if (!FSetStep(kdwrNil))
-            return fFalse;
-    }
-#else  //! STATIC
-    // Force continuation onto newly pasted path
-    if (!FSetStep(kdwrNil))
-        return fFalse;
-#endif //! STATIC
-
-    //
-    // Set new end of path freeze & step events
-    //
-    int32_t faevfrz = (int32_t)fTrue;
-    BRS dwrStep = rZero;
-    aev.aet = aetFreeze;
-    aev.rtel.irpt = _state.location.irpt + crptNew;
-    aev.rtel.dnfrm = 0;
-    aev.rtel.dwrOffset = rZero;
-    aev.nfrm = _state.frame; // will be updated in ComputeLifetime()
-    if (!_FInsertAev(_state.nextEvent, kcbVarFreeze, &faevfrz, &aev))
-        return fFalse;
-    aev.aet = aetStep;
-    if (!_FInsertAev(_state.nextEvent, kcbVarStep, &dwrStep, &aev))
-        return fFalse;
-
-    _fLifeDirty = fTrue;
-    _pscen->InvalFrmRange();
-    _pscen->MarkDirty();
-
-    _PositionBody(&_state.position);
-    return fTrue;
+    const int static_mode=1;
+#else
+    const int static_mode=0;
+#endif
+    bool ok=three_mm_actor_route_paste(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+        pactr->_track.Route(),static_mode,&motion,&s)!=0;
+    EngineActorMotion::Publish(_state,state); return ok;
 }
 
 /***************************************************************************

@@ -288,6 +288,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   route slicing and failure cleanup. Native actor/template creation, movie
   sound-tag resolution and underlying representations remain temporary engine
   dependencies; paste and clipboard policy still need conversion.
+- Route paste now uses C89 for reservation, node splitting/deletion, tagged-event
+  removal, later-subroute index shifts, translated insertion, floating/terminal
+  steps, dirty/range notification and body positioning. It uses the existing C
+  edit/pose implementations and preserves partial failure behavior. Full actor
+  paste, clipboard control and underlying movie/scene/body/resource/runtime
+  implementations remain conversion work.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -382,12 +388,19 @@ configuration and capture environment recorded with the evidence.
 
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
-have shared C89 implementations behind temporary native facades. Continue with
-general actor event insertion/merging and remaining stored-data persistence, alongside the remaining
-physical path/file adapters, then the editing, actor evaluation and rendering
-integration sequence above. Extend the C
-API and regression coverage as each C++ dependency is removed; replacing the
-temporary facades with complete Studio/Marcus backend integration remains required.
+have shared C89 implementations behind temporary native facades. Actor event
+insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
+copy and route-paste policy have also moved into C89. These are completed slices
+within dependency groups 3-5; those groups are not complete as a whole.
+
+The immediate actor sequence is full actor paste (`Actor::FPaste`), clipboard
+creation/naming/lifetime/paste control, then remaining actor/template creation
+and movie sound-tag integration. Continue through the remaining scene/movie
+editing, undo/save and queue/caption/transition runtime operations, converting
+body/template/resource implementations and physical file adapters as their
+dependencies require. Extend the C API and regression coverage as each C++
+dependency is removed. Final host integration must replace the temporary
+facades and prove both hosts use the C-only backend for all engine operations.
 
 The migration is complete when Studio and Marcus use the same C89 engine for
 their engine operations, including Studio editing/saving, the backend builds

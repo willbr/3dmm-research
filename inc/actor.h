@@ -41,6 +41,7 @@ using namespace BRender;
 #include "three_mm/actor_owner.h"
 #include "three_mm/actor_transaction.h"
 #include "three_mm/actor_copy.h"
+#include "three_mm/actor_route_paste.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 

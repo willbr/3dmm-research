@@ -3807,3 +3807,75 @@ with image/change counts and all before/after peaks in
 repetition does not establish general repeatability or full retail parity.
 Paste/clipboard, movie sound resolution, actor/template creation, scene/body/
 resource/runtime implementations and final facade removal remain unfinished.
+
+### Actor route paste C89 conversion (13 November 2026)
+
+`actor_route_paste.c` owns reservation, node splitting/deletion, tagged-event
+removal, later-subroute index shifts, translated insertion, floating/terminal
+steps, dirty/range notification and final body positioning. It calls existing C
+route, event, step and pose implementations directly. The native actor supplies
+state marshaling, array reservation, external C BRender distance and diagnostics.
+Underlying native movie/scene/body/resource representations remain conversion
+dependencies; full actor paste and clipboard control are still C++.
+
+The 167,168-byte native-before trace `tmp/c89-route-paste-before.bin` matches
+exactly across 256 cases, including empty/short clipboard routes, node offsets/
+holds, later subroutes, terminal nodes, material/sound tag ownership, state,
+transforms and resource balance. Pointer fields and Add padding are normalized
+only in serialization. The split temporary's undefined native distance is
+initialized to nonzero epsilon; the temporary point is removed/overwritten
+before the resulting route, whose recorded state is unchanged.
+
+C tests cover unchanged clipboard data, reservation short-circuiting, split
+failure after cursor publication, tagged-event closure, partial event/step/apply
+failure, terminal ordering, epsilon, STATIC metadata and diagnostic-and-continue
+point insertion failure. Failures retain prior edits for caller undo; the port
+does not introduce rollback into this operation. No Marcus UI tests were added.
+
+Both hosts build. All 58 standalone C checks (including strict C89 syntax), 72
+focused native checks and MSVC AddressSanitizer pass. All 43 snapshot comparisons
+and 51 CLI baselines match, and the headless scene/timeline check passes. Evidence
+includes `tmp/c89-route-paste-standalone.log`, `tmp/c89-route-paste-native-checks.log`,
+`tmp/c89-route-paste-asan.log`, `tmp/c89-route-paste-snapshot-comparison.json`,
+`tmp/c89-route-paste-output-comparison.json` and `tmp/c89-route-paste-timeline.log`.
+
+Both binaries were frozen before playback, without concurrent builds or
+compaction. Build symbols/libraries, older binaries and completed captures were
+transparently compressed before/between terminal suites to retain headroom on
+C:, preserving their contents and all raw/failed-run evidence. SDL reused the
+recorded warm package cache with private processes, settings and working movies;
+OS caching remains uncontrolled.
+Same-player baselines are actor-audio `20261113T071739Z-44096303`, actor-events
+`20261113T071943Z-6d08a35a`, scrolling-text `20261113T072143Z-04f39e28` and
+sampled-audio `20261113T072500Z-62e4e35f`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T075758Z-87357889` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T080021Z-dccfb394` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T080240Z-bb5a7330` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T080718Z-9168a4d6` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match their preceding same-player results. Only
+adjacent identical position/image observations are collapsed; raw timestamps
+and observations remain. Actor cases retain 60 ordered changes per player;
+scrolling retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Retail/Marcus actor peaks remain
+3192/4081. SDL peaks at 4081 rather than the immediate baseline's 4080, within
+the one-unit range already observed in unchanged-binary runs. That delta remains
+explicit, without claiming its cause or exact peak equality. Scene-audio peaks
+remain 2380 retail and 2176 SDL/Marcus. Coverage/peaks do not establish exact
+waveform/timing parity.
+
+The combined report is
+`tmp/c89-route-paste-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with image/change counts and before/after peaks in
+`tmp/c89-route-paste-playback-audit.json`. Raw evidence remains under
+`tmp/c89-movie-data-regression`. Existing cross-player differences remain; one
+repetition does not establish general repeatability or full retail parity.
+Full actor paste, clipboard control, movie sound resolution, actor/template
+creation, scene/body/resource/runtime implementations and final facade removal
+remain unfinished.

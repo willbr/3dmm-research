@@ -19,6 +19,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/actor_undo.c)
 target_sources(three-mm-engine-c89 PRIVATE src/actor_group_undo.c)
 target_sources(three-mm-engine-c89 PRIVATE src/actor_transaction.c)
 target_sources(three-mm-engine-c89 PRIVATE src/actor_copy.c)
+target_sources(three-mm-engine-c89 PRIVATE src/actor_route_paste.c)
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(three-mm-engine-c89 PRIVATE -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra)
@@ -305,6 +306,11 @@ add_executable(engine-actor-copy-test EXCLUDE_FROM_ALL "${engine_actor_copy_test
 target_link_libraries(engine-actor-copy-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-actor-copy-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-actor-copy COMMAND engine-actor-copy-test)
+get_filename_component(engine_route_paste_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_route_paste_test.c" ABSOLUTE)
+add_executable(engine-route-paste-test EXCLUDE_FROM_ALL "${engine_route_paste_test_source}")
+target_link_libraries(engine-route-paste-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-route-paste-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-route-paste COMMAND engine-route-paste-test)
 if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
@@ -344,6 +350,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_group_undo.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_transaction.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_copy.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_route_paste.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rollcall_storage.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_file.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/string_table.c"
@@ -396,5 +403,6 @@ if(ENGINE_C89_COMPILER)
     "${engine_group_undo_test_source}"
     "${engine_actor_transaction_test_source}"
     "${engine_actor_copy_test_source}"
+    "${engine_route_paste_test_source}"
     "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_piece_test_source}" "${engine_codec_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}" "${engine_file_policy_test_source}" "${engine_chunk_save_test_source}" "${engine_chunk_heap_test_source}" "${engine_chunk_edit_test_source}" "${engine_chunk_graph_test_source}" "${engine_chunk_ops_test_source}" "${engine_metadata_test_source}" "${engine_forest_test_source}" "${engine_loading_test_source}" "${engine_chunk_storage_test_source}" "${engine_lifecycle_test_source}" "${engine_container_test_source}" "${engine_resource_test_source}" "${engine_chunk_owner_test_source}" "${engine_chunk_table_test_source}" "${engine_tag_test_source}" "${engine_source_test_source}" "${engine_source_names_test_source}" "${engine_movie_owner_test_source}" "${engine_rollcall_storage_test_source}" "${engine_movie_title_root_test_source}" "${engine_scene_data_test_source}" "${engine_actor_data_test_source}" "${engine_actor_track_test_source}" "${engine_actor_motion_test_source}" "${engine_actor_frame_test_source}" "${engine_actor_timeline_test_source}" "${engine_actor_pose_test_source}")
 endif()

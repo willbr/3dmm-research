@@ -284,6 +284,75 @@ class TrackTestActor : public Actor
         }
         return saved;
     }
+    bool FTestRoutePaste(int mode,FILE *snapshot,StageTestScene *scene,TrackTestActor *clipboard,
+                        PChunkyResourceFile resource,ChunkNumber material,ChunkNumber soundNumber)
+    {
+        using namespace ActorEvent;
+        ActorTrack track,clip; if (!track.FCreate() || !clip.FCreate()) return false;
+        const bool later=(mode&16)!=0; const int current=(mode&64)?2:(mode&32)?1:0;
+        const int positions[]={0,4,10,20,30},distances[]={4,6,0,10,0};
+        for (int i=0;i<(later?5:3);++i)
+        {
+            RouteDistancePoint point={{BR_SCALAR(positions[i]),rZero,rZero},BR_SCALAR(distances[i])};
+            if (!track.Route()->FInsert(i,&point)) return false;
+        }
+        for (int i=0;i<((mode>>2)&3);++i)
+        {
+            RouteDistancePoint point={{BR_SCALAR(100+i*4),BR_SCALAR(5+((mode&2)?i:0)),BR_SCALAR(-10)},i+1==((mode>>2)&3)?rZero:BR_SCALAR(4)};
+            if (!clip.Route()->FInsert(i,&point)) return false;
+        }
+        auto append=[&](int kind,int frame,int node) {
+            Base event={kind,frame,{node,rZero,0}};
+            union { Add add; Action action; Costume costume; Sound sound; int32_t scalar; } data;
+            std::memset(&data,0,sizeof(data)); int bytes=4;
+            switch (kind)
+            {
+            case aetAdd: bytes=sizeof(Add); break;
+            case aetActn: bytes=sizeof(Action); break;
+            case aetSize: case aetStep: data.scalar=rOne; break;
+            case aetCost: bytes=sizeof(Costume); data.costume.ibset=0; data.costume.fCmtl=tNo;
+                data.costume.tag={ksidUseCrf,resource,kctgMtrl,material}; TagManager::DupTag(&data.costume.tag); break;
+            case aetSnd: bytes=sizeof(Sound); data.sound.celn=-1; data.sound.sty=2; data.sound.vlm=100;
+                data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber}; TagManager::DupTag(&data.sound.tag); break;
+            }
+            if (track.Events()->FInsert(track.Events()->IvMac(),bytes,&data,&event)) return true;
+            if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
+            if (kind==aetSnd) TagManager::CloseTag(&data.sound.tag);
+            return false;
+        };
+        bool ok=append(aetAdd,1,0) && append(aetActn,1,0) && append(aetStep,2,0) && append(aetSize,2,0) &&
+            append(aetCost,3,current) && append(aetSnd,3,current<2?current+1:current) && append(aetStep,4,2);
+        if (later) ok=ok && append(aetAdd,8,3) && append(aetActn,8,3) && append(aetCost,8,3) && append(aetSnd,9,4) && append(aetStep,10,4);
+        if (!ok) return false;
+        _track.Swap(track); clipboard->_track.Swap(clip); _motionSounds.Clear(); _state=ActorFrameState();
+        _state.frame=3; _state.onStage=true; _state.celCount=4; _state.actionFlags=factnRotateY;
+        _state.addEvent=0; _state.actionEvent=1; _state.nextEvent=_state.firstEventInFrame=4;
+        _state.location={current,(current<2 && (mode&1))?BR_SCALAR(2):rZero,(mode&2)?2:0};
+        _GetXyzFromRtel(&_state.location,&_state.position); _nfrmFirst=1; _nfrmLast=10; _fLifeDirty=(mode&128)!=0;
+        if (!scene->TrackActor(this,3)) return false;
+        bool changed=FPasteRte(clipboard); vpers->Clear();
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,changed,_state.frame,_state.nextEvent,_state.firstEventInFrame,_state.addEvent,_state.actionEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.step,_state.frozen,
+            _nfrmFirst,_nfrmLast,_fLifeDirty,resource->CactRef(),_track.Route()->IvMac(),_track.Events()->IvMac(),clipboard->_track.Route()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) && record(&_state.transform,sizeof(_state.transform));
+        for (int source=0;saved && source<2;++source)
+        {
+            auto route=source?clipboard->_track.Route():_track.Route();
+            for (long i=0;saved && i<route->IvMac();++i) { RouteDistancePoint point; route->Get(i,&point); saved=record(&point,sizeof(point)); }
+        }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
+            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            if (event.aet==aetAdd) payload[18]=payload[19]=0;
+            if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
+            if (event.aet==aetSnd) { Sound value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
+            saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        return saved;
+    }
     bool FTestCopy(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,
                    ChunkNumber materialNumber,ChunkNumber soundNumber,ChildChunkID child)
     {
@@ -1747,6 +1816,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_group_undo_fixture.h"
 #include "engine_edit_transaction_fixture.h"
 #include "engine_actor_copy_fixture.h"
+#include "engine_route_paste_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2335,6 +2405,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor edit transactions failed");
     if (!TestActorCopy(pmvie))
         BAIL("actor copy failed");
+    if (!TestActorRoutePaste(pmvie))
+        BAIL("actor route paste failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

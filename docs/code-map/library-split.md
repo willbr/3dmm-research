@@ -67,6 +67,7 @@ cmake --build build/engine-c89 --target engine-actor-undo-test
 cmake --build build/engine-c89 --target engine-group-undo-test
 cmake --build build/engine-c89 --target engine-actor-transaction-test
 cmake --build build/engine-c89 --target engine-actor-copy-test
+cmake --build build/engine-c89 --target engine-route-paste-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1388,6 +1389,37 @@ scenarios in private movies, including both copy scopes, cached templates,
 owning material/sound tags, allocation/resolve failures, tables, rewound state
 and reference counts. It matches exactly. Fixture sound chunks support tag
 mapping without decoding audio; the playback corpus supplies actual audio checks.
+
+### Actor route paste
+
+`actor_route_paste.c` owns route paste and calls the existing C route splitter,
+event removal/insertion, floating-step and pose implementations directly. It
+reserves before mutation, publishes the split cursor before insertion, deletes
+from the current node using the native count, removes current-subroute events
+without cursor updates and shifts later-subroute event indices. Clipboard points
+are translated relative to the current point and remain unchanged. First-segment
+length retains epsilon 1; end Step/Freeze ordering and delayed dirty/range/body
+notification are preserved.
+
+Failures keep preceding edits for the caller's undo snapshot to unwind. Reserved
+point insertion failure diagnoses and continues, matching native AssertDo; other
+insertion, metadata and floating-step failures return immediately. The optional
+STATIC policy is explicit: it queries action flags and floats only static actions,
+while the normal build always floats. The split temporary's previously
+uninitialized distance is initialized to a nonzero epsilon before the existing
+splitter; the temporary node is removed/overwritten before the resulting route.
+
+The native actor now marshals state and supplies array reservation, external C
+BRender distance and diagnostics. Existing adapters still supply native scene/
+body/resource representations; they are not final backend boundaries. The
+167,168-byte native-before trace covers 256 scenarios, including empty/short
+clipboard paths, offsets/holds, later subroutes, terminal nodes, owning material/
+sound tags, state/transforms and reference balance, and matches exactly.
+`engine-route-paste-test` additionally checks reservation/split/event/apply
+failures, partial edits, tag closure, cursor/terminator ordering, optional STATIC
+metadata, diagnostic-and-continue insertion failure and unchanged clipboard data.
+Full actor paste, clipboard control, movie/scene/body/resource/runtime policy
+and final facade removal remain unfinished.
 
 ### Source names and directory discovery
 
