@@ -19,6 +19,7 @@ typedef struct MarcusUI
     SDL_Texture *heading_font;
     SDL_Texture *transport_labels[2];
     SDL_Texture *transport_numbers;
+    SDL_Texture *settings_icons[2]; /* Native 28px and 40px controls. */
     MarcusGlyph transport_digits[13]; /* '-' through '9'. */
     int transport_space;
     MarcusGlyph glyphs[224];

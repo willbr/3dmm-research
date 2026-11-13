@@ -222,6 +222,9 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 }
 void ui_destroy(MarcusUI *ui)
 {
+    SDL_DestroyTexture(ui->settings_icons[0]);
+    SDL_DestroyTexture(ui->settings_icons[1]);
+    ui->settings_icons[0] = ui->settings_icons[1] = NULL;
     SDL_DestroyTexture(ui->transport_numbers);
     ui->transport_numbers = NULL;
     SDL_DestroyTexture(ui->transport_labels[0]);
@@ -579,34 +582,70 @@ void ui_dialog_button(MarcusUI *ui, float x, float y, int confirm, int enabled, 
     if (hovered)
         ui->hint = hint;
 }
+static SDL_Texture *settings_icon(SDL_Renderer *renderer, int size)
+{
+    unsigned char pixels[UI_SETTINGS_SIZE * UI_SETTINGS_SIZE * 4];
+    SDL_Surface *surface;
+    SDL_Texture *texture;
+    int x, y, sx, sy, coverage, offset;
+    float dx, dy, phase, radius, squared;
+    /* Six broad teeth and an open centre. Average 8x8 samples at each native
+     * display pixel for clean coverage without a shadow or aliased outlines. */
+    for (y = 0; y < size; ++y)
+        for (x = 0; x < size; ++x)
+        {
+            coverage = 0;
+            for (sy = 0; sy < 8; ++sy)
+                for (sx = 0; sx < 8; ++sx)
+                {
+                    dx = (x + (sx + 0.5f) / 8 - size / 2.0f) * UI_SETTINGS_SIZE / size;
+                    dy = (y + (sy + 0.5f) / 8 - size / 2.0f) * UI_SETTINGS_SIZE / size;
+                    squared = dx * dx + dy * dy;
+                    if (squared < 4.5f * 4.5f || squared > 14 * 14)
+                        continue;
+                    phase = SDL_atan2f(dy, dx) * 0.95492966f;
+                    phase -= SDL_floorf(phase);
+                    radius = phase < 0.18f || phase > 0.82f ? 11.f :
+                             phase < 0.32f ? 11 + (phase - 0.18f) * (3 / 0.14f) :
+                             phase > 0.68f ? 14 - (phase - 0.68f) * (3 / 0.14f) : 14.f;
+                    coverage += squared <= radius * radius;
+                }
+            offset = (y * size + x) * 4;
+            pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 255;
+            pixels[offset + 3] = (unsigned char)((coverage * 255 + 32) / 64);
+        }
+    surface = SDL_CreateSurfaceFrom(size, size, SDL_PIXELFORMAT_RGBA32, pixels, size * 4);
+    if (!surface)
+        return NULL;
+    texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_DestroySurface(surface);
+    if (texture)
+    {
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+    }
+    return texture;
+}
 void ui_settings_button(MarcusUI *ui, float x, float y, float size, int active)
 {
-    float angle, next, radius, next_radius, center_x, center_y, scale;
-    int pass, index, hovered;
+    SDL_FRect destination;
+    SDL_Texture *texture;
     unsigned long tint;
-    scale = size / UI_SETTINGS_SIZE;
+    int index, hovered;
+    index = size <= 28 ? 0 : 1;
+    if (!ui->settings_icons[index])
+        ui->settings_icons[index] = settings_icon(ui->renderer, index ? UI_SETTINGS_SIZE : 28);
+    texture = ui->settings_icons[index];
     hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, size, size);
-    for (pass = 0; pass < 2; ++pass)
+    tint = hovered || active ? 0x78cbc4 : 0xaeb6c0;
+    if (texture)
     {
-        center_x = x + size / 2 + (pass ? 0 : 1);
-        center_y = y + size / 2 + (pass ? 0 : 1);
-        tint = pass ? (hovered || active ? 0x78cbc4 : 0xdde0e5) : 0;
-        for (index = 0; index < 32; ++index)
-        {
-            angle = index * 0.19634954f;
-            next = (index + 1) * 0.19634954f;
-            radius = (index % 4 == 1 || index % 4 == 2 ? 14 : 11) * scale;
-            next_radius = ((index + 1) % 4 == 1 || (index + 1) % 4 == 2 ? 14 : 11) * scale;
-            ui_line(ui, center_x + SDL_cosf(angle) * radius, center_y + SDL_sinf(angle) * radius,
-                    center_x + SDL_cosf(next) * next_radius, center_y + SDL_sinf(next) * next_radius, tint);
-        }
-        for (index = 0; index < 24; ++index)
-        {
-            angle = index * 0.26179939f;
-            next = (index + 1) * 0.26179939f;
-            ui_line(ui, center_x + SDL_cosf(angle) * 4.5f * scale, center_y + SDL_sinf(angle) * 4.5f * scale,
-                    center_x + SDL_cosf(next) * 4.5f * scale, center_y + SDL_sinf(next) * 4.5f * scale, tint);
-        }
+        SDL_SetTextureColorMod(texture, (unsigned char)(tint >> 16), (unsigned char)(tint >> 8), (unsigned char)tint);
+        SDL_SetTextureAlphaMod(texture, (unsigned char)(255 * ui->opacity));
+        destination.x = SDL_floorf(x);
+        destination.y = SDL_floorf(y);
+        destination.w = destination.h = size;
+        SDL_RenderTexture(ui->renderer, texture, NULL, &destination);
     }
     if (hovered)
         ui->hint = "Rendering settings";
