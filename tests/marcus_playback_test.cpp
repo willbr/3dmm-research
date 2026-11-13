@@ -311,7 +311,7 @@ void PresentationClock()
         CHECK(timing.transition == expected);
     }
 }
-ChunkNumber Caption(PChunkyFile file, bool scrolling)
+ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false)
 {
     RichTextData text;
     text.fontName.SetSzs(PszLit("Arial"));
@@ -319,7 +319,7 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling)
     text.defaults.dxpDef = 400;
     text.defaults.lwAcrBack = scrolling ? 0x01000000 : 0x01ffffff;
     text.textOsk = koskUniWin;
-    const std::u16string content = scrolling ? u"Credits one\rCredits two\rCredits three\rCredits four\rCredits five"
+    const std::u16string content = edge ? u"E" : scrolling ? u"Credits one\rCredits two\rCredits three\rCredits four\rCredits five"
                                              : u"Marcus captions \u00e9\u03a9\rA second line";
     text.text.pfil = FileObject::PfilCreateTemp();
     text.text.cb = static_cast<LegacyLong>(content.size() * 2);
@@ -335,6 +335,8 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling)
     CHECK(text.FWrite(file, &rich));
     TextBoxData box;
     box.bounds.Set(20, 20, 460, scrolling ? 55 : 110);
+    if (edge)
+        box.bounds.Set(500, 230, 544, 306);
     box.firstFrame = scrolling ? 0 : -2;
     box.maxFrame = scrolling ? 5 : -1;
     box.story = !scrolling;
@@ -455,7 +457,7 @@ void Fixture(const char *path)
     ChunkNumber root;
     CHECK(MovieData::FCreateRoot(file, &root));
     auto wave = Sound(file, false), midi = Sound(file, true);
-    auto title = Caption(file, false), credits = Caption(file, true);
+    auto title = Caption(file, false), credits = Caption(file, true), edge = Caption(file, false, true);
     for (int index = 0; index < 5; ++index)
     {
         SceneData scene;
@@ -477,10 +479,10 @@ void Fixture(const char *path)
             TAGOnFile tag = {2, 0, kctgBkgd, 0};
             CHECK(starts->FInsert(starts->IvMac(), sizeof(tag), &tag, &background));
         }
-        for (unsigned slot = 0; slot < 2; ++slot)
+        for (unsigned slot = 0; slot < 3; ++slot)
         {
             SceneEvent event = {-2, sevtAddTbox};
-            CHECK(file->FAdoptChild(kctgScen, number, kctgTbox, slot ? credits : title, slot));
+            CHECK(file->FAdoptChild(kctgScen, number, kctgTbox, slot == 2 ? edge : slot ? credits : title, slot));
             CHECK(starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &event));
         }
         SceneEvent event = {-1, sevtPause};
@@ -739,6 +741,13 @@ int main(int argc, char **argv)
     CHECK(marcus_audio_stats(player, &sheetStats) && !sheetStats.wave_sounds && !sheetStats.midi_sounds);
     const auto title = Image();
     CHECK(std::count(title.begin(), title.end(), byte(255)) > 1000);
+    // The rightmost 64 authored pixels must remain visible, without shifting
+    // a box past the viewport or stretching it from a 480x360 coordinate plane.
+    const auto canvasTitle = Image(1, 544, 306);
+    const auto edgePixel = std::size_t(270 * 544 + 530) * 4;
+    CHECK(canvasTitle[edgePixel] == 255 && canvasTitle[edgePixel + 1] == 255 &&
+          canvasTitle[edgePixel + 2] == 255 && canvasTitle[edgePixel + 3] == 255);
+    CHECK(canvasTitle[std::size_t(220 * 544 + 530) * 4 + 3] == 0);
     // Enlarged captions must contain newly rasterized, smoothed font edges,
     // rather than replicas of the native glyph pixels. Layout/time stays native.
     const auto captionFrame = Info().frame;

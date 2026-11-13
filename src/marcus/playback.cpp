@@ -896,12 +896,14 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
         {
             // Give the perspective caption plane enough texels for the work
             // viewport, including angled views and moderate close inspection.
-            layer.width = std::min(4096u, std::max({480u, image.width * 2, image.height * 8 / 3}));
-            layer.height = layer.width * 3 / 4;
+            layer.width = std::min(4096u, std::max({std::uint32_t(PreviewCaptionWidth), image.width * 2,
+                image.height * 2 * PreviewCaptionWidth / PreviewCaptionHeight}));
+            layer.height = layer.width * PreviewCaptionHeight / PreviewCaptionWidth;
             layer.rgba.assign(std::size_t(layer.width) * layer.height * 4, 0);
             canvas = &layer;
         }
-        const float aspect = authored && image.sceneCamera.valid ? image.sceneCamera.aspect : 4.f / 3;
+        const float aspect = authored && image.sceneCamera.valid ? image.sceneCamera.aspect
+            : float(PreviewCaptionWidth) / PreviewCaptionHeight;
         const auto width = std::min(int(canvas->width), int(canvas->height * aspect));
         const auto height = std::min(int(canvas->height), int(canvas->width / aspect));
         const auto left = (int(canvas->width) - width) / 2, top = (int(canvas->height) - height) / 2;
@@ -921,17 +923,19 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
             }
             pixel[3] = static_cast<std::uint8_t>(coverage / 255);
         };
-        // Caption coordinates are authored in the original 480x360 movie plane.
+        // Saved captions use the retail 544x306 workspace, independently of
+        // the background bitmap's size or the host's chosen render resolution.
         for (auto &caption : impl->captions)
         {
             const auto &data = caption.data;
             if (frame < data.firstFrame || frame >= data.endFrame)
                 continue;
-            if (data.right <= 0 || data.left >= 480 || data.bottom <= 0 || data.top >= 360)
+            if (data.right <= 0 || data.left >= PreviewCaptionWidth || data.bottom <= 0 ||
+                data.top >= PreviewCaptionHeight)
                 continue;
             if (!impl->Layout(caption, error))
                 return false;
-            const float sx = width / 480.f, sy = height / 360.f;
+            const float sx = float(width) / PreviewCaptionWidth, sy = float(height) / PreviewCaptionHeight;
             const int x0 = left + int((data.left + 5) * sx), y0 = top + int((data.top + 5) * sy);
             const int x1 = left + int((data.right - 5) * sx), y1 = top + int((data.bottom - 5) * sy);
             for (int y = std::max(top, y0); y < std::min(top + height, y1); ++y)

@@ -8,6 +8,8 @@ namespace ThreeMM
 class PreviewRasterizer;
 // Matches the bundled BRender output pixelmap limit.
 constexpr std::uint32_t PreviewMaxDimension = 4096;
+// Retail Studio's movie workspace; saved 2D text bounds use these coordinates.
+constexpr int PreviewCaptionWidth = 544, PreviewCaptionHeight = 306;
 struct PreviewAction
 {
     std::string name;

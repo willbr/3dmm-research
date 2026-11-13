@@ -648,8 +648,10 @@ Text is decoded from the stored Windows, Mac or UTF-16 encoding. Missing font
 families fall back to the system font. Enlarged views rasterize font outlines at
 the render resolution with supersampled edge coverage, instead of enlarging the
 original glyph pixels. Layout, line breaks, baselines and scrolling still use
-the original 480x360 metrics; native-size movie rendering retains its retail
+the original 544x306 workspace metrics; native-size movie rendering retains its retail
 glyph masks. Repeated high-resolution glyphs share a bounded 64 MiB cache.
+Saved text bounds map from that workspace independently of background bitmap
+dimensions, so captions near the right edge remain visible at any render size.
 Scrolling credits hold their first frame
 and move one original pixel every five 60 Hz ticks until the overflow is visible,
 then playback continues. Scrubbing resets their scroll position. Orbit and Fly

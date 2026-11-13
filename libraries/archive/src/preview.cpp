@@ -1288,7 +1288,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             sceneCamera.transform[0] = sceneCamera.transform[4] = sceneCamera.transform[8] = 1;
             sceneCamera.transform[11] = 10;
             sceneCamera.verticalFov = 45;
-            sceneCamera.aspect = 4.f / 3;
+            sceneCamera.aspect = float(PreviewCaptionWidth) / PreviewCaptionHeight;
             sceneCamera.nearClip = .1f;
             sceneCamera.farClip = 30000;
             sceneCamera.displayDepth = 10;
