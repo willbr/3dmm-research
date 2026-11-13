@@ -774,80 +774,24 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
 ***************************************************************************/
 bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, klwMax);
-    AssertIn(celn, klwMin, klwMax);
-
-    bool fStatic;
-    bool fNewAction = fFalse;
-    Action aevactn;
-    long anidPrev = _state.action;
-    long iaevMin;
-
-    long cbVar = kcbVarActn + kcbVarFreeze + (kcbVarStep * 2);
-    if (!_track.Events()->FEnsureSpace(4, cbVar, fgrpNil))
-        return fFalse;
-
-    if (!_FGetStatic(anid, &fStatic))
-        return fFalse;
-
-    // If the action is changing:
-    // Remove all motion match sounds of the previous action
-    // Query the template and insert new sound events
-    if (_state.action != anid)
-    {
-        fNewAction = fTrue;
-        if (!_FRemoveAevMm(anid))
-            return fFalse;
-    }
-
-    // var part of gg
-    aevactn.anid = anid;
-    aevactn.celn = celn;
-
-    // Add this action to the event list
-    iaevMin = (_state.firstEventInFrame == _state.addEvent) ? _state.firstEventInFrame + 1 : _state.firstEventInFrame;
-    _PrepActnFill(iaevMin, _state.action, anid, faetTweak | faetFreeze | faetActn);
-
-    if (!_FAddDoAev(aetActn, kcbVarActn, &aevactn))
-        return fFalse;
-
-    // If the action is changing:
-    // Query the template and insert new default motion match sound events
-    if (fNewAction)
-    {
-        if (!_FAddAevDefMm(anid))
-            return fFalse;
-    }
-
-    if (_state.frame != _nfrmLast)
-    {
-        _fLifeDirty = fTrue;
-        _pscen->InvalFrmRange();
-    }
-
-    if (!fFreeze && !_FIsDoneAevSub(_state.nextEvent, _state.location))
-    {
-        if (!_FUnfreeze())
-            return fFalse;
-    }
-    else
-    {
-        if (!_FFreeze())
-            return fFalse;
-    }
-
-    // If the actor is in the middle of a static segment, the application of a
-    // non-static action is supposed to make the actor start moving forward along
-    // the remaining path.
-    // The last frame in the subpath must retain its final step=0 event, however.
-    if (!fStatic && !_ptmpl->FIsTdt() && !_FIsDoneAevSub(_state.nextEvent, _state.location))
-    {
-        if (!FSetStep(kdwrNil))
-            return fFalse;
-    }
-
-    return fTrue;
+    AssertThis(0); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
+    static_assert(factnStatic==8 && kdwrNil==-65536, "actor action policy ABI");
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    ThreeMMActorActionEditServices services={};
+    services.context=this; services.sounds=_SoundEditServices();
+    services.action_flags=[](void *p, ThreeMMI32 action, ThreeMMU32 *flags) {
+        LegacyUlong value=0;
+        bool ok=static_cast<Actor *>(p)->_ptmpl->FGetGrfactn(action,&value);
+        *flags=value; return int(ok);
+    };
+    services.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_ptmpl->FIsTdt()); };
+    services.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
+    ChildChunkID external=0; TrashVar(&external);
+    bool ok=three_mm_actor_edit_set_action(&state,_motionSounds.Core(),_track.Events(),_arid,anid,celn,fFreeze,
+                                           external,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -937,13 +881,13 @@ bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 ***************************************************************************/
 bool Actor::FSetStep(BRS dwrStep)
 {
-    AssertThis(0);
-    Assert(kdwrNil == dwrStep || rZero <= dwrStep, "Invalid dwrStep argument");
-
-    if (!_track.Events()->FEnsureSpace(1, kcbVarStep, fgrpNil))
-        return fFalse;
-
-    return _FAddDoAev(aetStep, kcbVarStep, &dwrStep);
+    AssertThis(0); Assert(kdwrNil==dwrStep || rZero<=dwrStep, "Invalid dwrStep argument");
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SoundEditServices();
+    bool ok=three_mm_actor_edit_set_step(&state,_motionSounds.Core(),_track.Events(),_arid,dwrStep,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -2392,122 +2336,14 @@ void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
 void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp, ulong grfaet)
 {
     AssertBaseThis(0);
-    Assert(aet == aetSize || aet == aetRotF || aet == aetPull, "Illegal argument aet");
-    AssertPvCb(pvVar, cbVar);
-    AssertIn(cbVar, 0, 100); // Approximate bound
-    AssertIn(iaevMin, 0, _track.Events()->IvMac() + 1);
-    AssertIn(iaevCmp, -1, _track.Events()->IvMac() + 1);
-    Assert(aet != aetActn && aet != aetCost, "Illegal aet argument");
-
-    long iaev;
-    Base aev;
-    bool fReplacePrev = fTrue;
-    void *pvVarCmp = pvNil;
-    LegacyLong cb;
-
-    _track.Events()->Lock();
-
-    if (ivNil != iaevCmp)
-    {
-        pvVarCmp = _track.Events()->QvGet(iaevCmp, &cb);
-        Assert(cb == cbVar, "Logic error");
-    }
-    else
-    {
-        // Locate the most current event of this type
-        // and store the ptr in pvVarCmp
-        for (iaev = 0; iaev < iaevMin - 1; iaev++)
-        {
-            _track.Events()->GetFixed(iaev, &aev);
-            if (aet != aev.aet)
-                continue;
-
-            pvVarCmp = _track.Events()->QvGet(iaev, &cb);
-            Assert(cb == cbVar, "Logic error");
-        }
-    }
-
-    if (pvNil == pvVarCmp)
-        pvVarCmp = pvVar;
-
-    for (iaev = iaevMin; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        bool fDelete = fFalse;
-        _track.Events()->GetFixed(iaev, &aev);
-
-        // Stage entrance events are boundaries to edits
-        if (aetAdd == aev.aet)
-            goto LEnd;
-
-        switch (aev.aet)
-        {
-        case aetSize:
-        case aetPull:
-        case aetRotF:
-            void *pv1;
-            void *pv2;
-            if (aev.aet != aet)
-                continue;
-
-            if (fReplacePrev)
-            {
-                pv1 = pvVarCmp;
-                pv2 = _track.Events()->QvGet(iaev);
-                if (fcmpEq != FcmpCompareRgb(pv1, pv2, cbVar))
-                {
-                    // Prepare to test for a match with new event
-                    fReplacePrev = fFalse;
-                    pvVarCmp = pvVar;
-                    fDelete = fFalse;
-                }
-                else
-                {
-                    fDelete = fTrue;
-                    goto LDelete;
-                }
-            }
-
-            Assert(!fReplacePrev, "Logic Error");
-            pv1 = pvVarCmp;
-            pv2 = _track.Events()->QvGet(iaev);
-            if (fcmpEq != FcmpCompareRgb(pv1, pv2, cbVar))
-                goto LEnd;
-
-            // Events equal : delete event at iaev
-            fDelete = fTrue;
-            break;
-
-        case aetTweak:
-            if ((grfaet & faetTweak) && (aev.rtel >= _state.location))
-                fDelete = fTrue;
-            break;
-        case aetRotH:
-            if ((grfaet & faetRotF) && (aev.rtel == _state.location))
-                fDelete = fTrue;
-            break;
-        case aetFreeze:
-            if ((grfaet & faetFreeze) && (aev.rtel >= _state.location))
-                fDelete = fTrue;
-            break;
-        case aetStep:
-            if ((grfaet & faetStep) && (aev.rtel >= _state.location))
-                fDelete = fTrue;
-            ;
-            break;
-
-        default:
-            break;
-        }
-    LDelete:
-        if (fDelete)
-        {
-            _RemoveAev(iaev);
-            iaev--;
-        }
-    }
-
-LEnd:
-    _track.Events()->Unlock();
+    Assert(aet==aetSize || aet==aetRotF || aet==aetPull, "Illegal fill event");
+    AssertPvCb(pvVar,cbVar); AssertIn(cbVar,0,100);
+    AssertIn(iaevMin,0,_track.Events()->IvMac()+1); AssertIn(iaevCmp,-1,_track.Events()->IvMac()+1);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_FillEditServices();
+    three_mm_actor_edit_transform_fill(&state,_track.Events(),aet,pvVar,cbVar,iaevMin,iaevCmp,grfaet,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -2516,6 +2352,15 @@ LEnd:
     Since _track.Events() is getting a copy of a tag, a call to DupTag is required
 
 ***************************************************************************/
+ThreeMMActorFillServices Actor::_FillEditServices()
+{
+    ThreeMMActorFillServices services={};
+    services.edits=_EventEditServices();
+    services.lock_events=[](void *p) { static_cast<PGeneralGroup>(p)->Lock(); };
+    services.unlock_events=[](void *p) { static_cast<PGeneralGroup>(p)->Unlock(); };
+    services.payload_view=[](void *p, ThreeMMI32 index)->const void * { return static_cast<PGeneralGroup>(p)->QvGet(index); };
+    return services;
+}
 bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
 {
     AssertBaseThis(0);
@@ -2618,68 +2463,12 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
 ***************************************************************************/
 void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
 {
-    AssertBaseThis(0);
-    AssertIn(iaevMin, 0, _track.Events()->IvMac() + 1);
-
-    Base aev;
-    long iaev;
-    long anid = anidPrev;
-
-    for (iaev = iaevMin; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-        // Stage entrance events are boundaries to edits
-        if (aetAdd == aev.aet)
-            return;
-
-        if (aetActn == aev.aet)
-        {
-            Action aevactn;
-            _track.Events()->Get(iaev, &aevactn);
-
-            if (!(grfaet & faetActn))
-            {
-                if (aevactn.anid == anidNew)
-                    continue;
-                else
-                    return;
-            }
-
-            if (aevactn.anid == anid)
-            {
-                _RemoveAev(iaev);
-                iaev--;
-            }
-            else if (aevactn.anid == anidNew)
-            {
-                anid = anidNew;
-                _RemoveAev(iaev);
-                iaev--;
-            }
-            else
-                return;
-        }
-
-        if (aev.rtel < _state.location)
-            continue;
-
-        if (aev.aet == aetTweak && (grfaet & faetTweak))
-        {
-            _RemoveAev(iaev);
-            iaev--;
-        }
-
-        if (aev.aet == aetFreeze && (grfaet & faetFreeze))
-        {
-            // Do not remove end-of-subroute freeze events
-            if (!_FIsDoneAevSub(iaev, aev.rtel))
-            {
-                _RemoveAev(iaev);
-                iaev--;
-            }
-        }
-    }
+    AssertBaseThis(0); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_EventEditServices();
+    three_mm_actor_edit_action_fill(&state,_track.Events(),iaevMin,anidPrev,anidNew,grfaet,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************

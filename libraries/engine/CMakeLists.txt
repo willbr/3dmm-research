@@ -6,6 +6,7 @@ endif()
 
 add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/movie_owner.c src/movie_title.c src/movie_root.c src/scene_data.c src/actor_data.c src/actor_track.c src/actor_fixed.c src/actor_route.c src/actor_state.c src/actor_frame.c src/actor_timeline.c src/actor_seek.c src/actor_math.c src/actor_pose.c src/actor_effect.c src/actor_sound.c src/actor_edit.c src/actor_sound_edit.c src/rollcall_storage.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c src/block_owner.c src/file_text.c src/chunk_save.c src/chunk_heap.c src/chunk_edit.c src/chunk_graph.c src/chunk_ops.c src/chunk_metadata.c src/string_wire.c src/codec_registry.c src/chunk_forest.c src/chunk_loading.c src/chunk_storage.c src/chunk_lifecycle.c src/chunk_container.c src/chunk_context.c src/chunk_owner.c src/chunk_table.c src/tag.c src/tag_list.c src/source.c src/source_names.c src/source_discovery.c src/wide.c src/resource_cache.c src/resource_manager.c)
 target_include_directories(three-mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_sources(three-mm-engine-c89 PRIVATE src/actor_action_edit.c)
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(three-mm-engine-c89 PRIVATE -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra)
@@ -227,6 +228,11 @@ add_executable(engine-event-edit-test EXCLUDE_FROM_ALL "${engine_event_edit_test
 target_link_libraries(engine-event-edit-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-event-edit-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-event-edit COMMAND engine-event-edit-test)
+get_filename_component(engine_action_edit_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_action_edit_test.c" ABSOLUTE)
+add_executable(engine-action-edit-test EXCLUDE_FROM_ALL "${engine_action_edit_test_source}")
+target_link_libraries(engine-action-edit-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-action-edit-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-action-edit COMMAND engine-action-edit-test)
 if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
@@ -253,6 +259,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_sound.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_sound_edit.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/actor_action_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rollcall_storage.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_file.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/string_table.c"
@@ -292,5 +299,6 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/resource_manager.c"
     "${engine_actor_effect_test_source}" "${engine_actor_sound_test_source}"
     "${engine_sound_edit_test_source}" "${engine_event_edit_test_source}"
+    "${engine_action_edit_test_source}"
     "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_piece_test_source}" "${engine_codec_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}" "${engine_file_policy_test_source}" "${engine_chunk_save_test_source}" "${engine_chunk_heap_test_source}" "${engine_chunk_edit_test_source}" "${engine_chunk_graph_test_source}" "${engine_chunk_ops_test_source}" "${engine_metadata_test_source}" "${engine_forest_test_source}" "${engine_loading_test_source}" "${engine_chunk_storage_test_source}" "${engine_lifecycle_test_source}" "${engine_container_test_source}" "${engine_resource_test_source}" "${engine_chunk_owner_test_source}" "${engine_chunk_table_test_source}" "${engine_tag_test_source}" "${engine_source_test_source}" "${engine_source_names_test_source}" "${engine_movie_owner_test_source}" "${engine_rollcall_storage_test_source}" "${engine_movie_title_root_test_source}" "${engine_scene_data_test_source}" "${engine_actor_data_test_source}" "${engine_actor_track_test_source}" "${engine_actor_motion_test_source}" "${engine_actor_frame_test_source}" "${engine_actor_timeline_test_source}" "${engine_actor_pose_test_source}")
 endif()

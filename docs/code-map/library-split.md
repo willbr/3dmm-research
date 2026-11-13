@@ -54,6 +54,7 @@ Build and test this slice independently using only a C compiler:
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
 cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test engine-sound-edit-test
 cmake --build build/engine-c89 --target engine-event-edit-test
+cmake --build build/engine-c89 --target engine-action-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -920,6 +921,40 @@ including the 7,232-byte native trace frozen before this conversion over forty-f
 event-edit scenarios. All 51 CLI baselines and headless scene/timeline checks pass.
 No Marcus UI tests were added. Action/fill/subroute/recording edits, undo,
 queue/runtime integration, resource/body implementations and facade removal remain.
+
+### Actor action and transform fill editing
+
+`actor_action_edit.c` owns action selection, step reservation/insertion, action
+fill and transform fill. Native `FSetActionCore` and `FSetStep` translate values
+and services. The C action editor calls the existing C sound editor and event
+evaluator directly. Metadata queries, template-kind lookup, table access and
+scene/lifetime notifications remain primitive native services.
+
+Action changes reserve before querying metadata, query static flags even when no
+previous action event exists, remove old motion events only on an action change,
+fill before applying the new action, then insert default sounds. Lifetime
+invalidation precedes freeze and optional authored-step restoration. Static/text
+actors and completed subroutes retain their distinct step behavior. Failures
+retain completed mutations and partial state, including failed event application.
+
+Action fill compares action identity independently of cel and stops at stage
+entrances or a third action. It preserves final subroute freezes. Transform fill
+retains its original comparison scan excluding `first - 1`, the transition from
+old to new payload comparison, event masks and route-location boundaries. Its
+comparison pointers are borrowed under one table lock; no value-copy replacement
+changes their aliasing as rows are deleted. Locking and payload views remain
+temporary table services.
+
+`engine-action-edit-test` covers sixty-four action/static/text/end/freeze combinations,
+seven ordered failure stages, transform termination and final-freeze preservation.
+All forty-five standalone C-only Clang checks (including strict C89 syntax),
+fifty-nine focused native checks and MSVC AddressSanitizer pass. All thirty-one
+snapshots match, including a 196,600-byte native trace frozen before conversion
+across 528 transform-fill/action-fill/action-change scenarios. The 51 CLI baselines
+and headless scene/timeline check pass. No Marcus UI tests were added.
+
+Costume fill and material lookup, subroute/recording edits, general undo,
+queue/runtime integration and final C++ facade removal remain unfinished.
 
 ### Source names and directory discovery
 

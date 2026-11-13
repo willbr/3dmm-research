@@ -2870,3 +2870,78 @@ its successful retail-playback retry `20261113T001209Z-90bfea81`, and scrolling
 suite `20261113T001332Z-19d8d202`; scene-audio uses suite
 `20261113T001824Z-a0a8447d`. Existing cross-player differences remain; one
 repetition per suite does not establish general repeatability or full retail parity.
+
+## C89 actor action and transform fill editing (13 November 2026)
+
+Actor action changes, authored-step reservation/insertion, action fill and transform
+fill now execute in C89. Action editing calls the existing C sound editor and event
+evaluator directly. Native services supply metadata, template kind, table views and
+scene/lifetime notifications. Costume fill/material lookup, subroute/recording,
+general undo, queue/runtime integration and final facade removal remain. See the
+[implementation boundary](../code-map/library-split.md#actor-action-and-transform-fill-editing).
+
+The conversion preserves reservation-before-metadata ordering, old-motion-event
+removal only on action change, action application before default sound insertion,
+lifetime invalidation before freeze, static/text/end-of-subroute step decisions
+and partial edits on every failure. Action fill compares identity independently
+of cel, stops at stage entrances/third actions, and preserves final freezes.
+Transform fill preserves its comparison scan excluding `first - 1`, old-to-new
+comparison transition, masks and route boundaries. It borrows comparison pointers
+under the original table lock, retaining aliasing as rows are deleted.
+
+All 45 standalone C-only Clang checks (including strict C89 syntax), 59 focused
+native checks, MSVC AddressSanitizer, all 51 CLI baselines and the headless scene/
+timeline check pass. All 31 snapshots match. The new native trace was frozen before
+conversion and matches all 196,600 bytes across 528 transform-fill/action-fill/
+action-change scenarios, including metadata failures. Standalone tests add 64
+static/text/end/freeze combinations, seven ordered failure stages, transform
+termination and final-freeze preservation. No Marcus UI tests were added.
+Evidence includes `tmp/c89-fill-edit-before.bin`, `tmp/c89-fill-edit-after.bin`,
+`tmp/c89-fill-edit-snapshot-comparison.json`, `tmp/c89-fill-edit-native-tests.log`,
+`tmp/c89-fill-edit-standalone.log`, `tmp/c89-fill-edit-asan.log`,
+`tmp/c89-fill-edit-output-comparison.json` and `tmp/c89-fill-edit-timeline.log`.
+
+Capture binaries remained frozen, with no concurrent builds or compaction. SDL
+reused the explicitly recorded warm package cache from the preceding event-edit
+slice; process workspaces, settings, registry isolation and working movies remained
+separate. OS file caching remains uncontrolled. Evidence is in
+`tmp/c89-movie-data-regression/playback.sqlite` and adjacent suite artifacts:
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T010422Z-230669bf` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T010616Z-5e5e6368` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T010856Z-aedbe7ab` | scrolling-text | three complete retail seek/playback and SDL seek runs; three capture errors |
+| `20261113T011229Z-78ab78f2` | scrolling-text | successful SDL playback retry |
+| `20261113T011353Z-37941a26` | scrolling-text | successful Marcus seek/playback retries |
+| `20261113T011523Z-a52f9236` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+The successful actor cases preserve each player's previous authored frame positions and pixels.
+Their playback runs retain 60 ordered image changes per player, collapsing only
+adjacent identical position/image records while keeping raw observations and
+timestamps. Actor-audio passes the permanent first-scene 600/1300 Hz tone checks
+and retains PCM16 peaks of 3192 retail and 4081 SDL/Marcus. Peaks establish audible
+coverage, not exact waveform/timing parity.
+
+The original scrolling suite retained three capture errors: SDL presentation
+capture failed, Marcus seek could not write an image, and Marcus presentation
+capture failed. Space was critically low during that suite. The runner was
+confirmed terminal, obsolete build intermediates were removed, and only those
+three runs were retried in fresh processes. All retries completed; capture policy
+was unchanged and original failed observations remain. The six successful scrolling
+runs match the preceding suite's 180 seek images, 60 authored positions per run,
+and ordered playback changes (328 retail/SDL, 321 Marcus). Retry suites have no
+cross-player peers, so their cross-player verdicts remain inconclusive.
+
+All twenty-one successful captures preserve their preceding authored positions
+and pixels, including all 540 seek images. Scene-audio retains 60 ordered changes
+per player and PCM16 peaks of 2380 retail and 2176 SDL/Marcus. Movie identities
+match the preceding captures; movie, ISO-resource and Marcus-content integrity
+checks pass. The combined report is
+`tmp/c89-fill-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+Baselines are actor-audio suite `20261113T004516Z-48a25044`, actor-events suite
+`20261113T004642Z-793f1ba5`, scrolling suite `20261113T004807Z-ef947a24` and
+scene-audio suite `20261113T005117Z-579a56bd`.
+Existing cross-player differences remain. One repetition
+per suite does not establish general repeatability or full retail parity.

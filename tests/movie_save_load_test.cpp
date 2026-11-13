@@ -168,6 +168,85 @@ class TrackTestTemplate : public Template
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestFillEdit(int mode, FILE *snapshot)
+    {
+        using namespace ActorEvent;
+        ActorTrack track;
+        if (!track.FCreate()) return false;
+        RouteDistancePoint point={{rZero,rZero,rZero},BR_SCALAR(10)};
+        if (!track.Route()->FInsert(0,&point)) return false;
+        point.dwr=rZero; if (!track.Route()->FInsert(1,&point)) return false;
+        auto append=[&](long kind,long value,long offset) {
+            Base event={kind,offset+1,{0,BR_SCALAR(offset),0}};
+            union { Add add; Action action; RoutePoint point; BMAT34 matrix; int32_t scalar; } payload={};
+            long bytes=4;
+            if (kind==aetAdd) bytes=sizeof(Add);
+            else if (kind==aetActn) { payload.action={static_cast<int32_t>(value),0}; bytes=sizeof(Action); }
+            else if (kind==aetRotF || kind==aetRotH) { BrMatrix34Identity(&payload.matrix); payload.matrix.m[3][0]=BR_SCALAR(value); bytes=sizeof(BMAT34); }
+            else if (kind==aetPull || kind==aetTweak) { payload.point={BR_SCALAR(value),rOne,rOne}; bytes=sizeof(RoutePoint); }
+            else payload.scalar=static_cast<int32_t>(value);
+            return track.Events()->FInsert(track.Events()->IvMac(),bytes,&payload,&event);
+        };
+        const bool actionFill=mode>=384 && mode<512, actionSet=mode>=512;
+        int bits=mode%128;
+        long kind=actionFill ? aetActn : (mode/128==0 ? aetSize : mode/128==1 ? aetPull : aetRotF);
+        if (!append(aetAdd,0,0)) return false;
+        if (actionSet)
+        {
+            if (!append(aetActn,0,0) || !append(aetStep,0,10)) return false;
+        }
+        else
+        {
+            if (!append(kind,1,0) || !append(aetTweak,3,(bits&1)?1:3) ||
+                !append(kind,(bits&2)?2:1,3) || !append(aetFreeze,1,(bits&4)?1:3) ||
+                !append(aetRotH,3,2) || !append(aetStep,0,3) ||
+                !append(kind,(bits&8)?3:2,4) || !append(aetFreeze,1,10) ||
+                !append(aetAdd,0,10) || !append(kind,1,10)) return false;
+        }
+        _track.Swap(track); _motionSounds.Clear();
+        _state=ActorFrameState(); _state.RewindRoute(_track); _state.frame=3; _state.location={0,BR_SCALAR(2),0};
+        _state.onStage=true; _state.action=0; _state.celCount=4; _state.actionFlags=factnRotateY;
+        _state.actionEvent=1; _state.addEvent=0; _state.firstEventInFrame=2; _state.nextEvent=2;
+        _nfrmFirst=1; _nfrmLast=20; _fLifeDirty=false;
+        bool ok=true;
+        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        if (actionSet)
+        {
+            int variant=mode-512;
+            if (variant&1) { _state.action=-1; _state.actionEvent=-1; }
+            if (variant&2) _state.location={0,BR_SCALAR(10),0};
+            tmpl->FailAfter(variant>=8 ? (variant-8)/2+1 : 0);
+            ok=FSetActionCore(0,variant%4,(variant&4)!=0);
+            tmpl->FailAfter(0);
+        }
+        else if (actionFill)
+        {
+            ulong flags=((bits&16)?faetActn:0)|((bits&32)?faetTweak:0)|((bits&64)?faetFreeze:0);
+            _PrepActnFill(2,1,2,flags);
+        }
+        else
+        {
+            union { int32_t scalar; RoutePoint point; BMAT34 matrix; } value={};
+            long bytes=4;
+            if (kind==aetRotF) { BrMatrix34Identity(&value.matrix); value.matrix.m[3][0]=BR_SCALAR(2); bytes=sizeof(BMAT34); }
+            else if (kind==aetPull) { value.point={BR_SCALAR(2),rOne,rOne}; bytes=sizeof(RoutePoint); }
+            else value.scalar=2;
+            ulong flags=((bits&16)?faetTweak|faetRotF:0)|((bits&32)?faetFreeze:0)|((bits&64)?faetStep:0);
+            _PrepXfrmFill(kind,&value,bytes,2,(bits&1)?1:ivNil,flags);
+        }
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.action,_state.cel,_state.frozen,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_track.Events()->IvMac()};
+        bool saved=record(state,sizeof(state));
+        unsigned char data[100];
+        for (long i=0; saved && i<_track.Events()->IvMac(); ++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event);
+            long bytes=_track.Events()->Cb(i); if (bytes>sizeof(data)) return false;
+            _track.Events()->Get(i,data); saved=record(&event,sizeof(event)) && record(data,bytes);
+        }
+        return saved;
+    }
     bool FTestCostumeMergeOwnership(PChunkyResourceFile replacement)
     {
         auto original=_tagTmpl.pcrf;
@@ -733,6 +812,21 @@ static bool TestActorEventEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorFillEditing(PScene scene)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_FILL_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
+    auto actor=NewObj TrackTestActor();
+    bool ok=actor && resource && actor->FInitPlayback(scene,resource);
+    for (int mode=0; ok && mode<528; ++mode) ok=actor->FTestFillEdit(mode,snapshot);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
 class QueueTestSound : public MovieSoundMSND
 {
   public:
@@ -1179,6 +1273,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor sound editing failed");
     if (!TestActorEventEditing(pmvie->Pscen()))
         BAIL("actor event editing failed");
+    if (!TestActorFillEditing(pmvie->Pscen()))
+        BAIL("actor fill editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

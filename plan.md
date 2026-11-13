@@ -217,7 +217,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Actor runtime sound dispatch and motion-match selection now use C89, with
   C-owned motion-list storage shared by Studio and Marcus. Replacement, cloning,
   imported-tag updates, priority choice and fetch/queue/release failure ordering
-  execute in C; sound editing/query policy and primitive device services remain.
+  execute in C; native resource/device implementations remain.
 - Sound setting/default insertion, volume edits, queries, deletions, frame sound
   detection and bulk tag-resolution policy now execute in C89. General event
   deletion also uses C for cursor updates and sound-indicator ordering. Native
@@ -226,8 +226,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
   now execute in C89, including cursor updates, sound-queue identity, Move
   accumulation and lifetime-range notifications. Sound editing calls this C
   editor directly; its temporary native `insert_apply` callback is removed.
-  General action/fill/subroute/recording edits, undo and queue/runtime integration
-  still need conversion, along with resource/body services and final facade removal.
+  Resource/body services and final facade removal remain.
+- Actor action changes, step reservation/insertion, action fill and transform fill
+  now execute in C89. Action edits call the existing C sound editor and event
+  evaluator directly. Metadata failure, partial edits, lifetime invalidation,
+  freeze/step ordering and borrowed transform-comparison views are retained.
+  Costume fill, general subroute/recording edits, undo and queue/runtime integration
+  still need conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
