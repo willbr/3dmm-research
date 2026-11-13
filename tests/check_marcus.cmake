@@ -50,6 +50,11 @@ execute_process(COMMAND "${API_EXE}" "${movie}" "${RESOURCES}" "${CONTENT}" "${s
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Marcus C API integration failed: ${result}")
 endif()
+execute_process(COMMAND "${FRAME_PREVIEW_EXE}" "${movie}" "${RESOURCES}" "${CONTENT}" "${single_zip}"
+  RESULT_VARIABLE result TIMEOUT 60)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "Marcus frame preview integration failed: ${result}")
+endif()
 file(SHA256 "${single_zip}" single_zip_after)
 file(SHA256 "${multi_zip}" multi_zip_after)
 if(NOT single_zip_before STREQUAL single_zip_after OR NOT multi_zip_before STREQUAL multi_zip_after)

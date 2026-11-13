@@ -3,6 +3,7 @@
 #include <array>
 #include <cmath>
 #include <new>
+#include <limits>
 
 namespace
 {
@@ -64,6 +65,12 @@ struct MarcusSceneOrganiser
     float dragOffset = 0;
     unsigned long clock = 0;
     std::array<Thumbnail, 64> thumbnails;
+    Thumbnail empty;
+    bool frames = false;
+    int sourceScene = 0;
+    long firstFrame = 0;
+    MarcusFramePreviews *framePreviews = nullptr;
+    char frameError[256] = {};
 };
 namespace
 {
@@ -78,11 +85,11 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
     l.columns = std::max(1, int((l.grid.w + gap) / 188));
     l.rows = std::max(1, int((l.grid.h + gap) / (cardHeight + gap)));
     l.cellWidth = (l.grid.w - (l.columns - 1) * gap) / l.columns;
-    l.maxScroll = std::max(0, (s->count + l.columns - 1) / l.columns - l.rows);
+    const int totalRows = std::max(l.rows, int((static_cast<long long>(s->count) + l.columns - 1) / l.columns));
+    l.maxScroll = totalRows - l.rows;
     s->scroll = std::clamp(s->scroll, 0, l.maxScroll);
     l.track = {l.grid.x + l.grid.w + 12, l.grid.y, 12, float(l.rows * (cardHeight + gap) - gap)};
     l.thumb = l.track;
-    const int totalRows = std::max(l.rows, (s->count + l.columns - 1) / l.columns);
     l.thumb.h = std::max(24.0f, l.track.h * l.rows / totalRows);
     if (l.maxScroll)
         l.thumb.y += (l.track.h - l.thumb.h) * s->scroll / l.maxScroll;
@@ -107,6 +114,35 @@ void Confirm(MarcusSceneOrganiser *s)
 {
     s->result = s->selected;
     s->open = s->dragging = false;
+    marcus_frame_previews_destroy(s->framePreviews);
+    s->framePreviews = nullptr;
+}
+long FrameAt(const MarcusSceneOrganiser *s, int index)
+{
+    return static_cast<long>(static_cast<long long>(s->firstFrame) + index);
+}
+Thumbnail &OldestThumbnail(MarcusSceneOrganiser *s)
+{
+    return *std::min_element(s->thumbnails.begin(), s->thumbnails.end(),
+                            [](const Thumbnail &a, const Thumbnail &b) { return a.used < b.used; });
+}
+void StoreThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int index, const MarcusImage &image)
+{
+    auto &t = OldestThumbnail(s);
+    SDL_DestroyTexture(t.texture);
+    t = {};
+    t.scene = index;
+    t.used = ++s->clock;
+    if (!image.rgba || !image.width || !image.height) return;
+    t.width = image.width;
+    t.height = image.height;
+    t.texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, t.width, t.height);
+    if (t.texture && !SDL_UpdateTexture(t.texture, nullptr, image.rgba, image.pitch))
+    {
+        SDL_DestroyTexture(t.texture);
+        t.texture = nullptr;
+    }
+    if (t.texture) SDL_SetTextureScaleMode(t.texture, SDL_SCALEMODE_LINEAR);
 }
 Thumbnail &GetThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int scene, bool &loaded)
 {
@@ -116,29 +152,39 @@ Thumbnail &GetThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int sce
             t.used = ++s->clock;
             return t;
         }
-    auto &t = *std::min_element(s->thumbnails.begin(), s->thumbnails.end(),
-                              [](const Thumbnail &a, const Thumbnail &b) { return a.used < b.used; });
+    if (s->frames) return s->empty;
     // Decode at most one saved thumbnail per draw to keep input responsive.
-    if (loaded) return t;
+    if (loaded) return s->empty;
     loaded = true;
-    SDL_DestroyTexture(t.texture);
-    t = {};
-    t.scene = scene;
-    t.used = ++s->clock;
     MarcusImage image = {};
-    if (marcus_scene_thumbnail(s->player, scene, &image) && image.rgba && image.width && image.height)
+    marcus_scene_thumbnail(s->player, scene, &image);
+    StoreThumbnail(s, renderer, scene, image);
+    return GetThumbnail(s, renderer, scene, loaded);
+}
+void UpdateFrameThumbnails(MarcusSceneOrganiser *s, SDL_Renderer *renderer, const Layout &l)
+{
+    for (int n = 0; n < 4; ++n)
     {
-        t.width = image.width;
-        t.height = image.height;
-        t.texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, t.width, t.height);
-        if (t.texture && !SDL_UpdateTexture(t.texture, nullptr, image.rgba, image.pitch))
-        {
-            SDL_DestroyTexture(t.texture);
-            t.texture = nullptr;
-        }
-        if (t.texture) SDL_SetTextureScaleMode(t.texture, SDL_SCALEMODE_LINEAR);
+        MarcusImage image = {};
+        const auto status = marcus_frame_previews_take(s->framePreviews, &image, s->frameError, sizeof(s->frameError));
+        if (status <= 0) break;
+        const auto index = static_cast<long long>(image.frame) - s->firstFrame;
+        if (index >= 0 && index < s->count) StoreThumbnail(s, renderer, static_cast<int>(index), image);
     }
-    return t;
+    if (s->frameError[0]) return;
+    std::array<long, 32> requests;
+    int count = 0;
+    const int first = s->scroll * l.columns;
+    const int end = int(std::min(static_cast<long long>(s->count), static_cast<long long>(first) + l.rows * l.columns));
+    auto request = [&](int index) {
+        if (count == int(requests.size())) return;
+        if (std::none_of(s->thumbnails.begin(), s->thumbnails.end(),
+                         [&](const Thumbnail &t) { return t.scene == index; })) requests[count++] = FrameAt(s, index);
+    };
+    if (s->selected >= first && s->selected < end) request(s->selected);
+    for (int index = first; index < end; ++index)
+        if (index != s->selected) request(index);
+    marcus_frame_previews_request(s->framePreviews, requests.data(), count);
 }
 }
 extern "C"
@@ -152,6 +198,10 @@ void scene_organiser_close(MarcusSceneOrganiser *s)
     if (!s) return;
     s->open = s->dragging = false;
     s->result = -1;
+    marcus_frame_previews_destroy(s->framePreviews);
+    s->framePreviews = nullptr;
+    s->frames = false;
+    s->frameError[0] = 0;
     for (auto &t : s->thumbnails)
     {
         SDL_DestroyTexture(t.texture);
@@ -175,6 +225,26 @@ void scene_organiser_show(MarcusSceneOrganiser *s, MarcusPlayer *player)
     s->scroll = -1; // First layout reveals the current scene at any window size.
     s->open = true;
 }
+int scene_organiser_show_frames(MarcusSceneOrganiser *s, MarcusPlayer *player)
+{
+    if (!s) return 0;
+    scene_organiser_close(s);
+    MarcusInfo info = {};
+    if (!marcus_info(player, &info)) return 0;
+    const auto count = static_cast<long long>(info.last_frame) - info.first_frame + 1;
+    if (count <= 0 || count > (std::numeric_limits<int>::max)()) return 0;
+    s->framePreviews = marcus_frame_previews_create(player);
+    if (!s->framePreviews) return 0;
+    s->player = player;
+    s->frames = true;
+    s->sourceScene = info.scene;
+    s->firstFrame = info.first_frame;
+    s->count = static_cast<int>(count);
+    s->current = s->selected = static_cast<int>(static_cast<long long>(info.frame) - info.first_frame);
+    s->scroll = -1;
+    s->open = true;
+    return 1;
+}
 int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int width, int height)
 {
     if (!s || !s->open) return 0;
@@ -183,21 +253,22 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
     if (initial) Reveal(s, l);
     if (event->type == SDL_EVENT_KEY_DOWN)
     {
+        long long selection = s->selected;
         switch (event->key.key)
         {
         case SDLK_ESCAPE: scene_organiser_close(s); break;
         case SDLK_RETURN: case SDLK_KP_ENTER: Confirm(s); break;
-        case SDLK_LEFT: --s->selected; break;
-        case SDLK_RIGHT: ++s->selected; break;
-        case SDLK_UP: s->selected -= l.columns; break;
-        case SDLK_DOWN: s->selected += l.columns; break;
-        case SDLK_PAGEUP: s->selected -= l.rows * l.columns; break;
-        case SDLK_PAGEDOWN: s->selected += l.rows * l.columns; break;
-        case SDLK_HOME: s->selected = 0; break;
-        case SDLK_END: s->selected = s->count - 1; break;
+        case SDLK_LEFT: --selection; break;
+        case SDLK_RIGHT: ++selection; break;
+        case SDLK_UP: selection -= l.columns; break;
+        case SDLK_DOWN: selection += l.columns; break;
+        case SDLK_PAGEUP: selection -= l.rows * l.columns; break;
+        case SDLK_PAGEDOWN: selection += l.rows * l.columns; break;
+        case SDLK_HOME: selection = 0; break;
+        case SDLK_END: selection = s->count - 1; break;
         default: return 1;
         }
-        s->selected = std::clamp(s->selected, 0, s->count - 1);
+        s->selected = int(std::clamp(selection, 0LL, static_cast<long long>(s->count) - 1));
         Reveal(s, l);
     }
     else if (event->type == SDL_EVENT_MOUSE_WHEEL)
@@ -221,12 +292,12 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
         {
             const int column = int((x - l.grid.x) / (l.cellWidth + gap));
             const int row = int((y - l.grid.y) / (cardHeight + gap));
-            const int index = (row + s->scroll) * l.columns + column;
+            const auto index = static_cast<long long>(row + s->scroll) * l.columns + column;
             if (column < l.columns && row < l.rows && index < s->count &&
                 x - l.grid.x - column * (l.cellWidth + gap) < l.cellWidth &&
                 y - l.grid.y - row * (cardHeight + gap) < cardHeight)
             {
-                s->selected = index;
+                s->selected = static_cast<int>(index);
                 if (event->button.clicks >= 2) Confirm(s);
             }
         }
@@ -244,10 +315,17 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
 }
 int scene_organiser_take(MarcusSceneOrganiser *s)
 {
-    if (!s) return -1;
+    if (!s || s->frames) return -1;
     const int result = s->result;
     s->result = -1;
     return result;
+}
+int scene_organiser_take_frame(MarcusSceneOrganiser *s, long *frame)
+{
+    if (!s || !s->frames || s->result < 0 || !frame) return 0;
+    *frame = FrameAt(s, s->result);
+    s->result = -1;
+    return 1;
 }
 void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int height)
 {
@@ -255,26 +333,31 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     const bool initial = s->scroll < 0;
     auto l = Arrange(s, width, height);
     if (initial) { Reveal(s, l); l = Arrange(s, width, height); }
+    if (s->frames) UpdateFrameThumbnails(s, ui->renderer, l);
     ui_opacity(ui, 0.75f);
     ui_fill(ui, 0, 0, float(width), float(height), 0x080b12);
     ui_opacity(ui, 1);
     ui_fill(ui, l.panel.x - 2, l.panel.y - 2, l.panel.w + 4, l.panel.h + 4, 0x7c8aa3);
     ui_fill(ui, l.panel.x, l.panel.y, l.panel.w, l.panel.h, 0x252d40);
     ui_fill(ui, l.panel.x, l.panel.y, l.panel.w, 50, 0x323f5a);
-    ui_text(ui, l.panel.x + 24, l.panel.y + 16, "SCENE ORGANISER", 0xf0f2f7);
+    ui_text(ui, l.panel.x + 24, l.panel.y + 16, s->frames ? "FRAME ORGANISER" : "SCENE ORGANISER", 0xf0f2f7);
     char text[256];
-    SDL_snprintf(text, sizeof(text), "%d scenes", s->count);
+    SDL_snprintf(text, sizeof(text), "%d %s", s->count, s->frames ? "frames" : "scenes");
     ui_text(ui, l.panel.x + l.panel.w - 126, l.panel.y + 16, text, 0xc5cedd);
     bool loaded = false;
     MarcusScene selectedScene = {};
-    marcus_scene(s->player, s->selected, &selectedScene);
+    if (!s->frames) marcus_scene(s->player, s->selected, &selectedScene);
     char transitionHint[192];
     SDL_snprintf(transitionHint, sizeof(transitionHint), "After scene %d: %s", s->selected + 1,
                  TransitionName(selectedScene.transition));
+    if (s->frames)
+        SDL_snprintf(transitionHint, sizeof(transitionHint), "Scene %d / Frame %d%s", s->sourceScene + 1,
+                     s->selected + 1, s->frameError[0] ? " / Thumbnails unavailable" : "");
     for (int n = 0; n < l.rows * l.columns; ++n)
     {
-        const int index = s->scroll * l.columns + n;
-        if (index >= s->count) break;
+        const auto position = static_cast<long long>(s->scroll) * l.columns + n;
+        if (position >= s->count) break;
+        const int index = static_cast<int>(position);
         const float x = l.grid.x + (n % l.columns) * (l.cellWidth + gap);
         const float y = l.grid.y + (n / l.columns) * (cardHeight + gap);
         const bool selected = index == s->selected;
@@ -292,13 +375,22 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
                               picture.y + (picture.h - t.height * scale) / 2, t.width * scale, t.height * scale};
             SDL_RenderTexture(ui->renderer, t.texture, nullptr, &dest);
         }
-        else ui_text(ui, picture.x + 12, picture.y + 40, t.scene == index ? "No thumbnail" : "Loading...", 0x909cb0);
+        else ui_text(ui, picture.x + 12, picture.y + 40,
+                     s->frames && s->frameError[0] ? "Unavailable" : t.scene == index ? "No thumbnail" : "Loading...", 0x909cb0);
         for (int hole = 0; hole < 6; ++hole)
         {
             ui_fill(ui, x + 4, y + 12 + hole * 16, 5, 8, 0x8792a4);
             ui_fill(ui, x + l.cellWidth - 9, y + 12 + hole * 16, 5, 8, 0x8792a4);
         }
         MarcusScene scene = {};
+        if (s->frames)
+        {
+            SDL_snprintf(text, sizeof(text), "Frame %d%s", index + 1, index == s->current ? " / Current" : "");
+            ui_label(ui, x + 10, y + 118, l.cellWidth - 20, text, 0xe7edf5);
+            SDL_snprintf(text, sizeof(text), "Scene %d", s->sourceScene + 1);
+            ui_label(ui, x + 10, y + 140, l.cellWidth - 20, text, 0xafbdce);
+            continue;
+        }
         marcus_scene(s->player, index, &scene);
         SDL_snprintf(text, sizeof(text), "%d. %s", index + 1, scene.name[0] ? scene.name : "Untitled scene");
         ui_label(ui, x + 10, y + 118, l.cellWidth - 20, text, 0xe7edf5);
@@ -323,8 +415,10 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     if (l.maxScroll) ui_fill(ui, l.thumb.x, l.thumb.y, l.thumb.w, l.thumb.h, s->dragging ? 0x9edbd0 : 0x7387a6);
     ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 66, l.panel.w - 180, transitionHint, 0xe7edf5);
     ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 44, l.panel.w - 180,
-             "Select a scene / Enter or double-click to open / Esc to cancel", 0xc5cedd);
+             s->frames ? "Select a frame / Enter or double-click to open / Esc to cancel" :
+                         "Select a scene / Enter or double-click to open / Esc to cancel", 0xc5cedd);
     ui_dialog_button(ui, l.cancel.x, l.cancel.y, 0, 1, "Cancel / Escape");
-    ui_dialog_button(ui, l.confirm.x, l.confirm.y, 1, 1, "Open selected scene / Enter");
+    ui_dialog_button(ui, l.confirm.x, l.confirm.y, 1, 1,
+                     s->frames ? "Open selected frame / Enter" : "Open selected scene / Enter");
 }
 }

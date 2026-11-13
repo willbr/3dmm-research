@@ -1507,7 +1507,16 @@ static void mouse_down(App *app, float x, float y, int button)
         if (ui_inside(x, y, app->sidebar / 2 - 65, 280, 130, 28))
             choose_file(app, 0);
     }
-    else if (ui_inside(x, y, 16, app->timeline_y + SCENE_NAV_Y, 156, UI_NAVIGATION_HEIGHT))
+    else if (ui_inside(x, y, 16, app->timeline_y + FRAME_NAV_Y, 164, UI_NAVIGATION_HEIGHT))
+    {
+        app->playing = 0;
+        release_camera(app);
+        app->dragging = app->orbiting = app->panning = 0;
+        app->sheet_menu = 0;
+        if (!scene_organiser_show_frames(app->scene_organiser, app->player))
+            fail(app, "Cannot open the frame organiser.");
+    }
+    else if (ui_inside(x, y, 16, app->timeline_y + SCENE_NAV_Y, 164, UI_NAVIGATION_HEIGHT))
     {
         app->playing = 0;
         release_camera(app);
@@ -2788,9 +2797,11 @@ static void draw_timeline(App *app)
         SDL_snprintf(label, sizeof(label), "%.0f / %.0f", display_frame(app, app->info.frame),
                      display_frame(app, app->info.last_frame));
         ui_transport_readout(ui, 16, y + FRAME_NAV_Y, 0, label, 1);
+        if (ui_inside(ui->mouse_x, ui->mouse_y, 16, y + FRAME_NAV_Y, 164, UI_NAVIGATION_HEIGHT))
+            ui->hint = "Open frame organiser";
         SDL_snprintf(label, sizeof(label), "%d / %d", app->info.scene + 1, app->info.scene_count);
         ui_transport_readout(ui, 16, y + SCENE_NAV_Y, 1, label, 1);
-        if (ui_inside(ui->mouse_x, ui->mouse_y, 16, y + SCENE_NAV_Y, 156, UI_NAVIGATION_HEIGHT))
+        if (ui_inside(ui->mouse_x, ui->mouse_y, 16, y + SCENE_NAV_Y, 164, UI_NAVIGATION_HEIGHT))
             ui->hint = "Open scene organiser";
         if (marcus_scene(app->player, app->info.scene, &scene))
             ui_label(ui, LOOP_X + 72, y + SCENE_NAV_Y + 1, 112, scene.name, TEXT);
@@ -3522,7 +3533,7 @@ int main(int argc, char **argv)
     int requested_renderer, browser_entry;
     MarcusMovieInput *browser_input;
     char browser_path[4096];
-    long requested_frame, parsed;
+    long requested_frame, parsed, chosen_frame;
     double now, previous_tick;
     Uint64 frame_tick, completed_tick;
     memset(&app, 0, sizeof(app));
@@ -3751,6 +3762,8 @@ int main(int argc, char **argv)
         i = scene_organiser_take(app.scene_organiser);
         if (i >= 0)
             select_scene(&app, i);
+        if (scene_organiser_take_frame(app.scene_organiser, &chosen_frame))
+            seek(&app, chosen_frame);
         browser_input = browser_take(app.browser, &browser_entry, browser_path, sizeof(browser_path));
         if (browser_input && !open_input(&app, browser_input, browser_entry, browser_path))
         {

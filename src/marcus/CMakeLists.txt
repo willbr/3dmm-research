@@ -2,7 +2,7 @@ include(SDL3Dependency)
 include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
-add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp caption_quad.cpp gpu_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp)
+add_library(marcus-player STATIC player.cpp content.cpp playback.cpp movie_input.cpp caption_quad.cpp gpu_renderer.cpp renderer_ids.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp)
 target_compile_features(marcus-player PRIVATE cxx_std_17)
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(marcus-player PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/bren/inc")
@@ -21,12 +21,12 @@ target_compile_features(marcus-regression PRIVATE cxx_std_17)
 target_link_libraries(marcus-regression PRIVATE marcus-player SDL3::SDL3-static)
 kauai_copy_midi_assets(marcus-regression)
 
-add_executable(marcus-preview preview_helper.cpp browser_preview.cpp preview_protocol.cpp)
+add_executable(marcus-preview preview_helper.cpp browser_preview.cpp)
 target_compile_features(marcus-preview PRIVATE cxx_std_17)
 target_link_libraries(marcus-preview PRIVATE marcus-player ThreeMM::Archive engine-core)
 kauai_copy_midi_assets(marcus-preview)
 
-add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c movie_browser.cpp scene_organiser.cpp preview_worker.cpp preview_protocol.cpp)
+add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c movie_browser.cpp scene_organiser.cpp preview_worker.cpp)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)
@@ -99,6 +99,12 @@ if(BUILD_TESTING)
   add_executable(marcus-player-test EXCLUDE_FROM_ALL ../../tests/marcus_player_test.c)
   set_target_properties(marcus-player-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_link_libraries(marcus-player-test PRIVATE marcus-player)
+  # Headless frame helper lifecycle/pixel checks; no application UI input.
+  add_executable(marcus-frame-previews-test EXCLUDE_FROM_ALL ../../tests/marcus_frame_previews_test.cpp)
+  target_compile_features(marcus-frame-previews-test PRIVATE cxx_std_17)
+  target_link_libraries(marcus-frame-previews-test PRIVATE marcus-player SDL3::SDL3-static)
+  add_dependencies(marcus-frame-previews-test marcus-preview)
+  add_dependencies(marcus-player-test marcus-frame-previews-test)
   if(EXISTS "${PROJECT_SOURCE_DIR}/content-files/bkgds.3cn")
     set(marcus_resources "${PROJECT_SOURCE_DIR}/build/studio-portable-x64/3dmovie/utest.chk"
       CACHE FILEPATH "3dmovie.chk or built utest.chk for Marcus integration tests")
@@ -109,6 +115,7 @@ if(BUILD_TESTING)
       set_tests_properties(marcus-playback PROPERTIES TIMEOUT 60 ENVIRONMENT "SDL_AUDIODRIVER=dummy")
       add_test(NAME marcus-player COMMAND ${CMAKE_COMMAND}
         -DAPI_EXE=$<TARGET_FILE:marcus-player-test>
+        -DFRAME_PREVIEW_EXE=$<TARGET_FILE:marcus-frame-previews-test>
         -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>
         -DRESOURCES=${marcus_resources} -DCONTENT=${PROJECT_SOURCE_DIR}/content-files
         -DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}/test-data -P ${PROJECT_SOURCE_DIR}/tests/check_marcus.cmake)

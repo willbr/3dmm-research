@@ -7,6 +7,7 @@
 #include "waveform.h"
 #include "sound_timeline.h"
 #include "timing_job.h"
+#include "frame_previews.h"
 #include "three_mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -625,6 +626,17 @@ extern "C"
             return 0;
         *scene = player->sceneInfo[index];
         return 1;
+    }
+    MarcusFramePreviews *marcus_frame_previews_create(MarcusPlayer *player)
+    {
+        MarcusFramePreviews *result = nullptr;
+        Guard(player, [&](ThreeMM::Error &) {
+            if (!player->timingInput || player->selected < 0) return false;
+            result = new MarcusFramePreviews(player->timingInput, player->timingResources,
+                                             player->timingContent, player->selected);
+            return true;
+        });
+        return result;
     }
     int marcus_scene_thumbnail(MarcusPlayer *player, int index, MarcusImage *image)
     {

@@ -12,6 +12,7 @@ extern "C"
 
     typedef struct MarcusPlayer MarcusPlayer;
     typedef struct MarcusMovieInput MarcusMovieInput;
+    typedef struct MarcusFramePreviews MarcusFramePreviews;
     typedef struct MarcusMovieEntry
     {
         char name[1024];
@@ -227,6 +228,14 @@ extern "C"
     /* Saved thumbnail only; empty when absent. Pixels live until the next
      * thumbnail request, open or destruction, independently of rendered images. */
     int marcus_scene_thumbnail(MarcusPlayer *player, int index, MarcusImage *image);
+    /* Isolated, silent authored-camera thumbnails for the current scene.
+     * The job retains its movie lease; destroy it when closing the organiser.
+     * Request replaces the pending list (up to 32 frames). Take is nonblocking:
+     * 1 image, 0 pending, -1 failed. Pixels live until the next take/destroy. */
+    MarcusFramePreviews *marcus_frame_previews_create(MarcusPlayer *player);
+    void marcus_frame_previews_destroy(MarcusFramePreviews *previews);
+    void marcus_frame_previews_request(MarcusFramePreviews *previews, const long *frames, int count);
+    int marcus_frame_previews_take(MarcusFramePreviews *previews, MarcusImage *image, char *error, int error_size);
     int marcus_select_scene(MarcusPlayer *player, int index);
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */
     int marcus_select_scene_keep_view(MarcusPlayer *player, int index);
