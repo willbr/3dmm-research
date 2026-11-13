@@ -3302,3 +3302,88 @@ and counts/peak verification in `tmp/c89-stage-playback-summary.json`.
 Recording, remaining transform/time edits, undo, queue/runtime integration,
 body/resource implementations and final facade removal remain unfinished.
 No Marcus UI tests were added.
+
+### C89 actor route recording (13 November 2026)
+
+`actor_record.c` now owns recording validity and record-step sizing plus begin,
+move and end policy. C owns mouse smoothing, wrapped time thresholds, sampled
+point insertion, ground clipping, frame-only waits, gap/lifetime extension,
+rejoining, displaced-event deletion/merging, action fill, freeze/step ordering
+and failure decisions. BUG1961/BUG1973 behavior is preserved. Native callbacks
+still provide BRender distance, scene seek and the temporary `_RestoreFromUndo`
+transaction; undo/body/view integration remains C++ work.
+
+The 439,824-byte trace `tmp/c89-record-before.bin` was captured before conversion
+across 640 cases. All bytes match the converted trace. Cases cover begin, move,
+finish, validity and complete sequences; replace/rejoin, partial-node starts,
+nearby Remove, frozen/ground input, elapsed-time boundaries and wrap, frame-only
+advancement, multiple displaced events, epsilon joins, future Add boundaries,
+metadata failures and native undo restoration. An additional native test passes
+the same bool pointer for both movement outputs on a frame-only advance.
+
+Output callbacks publish at the original assignments before scene seek or undo.
+Their assignment mask preserves native aliased-output behavior. The C test
+checks that mask and output visibility before failed scene seeks. It also checks
+untouched outputs on early exits, exact threshold boundaries, timestamp wrap,
+smoothing overflow and truncation, record-step failure outputs, segment splits,
+stub removal, failed lifetime refresh, reservation order, partial insertion,
+ground clipping without changing authored distance, gap extension, tag ownership
+through merges/deletion, zero-distance joins, Add boundaries and final mode/rejoin
+cleanup. Poisoned old table handles verify no table access after restoration.
+
+Final Studio and Marcus builds pass. All 51 standalone C checks (including strict
+C89 syntax), 65 focused native checks and MSVC AddressSanitizer pass. All 36
+snapshots and 51 CLI baselines match; the headless scene/timeline check passes.
+Evidence includes `tmp/c89-record-standalone.log`, `tmp/c89-record-native-tests.log`,
+`tmp/c89-record-asan.log`, `tmp/c89-record-snapshot-comparison.json`,
+`tmp/c89-record-output-comparison.json` and `tmp/c89-record-timeline.log`.
+
+Final Studio/Marcus binaries remained frozen, with no builds or compaction during
+captures. Completed evidence was transparently compressed between suites for
+headroom; raw files remain available. SDL reused the explicitly recorded warm
+package cache with private processes, settings, workspaces and working movies.
+OS file caching remains uncontrolled.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T040127Z-ddcff15b` | actor-audio | six complete retail/SDL/Marcus seek/playback runs |
+| `20261113T040301Z-83bdf6d0` | actor-events | six complete retail/SDL/Marcus seek/playback runs |
+| `20261113T040519Z-8ccdbc49` | scrolling-text | six complete retail/SDL/Marcus seek/playback runs |
+| `20261113T040827Z-29d273c9` | sampled-audio | retail/SDL complete; Marcus audio-capture error retained |
+| `20261113T041118Z-cb6c1040` | sampled-audio | successful Marcus-only retry |
+
+The original Marcus scene-audio attempt reported `Audio capture write failed`.
+The runner and capture processes were confirmed stopped. Completed scrolling
+evidence was compressed to increase headroom, then only Marcus was retried with
+the same binaries and capture policy. The original WAV, packet log, error and
+database row remain. The write-error cause was not established. The retry has no
+cross-player peers, so its suite verdict is inconclusive despite its complete run.
+
+An earlier six-run actor-audio suite, `20261113T035627Z-4012563d`, also remains.
+It preceded the final output-assignment-mask adapter fix and is superseded by
+`20261113T040127Z-ddcff15b`. Final comparisons require the explicitly recorded
+`final assignment-mask revision` environment marker.
+
+All 21 selected successful captures match their preceding same-player baselines:
+actor-audio `20261113T032810Z-c3670af5`, actor-events `20261113T032931Z-4f7d0c4c`,
+scrolling-text `20261113T033130Z-d3270cae` and scene audio
+`20261113T033449Z-146d21f9`. All 540 seek images, authored positions and ordered
+playback changes match. Only adjacent identical position/image records are
+collapsed; raw observations and timestamps remain available. Movie identities
+match and all movie/resource/content integrity checks pass.
+
+Actor cases retain 60 playback changes per player; scrolling retains 328 for
+retail/SDL and 321 for Marcus. Actor audio retains first-scene 600/1300 Hz coverage
+and PCM16 peaks of 3192 retail and 4081 SDL/Marcus. Scene audio retains 60 changes
+and peaks of 2380 retail and 2176 SDL/Marcus. Audible coverage and peaks do not
+establish exact waveform/timing parity. Existing cross-player differences remain;
+one successful repetition does not establish general repeatability or full retail
+parity. Direct recording tests and the native-before trace cover editing policy;
+the capture corpus checks retained playback behavior.
+
+Evidence remains under `tmp/c89-movie-data-regression`, with combined report
+`tmp/c89-record-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and count/peak verification in `tmp/c89-record-playback-summary.json`.
+Remaining transform/time edits, undo, queue/runtime integration, body/resource
+implementations and final facade removal remain unfinished. No Marcus UI tests
+were added.

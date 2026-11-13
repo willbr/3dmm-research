@@ -256,7 +256,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   including reservation order, early cache extension, neighboring-event
   inheritance, position/step/freeze sequencing, hide/default/rewind and seek.
   Removing an entrance can reveal an earlier subroute that then receives Remove.
-  Recording, remaining transform/time edits and undo still need conversion.
+- Recording validity, record-step sizing, begin/move/end sequencing, mouse
+  smoothing, route sampling, ground clipping and rejoining now execute in C89.
+  Timestamp differences wrap at 32 bits; displaced event/tag handling, end-of-
+  route freeze/step and BUG1961/BUG1973 behavior retain native ordering. Native
+  services still provide BRender distance, scene seeking and a temporary undo
+  restoration transaction. Remaining transform/time edits and undo need conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

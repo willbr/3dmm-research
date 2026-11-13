@@ -36,6 +36,7 @@ using namespace BRender;
 #include "three_mm/actor_route_edit.h"
 #include "three_mm/actor_subroute_edit.h"
 #include "three_mm/actor_stage_edit.h"
+#include "three_mm/actor_record.h"
 #include "actor_state.h"
 #include "actor_timeline.h"
 
@@ -170,6 +171,9 @@ class Actor : public Actor_PAR
     ThreeMMActorActionEditServices _ActionEditServices();
     ThreeMMActorSubrouteEditServices _SubrouteEditServices();
     ThreeMMActorStageEditServices _StageEditServices();
+    ThreeMMActorRecording _RecordingState() const;
+    void _PublishRecordingState(const ThreeMMActorRecording &);
+    ThreeMMActorRecordServices _RecordServices();
     ThreeMMActorSoundEditServices _SoundEditServices();
     bool _FEnqueueSnd(long iaev);
     bool _FEnqueueSmmInMsq(void);

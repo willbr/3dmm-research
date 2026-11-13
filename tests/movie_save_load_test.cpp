@@ -201,6 +201,11 @@ class StageTestScene : public Scene
 {
   public:
     StageTestScene(PMovie movie) : Scene(movie) {}
+    bool TrackActor(PActor actor,long frame)
+    {
+        _data.currentFrame=frame; _data.firstFrame=1; _data.lastFrame=100; _isevFrmLim=0;
+        return _pglpactr->FSetIvMac(0) && _pglpactr->FAdd(&actor);
+    }
     bool Init()
     {
         _pggsevFrm=GeneralGroup::PggNew(sizeof(SceneEvent));
@@ -216,6 +221,92 @@ class StageTestScene : public Scene
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestRecording(int mode,FILE *snapshot,StageTestScene *scene,bool aliasOutputs=false)
+    {
+        using namespace ActorEvent;
+        const int group=mode/128;
+        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        tmpl->FailAfter(0); tmpl->SetTestText(false);
+        ReleasePpo(&_pbody); _pbody=_ptmpl->PbodyCreate(); if (!_pbody) return false;
+        ActorTrack track; if (!track.FCreate()) return false;
+        for (int i=0;i<5;++i)
+        {
+            RouteDistancePoint point={{BR_SCALAR(i*4),rZero,rZero},i<3?BR_SCALAR(4):rZero};
+            if (!track.Route()->FInsert(i,&point)) return false;
+        }
+        auto append=[&](int type,int frame,int node,int hold,const void *payload,long bytes) {
+            Base event={type,frame,{node,rZero,hold}};
+            return track.Events()->FInsert(track.Events()->IvMac(),bytes,const_cast<void *>(payload),&event);
+        };
+        Add entrance={}; Action action={0,0}; BRS step=kdwrNil,scale=BR_SCALAR(2); int32_t freeze=1;
+        RoutePoint tweak={BR_SCALAR((group==2 && (mode&4))?12:4),rZero,rZero};
+        if (!append(aetAdd,1,0,0,&entrance,sizeof(entrance)) || !append(aetActn,1,0,0,&action,sizeof(action)) ||
+            !append(aetStep,1,0,0,&step,sizeof(step)) || !append(aetTweak,3,1,0,&tweak,sizeof(tweak)) ||
+            !append(aetSize,5,2,0,&scale,sizeof(scale))) return false;
+        scale=BR_SCALAR(3);
+        if (!append(aetSize,6,2,1,&scale,sizeof(scale)) || !append(aetFreeze,6,2,1,&freeze,sizeof(freeze)) ||
+            !append(aetActn,8,3,0,&action,sizeof(action)) ||
+            !append(aetRem,9,(group==0 && (mode&8))?2:3,1,nullptr,0) ||
+            !append(aetAdd,30,4,0,&entrance,sizeof(entrance)) || !append(aetActn,30,4,0,&action,sizeof(action))) return false;
+        // An early Remove belongs before the later-node events.
+        if (group==0 && (mode&8))
+        {
+            Base early; track.Events()->GetFixed(8,&early); early.nfrm=7;
+            track.Events()->Delete(8); if (!track.Events()->FInsert(7,0,nullptr,&early)) return false;
+        }
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.frame=3; _state.location={1,rZero,0}; _state.position=tweak;
+        _state.onStage=!(group==2 && (mode&32) && (mode&2)); _state.frozen=(mode&4)!=0;
+        if (_state.onStage) _pbody->Show();
+        _state.action=0; _state.cel=(mode&64)?1:0; _state.celCount=4; _state.actionFlags=factnRotateY;
+        _state.step=(group==2 && (mode&64))?rZero:kdwrNil;
+        _state.addEvent=0; _state.actionEvent=1; _state.firstEventInFrame=3; _state.nextEvent=4;
+        _state.routeTranslation={rZero,rOne,rZero}; _dxyzFullRte={rZero,rOne,rZero};
+        _nfrmFirst=1; _nfrmLast=40; _fLifeDirty=group==0 && (mode&32);
+        _fModeRecord=group==1 ? !(mode&1) : group==2 ? !(mode&2) : false;
+        _fRejoin=!(mode&16); _fPathInserted=!(mode&8); _dnfrmGap=-2;
+        _rtelInsert={0,rZero,0}; _dxyzRaw={3,-5,7}; _tsInsert=(mode&64)?0xffffff00UL:1000;
+        if (group==0 && (mode&2)) _state.location.dwrOffset=BR_SCALAR(2);
+        if (group==2) { RouteDistancePoint point; _track.Route()->Get(1,&point); point.dwr=0; _track.Route()->Put(1,&point); }
+        if (!scene->TrackActor(this,_state.frame)) return false;
+        PActor restore=nullptr; if (!FDup(&restore,true)) return false;
+        if ((group==0 && (mode&32) && (mode&64)) || (group==1 && (mode&32))) tmpl->FailAfter((mode&64)?2:1);
+        bool frame=true,route=true,ok=true;
+        const ulong now=_tsInsert+((mode&16)?750:749);
+        const ulong flags=((mode&2)?fmafFreeze:0)|((mode&4)?fmafGround:0);
+        BRS dx=(mode&2)?rEps:BR_SCALAR(6),dy=(mode&8)?-BR_SCALAR(9):rZero;
+        std::fprintf(stderr,"[record fixture] mode=%d\n",mode);
+        if (group==0) ok=FBeginRecord(now,(mode&1)!=0,restore);
+        else if (group==1) ok=FRecordMove(dx,dy,rEps,flags,now,&frame,aliasOutputs?&frame:&route,restore);
+        else if (group==2) ok=FEndRecord((mode&1)!=0,restore);
+        else if (group==3) ok=FIsRecordValid((mode&2)?kdwrThreshRte:kdwrThreshRte-rEps,rZero,rZero,now);
+        else
+        {
+            ok=FBeginRecord(now,(mode&1)!=0,restore);
+            if (ok) ok=FRecordMove(dx,dy,rEps,flags,now,&frame,&route,restore);
+            if (ok) ok=FEndRecord((mode&1)!=0,restore);
+        }
+        tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&restore);
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,ok,frame,route,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
+            _state.action,_state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_fRejoin,_fPathInserted,_dnfrmGap,
+            _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),scene->Nfrm(),
+            _track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.position,sizeof(_state.position)) &&
+            record(&_state.transform,sizeof(_state.transform)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
+            if (bytes>sizeof(payload)) return false;
+            _track.Events()->Get(i,payload);
+            saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        return saved && (!aliasOutputs || (ok && frame && route));
+    }
     bool FTestStageEdit(int mode,FILE *snapshot)
     {
         using namespace ActorEvent;
@@ -1309,6 +1400,23 @@ static bool TestActorSubrouteEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorRecording(PMovie movie)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_RECORD_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    auto scene=NewObj StageTestScene(movie);
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil;
+    auto actor=NewObj TrackTestActor();
+    bool ok=scene && scene->Init() && resource && actor && actor->FInitPlayback(scene,resource);
+    for (int mode=0;ok && mode<640;++mode) ok=actor->FTestRecording(mode,snapshot,scene);
+    if (ok) ok=actor->FTestRecording(146,nullptr,scene,true);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file); ReleasePpo(&scene);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
 static bool TestActorStageEditing(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -1834,6 +1942,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor placement failed");
     if (!TestActorStageEditing(pmvie))
         BAIL("actor stage editing failed");
+    if (!TestActorRecording(pmvie))
+        BAIL("actor recording failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

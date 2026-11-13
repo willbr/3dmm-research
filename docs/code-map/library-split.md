@@ -60,6 +60,7 @@ cmake --build build/engine-c89 --target engine-route-edit-test
 cmake --build build/engine-c89 --target engine-subroute-edit-test
 cmake --build build/engine-c89 --target engine-placement-test
 cmake --build build/engine-c89 --target engine-stage-edit-test
+cmake --build build/engine-c89 --target engine-record-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1134,8 +1135,50 @@ fixture through `engine_subroute_edit_fixture.h`. A 129,568-byte trace captured
 before conversion covers 256 native entrance/removal scenarios, including text,
 recording flags, early/late range caches and metadata failures. The converted
 results match exactly after ignoring only the Add payload's two unused padding
-bytes. Recording, remaining transform/time edits, undo, queue/runtime integration,
-body/resource implementations and final facade removal remain unfinished.
+bytes. Recording is described in the next section. Remaining transform/time
+edits, undo, queue/runtime integration, body/resource implementations and final
+facade removal remain unfinished.
+
+### Actor route recording
+
+`actor_record.c` owns recording validity, authored record-step sizing and the
+begin/move/end operations. `ThreeMMActorRecording` carries insertion location,
+timestamp, mode/rejoin/inserted flags, gap and raw mouse history. Native fields
+remain temporary mirrors published before metadata, scene and restoration
+operations. The final backend still needs to remove those C++ owner adapters.
+
+Beginning clears insertion status, handles nearby Remove events, splits the
+current segment when necessary, refreshes dirty lifetime caches and accumulates
+future subroute gaps. It preserves the previous timestamp. Movement reserves
+events before a point, smooths with wrapped scalar arithmetic and division toward
+zero, changes freeze state, queries the authored/scaled action step and either
+waits, records in place or inserts a sampled point. Ground clipping keeps the
+original step distance. Timestamp subtraction wraps at 32 bits. Output observers
+run at the original assignments before scene seeks/restoration; an assignment
+mask preserves callers that alias the two native bool output pointers.
+
+Finishing preserves BUG1961/BUG1973: it stops gathering at Add, chooses the first
+closest later node without crossing a terminal point, substitutes epsilon for a
+zero join distance, deletes displaced action/tweak/freeze/step/Remove events,
+moves/merges other events and applies action fill. Replace/static-tail paths keep
+their distinct freeze/step ordering. Failures restore before clearing mode/rejoin
+flags. Restoration can replace table handles; C never reads those handles again.
+
+Native services retain primitive BRender distance queries, scene seeks and the
+current `_RestoreFromUndo` transaction. The latter still contains C++ undo/body/
+view integration and must be converted with undo; it is not a final backend
+boundary. Other recording decisions execute in the C-only library.
+
+`engine-record-test` covers thresholds and timestamp wrap, record-step failures,
+segment splitting, removed stubs, lifetime failure, reservation short-circuiting,
+written/untouched outputs, frame-only waits, sampling, clipping, smoothing overflow,
+gap extension, seek rollback and aliased-output assignment masks. It also checks
+tag ownership through merging/deletion, Add boundaries, epsilon joins, end failure
+cleanup and poisoned table handles after restoration. A 439,824-byte native-before
+trace across 640 scenarios matches exactly, including complete recording sequences
+and real undo restoration. An additional native aliased-output check passes.
+Remaining transform/time edits, undo, queue/runtime integration, body/resource
+implementations and final facade removal remain unfinished.
 
 ### Source names and directory discovery
 

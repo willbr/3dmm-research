@@ -577,17 +577,12 @@ bool Actor::_FGetDwrPlay(BRS *pdwr)
 ***************************************************************************/
 bool Actor::_FGetDwrRecord(BRS *pdwr)
 {
-    AssertBaseThis(0);
-    AssertVarMem(pdwr);
-
-    *pdwr = rZero;
-
-    if (!_ptmpl->FGetDwrActnCel(_state.action, _state.cel, pdwr))
-        return fFalse;
-
-    *pdwr = BrsMul(*pdwr, _state.transform.rScaleStep);
-
-    return fTrue;
+    AssertBaseThis(0); AssertVarMem(pdwr);
+    const auto state=EngineActorMotion::Core(_state);
+    const auto services=_SubrouteEditServices();
+    ThreeMMI32 distance=0;
+    bool ok=three_mm_actor_record_step(&state,&distance,&services.timeline)!=0;
+    *pdwr=distance; return ok;
 }
 
 /***************************************************************************
@@ -2322,23 +2317,58 @@ bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
     down to initialize the timing of the recording session
 
 ***************************************************************************/
+ThreeMMActorRecording Actor::_RecordingState() const
+{
+    ThreeMMActorRecording record{};
+    std::memcpy(&record.insertion,&_rtelInsert,sizeof(record.insertion));
+    std::memcpy(&record.raw,&_dxyzRaw,sizeof(record.raw));
+    record.timestamp=_tsInsert; record.recording=_fModeRecord; record.rejoining=_fRejoin;
+    record.inserted=_fPathInserted; record.gap=_dnfrmGap;
+    return record;
+}
+void Actor::_PublishRecordingState(const ThreeMMActorRecording &record)
+{
+    std::memcpy(&_rtelInsert,&record.insertion,sizeof(_rtelInsert));
+    std::memcpy(&_dxyzRaw,&record.raw,sizeof(_dxyzRaw));
+    _tsInsert=record.timestamp; _fModeRecord=record.recording!=0; _fRejoin=record.rejoining!=0;
+    _fPathInserted=record.inserted!=0; _dnfrmGap=record.gap;
+}
+ThreeMMActorRecordServices Actor::_RecordServices()
+{
+#if !defined(BUG1961) || !defined(BUG1973)
+#error C89 actor recording requires the enabled retail BUG1961/BUG1973 policies
+#endif
+    static_assert(kdtsThreshRte==750 && kdwrThreshRte==131072 && kdwrMax==2147418112 &&
+                  fmafFreeze==THREE_MM_RECORD_FREEZE && fmafGround==THREE_MM_RECORD_GROUND && sizeof(ulong)==4,
+                  "Actor recording ABI");
+    ThreeMMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
+    s.reserve_points=[](void *route,ThreeMMU32 count) { return int(static_cast<PDynamicArray>(route)->FEnsureSpace(count,fgrpNil)); };
+    s.distance=[](void *,const ThreeMMActorPoint *point) { return ThreeMMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
+    s.publish_record=[](void *p,const ThreeMMActorRecording *record) { static_cast<Actor *>(p)->_PublishRecordingState(*record); };
+    s.restore=[](void *p,void *undo,ThreeMMActorState *state,ThreeMMActorRecording *record) {
+        auto actor=static_cast<Actor *>(p); actor->_RestoreFromUndo(static_cast<PActor>(undo));
+        *state=EngineActorMotion::Core(actor->_state); *record=actor->_RecordingState();
+    };
+    s.seek_scene=[](void *p,ThreeMMActorState *state,ThreeMMActorRecording *record,ThreeMMI32 frame) {
+        auto actor=static_cast<Actor *>(p); bool ok=actor->_pscen->FGotoFrm(frame);
+        *state=EngineActorMotion::Core(actor->_state); *record=actor->_RecordingState(); return int(ok);
+    };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault) {
+        case THREE_MM_RECORD_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
+        case THREE_MM_RECORD_UNFREEZE_FAILED: case THREE_MM_RECORD_FREEZE_FAILED: Bug("Ensurespace should have ensured space"); break;
+        case THREE_MM_RECORD_STEP_FAILED: Bug("EnsureSpace insufficient"); break;
+        }
+    };
+    return s;
+}
 bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
 {
     AssertThis(0);
-
-    if (_fModeRecord)
-        return fTrue;
-
-    BRS dwrMouse;
-
-    // Is this truly a motion fill or is there sufficient time or
-    // distance travelled to make this an authentic route record?
-    dwrMouse = BR_LENGTH3(dxr, dyr, dzr);
-
-    if ((dwrMouse < kdwrThreshRte) && ((tsCurrent - _tsInsert) < kdtsThreshRte))
-        return fFalse;
-
-    return fTrue;
+    const auto record=_RecordingState();
+    const auto services=_RecordServices();
+    const ThreeMMActorPoint delta{dxr,dyr,dzr};
+    return three_mm_actor_record_valid(&record,&delta,tsCurrent,&services)!=0;
 }
 
 /***************************************************************************
@@ -2351,100 +2381,11 @@ bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
 bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
-    Assert(tsCurrent >= 0, "Invalid type");
-
-    RouteDistancePoint rpt;
-    Base aev;
-    long iaev;
-    long nfrmAdd;
-    long nfrmPrev;
-    bool fClosestSubrte = fTrue;
-
-    _track.Route()->Get(_state.location.irpt, &rpt);
-    _fPathInserted = fFalse;
-
-    // Do not rejoin to a one point offstage stub.
-    _fRejoin = !fReplace && !(rZero == rpt.dwr);
-    if (_fRejoin)
-    {
-        long iaev;
-        Base aev;
-
-        long irptNext = _state.location.irpt + 1;
-
-        for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-        {
-            _track.Events()->GetFixed(iaev, &aev);
-            if (irptNext < aev.rtel.irpt)
-                break;
-            if (aetRem == aev.aet)
-            {
-                _fRejoin = fFalse;
-                _RemoveAev(iaev);
-                iaev--;
-                _AdjustAevForRteDel(irptNext, _state.nextEvent);
-                _track.Route()->Delete(irptNext);
-            }
-        }
-    }
-
-    // Recording must advance from the current point -> potentially
-    // inserting the current point
-    if (rZero != _state.location.dwrOffset)
-    {
-        BRS dwrCur = _state.location.dwrOffset;
-        _GetXyzFromRtel(&_state.location, &rpt.xyz);
-        _state.location.irpt++;
-        _state.location.dwrOffset = rZero;
-        _state.location.dnfrm = 0;
-        if (!_FInsertGgRpt(_state.location.irpt, &rpt, dwrCur))
-            goto LFail;
-        _GetXyzFromRtel(&_state.location, &_state.position);
-        _AdjustAevForRteIns(_state.location.irpt, 0);
-    }
-
-    // Determine the gaps between subroutes
-    _dnfrmGap = 0;
-    iaev = _state.nextEvent;
-    if (_fLifeDirty)
-    {
-        // Validate future nfrm values
-        if (!_FComputeLifetime())
-        {
-            PushErc(ercSocBadFrameSlider);
-            goto LFail;
-        }
-    }
-
-    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.aet != aetAdd)
-            continue;
-        nfrmAdd = aev.nfrm;
-        if (fClosestSubrte)
-        {
-            nfrmPrev = _state.frame;
-            fClosestSubrte = fFalse;
-        }
-        else
-        {
-            _track.Events()->GetFixed(iaev - 1, &aev);
-            nfrmPrev = aev.nfrm;
-        }
-        _dnfrmGap -= (nfrmAdd - nfrmPrev);
-    }
-
-    _rtelInsert = _state.location;
-    _fModeRecord = fTrue;
-    _dxyzRaw.dxr = rZero;
-    _dxyzRaw.dyr = rZero;
-    _dxyzRaw.dzr = rZero;
-    return fTrue;
-
-LFail:
-    _RestoreFromUndo(pactrRestore);
-    return fFalse;
+    (void)tsCurrent; // Native beginning deliberately preserves _tsInsert.
+    auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
+    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
+    bool ok=three_mm_actor_record_begin(&state,&record,_track.Route(),_track.Events(),fReplace,pactrRestore,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); _PublishRecordingState(record); return ok;
 }
 
 /***************************************************************************
@@ -2463,135 +2404,22 @@ LFail:
 bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfStepFrm, bool *pfStepRte,
                        PActor pactrRestore)
 {
-    AssertThis(0);
-    AssertVarMem(pfStepFrm);
-    AssertVarMem(pfStepRte);
-
-    RouteDistancePoint rptCur;
-    RoutePoint xyzMouse;
-    RoutePoint dxyzT;
-    BRS dwrCur;
-    RouteDistancePoint rptNew;
-    BRS rFractMoved;
-    BRS dwrMouse;
-
-    Assert(_state.onStage, "Recording an actor that wasn't selectable??");
-    if (!_fModeRecord)
-        return fTrue; // Potential client call on motion fill
-
-    if (!_track.Events()->FEnsureSpace(2, kcbVarStep + kcbVarFreeze, fgrpNil) || !_track.Route()->FEnsureSpace(1, fgrpNil))
-    {
-        goto LFail;
-    }
-
-    // Smooth the unpruned raw mouse movement *before* we create the path
-    dxyzT.dxr = dxr;
-    dxyzT.dyr = dyr;
-    dxyzT.dzr = dzr;
-    dxr = BR_CONST_DIV(BrsAdd(_dxyzRaw.dxr, BR_CONST_MUL(2, dxr)), 3);
-    dyr = BR_CONST_DIV(BrsAdd(_dxyzRaw.dyr, BR_CONST_MUL(2, dyr)), 3);
-    dzr = BR_CONST_DIV(BrsAdd(_dxyzRaw.dzr, BR_CONST_MUL(2, dzr)), 3);
-
-    if (_state.frozen && !(grfmaf & fmafFreeze))
-        AssertDo(_FUnfreeze(), "Ensurespace should have ensured space");
-    if (!_state.frozen && (grfmaf & fmafFreeze))
-        AssertDo(_FFreeze(), "Ensurespace should have ensured space");
-
-    if (pvNil != pfStepFrm)
-        *pfStepFrm = fFalse;
-    if (pvNil != pfStepRte)
-        *pfStepRte = fFalse;
-
-    // Update distance from previously current point
-    Assert(_track.Route()->IvMac() > 0, "Illegal empty path");
-
-    // In record mode, know prev point on a route Node
-    // Determine if threshhold distance has been advanced
-    _track.Route()->Get(_state.location.irpt, &rptCur);
-    xyzMouse.dxr = BrsAdd(dxr, rptCur.xyz.dxr);
-    xyzMouse.dyr = BrsAdd(dyr, rptCur.xyz.dyr);
-    xyzMouse.dzr = BrsAdd(dzr, rptCur.xyz.dzr);
-    dwrMouse = BR_LENGTH3(dxr, dyr, dzr);
-
-    if (!_FGetDwrRecord(&dwrCur))
-        goto LFail;
-
-    if (dwrMouse < dwrCur)
-    {
-        if ((tsCurrent - _tsInsert) < kdtsThreshRte)
-        {
-            // Insufficient length and insufficient time to record a point
-            return fTrue;
-        }
-
-        if (rZero != _state.step)
-        {
-            AssertDo(FSetStep(rZero), "EnsureSpace insufficient");
-        }
-
-        _fPathInserted = fTrue;
-        if (pvNil != pfStepFrm)
-        {
-            *pfStepFrm = fTrue;
-        }
-        if (!_pscen->FGotoFrm(_pscen->Nfrm() + 1))
-            goto LFail;
-        return fTrue;
-    }
-
-    _tsInsert = tsCurrent;
-    _dxyzRaw = dxyzT;
-
-    //
-    // Insert new point.  (Overlays last point if offstage)
-    // Length is sufficient.  Truncate to correct step size
-    //
-    rFractMoved = BrsDiv(dwrCur, dwrMouse);
-    Assert(rZero != dwrCur, "Zero length step illegal in FRecordMove");
-
-    _GetXyzOnLine(&rptCur.xyz, &xyzMouse, rFractMoved, &rptNew.xyz);
-    rptNew.dwr = rZero;
-
-    // Adjust the point for ground zero.  The rule is if the mouse
-    // is decreasing from above to below ground, stop at ground level
-    // The original dwr is used *by design*
-    if ((grfmaf & fmafGround) && (BrsAdd(rptCur.xyz.dyr, _state.routeTranslation.dyr) >= rZero) &&
-        (BrsAdd(rptNew.xyz.dyr, _state.routeTranslation.dyr) < rZero))
-    {
-        rptNew.xyz.dyr = -_state.routeTranslation.dyr;
-    }
-
-    if (!_track.Route()->FInsert(1 + _state.location.irpt, &rptNew))
-        goto LFail;
-
-    if (kdwrNil != _state.step)
-    {
-        AssertDo(FSetStep(kdwrNil), "EnsureSpace insufficient");
-    }
-
-    // Reset distance in previous xyz entry
-    rptCur.dwr = dwrCur;
-    Assert(dwrCur != rZero, "Bug in InsertRoute");
-    _track.Route()->Put(_state.location.irpt, &rptCur);
-
-    _AdjustAevForRteIns(1 + _state.location.irpt, _state.nextEvent);
-    _fPathInserted = fTrue;
-
-    if (pvNil != pfStepFrm)
-        *pfStepFrm = fTrue;
-    if (pvNil != pfStepRte)
-        *pfStepRte = fTrue;
-
-    _dnfrmGap++;
-    if (_dnfrmGap > 0)
-        _nfrmLast++;
-
-    if (_pscen->FGotoFrm(_pscen->Nfrm() + 1))
-        return fTrue;
-
-LFail:
-    _RestoreFromUndo(pactrRestore);
-    return fFalse;
+    AssertThis(0); AssertVarMem(pfStepFrm); AssertVarMem(pfStepRte);
+    Assert(_state.onStage,"Recording an actor that wasn't selectable??");
+    auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
+    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
+    const ThreeMMActorPoint delta{dxr,dyr,dzr}; ThreeMMActorRecordResult result{};
+    struct Outputs { bool *frame,*route; } outputs{pfStepFrm,pfStepRte};
+    result.context=&outputs;
+    result.publish=[](void *p,int frame,int route,unsigned changed) {
+        auto out=static_cast<Outputs *>(p);
+        if ((changed&1) && out->frame) *out->frame=frame!=0;
+        if ((changed&2) && out->route) *out->route=route!=0;
+    };
+    bool ok=three_mm_actor_record_move(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                       &delta,grfmaf,tsCurrent,&result,pactrRestore,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); _PublishRecordingState(record);
+    return ok;
 }
 
 /***************************************************************************
@@ -2620,201 +2448,13 @@ LFail:
 bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
-
-    Base aev;
-    BRS dwr;
-    long iaev;
-    long irpt;
-    RouteDistancePoint rpt;
-    RouteDistancePoint rptJoin;
-    RouteDistancePoint rptCur;
-    BRS dwrMin = kdwrMax;
-    RouteLocation rtelJoin = _state.location;
-    bool fJoin = fFalse;
-    long irptLim = _track.Route()->IvMac();
-    long iaevJoinFirst = _state.nextEvent;
-    long iaevNew;
-
-    // Determine whether to rejoin to the path
-    // REVIEW (*****): Can we assert _state.onStage?
-    if (_fModeRecord && (!_state.onStage || fReplace))
-    {
-        // Delete remnant path
-        _DeleteFwdCore(fFalse, pvNil, _state.nextEvent);
-        if (!_FFreeze())
-            goto LFail;
-        if (!FSetStep(rZero))
-            goto LFail;
-        goto LEndRecord;
-    }
-
-    //
-    // Motion Fill or Path-rejoining
-    //
-    // _fModeRecord == fFalse on motion fill
-    if (!_fModeRecord || !_fPathInserted || !_state.onStage)
-    {
-        // Set Action necessarily destroys end of path freeze events
-        // Reinsert an end of path freeze event	if at end of subroute
-        if (_FIsDoneAevSub(_state.nextEvent, _state.location))
-        {
-            if (!_FFreeze())
-                goto LFail;
-        }
-        goto LEndRecord; // Nothing inserted
-    }
-
-    // On !fReplace, force continuation to remainder of route.
-    if (rZero == _state.step)
-    {
-        if (!FSetStep(kdwrNil))
-            goto LFail;
-    }
-
-    if (!_fRejoin)
-    {
-        // Gather the events at later time for the current path point
-        // Equivalent to setting the join time ahead
-        rtelJoin.dnfrm = 1;
-    }
-    else
-    {
-        Assert((_state.location.irpt < _track.Route()->IvMac() - 1), "Not enough points to rejoin");
-
-        for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-        {
-            _track.Events()->GetFixed(iaev, &aev);
-            if (aev.aet == aetAdd)
-            {
-                irptLim = aev.rtel.irpt;
-                break;
-            }
-        }
-
-        // Locate the Join node
-        rtelJoin.irpt = _state.location.irpt + 1;
-        rtelJoin.dwrOffset = rZero;
-        rtelJoin.dnfrm = 0;
-        for (irpt = 1 + _state.location.irpt; irpt < irptLim; irpt++)
-        {
-            _track.Route()->Get(irpt, &rpt);
-            dwr = BR_LENGTH3(BrsSub(_state.position.dxr, rpt.xyz.dxr), BrsSub(_state.position.dyr, rpt.xyz.dyr),
-                             BrsSub(_state.position.dzr, rpt.xyz.dzr));
-            if (dwr < dwrMin)
-            {
-                dwrMin = dwr;
-                rtelJoin.irpt = irpt;
-            }
-
-            // Do not join across subroutes
-            if (rZero == rpt.dwr)
-                break;
-        }
-
-        Assert(rtelJoin > _state.location, "Invalid Join point");
-        Assert(rZero == _state.location.dwrOffset, "_state.location invalid");
-
-        // Update the dwr of the most recently recorded point to be
-        // the length to the join point on the path
-        // NOTE: This cannot be zero (it would signal end of path)
-        _track.Route()->Get(_state.location.irpt, &rptCur);
-        _track.Route()->Get(rtelJoin.irpt, &rptJoin);
-        rptCur.dwr =
-            BR_LENGTH3(BrsSub(_state.position.dxr, rptJoin.xyz.dxr), BrsSub(_state.position.dyr, rptJoin.xyz.dyr),
-                       BrsSub(_state.position.dzr, rptJoin.xyz.dzr));
-
-        if (rZero == rptCur.dwr)
-        {
-            // Prevent pathological end-of-route case
-            rptCur.dwr = rEps;
-        }
-        _track.Route()->Put(_state.location.irpt, &rptCur);
-    }
-
-    //
-    // Note: Motion fill exited earlier.  This is rejoin-recording only (which
-    // may or may not actually have a path point to rejoin to).
-    // Move displaced events forward to the join point
-    // Spec: Replace is viewed in UI as Action replace, not just path replace.	->
-    // Delete intervening action, tweak, freeze, step and rem events.
-    //
-    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-#ifdef BUG1961
-        // If we were rejoin-recording from a static segment, there is
-        // no point to rejoin to (-> _fRejoin is fFalse).  So gather
-        // events up to but not beyond the next add event.
-        if (aev.aet == aetAdd || (_fRejoin && aev.rtel >= rtelJoin))
-#else
-        if (_fRejoin && aev.rtel >= rtelJoin)
-#endif //! BUG1961
-        {
-            break;
-        }
-
-        if (aev.rtel > _rtelInsert)
-        {
-            if (aev.aet == aetTweak || aev.aet == aetStep || aev.aet == aetRem || aev.aet == aetActn ||
-                aev.aet == aetFreeze)
-            {
-                _RemoveAev(iaev);
-                iaev--;
-                continue;
-            }
-            else
-            {
-                aev.rtel = rtelJoin;
-                _track.Events()->PutFixed(iaev, &aev);
-                _MergeAev(iaevJoinFirst, iaev, &iaevNew);
-                if (iaevNew < iaev)
-                    iaev--;
-            }
-        }
-    }
-
-    if (_fRejoin)
-    {
-        // Delete the path segment before the join point
-        for (irpt = rtelJoin.irpt - 1; irpt > _state.location.irpt; irpt--)
-        {
-            _AdjustAevForRteDel(irpt, _state.nextEvent);
-            _track.Route()->Delete(irpt);
-        }
-
-        // Spec: Do an action fill forward.
-        _PrepActnFill(iaevJoinFirst, _state.action, _state.action, faetTweak | faetFreeze | faetActn);
-    }
-
-#ifdef BUG1961
-    if (!fReplace && !_fRejoin)
-    {
-        if (!_FFreeze())
-            goto LFail;
-        if (!FSetStep(rZero))
-            goto LFail;
-    }
-#endif // BUG1961
-
-LEndRecord:
-    _fLifeDirty = fTrue;
-#ifdef BUG1973
-    _fRejoin = fFalse;
-#endif // BUG1973
-    _fModeRecord = fFalse;
-    _pscen->MarkDirty();
-    _pscen->InvalFrmRange();
-    AssertThis(fobjAssertFull);
-    return fTrue;
-
-LFail:
-    _RestoreFromUndo(pactrRestore);
-#ifdef BUG1973
-    _fRejoin = fFalse;
-#endif
-    _fModeRecord = fFalse; // Redundant safety net
-    return fFalse;
+    auto state=EngineActorMotion::Core(_state); auto record=_RecordingState();
+    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
+    bool ok=three_mm_actor_record_end(&state,&record,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                      fReplace,pactrRestore,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state); _PublishRecordingState(record);
+    if (ok) { AssertThis(fobjAssertFull); }
+    return ok;
 }
 
 /***************************************************************************
