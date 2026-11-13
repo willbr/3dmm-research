@@ -168,6 +168,152 @@ class TrackTestTemplate : public Template
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestCostumeMergeOwnership(PChunkyResourceFile replacement)
+    {
+        auto original=_tagTmpl.pcrf;
+        const long originalRefs=original->CactRef(), replacementRefs=replacement->CactRef();
+        ActorTrack track;
+        if (!track.FCreate()) return false;
+        RouteDistancePoint point={{rZero,rZero,rZero},rZero};
+        ActorEvent::Base event={ActorEvent::aetAdd,1,{0,rZero,0}};
+        ActorEvent::Add add={};
+        if (!track.Route()->FInsert(0,&point) || !track.Events()->FInsert(0,sizeof(add),&add,&event)) return false;
+        for (int i=0; i<2; ++i)
+        {
+            ActorEvent::Costume costume={};
+            costume.ibset=1; costume.tag={0,i ? replacement : original,kctgMtrl,0};
+            event.aet=ActorEvent::aetCost; event.nfrm=4;
+            TagManager::DupTag(&costume.tag);
+            if (!track.Events()->FInsert(i+1,sizeof(costume),&costume,&event))
+            { TagManager::CloseTag(&costume.tag); return false; }
+        }
+        _track.Swap(track); _motionSounds.Clear();
+        _state.firstEventInFrame=1; _state.nextEvent=2; _state.actionEvent=-1; _state.addEvent=0;
+        long result=-1; _MergeAev(1,2,&result);
+        if (result!=1 || original->CactRef()!=originalRefs || replacement->CactRef()!=replacementRefs+1)
+        {
+            std::fprintf(stderr,"Costume merge lost owning TAG references\n");
+            std::exit(1);
+        }
+        _track.Clear();
+        return replacement->CactRef()==replacementRefs;
+    }
+    bool FTestEventEdit(int mode, FILE *snapshot)
+    {
+        ActorTrack created;
+        if (!created.FCreate()) return false;
+        RouteDistancePoint points[]={{{rZero,rZero,rZero},BR_SCALAR(10)},{{BR_SCALAR(10),rZero,rZero},rZero}};
+        if (!created.Route()->FInsert(0,&points[0]) || !created.Route()->FInsert(1,&points[1])) return false;
+        union Payload { ActorEvent::Add add; ActorEvent::Action action; ActorEvent::Costume costume;
+            ActorEvent::Sound sound; BMAT34 matrix; RoutePoint move; int32_t scalar; } value;
+        auto fill=[&](int kind,int seed) {
+            std::memset(&value,0,sizeof(value));
+            switch (kind)
+            {
+            case ActorEvent::aetAdd: return int(sizeof(value.add));
+            case ActorEvent::aetActn: return int(sizeof(value.action));
+            case ActorEvent::aetCost:
+                value.costume.ibset=1; value.costume.tag={2,pvNil,kctgMtrl,static_cast<ChunkNumber>(seed)};
+                return int(sizeof(value.costume));
+            case ActorEvent::aetSnd:
+                value.sound.celn=seed; value.sound.sty=2; value.sound.vlm=100+seed;
+                value.sound.tag={2,pvNil,kctgMsnd,static_cast<ChunkNumber>(seed)};
+                return int(sizeof(value.sound));
+            case ActorEvent::aetRotH: case ActorEvent::aetRotF:
+                BrMatrix34Identity(&value.matrix); value.matrix.m[3][0]=BR_SCALAR(seed); return int(sizeof(value.matrix));
+            case ActorEvent::aetMove: case ActorEvent::aetTweak: case ActorEvent::aetPull:
+                value.move={BR_SCALAR(seed),BR_SCALAR(seed+1),BR_SCALAR(seed+2)}; return int(sizeof(value.move));
+            case ActorEvent::aetRem: return 0;
+            default: value.scalar=seed; return int(sizeof(value.scalar));
+            }
+        };
+        auto add=[&](int kind,int seed,int frame,int hold) {
+            int bytes=fill(kind,seed);
+            ActorEvent::Base event={kind,frame,{0,rZero,hold}};
+            return created.Events()->FInsert(created.Events()->IvMac(),bytes,&value,&event);
+        };
+        int oldKind=mode<26 ? mode/2 : ActorEvent::aetFreeze;
+        int newKind=oldKind;
+        if (mode==26 || mode==27) { oldKind=ActorEvent::aetRem; newKind=ActorEvent::aetAdd; }
+        if (mode==28 || mode==29) { oldKind=ActorEvent::aetRotH; newKind=ActorEvent::aetRotF; }
+        if (mode==30) oldKind=newKind=ActorEvent::aetRotF;
+        if (mode>=31 && mode<=33) oldKind=newKind=ActorEvent::aetSnd;
+        if (mode==34) oldKind=newKind=ActorEvent::aetCost;
+        if (mode==35 || mode==41) oldKind=newKind=ActorEvent::aetMove;
+        if (!add(ActorEvent::aetAdd,0,1,0) || !add(oldKind,1,(mode==26 || mode==29) ? 3 : 4,0)) return false;
+        if (mode==30 && !add(ActorEvent::aetRotH,1,4,0)) return false;
+        if (!add(newKind,2,4,mode<26 ? mode%2 : 0)) return false;
+        if (mode==31) { value.sound.fQueue=tYes; created.Events()->Put(2,&value.sound); }
+        if (mode==32 || mode==33) { value.sound.sty=3; created.Events()->Put(2,&value.sound); }
+        if (mode==34) { value.costume.ibset=2; created.Events()->Put(2,&value.costume); }
+        if (mode==35)
+        {
+            RoutePoint old={klwMax,0,0}, fresh={1,0,0};
+            created.Events()->Put(1,&old); created.Events()->Put(2,&fresh);
+        }
+        _track.Swap(created); _motionSounds.Clear();
+        _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.onStage=true; _state.frame=4; _state.firstEventInFrame=1; _state.nextEvent=_track.Events()->IvMac()-1;
+        _state.actionEvent=-1; _state.addEvent=0; _state.celCount=4;
+        _state.subrouteTranslation={BR_SCALAR(7),BR_SCALAR(8),BR_SCALAR(9)};
+        _state.routeTranslation={BR_SCALAR(42),BR_SCALAR(43),BR_SCALAR(44)};
+        _arid=mode==33 ? 32768 : 23; _nfrmFirst=1; _nfrmLast=30; _fLifeDirty=false;
+        if (oldKind==ActorEvent::aetSnd)
+        {
+            ThreeMMActorMotionSound match;
+            _track.Events()->GetFixed(1,&match.event); _track.Events()->Get(1,&match.sound);
+            if (!three_mm_actor_sounds_insert(_motionSounds.Core(),&match.event,&match.sound)) return false;
+        }
+        LegacyLong result=-99; bool ok=true;
+        if (mode>=38 && mode<=40)
+        {
+            int32_t freeze=1; ActorEvent::Base event={ActorEvent::aetFreeze,4,{0,rZero,0}};
+            _state.actionEvent=1;
+            ok=_FInsertAev(1,sizeof(freeze),mode==39 ? pvNil : &freeze,&event,mode!=40);
+            if (ok && mode==39) _track.Events()->Put(1,&freeze);
+        }
+        else if (mode>=41)
+        {
+            _RemoveAev(_state.nextEvent,false);
+            if (mode==41) { RoutePoint move={BR_SCALAR(2),BR_SCALAR(3),BR_SCALAR(4)}; ok=_FAddDoAev(ActorEvent::aetMove,sizeof(move),&move); }
+            else
+            {
+                int32_t scalar=1;
+                if (mode==43) { _state.location.dwrOffset=BR_SCALAR(20); scalar=0; }
+                if (mode==44) { _nfrmFirst=10; _nfrmLast=-5; }
+                ok=_FAddDoAev(mode==43 ? ActorEvent::aetStep : ActorEvent::aetFreeze,sizeof(scalar),&scalar);
+            }
+        }
+        else _MergeAev(mode==36 ? _state.nextEvent : 1,_state.nextEvent,mode==37 ? pvNil : &result);
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong state[]={mode,ok,result,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.subrouteTranslation.dxr,_state.subrouteTranslation.dyr,_state.subrouteTranslation.dzr,
+            _state.routeTranslation.dxr,_state.routeTranslation.dyr,_state.routeTranslation.dzr,_state.frozen,
+            _nfrmFirst,_nfrmLast,_track.Events()->IvMac(),_motionSounds.IvMac()};
+        bool saved=record(state,sizeof(state));
+        for (long i=0; i<_track.Events()->IvMac(); ++i)
+        {
+            ActorEvent::Base event; _track.Events()->GetFixed(i,&event); saved=saved && record(&event,sizeof(event));
+            if (event.aet==ActorEvent::aetSnd)
+            {
+                ActorEvent::Sound sound; _track.Events()->Get(i,&sound);
+                LegacyLong fields[]={sound.celn,sound.sty,sound.vlm,sound.fQueue,sound.tag.sid,static_cast<LegacyLong>(sound.tag.cno)};
+                saved=saved && record(fields,sizeof(fields));
+            }
+            else if (event.aet==ActorEvent::aetCost)
+            {
+                ActorEvent::Costume costume; _track.Events()->Get(i,&costume);
+                LegacyLong fields[]={costume.ibset,costume.cmid,costume.fCmtl,costume.tag.sid,static_cast<LegacyLong>(costume.tag.cno)};
+                saved=saved && record(fields,sizeof(fields));
+            }
+            else
+            {
+                LegacyLong bytes=_track.Events()->Cb(i); std::memset(&value,0,sizeof(value));
+                _track.Events()->Get(i,&value); saved=saved && record(&value,bytes);
+            }
+        }
+        return saved && ok==(mode!=43);
+    }
     bool FTestSoundEdit(int mode, FILE *snapshot)
     {
         ActorTrack created;
@@ -564,6 +710,25 @@ static bool TestActorSoundEditing(PScene scene)
     bool ok=actor && resource && actor->FInitPlayback(scene,resource);
     for (int mode=0; ok && mode<15; ++mode) ok=actor->FTestSoundEdit(mode,snapshot);
     ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
+static bool TestActorEventEditing(PScene scene)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_EVENT_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
+    auto actor=NewObj TrackTestActor();
+    bool ok=actor && resource && actor->FInitPlayback(scene,resource);
+    for (int mode=0; ok && mode<45; ++mode) ok=actor->FTestEventEdit(mode,snapshot);
+    PChunkyFile second=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile replacement=second ? ChunkyResourceFile::PcrfNew(second,0) : pvNil;
+    if (ok) ok=replacement && actor->FTestCostumeMergeOwnership(replacement);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    ReleasePpo(&replacement); ReleasePpo(&second);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok;
     return ok;
 }
@@ -1012,6 +1177,8 @@ int __cdecl main(int argc, char **argv)
     LOG("sound queue ownership, dispatch and preview alarms");
     if (!TestActorSoundEditing(pmvie->Pscen()))
         BAIL("actor sound editing failed");
+    if (!TestActorEventEditing(pmvie->Pscen()))
+        BAIL("actor event editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

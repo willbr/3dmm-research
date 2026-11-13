@@ -222,7 +222,7 @@ int three_mm_actor_sound_set(ThreeMMActorState *state, ThreeMMActorSounds *list,
     if (!tag->sid && !s->sound_child(s->context, tag->number, &sound.child)) goto fail;
     sound.cel = -1;
     if (motion && !cel(state, &sound.cel, s)) goto fail;
-    if (!s->insert_apply(s->context, state, &sound)) goto fail;
+    if (!three_mm_actor_edit_add_apply(state,list,events,actor,THREE_MM_ACTOR_SOUND,sizeof(sound),&sound,m,&s->edits)) goto fail;
     s->runtime.release(s->runtime.context, resource);
     number = three_mm_sound_queue_number(sound.style, actor, 1);
     for (i = state->nextEvent; i < m->event_count(events); ++i)

@@ -68,8 +68,26 @@ static void info(void *p, void *resource, ThreeMMActorSoundInfo *out)
 static int reserve(void *p, ThreeMMU32 entries, ThreeMMU32 bytes)
 { CHECK(entries==2 && bytes==4+sizeof(ThreeMMActorSound)); return !((Fixture *)p)->reserve_fail; }
 static int child(void *p, ThreeMMU32 number, ThreeMMU32 *out) { (void)p; (void)number; *out=3; return 1; }
-static int insert(void *p, ThreeMMActorState *state, const ThreeMMActorSound *sound)
-{ Fixture *f=(Fixture *)p; f->inserted=*sound; state->nextEvent=0; return !f->insert_fail; }
+static int insert_event(void *p, ThreeMMI32 index, ThreeMMU32 bytes, const void *payload, const ThreeMMActorEvent *event)
+{
+    Fixture *f=(Fixture *)p;
+    if (f->insert_fail) return 0;
+    CHECK(index>=0 && index<=f->count && bytes<=sizeof(Payload));
+    memmove(f->event+index+1,f->event+index,(size_t)(f->count-index)*sizeof(f->event[0]));
+    memmove(f->data+index+1,f->data+index,(size_t)(f->count-index)*sizeof(f->data[0]));
+    f->event[index]=*event; memset(&f->data[index],0,sizeof(Payload));
+    if (payload) memcpy(&f->data[index],payload,bytes);
+    ++f->count; return 1;
+}
+static void duplicate_tag(void *p, ThreeMMI32 index) { (void)p; (void)index; }
+static void write_payload(void *p, ThreeMMI32 index, const void *value)
+{ ((Fixture *)p)->data[index].sound=*(const ThreeMMActorSound *)value; }
+static void copy_payload(void *p, ThreeMMI32 destination, ThreeMMI32 source)
+{ Fixture *f=(Fixture *)p; f->data[destination]=f->data[source]; }
+static int apply_event(void *p, ThreeMMActorState *state, ThreeMMI32 index)
+{ Fixture *f=(Fixture *)p; (void)state; f->inserted=f->data[index].sound; return 1; }
+static void get_range(void *p, ThreeMMActorEditRange *range) { (void)p; range->first=1; range->last=30; }
+static void invalidate(void *p) { (void)p; }
 static int suppressed(void *p) { return ((Fixture *)p)->suppressed; }
 static void set_frame(void *p) { ++((Fixture *)p)->set_frame; }
 static void midi(void *p) { ++((Fixture *)p)->midi; }
@@ -86,9 +104,12 @@ static ThreeMMActorSoundEditServices init(Fixture *f)
     s.runtime.fetch=fetch; s.runtime.release=release;
     s.edits.context=f; s.edits.close_event_tag=close_tag; s.edits.delete_event=delete_event;
     s.edits.scene_frame=scene; s.edits.publish=publish; s.edits.update_sound_frame=indicator;
+    s.edits.insert_event=insert_event; s.edits.duplicate_event_tag=duplicate_tag;
+    s.edits.write_payload=write_payload; s.edits.copy_payload=copy_payload; s.edits.apply_event=apply_event;
+    s.edits.dirty=dirty; s.edits.get_range=get_range; s.edits.invalidate_range=invalidate;
     s.write_sound=write_sound; s.dirty=dirty; s.query_new=query_new; s.query_add=query_add; s.query_release=query_release;
     s.resolve_scene=resolve_scene; s.sound_info=info; s.reserve_events=reserve; s.sound_child=child;
-    s.insert_apply=insert; s.sounds_suppressed=suppressed; s.set_sound_frame=set_frame; s.midi_error=midi;
+    s.sounds_suppressed=suppressed; s.set_sound_frame=set_frame; s.midi_error=midi;
     s.default_sound=default_sound;
     return s;
 }
@@ -176,7 +197,7 @@ static void set_tests(void)
     append(&f,THREE_MM_ACTOR_SOUND,5,-1,2); append(&f,THREE_MM_ACTOR_SOUND,6,-1,2);
     f.data[0].sound.no_sound=f.data[1].sound.no_sound=f.data[3].sound.no_sound=1;
     CHECK(three_mm_actor_sound_set(&f.state,&f.list,&f,32768,&tag,0,0,0,100,2,0,&tables,&s));
-    CHECK(f.deleted==2 && f.count==2 && f.data[0].sound.no_sound==0 && f.data[1].sound.no_sound==1);
+    CHECK(f.deleted==2 && f.count==3 && f.data[1].sound.no_sound==0 && f.data[2].sound.no_sound==1);
     three_mm_actor_sounds_dispose(&f.list);
     CHECK(three_mm_sound_queue_number(2,32768,1)==three_mm_sound_queue_number(3,32768,1));
     CHECK(three_mm_sound_queue_number(2,7,1)!=three_mm_sound_queue_number(3,7,1));

@@ -22,10 +22,6 @@ typedef struct ThreeMMActorSoundEditServices
     void (*sound_info)(void *, void *resource, ThreeMMActorSoundInfo *);
     int (*reserve_events)(void *, ThreeMMU32 entries, ThreeMMU32 bytes);
     int (*sound_child)(void *, ThreeMMU32 number, ThreeMMU32 *child);
-    /* Temporary general actor-editor integration: insert/merge/apply an event,
-     * updating borrowed state even on failure. General event merge/undo policy
-     * remains separate migration work. Other callbacks are primitive services. */
-    int (*insert_apply)(void *, ThreeMMActorState *, const ThreeMMActorSound *);
     int (*sounds_suppressed)(void *);
     void (*set_sound_frame)(void *);
     void (*midi_error)(void *);

@@ -53,7 +53,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
 
 ## Shared C89 engine migration
 
-### Current status (12 November 2026)
+### Current status (13 November 2026)
 
 - The shared content VFS core, `libraries/content/src/content_vfs.c`, is C89;
   `content_vfs.cpp` remains a C++ adapter. Reuse the existing core.
@@ -221,8 +221,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Sound setting/default insertion, volume edits, queries, deletions, frame sound
   detection and bulk tag-resolution policy now execute in C89. General event
   deletion also uses C for cursor updates and sound-indicator ordering. Native
-  services retain general insertion/merge/undo integration and resource/device
-  operations; these temporary dependencies still need removal.
+  services retain resource/device operations and undo integration.
+- General actor event insertion, merge scans and insert/merge/apply sequencing
+  now execute in C89, including cursor updates, sound-queue identity, Move
+  accumulation and lifetime-range notifications. Sound editing calls this C
+  editor directly; its temporary native `insert_apply` callback is removed.
+  General action/fill/subroute/recording edits, undo and queue/runtime integration
+  still need conversion, along with resource/body services and final facade removal.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

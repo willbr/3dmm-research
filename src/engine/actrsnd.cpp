@@ -100,14 +100,6 @@ ThreeMMActorSoundEditServices Actor::_SoundEditServices()
         bool ok = static_cast<Actor *>(p)->_pscen->Pmvie()->FChidFromUserSndCno(number, &value);
         *child = value; return int(ok);
     };
-    s.insert_apply = [](void *p, ThreeMMActorState *state, const ThreeMMActorSound *value) {
-        auto actor = static_cast<Actor *>(p);
-        Sound sound; std::memcpy(&sound, value, sizeof(sound));
-        EngineActorMotion::Publish(actor->_state, *state);
-        bool ok = actor->_FAddDoAev(aetSnd, sizeof(sound), &sound);
-        *state = EngineActorMotion::Core(actor->_state);
-        return int(ok);
-    };
     s.sounds_suppressed = [](void *p) { return int((static_cast<Actor *>(p)->_pscen->GrfScen() & fscenSounds) != 0); };
     s.set_sound_frame = [](void *p) { static_cast<Actor *>(p)->Pscen()->Pmvie()->Pmcc()->SetSndFrame(fTrue); };
     s.midi_error = [](void *) { PushErc(ercSocNoActrMidi); };

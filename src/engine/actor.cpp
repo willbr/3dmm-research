@@ -726,70 +726,19 @@ bool Actor::_FDoAevCore(long iaev)
 bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 {
     AssertBaseThis(0);
-    AssertIn(aetNew, 0, aetLim);
-    AssertIn(cbNew, 0, 100); // approximate upper bound
-    AssertPvCb(pvVar, cbNew);
-    Assert(_state.onStage || aetNew == aetAdd, "Error!  Beginning subroute with no Add Onstage event");
-
-    Base aev;
-    long iaevNew;
-    // Setup fixed part of the gg
-    aev.aet = aetNew;
-    aev.rtel = _state.location;
-    aev.nfrm = _state.frame;
-
-    if (!_FInsertAev(_state.nextEvent, cbNew, pvVar, &aev))
-        return fFalse;
-    _MergeAev(_state.firstEventInFrame, _state.nextEvent, &iaevNew);
-
-#ifdef BUG1870
-    // REVIEW *****: V2.0
-    //		Though the only situation in which this arises is aetMove,
-    //		it might be that the FDoAevCore() should be called before
-    //		merging events (so that any cumulative changes get executed
-    //		only once, without requiring this special casing of aetMove.
-    if (aetMove == aetNew)
-    {
-        // Skip the "do" of the FAddDoAev().
-        // The 'Do' part currently merges events before
-        // executing them, which in this case would cause
-        // any existing same frame translaton to be added
-        // to the state	variables twice.
-        // Instead, adjust state var translation here.
-        _state.subrouteTranslation.dxr = BrsAdd(((RoutePoint *)pvVar)->dxr, _state.subrouteTranslation.dxr);
-        _state.subrouteTranslation.dyr = BrsAdd(((RoutePoint *)pvVar)->dyr, _state.subrouteTranslation.dyr);
-        _state.subrouteTranslation.dzr = BrsAdd(((RoutePoint *)pvVar)->dzr, _state.subrouteTranslation.dzr);
-    }
-    else if (!_FDoAevCore(iaevNew))
-        return fFalse;
-#else  //! BUG1870
-    if (!_FDoAevCore(iaevNew))
-        return fFalse;
-#endif //! BUG1870
-
-    if (_state.nextEvent == iaevNew)
-        _state.nextEvent++;
-
-    _pscen->MarkDirty();
-
-    Assert(aetNew != aetActn || _state.actionEvent == iaevNew, "_state.actionEvent not up to date");
-    AssertIn(_state.nextEvent, 0, _track.Events()->IvMac() + 1);
-    Assert(!(_track.Events()->IvMac() == 1 && _nfrmFirst != _state.frame), "check case");
-
-    if (_state.frame < _nfrmFirst)
-    {
-        _pscen->InvalFrmRange();
-        _nfrmFirst = _state.frame;
-    }
-
-    if (_state.frame > _nfrmLast)
-    {
-        _pscen->InvalFrmRange();
-        _nfrmLast = _state.frame;
-    }
-
-    AssertThis(fobjAssertFull);
-    return fTrue;
+    AssertIn(aetNew, 0, aetLim); AssertIn(cbNew, 0, 100); AssertPvCb(pvVar, cbNew);
+    Assert(_state.onStage || aetNew == aetAdd, "Error! Beginning subroute without Add");
+#ifndef BUG1870
+#error C89 actor editing requires the enabled retail BUG1870 policy
+#endif
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto edits=_EventEditServices();
+    bool ok=three_mm_actor_edit_add_apply(&state,_motionSounds.Core(),_track.Events(),_arid,aetNew,cbNew,pvVar,
+                                          &tables,&edits)!=0;
+    EngineActorMotion::Publish(_state,state);
+    if (ok) AssertThis(fobjAssertFull);
+    return ok;
 }
 
 /***************************************************************************
@@ -807,177 +756,14 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
     AssertIn(iaevFirst, 0, _track.Events()->IvMac());
     AssertIn(iaevNew, iaevFirst, _track.Events()->IvMac());
     AssertNilOrVarMem(piaevRtn);
-
-    Base aev;
-    Base aevNew;
-    void *pvVar;
-    LegacyLong cbVar;
-    long iaev;
-    BMAT34 bmat34;
-
-    if ((_track.Events()->IvMac() < iaevFirst) || (iaevFirst == iaevNew))
-    {
-        if (pvNil != piaevRtn)
-            *piaevRtn = iaevNew;
-        return;
-    }
-
-    _track.Events()->GetFixed(iaevNew, &aevNew);
-
-    //
-    // Check if Aev is in the list already
-    //
-    for (iaev = iaevFirst; iaev < iaevNew; iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-        if ((aev.aet != aevNew.aet) && (aev.aet != aetRem) && (aev.aet != aetRotH))
-            continue;
-
-        switch (aev.aet)
-        {
-        case aetRem:
-            if (aevNew.aet == aetAdd && aevNew.nfrm != aev.nfrm)
-            {
-                _RemoveAev(iaev);
-                iaevNew--;
-                iaev--;
-            }
-            break;
-
-        case aetAdd:
-            // We cannot remove events associated with a same-frame Add event
-            // or we will not retain costume etc information to propogate
-            // forward (eg drag single pt actor offstage & roll call back)
-            continue;
-            break;
-
-        case aetMove: // Move is accumulation of previous moves
-            RoutePoint dxyz;
-            RoutePoint dxyzNew;
-            _track.Events()->Get(iaev, &dxyz);
-            _track.Events()->Get(iaevNew, &dxyzNew);
-            // Note: Merging moves should not alter state variables!
-#ifndef BUG1870
-            // Remove these lines of code
-            _state.subrouteTranslation.dxr = BrsSub(_state.subrouteTranslation.dxr, dxyz.dxr);
-            _state.subrouteTranslation.dyr = BrsSub(_state.subrouteTranslation.dyr, dxyz.dyr);
-            _state.subrouteTranslation.dzr = BrsSub(_state.subrouteTranslation.dzr, dxyz.dzr);
-#endif //! BUG1870
-            dxyz.dxr = BrsAdd(dxyz.dxr, dxyzNew.dxr);
-            dxyz.dyr = BrsAdd(dxyz.dyr, dxyzNew.dyr);
-            dxyz.dzr = BrsAdd(dxyz.dzr, dxyzNew.dzr);
-            _track.Events()->Put(iaev, &dxyz);
-            goto LDeleteNew;
-            break;
-
-        case aetCost:
-            Costume aevcost;
-            Costume aevcostNew;
-
-            // Check that the body parts match
-            _track.Events()->Get(iaev, &aevcost);
-            _track.Events()->Get(iaevNew, &aevcostNew);
-
-            if (aevcost.ibset != aevcostNew.ibset)
-                continue;
-
-            if (aev.rtel != aevNew.rtel)
-                goto LDeleteOld;
-            _track.Events()->Put(iaev, &aevcostNew);
-            goto LDeleteNew;
-            break;
-
-        case aetSnd:
-            Sound aevsnd;
-            Sound aevsndNew;
-            long ismm;
-            SoundMotionMatch smm;
-            // Check that the sound types match
-            _track.Events()->Get(iaev, &aevsnd);
-            _track.Events()->Get(iaevNew, &aevsndNew);
-            if (MovieSoundMSND::SqnActr(aevsnd.sty, _arid) != MovieSoundMSND::SqnActr(aevsndNew.sty, _arid))
-                continue;
-            // Queued sounds need to have multiple events reside in a single frame
-            if (aevsndNew.fQueue)
-                continue;
-            // Non queued sounds need to replace queued sounds of the same type
-            // First, the _pggsmm needs to be updated
-            for (ismm = 0; ismm < _motionSounds.IvMac(); ismm++)
-            {
-                _motionSounds.Get(ismm, &smm);
-                if (smm.aevsnd.sty == aevsnd.sty && aevsnd.celn == smm.aevsnd.celn)
-                {
-                    _motionSounds.Delete(ismm);
-                    break;
-                }
-            }
-            _RemoveAev(iaev);
-            iaevNew--;
-            iaev--;
-            continue;
-            break;
-
-        case aetRotH:
-            if (aevNew.aet == aetRotF && aevNew.nfrm == aev.nfrm)
-            {
-                // Forward rotations must get rid of tweak rotations in the current frame
-                _RemoveAev(iaev);
-                iaevNew--;
-                iaev--;
-            }
-            if (aevNew.aet != aetRotH)
-                continue;
-            if (aev.rtel != aevNew.rtel)
-                goto LDeleteOld;
-            _track.Events()->Get(iaevNew, &bmat34);
-            _track.Events()->Put(iaev, &bmat34);
-            goto LDeleteNew;
-            break;
-
-        case aetRotF:
-            // New == old == forward-rotate
-            // Need to replace the old rotation, but continue on to remove tweak-rotations
-            _RemoveAev(iaev);
-            iaevNew--;
-            iaev--;
-            continue;
-            break;
-
-        default:
-            if (aev.rtel != aevNew.rtel)
-            {
-                goto LDeleteOld;
-            }
-            pvVar = _track.Events()->QvGet(iaevNew, &cbVar);
-            Assert(cbVar == _track.Events()->Cb(iaev), "Wrong Var size");
-            _track.Events()->Put(iaev, pvVar);
-            goto LDeleteNew;
-        }
-    }
-
-    //
-    // Leave it where it is.  No match found.
-    //
-    if (pvNil != piaevRtn)
-        *piaevRtn = iaevNew;
-
-    return;
-
-LDeleteNew:
-    if (pvNil != piaevRtn)
-    {
-        *piaevRtn = iaev;
-        AssertIn(iaev, iaevFirst, iaevNew);
-    }
-    _RemoveAev(iaevNew);
-    return;
-
-LDeleteOld:
-    _RemoveAev(iaev);
-    iaevNew--;
-    if (pvNil != piaevRtn)
-        *piaevRtn = iaevNew;
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto edits=_EventEditServices();
+    ThreeMMI32 result=0;
+    three_mm_actor_edit_merge(&state,_motionSounds.Core(),_track.Events(),_arid,iaevFirst,iaevNew,
+                              piaevRtn ? &result : nullptr,&tables,&edits);
+    EngineActorMotion::Publish(_state,state);
+    if (piaevRtn) *piaevRtn=result;
 }
 
 /***************************************************************************
@@ -2733,40 +2519,14 @@ LEnd:
 bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
 {
     AssertBaseThis(0);
-    AssertIn(iaev, 0, _track.Events()->IvMac() + 1);
-    AssertIn(cbNew, 0, 100); // approximate bound
-    if (pvNil != pvVar)
-        AssertPvCb(pvVar, cbNew);
-    AssertPvCb(paev, size(Base));
-
-    PTAG ptag;
-
-    if (!_track.Events()->FInsert(iaev, cbNew, pvVar, paev))
-        return fFalse;
-
-    // If not simply allocating space
-    if (pvVar != pvNil)
-    {
-        // Increment tag count
-        _track.Events()->Lock();
-        if (_FIsIaevTag(_track.Events(), iaev, &ptag))
-            TagManager::DupTag(ptag);
-        _track.Events()->Unlock();
-
-        if (fUpdateState)
-        {
-            if (iaev < _state.nextEvent)
-                _state.nextEvent++;
-            if (iaev <= _state.actionEvent)
-                _state.actionEvent++;
-            if (iaev <= _state.addEvent)
-                _state.addEvent++;
-            if (iaev < _state.firstEventInFrame)
-                _state.firstEventInFrame++;
-        }
-    }
-
-    return fTrue;
+    AssertIn(iaev, 0, _track.Events()->IvMac()+1); AssertIn(cbNew, 0, 100);
+    AssertPvCb(paev,sizeof(Base));
+    ThreeMMActorEvent event; std::memcpy(&event,paev,sizeof(event));
+    auto state=EngineActorMotion::Core(_state);
+    const auto edits=_EventEditServices();
+    bool ok=three_mm_actor_edit_insert(&state,iaev,cbNew,pvVar,&event,fUpdateState,&edits)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -2797,6 +2557,39 @@ ThreeMMActorEditServices Actor::_EventEditServices()
     services.update_sound_frame = [](void *context) { static_cast<Actor *>(context)->_pscen->UpdateSndFrame(); };
     services.publish = [](void *context, const ThreeMMActorState *state) {
         EngineActorMotion::Publish(static_cast<Actor *>(context)->_state, *state);
+    };
+    services.insert_event = [](void *p, ThreeMMI32 index, ThreeMMU32 bytes, const void *payload, const ThreeMMActorEvent *value) {
+        Base event; std::memcpy(&event,value,sizeof(event));
+        return int(static_cast<Actor *>(p)->_track.Events()->FInsert(index,bytes,const_cast<void *>(payload),&event));
+    };
+    services.duplicate_event_tag = [](void *p, ThreeMMI32 index) {
+        auto actor=static_cast<Actor *>(p); PTAG tag;
+        actor->_track.Events()->Lock();
+        if (actor->_FIsIaevTag(actor->_track.Events(),index,&tag)) TagManager::DupTag(tag);
+        actor->_track.Events()->Unlock();
+    };
+    services.write_payload = [](void *p, ThreeMMI32 index, const void *value) {
+        static_cast<Actor *>(p)->_track.Events()->Put(index,const_cast<void *>(value));
+    };
+    services.copy_payload = [](void *p, ThreeMMI32 destination, ThreeMMI32 source) {
+        auto events=static_cast<Actor *>(p)->_track.Events();
+        Assert(events->Cb(source)==events->Cb(destination), "Wrong Var size");
+        events->Put(destination,events->QvGet(source));
+    };
+    services.apply_event = [](void *p, ThreeMMActorState *state, ThreeMMI32 index) {
+        auto actor=static_cast<Actor *>(p);
+        EngineActorMotion::Publish(actor->_state,*state);
+        bool ok=actor->_FDoAevCore(index);
+        *state=EngineActorMotion::Core(actor->_state);
+        return int(ok);
+    };
+    services.dirty = [](void *p) { static_cast<Actor *>(p)->_pscen->MarkDirty(); };
+    services.get_range = [](void *p, ThreeMMActorEditRange *range) {
+        auto actor=static_cast<Actor *>(p); range->first=actor->_nfrmFirst; range->last=actor->_nfrmLast;
+    };
+    services.invalidate_range = [](void *p) { static_cast<Actor *>(p)->_pscen->InvalFrmRange(); };
+    services.publish_range = [](void *p, const ThreeMMActorEditRange *range) {
+        auto actor=static_cast<Actor *>(p); actor->_nfrmFirst=range->first; actor->_nfrmLast=range->last;
     };
     return services;
 }

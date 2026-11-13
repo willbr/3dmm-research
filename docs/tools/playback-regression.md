@@ -81,6 +81,13 @@ for a smoke run but does not establish original repeatability.
 When including Marcus, supply
 `--marcus build/marcus-x64/src/marcus/marcus-regression.exe` as well.
 
+`--sdl-cache PATH` optionally reuses an existing SDL package cache instead of
+copying one beneath every run. Only package data is shared: process workspaces,
+settings, registry isolation and working movie files remain separate. The selected
+path is recorded as `sdl_package_cache` in the suite environment. This is warm
+package-cache coverage; omit the option for the default per-run cache layout.
+OS file caching remains uncontrolled in either mode.
+
 `--preparations fresh-process,replay` additionally plays the complete movie once
 before the recorded pass in the **same process**. Its warm-up artifacts are kept
 separately. This retains process caches, although normal rewind behavior still
@@ -2798,3 +2805,68 @@ and Marcus content hashes remain unchanged. The combined report is
 `tmp/c89-sound-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
 Existing cross-player differences remain; these captures do not prove full retail
 parity or general repeatability from one repetition per suite.
+
+## C89 general actor event editing (13 November 2026)
+
+General actor event insertion, merge scanning and insert/merge/apply sequencing
+now execute in C89. Sound setting calls the C editor directly, removing its native
+`insert_apply` callback. Native callbacks supply table/resource/scene services and
+an adapter to the already shared C event evaluator. Broader action/fill/subroute/
+recording edits, undo, queue/runtime integration and final facade removal remain.
+See the [implementation boundary](../code-map/library-split.md#actor-event-insertion-and-merging).
+
+The conversion preserves cursor inequalities, NULL-payload reservation, scan and
+early-return behavior, signed-low-word sound queue identity, motion-list removal,
+32-bit Move accumulation and the enabled retail BUG1870 delta-only application.
+Failed application retains partial edits/state; lifetime invalidation precedes
+each first/last assignment. Same-location costume replacement intentionally fixes
+the old reference overwrite bug by closing the displaced tag and retaining its
+replacement before deleting the source row. Logical event payloads remain equal;
+both standalone C and real actor/resource tests check ownership through teardown.
+
+All thirty snapshots match their frozen native baselines, including a new
+7,232-byte trace covering forty-five real-actor event-edit scenarios. All forty-four
+standalone C-only Clang checks, including strict C89 syntax, pass. Fifty-eight
+focused native checks, MSVC AddressSanitizer, all 51 CLI baselines and the headless
+scene/timeline check pass. The regression harness's 27 tests also pass. No Marcus
+UI tests were added. Evidence includes `tmp/c89-event-edit-before.bin`,
+`tmp/c89-event-edit-after-events.bin`, `tmp/c89-event-edit-snapshot-comparison.json`,
+`tmp/c89-event-edit-output-comparison.json`, `tmp/c89-event-edit-native-tests.log`,
+`tmp/c89-event-edit-asan.log`, `tmp/c89-event-edit-standalone.log` and
+`tmp/c89-event-edit-timeline.log`.
+
+Frozen Studio/Marcus builds ran without concurrent builds or compaction. Captures
+used the explicit `--sdl-cache` option with the existing package cache at
+`tmp/c89-movie-data-regression/20261113T001824Z-a0a8447d/sampled-audio/sdl/playback/fresh-process/0/cache`.
+The suite environment records this warm package-cache path. Processes, settings,
+registry isolation and working files remained private to each run. This does not
+claim cold-cache coverage; OS caching remains uncontrolled.
+
+Evidence is in `tmp/c89-movie-data-regression/playback.sqlite` and adjacent suite
+artifacts:
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T004516Z-48a25044` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T004642Z-793f1ba5` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T004807Z-ef947a24` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T005117Z-579a56bd` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+These twenty-one runs preserve each player's preceding authored frame positions
+and pixels. All 540 seek images match exactly; playback compares ordered changes,
+collapsing only adjacent identical position/image records while retaining raw
+samples and timestamps. Actor cases retain 60 changes per player; scrolling
+retains 328 retail/SDL and 321 Marcus. Actor-audio passes the permanent first-scene
+600/1300 Hz checks and retains PCM16 peaks of 3192 retail and 4081 SDL/Marcus.
+Peaks establish audible coverage, not exact waveform or timing parity.
+Scene-audio retains 60 ordered changes per player and PCM16 peaks of 2380 retail
+and 2176 SDL/Marcus. Every selected run completed and every suite integrity check
+passes. The combined report is
+`tmp/c89-event-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+Baselines are actor-audio seek suite `20261112T230520Z-b33780cf` and playback suite
+`20261113T000624Z-f7dd3165`, actor-events suite `20261113T000903Z-0834f3d8` with
+its successful retail-playback retry `20261113T001209Z-90bfea81`, and scrolling
+suite `20261113T001332Z-19d8d202`; scene-audio uses suite
+`20261113T001824Z-a0a8447d`. Existing cross-player differences remain; one
+repetition per suite does not establish general repeatability or full retail parity.

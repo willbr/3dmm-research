@@ -578,6 +578,7 @@ def run_suite(args):
                      environment_json=encode({'os': platform.platform(), 'python': platform.python_version(),
                          'machine': platform.machine(), 'os_file_cache': 'uncontrolled', 'run_order': players,
                          'viewport': args.viewport, 'notes': args.environment_notes, 'working_tree': dirty,
+                         'sdl_package_cache': str(args.sdl_cache.resolve()) if getattr(args, 'sdl_cache', None) else 'per-run',
                          'audio_format': '48000 Hz stereo signed 16-bit', 'capture_version': 2}), source_revision=revision)
         product, iso_manifest = session_module.prepare_iso(args.iso, output / 'iso-package')
         resources = args.resources or product / '3DMOVIE.CHK'
@@ -637,7 +638,8 @@ def run_suite(args):
                                 if not args.sdl:
                                     raise ValueError('--sdl executable is required')
                                 active = compare_module.SDLSession(args.sdl, args.iso, movie, directory / 'process',
-                                    directory / 'cache', audio=mode == 'playback' or preparation == 'replay')
+                                    args.sdl_cache if getattr(args, 'sdl_cache', None) else directory / 'cache',
+                                    audio=mode == 'playback' or preparation == 'replay')
                             else:
                                 if not args.marcus:
                                     raise ValueError('--marcus capture executable is required')
@@ -814,6 +816,8 @@ def main():
         run.add_argument('--' + name, type=Path)
     run.add_argument('--players', default=','.join(DEFAULT_PLAYERS), help='Defaults to retail,v3dmm,sdl; include marcus explicitly when needed')
     run.add_argument('--modes', default='seek,playback')
+    run.add_argument('--sdl-cache', type=Path,
+                     help='Reuse an immutable SDL package cache; processes, settings and working files remain separate')
     run.add_argument('--preparations', default='fresh-process', help='Comma-separated fresh-process,replay; replay first plays the whole movie in the same process')
     run.add_argument('--case', action='append')
     run.add_argument('--repeat', type=int, default=2, help='Independent fresh processes, including original repeatability')
