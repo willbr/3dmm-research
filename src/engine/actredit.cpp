@@ -16,6 +16,7 @@
 ***************************************************************************/
 
 #include "soc.h"
+#include "engine_actor_motion.h"
 
 ASSERTNAME
 
@@ -263,38 +264,52 @@ LFail:
     If (!fReset), all state information will have been retained.
 
 ***************************************************************************/
+ThreeMMActorRuntime Actor::_Runtime() const
+{
+    ThreeMMActorRuntime r{}; r.state=EngineActorMotion::Core(_state); r.recording=_RecordingState();
+    r.template_object=_ptmpl; r.body=_pbody; r.scene=_pscen;
+    std::memcpy(&r.template_tag,&_tagTmpl,sizeof(r.template_tag)); std::memcpy(&r.sound_tag,&_tagSnd,sizeof(r.sound_tag));
+    std::memcpy(&r.origin,&_dxyzFullRte,sizeof(r.origin)); r.first=_nfrmFirst; r.last=_nfrmLast; r.actor=_arid;
+    r.life_dirty=_fLifeDirty; r.prerendered=_fPrerendered; r.time_frozen=_fTimeFrozen; return r;
+}
+void Actor::_PublishRuntime(const ThreeMMActorRuntime &r)
+{
+    EngineActorMotion::Publish(_state,r.state); _PublishRecordingState(r.recording);
+    _ptmpl=static_cast<PTemplate>(r.template_object); _pbody=static_cast<PBody>(r.body); _pscen=static_cast<PScene>(r.scene);
+    std::memcpy(&_tagTmpl,&r.template_tag,sizeof(_tagTmpl)); std::memcpy(&_tagSnd,&r.sound_tag,sizeof(_tagSnd));
+    std::memcpy(&_dxyzFullRte,&r.origin,sizeof(_dxyzFullRte)); _nfrmFirst=r.first; _nfrmLast=r.last; _arid=r.actor;
+    _fLifeDirty=r.life_dirty!=0; _fPrerendered=r.prerendered!=0; _fTimeFrozen=r.time_frozen!=0;
+}
+ThreeMMActorOwnerServices Actor::_OwnerServices()
+{
+    static_assert(sizeof(TAG)==sizeof(ThreeMMTag),"Actor owner tag ABI");
+    ThreeMMActorOwnerServices s{}; s.motion=EngineActorMotion::Services();
+    s.read=[](void *,void *p,ThreeMMActorRuntime *r) { *r=static_cast<Actor *>(p)->_Runtime(); };
+    s.write=[](void *,void *p,const ThreeMMActorRuntime *r) { static_cast<Actor *>(p)->_PublishRuntime(*r); };
+    s.create=[](void *)->void * { return NewObj Actor(); };
+    s.retain=[](void *,void *p) { static_cast<BASE *>(p)->AddRef(); };
+    s.release=[](void *,void *p) { static_cast<BASE *>(p)->Release(); };
+    s.clone_track=[](void *,void *d,void *p) { return int(static_cast<Actor *>(d)->_track.FCloneFrom(static_cast<Actor *>(p)->_track)); };
+    s.clone_sounds=[](void *,void *d,void *p) { return int(static_cast<Actor *>(d)->_motionSounds.FCloneFrom(static_cast<Actor *>(p)->_motionSounds)); };
+    s.swap_track=[](void *,void *a,void *b) { static_cast<Actor *>(a)->_track.Swap(static_cast<Actor *>(b)->_track); };
+    s.swap_sounds=[](void *,void *a,void *b) { static_cast<Actor *>(a)->_motionSounds.Swap(static_cast<Actor *>(b)->_motionSounds); };
+    s.duplicate_tag=[](void *,const ThreeMMTag *tag) { TAG value; std::memcpy(&value,tag,sizeof(value)); TagManager::DupTag(&value); };
+    s.close_tag=[](void *,ThreeMMTag *tag) { TAG value; std::memcpy(&value,tag,sizeof(value)); TagManager::CloseTag(&value); std::memcpy(tag,&value,sizeof(value)); };
+    s.close_track_tags=[](void *,void *p) { static_cast<Actor *>(p)->_track.CloseTags(); };
+    s.clear_track=[](void *,void *p) { static_cast<Actor *>(p)->_track.Clear(); };
+    s.dispose_sounds=[](void *,void *p) { three_mm_actor_sounds_dispose(static_cast<Actor *>(p)->_motionSounds.Core()); };
+    s.route=[](void *,void *p)->void * { return static_cast<Actor *>(p)->_track.Route(); };
+    s.route_services=[](void *,void *p,ThreeMMActorRouteEditServices *r) { *r=static_cast<Actor *>(p)->_RouteEditServices(); };
+    s.seek=[](void *,void *p,ThreeMMI32 frame) { return int(static_cast<Actor *>(p)->FGotoFrame(frame)); };
+    s.invalidate_views=[](void *,void *scene) { static_cast<PScene>(scene)->Pmvie()->InvalViews(); };
+    return s;
+}
 bool Actor::FDup(PActor *ppactr, bool fReset)
 {
-    AssertThis(0);
-    AssertVarMem(ppactr);
-
-    PActor pactrDest = (*ppactr) = NewObj Actor();
-    if (pactrDest == pvNil)
-        return fFalse;
-
-    // Finish allocations before sharing any runtime resources. The track
-    // clone owns its TAG references independently and rolls back on failure.
-    if (!pactrDest->_track.FCloneFrom(_track))
-        goto LFail;
-    if (!pactrDest->_motionSounds.FCloneFrom(_motionSounds))
-        goto LFail;
-
-    pactrDest->_CopyRuntimeStateFrom(*this);
-    if (pactrDest->_pbody != pvNil)
-        pactrDest->_pbody->AddRef();
-    pactrDest->_ptmpl->AddRef();
-    TagManager::DupTag(&pactrDest->_tagTmpl);
-    pactrDest->_fTimeFrozen = fFalse;
-
-    if (fReset)
-    {
-        (*ppactr)->Reset();
-    }
-    return fTrue;
-
-LFail:
-    ReleasePpo(ppactr);
-    return fFalse;
+    AssertThis(0); AssertVarMem(ppactr);
+    const auto services=_OwnerServices(); ThreeMMActorOwnerResult result{}; result.context=ppactr;
+    result.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
+    return three_mm_actor_owner_duplicate(this,fReset,&result,&services)!=0;
 }
 
 /***************************************************************************
@@ -304,19 +319,9 @@ LFail:
 ***************************************************************************/
 void Actor::Restore(PActor pactr)
 {
-    AssertThis(0);
-    AssertVarMem(pactr);
-
-    Assert(pactr->_ptmpl == _ptmpl, "Restore ptmpl logic error");
-    Assert(pactr->_pbody == _pbody, "Restore pbody logic error");
-
-    _CopyRuntimeStateFrom(*pactr);
-    _track.Swap(pactr->_track);
-    _motionSounds.Swap(pactr->_motionSounds);
-
-    pactr->_pscen->Pmvie()->InvalViews();
-
-    return;
+    AssertThis(0); AssertVarMem(pactr);
+    Assert(pactr->_ptmpl==_ptmpl,"Restore ptmpl logic error"); Assert(pactr->_pbody==_pbody,"Restore pbody logic error");
+    const auto services=_OwnerServices(); three_mm_actor_owner_restore(this,pactr,&services);
 }
 
 /***************************************************************************
@@ -326,50 +331,14 @@ void Actor::Restore(PActor pactr)
 ***************************************************************************/
 void Actor::_RestoreFromUndo(PActor pactrRestore)
 {
-    AssertBaseThis(0);
-    AssertVarMem(pactrRestore);
-    Assert(pactrRestore->_pbody == pvNil, "Not restoring from undo object");
-
-    long nfrmCur = _state.frame;
-    PScene pscen = pactrRestore->_pscen;
-
-    // Modify pactrRestore for Restore()
-    pactrRestore->_pbody = _pbody;
-    pactrRestore->_pscen = _pscen;
-    _Hide(); // Added actor will show
-    Restore(pactrRestore);
-
-    // Restore pactrRestore to be unmodified
-    pactrRestore->_pbody = pvNil;
-    pactrRestore->_pscen = pscen;
-
-    FGotoFrame(nfrmCur); // No further recovery meaningful
-    _pscen->Pmvie()->InvalViews();
+    AssertBaseThis(0); AssertVarMem(pactrRestore); Assert(!pactrRestore->_pbody,"Not restoring from undo object");
+    const auto services=_OwnerServices(); three_mm_actor_owner_restore_undo(this,pactrRestore,&services);
 }
 
 // Copy evaluated/recording state without copying owning tables or BASE identity.
 void Actor::_CopyRuntimeStateFrom(const Actor &source)
 {
-    _state = source._state;
-    _ptmpl = source._ptmpl;
-    _pbody = source._pbody;
-    _tagTmpl = source._tagTmpl;
-    _tagSnd = source._tagSnd;
-    _pscen = source._pscen;
-    _dxyzFullRte = source._dxyzFullRte;
-    _nfrmFirst = source._nfrmFirst;
-    _arid = source._arid;
-    _fLifeDirty = source._fLifeDirty;
-    _fPrerendered = source._fPrerendered;
-    _nfrmLast = source._nfrmLast;
-    _rtelInsert = source._rtelInsert;
-    _tsInsert = source._tsInsert;
-    _fModeRecord = source._fModeRecord;
-    _fRejoin = source._fRejoin;
-    _fPathInserted = source._fPathInserted;
-    _fTimeFrozen = source._fTimeFrozen;
-    _dnfrmGap = source._dnfrmGap;
-    _dxyzRaw = source._dxyzRaw;
+    const auto services=_OwnerServices(); three_mm_actor_owner_copy(this,const_cast<Actor *>(&source),&services);
 }
 
 /***************************************************************************
@@ -801,11 +770,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
 ***************************************************************************/
 void Actor::Reset(void)
 {
-    _pscen = pvNil;
-    ReleasePpo(&_pbody); // Sets _pbody = pvNil
-    _state.frame = knfrmInvalid;
-
-    _InitState();
+    const auto services=_OwnerServices(); three_mm_actor_owner_reset(this,&services);
 }
 
 //

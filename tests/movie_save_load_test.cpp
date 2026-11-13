@@ -221,6 +221,69 @@ class StageTestScene : public Scene
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestOwner(int mode,FILE *snapshot)
+    {
+        using namespace ActorEvent;
+        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl);
+        tmpl->FailAfter(0);
+        if (!FGotoFrame(2)) return false;
+        if (mode&2) { _Hide(); ReleasePpo(&_pbody); }
+        Base soundEvent={aetSnd,100,{2,rZero,5}};
+        Sound sound={}; sound.tag=_tagTmpl; sound.tag.ctg=kctgMsnd;
+        if (!_track.Events()->FInsert(_track.Events()->IvMac(),sizeof(sound),&sound,&soundEvent)) return false;
+        TagManager::DupTag(&sound.tag);
+        _fLifeDirty=(mode&8)!=0; _fPrerendered=(mode&32)!=0; _fTimeFrozen=true;
+        _fModeRecord=(mode&4)!=0; _fRejoin=(mode&16)!=0; _fPathInserted=true;
+        _rtelInsert={1,123,4}; _tsInsert=0xfffffff0UL; _dnfrmGap=-17; _dxyzRaw={11,-22,33};
+        _dxyzFullRte={BR_SCALAR(1),BR_SCALAR(2),BR_SCALAR(3)}; _nfrmLast=88; _arid=100+mode;
+        _tagSnd.sid=(mode&16)?ksidInvalid:7; _tagSnd.ctg=kctgMsnd; _tagSnd.cno=17;
+        const bool reset=(mode&1) && !(mode&2);
+        PActor copy=nullptr;
+#ifdef DEBUG
+        if (mode&64)
+        {
+            vmutxMem.Enter(); vdmglob.dmaglBase.cactDo=(mode/4)%4; vdmglob.dmaglBase.cactFail=1; vmutxMem.Leave();
+        }
+#endif
+        bool ok=FDup(&copy,reset);
+#ifdef DEBUG
+        vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
+#endif
+        bool independent=copy && copy->Pbody()==(reset?nullptr:_pbody) && copy->Pscen()==(reset?nullptr:_pscen);
+        long templateRefs=_ptmpl->CactRef(),bodyRefs=_pbody?_pbody->CactRef():0,cacheRefs=_tagTmpl.pcrf->CactRef();
+        if (copy)
+        {
+            if (reset)
+            {
+                if (mode&32) tmpl->FailAfter(1);
+                _RestoreFromUndo(copy);
+                independent=independent && !copy->Pscen() && !copy->Pbody();
+            }
+            else Restore(copy);
+        }
+        tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&copy);
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,ok,independent,templateRefs,bodyRefs,cacheRefs,_ptmpl->CactRef(),_pbody?_pbody->CactRef():0,
+            _tagTmpl.pcrf->CactRef(),_state.frame,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.onStage,_state.frozen,_state.action,_state.cel,
+            _nfrmFirst,_nfrmLast,_arid,_fLifeDirty,_fPrerendered,_fTimeFrozen,_fModeRecord,_fRejoin,_fPathInserted,
+            _rtelInsert.irpt,_rtelInsert.dwrOffset,_rtelInsert.dnfrm,static_cast<LegacyLong>(_tsInsert),_dnfrmGap,
+            _tagSnd.sid,static_cast<LegacyLong>(_tagSnd.ctg),static_cast<LegacyLong>(_tagSnd.cno),_track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) &&
+            record(&_state.position,sizeof(_state.position)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) && record(&_dxyzRaw,sizeof(_dxyzRaw));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
+            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            if (event.aet==aetSnd)
+            { Sound clean; std::memcpy(&clean,payload,sizeof(clean)); clean.tag.pcrf=nullptr; std::memcpy(payload,&clean,sizeof(clean)); }
+            saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        return saved;
+    }
     bool FTestTransformEdit(int mode,FILE *snapshot,StageTestScene *scene)
     {
         using namespace ActorEvent;
@@ -1483,6 +1546,87 @@ static bool TestActorSubrouteEditing(PScene scene)
     return ok;
 }
 
+class TestActorUndo : public ActorUndo
+{
+  public:
+    TestActorUndo() {}
+    PActor SavedActor() const { return _pactr; }
+    long SavedId() const { return _arid; }
+};
+static bool TestActorUndoRuntime(PMovie parent)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_UNDO_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil;
+    byte dummy=0; ChunkNumber number=0;
+    bool ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&number) && file->FAddPv(&dummy,1,kctgTmpl,&number) && number==1;
+    auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+    for (int mode=0;ok && mode<32;++mode)
+    {
+        const long refs=resource->CactRef();
+        PMovie movie=Movie::PmvieNew(fFalse,parent->Pmcc(),pvNil,cnoNil);
+        auto actor=NewObj TrackTestActor(); PActor copy=nullptr; auto undo=NewObj TestActorUndo();
+        String before,after; before.SetSzs(PszLit("before")); after.SetSzs(PszLit("after"));
+        ok=movie && movie->FNewScenInsCore(0) && actor && undo && actor->FInitPlayback(movie->Pscen(),resource);
+        if (ok)
+        {
+            actor->SetArid(aridNil);
+            ok=movie->Pscen()->FAddActrCore(actor) && actor->FDup(&copy,false) && movie->FNameActr(actor->Arid(),&after);
+        }
+        if (ok && (mode&16))
+        {
+            ok=actor->FCreateUndo(copy,(mode&1)!=0,(mode&4)?&before:nullptr);
+            LegacyLong values[]={mode,ok,copy->Pbody()!=nullptr,copy->Pscen()!=nullptr,copy->CactRef(),resource->CactRef()};
+            ok=record(values,sizeof(values)); movie->ClearUndo();
+        }
+        else if (ok)
+        {
+            copy->Reset();
+            if (!(mode&8)) undo->SetPactr(copy);
+            undo->SetPmvie(movie); undo->SetIscen(0); undo->SetNfrm(movie->Pscen()->Nfrm());
+            undo->SetNfrmLast(2); undo->SetSoonerLater((mode&2)!=0); undo->SetSndUndo((mode&1)!=0);
+            undo->SetArid(actor->Arid()); if (mode&4) undo->SetStn(&before);
+            ok=actor->FScale(BR_SCALAR(1.5));
+            for (int phase=0;ok && phase<2;++phase)
+            {
+                bool changed=phase?undo->FDo(movie):undo->FUndo(movie);
+                PActor live=movie->Pscen()->PactrFromArid(actor->Arid());
+                String name; bool named=movie->FGetName(actor->Arid(),&name);
+                BRS x=0,y=0,z=0; if (live) live->GetXyzWorld(&x,&y,&z);
+                LegacyLong values[]={mode,phase,changed,movie->Pscen()->Nfrm(),undo->Nfrm(),undo->SavedId(),
+                    live==actor,live==copy,live!=nullptr,live && live->Pbody(),undo->SavedActor()==actor,undo->SavedActor()==copy,
+                    undo->SavedActor()!=nullptr,actor->CactRef(),copy->CactRef(),resource->CactRef(),x,y,z,named,name.Cch()};
+                ok=record(values,sizeof(values)) && record(name.Psz(),name.Cch()*sizeof(achar)) && changed;
+            }
+        }
+        ReleasePpo(&undo); ReleasePpo(&copy); ReleasePpo(&actor); ReleasePpo(&movie);
+        if (resource->CactRef()!=refs) { std::fprintf(stderr,"Actor undo reference leak at mode %d\n",mode); ok=false; }
+    }
+    ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;
+}
+
+static bool TestActorOwner(PMovie movie)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_OWNER_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    auto scene=NewObj StageTestScene(movie); PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,0):pvNil;
+    bool ok=scene && scene->Init() && resource;
+    for (int mode=0;ok && mode<128;++mode)
+    {
+        const long refs=resource->CactRef(); auto actor=NewObj TrackTestActor();
+        ok=actor && actor->FInitPlayback(scene,resource) && actor->FTestOwner(mode,snapshot);
+        ReleasePpo(&actor);
+        if (resource->CactRef()!=refs) { std::fprintf(stderr,"Actor owner reference leak at mode %d\n",mode); return false; }
+    }
+    ReleasePpo(&resource); ReleasePpo(&file); ReleasePpo(&scene);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;
+}
+
 static bool TestActorTransformEditing(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2042,6 +2186,10 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor recording failed");
     if (!TestActorTransformEditing(pmvie))
         BAIL("actor transform editing failed");
+    if (!TestActorOwner(pmvie))
+        BAIL("actor owner failed");
+    if (!TestActorUndoRuntime(pmvie))
+        BAIL("actor undo runtime failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

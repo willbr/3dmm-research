@@ -133,12 +133,7 @@ RTCLASS(Actor)
 ***************************************************************************/
 Actor::Actor(void)
 {
-    _arid = aridNil;
-    _tagTmpl.sid = ksidInvalid;
-    _tagSnd.sid = ksidInvalid;
-    _state.frame = _nfrmFirst = knfrmInvalid;
-    _nfrmLast = klwMin;
-    _fLifeDirty = fFalse;
+    ThreeMMActorRuntime runtime; three_mm_actor_runtime_init(&runtime); _PublishRuntime(runtime);
 }
 
 /***************************************************************************
@@ -149,11 +144,7 @@ Actor::Actor(void)
 Actor::~Actor(void)
 {
     AssertBaseThis(0);
-
-    _CloseTags();
-    ReleasePpo(&_pbody);
-    _track.Clear();
-    ReleasePpo(&_ptmpl);
+    const auto services=_OwnerServices(); three_mm_actor_owner_dispose(this,&services);
 }
 
 /***************************************************************************

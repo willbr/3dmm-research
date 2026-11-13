@@ -62,6 +62,7 @@ cmake --build build/engine-c89 --target engine-placement-test
 cmake --build build/engine-c89 --target engine-stage-edit-test
 cmake --build build/engine-c89 --target engine-record-test
 cmake --build build/engine-c89 --target engine-transform-edit-test
+cmake --build build/engine-c89 --target engine-actor-owner-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1165,10 +1166,10 @@ moves/merges other events and applies action fill. Replace/static-tail paths kee
 their distinct freeze/step ordering. Failures restore before clearing mode/rejoin
 flags. Restoration can replace table handles; C never reads those handles again.
 
-Native services retain primitive BRender distance queries, scene seeks and the
-current `_RestoreFromUndo` transaction. The latter still contains C++ undo/body/
-view integration and must be converted with undo; it is not a final backend
-boundary. Other recording decisions execute in the C-only library.
+Native services retain primitive BRender distance queries and scene seeks.
+`_RestoreFromUndo` now delegates its ownership transaction to `actor_owner.c`,
+described below. The underlying scene/body/resource implementations remain
+temporary native dependencies. Recording decisions execute in the C-only library.
 
 `engine-record-test` covers thresholds and timestamp wrap, record-step failures,
 segment splitting, removed stubs, lifetime failure, reservation short-circuiting,
@@ -1227,6 +1228,32 @@ queries and failed seeks. The native-before trace has 1,032,004 bytes across 1,1
 scenarios and matches exactly, including all transformed matrices, event payloads,
 origin caches, frame/range values and results. Undo, queue/runtime integration,
 body/resource implementations and final facade removal remain unfinished.
+
+### Actor ownership and restoration
+
+`actor_owner.c` owns runtime initialization/disposal, duplication, reset, value
+copying, track/sound swaps and undo restoration. `ThreeMMActorRuntime` is a plain
+C record; the native actor marshals its current representation and supplies
+resource references, C-backed track/sound operations and scene/view primitives.
+The native class is still an intermediate representation, not the final backend.
+
+Duplication publishes its output before cloning tables and retains the shared
+body/template and owning template tag only after both clones succeed. Failure
+releases the partial actor before clearing that output. Reset detaches the scene,
+releases the body, then runs the C route reset while retaining rejoin state.
+Undo restoration temporarily borrows the live body/scene into the snapshot,
+hides the actor, copies/switches runtime tables, restores snapshot bindings and
+seeks the original live frame. Failed seeking retains its partial changes and
+still invalidates views. The sound tag keeps its existing borrowed semantics.
+Disposal closes template/event tags before releasing body and track, then
+releases the template and disposes sound storage explicitly in C.
+
+`engine-actor-owner-test` checks allocation/clone failure cleanup, output timing,
+resource reference balance, reset, restore swaps and ignored seek failure.
+Native traces cover 128 ownership scenarios and 32 real movie/scene undo cases,
+including undo creation, undo/redo replacement, name swapping and removal.
+They establish ownership integration behavior; the undo controller itself still
+needs conversion, along with body/resource/scene policy and final facade removal.
 
 ### Source names and directory discovery
 

@@ -3465,3 +3465,71 @@ repetition does not establish general repeatability or full retail parity. Nativ
 edit traces and direct C tests cover editing policy; captures check retained
 playback behavior. Undo, queue/runtime integration, body/resource implementations
 and final facade removal remain unfinished. No Marcus UI tests were added.
+
+### Actor ownership and restoration C89 conversion (13 November 2026)
+
+`actor_owner.c` now owns actor runtime initialization/disposal, duplication,
+reset, value copying, track/sound swaps and undo restoration. Native actors
+marshal a plain C runtime and provide resource retain/release, C-backed table/
+sound operations, scene seeking and view invalidation. The undo controller and
+the underlying scene/body/resource implementations remain conversion work.
+
+The native-before ownership trace `tmp/c89-owner-before.bin` contains 94,208
+bytes across 128 cases, and `tmp/c89-undo-before.bin` contains 3,240 bytes across
+32 real movie/scene undo cases. Both match after conversion. Coverage includes
+shared body/template/cache references, reset versus ordinary duplication,
+allocation failures, retained recording/rejoin metadata, partial undo seek
+failure, undo creation, undo/redo scene replacement, names and actor removal.
+Serialized pointers are normalized; reference counts and identity predicates
+remain checked. The new C test checks clone short-circuiting, output publication
+while the failed actor is destroyed, resource balance, reset, table swaps and
+ignored seek failure. No Marcus UI tests were added.
+
+Both hosts build. All 53 standalone C checks (including strict C89 syntax), 67
+focused native checks and MSVC AddressSanitizer pass. All 39 snapshot comparisons
+and 51 CLI baselines match; the headless scene/timeline check passes. Evidence
+includes `tmp/c89-owner-standalone.log`, `tmp/c89-owner-native-checks.log`,
+`tmp/c89-owner-asan.log`, `tmp/c89-owner-snapshot-comparison.json`,
+`tmp/c89-owner-output-comparison.json` and `tmp/c89-owner-timeline.log`.
+
+Both binaries were frozen before playback, with no concurrent builds or
+compaction. SDL used the same recorded warm package cache with private processes,
+settings and working movies; OS caching remains uncontrolled. Completed old and
+current suites were transparently compressed between runs to retain headroom on
+C:. Raw evidence and earlier failure records remain intact. The same-player
+baselines are actor-audio `20261113T043400Z-f1048e22`, actor-events
+`20261113T043644Z-25feb92b`, scrolling-text `20261113T044139Z-83a82af0` and
+sampled-audio `20261113T044726Z-c4b76d53`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T051808Z-7594ae43` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T052216Z-6bb1efdf` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T052423Z-f2d7b0db` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T052909Z-08d1d9aa` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 captures completed on their first attempt. Movie identities and all
+source/resource/content integrity checks pass. All 540 seek images, authored
+positions and ordered playback changes match their preceding same-player
+results. Only adjacent identical position/image observations are collapsed;
+raw timestamps and observations remain. Actor cases retain 60 ordered changes
+per player; scrolling retains 328 for retail/SDL and 321 for Marcus.
+
+The strict peak-equality audit caught one difference: SDL actor audio peaked at
+4080 rather than the preceding 4081. Retail/Marcus actor peaks remain 3192/4081;
+scene-audio peaks remain 2380 retail and 2176 SDL/Marcus. Actor first-scene
+600/1300 Hz coverage passes. A separate diagnostic repeat of only SDL actor-audio
+playback, `20261113T053040Z-3e91e684`, completed using the same unchanged binary
+and returned peak 4081, with matching ordered images and passing tone/integrity
+checks. Thus peak variation occurs within this frozen revision. The original
+4080 result and failed exact-peak assertion are retained, not replaced by the
+repeat. No waveform/timing equality or cause for that variation is established.
+
+The original 21-run report is
+`tmp/c89-owner-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+`tmp/c89-owner-playback-peak-check.log` records the failed strict peak assertion;
+`tmp/c89-owner-playback-audit.json` records all 540 matching seek images, ordered
+changes, the explicit peak exception and diagnostic repeat. Existing cross-player
+differences remain; these captures do not establish general repeatability or
+full retail parity. Undo controller/edit wrappers, queue/runtime integration,
+scene/body/resource implementations and final facade removal remain unfinished.

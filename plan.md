@@ -268,6 +268,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   shifting is C89 too. Native callbacks retain BRender primitives, scene/body
   operations, cached origin publication and scrollbar notification. Undo,
   remaining actor/movie/scene integration and final facade removal remain.
+- Actor construction/disposal, duplication, reset, runtime copying and undo
+  restoration now execute in C89. The native actor marshals its fields and
+  supplies resource references, C-backed track/sound operations, scene seeking
+  and view invalidation. The undo controller, scene/body/resource implementations
+  and remaining edit/clipboard integration still require conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
