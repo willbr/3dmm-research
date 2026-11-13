@@ -4519,3 +4519,92 @@ Current raw evidence and its latest baselines/failure remain under
 policy above. Template/default-costume construction, body geometry/render hooks,
 resource/format/runtime implementations and final native facade removal keep
 the full C89 backend migration unfinished.
+
+## Template construction, headers and default costumes C89 conversion (13 November 2026)
+
+`template_create.c` owns factory selection/size estimates/failure cleanup, template
+header I/O, ordinary template list initialization, group disposal and body/default
+costume construction. Header/parent/set/costume fields publish in native order.
+Direct initialization failure retains partial ownership; factory failure releases
+the partial object and preserves native output invalidation. Native block
+lifetimes remain scoped through field/I/O adapters. ThreeDText initialization and
+default-costume overrides retain virtual dispatch and remain native dependencies,
+along with action/accessory evaluation, resource object internals, String adapters
+and final Template representation/facade removal.
+
+Parent/set payloads and costume counts/IDs swap in C for opposite byte order.
+Costume/action counts retain dense-prefix lookup, while missing GGCM triggers
+the legacy full-child rescan for each set through a temporary zero-budget cache.
+Default costumes are all fetched before applying any; failure releases fetched
+references without applying a partial costume. Temporary slots clear after
+release, matching native cleanup. Body construction reuses the shared C body
+implementation and releases a body when default costume application fails.
+
+Two explicit normalizations are recorded. The header writer sets its formerly
+uninitialized two-byte padding to zero. The legacy GGCM builder keeps its first
+50 matching IDs per set; a 51st now diagnoses/fails instead of overflowing the
+native stack array. No equivalence is claimed for native undefined padding or
+overflow. Header naming deliberately retains TMPL lookup even for another
+supplied chunk type; name failure deletes the added chunk while retaining its
+published number.
+
+`tmp/c89-template-create-before.bin` and `tmp/c89-template-create-after.bin`
+match across 306,048 normalized bytes, SHA-256
+`1A141E018561E66669EB801C1A442974D5D6C79C3B50A24CBB048A7ECBA04713`.
+Only undefined header padding is masked. The 1,344 native cases cover empty and
+six-part templates, opposite byte order, missing header/name/parent/set tables,
+generated GGCM rows, missing default resources and injected allocation failures.
+They record 613 successful loads and 478 bodies. SDL release records 672 loads
+and 588 bodies without debug injection. Defined wire fields, counts, names,
+groups, bodies and failure outcomes match the native trace.
+
+C tests independently cover estimate-only reads, virtual dispatch, output
+invalidation, direct partial ownership, header/name/add failures, opposite host
+order, dense child gaps, fallback cleanup and its 50/51 boundary, preload-before-
+apply order, and released/cleared reference slots. All 66 standalone C checks,
+strict C89 syntax, MSVC AddressSanitizer, 80 focused native checks, the SDL
+round-trip, 52 snapshot comparisons and 51 CLI baselines pass. Both hosts build
+and headless real-content scene playback passes. The final cleanup-slot
+refinement was rebuilt and included in these checks. Evidence includes
+`tmp/c89-template-create-standalone.log`,
+`tmp/c89-template-create-native-tests-final.log`,
+`tmp/c89-template-create-sdl-after.log`, `tmp/c89-template-create-asan.log`,
+`tmp/c89-template-create-snapshot-comparison.json`,
+`tmp/c89-template-create-output-comparison.json` and
+`tmp/c89-template-create-preview-scene-final.log`. No Marcus UI tests were added.
+
+Playback binaries remained frozen throughout capture: SHA-256
+`DCF3AD7788B4D624C052A7B7699C54FAEBFF031EAFD5542C7DA2A665B33E2964` (SDL) and
+`A68A5C658BABC654EEE50985C3CCA9B62861D8942A960C59A623050E90774128`
+(Marcus regression). Same-player baselines are actor-audio
+`20261113T115308Z-943f4642`, actor-events `20261113T115530Z-aad98120`,
+scrolling-text `20261113T115719Z-24e8d014` except Marcus playback from its
+successful retry `20261113T122454Z-07d21f20`, and sampled-audio
+`20261113T122702Z-7a400836`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T131229Z-ab43f9be` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T131500Z-ba37104a` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T131758Z-3c742199` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T132351Z-705ab775` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 runs completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations and timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes. Actor peaks remain
+3192 retail and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All measured peak deltas are zero. Peaks/coverage do not establish
+waveform/timing parity; existing cross-player differences and one-repeat
+inconclusive comparisons remain.
+
+These runs reused the sole package under the default shared SDL cache, with
+private processes/settings/working movies and uncontrolled OS caching. No builds
+or compaction ran during capture. Automatic retention pruned superseded media
+while retaining observations, summaries, diagnostics, current results, latest
+baselines and latest failures. Evidence is in
+`tmp/c89-template-create-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and `tmp/c89-template-create-playback-audit.json`. The remaining native dependencies
+listed above keep the full C89 backend migration unfinished.

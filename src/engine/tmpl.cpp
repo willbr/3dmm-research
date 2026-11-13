@@ -331,43 +331,119 @@ void ActionDefinition::MarkMem(void)
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read Template objects.
 ***************************************************************************/
+struct TemplateCreateContext { DataBlock block; };
+
+ThreeMMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *context)
+{
+    ThreeMMTemplateCreateServices s = {}; s.context = context; s.system = koskCur;
+    const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
+#ifdef DEBUG
+    s.debug_checks = 1;
+#endif
+    s.read = [](void *, void *object, ThreeMMTemplateState *state) {
+        auto t = static_cast<PTemplate>(object);
+        *state = {t->_pglibactPar, t->_pglibset, t->_pggcmid, t->_cbset, t->_ccmid, t->_cactn,
+                  t->_xaRest, t->_yaRest, t->_zaRest, t->_grftmpl};
+    };
+    s.write = [](void *, void *object, const ThreeMMTemplateState *state) {
+        auto t = static_cast<PTemplate>(object);
+        t->_pglibactPar = static_cast<PDynamicArray>(state->parents); t->_pglibset = static_cast<PDynamicArray>(state->sets);
+        t->_pggcmid = static_cast<PGeneralGroup>(state->costumes); t->_cbset = state->set_count;
+        t->_ccmid = state->custom_count; t->_cactn = state->action_count;
+        t->_xaRest = static_cast<BRA>(state->x); t->_yaRest = static_cast<BRA>(state->y);
+        t->_zaRest = static_cast<BRA>(state->z); t->_grftmpl = state->flags;
+    };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMTemplateChild *out) -> int {
+        ChildChunkIdentification child;
+        if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, id, childType, &child)) return 0;
+        *out = {child.cki.ctg, child.cki.cno, child.chid}; return 1;
+    };
+    s.enumerate = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 index, ThreeMMTemplateChild *out) -> int {
+        ChildChunkIdentification child;
+        if (!static_cast<PChunkyFile>(file)->FGetKid(type, number, index, &child)) return 0;
+        *out = {child.cki.ctg, child.cki.cno, child.chid}; return 1;
+    };
+    s.find = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        auto ctx = static_cast<TemplateCreateContext *>(p);
+        return static_cast<PChunkyFile>(file)->FFind(type, number, &ctx->block) ? &ctx->block : nullptr;
+    };
+    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+    s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
+    s.block_read = [](void *, void *block, void *bytes, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(bytes, static_cast<LegacyLong>(count), 0); };
+    s.read_name = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn); };
+    s.add_chunk = [](void *, void *file, ThreeMMU32 type, const void *data, size_t count, ThreeMMU32 *out) -> int {
+        ChunkNumber number; CopyPb(out, &number, sizeof(number));
+        const bool ok = static_cast<PChunkyFile>(file)->FAddPv(const_cast<void *>(data), static_cast<LegacyLong>(count), type, &number);
+        CopyPb(&number, out, sizeof(number)); return ok;
+    };
+    s.set_name = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PChunkyFile>(file)->FSetName(type, number, &static_cast<PTemplate>(object)->_stn); };
+    s.delete_chunk = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
+    s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
+    s.initialize = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
+    s.object_size = [](void *, int text) -> ThreeMMI32 { return static_cast<ThreeMMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
+    s.table_size = [](void *, void *table) -> ThreeMMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
+    s.invalidate = [](void *, void *out, size_t count) {
+#ifdef DEBUG
+        FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
+#else
+        (void)out; (void)count;
+#endif
+    };
+    s.header = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyFile>(file), type, number); };
+    s.read_table = [](void *, void *block, int kind, int *other) -> void * {
+        short order = kboCur; void *result;
+        if (kind == THREE_MM_TEMPLATE_COSTUMES) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
+        else result = DynamicArray::PglRead(static_cast<PDataBlock>(block), &order);
+        *other = order == kboOther; return result;
+    };
+    s.validate_table = [](void *, void *table, int kind, ThreeMMI32 expected) {
+        if (kind == THREE_MM_TEMPLATE_COSTUMES) {
+            auto group = static_cast<PGeneralGroup>(table); Assert(group->CbFixed() == sizeof(int32_t), "Bad Template _pggcmid");
+            Assert(group->IvMac() == expected, "Bad Template _pggcmid");
+        } else Assert(static_cast<PDynamicArray>(table)->CbEntry() == sizeof(short), "Bad Template part list");
+    };
+    s.count = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
+    s.item = [](void *, void *list, ThreeMMI32 i) -> ThreeMMI32 { short value; static_cast<PDynamicArray>(list)->Get(i, &value); return value; };
+    s.list_data = [](void *, void *list) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(0)); };
+    s.fixed_data = [](void *, void *group, ThreeMMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(row)); };
+    s.variable_data = [](void *, void *group, ThreeMMI32 row) -> unsigned char * { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(row)); };
+    s.create_cache = [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); };
+    s.create_costumes = [](void *) -> void * { return GeneralGroup::PggNew(sizeof(int32_t)); };
+    s.fetch_custom = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
+    s.custom_set = [](void *, void *custom) -> ThreeMMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
+    s.append_costumes = [](void *, void *group, const ThreeMMI32 *ids, ThreeMMI32 count) -> int {
+        int32_t fixed = count; return static_cast<PGeneralGroup>(group)->FAdd(count * sizeof(int32_t), nullptr, const_cast<ThreeMMI32 *>(ids), &fixed);
+    };
+    s.create_body = [](void *, void *parents, void *sets) -> void * { return Body::PbodyNew(static_cast<PDynamicArray>(parents), static_cast<PDynamicArray>(sets)); };
+    s.default_costume = [](void *, void *object, void *body) -> int { return static_cast<PTemplate>(object)->FSetDefaultCost(static_cast<PBody>(body)); };
+    s.costume_id = [](void *, void *object, ThreeMMI32 set, ThreeMMI32 index) -> ThreeMMI32 { return static_cast<PTemplate>(object)->CmidOfBset(set, index); };
+    s.custom = [](void *, void *object, ThreeMMI32 id) -> void * { return static_cast<PTemplate>(object)->PcmtlFetch(id); };
+    s.allocate_refs = [](void *, ThreeMMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
+    s.apply_custom = [](void *, void *body, void *custom) { static_cast<PBody>(body)->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(custom)); };
+    s.free_memory = [](void *, void **data) { FreePpv(data); };
+    s.diagnostic = [](void *, int code) {
+        switch (code) {
+        case THREE_MM_TEMPLATE_BAD_ORDER: Assert(false, "freaky tmplf!"); break;
+        case THREE_MM_TEMPLATE_OBSOLETE: Warn("Obsolete GLDC structure...get rid of it"); break;
+        case THREE_MM_TEMPLATE_BUILD_COSTUMES: Warn("missing GGCM...building one on the fly"); break;
+        case THREE_MM_TEMPLATE_COSTUME_LIMIT: Assert(false, "legacy costume table exceeds 50 entries per set"); break;
+        case THREE_MM_TEMPLATE_WRONG_SET: Assert(false, "ibset's don't match"); break;
+        }
+    };
+    return s;
+}
+
 bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-
-    Template *ptmpl;
-    ChildChunkIdentification kid;
-
-    *pcb = pblck->Cb(fTrue); // estimate Template size (not a good estimate)
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (pcrf->Pcfl()->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
-        ptmpl = NewObj ThreeDText;
-    else
-        ptmpl = NewObj Template;
-    if (pvNil == ptmpl || !ptmpl->_FInit(pcrf->Pcfl(), ctg, cno))
-    {
-        ReleasePpo(&ptmpl);
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        return fFalse;
-    }
-    AssertPo(ptmpl, 0);
-    *ppbaco = ptmpl;
-    if (ptmpl->_grftmpl & ftmplTdt)
-    {
-        *pcb = size(ThreeDText);
-    }
-    else
-    {
-        *pcb =
-            size(Template) + ptmpl->_pglibactPar->CbOnFile() + ptmpl->_pglibset->CbOnFile() + ptmpl->_pggcmid->CbOnFile();
-    }
-    return fTrue;
+    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
+    TemplateCreateContext context; auto s = _CreateServices(&context);
+    void *object; ThreeMMI32 bytes;
+    if (ppbaco) CopyPb(ppbaco, &object, sizeof(object));
+    const bool ok = three_mm_template_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco ? &object : nullptr, &bytes, &s) != 0;
+    if (ppbaco) CopyPb(&object, ppbaco, sizeof(object));
+    CopyPb(&bytes, pcb, sizeof(bytes));
+    return ok;
 }
 
 /***************************************************************************
@@ -376,28 +452,8 @@ bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumb
 bool Template::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
-
-    DataBlock blck;
-    TemplateOnFile tmplf;
-
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
-        return fFalse;
-
-    if (blck.Cb() < size(TemplateOnFile))
-        return fFalse;
-    if (!blck.FReadRgb(&tmplf, size(TemplateOnFile), 0))
-        return fFalse;
-
-    if (kboOther == tmplf.bo)
-        SwapBytesBom(&tmplf, kbomTmplf);
-    Assert(kboCur == tmplf.bo, "freaky tmplf!");
-    _xaRest = tmplf.xaRest;
-    _yaRest = tmplf.yaRest;
-    _zaRest = tmplf.zaRest;
-    _grftmpl = tmplf.grftmpl;
-    if (!pcfl->FGetName(ctg, cno, &_stn))
-        return fFalse;
-    return fTrue;
+    TemplateCreateContext context; auto s = _CreateServices(&context);
+    return three_mm_template_read_header(this, pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -408,28 +464,11 @@ bool Template::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno
 ***************************************************************************/
 bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-    AssertVarMem(pcno);
-
-    TemplateOnFile tmplf;
-
-    // Add Template chunk
-    tmplf.bo = kboCur;
-    tmplf.osk = koskCur;
-    tmplf.xaRest = _xaRest;
-    tmplf.yaRest = _yaRest;
-    tmplf.zaRest = _zaRest;
-    tmplf.grftmpl = _grftmpl;
-
-    if (!pcfl->FAddPv(&tmplf, size(TemplateOnFile), ctg, pcno))
-        return fFalse;
-    if (!pcfl->FSetName(kctgTmpl, *pcno, &_stn))
-    {
-        pcfl->Delete(ctg, *pcno);
-        return fFalse;
-    }
-    return fTrue;
+    AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
+    TemplateCreateContext context; auto s = _CreateServices(&context); ThreeMMU32 number;
+    CopyPb(pcno, &number, sizeof(number));
+    const bool ok = three_mm_template_write_header(this, pcfl, ctg, &number, &s) != 0;
+    CopyPb(&number, pcno, sizeof(number)); return ok;
 }
 
 /***************************************************************************
@@ -438,141 +477,8 @@ bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *p
 bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-    short bo;
-    DataBlock blck;
-    LegacyLong ibact;
-    short ibset;
-
-    if (!_FReadTmplf(pcfl, ctg, cno))
-        return fFalse;
-
-    // read GLPI (parent tree)
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlpi, &kid))
-        return fFalse;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        return fFalse;
-    _pglibactPar = DynamicArray::PglRead(&blck, &bo);
-    if (pvNil == _pglibactPar)
-        return fFalse;
-    Assert(_pglibactPar->CbEntry() == size(short), "Bad _pglibactPar!");
-    if (kboOther == bo)
-        SwapBytesRgsw(_pglibactPar->QvGet(0), _pglibactPar->IvMac());
-
-    // read GLBS (body-part-set ID list)
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlbs, &kid))
-        return fFalse;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        return fFalse;
-    _pglibset = DynamicArray::PglRead(&blck, &bo);
-    if (pvNil == _pglibset)
-        return fFalse;
-    Assert(_pglibset->CbEntry() == size(short), "Bad Template _pglibset!");
-    if (kboOther == bo)
-        SwapBytesRgsw(_pglibset->QvGet(0), _pglibset->IvMac());
-
-#ifdef DEBUG
-    // GLDC is obsolete
-    if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGldc, &kid))
-        Warn("Obsolete GLDC structure...get rid of it");
-#endif // DEBUG
-
-    // _cbset is (highest entry in _pglibset) + 1.
-    _cbset = -1;
-    for (ibact = 0; ibact < _pglibset->IvMac(); ibact++)
-    {
-        _pglibset->Get(ibact, &ibset);
-        if (ibset > _cbset)
-            _cbset = ibset;
-    }
-    _cbset++;
-
-    // Count custom costumes
-    _ccmid = 0;
-    while (pcfl->FGetKidChidCtg(ctg, cno, _ccmid, kctgCmtl, &kid))
-        _ccmid++;
-
-    // Count actions
-    _cactn = 0;
-    while (pcfl->FGetKidChidCtg(ctg, cno, _cactn, kctgActn, &kid))
-        _cactn++;
-
-    // read GGCM (costume info)
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGgcm, &kid))
-    {
-        // REVIEW *****: temp until Pete updates sitobren
-        goto LBuildGgcm;
-        //		return fFalse;
-    }
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        return fFalse;
-    _pggcmid = GeneralGroup::PggRead(&blck, &bo);
-    if (pvNil == _pggcmid)
-        return fFalse;
-    // _pggcmid stores a 4-byte count per bset (fixed) and a 4-byte cmid array
-    // per bset (variable). Pin to int32_t so LP64 doesn't widen the on-disk
-    // layout (1995 .3MM has 4-byte cmids).
-    Assert(_pggcmid->CbFixed() == size(int32_t), "Bad Template _pggcmid");
-    Assert(_pggcmid->IvMac() == _cbset, "Bad Template _pggcmid");
-    if (kboOther == bo)
-    {
-        for (ibset = 0; ibset < _cbset; ibset++)
-        {
-            SwapBytesRglw(_pggcmid->QvFixedGet(ibset), 1);
-            SwapBytesRglw(_pggcmid->QvGet(ibset), *(int32_t *)_pggcmid->QvFixedGet(ibset));
-        }
-    }
-    return fTrue;
-// REVIEW *****: temp code until Pete converts our Template content
-LBuildGgcm:
-    LegacyLong ikid;
-    PCustomMaterial_CMTL pcmtl;
-    PChunkyResourceFile pcrf;
-    LegacyLong rgcmid[50];
-    LegacyLong ccmid;
-
-    Warn("missing GGCM...building one on the fly");
-
-    pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
-    if (pvNil == pcrf)
-        return fFalse;
-
-    _pggcmid = GeneralGroup::PggNew(size(int32_t));
-    if (pvNil == _pggcmid)
-    {
-        ReleasePpo(&pcrf);
-        return fFalse;
-    }
-    for (ibset = 0; ibset < _cbset; ibset++)
-    {
-        ikid = 0;
-        ccmid = 0;
-
-        while (pcfl->FGetKid(ctg, cno, ikid++, &kid))
-        {
-            if (kid.cki.ctg != kctgCmtl)
-                continue;
-            pcmtl = (PCustomMaterial_CMTL)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, CustomMaterial_CMTL::FReadCmtl);
-            if (pvNil == pcmtl)
-            {
-                ReleasePpo(&pcrf);
-                return fFalse;
-            }
-            if (pcmtl->Ibset() == ibset)
-            {
-                rgcmid[ccmid++] = kid.chid;
-            }
-            ReleasePpo(&pcmtl);
-        }
-        if (!_pggcmid->FAdd(ccmid * size(LegacyLong), pvNil, rgcmid, &ccmid))
-        {
-            ReleasePpo(&pcrf);
-            return fFalse;
-        }
-    }
-    ReleasePpo(&pcrf);
-    return fTrue;
+    TemplateCreateContext context; auto s = _CreateServices(&context);
+    return three_mm_template_initialize(this, pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -581,9 +487,8 @@ LBuildGgcm:
 Template::~Template(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_pglibactPar);
-    ReleasePpo(&_pglibset);
-    ReleasePpo(&_pggcmid);
+    TemplateCreateContext context; auto s = _CreateServices(&context);
+    three_mm_template_dispose(this, &s);
 }
 
 /***************************************************************************
@@ -615,14 +520,8 @@ PDynamicArray Template::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkN
 PBody Template::PbodyCreate(void)
 {
     AssertThis(0);
-    PBody pbody = Body::PbodyNew(_pglibactPar, _pglibset);
-
-    if (pvNil == pbody || !FSetDefaultCost(pbody))
-    {
-        ReleasePpo(&pbody);
-        return pvNil;
-    }
-    return pbody;
+    TemplateCreateContext context; auto s = _CreateServices(&context);
+    return static_cast<PBody>(three_mm_template_create_body(this, &s));
 }
 
 /***************************************************************************
@@ -864,37 +763,9 @@ void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
 ***************************************************************************/
 bool Template::FSetDefaultCost(Body *pbody)
 {
-    AssertThis(0);
-    AssertPo(pbody, 0);
-
-    LegacyLong ibset;
-    LegacyLong cmid;
-    PCustomMaterial_CMTL *prgpcmtl;
-    bool fRet = fFalse;
-
-    if (!FAllocPv((void **)&prgpcmtl, LwMul(_cbset, size(PCustomMaterial_CMTL)), fmemClear, mprNormal))
-    {
-        goto LEnd;
-    }
-    for (ibset = 0; ibset < _cbset; ibset++)
-    {
-        cmid = CmidOfBset(ibset, 0);
-        prgpcmtl[ibset] = PcmtlFetch(cmid);
-        if (pvNil == prgpcmtl[ibset])
-            goto LEnd;
-        Assert(prgpcmtl[ibset]->Ibset() == ibset, "ibset's don't match");
-    }
-    for (ibset = 0; ibset < _cbset; ibset++)
-        pbody->SetPartSetCmtl(prgpcmtl[ibset]);
-    fRet = fTrue;
-LEnd:
-    if (pvNil != prgpcmtl)
-    {
-        for (ibset = 0; ibset < _cbset; ibset++)
-            ReleasePpo(&prgpcmtl[ibset]);
-        FreePpv((void **)&prgpcmtl);
-    }
-    return fRet;
+    AssertThis(0); AssertPo(pbody, 0);
+    TemplateCreateContext context; auto s = _CreateServices(&context);
+    return three_mm_template_default_costume(this, pbody, &s) != 0;
 }
 
 /***************************************************************************

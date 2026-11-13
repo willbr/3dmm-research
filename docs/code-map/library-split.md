@@ -1587,8 +1587,8 @@ direct initialization callers retain cleanup responsibility. Disposal clears
 ownership pointers while retaining counts, matching native behavior.
 
 Native services adapt allocation, C-backed lists, BRender actor/material fields
-and links, reference release and renderer notifications. Model/material release
-resource implementations, template construction, representation adapters
+and links, reference release and renderer notifications. Model/material
+resource implementations, ThreeDText construction, representation adapters
 and the native Body representation remain C++ dependencies. Both hosts use the
 converted construction/disposal through their engine-core Body facade; this is
 not yet the final C-only backend boundary.
@@ -1633,7 +1633,7 @@ Resource reference counts and native allocation counts return to their starting
 values. The SDL release fixture covers the same cases without debug injection.
 Standalone C tests independently cover every duplicate/reshape allocation stage,
 reference balance, original-show-before-failed-copy-release ordering, restoration
-and successful/failed shape state. Template/default costumes, remaining body
+and successful/failed shape state. Remaining template action/text operations, body
 geometry/render hooks and final native facade removal remain unfinished.
 
 ### Body materials, visibility and costume ownership
@@ -1670,6 +1670,42 @@ different-shape application. It records 72 successful replacement captures and
 release fixture covers 90 successful captures without debug injection. C tests
 also verify failed replacement clearing, release/assign/retain order and no
 dereference of raw handles after their final custom owner is released.
+
+### Template construction, headers and default costumes
+
+`template_create.c` owns resource factory selection/size estimates/failure cleanup,
+template header reads/writes, ordinary template initialization, owned group
+disposal and body/default-costume construction. Parents, sets and costume groups
+publish in native order; direct initialization failure retains partial ownership,
+while the factory releases its failed object. Parent/set payloads and costume
+counts/IDs swap in C for opposite-endian files. Costume/action counts retain
+dense-prefix lookup behavior; the legacy missing-GGCM path instead enumerates
+all costume children once per set, using a temporary zero-budget resource cache.
+
+Default costumes are all fetched before any body mutation. Failed fetching
+releases the fetched references without applying a partial costume. Body creation
+uses the shared C body implementation and preserves virtual default-costume
+dispatch. ThreeDText initialization/default-costume implementations remain native
+dependencies, as do action/accessory evaluation, resource object internals,
+String adapters and final Template representation/facade removal.
+
+Header writes define the formerly uninitialized two-byte padding as zero.
+The name write deliberately targets TMPL even when given another chunk type;
+failure deletes the newly added chunk while retaining its published number.
+The legacy GGCM builder's first 50 matches retain native behavior; the 51st
+now diagnoses/fails instead of overflowing its stack array. These defined
+normalizations are explicit; unsupported native overflow/padding is not claimed
+to match. Native block lifetimes remain scoped through temporary field/I/O
+adapters, while construction/byte-order/failure policy is C89.
+
+The normalized 306,048-byte before/after trace matches across 1,344 native cases,
+with 613 successful loads and 478 bodies. Only undefined header padding is masked;
+defined wire fields, groups, counts, names, body state and injected failures
+match. Fixtures cover empty/nonempty templates, opposite byte order, missing
+name/header/tables, generated GGCM rows, missing default resources and ownership
+cleanup. Standalone C tests additionally exercise factory output invalidation,
+virtual dispatch, direct-call partial ownership, header/name failures, dense gaps,
+opposite host order and the fallback's 50/51 boundary.
 
 ### Source names and directory discovery
 
