@@ -391,13 +391,13 @@ container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
-sound integration control and body construction/shape disposal have also moved
-into C89. These are completed slices
+sound integration control and body construction/shape disposal, duplication,
+restoration and reshaping have also moved into C89. These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
 The immediate sequence is remaining template construction, default costumes,
-body duplication/reshaping/material management and sound-format
-factory implementations. Continue through the remaining scene/movie
+body material/visibility management and sound-format factory implementations.
+Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting
 body/template/resource implementations and physical file adapters as their
 dependencies require. Extend the C API and regression coverage as each C++

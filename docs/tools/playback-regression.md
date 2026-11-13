@@ -4312,3 +4312,84 @@ with counts and unsuppressed audio deltas in
 `tmp/c89-body-create-playback-audit.json`. Raw evidence remains under
 `tmp/c89-movie-data-regression`. Remaining template/costume/body/resource/runtime
 implementations and final C++ facade removal keep the full C89 backend unfinished.
+
+## Body duplication, restoration and reshape C89 conversion (13 November 2026)
+
+`body_edit.c` owns body duplication/reference sequencing, preserved hidden
+counts, receiver identifier repair, reshape rollback, and restoration of
+materials, models, matrices and highlighting. It reuses C shape construction
+and disposal. A visible original hides before duplication and is re-shown before
+failed-copy disposal. Model references precede duplicated set/material storage;
+generic materials retain one reference per part and custom materials one per
+set. Successful reshape restores visibility before material/model/matrix edits.
+Failure restores the saved body and releases the displaced partial shape.
+
+Native adapters retain BRender actor pointer rebasing, whole-object swapping,
+field/bounds/binding copies, material internals and renderer notifications.
+Restoration deliberately preserves the existing whole-object swap and repairs
+only the receiving body's actor identifiers. Native Body representation and
+these adapters are temporary C++ dependencies, not the final backend boundary.
+
+The native before trace `tmp/c89-body-edit-before.bin` contains 1,880,872 bytes
+and matches `tmp/c89-body-edit-after.bin` exactly; SHA-256 is
+`B784A86F449D26510C7C8A7FE47CB001196700D45C45638E91C35D2C6F0D2AE9`.
+The 1,404 cases cover empty/one/six-part sources, growing/shrinking targets,
+shared/missing models, generic/custom materials, canonical actor links including
+previous-link slots, matrices, bounds/hit metadata, visible/hidden/nested-hidden
+bodies, renderer attachment and highlighting. Debug allocator injection produces
+1,278 successes and 126 failures. Model/material reference counts and native
+allocation counts return to their starting values. SDL release runs the same
+1,404 cases successfully without debug injection.
+
+Standalone C tests cover every duplicate/reshape allocation stage, exact
+reference balance, original-show-before-failed-copy-release ordering, restore
+identifiers and hidden counts, successful/failed reshape, preserved matrices and
+highlighting. All 64 standalone checks, strict C89 syntax, MSVC AddressSanitizer,
+78 focused native checks, the SDL round-trip, 50 snapshot comparisons and 51 CLI
+baselines pass. Both hosts build and headless real-content scene playback passes.
+Evidence includes `tmp/c89-body-edit-standalone.log`,
+`tmp/c89-body-edit-native-tests.log`, `tmp/c89-body-edit-sdl-after.log`,
+`tmp/c89-body-edit-asan.log`, `tmp/c89-body-edit-snapshot-comparison.json`,
+`tmp/c89-body-edit-output-comparison.json` and
+`tmp/c89-body-edit-preview-scene.log`. No Marcus UI tests were added.
+
+Playback binary contents remained frozen throughout capture. SHA-256 values were
+`0A75759C24724957801BEAB9257A3BA3834613108E1963AED2F52A0012294949` (SDL) and
+`EFB2A1A43BB5FF7FF995B4D06D71632418B036E262069216D5054E87238B5259`
+(Marcus regression). Symbols/binaries and completed capture folders were
+transparently compressed outside active captures to retain C: headroom while
+preserving bytes. No builds or compaction ran during capture. SDL reused the
+recorded warm package cache with private processes/settings/working movies;
+OS caching remained uncontrolled.
+
+Same-player baselines were actor-audio `20261113T105510Z-18d03bb1`, actor-events
+`20261113T105634Z-cbb842c5`, scrolling-text `20261113T105801Z-b672a006` and
+sampled-audio `20261113T110220Z-b8735843`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T111704Z-8696baf6` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T111839Z-b61c19b2` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T112011Z-76415179` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T112414Z-161b040e` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and source/resource/content
+integrity checks pass. All 540 seek images, authored positions and ordered
+playback changes match the preceding same-player results. Only adjacent
+identical position/image observations are collapsed; raw rows/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328
+retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Actor peaks remain 3192 retail and
+4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176 SDL/Marcus. All
+measured before/after peak deltas are zero. The earlier SDL 4080/4081 variation
+remains documented, and coverage/peaks do not establish waveform/timing parity.
+Existing cross-player differences and one-repeat inconclusive comparisons remain.
+
+The combined report is
+`tmp/c89-body-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts and actual audio deltas in `tmp/c89-body-edit-playback-audit.json`.
+Raw evidence remains under `tmp/c89-movie-data-regression`. Template/default
+costumes, remaining body/material/resource/runtime implementations, native
+adapters and final C++ facade removal remain unfinished; this slice does not
+complete the shared C89 backend.

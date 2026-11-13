@@ -1499,7 +1499,7 @@ full paste, duplicate/paste/rename failure, removal before release, changed IDs
 between rename/removal, ownership visibility and source immutability. No Marcus
 UI tests were added. The separate full actor-paste native fixture still covers
 actual template/sound transfer. Actor creation control is described next.
-Template/body construction, movie/scene/resource/runtime implementation and
+Template construction, remaining body/movie/scene/resource/runtime implementation and
 facade removal remain unfinished.
 
 ### Actor creation and scene binding
@@ -1531,7 +1531,7 @@ proved by this fixture. `engine-actor-create-test` separately checks acquisition
 and publication ordering, short-circuiting, partial flags on failure, real C owner
 disposal, direct-call cleanup responsibility, recording reset and retained failed
 bindings. No Marcus UI tests were added. Movie sound integration control is
-described next. Template/body construction, remaining scene/movie/resource/
+described next. Template construction, remaining body/scene/movie/resource/
 runtime implementations and final facade removal remain unfinished.
 
 ### Movie sound integration
@@ -1571,7 +1571,7 @@ is an explicit platform coverage limit, not a claim that the stub works. C tests
 also cover primitive failures, cross-file ID selection, open-before-close,
 failed-adoption output, save failure, refreshed working state versus captured
 destination, error suppression and GC ordering. No Marcus UI tests were added.
-Template/body construction, sound-format factories, remaining movie/scene/
+Template construction, sound-format factories, remaining body/movie/scene/
 resource/runtime policy and final facade removal remain unfinished.
 
 ### Body construction and shape ownership
@@ -1588,7 +1588,7 @@ ownership pointers while retaining counts, matching native behavior.
 
 Native services adapt allocation, C-backed lists, BRender actor/material fields
 and links, reference release and renderer notifications. Model/material release
-internals, body duplication/reshape, costume application, template construction
+internals, costume application, template construction, representation adapters
 and the native Body representation remain C++ dependencies. Both hosts use the
 converted construction/disposal through their engine-core Body facade; this is
 not yet the final C-only backend boundary.
@@ -1603,6 +1603,38 @@ list/material/actor allocation failures, partial state publication, direct versu
 factory cleanup and model/material/storage release order. AddressSanitizer,
 strict C89 syntax, 63 standalone checks, 77 focused native checks, 49 snapshots,
 51 CLI baselines and headless scene playback pass. No Marcus UI tests were added.
+
+### Body duplication, restoration and reshaping
+
+`body_edit.c` owns duplicate allocation/reference sequencing, original visibility
+restoration, receiver identifier repair, preserved hidden counts, reshape rollback
+and the order in which materials/models/matrices/highlighting are restored.
+Duplication hides a visible original, copies bindings, allocates/rebases actors,
+retains models, duplicates the set list, allocates/copies material storage and
+copies bounds. Generic materials retain one reference per part; custom materials
+retain one per set. Both success and failure re-show the original before failed
+copy disposal. A copy starts hidden once regardless of its source's hidden count.
+
+Restoration retains native whole-object swapping, then rewrites only receiver
+actor identifiers and preserves its original hidden count. Reshape duplicates
+before destruction, reuses C shape construction/disposal, restores visibility
+before material/model/matrix edits, and rolls back through that same restoration
+operation when construction fails. Native adapters still provide BRender pointer
+rebasing, whole-object swapping, metadata/bounds/field copies, material internals
+and renderer notifications. These and the native Body representation are
+temporary dependencies, not the final C-only backend boundary.
+
+The 1,880,872-byte native trace matches C exactly across 1,404 cases: 1,278
+successes and 126 allocation-injected failures. Cases include empty/one/six-part
+sources, growing/shrinking targets, generic/custom materials, shared and missing
+models, canonical hierarchy links (including previous-link slots), part/root
+matrices, bounds/hit state, renderer attachment, nested hiding and highlighting.
+Resource reference counts and native allocation counts return to their starting
+values. The SDL release fixture covers the same cases without debug injection.
+Standalone C tests independently cover every duplicate/reshape allocation stage,
+reference balance, original-show-before-failed-copy-release ordering, restoration
+and successful/failed shape state. Template/default costumes, remaining body
+material/visibility operations and final native facade removal remain unfinished.
 
 ### Source names and directory discovery
 

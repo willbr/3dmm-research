@@ -282,61 +282,10 @@ bool Body::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
     AssertThis(fobjAssertFull);
     AssertPo(pglibactPar, 0);
     AssertPo(pglibset, 0);
-
-    PBody pbodyDup;
-    LegacyLong ibset;
-    bool fMtrl;
-    PMaterial_MTRL pmtrl;
-    PCustomMaterial_CMTL pcmtl;
-    LegacyLong ibact;
-    PBACT pbactDup;
-    PBACT pbact;
-    LegacyLong cactHidden = _cactHidden;
-
-    pbodyDup = PbodyDup();
-    if (pvNil == pbodyDup)
-        goto LFail;
-
-    _DestroyShape(); // note: hides the body
-    if (!_FInitShape(pglibactPar, pglibset))
-        goto LFail;
-    if (cactHidden == 0) // if body was visible
-        Show();
-    // Restore materials
-    for (ibset = 0; ibset < LwMin(_cbset, pbodyDup->_cbset); ibset++)
-    {
-        pbodyDup->GetPartSetMaterial(ibset, &fMtrl, &pmtrl, &pcmtl);
-        if (fMtrl)
-            SetPartSetMtrl(ibset, pmtrl);
-        else
-            SetPartSetCmtl(pcmtl);
-    }
-    // Restore models and matrices
-    for (ibact = 0; ibact < LwMin(_cbactPart, pbodyDup->_cbactPart); ibact++)
-    {
-        pbactDup = pbodyDup->_PbactPart(ibact);
-        pbact = _PbactPart(ibact);
-        if (pvNil != pbactDup->model)
-            SetPartModel(ibact, Model::PmodlFromBmdl(pbactDup->model));
-        pbact->t.t.mat = pbactDup->t.t.mat;
-    }
-    _PbactRoot()->t.t.mat = pbodyDup->_PbactRoot()->t.t.mat;
-    // Restore hilite state
-    if (pbodyDup->_PbactHilite()->type == BR_ACTOR_MODEL)
-        Hilite(); // body was hilited, so hilite it now
-    ReleasePpo(&pbodyDup);
+    auto services = _EditServices();
+    const bool ok = three_mm_body_change_shape(this, pglibactPar, pglibset, &services) != 0;
     AssertThis(fobjAssertFull);
-    return fTrue;
-LFail:
-    if (pvNil != pbodyDup)
-    {
-        Restore(pbodyDup);
-        if (cactHidden == 0)
-            Show();
-        ReleasePpo(&pbodyDup);
-    }
-    AssertThis(fobjAssertFull);
-    return fFalse;
+    return ok;
 }
 
 /***************************************************************************
@@ -423,115 +372,85 @@ Body::~Body(void)
     Create a duplicate of this Body.  The duplicate will be hidden
     (_cactHidden == 1) regardless of the state of this Body.
 ***************************************************************************/
+ThreeMMBodyEditServices Body::_EditServices(void)
+{
+    ThreeMMBodyEditServices s = {};
+    s.shape = _CreateServices();
+    s.copy_bindings = [](void *, void *to, void *from) {
+        auto dst = static_cast<PBody>(to); auto src = static_cast<PBody>(from);
+        dst->_pvRenderContext = src->_pvRenderContext; dst->_pfnAttach = src->_pfnAttach;
+        dst->_pfnChanged = src->_pfnChanged; dst->_fFound = src->_fFound; dst->_ibset = src->_ibset;
+    };
+    s.copy_actors = [](void *, void *to, void *from, ThreeMMI32 count) { CopyPb(from, to, LwMul(count, size(BACT))); };
+    s.rebase_actor = [](void *, void *body, void *to, void *from, ThreeMMI32 index, int root) {
+        auto actor = static_cast<PBACT>(to) + index;
+        const LegacyLong delta = BvSubPvs(to, from);
+        actor->identifier = static_cast<schar *>(body);
+        if (root) {
+            actor->parent = pvNil; actor->next = pvNil; actor->prev = pvNil;
+        } else {
+            if (actor->parent) actor->parent = static_cast<PBACT>(PvAddBv(actor->parent, delta));
+            if (actor->next) actor->next = static_cast<PBACT>(PvAddBv(actor->next, delta));
+            if (actor->prev) actor->prev = static_cast<PBACT *>(PvAddBv(actor->prev, delta));
+        }
+        if (actor->children) actor->children = static_cast<PBACT>(PvAddBv(actor->children, delta));
+    };
+    s.retain_model = [](void *, void *actors, ThreeMMI32 part) {
+        auto actor = static_cast<PBACT>(actors) + part + 2;
+        if (actor->model) Model::PmodlFromBmdl(actor->model)->AddRef();
+    };
+    s.copy_materials = [](void *, void *to, void *from, ThreeMMI32 count) {
+        CopyPb(from, to, LwMul(count, size(PCustomMaterial_CMTL)));
+    };
+    s.copy_bounds = [](void *, void *to, void *from) {
+        auto dst = static_cast<PBody>(to); auto src = static_cast<PBody>(from);
+        dst->_rcBounds = src->_rcBounds; dst->_rcBoundsLastVis = src->_rcBoundsLastVis;
+    };
+    s.material = [](void *, void *body, ThreeMMI32 set, int *generic) -> void * {
+        bool isGeneric; PMaterial_MTRL material; PCustomMaterial_CMTL custom;
+        static_cast<PBody>(body)->GetPartSetMaterial(set, &isGeneric, &material, &custom);
+        *generic = isGeneric;
+        if (isGeneric) return material;
+        return custom;
+    };
+    s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.show = [](void *, void *body) { static_cast<PBody>(body)->Show(); };
+    s.swap_bodies = [](void *, void *a, void *b) {
+        auto body = static_cast<PBody>(a); auto replacement = static_cast<PBody>(b);
+        AssertPo(replacement, 0); Assert(replacement->_cactHidden == 1, "dup hidden count must be 1");
+        SwapVars(body, replacement);
+    };
+    s.identify = [](void *, void *body, void *actors, ThreeMMI32 index) {
+        (static_cast<PBACT>(actors) + index)->identifier = static_cast<schar *>(body);
+    };
+    s.set_generic = [](void *, void *body, ThreeMMI32 set, void *material) {
+        static_cast<PBody>(body)->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(material));
+    };
+    s.set_custom = [](void *, void *body, void *material) {
+        static_cast<PBody>(body)->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(material));
+    };
+    s.model = [](void *, void *actors, ThreeMMI32 part) -> void * {
+        auto actor = static_cast<PBACT>(actors) + part + 2;
+        return actor->model ? Model::PmodlFromBmdl(actor->model) : pvNil;
+    };
+    s.set_model = [](void *, void *body, ThreeMMI32 part, void *model) {
+        static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model));
+    };
+    s.copy_matrix = [](void *, void *to, ThreeMMI32 i, void *from, ThreeMMI32 j) {
+        static_cast<PBACT>(to)[i].t.t.mat = static_cast<PBACT>(from)[j].t.t.mat;
+    };
+    s.highlighted = [](void *, void *actors) -> int { return static_cast<PBACT>(actors)[1].type == BR_ACTOR_MODEL; };
+    s.highlight = [](void *, void *body) { static_cast<PBody>(body)->Hilite(); };
+    return s;
+}
+
 PBody Body::PbodyDup(void)
 {
     AssertThis(0);
-
-    PBody pbodyDup;
-    LegacyLong ibact;
-    LegacyLong ibset;
-    PBACT pbact;
-    LegacyLong bv; // delta in bytes from _prgbact to _pbody->_prgbact
-    bool fMtrl;
-    PMaterial_MTRL pmtrl;
-    PCustomMaterial_CMTL pcmtl;
-    bool fVis;
-
-    fVis = (_cactHidden == 0);
-    if (fVis)
-        Hide(); // temporarily hide this Body
-
-    pbodyDup = NewObj Body;
-    if (pvNil == pbodyDup)
-        goto LFail;
-
-    pbodyDup->_cactHidden = 1;
-    pbodyDup->_cbset = _cbset;
-    pbodyDup->_cbactPart = _cbactPart;
-    pbodyDup->_pvRenderContext = _pvRenderContext;
-    pbodyDup->_pfnAttach = _pfnAttach;
-    pbodyDup->_pfnChanged = _pfnChanged;
-    pbodyDup->_fFound = _fFound;
-    pbodyDup->_ibset = _ibset;
-
-    if (!FAllocPv((void **)&pbodyDup->_prgbact, LwMul(_Cbact(), size(BACT)), fmemClear, mprNormal))
-    {
-        goto LFail;
-    }
-    CopyPb(_prgbact, pbodyDup->_prgbact, LwMul(_Cbact(), size(BACT)));
-    // need to update BACT parent, child, next, prev pointers
-    bv = BvSubPvs(pbodyDup->_prgbact, _prgbact);
-    for (ibact = 0; ibact < _Cbact(); ibact++)
-    {
-        pbact = &pbodyDup->_prgbact[ibact];
-        pbact->identifier = (schar *)pbodyDup;
-        if (ibact == 0)
-        {
-            pbact->parent = pvNil;
-            if (pvNil != pbact->children)
-                pbact->children = (PBACT)PvAddBv(pbact->children, bv);
-            pbact->next = pvNil;
-            pbact->prev = pvNil;
-        }
-        else
-        {
-            if (pvNil != pbact->parent)
-                pbact->parent = (PBACT)PvAddBv(pbact->parent, bv);
-            if (pvNil != pbact->children)
-                pbact->children = (PBACT)PvAddBv(pbact->children, bv);
-            if (pvNil != pbact->next)
-                pbact->next = (PBACT)PvAddBv(pbact->next, bv);
-            if (pvNil != pbact->prev)
-                pbact->prev = (PBACT *)PvAddBv(pbact->prev, bv);
-        }
-    }
-    for (ibact = 0; ibact < pbodyDup->_cbactPart; ibact++)
-    {
-        pbact = _PbactPart(ibact);
-        if (pvNil != pbact->model)
-            Model::PmodlFromBmdl(pbact->model)->AddRef();
-    }
-
-    pbodyDup->_pglibset = _pglibset->PglDup();
-    if (pvNil == pbodyDup->_pglibset)
-        goto LFail;
-
-    if (!FAllocPv((void **)&pbodyDup->_prgpcmtl, LwMul(_cbset, size(PCustomMaterial_CMTL)), fmemClear, mprNormal))
-    {
-        goto LFail;
-    }
-    CopyPb(_prgpcmtl, pbodyDup->_prgpcmtl, LwMul(_cbset, size(PCustomMaterial_CMTL)));
-
-    pbodyDup->_rcBounds = _rcBounds;
-    pbodyDup->_rcBoundsLastVis = _rcBoundsLastVis;
-
-    for (ibset = 0; ibset < _cbset; ibset++)
-    {
-        pbodyDup->GetPartSetMaterial(ibset, &fMtrl, &pmtrl, &pcmtl);
-        if (fMtrl)
-        {
-            // need to AddRef once per body part in this set
-            for (ibact = 0; ibact < pbodyDup->_cbactPart; ibact++)
-            {
-                if (ibset == _Ibset(ibact))
-                    pmtrl->AddRef();
-            }
-        }
-        else
-        {
-            pcmtl->AddRef();
-        }
-    }
-    if (fVis)
-        Show(); // re-show this Body (but not the duplicate)
-
-    AssertPo(pbodyDup, 0);
-    return pbodyDup;
-LFail:
-    if (fVis)
-        Show();
-    ReleasePpo(&pbodyDup);
-    return pvNil;
+    auto services = _EditServices();
+    auto body = static_cast<PBody>(three_mm_body_duplicate(this, &services));
+    AssertNilOrPo(body, 0);
+    return body;
 }
 
 /***************************************************************************
@@ -542,17 +461,8 @@ void Body::Restore(PBody pbodyDup)
     AssertBaseThis(0);
     AssertPo(pbodyDup, 0);
     Assert(pbodyDup->_cactHidden == 1, "dup hidden count must be 1");
-
-    LegacyLong cactHidden = _cactHidden;
-    LegacyLong ibact;
-
-    SwapVars(this, pbodyDup);
-    for (ibact = 0; ibact < _Cbact(); ibact++)
-        _prgbact[ibact].identifier = (schar *)this;
-    if (cactHidden == 0)
-        Show();
-    _cactHidden = cactHidden;
-
+    auto services = _EditServices();
+    three_mm_body_restore(this, pbodyDup, &services);
     AssertThis(fobjAssertFull);
 }
 
