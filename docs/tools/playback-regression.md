@@ -5102,3 +5102,123 @@ current results, preceding baselines and latest failures. C: retained about
 59.2 GiB free after the pass. Evidence is in
 `tmp/c89-text-resource-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
 and `tmp/c89-text-resource-playback-audit.json`.
+
+## Movie sound resource and dispatch C89 conversion (13 November 2026)
+
+`sound_resource.c` owns MovieSoundMSND resource loading/factories, optional metadata
+queries, MIDI/WAVE envelope and child writing, MIDI import orchestration,
+invalidation, tool priorities/classes and sound playback dispatch. Persistent
+`ThreeMMSoundResource` stores the weak source cache, child identity, style and
+volume. Separate C silent/invalid slots preserve the native String placement and
+328-byte x64 owner/cache estimate without packing pointers. Both hosts use this
+controller through the MovieSoundMSND facade. Primitive String/object/block/
+chunk/file services, MIDI parsing/serialization and sound-device operations
+remain host adapters. Physical WAVE import/transcoding and sound payload
+factories/parsing remain native work; this does not finish the full C89 backend.
+Work pauses at the user's request after this slice.
+
+The original foreign-envelope behavior is preserved: the reader used the
+background byte-order mask, swapping only order/system markers and leaving
+style/volume bytes in native order. Invalid sounds retain their previous child
+and silent fields; direct failures preserve fields already published. Short
+headers now return failure before the original out-of-range 16-byte read/assert.
+Factory estimates publish before allocation, and failure invalidates outputs
+before releasing a partial object. Cache links remain weak. Writers zero the
+three undefined native padding bytes in the 16-byte envelope. Parent-add failure
+retains that primitive's output behavior; later failures delete parent and child
+while keeping the published output number. Invalidation writes the envelope and
+removes the child before setting the in-memory flag. MIDI import preserves
+provided/default names, reports bad-sound on parser failure and releases its
+parsed stream on every path.
+
+Playback retains signed queue identity, loop classes/repeat limits,
+invalid-sound early return, queue/stop behavior and silent-sound stopping. An
+active repeated MIDI child is suppressed using type/number and the previous
+instance, including the native omission of cache identity from that comparison.
+The last-MIDI state publishes after device operations. Device mixing, MIDI
+parsing and WAVE transcoding are not claimed to have been converted by this
+resource-controller change.
+
+The authoritative native baseline was captured twice using the original native
+implementation and a corrected fixture. Both baseline traces and the converted
+trace match all 99,001 bytes, SHA-256
+`E95D011B6E0F40EDFAF0D5E338DD845C15BD3569E3773B3FB4786E6AAD1CD899`.
+The fixture obtains child identity by enumeration and reads its actual payload
+with `FFind(type, number)`. The legacy type-relative enumeration payload argument
+can refer to the parent's block; the preliminary paused 97,273-byte trace
+therefore did not prove child-payload parity and is superseded. Only undefined
+MSND padding bytes are excluded from the corrected trace; successful actual
+MIDI/WAVE payloads, graph edges, names and metadata are compared.
+
+There are 1,320 attempts: 864 direct/factory/info loads, 192 writer attempts, 192
+MIDI import attempts and 72 invalidation attempts. Loads cover current/foreign
+markers, invalid and silent sounds, missing resources/names, oversized headers,
+explicitly packed 16-byte headers, optional metadata outputs and BASE/HQ/Pv
+allocation injection. Debug outcomes are 524 successful loads, 192 writes,
+84 MIDI imports and 36 invalidations; SDL release has 540 loads, 192 writes,
+96 imports and 36 invalidations. Allocations balance after cleanup. None of the
+native writer allocation injections failed for these small preallocated chunks;
+writer failure/cleanup phases are covered explicitly by the standalone callback
+fault tests rather than inferred from the 192 successful native writes. Native
+short-header assertions are excluded from baseline capture; standalone and
+converted-host tests explicitly require clean rejection.
+Raw WAVE writer cases copy opaque source bytes to test file-copy integrity; the
+separate SDL import/decode/play/reopen check supplies valid audio.
+
+C-only tests cover both host byte orders, foreign scalar-byte preservation,
+factory output invalidation before release, independent optional metadata
+outputs, all writer cleanup phases including file-copy/name failures, MIDI
+parser ownership, invalidation ordering and playback policy. A further 96
+headless host combinations cover style/loop/queue/silent/invalid/actor flags,
+plus priority/class queries, high-bit offsets and repeated-MIDI suppression.
+These tests use a recording sound manager and restore the initial MIDI state;
+they add no Marcus UI tests or retail MIDI-rendering claim.
+
+All 72 standalone C checks pass with assertions enabled, including strict C89
+syntax. MSVC AddressSanitizer compiles/runs the new controller as C. All 86
+focused native checks, SDL save/load, the SDL WAVE import/decode/play/reopen test,
+all 58 snapshot comparisons and 51 freshly linked CLI baselines pass. Both hosts
+build; headless real-content scene/timeline playback passes. Evidence includes
+`tmp/c89-sound-resource-standalone.log`, `tmp/c89-sound-resource-native-tests.log`,
+`tmp/c89-sound-resource-asan.log`, `tmp/c89-sound-resource-sdl-after.log`,
+`tmp/c89-sound-resource-wave-import.log`,
+`tmp/c89-sound-resource-snapshot-comparison.json`,
+`tmp/c89-sound-resource-output-comparison.json` and
+`tmp/c89-sound-resource-preview-scene.log`.
+
+Playback binary SHA-256 values are frozen for the capture pass:
+`0D3FAE67646FDFA903FE9A25EEC0C0DD75C86EA98E371E29777AF68196160AD0` (SDL) and
+`A45E2864A267FDE4CC15B743831D8392D0A632102E24AFD2E0D479C685CBC8B3`
+(Marcus regression). Preceding same-player baselines are actor-audio
+`20261113T160754Z-ff148af2`, actor-events `20261113T160914Z-bee4ee37`,
+scrolling-text `20261113T161033Z-b02176d7` and sampled-audio
+`20261113T161343Z-60647ee2`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T164426Z-3595489b` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T164613Z-1cfd43da` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T164741Z-85298c8e` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T165153Z-af14778b` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes. Actor peaks remain
+3192 retail and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All measured peak deltas are zero. Earlier 4080/4081 SDL variation
+remains a limitation; peaks/tone coverage do not establish waveform or timing
+parity. Existing cross-player differences and one-repeat inconclusive comparisons
+remain. Dedicated retail MIDI rendering is outside this pass; headless dispatch
+and parser/import checks provide separate, narrower evidence.
+
+Both binary hashes remained unchanged throughout capture. Runs reused the sole
+shared SDL package cache with private processes/settings/working movies and
+uncontrolled OS caching. No builds or compaction ran during capture. Automatic
+retention pruned superseded raw media while retaining metadata/observations,
+current results, preceding baselines and latest failures. C: retained about
+58.9 GiB free. Evidence is in
+`tmp/c89-sound-resource-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and `tmp/c89-sound-resource-playback-audit.json`.

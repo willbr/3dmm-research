@@ -1946,6 +1946,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_font_resource_fixture.h"
 #include "engine_text_generation_fixture.h"
 #include "engine_text_resource_fixture.h"
+#include "engine_sound_resource_fixture.h"
 #include "engine_movie_sound_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
@@ -2068,10 +2069,10 @@ class QueueTestSound : public MovieSoundMSND
   public:
     QueueTestSound(long style)
     {
-        _sty = style;
-        _vlm = 123;
-        _fNoSound = tYes; // Exercise dispatch without an audio file/device.
-        _fInvalid = false;
+        _resource.style = style;
+        _resource.volume = 123;
+        _silent = tYes; // Exercise dispatch without an audio file/device.
+        _invalid = false;
     }
 };
 
@@ -2555,6 +2556,10 @@ int __cdecl main(int argc, char **argv)
         BAIL("action definition failed");
     if (!TestFontResources())
         BAIL("font resources failed");
+    if (!TestSoundResources())
+        BAIL("sound resources failed");
+    if (!TestSoundResourceDispatch())
+        BAIL("sound resource dispatch failed");
     if (!TestTextResources())
         BAIL("text resources failed");
     if (!TestTextGeneration())

@@ -19,7 +19,7 @@
      +---MIDI or WAVE (chid 0) // actual sound data
 
     An MovieSoundMSND chunk with no child is a "no sound" or silent sound.
-    An MovieSoundMSND chunk with _fInvalid set requires no child.
+    An invalid MovieSoundMSND chunk requires no child.
 
 ***************************************************************************/
 #ifdef KAUAI_SDL3
@@ -46,6 +46,82 @@ const uint16_t kwBitsPerSample = 8;
 const uint16_t knChannels = 1;
 const uint16_t knBlockAlign = 1;
 
+struct SoundResourceContext
+{
+    DataBlock block;
+    FileLocation source, destination;
+    Filename filename;
+    String name;
+};
+ThreeMMSoundResourceServices MovieSoundMSND::_ResourceServices(void *context)
+{
+    ThreeMMSoundResourceServices s = {}; s.context = context; s.system = koskCur;
+    static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(ThreeMMSoundResource) == sizeof(void *) + 16, "sound resource ABI");
+    static_assert(stySfx == 2 && stySpeech == 3 && styMidi == 4 && toolLooper == toolSounder + 1 && toolMatcher == toolSounder + 2, "sound policy enums");
+    static_assert(kctgMsnd == THREE_MM_SOUND_TYPE && kctgMidi == THREE_MM_SOUND_MIDI && kctgWave == THREE_MM_SOUND_WAVE && tNo == 0 && tYes == 1, "sound wire enums");
+    s.owner = [](void *, void *object, ThreeMMSoundOwner *out) {
+        auto sound = static_cast<PMovieSoundMSND>(object); *out = {&sound->_resource, &sound->_silent, &sound->_invalid};
+    };
+    s.create = [](void *) -> void * { return NewObj MovieSoundMSND(); };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.object_size = [](void *) -> ThreeMMI32 { return sizeof(MovieSoundMSND); };
+    s.invalidate_output = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
+    s.file = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->Pcfl(); };
+    s.find = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        auto block = &static_cast<SoundResourceContext *>(p)->block;
+        return static_cast<PChunkyFile>(file)->FFind(type, number, block) ? block : nullptr;
+    };
+    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+    s.block_size = [](void *, void *block) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(); };
+    s.read = [](void *, void *block, void *out, ThreeMMI32 bytes) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, bytes, 0); };
+    s.read_name = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, void *object) -> int {
+        return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PMovieSoundMSND>(object)->_stn);
+    };
+    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMSoundChild *out) -> int {
+        ChildChunkIdentification child; if (!static_cast<PChunkyFile>(file)->FGetKidChid(type, number, kchidSnd, &child)) return 0;
+        *out = {child.cki.ctg, child.cki.cno}; return 1;
+    };
+    s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
+    s.add = [](void *, void *file, const void *header, void *out) -> int {
+        return static_cast<PChunkyFile>(file)->FAddPv(const_cast<void *>(header), 16, kctgMsnd, static_cast<ChunkNumber *>(out));
+    };
+    s.wave_size = [](void *p, void *source) -> ThreeMMI32 {
+        auto location = &static_cast<SoundResourceContext *>(p)->source;
+        location->pfil = static_cast<PFileObject>(source); location->fp = 0; location->cb = location->pfil->FpMac(); return location->cb;
+    };
+    s.midi_size = [](void *, void *source) -> ThreeMMI32 { return static_cast<PMidiStream>(source)->CbOnFile(); };
+    s.add_child = [](void *p, void *file, ThreeMMU32 parent, ThreeMMU32 type, ThreeMMI32 bytes, ThreeMMU32 *out) -> int {
+        auto block = &static_cast<SoundResourceContext *>(p)->block; ChunkNumber child;
+        if (!static_cast<PChunkyFile>(file)->FAddChild(kctgMsnd, parent, kchidSnd, bytes, type, &child, type == kctgMidi ? block : nullptr)) return 0;
+        *out = child; return 1;
+    };
+    s.write_midi = [](void *p, void *source) -> int { return static_cast<PMidiStream>(source)->FWrite(&static_cast<SoundResourceContext *>(p)->block); };
+    s.find_wave = [](void *p, void *file, ThreeMMU32 number) -> int { return static_cast<PChunkyFile>(file)->FFindFlo(kctgWave, number, &static_cast<SoundResourceContext *>(p)->destination); };
+    s.copy_wave = [](void *p) -> int { auto c = static_cast<SoundResourceContext *>(p); return c->source.FCopy(&c->destination); };
+    s.set_name = [](void *, void *file, ThreeMMU32 number, const void *name) -> int { return static_cast<PChunkyFile>(file)->FSetName(kctgMsnd, number, const_cast<PString>(static_cast<const String *>(name))); };
+    s.delete_parent = [](void *, void *file, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgMsnd, number); };
+    s.prepare_name = [](void *p, void *source, const void *name) -> void * {
+        auto c = static_cast<SoundResourceContext *>(p); static_cast<PFileObject>(source)->GetFni(&c->filename);
+        if (name) c->name = *const_cast<PString>(static_cast<const String *>(name)); else c->filename.GetLeaf(&c->name);
+        return &c->name;
+    };
+    s.read_midi = [](void *p) -> void * { return MidiStream::PmidsReadNative(&static_cast<SoundResourceContext *>(p)->filename); };
+    s.bad_sound = [](void *) { PushErc(ercSocBadSoundFile); };
+    s.binding = [](void *, void *object, void **file, ThreeMMU32 *type, ThreeMMU32 *number) {
+        auto sound = static_cast<PMovieSoundMSND>(object); *file = sound->Pcrf()->Pcfl(); *type = sound->Ctg(); *number = sound->Cno();
+    };
+    s.put = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, const void *header) -> int { return static_cast<PChunkyFile>(file)->FPutPv(const_cast<void *>(header), 16, type, number); };
+    s.delete_child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, const ThreeMMSoundChild *child) { static_cast<PChunkyFile>(file)->DeleteChild(type, number, child->type, child->number); };
+    s.bad_order = [](void *) { Assert(false, "bad MovieSoundFile"); };
+    s.queue_number = [](void *, ThreeMMI32 style, ThreeMMI32 object, int actor) -> ThreeMMI32 { return SoundPlaybackQueue::QueueNumber(style, object, actor != 0); };
+    s.playing = [](void *, ThreeMMI32 instance) -> int { return vpsndm->FPlaying(instance); };
+    s.stop = [](void *, ThreeMMI32 queue) { vpsndm->StopAll(queue, sclNil); };
+    s.play = [](void *, const ThreeMMSoundResource *sound, ThreeMMI32 queue, ThreeMMI32 volume, ThreeMMI32 repeat, ThreeMMU32 start, ThreeMMI32 priority, ThreeMMI32 soundClass) -> ThreeMMI32 {
+        return vpsndm->SiiPlay(static_cast<PResourceCache>(sound->cache), sound->type, sound->number, queue, volume, repeat, start, priority, soundClass);
+    };
+    return s;
+}
+
 /***************************************************************************
 
     A PFNRPO to read a MovieSoundMSND from a file
@@ -53,30 +129,9 @@ const uint16_t knBlockAlign = 1;
 ***************************************************************************/
 bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-
-    MovieSoundMSND *pmsnd;
-
-    *pcb = size(MovieSoundMSND); // estimate MovieSoundMSND size
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    pmsnd = NewObj MovieSoundMSND();
-    if (pvNil == pmsnd || !pmsnd->_FInit(pcrf->Pcfl(), ctg, cno))
-    {
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        ReleasePpo(&pmsnd);
-        return fFalse;
-    }
-
-    pmsnd->_prca = pcrf;
-    AssertPo(pmsnd, 0);
-    *ppbaco = pmsnd;
-    return fTrue;
+    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_fetch(pcrf, ctg, cno, ppbaco, pcb, &services) != 0;
 }
 
 /***************************************************************************
@@ -87,26 +142,8 @@ bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, Chu
 bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
 {
     AssertPo(pcfl, 0);
-
-    PMovieSoundMSND pmsnd;
-    pmsnd = NewObj MovieSoundMSND();
-    if (pvNil == pmsnd)
-        return pvNil;
-
-    if (!pmsnd->_FInit(pcfl, ctg, cno))
-    {
-        ReleasePpo(&pmsnd);
-        return fFalse;
-    }
-
-    if (pvNil != pfInvalid)
-        *pfInvalid = pmsnd->_fInvalid;
-    if (pvNil != psty)
-        *psty = pmsnd->_sty;
-    if (pvNil != pvlm)
-        *pvlm = pmsnd->_vlm;
-    ReleasePpo(&pmsnd);
-    return fTrue;
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_info(pcfl, ctg, cno, pfInvalid, psty, pvlm, &services) != 0;
 }
 
 /***************************************************************************
@@ -116,45 +153,9 @@ bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNum
 ***************************************************************************/
 bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
-    AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-
-    DataBlock blck;
-    MovieSoundFile msndf;
-    ChildChunkIdentification kid;
-
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
-        goto LFail;
-    if (blck.Cb() > size(MovieSoundFile))
-        goto LFail;
-    if (!blck.FReadRgb(&msndf, size(MovieSoundFile), 0))
-        goto LFail;
-    if (kboCur != msndf.bo)
-        SwapBytesBom(&msndf, kbomBkgdf);
-    Assert(kboCur == msndf.bo, "bad MovieSoundFile");
-
-    if (!pcfl->FGetName(ctg, cno, &_stn))
-        return fFalse;
-
-    _sty = msndf.sty;
-    _vlm = msndf.vlmDefault;
-    _fInvalid = msndf.fInvalid;
-    if (_fInvalid)
-        return fTrue;
-
-    // If there is a SND child, it is not a "no sound"
-    if (pcfl->FGetKidChid(ctg, cno, kchidSnd, &kid))
-    {
-        _cnoSnd = kid.cki.cno;
-        _ctgSnd = kid.cki.ctg;
-        _fNoSound = tribool::tNo;
-    }
-    else
-        _fNoSound = tribool::tYes;
-
-    return fTrue;
-LFail:
-    return fFalse;
+    AssertBaseThis(0); AssertPo(pcfl, 0);
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_read(this, pcfl, ctg, cno, &services) != 0;
 }
 
 /***************************************************************************
@@ -165,40 +166,9 @@ LFail:
 ***************************************************************************/
 bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno)
 {
-    AssertPo(pcflDest, 0);
-    AssertPo(pmids, 0);
-    AssertVarMem(pstnName);
-    AssertVarMem(pcno);
-
-    MovieSoundFile msndf;
-    DataBlock blck;
-    ChunkNumber cno;
-
-    msndf.bo = kboCur;
-    msndf.osk = koskCur;
-    msndf.sty = styMidi;
-    msndf.vlmDefault = kvlmFull;
-    msndf.fInvalid = fFalse;
-
-    // Create the msnd chunk
-    if (!pcflDest->FAddPv(&msndf, size(MovieSoundFile), kctgMsnd, pcno))
-        return fFalse;
-
-    // Create the midi chunk as a child of the msnd chunk
-    if (!pcflDest->FAddChild(kctgMsnd, *pcno, kchidSnd, pmids->CbOnFile(), kctgMidi, &cno, &blck))
-        goto LFail;
-
-    if (!pmids->FWrite(&blck))
-        goto LFail;
-
-    if (!pcflDest->FSetName(kctgMsnd, *pcno, pstnName))
-        goto LFail;
-
-    return fTrue;
-
-LFail:
-    pcflDest->Delete(kctgMsnd, *pcno); // Deletes the midi chunk also
-    return fFalse;
+    AssertPo(pcflDest, 0); AssertPo(pmids, 0); AssertVarMem(pstnName); AssertVarMem(pcno);
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_write(pmids, 0, pcflDest, styMidi, pstnName, pcno, &services) != 0;
 }
 
 /***************************************************************************
@@ -209,48 +179,9 @@ LFail:
 ***************************************************************************/
 bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno)
 {
-    AssertPo(pfilSrc, 0);
-    AssertIn(sty, 0, styLim);
-    AssertVarMem(pstnName);
-    AssertVarMem(pcno);
-
-    MovieSoundFile msndf;
-    ChunkNumber cno;
-    FileLocation floSrc;
-    FileLocation floDest;
-
-    msndf.bo = kboCur;
-    msndf.osk = koskCur;
-    msndf.sty = sty;
-    msndf.vlmDefault = kvlmFull;
-    msndf.fInvalid = fFalse;
-
-    floSrc.pfil = pfilSrc;
-    floSrc.cb = pfilSrc->FpMac();
-    floSrc.fp = 0;
-
-    // Create the msnd chunk
-    if (!pcflDest->FAddPv(&msndf, size(MovieSoundFile), kctgMsnd, pcno))
-        return fFalse;
-
-    // Create the wave chunk as a child of the msnd chunk
-    if (!pcflDest->FAddChild(kctgMsnd, *pcno, kchidSnd, floSrc.cb, kctgWave, &cno))
-        goto LFail;
-
-    if (!pcflDest->FFindFlo(kctgWave, cno, &floDest))
-        goto LFail;
-
-    if (!floSrc.FCopy(&floDest))
-        goto LFail;
-
-    if (!pcflDest->FSetName(kctgMsnd, *pcno, pstnName))
-        goto LFail;
-
-    return fTrue;
-
-LFail:
-    pcflDest->Delete(kctgMsnd, *pcno); // Deletes the wave chunk also
-    return fFalse;
+    AssertPo(pfilSrc, 0); AssertIn(sty, 0, styLim); AssertVarMem(pstnName); AssertVarMem(pcno);
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_write(pfilSrc, 1, pcflDest, sty, pstnName, pcno, &services) != 0;
 }
 
 /***************************************************************************
@@ -261,37 +192,9 @@ LFail:
 ***************************************************************************/
 bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
 {
-    AssertPo(pfilSrc, 0);
-    AssertNilOrPo(pstn, 0);
-
-    PMidiStream pmids = pvNil;
-    Filename fniSrc;
-    String stnName;
-
-    pfilSrc->GetFni(&fniSrc);
-    if (pvNil == pstn)
-        fniSrc.GetLeaf(&stnName);
-    else
-        stnName = *pstn;
-
-    pmids = MidiStream::PmidsReadNative(&fniSrc);
-    if (pmids == pvNil)
-    {
-        PushErc(ercSocBadSoundFile);
-        goto LFail;
-    }
-
-    // Create the chunk & write it to this movie
-    // Adopt it later as a child of kctgMvie
-    if (!MovieSoundMSND::FWriteMidi(pcflDest, pmids, &stnName, pcno))
-        goto LFail;
-
-    ReleasePpo(&pmids);
-    return fTrue;
-
-LFail:
-    ReleasePpo(&pmids);
-    return fFalse;
+    AssertPo(pfilSrc, 0); AssertNilOrPo(pstn, 0);
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_copy_midi(pfilSrc, pcflDest, pstn, pcno, &services) != 0;
 }
 
 /***************************************************************************
@@ -608,25 +511,8 @@ LFail:
 bool MovieSoundMSND::FInvalidate(void)
 {
     AssertThis(0);
-
-    ChildChunkIdentification kid;
-    MovieSoundFile msndf;
-
-    // Invalidate the msnd on file
-    if (!Pcrf()->Pcfl()->FGetKidChid(kctgMsnd, Cno(), kchidSnd, &kid))
-        return fFalse;
-    msndf.bo = kboCur;
-    msndf.osk = koskCur;
-    msndf.sty = _sty;
-    msndf.vlmDefault = _vlm;
-    msndf.fInvalid = fTrue;
-    if (!Pcrf()->Pcfl()->FPutPv(&msndf, size(MovieSoundFile), Ctg(), Cno()))
-        return fFalse;
-    Pcrf()->Pcfl()->DeleteChild(Ctg(), Cno(), kid.cki.ctg, kid.cki.cno);
-
-    // Invalidate the cache representation
-    _fInvalid = fTrue;
-    return fTrue;
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_sound_invalidate(this, &services) != 0;
 }
 
 /***************************************************************************
@@ -670,32 +556,10 @@ long MovieSoundMSND::SqnBkgd(long sty, long objid)
 ***************************************************************************/
 long MovieSoundMSND::Spr(long tool)
 {
-    AssertThis(0);
-    Assert(tool == toolMatcher || tool == toolSounder || tool == toolLooper, "Invalid tool");
-
-    switch (_sty)
-    {
-    case styMidi:
-        Assert(tool != toolMatcher, "No midi motion matching");
-        return 1;
-        break;
-    case stySpeech:
-        if (tool == toolSounder)
-            return 1;
-        if (tool == toolMatcher)
-            return 5;
-        return 3;
-        break;
-    case stySfx:
-        if (tool == toolSounder)
-            return 2;
-        if (tool == toolMatcher)
-            return 6;
-        return 4;
-    default:
-        Assert(0, "Invalid sty in MovieSoundMSND: Spr");
-    }
-    return 0;
+    AssertThis(0); Assert(tool == toolMatcher || tool == toolSounder || tool == toolLooper, "Invalid tool");
+    Assert(_resource.style != styMidi || tool != toolMatcher, "No midi motion matching");
+    AssertIn(_resource.style, stySfx, styLim);
+    return three_mm_sound_priority(_resource.style, static_cast<int>(tool - toolSounder));
 }
 
 /***************************************************************************
@@ -706,43 +570,9 @@ long MovieSoundMSND::Spr(long tool)
 void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr, ulong dtsStart)
 {
     AssertThis(0);
-
-    long cactRepeat;
-    long sqn; // sound queue
-    long scl; // sound class
-    long sii{};
-
-    static long _siiLastMidi;
-    static ChunkTagOrType _ctgLastMidi;
-    static ChunkNumber _cnoLastMidi;
-
-    if (_fInvalid)
-        return;
-
-    sqn = fActr ? SqnActr(objID) : SqnBkgd(objID);
-    cactRepeat = fLoop ? klwMax : 1;
-    scl = Scl(fLoop);
-
-    if (_sty == styMidi && _ctgSnd == _ctgLastMidi && _cnoSnd == _cnoLastMidi && vpsndm->FPlaying(_siiLastMidi))
-    {
-        // Don't restart midi if the same sound is still playing
-        return;
-    }
-
-    if (!fQueue || _fNoSound)
-        vpsndm->StopAll(sqn, sclNil);
-
-    if (!_fNoSound)
-    {
-        sii = vpsndm->SiiPlay(_prca, _ctgSnd, _cnoSnd, sqn, vlm, cactRepeat, dtsStart, spr, scl);
-    }
-
-    if (_sty == styMidi)
-    {
-        _siiLastMidi = sii;
-        _ctgLastMidi = _ctgSnd;
-        _cnoLastMidi = _cnoSnd;
-    }
+    static ThreeMMSoundLastMidi last = {};
+    SoundResourceContext context; auto services = _ResourceServices(&context);
+    three_mm_sound_play(this, &last, objID, fLoop, fQueue, vlm, spr, fActr, dtsStart, &services);
 }
 
 /***************************************************************************
@@ -878,8 +708,8 @@ MovieSoundQueue::~MovieSoundQueue(void)
 void MovieSoundMSND::AssertValid(LegacyUlong grf)
 {
     MovieSoundMSND_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(_prca, 0);
-    AssertIn(_sty, 0, styLim);
+    AssertNilOrPo(static_cast<PResourceCache>(_resource.cache), 0);
+    AssertIn(_resource.style, 0, styLim);
 }
 
 /***************************************************************************
@@ -889,7 +719,7 @@ void MovieSoundMSND::MarkMem(void)
 {
     AssertThis(0);
     MovieSoundMSND_PAR::MarkMem();
-    // Note: don't mark _prca, because _prca marks us, and would cause
+    // The weak _resource.cache marks us; marking it here would cause
     // an infinite recursive loop.
 }
 

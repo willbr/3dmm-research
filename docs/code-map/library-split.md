@@ -1894,6 +1894,45 @@ failure without fallback, malformed-order diagnostics and name publication.
 Full validation and playback limits are recorded in
 `docs/tools/playback-regression.md`.
 
+### Movie sound resources and dispatch
+
+`sound_resource.c` owns MovieSoundMSND loading/factories, metadata queries,
+MIDI/WAVE envelope and child writing, MIDI import orchestration, invalidation,
+tool priorities/classes and playback dispatch. `ThreeMMSoundResource` holds the
+weak source cache, child identity, style and volume. Separate C silent/invalid
+slots preserve the native String placement and 328-byte x64 cache estimate
+without packing pointers. Native adapters still supply object/String/block/
+chunk/file services, MIDI parsing/serialization and sound-device operations.
+Physical WAVE import/transcoding, sound payload factories/parsing and the native
+facade remain dependencies of the unfinished full C89 backend.
+
+The reader retains native foreign-header semantics: only the order/system
+markers swap; style and volume remain in native byte order because the original
+reader used the background mask. Direct failures retain already published state;
+invalid sounds leave child/silent state untouched. Short headers now fail before
+the original out-of-range read/assert. Factory estimates publish before allocation
+and failed outputs invalidate before release. Cache links remain weak. Writers
+zero the envelope's three undefined padding bytes. Parent-add failure preserves
+its output behavior; later failures delete the parent and child but retain the
+published number. Invalidation writes the envelope and removes the child before
+publishing the in-memory flag. MIDI import releases its parsed stream on every
+path and reports bad-sound only for parse failure.
+
+Dispatch preserves signed queue identity, loop class/repeat limits, invalid-sound
+early return, silent-sound stopping and queue behavior. MIDI suppression compares
+the preceding child type/number and active instance, as native did, without
+including cache identity. The last-MIDI state publishes after device operations.
+
+The corrected native trace matches all 99,001 bytes across 1,320 cases, SHA-256
+`E95D011B6E0F40EDFAF0D5E338DD845C15BD3569E3773B3FB4786E6AAD1CD899`.
+It records actual child payloads by chunk ID, excluding only undefined envelope
+padding. C-only tests cover both host byte orders, every writer cleanup phase,
+failed-output publication, short headers and dispatch policy. A further 96
+headless host dispatch combinations and repeated-MIDI checks verify adapters.
+Full evidence and playback coverage limits are in
+`docs/tools/playback-regression.md`. Work pauses after this slice at the user's
+request; the remaining sound payload and rendering work has not been started.
+
 ### Source names and directory discovery
 
 `source_names.c` owns counted source names and SID extras in C storage, replacing

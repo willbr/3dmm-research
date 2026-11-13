@@ -34,6 +34,7 @@
 #include <cstdint>
 
 #include "sound_queue.h"
+#include "three_mm/sound_resource.h"
 
 const long kSndSamplesPerSec = 22050;
 const long kSndBitsPerSample = 8;
@@ -81,18 +82,14 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     MARKMEM
 
   protected:
-    // these are inherent to the msnd
-    ChunkTagOrType _ctgSnd;       // ChunkTagOrType of the WAV or MIDI chunk
-    ChunkNumber _cnoSnd;       // ChunkNumber of the WAV or MIDI chunk
-    PResourceCache _prca;        // file that the WAV/MIDI lives in
-    long _sty;         // MIDI, speech, or sfx
-    long _vlm;         // Volume of the sound
-    tribool _fNoSound; // Set if silent sound
-    String _stn;          // Sound name
-    bool _fInvalid;    // Invalid flag
+    ThreeMMSoundResource _resource = {};
+    ThreeMMI32 _silent = 0;
+    String _stn; // Native String service; separate slots preserve the cache estimate.
+    unsigned char _invalid = 0;
 
   protected:
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    static ThreeMMSoundResourceServices _ResourceServices(void *context);
 
   public:
     static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
@@ -108,24 +105,24 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     static long SqnBkgd(long sty, long objID);
     long Scl(bool fLoop)
     {
-        return (fLoop ? ((_sty == styMidi) ? sclLoopMidi : sclLoopWav) : sclNonLoop);
+        return three_mm_sound_class(_resource.style, fLoop);
     }
     long SqnActr(long objID)
     {
         AssertThis(0);
-        return SqnActr(_sty, objID);
+        return SqnActr(_resource.style, objID);
     }
     long SqnBkgd(long objID)
     {
         AssertThis(0);
-        return SqnBkgd(_sty, objID);
+        return SqnBkgd(_resource.style, objID);
     }
 
     bool FInvalidate(void);
     bool FValid(void)
     {
         AssertBaseThis(0);
-        return FPure(!_fInvalid);
+        return FPure(!_invalid);
     }
     PString Pstn(void)
     {
@@ -135,18 +132,18 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     long Sty(void)
     {
         AssertThis(0);
-        return _sty;
+        return _resource.style;
     }
     long Vlm(void)
     {
         AssertThis(0);
-        return _vlm;
+        return _resource.volume;
     }
     long Spr(long tool); // Return Priority
     tribool FNoSound(void)
     {
         AssertThis(0);
-        return _fNoSound;
+        return static_cast<tribool>(_silent);
     }
 
     void Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse, ulong dtsStart = 0);
