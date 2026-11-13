@@ -118,6 +118,7 @@
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "three_mm/actor_effect.h"
+#include "three_mm/actor_placement.h"
 
 ASSERTNAME
 
@@ -929,32 +930,26 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pyr);
     AssertVarMem(pzr);
 
-    BRS xrCam = rZero;
-    BRS yrCam = rZero;
-    BRS zrCam = kzrDefault;
-    BRS zrYon, zrHither;
-    BMAT34 bmat34Cam;
-
-    _pscen->Pbkgd()->GetActorPlacePoint(pxr, pyr, pzr);
-    // A (0, 0, 0) place point means that one hasn't been authored yet,
-    // so use the old system.
-    if (*pxr == rZero && *pyr == rZero && *pzr == rZero)
-    {
-        _pscen->Pmvie()->Pbwld()->GetCamera(&bmat34Cam, &zrHither, &zrYon);
-
-        Assert(zrCam < 0, "Non-negative placement value");
-        Assert(zrHither >= 0 && zrYon >= 0, "Negative camera values");
-        if (BR_ABS(zrCam) > zrYon)
-            zrCam = BR_CONST_DIV(BR_ADD(zrYon, zrHither), -2);
-
-        *pxr =
-            BR_MAC3(xrCam, bmat34Cam.m[0][0], yrCam, bmat34Cam.m[1][0], zrCam, bmat34Cam.m[2][0]) + bmat34Cam.m[3][0];
-        *pyr = rZero;
-        *pzr =
-            BR_MAC3(xrCam, bmat34Cam.m[0][2], yrCam, bmat34Cam.m[1][2], zrCam, bmat34Cam.m[2][2]) + bmat34Cam.m[3][2];
-    }
-    if (_ptmpl->FIsTdt())
-        *pyr += BR_SCALAR(10.0); // 1.0 meters
+    static_assert(kzrDefault == -1638400, "Placement distance ABI");
+    BRS x, y, z;
+    _pscen->Pbkgd()->GetActorPlacePoint(&x, &y, &z);
+    ThreeMMActorPoint point{x, y, z};
+    ThreeMMActorPlacementServices services{};
+    services.context = this;
+    services.camera = [](void *context, ThreeMMActorMatrix *matrix, ThreeMMI32 *hither, ThreeMMI32 *yon) {
+        auto *actor = static_cast<Actor *>(context);
+        BMAT34 camera;
+        BRS nearClip, farClip;
+        actor->_pscen->Pmvie()->Pbwld()->GetCamera(&camera, &nearClip, &farClip);
+        Assert(nearClip >= 0 && farClip >= 0, "Negative camera values");
+        *hither = nearClip;
+        *yon = farClip;
+        std::memcpy(matrix, &camera, sizeof(camera));
+    };
+    three_mm_actor_placement(&point, _ptmpl->FIsTdt(), &services);
+    *pxr = point.dxr;
+    *pyr = point.dyr;
+    *pzr = point.dzr;
 }
 
 /***************************************************************************

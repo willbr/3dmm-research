@@ -249,6 +249,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   effects and a temporary adapter into the already C-owned seek evaluator.
   Copied tagged payloads now retain their own references before merge/application,
   fixing the borrowed-copy ownership bug without changing logical event data.
+- Actor placement now executes in C89, including authored-point detection,
+  camera fallback and clipping midpoint, floor projection and text height.
+  The native adapter only queries the background/camera and template kind.
+  Stage entrance/removal orchestration and recording still need conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

@@ -58,6 +58,7 @@ cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
 cmake --build build/engine-c89 --target engine-subroute-edit-test
+cmake --build build/engine-c89 --target engine-placement-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1077,6 +1078,28 @@ headless scene/timeline checks pass. No Marcus UI tests were added.
 Stage entrance/removal/placement, recording, remaining transform/time edits,
 undo, queue/runtime integration, body/resource implementations and final C++
 facade removal remain unfinished.
+
+### Actor placement
+
+`actor_placement.c` owns the original `_GetNewOrigin` decisions. The background's
+authored point is used unless all three coordinates are zero. Only that sentinel
+queries the camera through a primitive callback, projects 25 units ahead (or the
+clipping midpoint when the far plane is closer), and puts Y on the floor. Text
+adds ten scalar units after either path; authored nonzero heights are retained.
+Fixed-point projection uses the shared C BRender-compatible MAC and wrapped
+addition. No BRender object or C++ type crosses the public interface.
+
+The native adapter supplies the authored point, camera matrix/clipping planes
+and template-kind flag. Its camera callback remains lazy. Studio and Marcus
+link the same C implementation; stage entrance/removal orchestration is still
+C++ and will move separately.
+
+`engine-placement-test` checks single-coordinate authored points, camera query
+counts, floor/text policy, the exact 25-unit boundary, fractional midpoint
+rounding, matrix translation and scalar wrapping. The native save/load test
+compares 4,096 authored/fallback/text/clipping/matrix combinations against the
+original BRender formula. Playback captures check existing movie behavior;
+they do not themselves exercise interactive actor placement.
 
 ### Source names and directory discovery
 

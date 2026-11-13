@@ -3166,3 +3166,66 @@ per suite does not establish general repeatability or full retail parity.
 Stage entrance/removal/placement, recording, remaining transform/time edits,
 undo, queue/runtime integration, body/resource implementations and final facade
 removal remain unfinished.
+
+### C89 actor placement (13 November 2026)
+
+`Actor::_GetNewOrigin` now delegates placement policy to `actor_placement.c`.
+The native adapter only supplies authored coordinates, camera/clipping metadata
+and the text-template flag. The C implementation preserves the all-zero authored
+point sentinel, lazy camera query, 25-unit default distance, clipping midpoint,
+floor projection, authored heights, text offset and wrapping scalar arithmetic.
+Stage entrance/removal orchestration and recording remain C++.
+
+The C-only placement test covers authored points with just one nonzero axis,
+camera query counts, the exact clipping boundary, odd midpoint rounding,
+projection/translation, text and scalar overflow. A native test independently
+evaluates the original BRender formula for 4,096 combinations of coordinates,
+text flags, clipping planes and fractional matrices; all results and camera
+query counts match. These checks exercise placement policy directly. Existing
+playback movies check retained playback behavior and do not exercise interactive
+placement themselves.
+
+Both Studio and Marcus rebuild successfully. All 49 standalone C checks,
+including strict C89 syntax, and all 63 focused native checks pass. MSVC
+AddressSanitizer passes. All 34 preceding snapshots and 51 CLI baselines match.
+Logs are `tmp/c89-placement-native-tests.log`, `tmp/c89-placement-standalone.log`,
+`tmp/c89-placement-asan.log`,
+`tmp/c89-event-edit-movie-save-load-test-placement-snapshot.log`,
+`tmp/c89-placement-snapshot-comparison.json` and
+`tmp/c89-placement-output-comparison.json`.
+
+The headless scene/timeline check also passes (`tmp/c89-placement-timeline.log`).
+Frozen Studio/Marcus binaries ran the following suites without concurrent builds
+or compaction. Older completed evidence was transparently compressed beforehand;
+raw capture files remain available. SDL reused the recorded warm package cache
+with private processes, settings, workspaces and working movies. OS file caching
+remains uncontrolled.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T030833Z-b6764518` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T031001Z-729f380d` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T031149Z-562d7321` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T031456Z-bd5204b0` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 captures completed without retries. Same-player baselines are the preceding
+subroute-edit suites: actor-audio `20261113T024142Z-e153f863`, actor-events
+`20261113T024515Z-66ecd428`, scrolling-text `20261113T024710Z-56f88e0d` and
+sampled-audio `20261113T025236Z-e11c7d7e`. All 540 seek images, authored positions
+and ordered playback changes match. Only adjacent identical position/image
+records are collapsed; raw timestamps and samples remain available. Movie IDs
+match and all movie/resource/content integrity checks pass.
+
+Actor cases retain 60 playback changes per player. Scrolling retains 328 for
+retail/SDL and 321 for Marcus. Actor audio retains the first-scene 600/1300 Hz
+tone coverage and PCM16 peaks of 3192 retail and 4081 SDL/Marcus; scene audio
+retains 60 changes and peaks of 2380 retail and 2176 SDL/Marcus. Audible coverage
+and peaks do not establish exact waveform or timing parity. Existing cross-player
+differences remain; one repetition does not establish general repeatability.
+The database and suite artifacts remain under `tmp/c89-movie-data-regression`;
+the combined comparison is
+`tmp/c89-placement-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+Stage entrance/removal, recording, remaining transform/time edits, undo,
+queue/runtime integration, body/resource implementations and final facade removal
+remain unfinished. No Marcus UI tests were added.

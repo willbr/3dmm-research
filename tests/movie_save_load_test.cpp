@@ -20,6 +20,7 @@
 
 #include "soc.h"
 #include "actor_frame_fixture.h"
+#include "three_mm/actor_placement.h"
 ASSERTNAME
 
 #include <stdio.h>
@@ -1213,6 +1214,57 @@ static bool TestActorSubrouteEditing(PScene scene)
     return ok;
 }
 
+/* Independent native BRender oracle for the original _GetNewOrigin policy.
+ * Exercise clipping boundaries and non-cardinal, fractional camera matrices. */
+static bool TestActorPlacement()
+{
+    struct Camera { BMAT34 matrix; BRS hither, yon; int calls; } camera{};
+    ThreeMMActorPlacementServices services{};
+    services.context = &camera;
+    services.camera = [](void *context, ThreeMMActorMatrix *matrix, ThreeMMI32 *hither, ThreeMMI32 *yon) {
+        auto *camera = static_cast<Camera *>(context);
+        std::memcpy(matrix, &camera->matrix, sizeof(*matrix));
+        *hither = camera->hither; *yon = camera->yon; ++camera->calls;
+    };
+    const BRS clips[] = {0, 1, 3, BR_SCALAR(25)-1, BR_SCALAR(25), BR_SCALAR(25)+1, BR_SCALAR(50)};
+    unsigned seed = 0x7183U;
+    for (int mode = 0; mode < 4096; ++mode)
+    {
+        for (int row = 0; row < 4; ++row)
+            for (int column = 0; column < 3; ++column)
+            {
+                seed = seed * 1664525U + 1013904223U;
+                camera.matrix.m[row][column] = static_cast<BRS>(seed % 262145U) - 131072;
+            }
+        camera.yon = clips[(mode / 16) % (sizeof(clips)/sizeof(clips[0]))];
+        camera.hither = camera.yon / ((mode % 3) + 1);
+        camera.calls = 0;
+        BRS x = (mode & 2) ? -17 : 0;
+        BRS y = (mode & 4) ? -BR_SCALAR(3) : 0;
+        BRS z = (mode & 8) ? BR_SCALAR(7) : 0;
+        ThreeMMActorPoint point{x,y,z};
+        bool absent = x == 0 && y == 0 && z == 0;
+        if (absent)
+        {
+            BRS distance = kzrDefault;
+            if (BR_ABS(distance) > camera.yon)
+                distance = BR_CONST_DIV(BR_ADD(camera.yon, camera.hither), -2);
+            x = BR_MAC3(rZero,camera.matrix.m[0][0],rZero,camera.matrix.m[1][0],distance,camera.matrix.m[2][0]) + camera.matrix.m[3][0];
+            y = rZero;
+            z = BR_MAC3(rZero,camera.matrix.m[0][2],rZero,camera.matrix.m[1][2],distance,camera.matrix.m[2][2]) + camera.matrix.m[3][2];
+        }
+        if (mode & 1) y += BR_SCALAR(10);
+        three_mm_actor_placement(&point, mode & 1, &services);
+        if (point.dxr != x || point.dyr != y || point.dzr != z || camera.calls != (absent ? 1 : 0))
+        {
+            std::fprintf(stderr,"actor placement differs from native BRender at mode %d\n",mode);
+            return false;
+        }
+    }
+    std::fprintf(stderr,"[ OK ] 4096 actor placement comparisons against native BRender\n");
+    return true;
+}
+
 class QueueTestSound : public MovieSoundMSND
 {
   public:
@@ -1667,6 +1719,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor route editing failed");
     if (!TestActorSubrouteEditing(pmvie->Pscen()))
         BAIL("actor subroute editing failed");
+    if (!TestActorPlacement())
+        BAIL("actor placement failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 
