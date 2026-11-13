@@ -105,10 +105,13 @@ class TrackTestTemplate : public Template
 {
     PActionDefinition _testAction = pvNil;
     bool _failNextFetch = false;
+    int _failAfterFetch = 0;
 
   protected:
     PActionDefinition _PactnFetch(long anid) override
     {
+        if (_failAfterFetch > 0 && --_failAfterFetch == 0)
+            return pvNil;
         if (_failNextFetch)
         {
             _failNextFetch = false;
@@ -121,6 +124,7 @@ class TrackTestTemplate : public Template
     }
 
   public:
+    void FailAfter(int calls) { _failAfterFetch = calls; }
     void FailNextFetch()
     {
         _failNextFetch = true;
@@ -164,6 +168,99 @@ class TrackTestTemplate : public Template
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestSoundEdit(int mode, FILE *snapshot)
+    {
+        ActorTrack created;
+        if (!created.FCreate()) return false;
+        RouteDistancePoint point = {{rZero, rZero, rZero}, rZero};
+        if (!created.Route()->FInsert(0, &point)) return false;
+        const int kinds[] = {ActorEvent::aetAdd,ActorEvent::aetActn,ActorEvent::aetSnd,ActorEvent::aetSnd,
+            ActorEvent::aetSnd,ActorEvent::aetSnd,ActorEvent::aetSnd,ActorEvent::aetFreeze,ActorEvent::aetSnd,
+            ActorEvent::aetActn,ActorEvent::aetSnd,ActorEvent::aetAdd};
+        const int frames[] = {1,1,2,2,3,3,4,4,4,5,6,7};
+        const int cels[] = {0,0,1,1,-1,1,-1,0,-1,0,1,0};
+        const int styles[] = {0,0,2,3,2,2,2,0,2,0,2,0};
+        for (int i = 0; i < 12; ++i)
+        {
+            ActorEvent::Base event = {kinds[i],frames[i],{0,rZero,i}};
+            ActorEvent::Add add = {};
+            ActorEvent::Action action = {0,0};
+            ActorEvent::Sound sound = {};
+            int32_t frozen = 1;
+            sound.celn = cels[i]; sound.sty = styles[i]; sound.vlm = 100 + i;
+            sound.fLoop = i & 1 ? tYes : tNo;
+            sound.tag = {2,pvNil,kctgMsnd,static_cast<ChunkNumber>(30+i)};
+            void *data = &sound;
+            LegacyLong bytes = sizeof(sound);
+            if (kinds[i] == ActorEvent::aetAdd) { data=&add; bytes=sizeof(add); }
+            if (kinds[i] == ActorEvent::aetActn) { data=&action; bytes=sizeof(action); }
+            if (kinds[i] == ActorEvent::aetFreeze) { data=&frozen; bytes=sizeof(frozen); }
+            if (!created.Events()->FInsert(i,bytes,data,&event)) return false;
+        }
+        _track.Swap(created);
+        _motionSounds.Clear();
+        for (int i : {2,3,10})
+        {
+            ThreeMMActorMotionSound record;
+            _track.Events()->GetFixed(i,&record.event);
+            _track.Events()->Get(i,&record.sound);
+            if (!three_mm_actor_sounds_insert(_motionSounds.Core(),&record.event,&record.sound)) return false;
+        }
+        _state.frame=4; _state.action=0; _state.cel=5; _state.celCount=4;
+        _nfrmFirst=1; _nfrmLast=30; _fLifeDirty=false;
+        _state.firstEventInFrame=6; _state.nextEvent=9; _state.actionEvent=1; _state.addEvent=0;
+        PDynamicArray tags = pvNil;
+        LegacyLong volume=12345;
+        bool loop=false, ok=false;
+        if (mode == 9) ((TrackTestTemplate *)_ptmpl)->FailAfter(2);
+        if (mode == 10 || mode == 11 || mode == 12) ((TrackTestTemplate *)_ptmpl)->FailNextFetch();
+        switch (mode)
+        {
+        case 0: ok=FQuerySnd(2,false,&tags,&volume,&loop); break;
+        case 1: case 10: ok=FQuerySnd(2,true,&tags,&volume,&loop); break;
+        case 2: case 11: ok=FSetVlmSnd(2,false,333); break;
+        case 3: ok=FSetVlmSnd(2,true,333); break;
+        case 4: case 12: ok=FDeleteSndCore(2,false); break;
+        case 5: case 9: ok=FDeleteSndCore(2,true); break;
+        case 6: ok=_FRemoveAevMm(0); break;
+        case 7: ok=FResolveAllSndTags(0); break;
+        case 8: _state.frame=_pscen->Nfrm(); ok=FSoundInFrm(); break;
+        case 13: _RemoveAev(3,false); ok=true; break;
+        case 14: _RemoveAev(1,true); ok=true; break;
+        }
+        auto record = [&](const void *p, size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[] = {mode,ok,volume,loop,_state.frame,_state.action,_state.cel,_state.firstEventInFrame,
+            _state.nextEvent,_state.actionEvent,_state.addEvent,_track.Events()->IvMac(),_motionSounds.IvMac(),
+            tags ? tags->IvMac() : -1};
+        bool saved=record(values,sizeof(values));
+        for (long i=0; tags && i<tags->IvMac(); ++i)
+        {
+            TAG tag; tags->Get(i,&tag);
+            LegacyUlong v[] = {static_cast<LegacyUlong>(tag.sid),tag.ctg,tag.cno};
+            saved=saved && record(v,sizeof(v));
+        }
+        ReleasePpo(&tags);
+        for (long i=0; i<_track.Events()->IvMac(); ++i)
+        {
+            ActorEvent::Base event; _track.Events()->GetFixed(i,&event);
+            saved=saved && record(&event,sizeof(event));
+            if (event.aet == ActorEvent::aetSnd)
+            {
+                ActorEvent::Sound sound; _track.Events()->Get(i,&sound);
+                LegacyUlong v[] = {static_cast<LegacyUlong>(sound.celn),static_cast<LegacyUlong>(sound.sty),
+                    static_cast<LegacyUlong>(sound.vlm),static_cast<LegacyUlong>(sound.fLoop),
+                    static_cast<LegacyUlong>(sound.tag.sid),sound.tag.ctg,sound.tag.cno};
+                saved=saved && record(v,sizeof(v));
+            }
+        }
+        for (long i=0; i<_motionSounds.IvMac(); ++i)
+        {
+            ActorEvent::SoundMotionMatch sound; _motionSounds.Get(i,&sound);
+            LegacyLong v[] = {sound.aevsnd.celn,sound.aevsnd.sty,sound.aevsnd.vlm};
+            saved=saved && record(v,sizeof(v));
+        }
+        return saved && (ok == !(mode == 9 || mode == 10 || mode == 11 || mode == 12));
+    }
     bool FInitPlayback(PScene scene, PChunkyResourceFile resource)
     {
         if (!FInit(scene, resource) || !((TrackTestTemplate *)_ptmpl)->FInitAction() ||
@@ -453,6 +550,21 @@ done:
     ReleasePpo(&sequential);
     ReleasePpo(&resource);
     ReleasePpo(&file);
+    return ok;
+}
+
+static bool TestActorSoundEditing(PScene scene)
+{
+    FILE *snapshot = nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_SOUND_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
+    auto actor=NewObj TrackTestActor();
+    bool ok=actor && resource && actor->FInitPlayback(scene,resource);
+    for (int mode=0; ok && mode<15; ++mode) ok=actor->FTestSoundEdit(mode,snapshot);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
     return ok;
 }
 
@@ -898,6 +1010,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor frame runtime evaluation failed");
 
     LOG("sound queue ownership, dispatch and preview alarms");
+    if (!TestActorSoundEditing(pmvie->Pscen()))
+        BAIL("actor sound editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

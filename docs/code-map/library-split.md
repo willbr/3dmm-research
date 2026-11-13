@@ -52,7 +52,7 @@ Build and test this slice independently using only a C compiler:
 
 ```console
 cmake -S libraries/engine -B build/engine-c89 -G Ninja -DCMAKE_C_COMPILER=clang
-cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test
+cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test engine-chunky-test engine-strings-test engine-storage-test engine-collections-test engine-data-stream-test engine-codec-test engine-piece-table-test engine-block-io-test engine-block-owner-test engine-file-policy-test engine-chunk-save-test engine-chunk-heap-test engine-chunk-edit-test engine-chunk-graph-test engine-chunk-ops-test engine-metadata-test engine-forest-test engine-loading-test engine-chunk-storage-test engine-lifecycle-test engine-container-test engine-resource-cache-test engine-chunk-owner-test engine-chunk-table-test engine-tag-test engine-source-test engine-source-names-test engine-movie-owner-test engine-rollcall-storage-test engine-movie-title-root-test engine-scene-data-test engine-actor-data-test engine-actor-track-test engine-actor-motion-test engine-actor-frame-test engine-actor-timeline-test engine-actor-pose-test engine-actor-effect-test engine-actor-sound-test engine-sound-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -851,6 +851,42 @@ deletion and clear. All 51 CLI baselines and the headless scene/timeline check p
 No Marcus UI tests were added. A dedicated generated actor-audio corpus case
 extends the existing scene-audio case with ordinary queues, two motion cels,
 binding replacement and sound-child remapping across scenes.
+
+### Actor sound editing and event deletion
+
+`actor_sound_edit.c` owns sound setting, default insertion decisions, volume edits,
+ordinary/motion queries, deletion, future motion-event removal, current-frame sound
+detection and bulk scene-tag resolution. It preserves partial query outputs after
+each successful append, output-table ownership on failure, earlier motion-binding
+lookup, action/frame stopping rules and the second metadata query after deleting
+motion events. Failure at that second query retains prior event deletions and
+leaves the motion list and dirty notification untouched.
+
+`actor_edit.c` owns general event deletion order: close tags, delete the table row,
+adjust only cursors strictly after it, publish state, then update the scene sound
+indicator when the removed sound belongs to its current frame. Native callbacks
+provide aligned tag access, table primitives and scene notifications. Query output
+publication preserves native caller observations without reading uninitialized
+output arguments. General event insertion, merging and undo remain temporary
+native editor integrations, explicitly identified by `insert_apply` in the C API.
+
+Queue identity now uses a shared C helper. The inherited signed low word can
+collapse style identities when its sign bit is set; that behavior is retained.
+Default motion-sound insertion also retains its original positional parameter
+binding. Sound-setting reservation failure now releases the fetched sound,
+fixing the original reference leak while leaving the failed edit's data unchanged.
+Other partial edits and best-effort preview ordering are retained.
+
+`engine-sound-edit-test` covers partial append/resolve outputs, query ownership,
+metadata failures, event/list edits, cursor publication, tag-resolution failures,
+default binding, queue collisions and resource release on every setter failure.
+Forty-three standalone C checks, fifty-seven native checks and MSVC AddressSanitizer
+pass. Twenty-nine snapshots match, including a frozen 7,456-byte trace from fifteen
+real-actor scenarios captured before conversion. All 51 CLI baselines and the
+headless scene/timeline check pass. Native comparisons exhaust all 655,360
+low-word/style/actor combinations against the original queue expression. No
+Marcus UI tests were added. General editor/queue integration and final C++ facade
+removal remain work; the full backend migration is incomplete.
 
 ### Source names and directory discovery
 

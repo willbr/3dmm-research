@@ -218,6 +218,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C-owned motion-list storage shared by Studio and Marcus. Replacement, cloning,
   imported-tag updates, priority choice and fetch/queue/release failure ordering
   execute in C; sound editing/query policy and primitive device services remain.
+- Sound setting/default insertion, volume edits, queries, deletions, frame sound
+  detection and bulk tag-resolution policy now execute in C89. General event
+  deletion also uses C for cursor updates and sound-indicator ordering. Native
+  services retain general insertion/merge/undo integration and resource/device
+  operations; these temporary dependencies still need removal.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the
@@ -313,7 +318,7 @@ configuration and capture environment recorded with the evidence.
 Playback policy, movie-data decoding, collections/strings, block/stream ownership,
 container persistence, graph operations, forest transfer and resource caches now
 have shared C89 implementations behind temporary native facades. Continue with
-actor sound editing/query policy and remaining stored-data persistence, alongside the remaining
+general actor event insertion/merging and remaining stored-data persistence, alongside the remaining
 physical path/file adapters, then the editing, actor evaluation and rendering
 integration sequence above. Extend the C
 API and regression coverage as each C++ dependency is removed; replacing the

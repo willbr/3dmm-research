@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
+#include "three_mm/actor_sound.h"
 ASSERTNAME
 
 SoundPlaybackQueue::~SoundPlaybackQueue()
@@ -20,7 +21,7 @@ LegacyLong SoundPlaybackQueue::QueueNumber(LegacyLong style, LegacyLong objectId
 {
     AssertIn(style, 0, styLim);
     // Preserve the legacy signed-low-word identity used by sound devices.
-    return (actor ? sqnActr : sqnBkgd) | (style << ksqnStyShift) | SwLow(objectId);
+    return three_mm_sound_queue_number(style, objectId, actor);
 }
 
 bool SoundPlaybackQueue::FEnqueue(const SoundPlaybackRequest &request, bool lowPriority)

@@ -2774,43 +2774,41 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
     Remove Aev.  Update state variables
 
 ***************************************************************************/
+ThreeMMActorEditServices Actor::_EventEditServices()
+{
+    ThreeMMActorEditServices services = {};
+    services.context = this;
+    services.close_event_tag = [](void *context, ThreeMMI32 index) {
+        auto actor = static_cast<Actor *>(context);
+        PTAG tag;
+        actor->_track.Events()->Lock();
+        if (actor->_FIsIaevTag(actor->_track.Events(), index, &tag)) TagManager::CloseTag(tag);
+        actor->_track.Events()->Unlock();
+    };
+    services.delete_event = [](void *context, ThreeMMI32 index) {
+        static_cast<Actor *>(context)->_track.Events()->Delete(index);
+    };
+    services.scene_frame = [](void *context, ThreeMMI32 *frame) {
+        auto actor = static_cast<Actor *>(context);
+        if (!actor->_pscen) return 0;
+        *frame = actor->_pscen->Nfrm();
+        return 1;
+    };
+    services.update_sound_frame = [](void *context) { static_cast<Actor *>(context)->_pscen->UpdateSndFrame(); };
+    services.publish = [](void *context, const ThreeMMActorState *state) {
+        EngineActorMotion::Publish(static_cast<Actor *>(context)->_state, *state);
+    };
+    return services;
+}
 void Actor::_RemoveAev(long iaev, bool fUpdateState)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _track.Events()->IvMac());
-
-    bool fUpdateSndFrame;
-    PTAG ptag;
-    PBase qaev;
-
-    // First, close tags
-    _track.Events()->Lock();
-    if (_FIsIaevTag(_track.Events(), iaev, &ptag, &qaev))
-        TagManager::CloseTag(ptag);
-
-    /* Don't bother updating the frame sound indicator if we didn't change
-        an event in the scene's current frame */
-    fUpdateSndFrame = (qaev->aet == aetSnd) && (_pscen != pvNil) && (qaev->nfrm == _pscen->Nfrm());
-
-    _track.Events()->Unlock(); // qaev is invalid past here!
-    TrashVar(&qaev);
-
-    _track.Events()->Delete(iaev);
-
-    if (fUpdateState)
-    {
-        if (iaev < _state.nextEvent)
-            _state.nextEvent--;
-        if (iaev < _state.actionEvent)
-            _state.actionEvent--;
-        if (iaev < _state.addEvent)
-            _state.addEvent--;
-        if (iaev < _state.firstEventInFrame)
-            _state.firstEventInFrame--;
-    }
-
-    if (fUpdateSndFrame)
-        _pscen->UpdateSndFrame();
+    auto state = EngineActorMotion::Core(_state);
+    const auto tables = EngineActorMotion::Services();
+    const auto edits = _EventEditServices();
+    three_mm_actor_edit_remove(&state, _track.Events(), iaev, fUpdateState, &tables, &edits);
+    EngineActorMotion::Publish(_state, state);
 }
 
 /***************************************************************************

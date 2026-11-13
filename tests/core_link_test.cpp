@@ -2458,6 +2458,18 @@ static void TestActorValueEvaluation()
 }
 
 static void RecordActorFrameState(const ActorFrameState &,FILE *);
+static void TestSoundQueueIdentity()
+{
+    for (unsigned id=0; id<65536; ++id)
+        for (int style=0; style<styLim; ++style)
+            for (int actor=0; actor<2; ++actor)
+            {
+                LegacyLong object=static_cast<LegacyLong>(0x7abc0000u | id);
+                LegacyLong expected=(actor ? sqnActr : sqnBkgd) | (style << ksqnStyShift) | SwLow(object);
+                Check(three_mm_sound_queue_number(style,object,actor)==expected);
+                Check(SoundPlaybackQueue::QueueNumber(style,object,actor!=0)==expected);
+            }
+}
 static void TestActorSoundStorage()
 {
     FILE *before = nullptr, *after = nullptr;
@@ -4532,6 +4544,7 @@ int main()
     TestActorMathBaseline();
     TestActorEntranceOrientation();
     TestActorSoundStorage();
+    TestSoundQueueIdentity();
     TestActorPoseEvaluation();
     TestActorFrameSequencing();
     TestActorTimeline();

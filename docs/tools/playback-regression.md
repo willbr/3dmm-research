@@ -2739,3 +2739,62 @@ case preservation runs and nine actor-audio runs, including the three contract-
 enabled follow-ups. Movie, ISO-resource and Marcus-content hashes remain unchanged.
 Existing cross-player pixel/audio differences remain. One repetition per suite
 does not establish general repeatability or full retail parity.
+
+## C89 actor sound editing and event deletion (13 November 2026)
+
+Actor sound setting/default insertion policy, volume edits, queries, deletions,
+current-frame detection and bulk tag-resolution now execute in C89. General event
+deletion owns cursor updates and current-scene sound-indicator ordering in C.
+Typed table/resource/scene services remain native; general insertion/merge/undo
+integration is still a temporary editor callback. See the
+[implementation boundary](../code-map/library-split.md#actor-sound-editing-and-event-deletion).
+
+The inherited signed-low-word queue identity and default-sound positional call
+binding remain. Queries retain partial volume/loop outputs on later failure;
+failed second metadata lookup retains event deletions without deleting motion
+records or marking dirty. Setter reservation failure now releases the fetched
+resource, fixing a reference leak without changing edit data. No other rollback
+or cleanup order is changed intentionally.
+
+Forty-three standalone C checks, fifty-seven focused native checks and MSVC
+AddressSanitizer pass. All twenty-nine snapshots match, including a frozen
+7,456-byte real-actor sound-editing trace captured before conversion across
+fifteen query/volume/delete/removal/metadata-failure scenarios. Independent native
+queue comparisons cover 655,360 low-word/style/actor combinations. All 51 CLI
+baselines and the headless scene/timeline integration check pass. No Marcus UI
+tests were added. Evidence includes `tmp/c89-sound-edit-before.bin`,
+`tmp/c89-sound-edit-after-edit.bin`, `tmp/c89-sound-edit-snapshot-comparison.json`,
+`tmp/c89-sound-edit-output-comparison.json`, `tmp/c89-sound-edit-native-tests.log`,
+`tmp/c89-sound-edit-asan.log` and `tmp/c89-sound-edit-timeline.log`.
+
+Frozen Studio/Marcus builds ran without concurrent builds or compaction. Evidence
+is in `tmp/c89-movie-data-regression/playback.sqlite`:
+
+| Suite | Selection | Capture result / comparison verdict |
+| --- | --- | --- |
+| `20261113T000624Z-f7dd3165` | `actor-audio`, retail/SDL/Marcus seek and playback | Six complete, no capture failures; verdict `different`, nine different and four inconclusive components. |
+| `20261113T000903Z-0834f3d8` | `actor-events`, retail/SDL/Marcus seek and playback | Five complete; retail playback failed before frame observations with oracle `ambiguous_native_object`. Verdict `inconclusive`, four different and two inconclusive components. |
+| `20261113T001209Z-90bfea81` | Fresh-process retry of retail `actor-events` playback | One complete, no capture failure. Verdict `inconclusive` because this reference-only suite has no cross-player comparisons. |
+| `20261113T001332Z-19d8d202` | `scrolling-text`, retail/SDL/Marcus seek and playback | Six complete, no capture failures; verdict `different`, six different and five inconclusive components. |
+| `20261113T001824Z-a0a8447d` | `sampled-audio`, retail/SDL/Marcus playback | Three complete, no capture failures; verdict `different`, five different and four inconclusive components. |
+
+The failed retail oracle attempt and its partial artifacts remain separate from
+the successful retry; discovery still requires a unique native object. The
+actor-event comparison cohort uses the five completed initial runs and that
+retry, all from the frozen builds. Against preceding suites
+`20261112T230520Z-b33780cf` (actor-audio seek), `20261112T234252Z-036262b4`
+(actor/scene audio playback), `20261112T230647Z-dfebe82c` (actor events) and
+`20261112T233629Z-cafe0917` (scrolling), all twenty-one selected runs preserve
+their 60 authored frame positions and ordered pixel changes. All 540 seek images
+match exactly. Scrolling retains 328 ordered changes for retail/SDL and 321 for
+Marcus; other cases retain 60 each. Only adjacent identical image/position records
+are collapsed; original presentation samples and timestamps remain available.
+
+All three actor-audio playback runs pass the permanent first-scene 600/1300 Hz
+tone contract. Actor PCM16 peaks remain 3192 retail and 4081 SDL/Marcus; scene-audio
+peaks remain 2380 and 2176 respectively. These establish audible coverage, not
+exact waveform/timing preservation. Movie identities, movie/ISO-resource hashes
+and Marcus content hashes remain unchanged. The combined report is
+`tmp/c89-sound-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+Existing cross-player differences remain; these captures do not prove full retail
+parity or general repeatability from one repetition per suite.

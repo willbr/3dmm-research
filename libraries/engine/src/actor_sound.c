@@ -1,7 +1,20 @@
 /* Actor sound policy converted from engine actrsnd.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/actor_sound.h"
+#include "three_mm/wide.h"
 #include <string.h>
+int three_mm_actor_sound_cel(ThreeMMI32 cel, ThreeMMI32 count, ThreeMMI32 *out)
+{
+    if (count <= 0) return 0;
+    *out = cel < 0 ? -(ThreeMMI32)((0U - (ThreeMMU32)cel) % (ThreeMMU32)count) : cel % count;
+    return 1;
+}
+ThreeMMI32 three_mm_sound_queue_number(ThreeMMI32 style, ThreeMMI32 object, int actor)
+{
+    ThreeMMU32 low = (ThreeMMU32)object & 65535U;
+    if (low >= 32768U) low |= 0xffff0000UL;
+    return three_mm_signed_word((actor ? 0x10000000UL : 0x20000000UL) | ((ThreeMMU32)style << 16) | low);
+}
 static ThreeMMArray view(ThreeMMActorSounds *list)
 {
     ThreeMMArray array;
@@ -141,9 +154,8 @@ int three_mm_actor_sound_motion(ThreeMMActorSounds *list, ThreeMMI32 action, Thr
     ThreeMMU32 i;
     ThreeMMActorMotionSound *records;
     int result, success = 1;
-    if (!s->cel_count(s->context, action, &count) || count <= 0)
+    if (!s->cel_count(s->context, action, &count) || !three_mm_actor_sound_cel(cel, count, &frame))
         return 0;
-    frame = cel < 0 ? -(ThreeMMI32)((0U - (ThreeMMU32)cel) % (ThreeMMU32)count) : cel % count;
     records = (ThreeMMActorMotionSound *)list->storage.buffers[0].data;
     for (i = 0; i < list->count; ++i)
         if (records[i].sound.cel == frame)

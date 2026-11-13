@@ -9,6 +9,8 @@ extern "C"
 {
 #endif
     enum { THREE_MM_ACTOR_SOUND_GROW = 2 };
+    int three_mm_actor_sound_cel(ThreeMMI32 cel, ThreeMMI32 count, ThreeMMI32 *out);
+    ThreeMMI32 three_mm_sound_queue_number(ThreeMMI32 style, ThreeMMI32 object, int actor);
     typedef struct ThreeMMActorMotionSound
     {
         ThreeMMActorEvent event;
