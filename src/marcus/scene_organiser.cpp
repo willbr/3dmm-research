@@ -10,6 +10,7 @@
 namespace
 {
 constexpr int cardHeight = 192, gap = 12;
+constexpr int frameThumbnailLimit = 2048;
 // Retail scene sorter order (not the order of the on-disk transition IDs).
 constexpr int transitions[] = {MARCUS_TRANSITION_CUT, MARCUS_TRANSITION_DISSOLVE,
                                MARCUS_TRANSITION_FADE_BLACK, MARCUS_TRANSITION_FADE_WHITE};
@@ -68,7 +69,7 @@ struct MarcusSceneOrganiser
     int count = 0, current = 0, selected = 0, scroll = 0, result = -1;
     float dragOffset = 0;
     unsigned long clock = 0;
-    std::array<Thumbnail, 512> thumbnails;
+    std::array<Thumbnail, frameThumbnailLimit> thumbnails;
     Thumbnail empty;
     bool frames = false;
     int sourceScene = 0;
@@ -88,7 +89,7 @@ namespace
 {
 float MinimumZoom(const MarcusSceneOrganiser *s)
 {
-    return std::min(1.0f, std::max({0.25f, 40.0f / s->previewWidth, 30.0f / s->previewHeight}));
+    return std::min(1.0f, std::max({0.20f, 20.0f / s->previewWidth, 12.0f / s->previewHeight}));
 }
 Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
 {
@@ -208,7 +209,7 @@ void ToggleWholeMovie(MarcusSceneOrganiser *s)
 }
 Thumbnail &OldestThumbnail(MarcusSceneOrganiser *s)
 {
-    return *std::min_element(s->thumbnails.begin(), s->thumbnails.begin() + (s->frames ? 512 : 64),
+    return *std::min_element(s->thumbnails.begin(), s->thumbnails.begin() + (s->frames ? frameThumbnailLimit : 64),
                             [](const Thumbnail &a, const Thumbnail &b) { return a.used < b.used; });
 }
 void StoreThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int index, const MarcusImage &image)
