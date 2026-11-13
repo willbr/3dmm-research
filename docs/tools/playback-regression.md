@@ -4705,3 +4705,113 @@ latest baselines/failures. The combined report is
 `tmp/c89-template-runtime-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`;
 counts and actual audio deltas are in `tmp/c89-template-runtime-playback-audit.json`.
 The native dependencies listed above keep the full C89 backend migration active.
+
+## ActionDefinition resources and lifetime C89 conversion (13 November 2026)
+
+`action_definition.c` owns persistent action state, duplicate construction,
+resource factory estimates/cleanup, header/group/list loading, payload swapping,
+16-byte wire sound-tag marshalling, disposal and primitive cel/part/matrix/sound
+queries. Native ActionDefinition methods now provide representation/container/
+file/allocation adapters. The former C++ group/list/flags fields are replaced by
+one C-owned `ThreeMMActionDefinition`. Resource classes, native container/TAG
+adapters, ThreeDText/font construction, remaining formats/runtime and final facade
+removal keep the full backend conversion unfinished.
+
+Header flags and partial ownership publish in native order. Direct initialization
+failure retains tables; factory failure releases the partial action before
+invalidating outputs. Estimate-only reads do not unpack/allocate. Final estimates
+retain the native exclusion of optional sound-list bytes. Cel/part/matrix outputs
+remain 8/4/48 bytes. Sound wire pointer padding is ignored; runtime cache pointers
+are NULL and borrowed, with no extra tag references to close. Scalar/pointer
+outputs use representation copies across the C/native boundary.
+
+`tmp/c89-action-definition-before.bin` and `tmp/c89-action-definition-after.bin`
+match all 258,592 bytes without masking, SHA-256
+`91BE1BB4EB2DC821D5D77F3EF292342C125599761C93736F0113B1529480C9BA`.
+There are 2,268 native cases across zero/one/three cels, four-part poses,
+native/opposite byte order, missing cel/matrix/header chunks, a short header,
+invalid optional sound data, constructor duplication, direct partial loading,
+factory loading and BASE/HQ/Pv allocation injection. Debug outcomes are 597
+successful loads and 152 duplications; SDL release is 648/162. Empty actions use
+native payload order even under a foreign header, avoiding the former invalid
+element-zero request. The trace records fields, all table payloads, public query
+results, source reference counts and factory estimates/failure outcomes.
+
+Three explicit corrections are outside equivalence claims for old failures:
+
+- Disposal releases cels, matrices and the optional sound list in that order,
+  clearing each slot. The old destructor leaked the optional list. The baseline
+  fixture manually detached/released it; the converted fixture leaves cleanup
+  to the owner and asserts all allocator counts return to their starting values,
+  including partially initialized/filled lists.
+- Sound queries treat high-bit IDs as negative no-sound markers, matching the
+  native comment's signed convention instead of its broken unsigned comparison.
+  Only the output type clears; other tag fields remain untouched. C and native
+  checks cover `0xffffffff` and `0x80000000`. Existing corpus motion-sound playback
+  is checked against retail; a dedicated retail marker-edge capture is not claimed.
+- Empty foreign matrix payloads do not request element zero. C tests cover empty
+  cel/matrix/sound lists in opposite byte order; no native equivalence is claimed
+  for the former debug precondition violation.
+
+Independent C tests simulate both host byte orders, verify cel/part/matrix payload
+swaps and tag unmarshalling, exercise every initialization/factory/duplication
+failure phase, retain partial owners until disposal, verify temporary wire-list
+release, factory publication/invalidation order, estimate-only behavior, repeated
+disposal, no-sound outputs and bad-order diagnostics.
+
+The first standalone run exposed a validation weakness: Release defined NDEBUG,
+disabling assert-based checks/setup calls. All engine C test executables now
+explicitly undefine NDEBUG with compiler-appropriate options in every build
+configuration. All 68 standalone checks were rebuilt/rerun successfully with
+assertions enabled, including strict C89 syntax. Earlier standalone Release pass
+counts alone were insufficient evidence for assert-based checks; debug MSVC and
+ASan coverage were separate. The assertion-enabled run is recorded in
+`tmp/c89-action-definition-standalone-assertions.log`.
+
+All 82 focused native checks, MSVC AddressSanitizer, SDL save/load round-trip,
+54 snapshot comparisons and 51 freshly linked CLI baselines pass. Both hosts
+build and headless real-content scene/timeline playback passes. Evidence includes
+`tmp/c89-action-definition-native-tests.log`,
+`tmp/c89-action-definition-asan.log`,
+`tmp/c89-action-definition-sdl-after.log`,
+`tmp/c89-action-definition-snapshot-comparison.json`,
+`tmp/c89-action-definition-output-comparison.json` and
+`tmp/c89-action-definition-preview-scene.log`. No Marcus UI tests were added.
+
+Frozen playback binary SHA-256 values were
+`D288B4FCDBBA170B250534BF9BB970C19633DD12D5864C79FDA9B264495B9DEF` (SDL) and
+`42BD85AE4564D7FE15EED305BACB84A7A6639196E61CF119756720C589A8A404`
+(Marcus regression). Same-player baselines are actor-audio
+`20261113T133903Z-3e7f8218`, actor-events `20261113T134106Z-a34e583e`,
+scrolling-text `20261113T134227Z-9fffe1c5` and sampled-audio
+`20261113T134531Z-c3d70049`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T140719Z-a25a00ea` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T140843Z-213f0b98` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T141027Z-acafcbc6` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T141333Z-2f24d32a` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes.
+
+Actor peaks are 3192 retail, 4080 SDL and 4081 Marcus. SDL changed from 4081 to
+4080 (delta -1), within the previously documented 4080/4081 variation. The audit
+retains this delta and reports `audio_peaks_equal: false`; it is not suppressed
+or labeled an exact audio match. Scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus; all other measured peak deltas are zero. Peaks/coverage do not prove
+waveform/timing parity. Existing cross-player differences and one-repeat
+inconclusive comparisons remain.
+
+Captures reused the sole package in the default shared SDL cache, with private
+processes/settings/working movies and uncontrolled OS caching. No builds or
+compaction ran during capture. Automatic retention pruned superseded raw media
+while retaining observations, summaries, diagnostics, current results and latest
+baselines/failures. Evidence is in
+`tmp/c89-action-definition-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and `tmp/c89-action-definition-playback-audit.json`.

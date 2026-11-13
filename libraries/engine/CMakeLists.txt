@@ -29,6 +29,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/body_edit.c)
 target_sources(three-mm-engine-c89 PRIVATE src/body_runtime.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_runtime.c)
+target_sources(three-mm-engine-c89 PRIVATE src/action_definition.c)
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(three-mm-engine-c89 PRIVATE -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra)
@@ -365,6 +366,23 @@ add_executable(engine-template-runtime-test EXCLUDE_FROM_ALL "${engine_template_
 target_link_libraries(engine-template-runtime-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-template-runtime-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-template-runtime COMMAND engine-template-runtime-test)
+get_filename_component(engine_action_definition_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_action_definition_test.c" ABSOLUTE)
+add_executable(engine-action-definition-test EXCLUDE_FROM_ALL "${engine_action_definition_test_source}")
+target_link_libraries(engine-action-definition-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-action-definition-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-action-definition COMMAND engine-action-definition-test)
+# These tests use assert for checks and some setup calls. Keep them active in
+# Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
+get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(engine_test_target IN LISTS engine_test_targets)
+  if(engine_test_target MATCHES "^engine-.*-test$")
+    if(MSVC)
+      target_compile_options(${engine_test_target} PRIVATE /UNDEBUG)
+    else()
+      target_compile_options(${engine_test_target} PRIVATE -UNDEBUG)
+    endif()
+  endif()
+endforeach()
 if(ENGINE_C89_COMPILER)
   add_test(NAME engine-c89-syntax COMMAND "${ENGINE_C89_COMPILER}"
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
@@ -414,6 +432,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_runtime.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/action_definition.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rollcall_storage.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_file.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/string_table.c"
@@ -476,5 +495,6 @@ if(ENGINE_C89_COMPILER)
     "${engine_body_runtime_test_source}"
     "${engine_template_create_test_source}"
     "${engine_template_runtime_test_source}"
+    "${engine_action_definition_test_source}"
     "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_piece_test_source}" "${engine_codec_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}" "${engine_file_policy_test_source}" "${engine_chunk_save_test_source}" "${engine_chunk_heap_test_source}" "${engine_chunk_edit_test_source}" "${engine_chunk_graph_test_source}" "${engine_chunk_ops_test_source}" "${engine_metadata_test_source}" "${engine_forest_test_source}" "${engine_loading_test_source}" "${engine_chunk_storage_test_source}" "${engine_lifecycle_test_source}" "${engine_container_test_source}" "${engine_resource_test_source}" "${engine_chunk_owner_test_source}" "${engine_chunk_table_test_source}" "${engine_tag_test_source}" "${engine_source_test_source}" "${engine_source_names_test_source}" "${engine_movie_owner_test_source}" "${engine_rollcall_storage_test_source}" "${engine_movie_title_root_test_source}" "${engine_scene_data_test_source}" "${engine_actor_data_test_source}" "${engine_actor_track_test_source}" "${engine_actor_motion_test_source}" "${engine_actor_frame_test_source}" "${engine_actor_timeline_test_source}" "${engine_actor_pose_test_source}")
 endif()

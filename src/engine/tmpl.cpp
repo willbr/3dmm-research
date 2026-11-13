@@ -72,34 +72,68 @@ RTCLASS(Template)
 /***************************************************************************
     Create a new action
 ***************************************************************************/
+struct ActionDefinitionContext { DataBlock block; };
+ThreeMMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *context)
+{
+    ThreeMMActionDefinitionServices s = {}; s.context = context;
+    const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
+    static_assert(sizeof(AnimationCel) == 8 && sizeof(CelPartSpec) == 4 && sizeof(BMAT34) == 48, "action ABI");
+    s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
+    s.create = [](void *) -> void * { return NewObj ActionDefinition; };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.duplicate = [](void *, void *table, int kind) -> void * {
+        return kind == THREE_MM_ACTION_CELS ? static_cast<void *>(static_cast<PGeneralGroup>(table)->PggDup()) :
+            static_cast<void *>(static_cast<PDynamicArray>(table)->PglDup());
+    };
+    s.find = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        auto block = &static_cast<ActionDefinitionContext *>(p)->block;
+        return static_cast<PChunkyFile>(file)->FFind(type, number, block) ? block : nullptr;
+    };
+    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+    s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
+    s.block_read = [](void *, void *block, void *out, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, static_cast<LegacyLong>(count), 0); };
+    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 childType, ThreeMMU32 *out) -> int {
+        ChildChunkIdentification child; if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, 0, childType, &child)) return false;
+        *out = child.cki.cno; return true;
+    };
+    s.read_table = [](void *, void *block, int kind, int *other) -> void * {
+        short order = kboCur; void *result;
+        if (kind == THREE_MM_ACTION_CELS) result = GeneralGroup::PggRead(static_cast<PDataBlock>(block), &order);
+        else result = DynamicArray::PglRead(static_cast<PDataBlock>(block), &order);
+        *other = order == kboOther; return result;
+    };
+    s.count = [](void *, void *table) -> ThreeMMI32 { return static_cast<GroupBase *>(table)->IvMac(); };
+    s.table_size = [](void *, void *table) -> ThreeMMI32 { return static_cast<GroupBase *>(table)->CbOnFile(); };
+    s.fixed = [](void *, void *group, ThreeMMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvFixedGet(index)); };
+    s.variable = [](void *, void *group, ThreeMMI32 index) { return static_cast<unsigned char *>(static_cast<PGeneralGroup>(group)->QvGet(index)); };
+    s.variable_size = [](void *, void *group, ThreeMMI32 index) -> ThreeMMI32 { return static_cast<PGeneralGroup>(group)->Cb(index); };
+    s.data = [](void *, void *list, ThreeMMI32 index) { return static_cast<unsigned char *>(static_cast<PDynamicArray>(list)->QvGet(index)); };
+    s.validate_wire_sounds = [](void *, void *list) { Assert(static_cast<PDynamicArray>(list)->CbEntry() == sizeof(TAGOnFile), "kctgGlms entry size drift"); };
+    s.create_sounds = [](void *, ThreeMMI32 count) -> void * { return DynamicArray::PglNew(sizeof(TAG), count); };
+    s.append_sound = [](void *, void *list, const ThreeMMTag *tag) -> int { TAG native; TagFromCore(&native, *tag); return static_cast<PDynamicArray>(list)->FAdd(&native); };
+    s.read_sound = [](void *, void *list, ThreeMMI32 index, ThreeMMTag *out) {
+        TAG tag; static_cast<PDynamicArray>(list)->Get(index, &tag); *out = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+    };
+    s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
+    s.publish_sound = [](void *, void *out, const ThreeMMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
+    s.initialize = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int { return static_cast<PActionDefinition>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
+    s.object_size = [](void *) -> ThreeMMI32 { return sizeof(ActionDefinition); };
+    s.invalidate = [](void *, void *out, size_t count) {
+#ifdef DEBUG
+        FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
+#else
+        (void)out; (void)count;
+#endif
+    };
+    s.bad_order = [](void *) { Assert(false, "bad ActionChunkOnFile"); };
+    return s;
+}
+
 PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, LegacyUlong grfactn)
 {
-    AssertPo(pggcel, 0);
-    AssertPo(pglbmat34, 0);
-
-    PActionDefinition pactn;
-
-    pactn = NewObj ActionDefinition;
-    if (pvNil == pactn)
-        goto LFail;
-    pactn->_grfactn = grfactn;
-
-    // Duplicate pggcel into pactn->_pggcel
-    pactn->_pggcel = pggcel->PggDup();
-    if (pvNil == pactn->_pggcel)
-        goto LFail;
-
-    // Duplicate pglbmat34 into pactn->_pglbmat34
-    pactn->_pglbmat34 = pglbmat34->PglDup();
-    if (pvNil == pactn->_pglbmat34)
-        goto LFail;
-
-    AssertPo(pactn, 0);
-
-    return pactn;
-LFail:
-    ReleasePpo(&pactn);
-    return pvNil;
+    AssertPo(pggcel, 0); AssertPo(pglbmat34, 0);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    return static_cast<PActionDefinition>(three_mm_action_create(pggcel, pglbmat34, grfactn, &s));
 }
 
 /***************************************************************************
@@ -107,34 +141,9 @@ LFail:
 ***************************************************************************/
 bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-
-    ActionDefinition *pactn;
-
-    *pcb = pblck->Cb(fTrue); // estimate ActionDefinition size (not a good estimate)
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-    *pcb = pblck->Cb();
-
-    pactn = NewObj ActionDefinition;
-    if (pvNil == pactn || !pactn->_FInit(pcrf->Pcfl(), ctg, cno))
-    {
-        ReleasePpo(&pactn);
-    LFail:
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        return fFalse;
-    }
-    AssertPo(pactn, 0);
-    *ppbaco = pactn;
-    *pcb = size(ActionDefinition) + pactn->_pggcel->CbOnFile() + pactn->_pglbmat34->CbOnFile();
-    return fTrue;
+    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    return three_mm_action_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco, pcb, &s) != 0;
 }
 
 /***************************************************************************
@@ -143,95 +152,8 @@ bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
 bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-    DataBlock blck;
-    ActionChunkOnFile actnf;
-    short bo;
-    LegacyLong icel;
-
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
-        return fFalse;
-
-    if (blck.Cb() < size(ActionChunkOnFile))
-        return fFalse;
-    if (!blck.FReadRgb(&actnf, size(ActionChunkOnFile), 0))
-        return fFalse;
-    if (kboOther == actnf.bo)
-        SwapBytesBom(&actnf, kbomActnf);
-    Assert(kboCur == actnf.bo, "bad ActionChunkOnFile");
-    _grfactn = actnf.grfactn;
-
-    // read GeneralGroup of cels (chid 0, ctg kctgGgcl):
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGgcl, &kid))
-        return fFalse;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        return fFalse;
-    _pggcel = GeneralGroup::PggRead(&blck, &bo);
-    if (pvNil == _pggcel)
-        return fFalse;
-    AssertBomRglw(kbomCel, size(AnimationCel));
-    AssertBomRgsw(kbomCps, size(CelPartSpec));
-    if (kboOther == bo)
-    {
-        for (icel = 0; icel < _pggcel->IvMac(); icel++)
-        {
-            SwapBytesRglw(_pggcel->QvFixedGet(icel), size(AnimationCel) / size(int32_t));
-            SwapBytesRgsw(_pggcel->QvGet(icel), _pggcel->Cb(icel) / size(short));
-        }
-    }
-
-    // read DynamicArray of transforms (chid 0, ctg kctgGlxf):
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlxf, &kid))
-        return fFalse;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        return fFalse;
-    _pglbmat34 = DynamicArray::PglRead(&blck, &bo);
-    if (pvNil == _pglbmat34)
-        return fFalse;
-    AssertBomRglw(kbomBmat34, size(BMAT34));
-    if (kboOther == bo)
-    {
-        SwapBytesRglw(_pglbmat34->QvGet(0), LwMul(_pglbmat34->IvMac(), size(BMAT34) / size(int32_t)));
-    }
-
-    // read (optional) DynamicArray of motion-match sounds (chid 0, ctg kctgGlms).
-    // On disk each entry is a TAGOnFile (16 bytes); marshal into a fresh runtime
-    // DA whose stride is sizeof(TAG) (wider on x64 due to embedded pcrf).
-    if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlms, &kid))
-    {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-            return fFalse;
-        PDynamicArray pglOnFile = DynamicArray::PglRead(&blck, &bo);
-        if (pvNil == pglOnFile)
-            return fFalse;
-        AssertBomRglw(kbomTag, size(TAGOnFile));
-        Assert(pglOnFile->CbEntry() == size(TAGOnFile), "kctgGlms entry size drift");
-        _pgltagSnd = DynamicArray::PglNew(size(TAG), pglOnFile->IvMac());
-        if (pvNil == _pgltagSnd)
-        {
-            ReleasePpo(&pglOnFile);
-            return fFalse;
-        }
-        LegacyLong itag, itagMac = pglOnFile->IvMac();
-        TAGOnFile tagOnFile;
-        TAG tagRuntime;
-        for (itag = 0; itag < itagMac; itag++)
-        {
-            pglOnFile->Get(itag, &tagOnFile);
-            if (kboOther == bo)
-                SwapBytesBom(&tagOnFile, kbomTag);
-            TagFromOnFile(&tagRuntime, tagOnFile);
-            if (!_pgltagSnd->FAdd(&tagRuntime))
-            {
-                ReleasePpo(&pglOnFile);
-                return fFalse;
-            }
-        }
-        ReleasePpo(&pglOnFile);
-    }
-
-    return fTrue;
+    ActionDefinitionContext context; auto s = _Services(&context);
+    return three_mm_action_initialize(&_action, pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -240,20 +162,24 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
 ActionDefinition::~ActionDefinition(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_pggcel);
-    ReleasePpo(&_pglbmat34);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    three_mm_action_dispose(&_action, &s);
 }
 
 /***************************************************************************
     Get an AnimationCel
 ***************************************************************************/
+LegacyLong ActionDefinition::Ccel(void)
+{
+    ActionDefinitionContext context; auto s = _Services(&context);
+    return three_mm_action_cel_count(&_action, &s);
+}
+
 void ActionDefinition::GetCel(LegacyLong icel, AnimationCel *pcel)
 {
-    AssertThis(0);
-    AssertIn(icel, 0, Ccel());
-    AssertVarMem(pcel);
-
-    _pggcel->GetFixed(icel, pcel);
+    AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(pcel);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    three_mm_action_get_cel(&_action, icel, pcel, &s);
 }
 
 /***************************************************************************
@@ -261,13 +187,10 @@ void ActionDefinition::GetCel(LegacyLong icel, AnimationCel *pcel)
 ***************************************************************************/
 void ActionDefinition::GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps)
 {
-    AssertThis(0);
-    AssertIn(icel, 0, Ccel());
-    AssertIn(icps, 0, _pggcel->Cb(icel) / size(CelPartSpec));
-    AssertVarMem(pcps);
-
-    CelPartSpec *prgcps = (CelPartSpec *)_pggcel->QvGet(icel);
-    *pcps = prgcps[icps];
+    AssertThis(0); AssertIn(icel, 0, Ccel());
+    AssertIn(icps, 0, static_cast<PGeneralGroup>(_action.cels)->Cb(icel) / sizeof(CelPartSpec)); AssertVarMem(pcps);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    three_mm_action_get_part(&_action, icel, icps, pcps, &s);
 }
 
 /***************************************************************************
@@ -276,19 +199,9 @@ void ActionDefinition::GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcp
 ***************************************************************************/
 void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
 {
-    AssertThis(0);
-    AssertIn(icel, 0, Ccel());
-    AssertVarMem(ptag);
-
-    AnimationCel cel;
-
-    ptag->ctg = ctgNil;
-    if (pvNil != _pgltagSnd)
-    {
-        GetCel(icel, &cel);
-        if (cel.chidSnd >= 0) // negative means no sound
-            _pgltagSnd->Get(cel.chidSnd, ptag);
-    }
+    AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(ptag);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    three_mm_action_get_sound(&_action, icel, ptag, &s);
 }
 
 /***************************************************************************
@@ -296,11 +209,9 @@ void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
 ***************************************************************************/
 void ActionDefinition::GetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
 {
-    AssertThis(0);
-    AssertIn(imat34, 0, _pglbmat34->IvMac());
-    AssertVarMem(pbmat34);
-
-    _pglbmat34->Get(imat34, pbmat34);
+    AssertThis(0); AssertIn(imat34, 0, static_cast<PDynamicArray>(_action.matrices)->IvMac()); AssertVarMem(pbmat34);
+    ActionDefinitionContext context; auto s = _Services(&context);
+    three_mm_action_get_matrix(&_action, imat34, pbmat34, &s);
 }
 
 #ifdef DEBUG
@@ -310,9 +221,9 @@ void ActionDefinition::GetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
 void ActionDefinition::AssertValid(LegacyUlong grf)
 {
     ActionDefinition_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pggcel, 0);
-    AssertPo(_pglbmat34, 0);
-    AssertNilOrPo(_pgltagSnd, 0);
+    AssertPo(static_cast<PGeneralGroup>(_action.cels), 0);
+    AssertPo(static_cast<PDynamicArray>(_action.matrices), 0);
+    AssertNilOrPo(static_cast<PDynamicArray>(_action.sounds), 0);
 }
 
 /***************************************************************************
@@ -322,9 +233,9 @@ void ActionDefinition::MarkMem(void)
 {
     AssertThis(0);
     ActionDefinition_PAR::MarkMem();
-    MarkMemObj(_pggcel);
-    MarkMemObj(_pglbmat34);
-    MarkMemObj(_pgltagSnd);
+    MarkMemObj(static_cast<PGeneralGroup>(_action.cels));
+    MarkMemObj(static_cast<PDynamicArray>(_action.matrices));
+    MarkMemObj(static_cast<PDynamicArray>(_action.sounds));
 }
 #endif // DEBUG
 

@@ -1942,6 +1942,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_body_runtime_fixture.h"
 #include "engine_template_create_fixture.h"
 #include "engine_template_runtime_fixture.h"
+#include "engine_action_definition_fixture.h"
 #include "engine_movie_sound_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
@@ -2547,6 +2548,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("template construction failed");
     if (!TestTemplateRuntime())
         BAIL("template runtime failed");
+    if (!TestActionDefinition())
+        BAIL("action definition failed");
     if (!TestActorCreation(pmvie))
         BAIL("actor creation failed");
     if (!TestMovieSoundIntegration(pmvie))

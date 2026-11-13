@@ -24,6 +24,8 @@
 #include <cstdint>
 #include "three_mm/template_create.h"
 #include "three_mm/template_runtime.h"
+#include "three_mm/action_definition.h"
+struct ActionDefinitionContext;
 struct TemplateCreateContext;
 
 using namespace BRender;
@@ -104,15 +106,13 @@ class ActionDefinition : public ActionDefinition_PAR
     MARKMEM
 
   protected:
-    PGeneralGroup _pggcel;    // GeneralGroup of CELs; variable part is a rgcps[]
-    PDynamicArray _pglbmat34; // DynamicArray of transformation matrices used in this action
-    PDynamicArray _pgltagSnd; // DynamicArray of motion-match sounds for this action
-    LegacyUlong _grfactn; // various flags for this action
+    ThreeMMActionDefinition _action = {};
 
   protected:
     ActionDefinition(void)
     {
     } // can't instantiate directly; must use FReadActn
+    static ThreeMMActionDefinitionServices _Services(ActionDefinitionContext *);
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
@@ -122,13 +122,10 @@ class ActionDefinition : public ActionDefinition_PAR
 
     LegacyUlong Grfactn(void)
     {
-        return _grfactn;
+        return _action.flags;
     }
 
-    LegacyLong Ccel(void)
-    {
-        return _pggcel->IvMac();
-    }
+    LegacyLong Ccel(void);
     void GetCel(LegacyLong icel, AnimationCel *pcel);
     void GetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps);
     void GetMatrix(LegacyLong imat34, BMAT34 *pbmat34);

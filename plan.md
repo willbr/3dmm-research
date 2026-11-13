@@ -396,12 +396,13 @@ restoration, reshaping, body material/visibility updates and costume ownership
 have also moved into C89, along with template resource factories/header I/O,
 normal template initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
-and accessory graph operations.
+and accessory graph operations. ActionDefinition construction, header/list
+loading, byte-order conversion, primitive queries and sound-list ownership now
+also use a persistent C-owned action state.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
-The immediate sequence is ActionDefinition construction/header/list loading and
-sound-tag handling, ThreeDText/font construction, sound-format factory
+The immediate sequence is ThreeDText/font construction, sound-format factory
 implementations and remaining body geometry/render hooks.
 Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting

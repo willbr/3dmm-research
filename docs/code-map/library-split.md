@@ -1715,8 +1715,9 @@ accessory detection/parent-set search and model-child comparisons. Template and
 CustomMaterial facades call this shared C89 implementation in both hosts.
 Native services provide field/container access, resource factories, retained
 references, virtual action/model fetches and body setters. ThreeDText retains
-its virtual fetch dispatch. ActionDefinition construction, header/list loading
-and primitive getters remain native dependencies for the next conversion.
+its virtual fetch dispatch. ActionDefinition state/loading and primitive getters
+now use the C action implementation described below. Resource object/container
+adapters and final native facade removal remain dependencies.
 
 Cel application fetches every model before publishing distance or changing the
 body. Nil model IDs preserve accessory models while their matrices still update.
@@ -1739,6 +1740,46 @@ cover model/allocation/fetch failure, zero parts, negative/extreme cel wrapping,
 nil distance output, reference/publication order and sparse child graphs.
 Playback evidence and remaining coverage limits are recorded in
 `docs/tools/playback-regression.md`.
+
+### Action definitions and optional sound ownership
+
+`action_definition.c` owns a persistent `ThreeMMActionDefinition`: cel group,
+matrix list, optional runtime sound list and flags. It implements construction
+from duplicated groups, resource factory estimates/cleanup, header/list loading,
+payload byte swapping, sound-tag marshalling, disposal and primitive queries.
+ActionDefinition is a temporary native facade whose services provide allocation,
+field/container/file operations, raw TAG representation copies and diagnostics.
+The three table pointers and flags no longer have separate C++ owner fields.
+
+Header flags and partial table ownership publish in native order. Direct
+initialization failure leaves acquired tables owned by the caller; factories
+release the partial object before invalidating outputs. Estimate-only reads do
+not unpack/allocate. The final estimate intentionally retains the native omission
+of optional sound-list size. Wire sound tags remain 16 bytes, ignore the stale
+wire pointer slot and use a NULL borrowed runtime cache; their tags own no cache
+references. Matrix/cel/part output layouts remain 48/8/4 bytes.
+
+Disposal now releases the optional sound list after cels and matrices, fixing
+the omitted native release, including partially filled lists. Sound queries
+recognize high-bit negative markers under the documented native no-sound
+convention, clear only the output type and avoid indexing the list. This repairs
+the previous unsigned comparison. Zero-length foreign matrix payloads avoid
+requesting element zero. These changes are explicit differences from the former
+leak/invalid-index behavior, not native equivalence claims for those failures.
+
+The 2,268-case native trace matches 258,592 bytes without masking, covering
+duplicated groups, native/opposite byte order, empty actions, missing/short/invalid
+chunks, partial initialization, sound marshalling and allocator failures. The
+baseline fixture manually detached/released leaked sound lists; the converted
+fixture instead verifies destructor cleanup with allocation counters. Additional
+checks exercise negative sound markers. Existing motion-sound corpus playback
+is checked against retail; no dedicated retail marker-edge capture is claimed.
+
+Standalone C test executables now undefine NDEBUG in every build configuration.
+All 68 checks were rerun with assertions enabled; earlier Release pass counts
+alone did not prove execution of assert-based checks. Debug MSVC and ASan
+coverage were separate. Playback evidence, explicit changes and remaining
+coverage limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Source names and directory discovery
 

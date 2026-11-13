@@ -4,7 +4,7 @@ class TemplateRuntimeActionAccess : public ActionDefinition
 {
   public:
     static void Sounds(PActionDefinition action,PDynamicArray sounds)
-    { auto member=&TemplateRuntimeActionAccess::_pgltagSnd; action->*member=sounds; }
+    { auto member=&TemplateRuntimeActionAccess::_action; (action->*member).sounds=sounds; }
 };
 class TemplateRuntimeFixture : public Template
 {
