@@ -527,17 +527,51 @@ PBody Template::PbodyCreate(void)
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
+ThreeMMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *context)
+{
+    ThreeMMTemplateRuntimeServices s = {}; s.storage = _CreateServices(context);
+    static_assert(sizeof(BRS) == sizeof(ThreeMMI32) && sizeof(BMAT34) == 12 * sizeof(ThreeMMI32), "fixed-point ABI");
+    s.binding = [](void *, void *object, ThreeMMTemplateBinding *out) {
+        auto t = static_cast<PTemplate>(object); auto cache = t->Pcrf();
+        *out = {cache ? cache->Pcfl() : nullptr, cache, t->Ctg(), t->Cno()};
+    };
+    s.fetch = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number, int kind) -> void * {
+        auto reader = kind == THREE_MM_TEMPLATE_ACTION ? ActionDefinition::FReadActn :
+            kind == THREE_MM_TEMPLATE_MODEL ? Model::FReadModl : CustomMaterial_CMTL::FReadCmtl;
+        return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, reader);
+    };
+    s.name = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, void *out) -> int {
+        return static_cast<PChunkyFile>(file)->FGetName(type, number, static_cast<PString>(out));
+    };
+    s.action = [](void *, void *object, ThreeMMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
+    s.model = [](void *, void *object, ThreeMMU32 id) -> void * { return static_cast<PTemplate>(object)->_PmodlFetch(id); };
+    s.cel_count = [](void *, void *action) -> ThreeMMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
+    s.distance = [](void *, void *action, ThreeMMI32 index) -> ThreeMMI32 {
+        AnimationCel cel; static_cast<PActionDefinition>(action)->GetCel(index, &cel); return cel.dwr;
+    };
+    s.flags = [](void *, void *action) -> ThreeMMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
+    s.part = [](void *, void *action, ThreeMMI32 cel, ThreeMMI32 part, ThreeMMI32 *model, ThreeMMI32 *matrix) {
+        CelPartSpec cps; static_cast<PActionDefinition>(action)->GetCps(cel, part, &cps); *model = cps.chidModl; *matrix = cps.imat34;
+    };
+    s.matrix = [](void *, void *action, ThreeMMI32 index, ThreeMMI32 *out) {
+        BMAT34 matrix; static_cast<PActionDefinition>(action)->GetMatrix(index, &matrix); std::memcpy(out, &matrix, sizeof(matrix));
+    };
+    s.set_model = [](void *, void *body, ThreeMMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
+    s.set_matrix = [](void *, void *body, ThreeMMI32 part, const ThreeMMI32 *data) {
+        BMAT34 matrix; std::memcpy(&matrix, data, sizeof(matrix)); static_cast<PBody>(body)->SetPartMatrix(part, &matrix);
+    };
+    s.sound = [](void *, void *action, ThreeMMI32 index, void *out) -> int {
+        auto tag = static_cast<PTAG>(out); static_cast<PActionDefinition>(action)->GetSnd(index, tag); return tag->ctg != ctgNil;
+    };
+    s.sound_exists = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
+    return s;
+}
+
 bool Template::FGetActnName(LegacyLong anid, PString pstn)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, _cactn);
-    AssertPo(pstn, 0);
-
-    ChildChunkIdentification kid;
-
-    if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), anid, kctgActn, &kid))
-        return fFalse;
-    return Pcrf()->Pcfl()->FGetName(kid.cki.ctg, kid.cki.cno, pstn);
+    AssertThis(0); AssertIn(anid, 0, _cactn); AssertPo(pstn, 0);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_action_name(this, anid, pstn, &s) != 0;
 }
 
 /***************************************************************************
@@ -545,20 +579,9 @@ bool Template::FGetActnName(LegacyLong anid, PString pstn)
 ***************************************************************************/
 PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, _cactn);
-
-    ChildChunkIdentification kid;
-    ActionDefinition *pactn;
-    ChildChunkID chidActn = anid;
-
-    if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), chidActn, kctgActn, &kid))
-    {
-        return pvNil;
-    }
-    pactn = (ActionDefinition *)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, ActionDefinition::FReadActn);
-    AssertNilOrPo(pactn, 0);
-    return pactn;
+    AssertThis(0); AssertIn(anid, 0, _cactn);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return static_cast<PActionDefinition>(three_mm_template_fetch_child(this, anid, THREE_MM_TEMPLATE_ACTION, &s));
 }
 
 /***************************************************************************
@@ -567,17 +590,8 @@ PActionDefinition Template::_PactnFetch(LegacyLong anid)
 PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
-
-    ChildChunkIdentification kid;
-    Model *pmodl;
-
-    if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), chidModl, kctgBmdl, &kid))
-    {
-        return pvNil;
-    }
-    pmodl = (Model *)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
-    AssertNilOrPo(pmodl, 0);
-    return pmodl;
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return static_cast<PModel>(three_mm_template_fetch_child(this, chidModl, THREE_MM_TEMPLATE_MODEL, &s));
 }
 
 /***************************************************************************
@@ -587,70 +601,9 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
 ***************************************************************************/
 bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0);
-    AssertPo(pbody, 0);
-    AssertIn(anid, 0, _cactn);
-    AssertNilOrVarMem(pdwr);
-
-    LegacyLong icel;
-    ActionDefinition *pactn = pvNil;
-    AnimationCel cel;
-    short ibprt;
-    LegacyLong cbprt = _pglibactPar->IvMac();
-    CelPartSpec cps;
-    PModel *prgpmodl = pvNil;
-    BMAT34 bmat34;
-    bool fRet = fFalse;
-
-    pactn = _PactnFetch(anid);
-    if (pvNil == pactn)
-        goto LEnd;
-    icel = celn % pactn->Ccel();
-    if (icel < 0)
-        icel += pactn->Ccel();
-    pactn->GetCel(icel, &cel);
-
-    if (!FAllocPv((void **)&prgpmodl, LwMul(cbprt, size(PModel)), fmemClear, mprNormal))
-    {
-        goto LEnd;
-    }
-    for (ibprt = 0; ibprt < cbprt; ibprt++)
-    {
-        pactn->GetCps(icel, ibprt, &cps);
-        if (chidNil == cps.chidModl)
-        {
-            // Appendages for accessories...don't smash
-            // accessory models with action models
-            Assert(pvNil == prgpmodl[ibprt], "fmemClear didn't work?");
-        }
-        else
-        {
-            prgpmodl[ibprt] = _PmodlFetch(cps.chidModl);
-            if (pvNil == prgpmodl[ibprt])
-                goto LEnd;
-        }
-    }
-
-    if (pvNil != pdwr)
-        *pdwr = cel.dwr;
-    for (ibprt = 0; ibprt < cbprt; ibprt++)
-    {
-        if (pvNil != prgpmodl[ibprt])
-            pbody->SetPartModel(ibprt, prgpmodl[ibprt]);
-        pactn->GetCps(icel, ibprt, &cps);
-        pactn->GetMatrix(cps.imat34, &bmat34);
-        pbody->SetPartMatrix(ibprt, &bmat34);
-    }
-    fRet = fTrue;
-LEnd:
-    if (pvNil != prgpmodl)
-    {
-        for (ibprt = 0; ibprt < cbprt; ibprt++)
-            ReleasePpo(&prgpmodl[ibprt]);
-        FreePpv((void **)&prgpmodl);
-    }
-    ReleasePpo(&pactn);
-    return fRet;
+    AssertThis(0); AssertPo(pbody, 0); AssertIn(anid, 0, _cactn); AssertNilOrVarMem(pdwr);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
 }
 
 /***************************************************************************
@@ -658,24 +611,11 @@ LEnd:
 ***************************************************************************/
 bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, _cactn);
-    AssertVarMem(pdwr);
-
-    ActionDefinition *pactn;
-    LegacyLong icel;
-    AnimationCel cel;
-
-    pactn = _PactnFetch(anid);
-    if (pvNil == pactn)
-        return fFalse;
-    icel = celn % pactn->Ccel();
-    if (icel < 0)
-        icel += pactn->Ccel();
-    pactn->GetCel(icel, &cel);
-    ReleasePpo(&pactn);
-    *pdwr = cel.dwr;
-    return fTrue;
+    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pdwr);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    ThreeMMI32 distance;
+    if (!three_mm_template_distance(this, anid, celn, &distance, &s)) return false;
+    std::memcpy(pdwr, &distance, sizeof(distance)); return true;
 }
 
 /***************************************************************************
@@ -683,18 +623,9 @@ bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 ***************************************************************************/
 bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, _cactn);
-    AssertVarMem(pccel);
-
-    ActionDefinition *pactn;
-
-    pactn = _PactnFetch(anid);
-    if (pvNil == pactn)
-        return fFalse;
-    *pccel = pactn->Ccel();
-    ReleasePpo(&pactn);
-    return fTrue;
+    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pccel);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_cel_count(this, anid, pccel, &s) != 0;
 }
 
 /***************************************************************************
@@ -702,26 +633,9 @@ bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 ***************************************************************************/
 bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, _cactn);
-    AssertVarMem(pfSoundExists);
-    AssertVarMem(ptag);
-
-    ActionDefinition *pactn;
-    LegacyLong icel;
-
-    *pfSoundExists = fFalse;
-    pactn = _PactnFetch(anid);
-    if (pvNil == pactn)
-        return fFalse;
-    icel = celn % pactn->Ccel();
-    if (icel < 0)
-        icel += pactn->Ccel();
-    pactn->GetSnd(icel, ptag);
-    if (ptag->ctg != ctgNil)
-        *pfSoundExists = fTrue;
-    ReleasePpo(&pactn);
-    return fTrue;
+    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_sound(this, anid, celn, pfSoundExists, ptag, &s) != 0;
 }
 
 /***************************************************************************
@@ -729,18 +643,9 @@ bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExi
 ***************************************************************************/
 bool Template::FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, _cactn);
-    AssertVarMem(pgrfactn);
-
-    ActionDefinition *pactn;
-
-    pactn = _PactnFetch(anid);
-    if (pvNil == pactn)
-        return fFalse;
-    *pgrfactn = pactn->Grfactn();
-    ReleasePpo(&pactn);
-    return fTrue;
+    AssertThis(0); AssertIn(anid, 0, _cactn); AssertVarMem(pgrfactn);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_action_flags(this, anid, pgrfactn, &s) != 0;
 }
 
 /***************************************************************************
@@ -773,10 +678,9 @@ bool Template::FSetDefaultCost(Body *pbody)
 ***************************************************************************/
 LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-
-    return *(LegacyLong *)_pggcmid->QvFixedGet(ibset);
+    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_costume_count(this, ibset, &s);
 }
 
 /***************************************************************************
@@ -784,14 +688,9 @@ LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 ***************************************************************************/
 LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-    AssertIn(icmid, 0, CcmidOfBset(ibset));
-
-    LegacyLong *prgcmid;
-
-    prgcmid = (LegacyLong *)_pggcmid->QvGet(ibset);
-    return prgcmid[icmid];
+    AssertThis(0); AssertIn(ibset, 0, _cbset); AssertIn(icmid, 0, CcmidOfBset(ibset));
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_costume_id(this, ibset, icmid, &s);
 }
 
 /***************************************************************************
@@ -800,22 +699,9 @@ LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 ***************************************************************************/
 bool Template::FBsetIsAccessory(LegacyLong ibset)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-
-    LegacyLong cmid;
-    ChildChunkIdentification kid;
-
-    if (pvNil == Pcrf())
-        return fFalse; // probably a ThreeDText
-
-    cmid = CmidOfBset(ibset, 0);
-    if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid, kctgCmtl, &kid))
-    {
-        return fFalse;
-    }
-
-    return CustomMaterial_CMTL::FHasModels(Pcrf()->Pcfl(), kid.cki.ctg, kid.cki.cno);
+    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_is_accessory(this, ibset, &s) != 0;
 }
 
 /***************************************************************************
@@ -826,46 +712,9 @@ bool Template::FBsetIsAccessory(LegacyLong ibset)
 ***************************************************************************/
 bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-    AssertVarMem(pibsetAcc);
-
-    LegacyLong ibsetT;
-    LegacyLong ibact;
-    LegacyLong ibactPar;
-    short ibsetOfIbact;
-    short ibsetOfIbactPar;
-
-    if (FBsetIsAccessory(ibset))
-    {
-        *pibsetAcc = ibset;
-        return fTrue;
-    }
-
-    for (ibsetT = 0; ibsetT < _cbset; ibsetT++)
-    {
-        if (FBsetIsAccessory(ibsetT))
-        {
-            // for each ibact in ibsetT, see if its parent is in ibset
-            for (ibact = 0; ibact < _pglibactPar->IvMac(); ibact++)
-            {
-                ibsetOfIbact = *(short *)_pglibset->QvGet(ibact);
-                if (ibsetT == ibsetOfIbact)
-                {
-                    // see if ibact's parent in ibset
-                    ibactPar = *(short *)_pglibactPar->QvGet(ibact);
-                    ibsetOfIbactPar = *(short *)_pglibset->QvGet(ibactPar);
-                    if (ibsetOfIbactPar == ibset)
-                    {
-                        // so ibset is a parent bset of ibsetT
-                        *pibsetAcc = ibsetT;
-                        return fTrue;
-                    }
-                }
-            }
-        }
-    }
-    return fFalse; // ibset is not a parent bset of any accessory bset.
+    AssertThis(0); AssertIn(ibset, 0, _cbset); AssertVarMem(pibsetAcc);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_accessory_set(this, ibset, pibsetAcc, &s) != 0;
 }
 
 /***************************************************************************
@@ -875,16 +724,8 @@ bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 {
     AssertThis(0);
-
-    ChildChunkIdentification kid1;
-    ChildChunkIdentification kid2;
-
-    if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid1, kctgCmtl, &kid1) ||
-        !Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid2, kctgCmtl, &kid2))
-    {
-        return fFalse; // safer to assume they're different
-    }
-    return CustomMaterial_CMTL::FEqualModels(Pcrf()->Pcfl(), kid1.cki.cno, kid2.cki.cno);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return three_mm_template_same_accessory(this, cmid1, cmid2, &s) != 0;
 }
 
 /***************************************************************************
@@ -892,19 +733,9 @@ bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 ***************************************************************************/
 PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
 {
-    AssertThis(0);
-    AssertIn(cmid, 0, _ccmid);
-
-    PCustomMaterial_CMTL pcmtl;
-    ChildChunkIdentification kid;
-
-    if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid, kctgCmtl, &kid))
-    {
-        return pvNil;
-    }
-    pcmtl = (PCustomMaterial_CMTL)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, CustomMaterial_CMTL::FReadCmtl);
-    AssertNilOrPo(pcmtl, 0);
-    return pcmtl;
+    AssertThis(0); AssertIn(cmid, 0, _ccmid);
+    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    return static_cast<PCustomMaterial_CMTL>(three_mm_template_fetch_child(this, cmid, THREE_MM_TEMPLATE_CUSTOM, &s));
 }
 
 /***************************************************************************

@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include "three_mm/template_create.h"
+#include "three_mm/template_runtime.h"
 struct TemplateCreateContext;
 
 using namespace BRender;
@@ -175,6 +176,7 @@ class Template : public Template_PAR
     {
     } // can't instantiate directly; must use FReadTmpl
     static ThreeMMTemplateCreateServices _CreateServices(TemplateCreateContext *);
+    static ThreeMMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
     virtual PActionDefinition _PactnFetch(LegacyLong anid);

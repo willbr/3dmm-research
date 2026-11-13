@@ -1707,6 +1707,39 @@ cleanup. Standalone C tests additionally exercise factory output invalidation,
 virtual dispatch, direct-call partial ownership, header/name failures, dense gaps,
 opposite host order and the fallback's 50/51 boundary.
 
+### Template actions and accessory relationships
+
+`template_runtime.c` owns template child-resource routing, action names, cel
+wrapping/application, distance/count/flag/sound queries, costume indexing,
+accessory detection/parent-set search and model-child comparisons. Template and
+CustomMaterial facades call this shared C89 implementation in both hosts.
+Native services provide field/container access, resource factories, retained
+references, virtual action/model fetches and body setters. ThreeDText retains
+its virtual fetch dispatch. ActionDefinition construction, header/list loading
+and primitive getters remain native dependencies for the next conversion.
+
+Cel application fetches every model before publishing distance or changing the
+body. Nil model IDs preserve accessory models while their matrices still update.
+Failure releases acquired models without applying a partial pose. Cleanup clears
+model slots in part order, frees temporary storage, then releases the action.
+Action queries retain their individual output-publication order. Opaque scalar
+output storage is copied by representation to bridge Windows long and C int
+without incompatible typed pointer aliasing.
+
+Accessory comparison checks the dense child-ID prefix, including the first
+missing ID in the second costume; chunks beyond a shared gap are ignored, as
+in native code. Parent-set search returns the first matching set/part in native
+order and leaves its output untouched when none exists. The parent indices must
+meet the native preconditions. A template without a resource cache has no
+accessories, including ordinary transient ThreeDText instances.
+
+The native fixture records 405 pose/query cases plus five accessory graph
+variants. The 241,552-byte before/after trace matches exactly; independent C tests
+cover model/allocation/fetch failure, zero parts, negative/extreme cel wrapping,
+nil distance output, reference/publication order and sparse child graphs.
+Playback evidence and remaining coverage limits are recorded in
+`docs/tools/playback-regression.md`.
+
 ### Source names and directory discovery
 
 `source_names.c` owns counted source names and SID extras in C storage, replacing

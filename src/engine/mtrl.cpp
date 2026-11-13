@@ -10,6 +10,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "three_mm/template_runtime.h"
 ASSERTNAME
 
 RTCLASS(Material_MTRL)
@@ -474,13 +475,21 @@ void Material_MTRL::MarkShadeTable(void)
 /***************************************************************************
     Static function to see if the given chunk has Model children
 ***************************************************************************/
+static ThreeMMTemplateCreateServices MaterialGraphServices()
+{
+    ThreeMMTemplateCreateServices s = {};
+    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMTemplateChild *out) -> int {
+        ChildChunkIdentification child;
+        if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, id, childType, &child)) return false;
+        *out = {child.cki.ctg, child.cki.cno, child.chid}; return true;
+    };
+    return s;
+}
+
 bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
-    AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-
-    return pcfl->FGetKidChidCtg(ctg, cno, 0, kctgBmdl, &kid);
+    AssertPo(pcfl, 0); auto s = MaterialGraphServices();
+    return three_mm_template_has_models(pcfl, ctg, cno, &s) != 0;
 }
 
 /***************************************************************************
@@ -489,24 +498,8 @@ bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, Chunk
 ***************************************************************************/
 bool CustomMaterial_CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2)
 {
-    AssertPo(pcfl, 0);
-
-    ChildChunkID chid = 0;
-    ChildChunkIdentification kid1;
-    ChildChunkIdentification kid2;
-
-    while (pcfl->FGetKidChidCtg(kctgCmtl, cno1, chid, kctgBmdl, &kid1))
-    {
-        if (!pcfl->FGetKidChidCtg(kctgCmtl, cno2, chid, kctgBmdl, &kid2))
-            return fFalse;
-        if (kid1.cki.cno != kid2.cki.cno)
-            return fFalse;
-        chid++;
-    }
-    // End of cno1's BMDLs...make sure cno2 doesn't have any more
-    if (pcfl->FGetKidChidCtg(kctgCmtl, cno2, chid, kctgBmdl, &kid2))
-        return fFalse;
-    return fTrue;
+    AssertPo(pcfl, 0); auto s = MaterialGraphServices();
+    return three_mm_template_equal_models(pcfl, cno1, cno2, &s) != 0;
 }
 
 /***************************************************************************

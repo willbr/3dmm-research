@@ -4608,3 +4608,100 @@ baselines and latest failures. Evidence is in
 `tmp/c89-template-create-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
 and `tmp/c89-template-create-playback-audit.json`. The remaining native dependencies
 listed above keep the full C89 backend migration unfinished.
+
+## Template action and accessory C89 conversion (13 November 2026)
+
+`template_runtime.c` owns template child-resource routing, action-name lookup,
+negative/positive cel wrapping, pose/model prefetch and application, action
+distance/count/flag/sound queries, costume indexing, accessory detection and
+parent-set search. Both Template and CustomMaterial facades use the C graph
+helpers for model-child existence/equality. Native services retain primitive
+container/resource/field access, ActionDefinition getters and virtual action/model
+fetches, including ThreeDText overrides. ActionDefinition construction/header/list
+loading, sound-tag internals, resource implementations, ThreeDText construction
+and final representation/facade removal remain unfinished.
+
+All models are fetched before distance publication or body mutation. A missing
+model/allocation/action leaves the body and distance unchanged. Nil model IDs
+preserve accessory models while matrices still update. Cleanup releases/clears
+model slots in part order, frees temporary storage and releases the action last.
+Count/flag/sound outputs publish before action release; distance-query output
+publishes after release. Sound existence clears before fetching, and failed
+fetch leaves the tag untouched. Four-byte representation copies bridge native
+Windows long/unsigned long output storage and C int/unsigned int safely.
+
+Accessory detection requires a resource cache and a model at child slot zero of
+the first costume. Search returns the first matching set/part in native order.
+Model comparison stops at the first missing child ID, so models beyond a shared
+gap are deliberately ignored. Failed searches leave output unchanged. Native
+parent/set/matrix index and positive action-cel-count preconditions remain.
+
+`tmp/c89-template-runtime-before.bin` and `tmp/c89-template-runtime-after.bin`
+match across 241,552 bytes, SHA-256
+`896B6D4649284DF791F93071F1E10700CB7C40D36D8251069FEC5F475A3485E1`.
+The trace records 405 real native pose/query cases: zero/two/six parts, five
+negative/positive cel numbers, missing action/model, BASE/HQ/Pv allocation
+injection, optional distance output, matrix/model identity, reference counts,
+virtual-fetch order, valid sound tables and absent sound tables. Debug outcomes
+are 168 successful poses/237 failures; SDL release is 189/216. Five real chunk
+graph variants cover empty/shared/different model prefixes, a child-ID gap,
+missing costume edge, action names and all pairwise costume comparisons.
+There is no new output masking or behavior normalization in this trace.
+
+Native ActionDefinition::GetSnd has a pre-existing unsigned `chidSnd >= 0` check:
+with a sound table present, `chidNil` attempts an invalid array index. The trace
+uses valid sound IDs or no sound table. The existing ActionDefinition destructor
+also does not release its optional sound array; the fixture detaches/releases
+its explicitly supplied table. These behaviors were not changed or silently
+claimed as covered; ActionDefinition ownership/sound handling is subsequent work.
+
+Independent C tests cover 168 pose scenarios, extreme signed cel numbers,
+zero parts, allocation/model/action failure, nil distance output, preload-before-
+apply and release/clear/free order, query output visibility at action release,
+resource/name lookup failure, no-cache templates and sparse accessory graphs.
+All 67 standalone C checks (including strict C89 syntax), 81 focused native
+checks, MSVC AddressSanitizer, SDL save/load round-trip, 53 snapshot comparisons
+and 51 CLI baselines pass. Both hosts build and real-content scene/timeline
+playback passes. No Marcus UI tests were added. Evidence includes
+`tmp/c89-template-runtime-standalone-final.log`,
+`tmp/c89-template-runtime-native-tests.log`,
+`tmp/c89-template-runtime-asan-final.log`,
+`tmp/c89-template-runtime-sdl-after.log`,
+`tmp/c89-template-runtime-snapshot-comparison.json`,
+`tmp/c89-template-runtime-output-comparison.json` and
+`tmp/c89-template-runtime-preview-scene.log`.
+
+Playback binary SHA-256 values remained frozen through all captures:
+`FC15C52FC6044DFF1B07C6F399FB4AC1216B5F3E89BD621196BC049438B6315F` (SDL) and
+`D26FFDE34B61B9D29E097F2A3D00942615E8E4ABDB42F97A0986288C1A20343A`
+(Marcus regression). Same-player baselines are actor-audio
+`20261113T131229Z-ab43f9be`, actor-events `20261113T131500Z-ba37104a`,
+scrolling-text `20261113T131758Z-3c742199` and sampled-audio
+`20261113T132351Z-705ab775`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T133903Z-3e7f8218` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T134106Z-a34e583e` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T134227Z-9fffe1c5` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T134531Z-c3d70049` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 runs completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes. Actor peaks remain
+3192 retail and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All measured peak deltas are zero. Peaks/coverage do not establish
+waveform/timing parity; existing cross-player differences and one-repeat
+inconclusive comparisons remain.
+
+Captures reused the single default shared SDL package cache, with private
+processes/settings/working movies and uncontrolled OS caching. No builds or
+compaction ran during capture. Automatic retention pruned superseded raw media,
+preserving observations, summaries, diagnostics, current results and their
+latest baselines/failures. The combined report is
+`tmp/c89-template-runtime-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`;
+counts and actual audio deltas are in `tmp/c89-template-runtime-playback-audit.json`.
+The native dependencies listed above keep the full C89 backend migration active.
