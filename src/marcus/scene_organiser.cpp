@@ -475,7 +475,7 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     ui_fill(ui, l.panel.x - 2, l.panel.y - 2, l.panel.w + 4, l.panel.h + 4, 0x7c8aa3);
     ui_fill(ui, l.panel.x, l.panel.y, l.panel.w, l.panel.h, 0x252d40);
     ui_fill(ui, l.panel.x, l.panel.y, l.panel.w, 50, 0x323f5a);
-    ui_text(ui, l.panel.x + 24, l.panel.y + 16, s->frames ? "FRAME ORGANISER" : "SCENE ORGANISER", 0xf0f2f7);
+    ui_heading(ui, l.panel.x + 24, l.panel.y + 16, s->frames ? "FRAME ORGANISER" : "SCENE ORGANISER", 0xf0f2f7);
     char text[256];
     SDL_snprintf(text, sizeof(text), "%d %s", s->count, s->frames ? "frames" : "scenes");
     ui_text(ui, l.panel.x + l.panel.w - 126, l.panel.y + 16, text, 0xc5cedd);

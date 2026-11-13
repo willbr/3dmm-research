@@ -2061,7 +2061,7 @@ static void draw_header(App *app)
     ui = &app->ui;
     ui_fill(ui, 0, 0, (float)app->width, 44, 0x292c31);
     ui_fill(ui, 16, 13, 4, 18, ACCENT);
-    ui_text(ui, 29, 13, "MARCUS", TEXT);
+    ui_heading(ui, 29, 13, "MARCUS", TEXT);
     ui_text(ui, 108, 13, "/  Movie player", MUTED);
     name = app->movie[0] ? app->movie : "Untitled session";
     slash = strrchr(name, '/');
@@ -2071,7 +2071,7 @@ static void draw_header(App *app)
     if (slash)
         name = slash + 1;
     ui_label(ui, 300, 13, (float)app->width - 510, name, TEXT);
-    ui_text(ui, (float)app->width - 160, 13, "MOVIE PLAYBACK", ACCENT);
+    ui_heading(ui, (float)app->width - 160, 13, "MOVIE PLAYBACK", ACCENT);
     ui_button(ui, 16, 52, 112, "Open movie", 0, 1);
     ui_button(ui, 136, 52, 104, "Resources...", 0, 1);
     ui_button(ui, 248, 52, 104, "Content...", 0, 1);
@@ -2406,7 +2406,7 @@ static void draw_sound_properties(App *app)
     MarcusWaveformInfo waveform;
     MarcusWaveformColumn peak;
     char label[192];
-    ui_text(&app->ui, app->sidebar + 18, 340, "SOUND PROPERTIES", MUTED);
+    ui_heading(&app->ui, app->sidebar + 18, 340, "SOUND PROPERTIES", MUTED);
     if (!app->loaded || !marcus_sound(app->player, app->selected_sound, &sound))
     {
         if (app->loaded && marcus_sound_track(app->player, app->selected_sound_track, &track))
@@ -2423,7 +2423,7 @@ static void draw_sound_properties(App *app)
         return;
     }
     ui_label(&app->ui, app->sidebar + 18, 374, 264, sound.name, TEXT);
-    ui_text(&app->ui, app->sidebar + 18, 400,
+    ui_heading(&app->ui, app->sidebar + 18, 400,
             sound.style == MARCUS_SOUND_MUSIC ? "MUSIC"
             : sound.style == MARCUS_SOUND_SPEECH ? "SPEECH" : "SOUND EFFECT", 0xe4b575);
     ui_line(&app->ui, app->sidebar + 18, 435, (float)app->width - 18, 435, LINE);
@@ -2468,7 +2468,7 @@ static void draw_sidebar(App *app)
     ui = &app->ui;
     ui_fill(ui, app->sidebar, 89, 300, (float)app->height - 113, PANEL);
     ui_line(ui, app->sidebar, 89, app->sidebar, (float)app->height - 24, LINE);
-    ui_text(ui, app->sidebar + 18, 103, "SCENE OBJECTS", MUTED);
+    ui_heading(ui, app->sidebar + 18, 103, "SCENE OBJECTS", MUTED);
     SDL_snprintf(label, sizeof(label), "%d", app->loaded ? app->info.object_count : 0);
     ui_text(ui, app->sidebar + 263, 103, label, MUTED);
     for (row = 0; row < 6 && app->loaded; ++row)
@@ -2501,7 +2501,7 @@ static void draw_sidebar(App *app)
         draw_sound_properties(app);
         return;
     }
-    ui_text(ui, app->sidebar + 18, 340, "OBJECT PROPERTIES", MUTED);
+    ui_heading(ui, app->sidebar + 18, 340, "OBJECT PROPERTIES", MUTED);
     if (!app->loaded || app->selected < 0 || !marcus_object(app->player, app->selected, &object))
     {
         ui_text(ui, app->sidebar + 18, 377, "Select an actor or prop", TEXT);
@@ -2509,10 +2509,10 @@ static void draw_sidebar(App *app)
         return;
     }
     ui_label(ui, app->sidebar + 18, 374, 264, object.name, TEXT);
-    ui_text(ui, app->sidebar + 18, 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
+    ui_heading(ui, app->sidebar + 18, 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
     ui_line(ui, app->sidebar + 18, 435, (float)app->width - 18, 435, LINE);
     property(app, 450, "Visibility", object.visible ? "On stage" : "Off stage");
-    ui_text(ui, app->sidebar + 18, 484, "WORLD POSITION", MUTED);
+    ui_heading(ui, app->sidebar + 18, 484, "WORLD POSITION", MUTED);
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.x);
     property(app, 511, "X", object.has_lifetime ? label : "--");
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.y);
@@ -2840,7 +2840,7 @@ static void draw_timeline(App *app)
             ui_fill(ui, 0, y + 80 + row * ROW_HEIGHT, app->sidebar, ROW_HEIGHT, 0x2c3239);
             SDL_snprintf(label, sizeof(label), "%s  %d", kind == SHEET_OBJECT_HEADER ? "OBJECTS" : "SOUNDS",
                          kind == SHEET_OBJECT_HEADER ? app->info.object_count : app->info.sound_track_count);
-            ui_text(ui, 18, y + 85 + row * ROW_HEIGHT, label, MUTED);
+            ui_heading(ui, 18, y + 85 + row * ROW_HEIGHT, label, MUTED);
             if (kind == SHEET_SOUND_HEADER && !app->info.sound_track_count)
                 ui_text(ui, app->grid_x + 18, y + 85 + row * ROW_HEIGHT, "No sound tracks in this scene.", MUTED);
             continue;
@@ -3050,32 +3050,32 @@ static void draw_rendering_settings(App *app)
     ui_text(&app->ui, x + 24, y + 20,
             app->settings_work_camera ? "Work camera settings" : "Movie camera settings", TEXT);
     ui_button(&app->ui, x + RENDER_SETTINGS_WIDTH - 42, y + 16, 28, "x", 0, 1);
-    ui_text(&app->ui, x + 24, y + 56, "RENDERER", ACCENT);
+    ui_heading(&app->ui, x + 24, y + 56, "RENDERER", ACCENT);
     for (renderer = 0; renderer < MARCUS_RENDERER_COUNT; ++renderer)
         ui_button_sized(&app->ui, x + 24 + renderer * 144, y + 86, 136, 32, names[renderer],
                         edited_renderer == renderer, 1);
-    ui_text(&app->ui, x + 24, y + 134, "RENDER RESOLUTION (1x = 3DMM)", ACCENT);
+    ui_heading(&app->ui, x + 24, y + 134, "RENDER RESOLUTION (1x = 3DMM)", ACCENT);
     for (resolution = 0; resolution < MARCUS_RESOLUTION_COUNT; ++resolution)
         ui_button_sized(&app->ui, x + 24 + (resolution % RESOLUTION_COLUMNS) * 146,
                         y + 160 + (resolution / RESOLUTION_COLUMNS) * 40, 138, 32,
                         marcus_render_resolution(resolution)->label,
                         edited_resolution == resolution, 1);
-    ui_text(&app->ui, x + 480, y + 56, "DISPLAY MODE", ACCENT);
+    ui_heading(&app->ui, x + 480, y + 56, "DISPLAY MODE", ACCENT);
     ui_button(&app->ui, x + 480, y + 80, 256, marcus_display_mode_name(view->display_mode), 0, 1);
     ui_text(&app->ui, x + 480, y + 125, "Wire overlay", TEXT);
     ui_button(&app->ui, x + 620, y + 120, 116, view->wire_overlay ? "On" : "Off", view->wire_overlay, gpu);
-    ui_text(&app->ui, x + 480, y + 166, "ANTI-ALIASING", ACCENT);
+    ui_heading(&app->ui, x + 480, y + 166, "ANTI-ALIASING", ACCENT);
     for (i = 0; i < 3; ++i)
         ui_button(&app->ui, x + 480 + i * 88, y + 190, 80, aa[i], view->antialias == i, gpu);
-    ui_text(&app->ui, x + 480, y + 234, "TEXTURE FILTER", ACCENT);
+    ui_heading(&app->ui, x + 480, y + 234, "TEXTURE FILTER", ACCENT);
     ui_button(&app->ui, x + 480, y + 258, 124, "Nearest", !view->texture_filter, gpu);
     ui_button(&app->ui, x + 612, y + 258, 124, "Bilinear", view->texture_filter, gpu);
     if (app->settings_work_camera)
     {
-        ui_text(&app->ui, x + 480, y + 304, "PROJECTION", ACCENT);
+        ui_heading(&app->ui, x + 480, y + 304, "PROJECTION", ACCENT);
         ui_button(&app->ui, x + 480, y + 328, 124, "Perspective", !view->orthographic, 1);
         ui_button(&app->ui, x + 612, y + 328, 124, "Orthographic", view->orthographic, 1);
-        ui_text(&app->ui, x + 480, y + 372, "VIEW PRESET", ACCENT);
+        ui_heading(&app->ui, x + 480, y + 372, "VIEW PRESET", ACCENT);
         for (i = 0; i < 4; ++i)
             ui_button(&app->ui, x + 480 + i * 66, y + 396, 58, axes[i], view->axis_view == i, 1);
     }
@@ -3111,7 +3111,7 @@ static void draw_settings(App *app)
     ui_fill(&app->ui, x, y, 660, SETTINGS_HEIGHT, PANEL);
     ui_text(&app->ui, x + 24, y + 20, "Settings", TEXT);
     ui_button(&app->ui, x + 618, y + 16, 28, "x", 0, 1);
-    ui_text(&app->ui, x + 24, y + 53, "KEYBOARD SHORTCUTS", ACCENT);
+    ui_heading(&app->ui, x + 24, y + 53, "KEYBOARD SHORTCUTS", ACCENT);
     ui_text(&app->ui, x + 24, y + 76,
             app->binding_capture >= 0 ? "Press a key. Escape cancels capture. Backspace clears the binding."
                                       : "Click a binding, then press the key combination you want.",
@@ -3211,7 +3211,8 @@ static void draw_movie_controls(App *app)
         movie_control_label(ui, settings.x - 112, settings.y + settings.h + 8, 152, "Rendering settings", TEXT);
     status = app->movie_scrubbing ? "SEEKING" : !app->playing ? "PAUSED"
              : app->playback.wait == 1 ? "CONTINUE" : "PLAYING";
-    movie_control_label(ui, left, rect.y + 16, 100, status, ACCENT);
+    ui_heading_label(ui, left + 1, rect.y + 17, 100, status, 0);
+    ui_heading_label(ui, left, rect.y + 16, 100, status, ACCENT);
     if (marcus_scene(app->player, app->info.scene, &scene))
     {
         SDL_snprintf(label, sizeof(label), "Scene %d / %d    %s", app->info.scene + 1, app->info.scene_count, scene.name);
@@ -3359,7 +3360,7 @@ static void draw_debug_panel(App *app, float x, float y, int camera, int frozen)
     }
     ui_fill(&app->ui, x - 1, y - 1, 306, 222, LINE);
     ui_fill(&app->ui, x, y, 304, 220, PANEL);
-    ui_text(&app->ui, x + 16, y + 12,
+    ui_heading(&app->ui, x + 16, y + 12,
             camera < 0 ? "APP / DISPLAY" : camera ? "WORK CAMERA" : "MOVIE CAMERA", MUTED);
     if (count)
         SDL_snprintf(label, sizeof(label), "%s  %.1f", performance ? "Render FPS" : "FPS", fps);

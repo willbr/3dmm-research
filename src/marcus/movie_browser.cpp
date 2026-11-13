@@ -636,7 +636,7 @@ struct MarcusBrowser
         ui_opacity(ui, 0.75f); ui_fill(ui, 0, 0, static_cast<float>(width), static_cast<float>(height), 0x090a0c); ui_opacity(ui, 1);
         ui_fill(ui, x - 1, y - 1, w + 2, h + 2, 0x606670);
         ui_fill(ui, x, y, w, h, panel);
-        ui_text(ui, x + 20, y + 16, "OPEN A MOVIE", text);
+        ui_heading(ui, x + 20, y + 16, "OPEN A MOVIE", text);
         ui_text(ui, x + 180, y + 18, "Movies / ZIP collections", muted);
         ui_button(ui, x + 16, y + 50, 68, "Back", 0, !history.empty());
         ui_button(ui, x + 92, y + 50, 68, "Up", 0, 1);
@@ -651,7 +651,7 @@ struct MarcusBrowser
         ui_button(ui, x + 16, y + 100, 144, "Recent movies", recentView, 1);
         ui_button(ui, x + 16, y + 138, 144, "Movie folder", !recentView && listing.location == movieFolder, 1);
         ui_button(ui, x + 16, y + 176, 144, "Home", 0, 1);
-        ui_text(ui, x + 20, y + 226, "FAVOURITES", muted);
+        ui_heading(ui, x + 20, y + 226, "FAVOURITES", muted);
         ui_button(ui, x + 16, y + 250, 144,
                   std::find(favourites.begin(), favourites.end(), location) == favourites.end() ? "+ This folder" : "- This folder", 0, !location.empty());
         for (std::size_t i = 0; i < favourites.size() && y + 294 + i * 32 < bottom; ++i)
@@ -691,7 +691,7 @@ struct MarcusBrowser
         ui_text(ui, listX, bottom + 8, (std::to_string(filtered.size()) + " items / Scroll or Page Up / Down").c_str(), muted);
         const float detailX = x + w - 292;
         ui_line(ui, detailX - 14, y + 94, detailX - 14, bottom + 28, 0x41464e);
-        ui_text(ui, detailX, y + 100, "MOVIE PREVIEW", muted);
+        ui_heading(ui, detailX, y + 100, "MOVIE PREVIEW", muted);
         if (const auto item = Selected())
         {
             Image(ui, *item, {detailX, top, 270, 166});

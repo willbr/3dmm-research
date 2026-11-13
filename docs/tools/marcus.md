@@ -165,6 +165,13 @@ disabled feedback remain available.
 The FRAME/SCENE readouts use black Arial Black labels on beveled silver panels,
 with centered counts in lighter inset fields. Their scalable surround is
 `src/marcus/icons/transport_readout.svg`.
+All-caps interface headings use the same 11-pixel Arial Black face as FRAME and
+SCENE, including inspector sections, settings sections, timeline group headers,
+browser and organiser titles, and camera debug headers. The heading atlas and
+transport labels share font discovery, with DejaVu Sans Bold or Liberation Sans
+Bold as fallbacks where Arial Black is unavailable. Body text keeps its normal
+UI font; heading styling is explicit, so uppercase movie and object names retain
+their usual appearance.
 
 Click the **SCENE** readout to open the scene organiser. It pauses playback and
 shows a scrollable grid in movie order, with saved thumbnails, scene names,

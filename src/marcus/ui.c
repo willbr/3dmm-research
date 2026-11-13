@@ -8,6 +8,54 @@ static void colour(MarcusUI *ui, unsigned long value)
     SDL_SetRenderDrawColor(ui->renderer, (unsigned char)(value >> 16), (unsigned char)(value >> 8),
                            (unsigned char)value, (unsigned char)(255 * ui->opacity));
 }
+static SDL_Texture *font_atlas(SDL_Renderer *renderer, FT_Face face, MarcusGlyph *glyphs)
+{
+    unsigned char *pixels;
+    int code, x, y, row, column, gx, gy;
+    SDL_Surface *surface;
+    SDL_Texture *texture;
+    MarcusGlyph *glyph;
+    pixels = (unsigned char *)calloc(512 * 256, 4);
+    if (!pixels)
+        return NULL;
+    for (code = 32; code < 256; ++code)
+    {
+        if (FT_Load_Char(face, (unsigned long)code, FT_LOAD_RENDER))
+            continue;
+        column = (code - 32) % 32;
+        row = (code - 32) / 32;
+        gx = column * 16;
+        gy = row * 32;
+        glyph = &glyphs[code - 32];
+        glyph->source.x = (float)gx;
+        glyph->source.y = (float)gy;
+        glyph->source.w = (float)face->glyph->bitmap.width;
+        glyph->source.h = (float)face->glyph->bitmap.rows;
+        glyph->bearing_x = face->glyph->bitmap_left;
+        glyph->bearing_y = face->glyph->bitmap_top;
+        glyph->advance = (int)(face->glyph->advance.x >> 6);
+        for (y = 0; y < (int)face->glyph->bitmap.rows && y < 32; ++y)
+            for (x = 0; x < (int)face->glyph->bitmap.width && x < 16; ++x)
+            {
+                pixels[((gy + y) * 512 + gx + x) * 4] = 255;
+                pixels[((gy + y) * 512 + gx + x) * 4 + 1] = 255;
+                pixels[((gy + y) * 512 + gx + x) * 4 + 2] = 255;
+                pixels[((gy + y) * 512 + gx + x) * 4 + 3] =
+                    face->glyph->bitmap.buffer[y * face->glyph->bitmap.pitch + x];
+            }
+    }
+    texture = NULL;
+    surface = SDL_CreateSurfaceFrom(512, 256, SDL_PIXELFORMAT_RGBA32, pixels, 512 * 4);
+    if (surface)
+    {
+        texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_DestroySurface(surface);
+    }
+    free(pixels);
+    if (texture)
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    return texture;
+}
 static void init_transport_labels(MarcusUI *ui, FT_Library library)
 {
     const char *candidates[5];
@@ -33,6 +81,9 @@ static void init_transport_labels(MarcusUI *ui, FT_Library library)
         FT_Done_Face(face);
         return;
     }
+    ui->heading_font = font_atlas(ui->renderer, face, ui->heading_glyphs);
+    if (ui->heading_font)
+        SDL_SetTextureScaleMode(ui->heading_font, SDL_SCALEMODE_NEAREST);
     for (label = 0; label < 2; ++label)
     {
         memset(pixels, 0, sizeof(pixels));
@@ -134,11 +185,8 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 {
     FT_Library library;
     FT_Face face;
-    unsigned char *pixels;
-    int code, x, y, row, column, gx, gy;
+    int code;
     const char *candidates[6];
-    SDL_Surface *surface;
-    MarcusGlyph *glyph;
     memset(ui, 0, sizeof(*ui));
     ui->renderer = renderer;
     ui->opacity = 1;
@@ -162,46 +210,7 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
         return 1; /* SDL's bitmap text remains available on minimal hosts. */
     }
     FT_Set_Pixel_Sizes(face, 0, 14);
-    pixels = (unsigned char *)calloc(512 * 256, 4);
-    if (!pixels)
-    {
-        FT_Done_Face(face);
-        FT_Done_FreeType(library);
-        return 0;
-    }
-    for (code = 32; code < 256; ++code)
-    {
-        if (FT_Load_Char(face, (unsigned long)code, FT_LOAD_RENDER))
-            continue;
-        column = (code - 32) % 32;
-        row = (code - 32) / 32;
-        gx = column * 16;
-        gy = row * 32;
-        glyph = &ui->glyphs[code - 32];
-        glyph->source.x = (float)gx;
-        glyph->source.y = (float)gy;
-        glyph->source.w = (float)face->glyph->bitmap.width;
-        glyph->source.h = (float)face->glyph->bitmap.rows;
-        glyph->bearing_x = face->glyph->bitmap_left;
-        glyph->bearing_y = face->glyph->bitmap_top;
-        glyph->advance = (int)(face->glyph->advance.x >> 6);
-        for (y = 0; y < (int)face->glyph->bitmap.rows && y < 32; ++y)
-            for (x = 0; x < (int)face->glyph->bitmap.width && x < 16; ++x)
-            {
-                pixels[((gy + y) * 512 + gx + x) * 4] = 255;
-                pixels[((gy + y) * 512 + gx + x) * 4 + 1] = 255;
-                pixels[((gy + y) * 512 + gx + x) * 4 + 2] = 255;
-                pixels[((gy + y) * 512 + gx + x) * 4 + 3] =
-                    face->glyph->bitmap.buffer[y * face->glyph->bitmap.pitch + x];
-            }
-    }
-    surface = SDL_CreateSurfaceFrom(512, 256, SDL_PIXELFORMAT_RGBA32, pixels, 512 * 4);
-    if (surface)
-    {
-        ui->font = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_DestroySurface(surface);
-    }
-    free(pixels);
+    ui->font = font_atlas(renderer, face, ui->glyphs);
     FT_Done_Face(face);
     FT_Done_FreeType(library);
     if (ui->font)
@@ -220,6 +229,8 @@ void ui_destroy(MarcusUI *ui)
     ui->transport_labels[0] = ui->transport_labels[1] = NULL;
     SDL_DestroyTexture(ui->font);
     ui->font = NULL;
+    SDL_DestroyTexture(ui->heading_font);
+    ui->heading_font = NULL;
 }
 void ui_transport_label(MarcusUI *ui, float x, float y, int scene, unsigned long value)
 {
@@ -228,7 +239,7 @@ void ui_transport_label(MarcusUI *ui, float x, float y, int scene, unsigned long
     texture = ui->transport_labels[scene ? 1 : 0];
     if (!texture)
     {
-        ui_text(ui, x, y, scene ? "SCENE" : "FRAME", value);
+        ui_heading(ui, x, y, scene ? "SCENE" : "FRAME", value);
         return;
     }
     SDL_SetTextureColorMod(texture, (unsigned char)(value >> 16), (unsigned char)(value >> 8), (unsigned char)value);
@@ -245,6 +256,8 @@ void ui_opacity(MarcusUI *ui, float opacity)
     SDL_SetRenderDrawBlendMode(ui->renderer, ui->opacity < 1 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
     if (ui->font)
         SDL_SetTextureAlphaMod(ui->font, (unsigned char)(255 * ui->opacity));
+    if (ui->heading_font)
+        SDL_SetTextureAlphaMod(ui->heading_font, (unsigned char)(255 * ui->opacity));
 }
 void ui_fill(MarcusUI *ui, float x, float y, float w, float h, unsigned long value)
 {
@@ -278,7 +291,8 @@ static unsigned int next_character(const unsigned char **text)
     *text = p;
     return result;
 }
-void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long value)
+static void font_label(MarcusUI *ui, SDL_Texture *font, MarcusGlyph *glyphs, float x, float y,
+                       float width, const char *text, unsigned long value)
 {
     const unsigned char *p;
     unsigned int code;
@@ -288,7 +302,7 @@ void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, uns
     char fallback[256];
     int length;
     end = x + width;
-    if (!ui->font)
+    if (!font)
     {
         length = (int)(width / 8);
         if (length < 0)
@@ -300,23 +314,36 @@ void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, uns
         SDL_RenderDebugText(ui->renderer, x, y + 4, fallback);
         return;
     }
-    SDL_SetTextureColorMod(ui->font, (unsigned char)(value >> 16), (unsigned char)(value >> 8), (unsigned char)value);
+    SDL_SetTextureColorMod(font, (unsigned char)(value >> 16), (unsigned char)(value >> 8), (unsigned char)value);
     p = (const unsigned char *)text;
     while (*p)
     {
         code = next_character(&p);
         if (code < 32 || code > 255)
             code = '?';
-        glyph = &ui->glyphs[code - 32];
+        glyph = &glyphs[code - 32];
         if (x + glyph->advance > end)
             break;
         destination.x = x + glyph->bearing_x;
         destination.y = y + 14 - glyph->bearing_y;
         destination.w = glyph->source.w;
         destination.h = glyph->source.h;
-        SDL_RenderTexture(ui->renderer, ui->font, &glyph->source, &destination);
+        SDL_RenderTexture(ui->renderer, font, &glyph->source, &destination);
         x += glyph->advance;
     }
+}
+void ui_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long value)
+{
+    font_label(ui, ui->font, ui->glyphs, x, y, width, text, value);
+}
+void ui_heading_label(MarcusUI *ui, float x, float y, float width, const char *text, unsigned long value)
+{
+    font_label(ui, ui->heading_font ? ui->heading_font : ui->font,
+               ui->heading_font ? ui->heading_glyphs : ui->glyphs, x, y, width, text, value);
+}
+void ui_heading(MarcusUI *ui, float x, float y, const char *text, unsigned long value)
+{
+    ui_heading_label(ui, x, y, 4096, text, value);
 }
 void ui_text(MarcusUI *ui, float x, float y, const char *text, unsigned long value)
 {
