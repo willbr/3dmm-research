@@ -463,7 +463,10 @@ box, and clicking empty space or pressing Escape clears it. Escape also clears
 selected sound cues/tracks, and clearing a selection keeps movie playback running.
 
 Picking uses the displayed camera, evaluated model faces, texture transparency and depth;
-background scenery and caption overlays block objects behind them. Backgrounds,
+3D text is selectable on its letter surfaces, with gaps between letters left empty.
+Ray tests use face planes in the prepared vertices' coordinate system, including
+model pivot offsets, so text fronts remain selectable after model preparation.
+Background scenery and caption overlays block objects behind them. Backgrounds,
 camera guides and 2D captions are not selectable scene objects. Movie-view
 picking waits until a scene transition finishes. Right drag captures the mouse
 for Orbit rotation, like Fly look; release it or press Escape to release capture.

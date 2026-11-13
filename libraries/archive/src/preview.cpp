@@ -132,6 +132,19 @@ int BR_CALLBACK PickModel(br_actor *actor, br_model *model, br_material *materia
     prepared.vertices = model->prepared_vertices;
     prepared.nfaces = model->nprepared_faces;
     prepared.nvertices = model->nprepared_vertices;
+    // Preparation can move vertices by the model pivot after computing face
+    // planes. Rebuild plane offsets in those same coordinates for ray tests;
+    // otherwise front faces (notably 3D letters) can reject visible hits.
+    // Keep the shared render geometry untouched.
+    std::vector<br_face> faces(prepared.faces, prepared.faces + prepared.nfaces);
+    for (auto &face : faces)
+    {
+        br_vector3 normal;
+        for (int axis = 0; axis < 3; ++axis)
+            normal.v[axis] = BrFractionToScalar(face.n.v[axis]);
+        face.d = BrVector3Dot(&normal, &prepared.vertices[face.vertices[0]].p);
+    }
+    prepared.faces = faces.data();
     BrModelPick2D(&prepared, material, position, direction, nearClip, farClip, PickFace, context);
     return 0;
 }
