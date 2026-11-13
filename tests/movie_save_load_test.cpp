@@ -284,6 +284,52 @@ class TrackTestActor : public Actor
         }
         return saved;
     }
+    bool FTestPaste(int mode,FILE *snapshot,StageTestScene *scene,PChunkyResourceFile source,PChunkyResourceFile target,
+                    ChunkNumber soundNumber,PTemplate textTemplate,ChunkNumber templateNumber)
+    {
+        using namespace ActorEvent;
+        if (textTemplate)
+        {
+            textTemplate->AddRef(); ReleasePpo(&_ptmpl); _ptmpl=textTemplate;
+            TagManager::CloseTag(&_tagTmpl); _tagTmpl={ksidUseCrf,source,kctgTmpl,templateNumber}; TagManager::DupTag(&_tagTmpl);
+        }
+        ActorTrack track; if (!track.FCreate()) return false;
+        RouteDistancePoint point={{BR_SCALAR(7),BR_SCALAR(2),-BR_SCALAR(3)},rZero};
+        Add entrance={BR_SCALAR(4),BR_SCALAR(5),BR_SCALAR(6),111,222,333};
+        Base event={(mode&8)?aetRem:aetAdd,1,{0,rZero,0}};
+        if (!track.Route()->FAdd(&point) || !track.Events()->FInsert(0,sizeof(entrance),&entrance,&event)) return false;
+        for (int i=0;i<3;++i)
+        {
+            Sound sound={}; sound.celn=-1; sound.vlm=100; sound.sty=2; sound.chid=55;
+            sound.tag={((mode&2) && i==2)?1:ksidUseCrf,source,kctgMsnd,((mode&1) && i<2)?999999:soundNumber};
+            TagManager::DupTag(&sound.tag); event={aetSnd,2+i,{0,rZero,i}};
+            if (!track.Events()->FInsert(track.Events()->IvMac(),sizeof(sound),&sound,&event))
+            { TagManager::CloseTag(&sound.tag); return false; }
+        }
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState();
+        _state.frame=3; _state.nextEvent=3; _state.firstEventInFrame=2; _state.actionEvent=1; _state.addEvent=0;
+        _state.subrouteTranslation={BR_SCALAR(8),BR_SCALAR(9),BR_SCALAR(10)};
+        _state.routeTranslation={BR_SCALAR(20),BR_SCALAR(21),BR_SCALAR(22)};
+        _dxyzFullRte={BR_SCALAR(30),BR_SCALAR(31),BR_SCALAR(32)}; _nfrmFirst=1; _nfrmLast=20; _fLifeDirty=(mode&4)!=0;
+        if (!scene->TrackActor(this,3)) return false;
+        const long frame=(mode%3)==0?1:(mode%3)==1?10:-3;
+        bool pasted=FPaste(frame,scene); vpers->Clear();
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,pasted,_nfrmFirst,_nfrmLast,_fLifeDirty,_state.frame,_state.nextEvent,
+            _state.firstEventInFrame,_state.actionEvent,_state.addEvent,_track.Events()->IvMac(),
+            _tagTmpl.sid,static_cast<LegacyLong>(_tagTmpl.cno),_tagTmpl.pcrf==target,_ptmpl->FIsTdt(),source->CactRef(),target->CactRef()};
+        bool ok=record(values,sizeof(values)) && record(&_dxyzFullRte,sizeof(_dxyzFullRte)) &&
+            record(&_state.routeTranslation,sizeof(_state.routeTranslation)) && record(&_state.subrouteTranslation,sizeof(_state.subrouteTranslation));
+        for (long i=0;ok && i<_track.Events()->IvMac();++i)
+        {
+            Base header; _track.Events()->GetFixed(i,&header); LegacyLong bytes=_track.Events()->Cb(i);
+            unsigned char payload[sizeof(Sound)]={}; _track.Events()->Get(i,payload);
+            if (i==0) payload[18]=payload[19]=0;
+            else { Sound sound; std::memcpy(&sound,payload,sizeof(sound)); sound.tag.pcrf=nullptr; std::memcpy(payload,&sound,sizeof(sound)); }
+            ok=record(&header,sizeof(header)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        return ok;
+    }
     bool FTestRoutePaste(int mode,FILE *snapshot,StageTestScene *scene,TrackTestActor *clipboard,
                         PChunkyResourceFile resource,ChunkNumber material,ChunkNumber soundNumber)
     {
@@ -1817,6 +1863,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_edit_transaction_fixture.h"
 #include "engine_actor_copy_fixture.h"
 #include "engine_route_paste_fixture.h"
+#include "engine_actor_paste_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2407,6 +2454,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor copy failed");
     if (!TestActorRoutePaste(pmvie))
         BAIL("actor route paste failed");
+    if (!TestActorPaste(pmvie))
+        BAIL("actor paste failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

@@ -3879,3 +3879,79 @@ repetition does not establish general repeatability or full retail parity.
 Full actor paste, clipboard control, movie sound resolution, actor/template
 creation, scene/body/resource/runtime implementations and final facade removal
 remain unfinished.
+
+### Full actor paste C89 conversion (13 November 2026)
+
+`actor_paste.c` owns the full actor-paste controller. `Actor::FPaste` now marshals
+records and supplies primitive runtime/resource services. C controls text-template
+transfer and ownership, lifetime and scene binding, placement, frame translation,
+user-sound filtering/adoption, text entrance orientation and final translation/dirty
+publication. Both hosts use this implementation. Native movie autosave/sound-child
+lookup, template fetching, body creation and resource representations remain
+conversion dependencies; this is not the final C-only backend boundary.
+
+The 22,272-byte native-before trace `tmp/c89-actor-paste-before.bin` has SHA-256
+`D03BE92FB33A9E6C87A8FC4879E39433B24F1E6A0101A83A6DFBC213035AC0E9`
+and matches the converted implementation exactly. Its 64 cases use private
+movies, actual serialized 3D-text templates, same/cross-resource transfers,
+frame offsets, authored placement, sound tags/adoption, consecutive missing
+sounds, media sounds, invalid first events, resulting rows and resource counts.
+Only serialized cache pointers and Add padding are normalized. The fixture
+retains its test body to isolate paste policy; text body creation/rendering is
+not proved by this fixture. Dummy sound chunks exercise lookup/adoption without
+decoding audio; the playback corpus supplies separate render/audio coverage.
+
+C tests cover autosave/save/fetch failures, duplicate-tag cleanup and old-template
+release order, replacement text flags, disabled BUG1888 migration, wrapped frame
+arithmetic, no-op retiming, failed sound saves, child-adoption failure, partial
+state and removal cursor changes. The native operation has no rollback: earlier
+resource/frame/deletion edits remain. Child failure does not write the locally
+adopted tag into the event or add cleanup; final route translation, text yaw and
+dirty notification are skipped. No Marcus UI tests were added.
+
+Both hosts build. All 59 standalone C checks (including strict C89 syntax), 73
+focused native checks and MSVC AddressSanitizer pass. All 44 snapshot comparisons
+and 51 freshly linked CLI baselines match, and headless scene/timeline playback
+passes. Evidence includes `tmp/c89-actor-paste-standalone.log`,
+`tmp/c89-actor-paste-native-tests.log`, `tmp/c89-actor-paste-asan.log`,
+`tmp/c89-actor-paste-snapshot-comparison.json`,
+`tmp/c89-actor-paste-output-comparison.json` and
+`tmp/c89-actor-paste-preview-scene.log`.
+
+Both binaries were frozen before playback. Completed old captures and build
+symbols/libraries were transparently compressed beforehand, and completed current
+suites between terminal captures, to retain headroom on C: while preserving their
+contents. No build or compaction ran during captures.
+SDL reused the recorded warm package cache with private processes, settings and
+working movies; OS caching remains uncontrolled. Same-player baselines are
+actor-audio `20261113T075758Z-87357889`, actor-events
+`20261113T080021Z-dccfb394`, scrolling-text `20261113T080240Z-bb5a7330` and
+sampled-audio `20261113T080718Z-9168a4d6`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T082527Z-60a851d4` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T082656Z-7c0ed243` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T082845Z-140ed208` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T083256Z-8eafb346` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match the preceding same-player results. Only adjacent
+identical position/image observations are collapsed; raw observations and
+timestamps remain. Actor cases retain 60 ordered changes per player; scrolling
+retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Measured actor peaks remain 3192
+retail and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All before/after peak deltas are zero. The previously documented
+SDL 4080/4081 variation remains part of the evidence; these observations do not
+establish exact waveform/timing parity or general repeatability. Existing
+cross-player differences and one-repeat inconclusive comparisons remain.
+
+The combined report is
+`tmp/c89-actor-paste-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts and before/after peaks in `tmp/c89-actor-paste-playback-audit.json`.
+Raw evidence remains under `tmp/c89-movie-data-regression`. Clipboard control,
+remaining actor/template creation and movie sound integration, scene/body/
+resource/runtime implementations and final C++ facade removal remain unfinished.

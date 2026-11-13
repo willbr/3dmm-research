@@ -68,6 +68,7 @@ cmake --build build/engine-c89 --target engine-group-undo-test
 cmake --build build/engine-c89 --target engine-actor-transaction-test
 cmake --build build/engine-c89 --target engine-actor-copy-test
 cmake --build build/engine-c89 --target engine-route-paste-test
+cmake --build build/engine-c89 --target engine-actor-paste-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1378,8 +1379,9 @@ remain distinct between the operations.
 Native callbacks marshal typed payloads/tables and provide array operations,
 unapplied C event insertion/merge and C rewind. Native actor/template creation
 and movie sound-tag resolution are still temporary C++ engine dependencies, not
-final host interfaces or converted resource policy. Paste/clipboard, scene/body/
-resource/runtime implementation and final facade removal remain unfinished.
+final host interfaces or converted resource policy. Paste controllers are
+described below. Clipboard, scene/body/resource/runtime implementation and
+final facade removal remain unfinished.
 
 `engine-actor-copy-test` checks locks, source mutation before filtering, partial
 resolution/insert failure, resource cleanup, result publication, optional BUG1950
@@ -1418,8 +1420,45 @@ sound tags, state/transforms and reference balance, and matches exactly.
 `engine-route-paste-test` additionally checks reservation/split/event/apply
 failures, partial edits, tag closure, cursor/terminator ordering, optional STATIC
 metadata, diagnostic-and-continue insertion failure and unchanged clipboard data.
-Full actor paste, clipboard control, movie/scene/body/resource/runtime policy
-and final facade removal remain unfinished.
+Clipboard control, movie/scene/body/resource/runtime policy and final facade
+removal remain unfinished.
+
+### Full actor paste
+
+`actor_paste.c` owns `Actor::FPaste` policy: optional BUG1888 text-template
+transfer, tag/template ownership, lifetime and scene-binding order, placement,
+frame translation, sound filtering/adoption and camera-facing text entrances.
+The existing C placement, state-origin and event-removal implementations remain
+shared. Missing user sounds and failed sound saves diagnose and remove their
+rows while revisiting the shifted row. Failed child adoption returns immediately
+without publishing the locally rewritten sound tag. Earlier frame writes,
+resource transfers and deletions remain; final route translation and dirty
+notification occur only on success.
+
+The plain runtime mirror is refreshed after scene binding and event removal so
+body creation and cursor changes survive later publication. Text transfer
+duplicates before saving, closes the duplicate on save/fetch failure, closes the
+old tag on success and releases the old template before replacing its visible
+pointer. Camera facing queries the replacement template's text flag.
+
+The 22,272-byte native-before trace covers 64 cases in private movies with actual
+serialized 3D-text templates, same/cross-resource paste, authored placement,
+frame offsets, owning sound tags, consecutive missing-sound removals, untouched
+media sounds, invalid first events, row data and resource reference counts. It
+matches exactly. The fixture retains its existing test body to isolate paste
+policy; it does not prove text rig creation or rendering. Dummy sound chunks
+exercise tag adoption without audio decoding. Playback captures supply the
+render/audio checks separately.
+
+`engine-actor-paste-test` covers template autosave/save/fetch failure and cleanup,
+replacement-before-binding order, changed text flags, disabled migration,
+wrapped frame arithmetic, no-op retiming, sound-save removal, child-failure
+partial state and preservation of removal cursor changes. The native facade
+still provides movie autosave/child lookup, template fetching, body creation,
+resource representations and diagnostics. These callbacks are temporary
+conversion dependencies, not the final host boundary. Clipboard control,
+actor/template creation, movie/scene/body/resource/runtime implementations and
+final facade removal remain unfinished.
 
 ### Source names and directory discovery
 

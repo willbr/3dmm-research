@@ -17,6 +17,7 @@
 
 #include "soc.h"
 #include "engine_actor_motion.h"
+#include "three_mm/actor_paste.h"
 
 ASSERTNAME
 
@@ -234,148 +235,69 @@ bool Actor::FPasteRte(PActor pactr)
 bool Actor::FPaste(long nfrm, Scene *pscen)
 {
     AssertThis(0);
-
-    Base aev;
-    RouteDistancePoint rpt;
-    Add aevadd;
-    Sound aevsnd;
-    BRS xrCam = rZero;
-    BRS yrCam = rZero;
-    BRS zrCam = kzrDefault;
-    BRS xr, yr, zr;
-    long iaev;
-    long dnfrm;
+    static_assert(sizeof(Add)==sizeof(ThreeMMActorEntrance) && sizeof(Sound)==sizeof(ThreeMMActorSound),"Paste payload ABI");
+    static_assert(ksidUseCrf==0,"Paste document tag ABI");
+    ThreeMMActorPasteServices s{}; s.context=this;
+    s.read=[](void *p,ThreeMMActorRuntime *r) { *r=static_cast<Actor *>(p)->_Runtime(); };
+    s.write=[](void *p,const ThreeMMActorRuntime *r) { static_cast<Actor *>(p)->_PublishRuntime(*r); };
+    s.is_text=[](void *,void *p) { return int(static_cast<PTemplate>(p)->FIsTdt()); };
+    s.ensure_autosave=[](void *,void *p,void **cache) {
+        PChunkyResourceFile resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
+        *cache=resource; return int(ok);
+    };
+    s.duplicate_tag=[](void *,const ThreeMMTag *v) {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::DupTag(&tag);
+    };
+    s.close_tag=[](void *,ThreeMMTag *v) {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::CloseTag(&tag); std::memcpy(v,&tag,sizeof(tag));
+    };
+    s.save_template=[](void *,ThreeMMTag *v,void *cache) {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FSaveTag(&tag,static_cast<PChunkyResourceFile>(cache),true);
+        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
+    };
+    s.fetch_template=[](void *,const ThreeMMTag *v)->void * {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); return vptagm->PbacoFetch(&tag,Template::FReadTmpl);
+    };
+    s.release_template=[](void *,void *p) { static_cast<PTemplate>(p)->Release(); };
+    s.bind_scene=[](void *p,void *scene) { static_cast<Actor *>(p)->SetPscen(static_cast<PScene>(scene)); };
+    s.placement=[](void *p,ThreeMMActorPoint *point) {
+        BRS x,y,z; static_cast<Actor *>(p)->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
+    };
+    s.sound_exists=[](void *,const ThreeMMTag *tag) {
+        return int(static_cast<PChunkyResourceFile>(tag->cache)->Pcfl()->FFind(tag->type,tag->number));
+    };
+    s.save_sound=[](void *,void *scene,ThreeMMTag *v) {
+        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=static_cast<PScene>(scene)->Pmvie()->FSaveTagSnd(&tag);
+        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
+    };
+    s.sound_child=[](void *,void *scene,ThreeMMU32 number,ThreeMMU32 *child) {
+        ChildChunkID value=*child; bool ok=static_cast<PScene>(scene)->Pmvie()->FChidFromUserSndCno(number,&value);
+        *child=value; return int(ok);
+    };
+    s.write_event=[](void *p,ThreeMMI32 i,const ThreeMMActorEvent *v) {
+        Base event; std::memcpy(&event,v,sizeof(event)); static_cast<PGeneralGroup>(p)->PutFixed(i,&event);
+    };
+    s.write_payload=[](void *p,ThreeMMI32 i,const void *v) { static_cast<PGeneralGroup>(p)->Put(i,const_cast<void *>(v)); };
+    s.remove_event=[](void *p,ThreeMMI32 i) { static_cast<Actor *>(p)->_RemoveAev(i); };
+    s.camera_yaw=[](void *,void *p) { return static_cast<PScene>(p)->Pbkgd()->BraRotYCamera(); };
+    s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault)
+        {
+        case THREE_MM_PASTE_TEXT_NOT_DOCUMENT: Bug("ThreeDTexts should be stored in a document!"); break;
+        case THREE_MM_PASTE_EMPTY: Bug("Nothing to paste!"); break;
+        case THREE_MM_PASTE_MISSING_SOUND: PushErc(ercSocNoSndOnPaste); break;
+        case THREE_MM_PASTE_SAVE_SOUND_FAILED: Bug("Expected to locate user sound chunk"); break;
+        default: Bug("Unknown paste diagnostic"); break;
+        }
+    };
 #ifdef BUG1888
-    PTemplate ptmpl;
-    PChunkyResourceFile pcrf;
-    TAG tag;
-
-    //
-    // Ensure that the tag to the ThreeDText being pasted is in the current movie.
-    //
-    if (FIsTdt())
-    {
-        Assert(_tagTmpl.sid == ksidUseCrf, "ThreeDTexts should be stored in a document!");
-
-        if (!pscen->Pmvie()->FEnsureAutosave(&pcrf))
-        {
-            return fFalse;
-        }
-        if (pcrf != _tagTmpl.pcrf)
-        {
-            // Need to save this actor's tagTmpl in this movie because it came from another movie
-
-            tag = _tagTmpl;
-            TagManager::DupTag(&tag);
-            // Save the tag to the movie's _pcrfAutosave.  The tag now
-            // points to the copy in this movie.
-            if (!TagManager::FSaveTag(&tag, pcrf, fTrue))
-            {
-                TagManager::CloseTag(&tag);
-                return fFalse;
-            }
-            // Get a template based on the new tag
-            ptmpl = (PTemplate)vptagm->PbacoFetch(&tag, Template::FReadTmpl);
-            if (pvNil == ptmpl)
-            {
-                TagManager::CloseTag(&tag);
-                return fFalse;
-            }
-            // Change the actor to use the new tag and template
-            TagManager::CloseTag(&_tagTmpl);
-            _tagTmpl = tag;
-            ReleasePpo(&_ptmpl);
-            _ptmpl = ptmpl;
-        }
-    }
-#endif // BUG1888
-
-    //
-    // Update lifetime
-    //
-    _nfrmFirst = nfrm;
-    _fLifeDirty = fTrue;
-    _state.frame = nfrm - 1;
-    SetPscen(pscen);
-
-    // Always place actors on the "floor"
-    _GetNewOrigin(&xr, &yr, &zr);
-
-    Assert(_track.Events()->IvMac() > 0, "Nothing to paste!");
-    _track.Events()->GetFixed(0, &aev);
-    if (aev.aet != aetAdd)
-        return fFalse;
-    dnfrm = aev.nfrm - nfrm;
-
-    //
-    // Begin by locating the actor at (xr,yr,zr)
-    // There are no Full path or Sub path translations at this point.
-    // Note: In order to place a pasted actor at the insertion point,
-    // the translation needs to compensate for the distance
-    // recorded in each path point -> subtract the first path point.
-    _track.Route()->Get(0, &rpt);
-    _state.subrouteTranslation.dxr = rZero;
-    _state.subrouteTranslation.dyr = rZero;
-    _state.subrouteTranslation.dzr = rZero;
-    _dxyzFullRte.dxr = BrsSub(xr, rpt.xyz.dxr);
-    _dxyzFullRte.dyr = BrsSub(yr, rpt.xyz.dyr);
-    _dxyzFullRte.dzr = BrsSub(zr, rpt.xyz.dzr);
-    _track.Events()->Get(0, &aevadd);
-    _dxyzFullRte.dxr = BrsSub(_dxyzFullRte.dxr, aevadd.dxr);
-    _dxyzFullRte.dyr = BrsSub(_dxyzFullRte.dyr, aevadd.dyr);
-    _dxyzFullRte.dzr = BrsSub(_dxyzFullRte.dzr, aevadd.dzr);
-
-    //
-    // Translate the new actor in time
-    // Update sound events
-    for (iaev = 0; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (dnfrm != 0)
-        {
-            aev.nfrm -= dnfrm;
-            _track.Events()->PutFixed(iaev, &aev);
-        }
-        if (aetSnd != aev.aet)
-            continue;
-        _track.Events()->Get(iaev, &aevsnd);
-        if (aevsnd.tag.sid != ksidUseCrf)
-            continue;
-        // Save tag (this may be a new movie)
-        if (!aevsnd.tag.pcrf->Pcfl()->FFind(aevsnd.tag.ctg, aevsnd.tag.cno))
-        {
-            PushErc(ercSocNoSndOnPaste);
-            _RemoveAev(iaev);
-            iaev--;
-            continue;
-        }
-        if (!_pscen->Pmvie()->FSaveTagSnd(&aevsnd.tag))
-        {
-            Bug("Expected to locate user sound chunk");
-            _RemoveAev(iaev);
-            iaev--;
-        }
-        else
-        {
-            // Adopt this sound into the new scene
-            if (!_pscen->Pmvie()->FChidFromUserSndCno(aevsnd.tag.cno, &aevsnd.chid))
-                return fFalse;
-            // Update event
-            _track.Events()->Put(iaev, &aevsnd);
-        }
-    }
-
-    // Rotate 3D spletters to face the camera
-    if (_ptmpl->FIsTdt())
-    {
-        _track.Events()->Get(0, &aevadd);
-        aevadd.ya = _pscen->Pbkgd()->BraRotYCamera();
-        _track.Events()->Put(0, &aevadd);
-    }
-
-    _UpdateXyzRte();
-    _pscen->MarkDirty();
-    return fTrue;
+    const int migrate_text=1;
+#else
+    const int migrate_text=0;
+#endif
+    const auto motion=EngineActorMotion::Services();
+    return three_mm_actor_paste(_track.Route(),_track.Events(),nfrm,pscen,migrate_text,&motion,&s)!=0;
 }
 
 /***************************************************************************
