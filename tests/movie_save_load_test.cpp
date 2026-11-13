@@ -1937,6 +1937,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_actor_paste_fixture.h"
 #include "engine_actor_clipboard_fixture.h"
 #include "engine_actor_create_fixture.h"
+#include "engine_body_create_fixture.h"
 #include "engine_movie_sound_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
@@ -2532,6 +2533,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor paste failed");
     if (!TestActorClipboard(pmvie))
         BAIL("actor clipboard failed");
+    if (!TestBodyCreation())
+        BAIL("body creation failed");
     if (!TestActorCreation(pmvie))
         BAIL("actor creation failed");
     if (!TestMovieSoundIntegration(pmvie))

@@ -14,6 +14,8 @@
 #ifndef Body_H
 #define Body_H
 
+#include "three_mm/body_create.h"
+
 using namespace BRender;
 
 /****************************************
@@ -52,6 +54,7 @@ class Body : public Body_PAR
     Body(void)
     {
     } // can't instantiate directly; must use PbodyNew
+    static ThreeMMBodyCreateServices _CreateServices(void);
     void _DestroyShape(void);
     bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
     bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);

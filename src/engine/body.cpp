@@ -158,39 +158,90 @@ void Body::SetRenderCallbacks(void *context, void (*attach)(void *, Body *), voi
 /***************************************************************************
     Builds a tree of BACTs for the Body.
 ***************************************************************************/
+ThreeMMBodyCreateServices Body::_CreateServices(void)
+{
+    ThreeMMBodyCreateServices s = {};
+    s.read = [](void *, void *object, ThreeMMBodyShape *state) {
+        auto b = static_cast<PBody>(object);
+        *state = {b->_pglibset, b->_prgpcmtl, b->_prgbact, b->_cbset, b->_cbactPart, b->_cactHidden};
+    };
+    s.write = [](void *, void *object, const ThreeMMBodyShape *state) {
+        auto b = static_cast<PBody>(object);
+        b->_pglibset = static_cast<PDynamicArray>(state->sets);
+        b->_prgpcmtl = static_cast<PCustomMaterial_CMTL *>(state->materials);
+        b->_prgbact = static_cast<PBACT>(state->actors);
+        b->_cbset = state->set_count; b->_cbactPart = state->part_count; b->_cactHidden = state->hidden;
+    };
+    s.highlight = [](void *) -> void * { return _pbmtlHilite; };
+    s.allocate_highlight = [](void *) -> void * { return BrMaterialAllocate("Hilite"); };
+    s.install_highlight = [](void *, void *material) {
+        _pbmtlHilite = static_cast<PBMTL>(material);
+        _pbmtlHilite->colour = kbrcHilite;
+        _pbmtlHilite->ka = kbrufKaHilite;
+        _pbmtlHilite->kd = kbrufKdHilite; _pbmtlHilite->ks = kbrufKsHilite;
+        _pbmtlHilite->power = krPowerHilite;
+        _pbmtlHilite->flags = BR_MATF_LIGHT | BR_MATF_GOURAUD | BR_MATF_FORCE_Z_0;
+        _pbmtlHilite->index_base = kiclrHilite; _pbmtlHilite->index_range = 1;
+        BrMaterialAdd(_pbmtlHilite);
+    };
+    s.create = [](void *) -> void * { return NewObj Body; };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.validate_lists = [](void *, void *parents, void *sets) {
+        auto par = static_cast<PDynamicArray>(parents); auto list = static_cast<PDynamicArray>(sets);
+        AssertPo(par, 0); AssertPo(list, 0);
+        Assert(par->CbEntry() == size(short), "bad pglibactPar");
+        Assert(list->CbEntry() == size(short), "bad pglibset");
+        Assert(par->IvMac() == 0 || ivNil == *(short *)par->QvGet(0), "bad first item in pglibactPar");
+        Assert(par->IvMac() == list->IvMac(), "pglibactPar must be same size as pglibset");
+    };
+    s.duplicate_sets = [](void *, void *sets) -> void * { return static_cast<PDynamicArray>(sets)->PglDup(); };
+    s.count = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
+    s.item = [](void *, void *list, ThreeMMI32 i) -> ThreeMMI32 {
+        short value; static_cast<PDynamicArray>(list)->Get(i, &value); return value;
+    };
+    s.allocate_materials = [](void *, ThreeMMI32 count, void **out) -> int {
+        return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal);
+    };
+    s.allocate_actors = [](void *, ThreeMMI32 count, void **out) -> int {
+        return FAllocPv(out, LwMul(count, size(BACT)), fmemClear, mprNormal);
+    };
+    s.initialize_actor = [](void *, void *body, void *actors, ThreeMMI32 index, int role) {
+        auto actor = static_cast<PBACT>(actors) + index;
+        actor->type = role == THREE_MM_BODY_PART ? BR_ACTOR_MODEL : BR_ACTOR_NONE;
+        actor->t.type = BR_TRANSFORM_MATRIX34; BrMatrix34Identity(&actor->t.t.mat);
+        actor->identifier = static_cast<schar *>(body);
+        if (role == THREE_MM_BODY_HIGHLIGHT) {
+            actor->material = _pbmtlHilite; actor->render_style = BR_RSTYLE_BOUNDING_EDGES;
+        } else if (role == THREE_MM_BODY_PART) actor->render_style = BR_RSTYLE_FACES;
+    };
+    s.link = [](void *, void *actors, ThreeMMI32 parent, ThreeMMI32 child) {
+        AssertIn(parent, 0, child);
+        Assert(parent != 1, "body part parent cannot be highlight actor");
+        auto array = static_cast<PBACT>(actors); BrActorAdd(array + parent, array + child);
+    };
+    s.hide = [](void *, void *body) { static_cast<PBody>(body)->Hide(); };
+    s.release_model = [](void *, void *actors, ThreeMMI32 part) {
+        auto actor = static_cast<PBACT>(actors) + part + 2;
+        if (actor->model != pvNil) {
+            auto model = Model::PmodlFromBmdl(actor->model); AssertPo(model, 0);
+            ReleasePpo(&model); actor->model = pvNil;
+        }
+    };
+    s.remove_material = [](void *, void *body, ThreeMMI32 set) { static_cast<PBody>(body)->_RemoveMaterial(set); };
+    s.free_memory = [](void *, void **memory) { FreePpv(memory); };
+    return s;
+}
+
 Body *Body::PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
     AssertPo(pglibactPar, 0);
     Assert(pglibactPar->CbEntry() == size(short), "bad pglibactPar");
     AssertPo(pglibset, 0);
     Assert(pglibset->CbEntry() == size(short), "bad pglibset");
-
-    Body *pbody;
-
-    if (pvNil == _pbmtlHilite)
-    {
-        _pbmtlHilite = BrMaterialAllocate("Hilite");
-        if (pvNil == _pbmtlHilite)
-            return pvNil;
-        _pbmtlHilite->colour = kbrcHilite;
-        _pbmtlHilite->ka = kbrufKaHilite;
-        _pbmtlHilite->kd = kbrufKdHilite, _pbmtlHilite->ks = kbrufKsHilite;
-        _pbmtlHilite->power = krPowerHilite;
-        _pbmtlHilite->flags = BR_MATF_LIGHT | BR_MATF_GOURAUD | BR_MATF_FORCE_Z_0;
-        _pbmtlHilite->index_base = kiclrHilite;
-        _pbmtlHilite->index_range = 1;
-        BrMaterialAdd(_pbmtlHilite);
-    }
-
-    pbody = NewObj Body;
-    if (pvNil == pbody || !pbody->_FInit(pglibactPar, pglibset))
-    {
-        ReleasePpo(&pbody);
-        return pvNil;
-    }
-
-    AssertPo(pbody, fobjAssertFull);
-    return pbody;
+    auto services = _CreateServices();
+    auto body = static_cast<PBody>(three_mm_body_create(pglibactPar, pglibset, &services));
+    AssertNilOrPo(body, fobjAssertFull);
+    return body;
 }
 
 /***************************************************************************
@@ -201,13 +252,8 @@ bool Body::_FInit(PDynamicArray pglibactPar, PDynamicArray pglibset)
     AssertBaseThis(0);
     AssertPo(pglibactPar, 0);
     AssertPo(pglibset, 0);
-
-    _cactHidden = 1; // body starts out hidden
-
-    if (!_FInitShape(pglibactPar, pglibset))
-        return fFalse;
-
-    return fTrue;
+    auto services = _CreateServices();
+    return three_mm_body_initialize(this, pglibactPar, pglibset, &services) != 0;
 }
 
 /***************************************************************************
@@ -222,80 +268,8 @@ bool Body::_FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
     Assert(pglibset->CbEntry() == size(short), "bad pglibset");
     Assert(pglibactPar->IvMac() == 0 || ivNil == *(short *)pglibactPar->QvGet(0), "bad first item in pglibactPar");
     Assert(pglibactPar->IvMac() == pglibset->IvMac(), "pglibactPar must be same size as pglibset");
-
-    BACT *pbact;
-    BACT *pbactPar;
-    short ibactPar;
-    short ibact;
-    short ibset;
-
-    // Copy pglibset into _pglibset
-    _pglibset = pglibset->PglDup();
-    if (pvNil == _pglibset)
-        return fFalse;
-
-    // _cbset is (highest entry in _pglibset) + 1.
-    _cbset = -1;
-    for (ibact = 0; ibact < _pglibset->IvMac(); ibact++)
-    {
-        _pglibset->Get(ibact, &ibset);
-        if (ibset > _cbset)
-            _cbset = ibset;
-    }
-    _cbset++;
-
-    if (!FAllocPv((void **)&_prgpcmtl, LwMul(_cbset, size(PCustomMaterial_CMTL)), fmemClear, mprNormal))
-    {
-        return fFalse;
-    }
-
-    _cbactPart = pglibactPar->IvMac();
-    Assert(_cbset <= _cbactPart, "More sets than body parts?");
-    if (!FAllocPv((void **)&_prgbact, LwMul(_Cbact(), size(BACT)), fmemClear, mprNormal))
-    {
-        return fFalse;
-    }
-    // first, set up the root
-    pbact = _PbactRoot();
-    pbact->type = BR_ACTOR_NONE;
-    pbact->t.type = BR_TRANSFORM_MATRIX34;
-    BrMatrix34Identity(&pbact->t.t.mat);
-    pbact->identifier = (schar *)this; // to find Body from a BACT
-
-    // next, set up hilite actor
-    pbact = _PbactHilite();
-    pbact->type = BR_ACTOR_NONE;
-    pbact->t.type = BR_TRANSFORM_MATRIX34;
-    BrMatrix34Identity(&pbact->t.t.mat);
-    pbact->identifier = (schar *)this; // to find Body from a BACT
-    pbact->material = _pbmtlHilite;
-    pbact->render_style = BR_RSTYLE_BOUNDING_EDGES;
-    BrActorAdd(_PbactRoot(), pbact);
-
-    // now set up the body part BACTs
-    for (ibact = 0; ibact < _cbactPart; ibact++)
-    {
-        pbact = _PbactPart(ibact);
-        pbact->type = BR_ACTOR_MODEL;
-        pbact->render_style = BR_RSTYLE_FACES;
-        pbact->t.type = BR_TRANSFORM_MATRIX34;
-        BrMatrix34Identity(&pbact->t.t.mat);
-        pbact->identifier = (schar *)this; // to find Body from a BACT
-
-        // Find parent of this body part
-        pglibactPar->Get(ibact, &ibactPar);
-        if (ivNil == ibactPar)
-        {
-            pbactPar = _PbactRoot();
-        }
-        else
-        {
-            AssertIn(ibactPar, 0, ibact);
-            pbactPar = _PbactPart(ibactPar);
-        }
-        BrActorAdd(pbactPar, pbact);
-    }
-    return fTrue;
+    auto services = _CreateServices();
+    return three_mm_body_shape_initialize(this, pglibactPar, pglibset, &services) != 0;
 }
 
 /***************************************************************************
@@ -432,37 +406,8 @@ int Body::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, B
 void Body::_DestroyShape(void)
 {
     AssertBaseThis(0);
-    LegacyLong ibset;
-    LegacyLong ibact;
-    BACT *pbact;
-    Model *pmodl;
-
-    // Must hide body before destroying it
-    if (_cactHidden == 0)
-        Hide();
-
-    if (pvNil != _prgbact)
-    {
-        for (ibact = 0; ibact < _cbactPart; ibact++)
-        {
-            pbact = _PbactPart(ibact);
-            if (pvNil != pbact->model)
-            {
-                pmodl = Model::PmodlFromBmdl(pbact->model);
-                AssertPo(pmodl, 0);
-                ReleasePpo(&pmodl);
-                pbact->model = pvNil;
-            }
-        }
-        if (pvNil != _prgpcmtl)
-        {
-            for (ibset = 0; ibset < _cbset; ibset++)
-                _RemoveMaterial(ibset);
-        }
-        FreePpv((void **)&_prgbact);
-    }
-    FreePpv((void **)&_prgpcmtl);
-    ReleasePpo(&_pglibset);
+    auto services = _CreateServices();
+    three_mm_body_shape_dispose(this, &services);
 }
 
 /***************************************************************************

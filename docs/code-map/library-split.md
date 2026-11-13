@@ -1574,6 +1574,36 @@ destination, error suppression and GC ordering. No Marcus UI tests were added.
 Template/body construction, sound-format factories, remaining movie/scene/
 resource/runtime policy and final facade removal remain unfinished.
 
+### Body construction and shape ownership
+
+`body_create.c` owns the shared highlight initialization decision, body factory,
+hidden-state initialization, duplicated set ownership, highest-set-plus-one
+counting, allocation order and root/highlight/part hierarchy construction. C
+also owns shape disposal: hide first when visible, release models in part order,
+remove materials in set order only when actor storage exists, free actor and
+material storage, then release the duplicated set list. Partial initialization
+remains published without rollback; the factory releases its failed body while
+direct initialization callers retain cleanup responsibility. Disposal clears
+ownership pointers while retaining counts, matching native behavior.
+
+Native services adapt allocation, C-backed lists, BRender actor/material fields
+and links, reference release and renderer notifications. Model/material release
+internals, body duplication/reshape, costume application, template construction
+and the native Body representation remain C++ dependencies. Both hosts use the
+converted construction/disposal through their engine-core Body facade; this is
+not yet the final C-only backend boundary.
+
+The 88,136-byte native trace covers 162 factory cases across empty, single-part,
+chain, branch, disconnected and sparse-set hierarchies. It includes 150 successes
+and 12 allocator-injected failures, canonical actor links/fields/matrices,
+visible-body disposal and restored allocation counts. C output matches exactly.
+The release SDL round-trip additionally passes all 162 body cases without debug
+allocator injection. C tests cover cold/warm shared material, highlight/factory/
+list/material/actor allocation failures, partial state publication, direct versus
+factory cleanup and model/material/storage release order. AddressSanitizer,
+strict C89 syntax, 63 standalone checks, 77 focused native checks, 49 snapshots,
+51 CLI baselines and headless scene playback pass. No Marcus UI tests were added.
+
 ### Source names and directory discovery
 
 `source_names.c` owns counted source names and SID extras in C storage, replacing

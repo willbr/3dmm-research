@@ -4235,3 +4235,80 @@ Raw evidence remains under `tmp/c89-movie-data-regression`. Template/body
 construction, sound-format factories, sound garbage collection, native String
 mutations, remaining movie/scene/resource/runtime implementations and final C++
 facade removal remain unfinished. This does not complete the shared C89 backend.
+
+## Body construction and shape disposal C89 conversion (13 November 2026)
+
+`body_create.c` now owns the body factory, one-time highlight initialization
+decision, hidden state, set-list duplication, set counting, storage allocation,
+root/highlight/body-part hierarchy construction and shape disposal. C publishes
+partial state before dependent callbacks. Factory failure releases the partial
+body; direct initialization retains ownership for caller cleanup. Disposal hides
+visible bodies before releasing part models, set materials, actor/material
+storage and the set list. Model/material internals and BRender field adapters,
+body duplication/reshaping, template/default-costume construction and native
+Body representation remain unfinished dependencies.
+
+The before trace `tmp/c89-body-create-before.bin` was captured from the native
+implementation before replacing these four methods. Its 88,136 bytes match
+`tmp/c89-body-create-after.bin` exactly; SHA-256 is
+`7C190938100DB5C1C5E203EEAF2BD3BA2686E012CDD384D930AD4AC777E97C53`.
+The 162 cases cover empty, single-part, chain, branch, disconnected and sparse
+body-set hierarchies, actor fields/links/matrices and visible-body disposal.
+Native debug injection exercises BASE, handle and pointer allocation schedules:
+150 successes and 12 failures all restore allocation counts. The release SDL
+headless round-trip passes 162 cases without debug injection. These construction
+fixtures contain no part models/materials; the C service test covers ordered
+model/material release, and the separate real-content scene/playback checks
+exercise resource-backed bodies.
+
+All 63 standalone C checks, strict C89 syntax, MSVC AddressSanitizer, 77 focused
+native checks, 49 snapshot comparisons and 51 CLI baselines pass. Both hosts
+build and headless real-content scene playback passes. The first native CTest
+invocation inherited relative snapshot paths from the preceding capture script,
+which failed from CTest's different working directory; the isolated invocation
+passes all 77. The failed setup log is retained. Evidence includes
+`tmp/c89-body-create-standalone.log`, `tmp/c89-body-create-asan.log`,
+`tmp/c89-body-create-native-tests-isolated.log`, `tmp/c89-body-create-sdl-after.log`,
+`tmp/c89-body-create-snapshot-comparison.json`,
+`tmp/c89-body-create-output-comparison.json` and
+`tmp/c89-body-create-preview-scene.log`. No Marcus UI tests were added.
+
+Playback executable contents remained frozen throughout capture. Their SHA-256
+values were `D2C60D1555B348D2C9248B9D0C72B9CD306961BCE0DA8F06353651C0EDF3B6B5`
+(SDL) and `5CD6151C147032BF099A75C240A7DE7FE58C7ADEF1133256E277D8359EEDFD91`
+(Marcus regression). Symbols/binaries and completed capture folders were
+transparently compressed only outside active captures to retain C: headroom;
+no builds or compaction ran during capture. SDL reused the recorded warm package
+cache with private processes/settings/working movies; OS caching was uncontrolled.
+
+Same-player baselines were actor-audio `20261113T103101Z-714068a5`, actor-events
+`20261113T103237Z-bebaf194`, scrolling-text `20261113T103515Z-b0b4e0b8` and
+sampled-audio `20261113T103921Z-30d32ca3`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T105510Z-18d03bb1` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T105634Z-cbb842c5` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T105801Z-b672a006` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T110220Z-b8735843` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and source/resource/content
+integrity checks pass. All 540 seek images, authored positions and ordered
+playback changes match the preceding same-player results. Only adjacent
+identical position/image observations are collapsed; raw timestamps and rows
+remain. Actor cases retain 60 ordered changes per player; scrolling retains
+328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Actor peaks are 3192 retail and
+4081 SDL/Marcus: SDL increased by one from the preceding 4080, consistent with
+the previously observed 4080/4081 variation. This delta remains explicit in
+the audit. Scene-audio peaks remain 2380 retail and 2176 SDL/Marcus. Coverage
+and peak measurements do not prove waveform/timing parity. Existing cross-player
+differences and one-repeat inconclusive comparisons remain.
+
+The combined report is
+`tmp/c89-body-create-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts and unsuppressed audio deltas in
+`tmp/c89-body-create-playback-audit.json`. Raw evidence remains under
+`tmp/c89-movie-data-regression`. Remaining template/costume/body/resource/runtime
+implementations and final C++ facade removal keep the full C89 backend unfinished.
