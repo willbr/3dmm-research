@@ -47,8 +47,9 @@ void TransitionSymbol(MarcusUI *ui, float x, float y, int transition, bool activ
 struct Layout
 {
     SDL_FRect panel, grid, track, thumb, cancel, confirm;
+    SDL_FRect zoomOut, zoomIn, zoomTrack, zoomThumb;
     int columns, rows, maxScroll;
-    float cellWidth;
+    float cellWidth, cellHeight, spacing;
 };
 struct Thumbnail
 {
@@ -64,16 +65,24 @@ struct MarcusSceneOrganiser
     int count = 0, current = 0, selected = 0, scroll = 0, result = -1;
     float dragOffset = 0;
     unsigned long clock = 0;
-    std::array<Thumbnail, 64> thumbnails;
+    std::array<Thumbnail, 512> thumbnails;
     Thumbnail empty;
     bool frames = false;
     int sourceScene = 0;
     long firstFrame = 0;
     MarcusFramePreviews *framePreviews = nullptr;
     char frameError[256] = {};
+    float frameZoom = 1.0f;
+    int previewWidth = 160, previewHeight = 120;
+    bool previewSizeKnown = false;
+    bool zoomDragging = false;
 };
 namespace
 {
+float MinimumZoom(const MarcusSceneOrganiser *s)
+{
+    return std::min(1.0f, std::max({0.25f, 40.0f / s->previewWidth, 30.0f / s->previewHeight}));
+}
 Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
 {
     Layout l = {};
@@ -82,13 +91,25 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
     l.panel.x = (width - l.panel.w) / 2;
     l.panel.y = (height - l.panel.h) / 2;
     l.grid = {l.panel.x + 24, l.panel.y + 74, l.panel.w - 68, l.panel.h - 156};
-    l.columns = std::max(1, int((l.grid.w + gap) / 188));
-    l.rows = std::max(1, int((l.grid.h + gap) / (cardHeight + gap)));
-    l.cellWidth = (l.grid.w - (l.columns - 1) * gap) / l.columns;
+    l.spacing = s->frames ? 2.0f : float(gap);
+    l.cellHeight = s->frames ? s->previewHeight * s->frameZoom : float(cardHeight);
+    if (s->frames)
+    {
+        l.grid.y = l.panel.y + 66;
+        l.grid.h = l.panel.h - 134;
+        l.cellWidth = s->previewWidth * s->frameZoom;
+        l.columns = std::max(1, int((l.grid.w + l.spacing) / (l.cellWidth + l.spacing)));
+    }
+    else
+    {
+        l.columns = std::max(1, int((l.grid.w + gap) / 188));
+        l.cellWidth = (l.grid.w - (l.columns - 1) * gap) / l.columns;
+    }
+    l.rows = std::max(1, int((l.grid.h + l.spacing) / (l.cellHeight + l.spacing)));
     const int totalRows = std::max(l.rows, int((static_cast<long long>(s->count) + l.columns - 1) / l.columns));
     l.maxScroll = totalRows - l.rows;
     s->scroll = std::clamp(s->scroll, 0, l.maxScroll);
-    l.track = {l.grid.x + l.grid.w + 12, l.grid.y, 12, float(l.rows * (cardHeight + gap) - gap)};
+    l.track = {l.grid.x + l.grid.w + 12, l.grid.y, 12, l.rows * (l.cellHeight + l.spacing) - l.spacing};
     l.thumb = l.track;
     l.thumb.h = std::max(24.0f, l.track.h * l.rows / totalRows);
     if (l.maxScroll)
@@ -97,7 +118,28 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
                 UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT};
     l.confirm = l.cancel;
     l.confirm.x += 62;
+    l.zoomOut = {l.panel.x + 24, l.panel.y + l.panel.h - 50, 28, 28};
+    l.zoomTrack = {l.zoomOut.x + 40, l.zoomOut.y, 144, 28};
+    l.zoomIn = {l.zoomTrack.x + l.zoomTrack.w + 12, l.zoomOut.y, 28, 28};
+    const float zoomRange = std::max(0.001f, 1.0f - MinimumZoom(s));
+    l.zoomThumb = {l.zoomTrack.x + (l.zoomTrack.w - 10) * (s->frameZoom - MinimumZoom(s)) / zoomRange,
+                   l.zoomTrack.y + 4, 10, 20};
     return l;
+}
+void SetZoom(MarcusSceneOrganiser *s, float zoom, int width, int height)
+{
+    const auto previous = Arrange(s, width, height);
+    const int first = s->scroll * previous.columns;
+    s->frameZoom = std::clamp(zoom, MinimumZoom(s), 1.0f);
+    const auto next = Arrange(s, width, height);
+    s->scroll = std::clamp(first / next.columns, 0, next.maxScroll);
+    s->dragging = false;
+}
+void ZoomAt(MarcusSceneOrganiser *s, float x, int width, int height)
+{
+    const auto l = Arrange(s, width, height);
+    const float minimum = MinimumZoom(s);
+    SetZoom(s, minimum + (1.0f - minimum) * (x - l.zoomTrack.x - 5) / (l.zoomTrack.w - 10), width, height);
 }
 bool Inside(float x, float y, const SDL_FRect &r)
 {
@@ -123,7 +165,7 @@ long FrameAt(const MarcusSceneOrganiser *s, int index)
 }
 Thumbnail &OldestThumbnail(MarcusSceneOrganiser *s)
 {
-    return *std::min_element(s->thumbnails.begin(), s->thumbnails.end(),
+    return *std::min_element(s->thumbnails.begin(), s->thumbnails.begin() + (s->frames ? 512 : 64),
                             [](const Thumbnail &a, const Thumbnail &b) { return a.used < b.used; });
 }
 void StoreThumbnail(MarcusSceneOrganiser *s, SDL_Renderer *renderer, int index, const MarcusImage &image)
@@ -168,6 +210,13 @@ void UpdateFrameThumbnails(MarcusSceneOrganiser *s, SDL_Renderer *renderer, cons
         MarcusImage image = {};
         const auto status = marcus_frame_previews_take(s->framePreviews, &image, s->frameError, sizeof(s->frameError));
         if (status <= 0) break;
+        if (!s->previewSizeKnown)
+        {
+            s->previewWidth = image.width;
+            s->previewHeight = image.height;
+            s->frameZoom = std::clamp(s->frameZoom, MinimumZoom(s), 1.0f);
+            s->previewSizeKnown = true;
+        }
         const auto index = static_cast<long long>(image.frame) - s->firstFrame;
         if (index >= 0 && index < s->count) StoreThumbnail(s, renderer, static_cast<int>(index), image);
     }
@@ -197,11 +246,15 @@ void scene_organiser_close(MarcusSceneOrganiser *s)
 {
     if (!s) return;
     s->open = s->dragging = false;
+    s->zoomDragging = false;
     s->result = -1;
     marcus_frame_previews_destroy(s->framePreviews);
     s->framePreviews = nullptr;
     s->frames = false;
     s->frameError[0] = 0;
+    s->previewSizeKnown = false;
+    s->previewWidth = 160;
+    s->previewHeight = 120;
     for (auto &t : s->thumbnails)
     {
         SDL_DestroyTexture(t.texture);
@@ -256,6 +309,12 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
         long long selection = s->selected;
         switch (event->key.key)
         {
+        case SDLK_MINUS: case SDLK_KP_MINUS:
+            if (s->frames) SetZoom(s, s->frameZoom - 0.125f, width, height);
+            return 1;
+        case SDLK_EQUALS: case SDLK_PLUS: case SDLK_KP_PLUS:
+            if (s->frames) SetZoom(s, s->frameZoom + 0.125f, width, height);
+            return 1;
         case SDLK_ESCAPE: scene_organiser_close(s); break;
         case SDLK_RETURN: case SDLK_KP_ENTER: Confirm(s); break;
         case SDLK_LEFT: --selection; break;
@@ -274,13 +333,23 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
     else if (event->type == SDL_EVENT_MOUSE_WHEEL)
     {
         const auto delta = event->wheel.y * (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1);
-        s->scroll = std::clamp(s->scroll - int(std::ceil(std::abs(delta))) * (delta > 0 ? 1 : -1), 0, l.maxScroll);
+        if (s->frames && (SDL_GetModState() & SDL_KMOD_CTRL))
+            SetZoom(s, s->frameZoom + delta * 0.125f, width, height);
+        else
+            s->scroll = std::clamp(s->scroll - int(std::ceil(std::abs(delta))) * (delta > 0 ? 1 : -1), 0, l.maxScroll);
     }
     else if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
     {
         const auto x = event->button.x, y = event->button.y;
         if (Inside(x, y, l.cancel)) scene_organiser_close(s);
         else if (Inside(x, y, l.confirm)) Confirm(s);
+        else if (s->frames && Inside(x, y, l.zoomOut)) SetZoom(s, s->frameZoom - 0.125f, width, height);
+        else if (s->frames && Inside(x, y, l.zoomIn)) SetZoom(s, s->frameZoom + 0.125f, width, height);
+        else if (s->frames && Inside(x, y, l.zoomTrack))
+        {
+            s->zoomDragging = true;
+            ZoomAt(s, x, width, height);
+        }
         else if (l.maxScroll && Inside(x, y, l.thumb))
         {
             s->dragging = true;
@@ -290,23 +359,25 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
             s->scroll = std::clamp(s->scroll + (y < l.thumb.y ? -l.rows : l.rows), 0, l.maxScroll);
         else if (Inside(x, y, l.grid))
         {
-            const int column = int((x - l.grid.x) / (l.cellWidth + gap));
-            const int row = int((y - l.grid.y) / (cardHeight + gap));
+            const int column = int((x - l.grid.x) / (l.cellWidth + l.spacing));
+            const int row = int((y - l.grid.y) / (l.cellHeight + l.spacing));
             const auto index = static_cast<long long>(row + s->scroll) * l.columns + column;
             if (column < l.columns && row < l.rows && index < s->count &&
-                x - l.grid.x - column * (l.cellWidth + gap) < l.cellWidth &&
-                y - l.grid.y - row * (cardHeight + gap) < cardHeight)
+                x - l.grid.x - column * (l.cellWidth + l.spacing) < l.cellWidth &&
+                y - l.grid.y - row * (l.cellHeight + l.spacing) < l.cellHeight)
             {
                 s->selected = static_cast<int>(index);
                 if (event->button.clicks >= 2) Confirm(s);
             }
         }
     }
+    else if (event->type == SDL_EVENT_MOUSE_MOTION && s->zoomDragging)
+        ZoomAt(s, event->motion.x, width, height);
     else if (event->type == SDL_EVENT_MOUSE_MOTION && s->dragging && l.maxScroll)
         s->scroll = std::clamp(int(std::lround((event->motion.y - s->dragOffset - l.track.y) *
                                              l.maxScroll / (l.track.h - l.thumb.h))), 0, l.maxScroll);
     else if (event->type == SDL_EVENT_MOUSE_BUTTON_UP || event->type == SDL_EVENT_WINDOW_FOCUS_LOST)
-        s->dragging = false;
+        s->dragging = s->zoomDragging = false;
     // Window lifecycle and quit must still reach the application.
     return event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP ||
            event->type == SDL_EVENT_TEXT_INPUT || event->type == SDL_EVENT_MOUSE_MOTION ||
@@ -333,7 +404,11 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     const bool initial = s->scroll < 0;
     auto l = Arrange(s, width, height);
     if (initial) { Reveal(s, l); l = Arrange(s, width, height); }
-    if (s->frames) UpdateFrameThumbnails(s, ui->renderer, l);
+    if (s->frames)
+    {
+        UpdateFrameThumbnails(s, ui->renderer, l);
+        l = Arrange(s, width, height);
+    }
     ui_opacity(ui, 0.75f);
     ui_fill(ui, 0, 0, float(width), float(height), 0x080b12);
     ui_opacity(ui, 1);
@@ -358,10 +433,21 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
         const auto position = static_cast<long long>(s->scroll) * l.columns + n;
         if (position >= s->count) break;
         const int index = static_cast<int>(position);
-        const float x = l.grid.x + (n % l.columns) * (l.cellWidth + gap);
-        const float y = l.grid.y + (n / l.columns) * (cardHeight + gap);
+        const float x = l.grid.x + (n % l.columns) * (l.cellWidth + l.spacing);
+        const float y = l.grid.y + (n / l.columns) * (l.cellHeight + l.spacing);
         const bool selected = index == s->selected;
-        const bool hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, l.cellWidth, cardHeight) != 0;
+        const bool hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, l.cellWidth, l.cellHeight) != 0;
+        if (s->frames)
+        {
+            if (selected || hovered)
+                ui_fill(ui, x - 1, y - 1, l.cellWidth + 2, l.cellHeight + 2, selected ? 0x9edbd0 : 0x7387a6);
+            const SDL_FRect picture = {x, y, l.cellWidth, l.cellHeight};
+            ui_fill(ui, x, y, picture.w, picture.h, 0x0b0e15);
+            auto &t = GetThumbnail(s, ui->renderer, index, loaded);
+            if (t.scene == index && t.texture)
+                SDL_RenderTexture(ui->renderer, t.texture, nullptr, &picture);
+            continue;
+        }
         ui_fill(ui, x - 2, y - 2, l.cellWidth + 4, cardHeight + 4,
                 selected ? 0x9edbd0 : hovered ? 0x7387a6 : 0x45516a);
         ui_fill(ui, x, y, l.cellWidth, cardHeight, selected ? 0x3c5060 : 0x1c2331);
@@ -383,14 +469,6 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
             ui_fill(ui, x + l.cellWidth - 9, y + 12 + hole * 16, 5, 8, 0x8792a4);
         }
         MarcusScene scene = {};
-        if (s->frames)
-        {
-            SDL_snprintf(text, sizeof(text), "Frame %d%s", index + 1, index == s->current ? " / Current" : "");
-            ui_label(ui, x + 10, y + 118, l.cellWidth - 20, text, 0xe7edf5);
-            SDL_snprintf(text, sizeof(text), "Scene %d", s->sourceScene + 1);
-            ui_label(ui, x + 10, y + 140, l.cellWidth - 20, text, 0xafbdce);
-            continue;
-        }
         marcus_scene(s->player, index, &scene);
         SDL_snprintf(text, sizeof(text), "%d. %s", index + 1, scene.name[0] ? scene.name : "Untitled scene");
         ui_label(ui, x + 10, y + 118, l.cellWidth - 20, text, 0xe7edf5);
@@ -413,10 +491,24 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     }
     ui_fill(ui, l.track.x, l.track.y, l.track.w, l.track.h, 0x151b28);
     if (l.maxScroll) ui_fill(ui, l.thumb.x, l.thumb.y, l.thumb.w, l.thumb.h, s->dragging ? 0x9edbd0 : 0x7387a6);
-    ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 66, l.panel.w - 180, transitionHint, 0xe7edf5);
-    ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 44, l.panel.w - 180,
-             s->frames ? "Select a frame / Enter or double-click to open / Esc to cancel" :
-                         "Select a scene / Enter or double-click to open / Esc to cancel", 0xc5cedd);
+    if (s->frames)
+    {
+        ui_button_sized(ui, l.zoomOut.x, l.zoomOut.y, l.zoomOut.w, l.zoomOut.h, "-", 0, s->frameZoom > MinimumZoom(s));
+        ui_button_sized(ui, l.zoomIn.x, l.zoomIn.y, l.zoomIn.w, l.zoomIn.h, "+", 0, s->frameZoom < 1.0f);
+        ui_fill(ui, l.zoomTrack.x, l.zoomTrack.y + 12, l.zoomTrack.w, 4, 0x151b28);
+        ui_fill(ui, l.zoomThumb.x, l.zoomThumb.y, l.zoomThumb.w, l.zoomThumb.h,
+                s->zoomDragging ? 0x9edbd0 : 0x7387a6);
+        SDL_snprintf(text, sizeof(text), "%.0f%%", s->frameZoom * 100);
+        ui_text(ui, l.zoomIn.x + 40, l.zoomIn.y + 5, text, 0xc5cedd);
+        if (s->frameError[0])
+            ui_label(ui, l.zoomIn.x + 100, l.zoomIn.y + 5, l.panel.w - 500, "Thumbnails unavailable", 0xc5cedd);
+    }
+    else
+    {
+        ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 66, l.panel.w - 180, transitionHint, 0xe7edf5);
+        ui_label(ui, l.panel.x + 24, l.panel.y + l.panel.h - 44, l.panel.w - 180,
+                 "Select a scene / Enter or double-click to open / Esc to cancel", 0xc5cedd);
+    }
     ui_dialog_button(ui, l.cancel.x, l.cancel.y, 0, 1, "Cancel / Escape");
     ui_dialog_button(ui, l.confirm.x, l.confirm.y, 1, 1,
                      s->frames ? "Open selected frame / Enter" : "Open selected scene / Enter");

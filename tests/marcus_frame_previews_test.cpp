@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <algorithm>
 
 int main(int argc, char **argv)
 {
@@ -21,15 +22,31 @@ int main(int argc, char **argv)
         check(!marcus_frame_previews_create(player.get()), "Unopened player must reject frame previews");
         check(marcus_open(player.get(), argv[1], argv[2], argv[3]), "Open fixture");
         const std::array<long, 3> frames = {1, 15, 30};
-        std::array<std::vector<unsigned char>, 3> expected;
+        struct Expected { int width, height; std::vector<unsigned char> pixels; };
+        std::array<Expected, 3> expected;
         MarcusImage image = {};
         for (std::size_t i = 0; i < frames.size(); ++i)
         {
             check(marcus_seek(player.get(), frames[i]) && marcus_render(player.get(), 160, 120, 1, 0, 0, 1, &image),
                   "Reference frame");
-            expected[i].assign(image.rgba, image.rgba + image.pitch * image.height);
+            // This fixture has an opaque background. Its nontransparent bounds
+            // independently identify the fitted shot, including authored black.
+            int left = image.width, top = image.height, right = 0, bottom = 0;
+            for (int y = 0; y < image.height; ++y)
+                for (int x = 0; x < image.width; ++x)
+                    if (image.rgba[y * image.pitch + x * 4 + 3])
+                    {
+                        left = std::min(left, x); top = std::min(top, y);
+                        right = std::max(right, x + 1); bottom = std::max(bottom, y + 1);
+                    }
+            expected[i].width = right - left;
+            expected[i].height = bottom - top;
+            check(expected[i].width == 160 && expected[i].height < 120, "Fixture must exercise letterbox removal");
+            for (int y = top; y < bottom; ++y)
+                expected[i].pixels.insert(expected[i].pixels.end(), image.rgba + y * image.pitch + left * 4,
+                                          image.rgba + y * image.pitch + right * 4);
         }
-        check(expected[0] != expected[2], "Fixture must contain visibly different frames");
+        check(expected[0].pixels != expected[2].pixels, "Fixture must contain visibly different frames");
         Previews previews(marcus_frame_previews_create(player.get()), marcus_frame_previews_destroy);
         check(bool(previews), "Start previews");
         marcus_frame_previews_request(previews.get(), frames.data(), int(frames.size()));
@@ -47,11 +64,12 @@ int main(int argc, char **argv)
             const auto status = marcus_frame_previews_take(previews.get(), &image, error, sizeof(error));
             if (status < 0) throw std::runtime_error(error);
             if (!status) { SDL_Delay(5); continue; }
-            check(image.width == 160 && image.height == 120 && image.pitch == 640, "Thumbnail dimensions");
             std::size_t i = 0;
             while (i < frames.size() && frames[i] != image.frame) ++i;
             check(i < frames.size() && !received[i], "Requested frame identity");
-            check(expected[i] == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height),
+            check(image.width == expected[i].width && image.height == expected[i].height && image.pitch == image.width * 4,
+                  "Thumbnail dimensions exclude letterboxing");
+            check(expected[i].pixels == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height),
                   "Helper pixels must match authored-camera rendering");
             received[i] = true;
             ++count;
@@ -86,8 +104,8 @@ int main(int argc, char **argv)
             if (status < 0) throw std::runtime_error(error);
             if (status > 0)
             {
-                check(image.frame == 1 && image.width == 160 && image.height == 120 &&
-                      expected[0] == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height),
+                check(image.frame == 1 && image.width == expected[0].width && image.height == expected[0].height &&
+                      expected[0].pixels == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height),
                       "ZIP lease retains original movie pixels");
                 leaseReady = true;
                 break;

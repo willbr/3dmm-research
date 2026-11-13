@@ -11,6 +11,7 @@
 #include <sstream>
 #include <memory>
 #include <limits>
+#include <algorithm>
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
@@ -53,7 +54,23 @@ int FramePreviews(char **argv)
             {
                 preview.width = image.width;
                 preview.height = image.height;
-                preview.rgba.assign(image.rgba, image.rgba + image.pitch * image.height);
+                // Remove only the renderer's fitted-camera canvas, never black
+                // pixels authored inside the shot (or empty space around actors).
+                const auto aspect = image.scene_camera.aspect;
+                if (image.scene_camera.valid && std::isfinite(aspect) && aspect > 0)
+                {
+                    if (aspect >= float(image.width) / image.height)
+                        preview.height = std::clamp(int(std::floor(image.width / aspect + 0.001f)), 1, image.height);
+                    else
+                        preview.width = std::clamp(int(std::floor(image.height * aspect + 0.001f)), 1, image.width);
+                }
+                const int left = (image.width - preview.width) / 2, top = (image.height - preview.height) / 2;
+                preview.rgba.reserve(preview.width * preview.height * 4);
+                for (int y = 0; y < preview.height; ++y)
+                {
+                    const auto row = image.rgba + (y + top) * image.pitch + left * 4;
+                    preview.rgba.insert(preview.rgba.end(), row, row + preview.width * 4);
+                }
             }
             if (!FrameResponse(preview)) return 1;
         }

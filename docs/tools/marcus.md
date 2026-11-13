@@ -186,15 +186,24 @@ Click **FRAME** to open the same organiser for every authored frame in the curre
 scene. It highlights the current frame; Enter, green OK or a double-click seeks to
 the selected frame. The grid uses the same keyboard and scrolling controls as
 the scene organiser. Escape/red X closes without seeking and leaves playback
-paused. Frame numbers are relative to the scene, matching the transport readout.
+paused. Frame tiles contain only the preview image, with a thin outline for
+selection or hover. The minus/plus buttons and size slider resize the previews;
+Ctrl+wheel and the minus/plus keys also change size. At 100% previews use their
+native pixels; zooming out packs more frames into the window. The minimum size
+keeps previews at least 40 pixels wide and 30 pixels high. The chosen
+size lasts for this Marcus session. The wheel without Ctrl still scrolls.
 
-Frame thumbnails render silently at 160x120 through the authored camera, including
-captions at their seek position. An isolated `marcus-preview` process keeps the
+Frame thumbnails render silently within 160x120 through the authored camera,
+including captions at their seek position. The renderer's surrounding letterbox
+canvas is removed using the camera aspect ratio, preserving black areas inside
+the authored shot. The grid uses that image's dimensions with two pixels between
+previews. An isolated `marcus-preview` process keeps the
 active playhead, camera and rendered images unchanged. Only visible missing
 thumbnails are queued, with the selected frame first; scrolling replaces pending
 requests. The helper opens the movie once per organiser visit, uses the normal
 ZIP/VMM/content loading path, and is cancelled on close. A bounded cache holds up
-to 64 textures. While rendering, cards show Loading; if the helper fails, frame
+to 512 frame textures, enough for the densest grid. Pending previews are blank;
+if the helper fails, frame
 selection remains available with an unavailable-thumbnail message. Thumbnails
 show authored frames, rather than extra playback states during scrolling holds
 or transitions between scenes.
