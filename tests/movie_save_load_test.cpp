@@ -135,6 +135,14 @@ class TrackTestTemplate : public Template
         tmpl->_ccmid=3;
         return true;
     }
+    static bool FReadSubrouteFixture(PChunkyResourceFile file,ChunkTagOrType type,ChunkNumber number,PDataBlock block,
+                                     PBaseCacheableObject *out,LegacyLong *bytes)
+    {
+        if (!FReadCostumeFixture(file,type,number,block,out,bytes)) return false;
+        if (out && !static_cast<TrackTestTemplate *>(*out)->FInitAction()) { ReleasePpo(out); return false; }
+        return true;
+    }
+    void SetTestText(bool text) { _grftmpl=text ? ftmplTdt : 0; }
     void FailAfter(int calls) { _failAfterFetch = calls; }
     void FailNextFetch()
     {
@@ -179,6 +187,128 @@ class TrackTestTemplate : public Template
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestSubrouteEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,ChunkNumber materialNumber,bool owningCopy=false)
+    {
+        using namespace ActorEvent;
+        auto tmpl=static_cast<TrackTestTemplate *>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
+        if (!tmpl) return false;
+        ReleasePpo(&_ptmpl); _ptmpl=tmpl;
+        auto material=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materialNumber,Material_MTRL::FReadMtrl));
+        PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
+        short parent=-1,set=0;
+        bool ok=material && parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
+        ReleasePpo(&_pbody); _pbody=ok ? Body::PbodyNew(parents,sets) : pvNil;
+        ReleasePpo(&parents); ReleasePpo(&sets);
+        if (!_pbody) { ReleasePpo(&material); return false; }
+        _pbody->SetPartSetMtrl(0,material); ReleasePpo(&material);
+        ActorTrack track; if (!track.FCreate()) return false;
+        for (int i=0;i<3;++i)
+        {
+            RouteDistancePoint point={{BR_SCALAR(i*10),rZero,rZero},(i==0 && mode<256)?BR_SCALAR(5):rZero};
+            if (!track.Route()->FInsert(i,&point)) return false;
+        }
+        auto append=[&](int kind,int frame,int node,int offset,int hold,int scalar=0) {
+            Base event={kind,frame,{node,BR_SCALAR(offset),hold}};
+            union { Add add; Action action; Costume costume; Sound sound; RoutePoint point; BMAT34 matrix; int32_t scalar; } data={};
+            int bytes=4;
+            switch (kind)
+            {
+            case aetAdd: bytes=sizeof(Add); data.add.xa=0xFFF0; data.add.ya=0x8000; data.add.za=0x0010; break;
+            case aetActn: bytes=sizeof(Action); data.action={0,1}; break;
+            case aetCost:
+                bytes=sizeof(Costume); data.costume.ibset=0; data.costume.cmid=scalar; data.costume.fCmtl=owningCopy?tNo:tYes;
+                if (owningCopy) { data.costume.tag={ksidUseCrf,resource,kctgMtrl,materialNumber}; TagManager::DupTag(&data.costume.tag); }
+                break;
+            case aetSnd: bytes=sizeof(Sound); data.sound.celn=-1; data.sound.sty=2; data.sound.vlm=100; data.sound.tag={2,pvNil,kctgMsnd,0}; break;
+            case aetRotF: case aetRotH: bytes=sizeof(BMAT34); BrMatrix34Identity(&data.matrix); data.matrix.m[3][0]=BR_SCALAR(2); break;
+            case aetTweak: case aetPull: bytes=sizeof(RoutePoint); data.point={BR_SCALAR(2),rOne,rOne}; break;
+            default: data.scalar=scalar; break;
+            }
+            if (track.Events()->FInsert(track.Events()->IvMac(),bytes,&data,&event)) return true;
+            if (kind==aetCost && owningCopy) TagManager::CloseTag(&data.costume.tag);
+            return false;
+        };
+        const bool backward=mode<256,later=mode>=256 && mode<320,previous=mode>=320 && mode<448;
+        if (backward)
+            ok=append(aetAdd,1,0,0,0) && append(aetActn,1,0,0,0) && append(aetRotH,2,0,0,0) &&
+               append(aetTweak,3,0,2,0) && append(aetSnd,3,0,2,0) && append(aetSize,3,0,2,0,BR_SCALAR(2)) &&
+               append(aetFreeze,4,0,2,2,1) && append(aetAdd,8,2,0,0) && append(aetStep,8,2,0,0);
+        else if (later)
+        {
+            ok=append(aetAdd,1,0,0,0);
+            if (!(mode&16)) ok=ok && append(aetAdd,5,1,0,0);
+            ok=ok && append(aetCost,5,1,0,0,(mode&8)?2:0) &&
+               append(aetSize,5,1,0,(mode&1)?1:0,BR_SCALAR(2)) && append(aetPull,5,1,0,0) && append(aetRotF,5,1,0,0);
+        }
+        else if (previous)
+            ok=append(aetAdd,(mode&32)?5:1,0,0,0) && append(aetCost,1,0,0,0) &&
+               append(aetSize,(mode&16)?5:2,0,0,0,BR_SCALAR(2)) && append(aetPull,2,0,0,0) &&
+               append(aetRotF,3,0,0,0) && append(aetActn,1,0,0,0) && append(aetStep,3,0,0,1) &&
+               append(aetAdd,5,1,0,0) && append(aetStep,6,1,0,1);
+        else ok=append(aetAdd,1,0,0,0);
+        if (!ok) return false;
+        _track.Swap(track); _motionSounds.Clear(); _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.onStage=true; _state.action=0; _state.cel=2; _state.celCount=4; _state.actionFlags=factnRotateY;
+        _state.frame=backward?3:previous?5:1; _state.location={0,backward?BR_SCALAR(2):rZero,0};
+        _state.nextEvent=backward?6:previous?8:1; _state.firstEventInFrame=backward?3:previous?7:0;
+        _state.actionEvent=backward?1:previous?5:ivNil; _state.addEvent=previous?7:0;
+        if (previous) _state.location.irpt=1;
+        _state.transform.xaPath=0x1234; _state.transform.yaPath=0x5678; _state.transform.zaPath=0x9ABC;
+        _nfrmFirst=1; _nfrmLast=20; _fLifeDirty=false; _fModeRecord=false; _fRejoin=false;
+        tmpl->SetTestText(backward && (mode&128));
+        bool alive=true; LegacyLong averaged=-1;
+        if (backward)
+        {
+            if (mode&1) _state.location.dwrOffset=rZero;
+            if (mode&2) { _state.location={1,rZero,0}; }
+            if (mode&4) { _state.onStage=false; _state.nextEvent=7; }
+            if (mode&8) _fModeRecord=true;
+            if (mode&16) _fLifeDirty=true;
+            if (mode&32) _state.frame=1;
+            tmpl->FailAfter((mode&64)?1:0);
+            DeleteBackCore(&alive);
+        }
+        else if (later)
+        {
+            tmpl->FailAfter((mode&4)?1:0);
+            ok=_FAddAevFromLater();
+        }
+        else if (previous)
+        {
+            tmpl->FailAfter((mode&8)?1:0);
+            ulong mask=((mode&1)?faetActn:0)|((mode&2)?faetCost:0)|((mode&4)?faetPull|faetSize|faetRotF:0);
+            ok=_FAddAevFromPrev(7,mask);
+        }
+        else
+        {
+            RoutePoint delta={BR_SCALAR((mode%16)*.25),BR_SCALAR((mode%16)*.333),rZero};
+            SetAddOrient(0x0010,0xFFFF,0x8000,mode%8,(mode&8)?pvNil:&delta);
+            const BRS weights[]={rZero,rEps,rOneHalf,rOne-rEps,rOne};
+            averaged=_BraAvgAngle(0xFFF0,0x0010,weights[mode%5]);
+        }
+        tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,ok,alive,averaged,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
+            _state.cel,_state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,_state.transform.xaPath,_state.transform.yaPath,_state.transform.zaPath,
+            _track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event); saved=record(&event,sizeof(event));
+            long bytes=_track.Events()->Cb(i);
+            if (event.aet==aetCost)
+            { Costume c; _track.Events()->Get(i,&c); LegacyLong fields[]={c.ibset,c.cmid,c.fCmtl}; saved=saved && record(fields,sizeof(fields)); }
+            else if (event.aet==aetSnd)
+            { Sound s; _track.Events()->Get(i,&s); LegacyLong fields[]={s.celn,s.sty,s.vlm,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
+            else { if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload); saved=saved && record(payload,bytes); }
+        }
+        _pbody->Hide(); ReleasePpo(&_pbody); _track.Clear();
+        return saved;
+    }
     bool FTestRouteEdit(int mode,FILE *snapshot)
     {
         using namespace ActorEvent;
@@ -1051,6 +1181,38 @@ static bool TestActorRouteEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorSubrouteEditing(PScene scene)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_SUBROUTE_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,1024*1024) : pvNil;
+    byte dummy=0; ChunkNumber templateNumber=0,materialNumber=0,customNumber=0;
+    MaterialOnFile material={kboCur,koskCur,0xffffff,0,0,0,32,15,rOne};
+    CustomMaterialOnFile custom={kboCur,koskCur,0};
+    bool ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&templateNumber) &&
+        file->FAddPv(&material,sizeof(material),kctgMtrl,&materialNumber) &&
+        file->FAddPv(&custom,sizeof(custom),kctgCmtl,&customNumber) &&
+        file->FAdoptChild(kctgCmtl,customNumber,kctgMtrl,materialNumber,0) &&
+        file->FAdoptChild(kctgTmpl,templateNumber,kctgCmtl,customNumber,0);
+    auto actor=NewObj TrackTestActor();
+    ok=ok && actor && actor->FInitPlayback(scene,resource);
+    for (int mode=0;ok && mode<576;++mode) ok=actor->FTestSubrouteEdit(mode,snapshot,resource,templateNumber,materialNumber);
+    const int owningModes[]={256,260,327,335};
+    for (int mode:owningModes)
+    {
+        if (!ok) break;
+        const long refs=resource->CactRef();
+        ok=actor->FTestSubrouteEdit(mode,nullptr,resource,templateNumber,materialNumber,true);
+        if (resource->CactRef()!=refs)
+        { std::fprintf(stderr,"Subroute propagation lost owning TAG references\n"); std::exit(1); }
+    }
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
 class QueueTestSound : public MovieSoundMSND
 {
   public:
@@ -1503,6 +1665,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor costume editing failed");
     if (!TestActorRouteEditing(pmvie->Pscen()))
         BAIL("actor route editing failed");
+    if (!TestActorSubrouteEditing(pmvie->Pscen()))
+        BAIL("actor subroute editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

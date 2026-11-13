@@ -57,6 +57,7 @@ cmake --build build/engine-c89 --target engine-event-edit-test
 cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
 cmake --build build/engine-c89 --target engine-route-edit-test
+cmake --build build/engine-c89 --target engine-subroute-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1030,6 +1031,52 @@ UI tests were added.
 Stage entrance/removal integration, event propagation across subroutes, backward
 deletion, recording, undo, queue/runtime integration, remaining body/resource
 implementations and final C++ facade removal remain unfinished.
+
+### Actor backward deletion and neighboring subroutes
+
+`actor_subroute_edit.c` owns backward deletion, current-path orientation storage,
+orientation weighting/angle averaging, body positioning, lifetime-cache decisions
+and initialization-event propagation from previous/later subroutes. Native
+methods translate values and services. C calls the existing route/event editor,
+pose evaluator, lifetime evaluator and action editor directly. A temporary seek
+adapter runs the already C-owned seek evaluator and retains partial state and
+owner-side flags on failure.
+
+Backward deletion retains enabled BUG1870/BUG1866 behavior, current rotation
+replacement, action-cel updates, merge/cursor ordering, offstage node removal,
+alive publication before reset, and final lifetime/invalidation order. Matching
+held-frame locations retain the original second offset subtraction. Failed
+lifetime metadata reports diagnostics but does not abort the edit. Recording
+returns the cached last frame while leaving lifetime dirty. Failed non-recording
+queries retain partial caches/last frame and leave independent output untouched.
+
+Previous propagation scans non-costume types backwards and costumes forwards,
+retains its costume-mask early return, and keeps same-frame pruning plus seek/
+delete/seek failure order. Later propagation stops on exact route-location
+boundaries, positions only after successful transform copies, and finishes by
+selecting the default action. Copied tags intentionally gain an owning reference
+before merge/application, fixing the original borrowed-copy bug. Event data stays
+identical; failure retains the inserted owning row.
+
+Angle weighting retains wraparound compensation and the exclusive upper weight
+bound `[6553,65536)`. Unweighted updates write all axes and preserve translation/
+padding. Primitive BRender distance math remains external; all weighting and
+selection policy is C. Native metadata, body and resource implementations remain
+temporary dependencies.
+
+`engine-subroute-edit-test` covers lifetime failure/recording outputs, held-frame
+subtraction, alive/reset observation, angle bounds/padding, owning copies through
+apply failure, costume-mask early return and both seek-failure boundaries. All 48
+standalone C-only Clang checks (including strict C89 syntax), 62 focused native
+checks and MSVC AddressSanitizer pass. All 34 snapshots match, including the
+282,784-byte trace frozen before conversion across 576 real-actor scenarios.
+Additional real-resource checks verify ordinary tagged copies and complete
+teardown in both directions, including failed edits. All 51 CLI baselines and
+headless scene/timeline checks pass. No Marcus UI tests were added.
+
+Stage entrance/removal/placement, recording, remaining transform/time edits,
+undo, queue/runtime integration, body/resource implementations and final C++
+facade removal remain unfinished.
 
 ### Source names and directory discovery
 

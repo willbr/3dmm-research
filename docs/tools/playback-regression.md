@@ -3084,3 +3084,85 @@ per suite does not establish general repeatability or full retail parity.
 Stage/event propagation, backward deletion, recording, undo, queue/runtime
 integration, remaining body/resource implementations and final facade removal
 remain unfinished.
+
+## C89 backward deletion and neighboring-subroute propagation (13 November 2026)
+
+Backward deletion, orientation storage/weighting, angle averaging, body positioning,
+lifetime-cache decisions and neighboring-subroute initialization-event propagation
+now execute in C89. C reuses the existing route/event editor, pose evaluator,
+lifetime evaluator and action editor. Primitive metadata/body services and an
+adapter into the already C-owned seek evaluator remain native. See the
+[implementation boundary](../code-map/library-split.md#actor-backward-deletion-and-neighboring-subroutes).
+
+The conversion retains BUG1870/BUG1866 behavior, matching-held-frame double
+subtraction, rotation replacement, action-cel updates, merge/cursor ordering,
+offstage node removal, alive/reset publication and final lifetime/invalidation
+order. Metadata failure reports an error and continues. Recording returns the
+cached last frame while leaving lifetime dirty; failed non-recording queries
+retain partial caches/last frame and preserve independent output. Weighting keeps
+the exclusive upper bound `[6553,65536)` and wraparound angle averaging. Primitive
+BRender distance math remains external.
+
+Previous propagation retains backward non-costume/forward costume scans, its
+costume-mask early return, and prune/seek/delete/seek failure order. Later copying
+stops at exact route-location boundaries, positions only after successful
+transform copies, then selects the default action. Copied tags intentionally gain
+an owning reference before merge/application, fixing the original borrowed-copy
+bug. Logical payloads remain identical; failed application retains an owning row.
+
+All 48 standalone C-only Clang checks (including strict C89 syntax), 62 focused
+native checks, MSVC AddressSanitizer, all 51 CLI baselines and the headless scene/
+timeline check pass. All 34 snapshots match, including the 282,784-byte native
+trace frozen before conversion across 576 real-actor scenarios. Real-resource
+checks also verify ordinary tagged copies in both directions and through failed
+edits, including final teardown. Standalone tests cover lifetime failure/recording
+outputs, held offsets, alive/reset observations, angle bounds/padding, owning
+copies through failed application, the costume-mask early return and both seek
+failure boundaries. No Marcus UI tests were added.
+
+Evidence includes `tmp/c89-subroute-edit-before.bin`, `tmp/c89-subroute-edit-after.bin`,
+`tmp/c89-subroute-edit-snapshot-comparison.json`, `tmp/c89-subroute-edit-native-tests.log`,
+`tmp/c89-subroute-edit-standalone.log`, `tmp/c89-subroute-edit-asan.log`,
+`tmp/c89-subroute-edit-output-comparison.json`, `tmp/c89-subroute-edit-timeline.log`
+and `tmp/c89-subroute-edit-final-diagnostics-tests.log`. The final targeted check
+also verifies that backward deletion continues through initial and final lifetime
+query failures, with both diagnostics and final range invalidation preserved.
+
+Frozen Studio/Marcus binaries ran without concurrent builds or compaction. Older
+completed scrolling evidence was transparently compressed before capture; its
+files remain available. SDL reused the explicitly recorded warm package cache
+from preceding slices with separate workspaces, settings, registry isolation and
+working movies. OS file caching remains uncontrolled. Evidence is in
+`tmp/c89-movie-data-regression/playback.sqlite` and adjacent suite artifacts:
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T024142Z-e153f863` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T024515Z-66ecd428` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T024710Z-56f88e0d` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T025236Z-e11c7d7e` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+The actor cases preserve each player's preceding authored positions and pixels,
+with 60 ordered playback changes per player. Actor-audio passes the permanent
+first-scene 600/1300 Hz tone checks and retains PCM16 peaks of 3192 retail and
+4081 SDL/Marcus. Peaks establish audible coverage, not exact waveform/timing parity.
+
+Baselines are actor-audio suite `20261113T015420Z-6b85c78c` and actor-events suite
+`20261113T015559Z-d16e9367`. Scrolling uses `20261113T015818Z-0cad99e4` and
+scene-audio uses `20261113T020231Z-f0039f75`.
+
+All 21 captures completed without retries, preserving all 540 seek images and
+each player's preceding authored positions and ordered playback changes.
+Scrolling retains 328 ordered changes for retail/SDL and 321 for Marcus;
+scene-audio retains 60 per player with PCM16 peaks of 2380 retail and 2176
+SDL/Marcus. Only adjacent identical position/image records are collapsed;
+original raw samples and timestamps remain available. Movie identities match
+preceding captures, and every suite's movie, ISO-resource and Marcus-content
+integrity checks pass. The combined report is
+`tmp/c89-subroute-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+Existing cross-player differences remain; one repetition
+per suite does not establish general repeatability or full retail parity.
+Stage entrance/removal/placement, recording, remaining transform/time edits,
+undo, queue/runtime integration, body/resource implementations and final facade
+removal remain unfinished.

@@ -116,6 +116,7 @@
 
 #include "body_world.h"
 #include "engine_actor_motion.h"
+#include "engine_actor_timeline.h"
 #include "three_mm/actor_effect.h"
 
 ASSERTNAME
@@ -774,21 +775,58 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
     Add the event to the event list
 
 ***************************************************************************/
+ThreeMMActorActionEditServices Actor::_ActionEditServices()
+{
+    static_assert(factnStatic==8 && kdwrNil==-65536,"actor action policy ABI");
+    ThreeMMActorActionEditServices s={}; s.context=this; s.sounds=_SoundEditServices();
+    s.action_flags=[](void *p,ThreeMMI32 action,ThreeMMU32 *flags) {
+        LegacyUlong value=0; bool ok=static_cast<Actor *>(p)->_ptmpl->FGetGrfactn(action,&value); *flags=value; return int(ok);
+    };
+    s.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_ptmpl->FIsTdt()); };
+    s.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
+    return s;
+}
+ThreeMMActorSubrouteEditServices Actor::_SubrouteEditServices()
+{
+    ThreeMMActorSubrouteEditServices s={}; s.route=_RouteEditServices(); s.action=_ActionEditServices();
+    s.timeline.motion=EngineActorMotion::Services(); s.timeline.context=this;
+    s.timeline.resolve=[](void *p,ThreeMMI32 action,ThreeMMI32 cel,ThreeMMI32 *out) {
+        BRS value=*out; bool ok=static_cast<Actor *>(p)->_ptmpl->FGetDwrActnCel(action,cel,&value); *out=value; return int(ok);
+    };
+    s.timeline.put_event=s.route.write_event;
+    s.timeline.publish_frame=[](void *p,ThreeMMI32 frame) { static_cast<Actor *>(p)->_nfrmLast=frame; };
+    s.timeline.diagnostic=[](void *,int fault) { EngineActorTimeline::Diagnostic(nullptr,fault); };
+    s.get_flags=[](void *p,ThreeMMActorSubrouteFlags *flags) {
+        auto actor=static_cast<Actor *>(p); flags->dirty=actor->_fLifeDirty; flags->recording=actor->_fModeRecord; flags->rejoining=actor->_fRejoin;
+    };
+    s.set_dirty=[](void *p,int dirty) { static_cast<Actor *>(p)->_fLifeDirty=dirty!=0; };
+    s.pose_inputs=[](void *p,ThreeMMActorPoseInputs *inputs) {
+        auto actor=static_cast<Actor *>(p); actor->_ptmpl->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
+        inputs->fixedPathOrientation=actor->_ptmpl->FIsTdt();
+    };
+    s.locate_body=[](void *p,const ThreeMMActorPoint *position,const ThreeMMActorMatrix *value) {
+        BMAT34 matrix; std::memcpy(&matrix,value,sizeof(matrix));
+        static_cast<Actor *>(p)->_pbody->LocateOrient(position->dxr,position->dyr,position->dzr,&matrix);
+    };
+    s.seek=[](void *p,ThreeMMActorState *state,ThreeMMI32 frame) {
+        auto actor=static_cast<Actor *>(p); EngineActorMotion::Publish(actor->_state,*state);
+        bool ok=actor->FGotoFrame(frame); *state=EngineActorMotion::Core(actor->_state); return int(ok);
+    };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault) {
+        case THREE_MM_SUBROUTE_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
+        case THREE_MM_SUBROUTE_BAD_HOLD: Bug("Event list out of order (dnfrm error)"); break;
+        case THREE_MM_SUBROUTE_OFFSTAGE_EVENT: Bug("Offstage case should be already handled"); break;
+        }
+    };
+    return s;
+}
 bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 {
     AssertThis(0); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
-    static_assert(factnStatic==8 && kdwrNil==-65536, "actor action policy ABI");
     auto state=EngineActorMotion::Core(_state);
     const auto tables=EngineActorMotion::Services();
-    ThreeMMActorActionEditServices services={};
-    services.context=this; services.sounds=_SoundEditServices();
-    services.action_flags=[](void *p, ThreeMMI32 action, ThreeMMU32 *flags) {
-        LegacyUlong value=0;
-        bool ok=static_cast<Actor *>(p)->_ptmpl->FGetGrfactn(action,&value);
-        *flags=value; return int(ok);
-    };
-    services.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_ptmpl->FIsTdt()); };
-    services.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
+    const auto services=_ActionEditServices();
     ChildChunkID external=0; TrashVar(&external);
     bool ok=three_mm_actor_edit_set_action(&state,_motionSounds.Core(),_track.Events(),_arid,anid,celn,fFreeze,
                                            external,&tables,&services)!=0;
@@ -1044,129 +1082,14 @@ bool Actor::FAddOnStageCore(void)
 ***************************************************************************/
 bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
-    AssertBaseThis(0);
-    AssertIn(iaevLim, 0, _track.Events()->IvMac() + 1);
-
-    Base aev;
-    Base *paev;
-    Base aevCur;
-    LegacyLong cb;
-    long iaev;
-    long iaevAdd;
-    long iaevNew;
-    long iaevLast;
-    bool fPrunedPrevSubrte = fFalse;
-
-    // Locate the next active (not stalled) region of the subroute
-    // Note: Not finding a previous aev is not a failure
-    _FFindPrevAevAet(aetAdd, iaevLim, &iaevAdd);
-    _FindAevLastSub(iaevAdd, iaevLim, &iaevLast);
-
-    _track.Events()->GetFixed(_state.nextEvent - 1, &aevCur);
-
-    // It is more efficient to insert non-costume events backwards
-    for (iaev = iaevLast; iaev > iaevAdd; iaev--)
-    {
-        if (0 == grfaet)
-            break;
-
-        Assert(iaev >= 0, "Logic error");
-        _track.Events()->GetFixed(iaev, &aev);
-        if (!(grfaet & (1 << aev.aet)) || aev.aet == aetCost)
-            continue;
-
-        // Non-costume events are added only once
-        grfaet ^= (1 << aev.aet);
-
-        // Allocate space
-        cb = _track.Events()->Cb(iaev);
-        aev.rtel = aevCur.rtel;
-        // aev.nfrm is set by _FDoAevCore()
-
-        if (!_FInsertAev(_state.nextEvent, cb, pvNil, &aev))
-            return fFalse;
-
-        // Insert event
-        _track.Events()->Put(_state.nextEvent, _track.Events()->QvGet(iaev));
-
-        // Merge events to avoid duplicates
-        _MergeAev(_state.firstEventInFrame, _state.nextEvent, &iaevNew);
-
-        if (!_FDoAevCore(iaevNew))
-            return fFalse;
-
-        if (iaevNew == _state.nextEvent)
-            _state.nextEvent++;
-    }
-
-    if (!(grfaet & (1 << aetCost)))
-        return fTrue;
-
-    // Costumes needed to be gathered forward
-    for (iaev = iaevAdd + 1; iaev <= iaevLast; iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.aet != aetCost)
-            continue;
-
-        aev.rtel = aevCur.rtel;
-        // aev.nfrm is set by _FDoAevCore()
-
-        // Allocate space
-        cb = _track.Events()->Cb(iaev);
-        if (!_FInsertAev(_state.nextEvent, cb, pvNil, &aev))
-            return fFalse;
-
-        // Insert event
-        _track.Events()->Put(_state.nextEvent, _track.Events()->QvGet(iaev));
-
-        // Merge events to avoid duplicates
-        _MergeAev(_state.firstEventInFrame, _state.nextEvent, &iaevNew);
-
-        if (!_FDoAevCore(iaevNew))
-            return fFalse;
-
-        if (iaevNew == _state.nextEvent)
-            _state.nextEvent++;
-    }
-
-    // Remove redundant (same frame) events from previous Add
-    if (iaevAdd < 0)
-        return fTrue;
-
-    // May need to delete entire previous subroute
-    // if the prev Add occurred at the same frame
-    paev = (Base *)_track.Events()->QvFixedGet(iaevAdd);
-    if (_state.frame == paev->nfrm)
-    {
-        // Deleting the entire subroute
-        _DelAddFrame(iaevAdd, _state.addEvent);
-        return fTrue;
-    }
-
-    // May need to prune out same-frame events from prev subrte
-    for (iaev = _state.addEvent - 1; iaev >= iaevAdd; iaev--)
-    {
-        paev = (Base *)_track.Events()->QvFixedGet(iaev);
-        if (_state.frame == paev->nfrm)
-        {
-            fPrunedPrevSubrte = fTrue;
-            _RemoveAev(iaev);
-        }
-    }
-
-    if (fPrunedPrevSubrte)
-    {
-        // The previous path requires pruning
-        // Terminating stop & freeze events need to be inserted
-        long nfrm = _state.frame;
-        if (!FGotoFrame(_state.frame - 1))
-            return fFalse;
-        DeleteFwdCore(fFalse, pvNil, _state.nextEvent);
-        return FGotoFrame(nfrm);
-    }
-
-    return fTrue;
+    AssertBaseThis(0); AssertIn(iaevLim,0,_track.Events()->IvMac()+1);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SubrouteEditServices();
+    bool ok=three_mm_actor_subroute_from_previous(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                                  iaevLim,grfaet,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -1177,71 +1100,15 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 ***************************************************************************/
 bool Actor::_FAddAevFromLater(void)
 {
-    AssertBaseThis(0);
-
-    Base aev;
-    long iaev;
-    long iaevStart = -1;
-    RouteLocation rtelAdd;
-    bool fPositionBody = fFalse;
-
-    Assert(1 == _state.nextEvent, "_FAddAevFromLater logic error");
-    // Find the next Add event
-    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.aet == aetAdd)
-        {
-            iaevStart = iaev;
-            rtelAdd = aev.rtel;
-            break;
-        }
-    }
-
-    if (iaevStart < 0)
-        goto LEnd;
-
-    // Stuff in the events from this next Add event
-    for (iaev = iaevStart; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-
-        if (aev.rtel != rtelAdd)
-        {
-            break;
-        }
-
-        if (aetCost == aev.aet || aetPull == aev.aet || aetSize == aev.aet || aetRotF == aev.aet)
-        {
-            aev.rtel = _state.location;
-            // aev.nfrm is set by _FDoAevCore()
-
-            // Allocate space
-            long cbNew = _track.Events()->Cb(iaev);
-            if (!_FInsertAev(_state.nextEvent, cbNew, pvNil, &aev))
-                return fFalse;
-            iaev++;
-
-            // Insert event
-            _track.Events()->Put(_state.nextEvent, _track.Events()->QvGet(iaev));
-
-            if (!_FDoAevCur())
-                return fFalse;
-
-            if (aev.aet != aetCost)
-                fPositionBody = fTrue;
-        }
-    }
-
-    if (fPositionBody)
-    {
-        _PositionBody(&_state.position);
-    }
-
-    Assert(_track.Events()->IvMac() > 0, "Logic Error");
-
-LEnd:
-    return FSetActionCore(0, 0, 0);
+    AssertBaseThis(0); Assert(_state.nextEvent==1,"_FAddAevFromLater logic error");
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SubrouteEditServices();
+    ChildChunkID external=0; TrashVar(&external);
+    bool ok=three_mm_actor_subroute_from_later(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                               external,&tables,&services)!=0;
+    EngineActorMotion::Publish(_state,state);
+    return ok;
 }
 
 /***************************************************************************
@@ -1436,41 +1303,15 @@ bool Actor::_FUnfreeze(void)
 ***************************************************************************/
 void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz)
 {
-    AssertThis(0);
-    AssertIn(_state.addEvent, 0, _track.Events()->IvMac());
-
-    Add aevadd;
-
-    _track.Events()->Get(_state.addEvent, &aevadd);
-
-    if (pvNil == pdxyz)
-    {
-        aevadd.xa = xa;
-        aevadd.ya = ya;
-        aevadd.za = za;
-    }
-    else
-    {
-        BRS rWeight;
-        BRS dwrNew = BR_LENGTH3(pdxyz->dxr, pdxyz->dyr, pdxyz->dzr);
-        rWeight = BrsDiv(dwrNew, kdwrFast);
-        rWeight = LwBound(rWeight, krOriWeightMin, rOne);
-
-        if (grfbra & fbraRotateX)
-            aevadd.xa = _BraAvgAngle(xa, aevadd.xa, rWeight);
-
-        if (grfbra & fbraRotateY)
-            aevadd.ya = _BraAvgAngle(ya, aevadd.ya, rWeight);
-
-        if (grfbra & fbraRotateZ)
-            aevadd.za = _BraAvgAngle(za, aevadd.za, rWeight);
-    }
-
-    // Modify the event
-    _track.Events()->Put(_state.addEvent, &aevadd);
-    _state.transform.xaPath = aevadd.xa;
-    _state.transform.yaPath = aevadd.ya;
-    _state.transform.zaPath = aevadd.za;
+    AssertThis(0); AssertIn(_state.addEvent,0,_track.Events()->IvMac());
+    static_assert(kdwrFast==196608 && krOriWeightMin==6553,"actor orientation weight ABI");
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto edits=_EventEditServices();
+    ThreeMMI32 distance=0;
+    if (pdxyz) distance=BR_LENGTH3(pdxyz->dxr,pdxyz->dyr,pdxyz->dzr);
+    three_mm_actor_edit_add_orientation(&state,_track.Events(),xa,ya,za,grfbra,pdxyz?&distance:nullptr,&tables,&edits);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -1481,38 +1322,8 @@ void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz
 ***************************************************************************/
 BRA Actor::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
 {
-    AssertBaseThis(0);
-    AssertIn(rw1, rZero, rOne + rEps);
-
-    BRS rT = rZero;
-    BRS r1 = BrAngleToScalar(a1);
-    BRS r2 = BrAngleToScalar(a2);
-    BRS rw2;
-
-    rw2 = BrsSub(rOne, rw1);
-
-    // Compensate for averaging across 0 degrees
-    if (BrsAbs(BrsSub(r1, r2)) > rOneHalf)
-    {
-        if (r2 > r1)
-        {
-            // Add equiv of 360 degrees for each weight of r1
-            rT = BrsAdd(rT, rw1);
-        }
-        else
-        {
-            // Add equiv of 360 degrees for each weight of r1
-            rT = BrsAdd(rT, rw2);
-        }
-    }
-
-    rT = BrsAdd(rT, BrsMul(r1, rw1));
-    rT = BrsAdd(rT, BrsMul(r2, rw2));
-
-    if (rT > rOne)
-        rT = rT & rFractMax;
-
-    return (BrScalarToAngle(rT));
+    AssertBaseThis(0); AssertIn(rw1,rZero,rOne+rEps);
+    return three_mm_actor_edit_average_angle(a1,a2,rw1);
 }
 
 /***************************************************************************
@@ -2476,17 +2287,13 @@ void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFr
 ***************************************************************************/
 void Actor::_PositionBody(RoutePoint *pxyz)
 {
-    AssertBaseThis(0);
-    AssertVarMem(pxyz);
-    RoutePoint xyz;
-    BMAT34 bmat34; // Final orientation matrix
-
-    _MatrixRotUpdate(pxyz, &bmat34);
-
-    xyz.dxr = BrsAdd(_state.routeTranslation.dxr, pxyz->dxr);
-    xyz.dyr = BrsAdd(_state.routeTranslation.dyr, pxyz->dyr);
-    xyz.dzr = BrsAdd(_state.routeTranslation.dzr, pxyz->dzr);
-    _pbody->LocateOrient(xyz.dxr, xyz.dyr, xyz.dzr, &bmat34);
+    AssertBaseThis(0); AssertVarMem(pxyz);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SubrouteEditServices();
+    const auto position=EngineActorMotion::Point(*pxyz);
+    three_mm_actor_subroute_position_body(&state,_track.Route(),_track.Events(),&position,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -2583,20 +2390,12 @@ bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
 ***************************************************************************/
 bool Actor::_FComputeLifetime(long *pnfrmLast)
 {
-    AssertBaseThis(0);
-    AssertNilOrVarMem(pnfrmLast);
-    if (_fModeRecord)
-    {
-        if (pnfrmLast != pvNil)
-            *pnfrmLast = _nfrmLast;
-        _fLifeDirty = true;
-        return true;
-    }
-    bool success = ActorTimeline::FComputeLifetime(_track, _nfrmFirst, _fRejoin, _StepSource(), &_nfrmLast);
-    _fLifeDirty = !success;
-    if (success && pnfrmLast != pvNil)
-        *pnfrmLast = _nfrmLast;
-    return success;
+    AssertBaseThis(0); AssertNilOrVarMem(pnfrmLast);
+    const auto services=_SubrouteEditServices();
+    ThreeMMI32 last=0;
+    bool ok=three_mm_actor_subroute_lifetime(_track.Route(),_track.Events(),pnfrmLast?&last:nullptr,&services)!=0;
+    if (ok && pnfrmLast) *pnfrmLast=last;
+    return ok;
 }
 
 /***************************************************************************
@@ -3191,22 +2990,11 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 void Actor::_SaveCurPathOrien(void)
 {
     AssertBaseThis(0);
-
-    RouteDistancePoint rpt;
-    Base aev;
-    ulong grfbra = 0;
-
-    if (_state.addEvent >= 0 && !_ptmpl->FIsTdt())
-    {
-        _track.Events()->GetFixed(_state.addEvent, &aev);
-        _track.Route()->Get(aev.rtel.irpt, &rpt);
-        if (rZero != rpt.dwr) // ie, non-static path segment
-        {
-            // _state.transform.waPath is current and CalcRteOrient() cannot be called
-            // in all cases
-            SetAddOrient(_state.transform.xaPath, _state.transform.yaPath, _state.transform.zaPath, grfbra);
-        }
-    }
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SubrouteEditServices();
+    three_mm_actor_subroute_save_orientation(&state,_track.Route(),_track.Events(),&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -3216,212 +3004,18 @@ void Actor::_SaveCurPathOrien(void)
 ***************************************************************************/
 void Actor::DeleteBackCore(bool *pfAlive)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(pfAlive);
-
-    long iaev;
-    long iaevNew;
-    Base aev;
-    BRS dwrOffsetT;
-    BRS dwrNew;
-    BRS dwrOld;
-    RouteDistancePoint rptOld;
-    long dnrpt;
-
-    // Nop if not yet at first frame
-    if (_state.frame <= _nfrmFirst)
-    {
-        if (pvNil != pfAlive)
-            *pfAlive = FPure(_track.Events()->IvMac() > 0);
-        return;
-    }
-
-    // We need to update the nfrm field in aetAdd events in order to update
-    // _nfrmFirst below.
-    if (_fLifeDirty && !_FComputeLifetime())
-    {
-        // Below the new _nfrmFirst will be wrong, but that means the actor
-        // will appear in the wrong frame (iff _fLifeDirty and the next subroute
-        // got moved).  Not much we can do about it.
-        PushErc(ercSocBadFrameSlider);
-    }
-
-    // If the current point is between nodes, a node will
-    // be inserted as the new first node of the subroute.
-    // Compute the dwr of the new node.
-    _track.Route()->Get(_state.location.irpt, &rptOld);
-    dwrOld = rptOld.dwr;
-    dwrNew = BrsSub(dwrOld, _state.location.dwrOffset);
-
-    // Preserve the current orientation
-    _SaveCurPathOrien();
-
-    // Adjust offsets for events occurring at points between the
-    // previous and next nodes
-    for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt > _state.location.irpt)
-            break;
-
-        if (aev.rtel.dwrOffset == _state.location.dwrOffset)
-        {
-            aev.rtel.dwrOffset = rZero;
-            if (aev.rtel.dnfrm < _state.location.dnfrm)
-            {
-                Bug("Event list out of order (dnfrm error)");
-                aev.rtel.dnfrm = 0;
-            }
-            else
-            {
-                aev.rtel.dnfrm -= _state.location.dnfrm;
-            }
-        }
-
-        if (dwrNew == rZero)
-            aev.rtel.dwrOffset = rZero;
-        else
-        {
-            // Set the event's dwrOffset to the correct
-            // part of the new dwr
-            dwrOffsetT = BrsSub(aev.rtel.dwrOffset, _state.location.dwrOffset);
-            aev.rtel.dwrOffset = dwrOffsetT;
-        }
-        _track.Events()->PutFixed(iaev, &aev);
-    }
-
-    //
-    // Alter the route's new first point to be _state.location.
-    // with the correct new dwr.  Then update _state.location.
-    //
-    _GetXyzFromRtel(&_state.location, &rptOld.xyz);
-    rptOld.dwr = dwrNew;
-    _track.Route()->Put(_state.location.irpt, &rptOld);
-    dnrpt = _state.location.irpt;
-    _state.location.dnfrm = 0;
-    _state.location.dwrOffset = rZero;
-    _state.location.irpt = 0;
-
-    //
-    // Merge the earlier events
-    // Update the necessary state variables
-    //
-    for (iaev = 0; iaev < _state.nextEvent; iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (!_state.onStage || iaev < _state.addEvent)
-        {
-            _RemoveAev(iaev);
-            iaev--;
-            continue;
-        }
-
-        switch (aev.aet)
-        {
-        case aetRotH:
-#ifdef BUG1870
-            // Supercede orient-rotate with current rotation
-            // 		so that static segment orientation will be preserved
-            // Note: events prior to _state.firstEventInFrame need to be included
-            // 		due to orient-rotations lasting the lifetime of static
-            // 		segments.
-            _track.Events()->Put(iaev, &_state.transform.bmat34Cur);
-            goto LDefault;
-#endif // BUG1870
-        case aetTweak:
-        case aetSnd:
-            if (iaev < _state.firstEventInFrame)
-            {
-                _RemoveAev(iaev);
-                iaev--;
-                break;
-            }
-            if (iaev > 0)
-                goto LDefault;
-            break;
-
-        case aetActn:
-            Action aevactn;
-            _track.Events()->Get(iaev, &aevactn);
-            aevactn.celn = _state.cel;
-            _track.Events()->Put(iaev, &aevactn);
-            goto LDefault;
-
-        case aetRem:
-            _RemoveAev(iaev);
-            iaev--;
-            Bug("Offstage case should be already handled");
-            break;
-
-        default:
-        LDefault:
-            aev.rtel = _state.location;
-            aev.nfrm = _state.frame;
-            _track.Events()->PutFixed(iaev, &aev);
-            if (iaev > 0)
-                _MergeAev(0, iaev, &iaevNew);
-            else
-                iaevNew = iaev;
-
-            if (iaevNew < iaev)
-                iaev--;
-            if (aev.aet == aetAdd)
-                _state.addEvent = iaevNew;
-            if (aev.aet == aetActn)
-                _state.actionEvent = iaevNew;
-            break;
-        }
-    }
-
-    //
-    // Adjust the irpt's of the later events
-    // Adjust the absolute beginning frame number
-    // Delete the first section of the route
-    // NOTE: There is no translation in time
-    //
-    if (dnrpt > 0)
-    {
-        // Delete the first section of the route
-        // If offstage, also delete the current point
-#ifdef BUG1866
-        if (!_state.onStage)
-            dnrpt++;
-#endif // BUG1866
-        for (iaev = _state.nextEvent; iaev < _track.Events()->IvMac(); iaev++)
-        {
-            _track.Events()->GetFixed(iaev, &aev);
-            aev.rtel.irpt -= dnrpt;
-            _track.Events()->PutFixed(iaev, &aev);
-        }
-#ifndef BUG1866
-        if (!_state.onStage)
-            dnrpt++;
-#endif //! BUG1866
-        _track.Route()->Delete(0, dnrpt);
-    }
-
-    if (pvNil != pfAlive)
-        *pfAlive = FPure(_track.Events()->IvMac() > 0);
-
-    if (_track.Events()->IvMac() == 0)
-    {
-        _InitState();
-    }
-    else
-    {
-        // Adjust remaining state variables
-        _track.Events()->GetFixed(0, &aev);
-        Assert(aev.aet == aetAdd, "An aetAdd event should be the first event");
-        _nfrmFirst = aev.nfrm;
-        _fLifeDirty = fTrue;
-        _state.firstEventInFrame = 0;
-    }
-
-    if (!_FComputeLifetime())
-        PushErc(ercSocBadFrameSlider);
-    _pscen->InvalFrmRange();
-
-    return;
+    AssertThis(0); AssertNilOrVarMem(pfAlive);
+#if !defined(BUG1870) || !defined(BUG1866)
+#error C89 backward deletion requires enabled retail BUG1870/BUG1866 policies
+#endif
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_SubrouteEditServices();
+    int alive=0;
+    three_mm_actor_subroute_delete_back(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,
+                                        pfAlive?&alive:nullptr,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
+    if (pfAlive) *pfAlive=alive!=0;
 }
 
 /***************************************************************************
