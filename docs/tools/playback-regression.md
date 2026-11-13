@@ -3604,3 +3604,68 @@ repetition does not establish general repeatability or full retail parity.
 Composite undo, actor edit/clipboard wrappers, scene/body/resource implementations,
 queue/runtime integration and final facade removal remain unfinished. No Marcus
 UI tests were added.
+
+### Composite actor undo C89 conversion (13 November 2026)
+
+`actor_group_undo.c` now owns move/rename composite creation, entry disposal,
+child references, traversal/context propagation and name swaps. Native owners
+marshal fields, pointer/name records and String scratch values; arrays and GST
+operations already delegate to the shared C storage implementation. Both redo
+adapters retain virtual undo dispatch. Native object/scene/movie implementations
+and remaining actor edit/clipboard wrappers still require conversion.
+
+The 2,100-byte native-before trace `tmp/c89-group-undo-before.bin` matches after
+conversion. It records 16 child-dispatch cases, eight allocation/factory attempts
+and eight real-movie rename cases with three toggles each. Coverage includes
+propagated scene/frame context, NULL rows, first/second child failure, references,
+factory allocation failures, missing roll-call actors, duplicate rename IDs,
+undo/redo name swaps and resource balance. C tests additionally check failed
+append cleanup, release-before-clear ordering, immediate return when a failing
+child destroys the group, partial rename failure and ignored name-storage
+failure. The latter retains the native partial changes; it is not repaired by
+the port. No Marcus UI tests were added.
+
+Both hosts build. All 55 standalone C checks (including strict C89 syntax), 69
+focused native checks and MSVC AddressSanitizer pass. All 40 snapshot comparisons
+and 51 CLI baselines match, and the headless scene/timeline check passes. Evidence
+includes `tmp/c89-group-undo-standalone.log`, `tmp/c89-group-undo-native-checks.log`,
+`tmp/c89-group-undo-asan.log`, `tmp/c89-group-undo-snapshot-comparison.json`,
+`tmp/c89-group-undo-output-comparison.json` and `tmp/c89-group-undo-timeline.log`.
+
+Both binaries were frozen before playback, without concurrent builds or
+compaction. Completed older/current captures were transparently compressed before
+and between terminal suites to retain headroom on C:; raw evidence and prior
+failed runs remain. SDL reused
+the recorded warm package cache with private processes, settings and working
+movies; OS file caching remains uncontrolled. Same-player baselines are the
+preceding undo-controller suites: actor-audio `20261113T053949Z-c358d10a`,
+actor-events `20261113T054149Z-272cc1de`, scrolling-text
+`20261113T054310Z-ef4de7c2` and sampled-audio `20261113T054623Z-03c510c6`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T060152Z-42e96bd2` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T060346Z-632826ce` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T060520Z-f5abd0ff` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T060929Z-5a536734` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match their preceding same-player results. Only
+adjacent identical position/image observations are collapsed; raw timestamps
+and observations remain. Actor cases retain 60 ordered changes per player;
+scrolling retains 328 for retail/SDL and 321 for Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. Actor-audio PCM16 peaks match at
+3192 retail and 4081 SDL/Marcus; scene-audio peaks match at 2380 retail and
+2176 SDL/Marcus. The preceding one-unit SDL variation and its unchanged-binary
+diagnostic remain preserved above; there is no peak delta in this set of runs.
+Audible coverage/peaks do not establish exact waveform/timing parity.
+
+The combined report is
+`tmp/c89-group-undo-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts and before/after peaks in `tmp/c89-group-undo-playback-audit.json`.
+Raw evidence remains under `tmp/c89-movie-data-regression`. Existing cross-player
+differences remain; one repetition does not establish general repeatability or
+full retail parity. Actor edit/clipboard wrappers, queue/runtime integration,
+scene/body/resource implementations and final facade removal remain unfinished.

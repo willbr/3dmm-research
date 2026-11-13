@@ -64,6 +64,7 @@ cmake --build build/engine-c89 --target engine-record-test
 cmake --build build/engine-c89 --target engine-transform-edit-test
 cmake --build build/engine-c89 --target engine-actor-owner-test
 cmake --build build/engine-c89 --target engine-actor-undo-test
+cmake --build build/engine-c89 --target engine-group-undo-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1282,8 +1283,36 @@ failure, changed IDs, view/text selection, absent actors, removal, scene/seek/ad
 failure, owner destruction on seek failure, redo failure/frame restoration,
 set/dispose and allocation/registration failure during creation. Both the
 3,240-byte native undo trace (32 cases) and 94,208-byte ownership trace (128 cases)
-remain identical. Composite undo, remaining edit/clipboard wrappers, movie/scene/
-body/resource implementations, queue runtime and facade removal remain work.
+remain identical. Composite undo is described next. Remaining edit/clipboard
+wrappers, movie/scene/body/resource implementations, queue runtime and facade
+removal remain work.
+
+### Composite actor undo
+
+`actor_group_undo.c` owns move/rename composite creation, entry disposal, child
+references, traversal and name toggling. Move groups retain before append and
+release on failed append. Their toggle rereads the count each iteration, skips
+NULL rows, publishes movie/scene/frame onto each child immediately before virtual
+undo dispatch, and stops at the first failure without reading a group that the
+child may have destroyed. Destruction releases child references before entries.
+
+Rename groups capture their count once, read a stored name and actor ID, skip
+actors absent from roll-call, stop on failed rename and swap in the captured
+current name. Failed storage of that current name is deliberately ignored, as
+in the native implementation; preceding name/table changes remain. Duplicate
+actor rows retain their original ordered behavior. Both redo adapters delegate
+to virtual undo, retaining the same toggling policy.
+
+Native callbacks marshal owner fields, entry records and two String scratch
+values, and provide C-backed array/string storage and primitive movie/child calls.
+The native objects are still temporary representations. The C test checks
+allocation/append failure, pointer/reference timing, NULL rows, child context,
+failure that destroys the group, missing actors, partial rename and storage
+failure, duplicate IDs and repeated toggles. A 2,100-byte native-before trace
+covers 16 child-dispatch scenarios, eight factory attempts and eight real-movie
+rename scenarios with three toggles each; it matches the port exactly. Actor
+edit/clipboard wrappers, queue/runtime integration, scene/body/resource policy
+and final facade removal remain unfinished.
 
 ### Source names and directory discovery
 

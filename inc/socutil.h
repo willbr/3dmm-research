@@ -13,6 +13,7 @@
 #ifndef SOCUTIL_H
 #define SOCUTIL_H
 #include "three_mm/actor_undo.h"
+#include "three_mm/actor_group_undo.h"
 
 extern "C"
 {
@@ -170,6 +171,8 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
 
   protected:
     PDynamicArray _pglpaund; // List of PActorUndo. Owned (each child is AddRef'd).
+    ThreeMMActorGroupState _GroupState() const;
+    static ThreeMMActorGroupServices _GroupServices(ActorMoveGroupUndo *);
     ActorMoveGroupUndo(void)
     {
     }
@@ -179,10 +182,7 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
     ~ActorMoveGroupUndo(void);
 
     bool FAddChild(PActorUndo paund); // Adds and AddRefs the child undo.
-    long Cchild(void)
-    {
-        return _pglpaund == pvNil ? 0 : _pglpaund->IvMac();
-    }
+    long Cchild(void);
 
     virtual bool FDo(PDocumentBase pdocb);
     virtual bool FUndo(PDocumentBase pdocb);
@@ -210,6 +210,9 @@ class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
     // Each entry: GST string = "name to restore on the next FUndo/FDo",
     //             extra      = long arid.
     PVirtualStringTable _pgstNames;
+    struct GroupContext;
+    ThreeMMActorGroupState _GroupState() const;
+    static ThreeMMActorGroupServices _GroupServices(GroupContext *);
     ActorRenameGroupUndo(void)
     {
     }
@@ -222,10 +225,7 @@ class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
     // what the first FUndo will restore. Mid-loop OOM returns fFalse.
     bool FAddChild(long arid, PString pstnPrev);
 
-    long Cchild(void)
-    {
-        return _pgstNames == pvNil ? 0 : _pgstNames->IvMac();
-    }
+    long Cchild(void);
 
     virtual bool FDo(PDocumentBase pdocb);
     virtual bool FUndo(PDocumentBase pdocb);

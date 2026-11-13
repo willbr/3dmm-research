@@ -273,8 +273,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   supplies resource references, C-backed track/sound operations, scene seeking
   and view invalidation. Actor undo creation, toggle, redo and snapshot ownership
   now execute in C89 too, including name swaps, replacement/removal, failure
-  ordering and sound-queue selection. Scene/body/resource implementations,
-  composite undo and remaining edit/clipboard integration still need conversion.
+  ordering and sound-queue selection. Scene/body/resource implementations
+  and remaining edit/clipboard integration still need conversion. Composite
+  move/rename undo now uses C89 for factory/disposal, child reference ownership,
+  ordered context propagation/dispatch, name swaps and partial failure policy.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

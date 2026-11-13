@@ -1395,21 +1395,39 @@ RTCLASS(ActorMoveGroupUndo)
  *  A pointer to the object, or pvNil if it could not be created.
  *
  ****************************************************/
+ThreeMMActorGroupState ActorMoveGroupUndo::_GroupState() const
+{
+    ThreeMMActorGroupState s{}; s.entries=_pglpaund; s.movie=_pmvie; s.scene=_iscen; s.frame=_nfrm; return s;
+}
+ThreeMMActorGroupServices ActorMoveGroupUndo::_GroupServices(ActorMoveGroupUndo *owner)
+{
+    ThreeMMActorGroupServices s{}; s.context=owner;
+    s.count=[](void *,void *p)->ThreeMMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.child=[](void *,void *p,ThreeMMI32 i)->void * { PActorUndo child; static_cast<PDynamicArray>(p)->Get(i,&child); return child; };
+    s.retain=[](void *,void *p) { static_cast<PActorUndo>(p)->AddRef(); };
+    s.release=[](void *,void *p) { static_cast<PActorUndo>(p)->Release(); };
+    s.append_child=[](void *,void *p,void *child) { PActorUndo value=static_cast<PActorUndo>(child); return int(static_cast<PDynamicArray>(p)->FAdd(&value)); };
+    s.child_context=[](void *,void *p,void *movie,ThreeMMI32 scene,ThreeMMI32 frame) {
+        auto child=static_cast<PActorUndo>(p); child->SetPmvie(static_cast<PMovie>(movie)); child->SetIscen(scene); child->SetNfrm(frame);
+    };
+    s.undo_child=[](void *,void *p,void *document) { return int(static_cast<PActorUndo>(p)->FUndo(static_cast<PDocumentBase>(document))); };
+    s.release_entries=[](void *,void *p) { static_cast<PDynamicArray>(p)->Release(); };
+    s.publish_entries=[](void *p,void *entries) { static_cast<ActorMoveGroupUndo *>(p)->_pglpaund=static_cast<PDynamicArray>(entries); };
+    return s;
+}
+long ActorMoveGroupUndo::Cchild(void)
+{
+    const auto state=_GroupState(); const auto services=_GroupServices(this); return three_mm_actor_group_count(&state,&services);
+}
+
 PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
 {
-    PActorMoveGroupUndo pamgu;
-    pamgu = NewObj ActorMoveGroupUndo();
-    if (pamgu == pvNil)
-    {
-        return pvNil;
-    }
-    pamgu->_pglpaund = DynamicArray::PglNew(size(PActorUndo));
-    if (pamgu->_pglpaund == pvNil)
-    {
-        ReleasePpo(&pamgu);
-        return pvNil;
-    }
-    return pamgu;
+    ThreeMMActorGroupFactory s{};
+    s.create_owner=[](void *)->void * { return NewObj ActorMoveGroupUndo(); };
+    s.create_entries=[](void *)->void * { return DynamicArray::PglNew(size(PActorUndo)); };
+    s.publish_entries=[](void *,void *p,void *entries) { static_cast<PActorMoveGroupUndo>(p)->_pglpaund=static_cast<PDynamicArray>(entries); };
+    s.release_owner=[](void *,void *p) { static_cast<PActorMoveGroupUndo>(p)->Release(); };
+    return static_cast<PActorMoveGroupUndo>(three_mm_actor_group_create(&s));
 }
 
 /****************************************************
@@ -1419,17 +1437,8 @@ PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
  ****************************************************/
 ActorMoveGroupUndo::~ActorMoveGroupUndo(void)
 {
-    AssertBaseThis(0);
-    if (_pglpaund != pvNil)
-    {
-        for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
-        {
-            PActorUndo paund;
-            _pglpaund->Get(iaund, &paund);
-            ReleasePpo(&paund);
-        }
-        ReleasePpo(&_pglpaund);
-    }
+    AssertBaseThis(0); auto state=_GroupState(); const auto services=_GroupServices(this);
+    three_mm_actor_group_dispose(&state,1,&services);
 }
 
 /****************************************************
@@ -1445,16 +1454,8 @@ ActorMoveGroupUndo::~ActorMoveGroupUndo(void)
  ****************************************************/
 bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
 {
-    AssertThis(0);
-    AssertPo(paund, 0);
-
-    paund->AddRef();
-    if (!_pglpaund->FAdd(&paund))
-    {
-        ReleasePpo(&paund);
-        return fFalse;
-    }
-    return fTrue;
+    AssertThis(0); AssertPo(paund,0); const auto state=_GroupState(); const auto services=_GroupServices(this);
+    return three_mm_actor_group_add_child(&state,paund,&services)!=0;
 }
 
 /****************************************************
@@ -1464,30 +1465,8 @@ bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
  ****************************************************/
 bool ActorMoveGroupUndo::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-
-    for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
-    {
-        PActorUndo paund;
-        _pglpaund->Get(iaund, &paund);
-        if (paund == pvNil)
-        {
-            continue;
-        }
-        // Mirror MovieUndo's iscen/nfrm onto each child so its FUndo
-        // navigates to the correct frame.
-        paund->SetPmvie(_pmvie);
-        paund->SetIscen(_iscen);
-        paund->SetNfrm(_nfrm);
-        // Stop on the first failure: an ActorUndo failure can trigger
-        // Movie::ClearUndo, after which continuing perturbs further state.
-        if (!paund->FUndo(pdocb))
-        {
-            return fFalse;
-        }
-    }
-    return fTrue;
+    AssertThis(0); AssertPo(pdocb,0); const auto state=_GroupState(); const auto services=_GroupServices(this);
+    return three_mm_actor_group_move_toggle(&state,pdocb,&services)!=0;
 }
 
 /****************************************************
@@ -1549,60 +1528,66 @@ void ActorMoveGroupUndo::AssertValid(LegacyUlong grf)
 
 RTCLASS(ActorRenameGroupUndo)
 
+struct ActorRenameGroupUndo::GroupContext
+{
+    ActorRenameGroupUndo *owner;
+    String stored,current;
+};
+ThreeMMActorGroupState ActorRenameGroupUndo::_GroupState() const
+{
+    ThreeMMActorGroupState s{}; s.entries=_pgstNames; s.movie=_pmvie; s.scene=_iscen; s.frame=_nfrm; return s;
+}
+ThreeMMActorGroupServices ActorRenameGroupUndo::_GroupServices(GroupContext *context)
+{
+    ThreeMMActorGroupServices s{}; s.context=context;
+    s.count=[](void *,void *p)->ThreeMMI32 { return static_cast<PVirtualStringTable>(p)->IvMac(); };
+    s.release_entries=[](void *,void *p) { static_cast<PVirtualStringTable>(p)->Release(); };
+    s.publish_entries=[](void *p,void *entries) { static_cast<GroupContext *>(p)->owner->_pgstNames=static_cast<PVirtualStringTable>(entries); };
+    s.read_name=[](void *p,void *entries,ThreeMMI32 i)->ThreeMMI32 {
+        auto c=static_cast<GroupContext *>(p); auto table=static_cast<PVirtualStringTable>(entries); long id;
+        table->GetStn(i,&c->stored); table->GetExtra(i,&id); return id;
+    };
+    s.capture_name=[](void *p,void *movie,ThreeMMI32 id) { return int(static_cast<PMovie>(movie)->FGetName(id,&static_cast<GroupContext *>(p)->current)); };
+    s.rename=[](void *p,void *movie,ThreeMMI32 id) { return int(static_cast<PMovie>(movie)->FNameActr(id,&static_cast<GroupContext *>(p)->stored)); };
+    s.store_name=[](void *p,void *entries,ThreeMMI32 i) { return int(static_cast<PVirtualStringTable>(entries)->FPutStn(i,&static_cast<GroupContext *>(p)->current)); };
+    s.append_name=[](void *,void *entries,ThreeMMI32 id,const void *name) {
+        long value=id; return int(static_cast<PVirtualStringTable>(entries)->FAddStn(static_cast<PString>(const_cast<void *>(name)),&value));
+    };
+    return s;
+}
+long ActorRenameGroupUndo::Cchild(void)
+{
+    GroupContext context{this}; const auto state=_GroupState(); const auto services=_GroupServices(&context);
+    return three_mm_actor_group_count(&state,&services);
+}
+
 PActorRenameGroupUndo ActorRenameGroupUndo::PargNew(void)
 {
-    PActorRenameGroupUndo parg;
-    parg = NewObj ActorRenameGroupUndo();
-    if (parg == pvNil)
-        return pvNil;
-    parg->_pgstNames = (PVirtualStringTable)StringTable_GST::PgstNew(size(long));
-    if (parg->_pgstNames == pvNil)
-    {
-        ReleasePpo(&parg);
-        return pvNil;
-    }
-    return parg;
+    ThreeMMActorGroupFactory s{};
+    s.create_owner=[](void *)->void * { return NewObj ActorRenameGroupUndo(); };
+    s.create_entries=[](void *)->void * { return StringTable_GST::PgstNew(size(long)); };
+    s.publish_entries=[](void *,void *p,void *entries) { static_cast<PActorRenameGroupUndo>(p)->_pgstNames=static_cast<PVirtualStringTable>(entries); };
+    s.release_owner=[](void *,void *p) { static_cast<PActorRenameGroupUndo>(p)->Release(); };
+    return static_cast<PActorRenameGroupUndo>(three_mm_actor_group_create(&s));
 }
 
 ActorRenameGroupUndo::~ActorRenameGroupUndo(void)
 {
-    AssertBaseThis(0);
-    ReleasePpo(&_pgstNames);
+    AssertBaseThis(0); GroupContext context{this}; auto state=_GroupState(); const auto services=_GroupServices(&context);
+    three_mm_actor_group_dispose(&state,0,&services);
 }
 
 bool ActorRenameGroupUndo::FAddChild(long arid, PString pstnPrev)
 {
-    AssertThis(0);
-    AssertPo(pstnPrev, 0);
-    return _pgstNames->FAddStn(pstnPrev, &arid);
+    AssertThis(0); AssertPo(pstnPrev,0); GroupContext context{this}; const auto state=_GroupState(); const auto services=_GroupServices(&context);
+    return three_mm_actor_group_add_name(&state,arid,pstnPrev,&services)!=0;
 }
 
 bool ActorRenameGroupUndo::FUndo(PDocumentBase pdocb)
 {
-    AssertThis(0);
-    AssertPo(pdocb, 0);
-    AssertPo(_pmvie, 0);
-
-    String stnStored, stnCurrent;
-    long arid;
-    long cstn = _pgstNames->IvMac();
-
-    for (long istn = 0; istn < cstn; istn++)
-    {
-        _pgstNames->GetStn(istn, &stnStored);
-        _pgstNames->GetExtra(istn, &arid);
-        // Capture the current (post-rename) name so a subsequent FDo/FUndo
-        // can flip back to it. If the actor isn't in roll-call any more
-        // (e.g. removed since the rename), skip but keep the entry so a
-        // round-trip stays well-formed.
-        if (!_pmvie->FGetName(arid, &stnCurrent))
-            continue;
-        if (!_pmvie->FNameActr(arid, &stnStored))
-            return fFalse;
-        // Swap: store the just-replaced name so the next toggle restores it.
-        _pgstNames->FPutStn(istn, &stnCurrent);
-    }
-    return fTrue;
+    AssertThis(0); AssertPo(pdocb,0); AssertPo(_pmvie,0); GroupContext context{this};
+    const auto state=_GroupState(); const auto services=_GroupServices(&context);
+    return three_mm_actor_group_name_toggle(&state,&services)!=0;
 }
 
 bool ActorRenameGroupUndo::FDo(PDocumentBase pdocb)

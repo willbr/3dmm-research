@@ -1608,6 +1608,7 @@ static bool TestActorUndoRuntime(PMovie parent)
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;
 }
 
+#include "engine_group_undo_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2190,6 +2191,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor owner failed");
     if (!TestActorUndoRuntime(pmvie))
         BAIL("actor undo runtime failed");
+    if (!TestActorGroupUndo(pmvie))
+        BAIL("actor group undo failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 
