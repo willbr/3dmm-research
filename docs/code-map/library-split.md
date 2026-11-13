@@ -1781,6 +1781,43 @@ alone did not prove execution of assert-based checks. Debug MSVC and ASan
 coverage were separate. Playback evidence, explicit changes and remaining
 coverage limits are recorded in `docs/tools/playback-regression.md`.
 
+### Three-dimensional font resources
+
+`font_resource.c` owns `ThreeMMFontResource` count/maximum/metric storage,
+resource estimates, loading, authoring, disposal, metric queries and glyph lookup.
+ThreeDFont is now a temporary facade around that C state. Native services provide
+primitive allocation, blocks, child lists/graph operations, retained model fetches,
+model bounds and diagnostics. ThreeDText construction, list/action/matrix
+generation, shapes and animations remain native dependencies.
+
+Loading publishes character count before exact-length validation, maximum height
+after validation, then each buffer before its read. Direct failure retains
+partial ownership. Font factory failure invalidates outputs before releasing the
+partial object; successful size publication precedes object publication. Packed
+estimates assume 256 metric pairs; final estimates include owner plus both metric
+arrays. The header's byte order is decoded, but foreign metric arrays deliberately
+remain unswapped: native tested the already normalized header marker, so retaining
+the array bytes preserves the actual legacy values rather than silently fixing
+them. Dedicated foreign-font retail rendering parity is not established.
+
+Authoring scans all child IDs and remembers the last 'i'. Empty input creates one
+zero-metric slot. A zero-width space uses that 'i' model's dimensions. The supplied
+native name remains ignored. Partial chunks/adoptions remain after failure;
+output publication/invalidation follows array cleanup. C now releases the fetched
+model when adoption fails, fixing the old leaked reference. Unrepresentable
+counts/IDs/cache sizes fail before overflowing native 32-bit calculations. Glyph
+lookup retains its unfiltered child-type search and missing-glyph diagnostic.
+
+The 1,248-case native comparison matches 210,880 bytes without masking, including
+packed/opposite-order loads, partial owners, sparse/empty font authoring, missing
+models and allocation failures. Partial authoring payload bytes are undefined
+and are not recorded; chunk sizes and adopted edges are recorded on failure,
+and all successful wire bytes are compared. Baseline cleanup manually removed
+the old leaked model reference; converted checks require no extra model reference
+and balanced allocations. Additional checks reload authored fonts and resolve
+their glyphs. All 69 standalone C checks run with assertions enabled. Full gate
+evidence and remaining coverage limits are in `docs/tools/playback-regression.md`.
+
 ### Source names and directory discovery
 
 `source_names.c` owns counted source names and SID extras in C storage, replacing

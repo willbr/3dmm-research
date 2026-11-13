@@ -13,6 +13,8 @@
 ***************************************************************************/
 #ifndef ThreeDFont_H
 #define ThreeDFont_H
+#include "three_mm/font_resource.h"
+struct FontResourceContext;
 
 using namespace BRender;
 
@@ -29,15 +31,13 @@ class ThreeDFont : public ThreeDFont_PAR
     MARKMEM
 
   protected:
-    LegacyLong _cch;    // count of chars
-    BRS _dyrMax;  // max character height
-    BRS *_prgdxr; // character widths
-    BRS *_prgdyr; // character heights
+    ThreeMMFontResource _font = {};
 
   protected:
     ThreeDFont(void)
     {
     }
+    static ThreeMMFontResourceServices _Services(FontResourceContext *);
     bool _FInit(PDataBlock pblck);
 
   public:
@@ -52,7 +52,7 @@ class ThreeDFont : public ThreeDFont_PAR
     BRS DyrChar(LegacyLong ich);
     BRS DyrMax(void)
     {
-        return _dyrMax;
+        return _font.maximum_height;
     }
 };
 

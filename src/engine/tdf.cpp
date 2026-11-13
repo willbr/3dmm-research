@@ -32,57 +32,72 @@ ASSERTNAME
 
 RTCLASS(ThreeDFont)
 
-const LegacyLong kcchTdfDefault = 256;        // for size estimates and authoring
-const BRS kdxrSpacing = BR_SCALAR(0.0); // horizontal space between chars
-const BRS kdyrLeading = BR_SCALAR(0.5); // vertical space between chars
-
-/****************************************
-    3-D Font On File
-****************************************/
-struct ThreeDFontF
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t cch;
-    BRS dyrMax;
-    // These variable-length arrays follow the ThreeDFontF in the ThreeDFont chunk
-    //  BRS rgdxr[cch];
-    //  BRS rgdyr[cch];
-};
-static_assert(sizeof(ThreeDFontF) == 12, "ThreeDFontF on-disk fixed-part layout drift");
-const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr!
-
 /***************************************************************************
     A PFNRPO to read a ThreeDFont from a file.
 ***************************************************************************/
+struct FontResourceContext { DataBlock block; };
+ThreeMMFontResourceServices ThreeDFont::_Services(FontResourceContext *context)
+{
+    ThreeMMFontResourceServices s = {}; s.context = context; s.system = koskCur;
+    const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
+    s.spacing = BR_SCALAR(0.0); s.leading = BR_SCALAR(0.5);
+    static_assert(sizeof(BRS) == 4 && sizeof(ChunkIdentification) == 8, "font ABI");
+    s.state = [](void *, void *object) { return &static_cast<PThreeDFont>(object)->_font; };
+    s.create = [](void *) -> void * { return NewObj ThreeDFont; };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.initialize = [](void *, void *object, void *block) -> int { return static_cast<PThreeDFont>(object)->_FInit(static_cast<PDataBlock>(block)); };
+    s.object_size = [](void *) -> ThreeMMI32 { return sizeof(ThreeDFont); };
+    s.packed = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FPacked(); };
+    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+    s.block_size = [](void *, void *block) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(); };
+    s.read = [](void *, void *block, void *out, ThreeMMI32 bytes, ThreeMMI32 offset) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, bytes, offset); };
+    s.write = [](void *, void *block, const void *data, ThreeMMI32 bytes, ThreeMMI32 offset) -> int { return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), bytes, offset); };
+    s.allocate = [](void *, ThreeMMI32 bytes, int clear, void **out) -> int { return FAllocPv(out, bytes, clear ? fmemClear : fmemNil, mprNormal); };
+    s.free_memory = [](void *, void **out) { FreePpv(out); };
+    s.invalidate = [](void *, void *out, size_t bytes) {
+#ifdef DEBUG
+        if (out) FillPb(out, static_cast<LegacyLong>(bytes), kbGarbage);
+#else
+        (void)out; (void)bytes;
+#endif
+    };
+    s.bad_font = [](void *) { PushErc(ercSocBadTdf); };
+    s.bad_order = [](void *) { Assert(false, "bad ThreeDFontF"); };
+    s.child_count = [](void *, void *children) -> ThreeMMI32 { return static_cast<PDynamicArray>(children)->IvMac(); };
+    s.child_at = [](void *, void *children, ThreeMMI32 i, ThreeMMFontChild *out) {
+        ChildChunkIdentification child; static_cast<PDynamicArray>(children)->Get(i, &child); *out = {child.cki.ctg, child.cki.cno, child.chid};
+    };
+    s.file = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->Pcfl(); };
+    s.add = [](void *p, void *file, ThreeMMI32 bytes, ThreeMMU32 type, ThreeMMU32 *out) -> void * {
+        ChunkNumber number = *out; auto block = &static_cast<FontResourceContext *>(p)->block;
+        const bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &number, block); *out = number; return ok ? block : nullptr;
+    };
+    s.fetch_model = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, Model::FReadModl); };
+    s.adopt = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, const ThreeMMFontChild *child) -> int {
+        return static_cast<PChunkyFile>(file)->FAdoptChild(type, number, child->type, child->number, child->id);
+    };
+    s.model_width = [](void *, void *model) -> ThreeMMI32 { return static_cast<PModel>(model)->Dxr(); };
+    s.model_height = [](void *, void *model) -> ThreeMMI32 { return static_cast<PModel>(model)->Dyr(); };
+    s.binding = [](void *, void *object, void **cache, ThreeMMFontChunk *chunk) {
+        auto font = static_cast<PThreeDFont>(object); *cache = font->Pcrf(); *chunk = {font->Ctg(), font->Cno()};
+    };
+    s.child_id = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMFontChild *out) -> int {
+        ChildChunkIdentification child;
+        if (!static_cast<PChunkyFile>(file)->FGetKidChid(type, number, id, &child)) return false;
+        *out = {child.cki.ctg, child.cki.cno, child.chid}; return true;
+    };
+    s.missing_model = [](void *, ThreeMMU32 id) {
+        String message; message.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), id); Warn(message.Psz()); PushErc(ercSocNoModlForChar);
+    };
+    return s;
+}
+
 bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-
-    ThreeDFont *ptdf;
-
-    // Estimate ThreeDFont size in memory.
-    if (pblck->FPacked())
-        *pcb = size(ThreeDFont) + LwMul(kcchTdfDefault, size(BRS) + size(BRS));
-    else
-        *pcb = pblck->Cb();
-    if (pvNil == ppbaco)
-        return fTrue;
-    ptdf = NewObj ThreeDFont;
-    if (pvNil == ptdf || !ptdf->_FInit(pblck))
-    {
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        ReleasePpo(&ptdf);
-        return fFalse;
-    }
-    AssertPo(ptdf, 0);
-    *pcb = size(ThreeDFont) + LwMul(ptdf->_cch, size(BRS) + size(BRS));
-    *ppbaco = ptdf;
-    return fTrue;
+    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
+    (void)ctg; (void)cno;
+    FontResourceContext context; auto s = _Services(&context);
+    return three_mm_font_fetch(pblck, ppbaco, pcb, &s) != 0;
 }
 
 /***************************************************************************
@@ -91,52 +106,9 @@ bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNum
 ***************************************************************************/
 bool ThreeDFont::_FInit(PDataBlock pblck)
 {
-    AssertBaseThis(0);
-    AssertPo(pblck, 0);
-
-    ThreeDFontF tdff;
-    LegacyLong cbrgdwr; // space taken by rgdxr or rgdyr
-
-    if (!pblck->FUnpackData())
-        return fFalse;
-    if (pblck->Cb() < size(ThreeDFontF))
-    {
-        PushErc(ercSocBadTdf);
-        return fFalse;
-    }
-    if (!pblck->FReadRgb(&tdff, size(ThreeDFontF), 0))
-        return fFalse;
-    if (kboCur != tdff.bo)
-        SwapBytesBom(&tdff, kbomTdff);
-    Assert(kboCur == tdff.bo, "bad ThreeDFontF");
-    _cch = tdff.cch;
-    cbrgdwr = LwMul(_cch, size(BRS));
-    if (pblck->Cb() != size(ThreeDFontF) + cbrgdwr + cbrgdwr)
-    {
-        PushErc(ercSocBadTdf);
-        return fFalse;
-    }
-    _dyrMax = tdff.dyrMax;
-
-    // Read _prgdxr
-    if (!FAllocPv((void **)&_prgdxr, cbrgdwr, fmemNil, mprNormal))
-        return fFalse;
-    if (!pblck->FReadRgb(_prgdxr, cbrgdwr, size(ThreeDFontF)))
-        return fFalse;
-    AssertBomRglw(kbomBrs, size(BRS));
-    if (kboCur != tdff.bo)
-        SwapBytesRglw(_prgdxr, _cch);
-
-    // Read _prgdyr
-    if (!FAllocPv((void **)&_prgdyr, cbrgdwr, fmemNil, mprNormal))
-        return fFalse;
-    if (!pblck->FReadRgb(_prgdyr, cbrgdwr, size(ThreeDFontF) + cbrgdwr))
-        return fFalse;
-    AssertBomRglw(kbomBrs, size(BRS));
-    if (kboCur != tdff.bo)
-        SwapBytesRglw(_prgdyr, _cch);
-
-    return fTrue;
+    AssertBaseThis(0); AssertPo(pblck, 0);
+    FontResourceContext context; auto s = _Services(&context);
+    return three_mm_font_initialize(&_font, pblck, &s) != 0;
 }
 
 /***************************************************************************
@@ -145,9 +117,8 @@ bool ThreeDFont::_FInit(PDataBlock pblck)
 ThreeDFont::~ThreeDFont(void)
 {
     AssertBaseThis(0);
-
-    FreePpv((void **)&_prgdxr);
-    FreePpv((void **)&_prgdyr);
+    FontResourceContext context; auto s = _Services(&context);
+    three_mm_font_dispose(&_font, &s);
 }
 
 /***************************************************************************
@@ -158,96 +129,9 @@ ThreeDFont::~ThreeDFont(void)
 ***************************************************************************/
 bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pglkid, 0);
-    AssertPo(pstn, 0);
-    AssertNilOrVarMem(pckiTdf);
-
-    ChunkIdentification ckiTdf;
-    ChildChunkIdentification kid;
-    ChildChunkIdentification kid2;
-    ThreeDFontF tdff;
-    BRS *prgdxr = pvNil;
-    BRS *prgdyr = pvNil;
-    PModel pmodl;
-    DataBlock blck;
-    LegacyLong cbrgdwr; // space taken by rgdxr or rgdyr
-    LegacyLong ikid;
-    LegacyLong ckid;
-    ChildChunkID chidMax = 0;
-    LegacyLong ikidLetteri = -1;
-
-    // Find chidMax
-    ckid = pglkid->IvMac();
-    for (ikid = 0; ikid < ckid; ikid++)
-    {
-        pglkid->Get(ikid, &kid);
-        if (kid.chid > chidMax)
-            chidMax = kid.chid;
-        if (kid.chid == (ChildChunkID)ChLit('i'))
-            ikidLetteri = ikid;
-    }
-
-    tdff.bo = kboCur;
-    tdff.osk = koskCur;
-    tdff.cch = chidMax + 1;
-    tdff.dyrMax = rZero;
-    cbrgdwr = LwMul(tdff.cch, size(BRS));
-    if (!FAllocPv((void **)&prgdxr, cbrgdwr, fmemClear, mprNormal))
-        goto LFail;
-    if (!FAllocPv((void **)&prgdyr, cbrgdwr, fmemClear, mprNormal))
-        goto LFail;
-
-    // Create the ThreeDFont chunk
-    ckiTdf.ctg = kctgTdf;
-    if (!pcrf->Pcfl()->FAdd(size(ThreeDFontF) + cbrgdwr + cbrgdwr, ckiTdf.ctg, &ckiTdf.cno, &blck))
-    {
-        goto LFail;
-    }
-
-    // Add the BMDL kids and remember widths, heights, and maximum height
-    for (ikid = 0; ikid < ckid; ikid++)
-    {
-        pglkid->Get(ikid, &kid);
-        pmodl = (PModel)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
-        if (pmodl == pvNil)
-            goto LFail;
-        if (!pcrf->Pcfl()->FAdoptChild(ckiTdf.ctg, ckiTdf.cno, kid.cki.ctg, kid.cki.cno, kid.chid))
-        {
-            goto LFail;
-        }
-        if (pmodl->Dxr() == 0 && kid.chid == (ChildChunkID)ChLit(' ') && ikidLetteri != -1)
-        {
-            // Hack to turn null models into space characters:
-            // space is the width and height of an "i"
-            ReleasePpo(&pmodl);
-            pglkid->Get(ikidLetteri, &kid2);
-            pmodl = (PModel)pcrf->PbacoFetch(kid2.cki.ctg, kid2.cki.cno, Model::FReadModl);
-            if (pvNil == pmodl)
-                goto LFail;
-        }
-        prgdxr[kid.chid] = pmodl->Dxr() + kdxrSpacing;
-        prgdyr[kid.chid] = pmodl->Dyr() + kdyrLeading;
-        if (prgdyr[kid.chid] > tdff.dyrMax)
-            tdff.dyrMax = prgdyr[kid.chid];
-        ReleasePpo(&pmodl);
-    }
-    if (!blck.FWriteRgb(&tdff, size(ThreeDFontF), 0))
-        goto LFail;
-    if (!blck.FWriteRgb(prgdxr, cbrgdwr, size(ThreeDFontF)))
-        goto LFail;
-    if (!blck.FWriteRgb(prgdyr, cbrgdwr, size(ThreeDFontF) + cbrgdwr))
-        goto LFail;
-    FreePpv((void **)&prgdxr);
-    FreePpv((void **)&prgdyr);
-    if (pvNil != pckiTdf)
-        *pckiTdf = ckiTdf;
-    return fTrue;
-LFail:
-    FreePpv((void **)&prgdxr);
-    FreePpv((void **)&prgdyr);
-    TrashVar(pckiTdf);
-    return fFalse;
+    AssertPo(pcrf, 0); AssertPo(pglkid, 0); AssertPo(pstn, 0); AssertNilOrVarMem(pckiTdf);
+    FontResourceContext context; auto s = _Services(&context);
+    return three_mm_font_author(pcrf, pglkid, pckiTdf, &s) != 0;
 }
 
 /***************************************************************************
@@ -257,18 +141,8 @@ LFail:
 PModel ThreeDFont::PmodlFetch(ChildChunkID chid)
 {
     AssertThis(0);
-
-    ChildChunkIdentification kid;
-
-    if (!Pcrf()->Pcfl()->FGetKidChid(Ctg(), Cno(), chid, &kid))
-    {
-        String stn;
-        stn.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), chid);
-        Warn(stn.Psz());
-        PushErc(ercSocNoModlForChar);
-        return pvNil;
-    }
-    return (PModel)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
+    FontResourceContext context; auto s = _Services(&context);
+    return static_cast<PModel>(three_mm_font_model(this, chid, &s));
 }
 
 /***************************************************************************
@@ -276,10 +150,8 @@ PModel ThreeDFont::PmodlFetch(ChildChunkID chid)
 ***************************************************************************/
 BRS ThreeDFont::DxrChar(LegacyLong ich)
 {
-    AssertThis(0);
-    AssertIn(ich, 0, _cch);
-
-    return _prgdxr[ich];
+    AssertThis(0); AssertIn(ich, 0, _font.count);
+    return three_mm_font_width(&_font, ich);
 }
 
 /***************************************************************************
@@ -287,10 +159,8 @@ BRS ThreeDFont::DxrChar(LegacyLong ich)
 ***************************************************************************/
 BRS ThreeDFont::DyrChar(LegacyLong ich)
 {
-    AssertThis(0);
-    AssertIn(ich, 0, _cch);
-
-    return _prgdyr[ich];
+    AssertThis(0); AssertIn(ich, 0, _font.count);
+    return three_mm_font_height(&_font, ich);
 }
 
 #ifdef DEBUG
@@ -300,10 +170,10 @@ BRS ThreeDFont::DyrChar(LegacyLong ich)
 void ThreeDFont::AssertValid(LegacyUlong grf)
 {
     ThreeDFont_PAR::AssertValid(fobjAllocated);
-    AssertIn(_cch, 0, klwMax);
-    AssertIn(_dyrMax, 0, BR_SCALAR_MAX);
-    AssertPvCb(_prgdxr, LwMul(_cch, size(BRS)));
-    AssertPvCb(_prgdyr, LwMul(_cch, size(BRS)));
+    AssertIn(_font.count, 0, klwMax);
+    AssertIn(_font.maximum_height, 0, BR_SCALAR_MAX);
+    AssertPvCb(_font.widths, LwMul(_font.count, size(BRS)));
+    AssertPvCb(_font.heights, LwMul(_font.count, size(BRS)));
 }
 
 /***************************************************************************
@@ -313,7 +183,7 @@ void ThreeDFont::MarkMem(void)
 {
     AssertThis(0);
     ThreeDFont_PAR::MarkMem();
-    MarkPv(_prgdxr);
-    MarkPv(_prgdyr);
+    MarkPv(_font.widths);
+    MarkPv(_font.heights);
 }
 #endif // DEBUG

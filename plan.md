@@ -398,11 +398,12 @@ normal template initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
 and accessory graph operations. ActionDefinition construction, header/list
 loading, byte-order conversion, primitive queries and sound-list ownership now
-also use a persistent C-owned action state.
+also use a persistent C-owned action state. ThreeDFont metrics, resource loading,
+authoring, glyph lookup and lifetime now use persistent C-owned font state.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
-The immediate sequence is ThreeDText/font construction, sound-format factory
+The immediate sequence is ThreeDText construction/list/action/matrix generation, sound-format factory
 implementations and remaining body geometry/render hooks.
 Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting

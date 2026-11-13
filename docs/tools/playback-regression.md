@@ -4815,3 +4815,103 @@ while retaining observations, summaries, diagnostics, current results and latest
 baselines/failures. Evidence is in
 `tmp/c89-action-definition-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
 and `tmp/c89-action-definition-playback-audit.json`.
+
+## ThreeDFont resources and authoring C89 conversion (13 November 2026)
+
+`font_resource.c` owns persistent font metric state, resource size estimates,
+loading, authoring, disposal, width/height queries and glyph lookup. ThreeDFont
+now wraps `ThreeMMFontResource` rather than separate C++ count/maximum/array
+fields. Native services provide block/allocation operations, child lists/graph
+edits, retained model fetches, bounds and diagnostics. ThreeDText construction,
+list/action/matrix generation, shapes/animations, model/resource implementations,
+other formats/runtime operations and final facade removal remain unfinished.
+
+Loading publishes count before exact-length validation and maximum height after
+it, then publishes each array allocation before reading it. Direct failure keeps
+partial ownership. Font factory failure invalidates outputs BEFORE releasing the
+partial owner, retaining its distinction from the action/template factories.
+Successful size publication precedes object publication. Packed estimates assume
+256 metric pairs; final estimates include owner plus both metric arrays.
+
+Header byte order is decoded, but foreign metric arrays deliberately remain
+unswapped. Native tested the already normalized header marker before attempting
+the payload swap, so changing the array values would silently change defined
+behavior. The new C loader retains that quirk explicitly. Dedicated foreign-font
+retail rendering parity is not established by the byte comparisons.
+
+Authoring keeps the last 'i' entry for zero-width-space metric substitution,
+creates one zero-metric slot for empty input and retains the ignored native name
+parameter behavior. Partial chunks and adopted edges remain on failure; success
+publishes the chunk after array cleanup, and failure invalidates output after
+cleanup. Glyph lookup keeps its unfiltered child-type search and missing-glyph
+diagnostic. Two explicit corrections are recorded: a fetched model is released
+when adoption fails (native leaked it), and negative/unrepresentable character
+counts, child IDs or cache-size calculations fail before overflowing native
+32-bit calculations. No equivalence is claimed for the former leak/overflow.
+
+`tmp/c89-font-resource-before.bin` and `tmp/c89-font-resource-after.bin` match
+all 210,880 bytes without masking, SHA-256
+`AF77997A6F241C1B46F1303490BBC17129AFA8FF09A5E67B7E8A77050F293998`.
+There are 1,248 native cases covering zero/one/four/128 character slots,
+native/opposite byte order, packed data, short/oversized/count-mismatched blocks,
+factory and direct partial loading, sparse/empty authoring, zero-width-space
+substitution, missing models and BASE/HQ/Pv allocation injection. Debug outcomes
+are 385 successful loads and 130 authored fonts; SDL release is 432/144.
+All successful wire bytes are recorded. Failed authoring records chunk sizes,
+references and adopted edges, excluding its undefined/unwritten payload bytes.
+Baseline cleanup explicitly removed the leaked model reference; converted checks
+require no extra reference and balanced allocation counts. Additional native/SDL
+checks reload authored fonts, verify metrics and resolve actual glyph children.
+
+Independent C tests simulate both header byte orders, retain foreign metric
+bytes, cover every read/allocation/factory/authoring failure phase, zero-length
+arrays, repeated disposal, output invalidation/publication order, partial graphs,
+last-'i' selection, optional output pointers, unfiltered
+glyph lookup and overflow rejection. All 69 standalone C checks pass with
+assertions enabled, including strict C89 syntax. MSVC AddressSanitizer, 83 focused
+native checks, SDL save/load round-trip, 55 snapshot comparisons and 51 freshly
+linked CLI baselines pass. Both hosts build and headless real-content scene/
+timeline playback passes. No Marcus UI tests were added. Evidence includes
+`tmp/c89-font-resource-standalone.log`,
+`tmp/c89-font-resource-native-tests.log`, `tmp/c89-font-resource-asan.log`,
+`tmp/c89-font-resource-sdl-after.log`,
+`tmp/c89-font-resource-snapshot-comparison.json`,
+`tmp/c89-font-resource-output-comparison.json` and
+`tmp/c89-font-resource-preview-scene.log`.
+
+Playback binary SHA-256 values remained frozen:
+`FA614C776F18490B7761671192630973A56F729862ED31C79CBBDAF22793B920` (SDL) and
+`70C0257E5C6FAAC4B116916CAEC07DA65F91540EAD47F2FD4D130F61208368E4`
+(Marcus regression). Same-player baselines are actor-audio
+`20261113T140719Z-a25a00ea`, actor-events `20261113T140843Z-213f0b98`,
+scrolling-text `20261113T141027Z-acafcbc6` and sampled-audio
+`20261113T141333Z-2f24d32a`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T143605Z-6a799a7e` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T143738Z-c5c2a9b2` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T143955Z-8fcfe9aa` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T144359Z-bf5ff1b1` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes.
+
+Actor peaks are 3192 retail and 4081 SDL/Marcus. SDL changed from 4080 to 4081
+(delta +1), the previously documented 4080/4081 variation. The audit retains this
+delta and `audio_peaks_equal: false`; no exact audio match is claimed. Scene-audio
+peaks remain 2380 retail and 2176 SDL/Marcus; all other measured peak deltas are
+zero. Peaks/coverage do not prove waveform/timing parity. Existing cross-player
+differences and one-repeat inconclusive comparisons remain.
+
+The sole default shared SDL package cache was reused, with private processes,
+settings and working movies, and uncontrolled OS caching. No builds or compaction
+ran during capture. Automatic retention pruned superseded raw media while
+preserving observations, summaries, diagnostics, current results and latest
+baselines/failures. Evidence is in
+`tmp/c89-font-resource-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and `tmp/c89-font-resource-playback-audit.json`.
