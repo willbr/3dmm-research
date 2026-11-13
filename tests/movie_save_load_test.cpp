@@ -284,6 +284,52 @@ class TrackTestActor : public Actor
         }
         return saved;
     }
+    bool FTestEditTransaction(int mode,FILE *snapshot,StageTestScene *scene)
+    {
+        using namespace ActorEvent;
+        const int operation=mode/16;
+        auto tmpl=static_cast<TrackTestTemplate *>(_ptmpl); tmpl->FailAfter(0);
+        long frame=(mode&2)?2:1;
+        if (!scene->TrackActor(this,frame) || !FGotoFrame(frame)) return false;
+        if (operation==1 && !FScale(BR_SCALAR(1.5))) return false;
+        if (operation==0 && (mode&4) && !(mode&8)) tmpl->FailAfter(1);
+        PActor output=nullptr; bool alive=true,changed=false;
+#ifdef DEBUG
+        if (operation!=5 && (mode&8))
+        { vmutxMem.Enter(); vdmglob.dmaglBase.cactDo=(mode&4)?4:1; vdmglob.dmaglBase.cactFail=1; vmutxMem.Leave(); }
+#endif
+        switch (operation)
+        {
+        case 0: changed=FSetAction(0,(mode&1)?2:0,(mode&2)!=0,(mode&1)?&output:nullptr); break;
+        case 1: changed=FNormalize(mode&3); break;
+        case 2: changed=FRemFromStage(); break;
+        case 3: changed=FDelete((mode&4)?nullptr:&alive,(mode&1)!=0); break;
+        case 4: changed=FAddOnStage(); break;
+        }
+#ifdef DEBUG
+        vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
+#endif
+        tmpl->FailAfter(0); vpers->Clear();
+        unsigned char aliveByte=0; std::memcpy(&aliveByte,&alive,sizeof(aliveByte));
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong values[]={mode,changed,aliveByte,output!=nullptr,output && output->Pbody(),output && output->Pscen(),
+            output?output->CactRef():0,_ptmpl->CactRef(),_pbody?_pbody->CactRef():0,_tagTmpl.pcrf->CactRef(),
+            _state.frame,_state.onStage,_state.action,_state.cel,_state.nextEvent,_state.addEvent,_state.actionEvent,_state.firstEventInFrame,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_nfrmFirst,_nfrmLast,_fLifeDirty,
+            _track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(values,sizeof(values)) && record(&_state.transform,sizeof(_state.transform)) && record(&_state.position,sizeof(_state.position));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        unsigned char payload[100];
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        {
+            Base event; _track.Events()->GetFixed(i,&event); LegacyLong bytes=_track.Events()->Cb(i);
+            if (bytes>sizeof(payload)) return false; _track.Events()->Get(i,payload);
+            if (event.aet==aetAdd) payload[18]=payload[19]=0;
+            saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
+        }
+        ReleasePpo(&output); return saved;
+    }
     bool FTestTransformEdit(int mode,FILE *snapshot,StageTestScene *scene)
     {
         using namespace ActorEvent;
@@ -743,7 +789,7 @@ class TrackTestActor : public Actor
         return saved;
     }
     bool FTestCostumeEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,
-                          const ChunkNumber *materials,const ChunkNumber *customs)
+                          const ChunkNumber *materials,const ChunkNumber *customs,bool transaction=false)
     {
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadCostumeFixture));
@@ -788,7 +834,8 @@ class TrackTestActor : public Actor
         _nfrmFirst=1; _nfrmLast=8;
         Costume fresh={}; fresh.ibset=(mode&64)?1:0; fresh.fCmtl=static_cast<tribool>(mode%3);
         fresh.cmid=(mode>=128 && (mode&8))?2:1; fresh.tag={ksidUseCrf,resource,kctgMtrl,materials[1]};
-        if (mode>=128) ok=FSetCostumeCore(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl);
+        if (mode>=128) ok=transaction ? FSetCostume(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl) :
+            FSetCostumeCore(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl);
         else _PrepCostFill(1,&fresh);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong state[]={mode,ok,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,_nfrmFirst,_nfrmLast,_track.Events()->IvMac()};
@@ -1609,6 +1656,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 }
 
 #include "engine_group_undo_fixture.h"
+#include "engine_edit_transaction_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2193,6 +2241,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor undo runtime failed");
     if (!TestActorGroupUndo(pmvie))
         BAIL("actor group undo failed");
+    if (!TestActorEditTransactions(pmvie))
+        BAIL("actor edit transactions failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 

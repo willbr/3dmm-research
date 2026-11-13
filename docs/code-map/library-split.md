@@ -65,6 +65,7 @@ cmake --build build/engine-c89 --target engine-transform-edit-test
 cmake --build build/engine-c89 --target engine-actor-owner-test
 cmake --build build/engine-c89 --target engine-actor-undo-test
 cmake --build build/engine-c89 --target engine-group-undo-test
+cmake --build build/engine-c89 --target engine-actor-transaction-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1311,8 +1312,42 @@ failure that destroys the group, missing actors, partial rename and storage
 failure, duplicate IDs and repeated toggles. A 2,100-byte native-before trace
 covers 16 child-dispatch scenarios, eight factory attempts and eight real-movie
 rename scenarios with three toggles each; it matches the port exactly. Actor
-edit/clipboard wrappers, queue/runtime integration, scene/body/resource policy
-and final facade removal remain unfinished.
+transactions are described next. Copy/paste/clipboard, queue/runtime integration,
+scene/body/resource policy and final facade removal remain unfinished.
+
+### Actor edit transactions
+
+`actor_transaction.c` owns public action, stage add/remove, normalization and
+costume transaction policy: snapshot duplication, core edit, rollback, undo
+registration and local snapshot release/optional transfer. Native callbacks
+adapt fixed operation arguments and call the already migrated C core edits.
+Action snapshot outputs are assigned only after successful undo registration;
+failure leaves them untouched. Failed core/undo registration restores first.
+
+Deletion keeps its special case for a subroute's Add frame. Otherwise it saves
+the event cursor, seeks back, deletes forward, publishes alive, reads back the
+possibly changed frame and seeks forward. Only that normal path updates scene
+sound indication. Lifetime failure diagnoses and continues; failed subroute
+deletion or seeking diagnoses/releases without restoring partial state. Failed
+undo registration restores state while keeping any prior alive-output write.
+Duplication failure alone trashes the optional native debug alive output.
+
+Two pre-existing failure quirks remain explicit: costume ignores duplication
+failure and can pass NULL into snapshot operations; removal restores but does
+not release its local snapshot when its core edit fails. The C tests preserve
+those call/reference sequences using nonallocating mocks. They are not claimed
+as corrected allocation/ownership behavior. Native costume tests use valid body
+sets and material/custom fixtures, rather than unsupported bodyless inputs.
+
+`engine-actor-transaction-test` covers core/registration failure, output transfer,
+rollback/release order, the legacy quirks, Add-frame deletion, partial seeking,
+changed-frame readback, optional alive outputs, sound indication and lifetime
+diagnostics. The 52,704-byte native-before trace has 112 scenarios (80 action/
+stage/normalization/deletion cases and 32 valid costume cases), including real
+undo registration, resource balance and native allocation failures. It matches
+exactly. Native object/resource/scene representations remain intermediate;
+copy/paste/clipboard, movie/scene/body/resource policy, queue runtime and facade
+removal still need conversion.
 
 ### Source names and directory discovery
 

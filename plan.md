@@ -277,6 +277,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   and remaining edit/clipboard integration still need conversion. Composite
   move/rename undo now uses C89 for factory/disposal, child reference ownership,
   ordered context propagation/dispatch, name swaps and partial failure policy.
+- Actor edit transactions for action changes, stage add/remove, normalization,
+  costumes and deletion now execute in C89, including snapshots, rollback, undo
+  registration, optional snapshot transfer and deletion's partial-failure/output
+  ordering. Existing costume-duplication and failed-removal ownership quirks are
+  preserved and documented. Copy/paste/clipboard integration and the remaining
+  movie/scene/body/resource/runtime implementations still require conversion.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

@@ -3669,3 +3669,68 @@ Raw evidence remains under `tmp/c89-movie-data-regression`. Existing cross-playe
 differences remain; one repetition does not establish general repeatability or
 full retail parity. Actor edit/clipboard wrappers, queue/runtime integration,
 scene/body/resource implementations and final facade removal remain unfinished.
+
+### Actor edit transactions C89 conversion (13 November 2026)
+
+`actor_transaction.c` owns action, stage add/remove, normalization, costume and
+deletion transactions: duplicate, core apply, rollback, undo registration,
+release and optional snapshot/alive output publication. Native adapters provide
+representation transfers and calls to the already migrated C core edits. The
+52,704-byte native-before trace `tmp/c89-edit-transaction-before.bin` matches
+exactly across 112 scenarios: 80 action/stage/normalization/deletion cases and
+32 valid material/custom-costume cases, with allocation failures, Add-frame
+deletion, optional outputs, registration, rollback and reference balance.
+
+Direct C tests additionally cover partial seeking, frame readback after deletion,
+alive-output timing, null outputs, lifetime failure that continues, diagnostic
+order and retained mutations. Two existing quirks are preserved explicitly:
+costume continues after failed duplication, and failed removal core restores
+without releasing its local snapshot. Nonallocating mocks check those sequences;
+the native fixture avoids the invalid NULL-snapshot costume path and the leaked
+failed-removal path. This conversion does not claim to repair either bug.
+
+Both hosts build. All 56 standalone C checks (including strict C89 syntax), 70
+focused native checks and MSVC AddressSanitizer pass. All 41 snapshot comparisons
+and 51 CLI baselines match, and the headless scene/timeline check passes. Evidence
+includes `tmp/c89-transaction-standalone.log`, `tmp/c89-transaction-native-checks.log`,
+`tmp/c89-transaction-asan.log`, `tmp/c89-transaction-snapshot-comparison.json`,
+`tmp/c89-transaction-output-comparison.json` and `tmp/c89-transaction-timeline.log`.
+
+Both binaries were frozen before playback, without concurrent builds or
+compaction. Completed captures were transparently compressed before/between
+terminal suites to retain headroom on C:, preserving raw evidence and prior
+failed runs. SDL reused the recorded warm package cache with private processes,
+settings and working movies; OS file caching remains uncontrolled. Same-player
+baselines are actor-audio `20261113T060152Z-42e96bd2`, actor-events
+`20261113T060346Z-632826ce`, scrolling-text `20261113T060520Z-f5abd0ff` and
+sampled-audio `20261113T060929Z-5a536734`.
+
+| Suite | Case | Completed captures |
+| --- | --- | --- |
+| `20261113T062938Z-fda4f0e1` | actor-audio | six retail/SDL/Marcus seek/playback runs |
+| `20261113T063106Z-7d5beb21` | actor-events | six retail/SDL/Marcus seek/playback runs |
+| `20261113T063251Z-5cef53e5` | scrolling-text | six retail/SDL/Marcus seek/playback runs |
+| `20261113T063715Z-290bcbd6` | sampled-audio | three retail/SDL/Marcus playback runs |
+
+All 21 completed without retries. Movie identities and all source/resource/
+content integrity checks pass. All 540 seek images, authored positions and
+ordered playback changes match each player's preceding results. Only adjacent
+identical position/image observations are collapsed; raw timestamps and
+observations remain. Actor cases retain 60 ordered changes per player;
+scrolling retains 328 retail/SDL and 321 Marcus.
+
+Actor first-scene 600/1300 Hz coverage passes. PCM16 peaks match at 3192 retail
+and 4081 SDL/Marcus for actor audio, and 2380 retail and 2176 SDL/Marcus for
+scene audio. The earlier one-unit SDL variation and its unchanged-binary repeat
+remain preserved in the ownership evidence; this set has no peak delta. These
+coverage/peak checks do not establish exact waveform/timing parity.
+
+The combined report is
+`tmp/c89-transaction-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with image/change counts and before/after peaks in
+`tmp/c89-transaction-playback-audit.json`. Raw evidence remains under
+`tmp/c89-movie-data-regression`. Existing cross-player differences remain; one
+repetition does not establish general repeatability or full retail parity.
+Copy/paste/clipboard, movie/scene/body/resource implementations, queue/runtime
+integration and final facade removal remain unfinished. No Marcus UI tests
+were added.

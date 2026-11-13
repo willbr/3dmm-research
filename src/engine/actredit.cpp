@@ -966,38 +966,57 @@ bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
     Add (or replace) an action, and create an undo object
 
 ***************************************************************************/
+struct Actor::EditContext
+{
+    Actor *actor;
+    long action,cel;
+    bool freeze;
+    ulong normalization;
+    long body_set,material;
+    TAG *tag;
+    tribool custom;
+};
+ThreeMMActorTransactionServices Actor::_TransactionServices(EditContext *context)
+{
+    ThreeMMActorTransactionServices s{}; s.context=context;
+    s.duplicate=[](void *p,void **snapshot) {
+        PActor value=nullptr; bool ok=static_cast<EditContext *>(p)->actor->FDup(&value); *snapshot=value; return int(ok);
+    };
+    s.restore=[](void *p,void *snapshot) { static_cast<EditContext *>(p)->actor->Restore(static_cast<PActor>(snapshot)); };
+    s.create_undo=[](void *p,void *snapshot) { return int(static_cast<EditContext *>(p)->actor->FCreateUndo(static_cast<PActor>(snapshot))); };
+    s.release=[](void *,void *snapshot) { static_cast<PActor>(snapshot)->Release(); };
+    return s;
+}
+ThreeMMActorDeleteServices Actor::_DeleteServices(EditContext *context)
+{
+    ThreeMMActorDeleteServices s{}; s.context=context;
+    s.read=[](void *p,ThreeMMActorDeleteState *state) {
+        auto a=static_cast<EditContext *>(p)->actor; state->frame=a->_state.frame; state->add_event=a->_state.addEvent;
+        state->next_event=a->_state.nextEvent; state->scene_present=a->_pscen!=nullptr;
+    };
+    s.add_frame=[](void *p,ThreeMMI32 i)->ThreeMMI32 {
+        Base event; static_cast<EditContext *>(p)->actor->_track.Events()->GetFixed(i,&event); return event.nfrm;
+    };
+    s.event_count=[](void *p)->ThreeMMI32 { return static_cast<EditContext *>(p)->actor->_track.Events()->IvMac(); };
+    s.delete_subroute=[](void *p) { return int(static_cast<EditContext *>(p)->actor->_FDeleteEntireSubrte()); };
+    s.seek=[](void *p,ThreeMMI32 frame) { return int(static_cast<EditContext *>(p)->actor->FGotoFrame(frame)); };
+    s.delete_forward=[](void *p,int all,int wants_alive,ThreeMMI32 original) {
+        bool alive=false; static_cast<EditContext *>(p)->actor->DeleteFwdCore(all!=0,wants_alive?&alive:nullptr,original); return int(alive);
+    };
+    s.lifetime=[](void *p) { return int(static_cast<EditContext *>(p)->actor->_FComputeLifetime()); };
+    s.sound_frame=[](void *p) { static_cast<EditContext *>(p)->actor->_pscen->UpdateSndFrame(); };
+    s.diagnostic=[](void *,int fault) { PushErc(fault==THREE_MM_TRANSACTION_SEEK_FAILED?ercSocGotoFrameFailure:ercSocBadFrameSlider); };
+    return s;
+}
+
 bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(ppactrDup);
-
-    PActor pactrDup;
-
-    if (!FDup(&pactrDup))
-    {
-        return (fFalse);
-    }
-
-    if (!FSetActionCore(anid, celn, fFreeze))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    if (!FCreateUndo(pactrDup))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return (fFalse);
-    }
-
-    if (pvNil == ppactrDup)
-        ReleasePpo(&pactrDup);
-    else
-        *ppactrDup = pactrDup;
-
-    return fTrue;
+    AssertThis(0); AssertNilOrVarMem(ppactrDup); EditContext context{this}; context.action=anid; context.cel=celn; context.freeze=fFreeze;
+    auto s=_TransactionServices(&context);
+    s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetActionCore(c->action,c->cel,c->freeze)); };
+    ThreeMMActorTransactionResult out{}; out.context=ppactrDup;
+    out.publish=[](void *p,void *snapshot) { *static_cast<PActor *>(p)=static_cast<PActor>(snapshot); };
+    return three_mm_actor_transaction_apply(THREE_MM_TRANSACTION_ACTION,ppactrDup?&out:nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -1008,31 +1027,9 @@ bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 ***************************************************************************/
 bool Actor::FAddOnStage(void)
 {
-    AssertThis(0);
-
-    PActor pactrDup;
-
-    if (!FDup(&pactrDup))
-    {
-        return (fFalse);
-    }
-
-    if (!FAddOnStageCore())
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    if (!FCreateUndo(pactrDup))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pactrDup);
-    return fTrue;
+    AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
+    s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FAddOnStageCore()); };
+    return three_mm_actor_transaction_apply(THREE_MM_TRANSACTION_ADD,nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -1042,31 +1039,9 @@ bool Actor::FAddOnStage(void)
 ***************************************************************************/
 bool Actor::FNormalize(ulong grfnorm)
 {
-    AssertThis(0);
-
-    PActor pactrDup;
-
-    if (!FDup(&pactrDup))
-    {
-        return (fFalse);
-    }
-
-    if (!FNormalizeCore(grfnorm))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    if (!FCreateUndo(pactrDup))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pactrDup);
-    return fTrue;
+    AssertThis(0); EditContext context{this}; context.normalization=grfnorm; auto s=_TransactionServices(&context);
+    s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FNormalizeCore(c->normalization)); };
+    return three_mm_actor_transaction_apply(THREE_MM_TRANSACTION_NORMALIZE,nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -1077,30 +1052,11 @@ bool Actor::FNormalize(ulong grfnorm)
 ***************************************************************************/
 bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 {
-    AssertThis(0);
-    Assert(fCmtl || ibset >= 0, "Invalid ibset argument");
-    AssertVarMem(ptag);
-
-    PActor pactrDup;
-
-    FDup(&pactrDup);
-
-    if (!FSetCostumeCore(ibset, ptag, cmid, fCmtl))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    if (!FCreateUndo(pactrDup))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pactrDup);
-    return fTrue;
+    AssertThis(0); Assert(fCmtl || ibset>=0,"Invalid ibset argument"); AssertVarMem(ptag);
+    EditContext context{this}; context.body_set=ibset; context.tag=ptag; context.material=cmid; context.custom=fCmtl;
+    auto s=_TransactionServices(&context);
+    s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetCostumeCore(c->body_set,c->tag,c->material,c->custom)); };
+    return three_mm_actor_transaction_apply(THREE_MM_TRANSACTION_COSTUME,nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -1116,83 +1072,13 @@ bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
 {
     AssertThis(0);
-    PActor pactrDup;
-    long iaevCurSav;
-    Base *paev;
-
-    if (!FDup(&pactrDup))
-    {
-        if (pvNil != pfAlive)
-            TrashVar(pfAlive);
-        return fFalse;
-    }
-
-    // Unless we are deleting to the end of the scene,
-    // we need to special case deletion that begins at
-    // the same frame as the Add event - otherwise, the
-    // code backs up one frame, putting the current frame
-    // on the previous subroute.
-    // Note: FDelete() does not require that the current
-    // frame be	later than _nfrmFirst.
-    if (_state.addEvent >= 0 && !fDeleteAll)
-    {
-        paev = (Base *)_track.Events()->QvFixedGet(_state.addEvent);
-        if (_state.frame == paev->nfrm)
-        {
-            if (!_FDeleteEntireSubrte())
-                goto LFail;
-            if (pvNil != pfAlive)
-                *pfAlive = FPure(_track.Events()->IvMac() > 0);
-            goto LDeleted;
-        }
-    }
-
-    // Go to the previous frame to update state variables
-    iaevCurSav = _state.nextEvent;
-    if (!FGotoFrame(_state.frame - 1))
-    {
-        goto LFail;
-    }
-
 #ifndef BUG1870
-    // The next two lines are obsolete & cause placement orientation bugs
-    // Save the current orientation
-    _SaveCurPathOrien();
-#endif //! BUG1870
-
-    DeleteFwdCore(fDeleteAll, pfAlive, iaevCurSav);
-
-    // Return to original frame
-    // _state.frame was decremented above
-    if (!FGotoFrame(_state.frame + 1))
-    {
-        goto LFail;
-    }
-
-    /* Might have deleted some sound events */
-    if (Pscen() != pvNil)
-        Pscen()->UpdateSndFrame();
-
-LDeleted:
-    // The frame slider never required lifetime recomputation at this point.
-    // Motion match sounds and prerendering both do, however.
-    if (!_FComputeLifetime())
-        PushErc(ercSocBadFrameSlider);
-
-    if (!FCreateUndo(pactrDup))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    ReleasePpo(&pactrDup);
-    return fTrue;
-
-LFail:
-    PushErc(ercSocGotoFrameFailure);
-    ReleasePpo(&pactrDup);
-    return fFalse;
+#error C89 actor edit transactions require enabled retail BUG1870 policy
+#endif
+    EditContext context{this}; const auto s=_TransactionServices(&context); const auto d=_DeleteServices(&context);
+    ThreeMMActorDeleteResult out{}; out.context=pfAlive;
+    out.publish=[](void *p,int alive,int trashed) { if (trashed) { TrashVar(static_cast<bool *>(p)); } else *static_cast<bool *>(p)=alive!=0; };
+    return three_mm_actor_transaction_delete(fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
 }
 
 /***************************************************************************
@@ -1202,30 +1088,9 @@ LFail:
 ***************************************************************************/
 bool Actor::FRemFromStage(void)
 {
-    AssertThis(0);
-
-    PActor pactr;
-
-    if (!FDup(&pactr))
-    {
-        return (fFalse);
-    }
-
-    if (!FRemFromStageCore())
-    {
-        Restore(pactr);
-        return fFalse;
-    }
-
-    if (!FCreateUndo(pactr))
-    {
-        Restore(pactr);
-        ReleasePpo(&pactr);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pactr);
-    return fTrue;
+    AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
+    s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FRemFromStageCore()); };
+    return three_mm_actor_transaction_apply(THREE_MM_TRANSACTION_REMOVE,nullptr,&s)!=0;
 }
 
 /****************************************************
