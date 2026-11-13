@@ -216,6 +216,11 @@ Ctrl+wheel and the minus/plus keys also change size. At 100% previews use their
 native pixels; zooming out packs more frames into the window. The minimum zoom is
 10%, with previews kept at least 16 pixels wide and 9 pixels high. The chosen
 size lasts for this Marcus session. The wheel without Ctrl still scrolls.
+**Fit** chooses the largest preview size within the zoom range that shows every
+frame in the selected scope together, accounting for rows, columns and spacing,
+and never enlarges beyond native resolution. Fit remains active as the window
+or Whole movie scope changes; adjusting zoom manually leaves Fit mode. If the
+minimum preview size is reached, remaining frames stay available by scrolling.
 
 The **Whole movie** toggle switches the grid between one scene and every authored
 frame across all scenes, in movie order. It keeps the selected frame in view and

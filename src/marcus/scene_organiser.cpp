@@ -51,7 +51,7 @@ void TransitionSymbol(MarcusUI *ui, float x, float y, int transition, bool activ
 struct Layout
 {
     SDL_FRect panel, grid, track, thumb, cancel, confirm;
-    SDL_FRect zoomOut, zoomIn, zoomTrack, zoomThumb;
+    SDL_FRect zoomOut, zoomIn, zoomTrack, zoomThumb, fit;
     SDL_FRect wholeMovie;
     int columns, rows, maxScroll;
     float cellWidth, cellHeight, spacing;
@@ -82,6 +82,7 @@ struct MarcusSceneOrganiser
     int previewWidth = 160, previewHeight = 120;
     bool previewSizeKnown = false;
     bool zoomDragging = false;
+    bool fitFrames = false;
     struct SceneFrames { long first; int count, offset; };
     std::vector<SceneFrames> scenes;
     int movieFrameCount = 0;
@@ -131,6 +132,7 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
     l.zoomOut = {l.panel.x + 24, l.panel.y + l.panel.h - 50, 28, 28};
     l.zoomTrack = {l.zoomOut.x + 40, l.zoomOut.y, 144, 28};
     l.zoomIn = {l.zoomTrack.x + l.zoomTrack.w + 12, l.zoomOut.y, 28, 28};
+    l.fit = {l.zoomIn.x + 100, l.zoomOut.y, 60, 28};
     const float zoomRange = std::max(0.001f, 1.0f - MinimumZoom(s));
     l.zoomThumb = {l.zoomTrack.x + (l.zoomTrack.w - 10) * (s->frameZoom - MinimumZoom(s)) / zoomRange,
                    l.zoomTrack.y + 4, 10, 20};
@@ -139,12 +141,33 @@ Layout Arrange(MarcusSceneOrganiser *s, int width, int height)
 }
 void SetZoom(MarcusSceneOrganiser *s, float zoom, int width, int height)
 {
+    s->fitFrames = false;
     const auto previous = Arrange(s, width, height);
     const int first = s->scroll * previous.columns;
     s->frameZoom = std::clamp(zoom, MinimumZoom(s), 1.0f);
     const auto next = Arrange(s, width, height);
     s->scroll = std::clamp(first / next.columns, 0, next.maxScroll);
     s->dragging = false;
+}
+void FitFrames(MarcusSceneOrganiser *s, int width, int height)
+{
+    const auto l = Arrange(s, width, height);
+    float best = 0;
+    // Try each possible column count, accounting for the incomplete last row.
+    // A positive tile width also bounds this loop for very long movies.
+    const int limit = std::min(s->count, int(l.grid.w / l.spacing) + 1);
+    for (int columns = 1; columns <= limit; ++columns)
+    {
+        const auto rows = (static_cast<long long>(s->count) + columns - 1) / columns;
+        const auto horizontal = (double(l.grid.w) - (columns - 1) * l.spacing) / (columns * double(s->previewWidth));
+        const auto vertical = (double(l.grid.h) - (rows - 1) * l.spacing) / (rows * double(s->previewHeight));
+        const auto zoom = std::min({1.0, horizontal, vertical});
+        if (zoom > best) best = static_cast<float>(zoom);
+    }
+    // Round inward so floating-point division cannot add an extra row/column
+    // at a mathematically exact fit boundary.
+    if (best > 0 && best < 1) best = std::nextafter(best, 0.0f);
+    s->frameZoom = std::clamp(best, MinimumZoom(s), 1.0f);
 }
 void ZoomAt(MarcusSceneOrganiser *s, float x, int width, int height)
 {
@@ -408,6 +431,13 @@ int scene_organiser_event(MarcusSceneOrganiser *s, const SDL_Event *event, int w
         if (Inside(x, y, l.cancel)) scene_organiser_close(s);
         else if (Inside(x, y, l.confirm)) Confirm(s);
         else if (s->frames && Inside(x, y, l.wholeMovie)) ToggleWholeMovie(s);
+        else if (s->frames && Inside(x, y, l.fit))
+        {
+            s->fitFrames = true;
+            s->scroll = 0;
+            s->dragging = s->zoomDragging = false;
+            FitFrames(s, width, height);
+        }
         else if (s->frames && Inside(x, y, l.zoomOut)) SetZoom(s, s->frameZoom - 0.125f, width, height);
         else if (s->frames && Inside(x, y, l.zoomIn)) SetZoom(s, s->frameZoom + 0.125f, width, height);
         else if (s->frames && Inside(x, y, l.zoomTrack))
@@ -473,7 +503,13 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     if (initial) { Reveal(s, l); l = Arrange(s, width, height); }
     if (s->frames)
     {
+        if (s->fitFrames)
+        {
+            FitFrames(s, width, height);
+            l = Arrange(s, width, height);
+        }
         UpdateFrameThumbnails(s, ui->renderer, l);
+        if (s->fitFrames) FitFrames(s, width, height);
         l = Arrange(s, width, height);
     }
     ui_opacity(ui, 0.75f);
@@ -577,8 +613,9 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
                 s->zoomDragging ? 0x9edbd0 : 0x7387a6);
         SDL_snprintf(text, sizeof(text), "%.0f%%", s->frameZoom * 100);
         ui_text(ui, l.zoomIn.x + 40, l.zoomIn.y + 5, text, 0xc5cedd);
+        ui_button_sized(ui, l.fit.x, l.fit.y, l.fit.w, l.fit.h, "Fit", s->fitFrames, s->count > 0);
         if (s->frameError[0])
-            ui_label(ui, l.zoomIn.x + 100, l.zoomIn.y + 5, l.panel.w - 500, "Thumbnails unavailable", 0xc5cedd);
+            ui_label(ui, l.zoomIn.x + 176, l.zoomIn.y + 5, l.panel.w - 576, "Thumbnails unavailable", 0xc5cedd);
     }
     else
     {
