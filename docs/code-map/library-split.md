@@ -1788,8 +1788,8 @@ resource estimates, loading, authoring, disposal, metric queries and glyph looku
 ThreeDFont is now a temporary facade around that C state. Native services provide
 primitive allocation, blocks, child lists/graph operations, retained model fetches,
 model bounds and diagnostics. ThreeDText generation now uses the C implementation
-described below; its string/tag construction, change/wire orchestration and
-localized action-name policy remain native dependencies.
+described below, along with C-owned string/tag orchestration and localized
+action-name policy in `text_resource.c`.
 
 Loading publishes character count before exact-length validation, maximum height
 after validation, then each buffer before its read. Direct failure retains
@@ -1827,9 +1827,10 @@ cache, glyph fetch control, body adjustment/default costumes and generated-owner
 disposal. `ThreeMMTextGenerated` holds the material, cached action and cache ID;
 these are no longer separate C++ owner fields. Native services expose primitive
 container/material/action factories, retained font providers, metric/glyph access,
-body operations and template field views. String/tag construction, top-level
-change/save/load orchestration, localized names, remaining resources and final
-native facade removal still keep the full C89 backend unfinished.
+body operations and template field views. The resource controller below owns
+string/tag construction, change/save/load orchestration and localized names.
+Remaining resources and final native facade removal still keep the full C89
+backend unfinished.
 
 `text_generation_math.c` owns all ten shapes and sixteen animation formulas,
 reusing the shared C fixed-point/BAM/matrix primitives without a native BRender
@@ -1856,6 +1857,41 @@ misses, direct builders, missing fonts and allocation injection. C-only tests co
 ownership/publication order, failure phases, cache invalidation/hits, zero-length lists,
 glyph failures, body boundaries and math invariants. All 70 standalone C checks
 run with assertions enabled; full gate evidence is in
+`docs/tools/playback-regression.md`.
+
+### Three-dimensional text resources
+
+`text_resource.c` owns construction, duplication, change rollback, info queries,
+font-provider selection, template/child resource loading and saving, embedded-tag
+enumeration and localized action-name policy. `ThreeMMTextDescriptor` holds shape
+and font tag; `ThreeMMTextNames` holds the optional retained names table. Both
+hosts use the same C controller through the temporary ThreeDText facade. Services
+still provide native String primitives, object creation, block/chunk operations,
+font providers and string-table entry access; those adapters are dependencies of
+the unfinished full C-only backend.
+
+Construction/change normalize empty strings to one space; loading does not.
+Even a no-op change rebuilds generated owners. Failed changes restore text,
+shape and font after the atomic generated-list initializer fails. Duplicates
+receive fresh generated resources and inherit provider hooks only after success.
+Runtime tag copying preserves cache bits without owning them; wire tags have a
+zero pointer pad and load with a NULL cache. The 24-byte child record permits
+trailing data and preserves native opposite-order handling. Direct read failures
+retain published base/descriptor fields. Child save failures retain the parent
+and output number; payload-write failure deletes only the child. Tag enumeration
+clears error before allocation and publishes failure before releasing its list.
+Localized lookup retains the first duplicate ID, warns only for a missing entry
+in a present table, and clears the output on failure.
+
+A 2,400-case native trace matches all 279,277 bytes without masking, SHA-256
+`6C80CF373A4F7F8B6B749EF4CDA6BD7B92EAC799E58F882F9D96B64794EC9E94`.
+It covers optional change masks, allocation failures/rollback/cache references,
+provider inheritance, packed/foreign/short/missing child loads, factory/direct
+loads and tag enumeration, and successful wire bytes/failed-save chunk graphs.
+Undefined partial-save payloads are excluded. C-only checks additionally cover
+both host byte orders, error-before-release, parent retention, custom-provider
+failure without fallback, malformed-order diagnostics and name publication.
+Full validation and playback limits are recorded in
 `docs/tools/playback-regression.md`.
 
 ### Source names and directory discovery

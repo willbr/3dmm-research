@@ -45,13 +45,78 @@ RTCLASS(ThreeDText)
 const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under Template chunk
 
 
-PStringTable_GST ThreeDText::_pgstAction = pvNil;
+struct TextResourceContext { DataBlock block; String saved; };
+static void TextTagToCore(const TAG *tag, ThreeMMTag *out)
+{
+    out->sid = tag->sid; std::memcpy(&out->cache, &tag->pcrf, sizeof(out->cache)); out->type = tag->ctg; out->number = tag->cno;
+}
+static void TextTagFromCore(TAG *tag, const ThreeMMTag *in)
+{
+    tag->sid = in->sid; std::memcpy(&tag->pcrf, &in->cache, sizeof(tag->pcrf)); tag->ctg = in->type; tag->cno = in->number;
+}
+ThreeMMTextResourceServices ThreeDText::_ResourceServices(void *context)
+{
+    ThreeMMTextResourceServices s = {}; s.context = context; s.system = koskCur; s.generation = _GenerationServices();
+    static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(ThreeMMTag), "text resource ABI");
+    s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_descriptor; };
+    s.create = [](void *) -> void * { return NewObj ThreeDText; };
+    s.text = [](void *, void *object) -> void * { return &static_cast<PThreeDText>(object)->_stn; };
+    s.assign = [](void *, void *to, const void *from) { *static_cast<PString>(to) = *const_cast<PString>(static_cast<const String *>(from)); };
+    s.space = [](void *, void *text) { achar ch = ChLit(' '); static_cast<PString>(text)->SetRgch(&ch, 1); };
+    s.clear = [](void *, void *text) { static_cast<PString>(text)->SetNil(); };
+    s.saved_text = [](void *p) -> void * { return &static_cast<TextResourceContext *>(p)->saved; };
+    s.provider_copy = [](void *, void *to, void *from) {
+        auto source = static_cast<PThreeDText>(from); static_cast<PThreeDText>(to)->SetFontResolver(source->_fontContext, source->_fontResolver);
+    };
+    s.has_provider = [](void *, void *object) -> int { return static_cast<PThreeDText>(object)->_fontResolver != nullptr; };
+    s.provider_font = [](void *, void *object, const ThreeMMTag *in) -> void * {
+        TAG tag; TextTagFromCore(&tag, in); auto t = static_cast<PThreeDText>(object); return t->_fontResolver(t->_fontContext, tag);
+    };
+    s.default_font = [](void *, const ThreeMMTag *in) -> void * {
+        TAG tag; TextTagFromCore(&tag, in); return vptagm == nullptr ? nullptr : vptagm->PbacoFetch(&tag, ThreeDFont::FReadTdf);
+    };
+    s.publish_tag = [](void *, void *out, const ThreeMMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
+    s.read_template = [](void *, void *object, void *file, ThreeMMU32 type, ThreeMMU32 number) -> int {
+        return static_cast<PThreeDText>(object)->_FReadTmplf(static_cast<PChunkyFile>(file), type, number);
+    };
+    s.write_template = [](void *, void *object, void *file, ThreeMMU32 type, void *number) -> int {
+        return static_cast<PThreeDText>(object)->_FWriteTmplf(static_cast<PChunkyFile>(file), type, static_cast<ChunkNumber *>(number));
+    };
+    s.child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 *out) -> int {
+        ChildChunkIdentification child; if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, kchidTdt, kctgTdt, &child)) return 0;
+        *out = child.cki.cno; return 1;
+    };
+    s.find = [](void *p, void *file, ThreeMMU32 number) -> void * {
+        auto block = &static_cast<TextResourceContext *>(p)->block;
+        return static_cast<PChunkyFile>(file)->FFind(kctgTdt, number, block) ? block : nullptr;
+    };
+    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+    s.block_size = [](void *, void *block) -> ThreeMMI32 { return static_cast<PDataBlock>(block)->Cb(); };
+    s.read = [](void *, void *block, void *data, ThreeMMI32 bytes) -> int { return static_cast<PDataBlock>(block)->FReadRgb(data, bytes, 0); };
+    s.add = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 *out) -> void * {
+        auto block = &static_cast<TextResourceContext *>(p)->block; ChunkNumber child;
+        if (!static_cast<PChunkyFile>(file)->FAddChild(type, number, kchidTdt, 24, kctgTdt, &child, block)) return nullptr;
+        *out = child; return block;
+    };
+    s.write = [](void *, void *block, const void *data, ThreeMMI32 bytes) -> int { return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), bytes, 0); };
+    s.delete_child = [](void *, void *file, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 child) { static_cast<PChunkyFile>(file)->DeleteChild(type, number, kctgTdt, child, kchidTdt); };
+    s.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
+    s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
+    s.append_tag = [](void *, void *list, const ThreeMMTag *in) -> int { TAG tag; TextTagFromCore(&tag, in); return static_cast<PDynamicArray>(list)->FAdd(&tag); };
+    s.name_count = [](void *, void *table) -> ThreeMMI32 { return static_cast<PStringTable_GST>(table)->IvMac(); };
+    s.name_id = [](void *, void *table, ThreeMMI32 i) -> ThreeMMI32 { LegacyLong id; static_cast<PStringTable_GST>(table)->GetExtra(i, &id); return id; };
+    s.name_text = [](void *, void *table, ThreeMMI32 i, void *text) { static_cast<PStringTable_GST>(table)->GetStn(i, static_cast<PString>(text)); };
+    s.missing_name = [](void *) { Warn("action name not found"); };
+    s.bad_order = [](void *) { Assert(false, "bad ThreeDTextF"); };
+    return s;
+}
+
+ThreeMMTextNames ThreeDText::_actionNames = {};
 
 PThreeDFont ThreeDText::_FetchFont(void)
 {
-    if (_fontResolver != pvNil)
-        return _fontResolver(_fontContext, _tagTdf);
-    return vptagm == pvNil ? pvNil : (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return static_cast<PThreeDFont>(three_mm_text_font(this, &services));
 }
 
 /***************************************************************************
@@ -59,27 +124,10 @@ PThreeDFont ThreeDText::_FetchFont(void)
 ***************************************************************************/
 bool ThreeDText::FSetActionNames(PStringTable_GST pgstAction)
 {
-    AssertPo(pgstAction, 0);
-    Assert(pvNil == _pgstAction, "you already set the action names");
-
-    _pgstAction = pgstAction;
-    _pgstAction->AddRef();
-    return fTrue;
+    AssertPo(pgstAction, 0); Assert(_actionNames.table == pvNil, "you already set the action names");
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_text_set_names(&_actionNames, pgstAction, &services) != 0;
 }
-
-/****************************************
-    3-D Text On File...this gets put in
-    a child chunk of a Template
-****************************************/
-struct ThreeDTextF
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t tdts;
-    TAGOnFile tagTdf;
-};
-static_assert(sizeof(ThreeDTextF) == 24, "ThreeDTextF on-disk layout drift");
-const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
 
 /***************************************************************************
     Return a list of all tags embedded in this ThreeDText.  Note that a
@@ -92,42 +140,9 @@ const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
 ***************************************************************************/
 PDynamicArray ThreeDText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
-    AssertPo(pcfl, 0);
-    AssertVarMem(pfError);
-
-    PDynamicArray pgltag;
-    ChildChunkIdentification kid;
-    DataBlock blck;
-    ThreeDTextF tdtf;
-
-    *pfError = fFalse;
-    pgltag = DynamicArray::PglNew(size(TAG));
-    if (pvNil == pgltag)
-        goto LFail;
-    if (!pcfl->FGetKidChidCtg(ctg, cno, kchidTdt, kctgTdt, &kid))
-        goto LFail;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        goto LFail;
-    if (!blck.FUnpackData())
-        goto LFail;
-    if (blck.Cb() < size(ThreeDTextF))
-        goto LFail;
-    if (!blck.FReadRgb(&tdtf, size(ThreeDTextF), 0))
-        goto LFail;
-    if (kboCur != tdtf.bo)
-        SwapBytesBom(&tdtf, kbomTdtf);
-    Assert(kboCur == tdtf.bo, "bad ThreeDTextF");
-    {
-        TAG tagTdf;
-        TagFromOnFile(&tagTdf, tdtf.tagTdf);
-        if (!pgltag->FAdd(&tagTdf))
-            goto LFail;
-    }
-    return pgltag;
-LFail:
-    *pfError = fTrue;
-    ReleasePpo(&pgltag);
-    return pvNil;
+    AssertPo(pcfl, 0); AssertVarMem(pfError);
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return static_cast<PDynamicArray>(three_mm_text_tags(pcfl, ctg, cno, pfError, &services));
 }
 
 /***************************************************************************
@@ -135,37 +150,10 @@ LFail:
 ***************************************************************************/
 PThreeDText ThreeDText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
-    AssertPo(pstn, 0);
-    AssertIn(tdts, 0, tdtsLim);
-    AssertVarMem(ptagTdf);
-
-    PThreeDText ptdt;
-
-    ptdt = NewObj ThreeDText;
-    if (pvNil == ptdt)
-        return pvNil;
-    ptdt->_stn = *pstn;
-
-    // This is a bit of a hack, but it makes life easier.  Without it,
-    // the code would have to deal with body part sets with no body
-    // parts in them, and Template and Body would have problems with that
-    // (for one thing, they would compute _cbset incorrectly).
-    if (ptdt->_stn.Cch() == 0)
-    {
-        achar chSpace = ChLit(' ');
-        ptdt->_stn.SetRgch(&chSpace, 1);
-    }
-
-    ptdt->_tdts = tdts;
-    ptdt->_tagTdf = *ptagTdf;
-    if (!ptdt->_FInitLists())
-    {
-        ReleasePpo(&ptdt);
-        return pvNil;
-    }
-    AssertPo(ptdt, 0);
-
-    return ptdt;
+    AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
+    TextResourceContext context; auto services = _ResourceServices(&context); ThreeMMTag font;
+    TextTagToCore(ptagTdf, &font);
+    return static_cast<PThreeDText>(three_mm_text_create(pstn, tdts, &font, &services));
 }
 
 /***************************************************************************
@@ -174,35 +162,9 @@ PThreeDText ThreeDText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 ***************************************************************************/
 bool ThreeDText::_FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl)
 {
-    AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-    DataBlock blck;
-    ThreeDTextF tdtf;
-
-    if (!_FReadTmplf(pcfl, ctgTmpl, cnoTmpl))
-        return fFalse;
-    if (!pcfl->FGetKidChidCtg(ctgTmpl, cnoTmpl, kchidTdt, kctgTdt, &kid))
-        return fFalse;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        return fFalse;
-    if (!blck.FUnpackData())
-        return fFalse;
-    if (blck.Cb() < size(ThreeDTextF))
-        return fFalse;
-    if (!blck.FReadRgb(&tdtf, size(ThreeDTextF), 0))
-        return fFalse;
-    if (kboCur != tdtf.bo)
-        SwapBytesBom(&tdtf, kbomTdtf);
-    Assert(kboCur == tdtf.bo, "bad ThreeDTextF");
-    TagFromOnFile(&_tagTdf, tdtf.tagTdf);
-    _tdts = tdtf.tdts;
-
-    if (!_FInitLists())
-        return fFalse;
-
-    return fTrue;
+    AssertBaseThis(0); AssertPo(pcfl, 0);
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_text_read(this, pcfl, ctgTmpl, cnoTmpl, &services) != 0;
 }
 
 /***************************************************************************
@@ -219,7 +181,7 @@ ThreeMMTextGenerationServices ThreeDText::_GenerationServices()
     s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_generated; };
     s.length = [](void *, void *object) -> ThreeMMI32 { return static_cast<PThreeDText>(object)->_stn.Cch(); };
     s.character = [](void *, void *object, ThreeMMI32 i) -> ThreeMMI32 { return static_cast<uchar>(static_cast<PThreeDText>(object)->_stn.Psz()[i]); };
-    s.shape = [](void *, void *object) -> ThreeMMI32 { return static_cast<PThreeDText>(object)->_tdts; };
+    s.shape = [](void *, void *object) -> ThreeMMI32 { return static_cast<PThreeDText>(object)->_descriptor.shape; };
     s.template_read = [](void *, void *object, ThreeMMTemplateState *out) {
         auto t = static_cast<PThreeDText>(object);
         *out = {t->_pglibactPar, t->_pglibset, t->_pggcmid, t->_cbset, t->_ccmid, t->_cactn, t->_xaRest, t->_yaRest, t->_zaRest, t->_grftmpl};
@@ -253,7 +215,7 @@ ThreeMMTextGenerationServices ThreeDText::_GenerationServices()
 
 bool ThreeDText::_FInitLists(void)
 {
-    AssertBaseThis(0); AssertPo(&_stn, 0); AssertIn(_tdts, 0, tdtsLim);
+    AssertBaseThis(0); AssertPo(&_stn, 0); AssertIn(_descriptor.shape, 0, tdtsLim);
     auto services = _GenerationServices();
     return three_mm_text_initialize_lists(this, &services) != 0;
 }
@@ -284,31 +246,9 @@ PActionDefinition ThreeDText::_PactnBuild(LegacyLong tda)
 ***************************************************************************/
 bool ThreeDText::FGetActnName(LegacyLong anid, PString pstn)
 {
-    AssertThis(0);
-    AssertIn(anid, 0, tdaLim);
-    AssertPo(pstn, 0);
-
-    LegacyLong istn;
-    LegacyLong anidT;
-
-    if (pvNil == _pgstAction)
-    {
-        pstn->SetNil();
-        return fFalse;
-    }
-
-    for (istn = 0; istn < _pgstAction->IvMac(); istn++)
-    {
-        _pgstAction->GetExtra(istn, &anidT);
-        if (anid == anidT)
-        {
-            _pgstAction->GetStn(istn, pstn);
-            return fTrue;
-        }
-    }
-    Warn("action name not found");
-    pstn->SetNil();
-    return fFalse;
+    AssertThis(0); AssertIn(anid, 0, tdaLim); AssertPo(pstn, 0);
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_text_action_name(&_actionNames, anid, pstn, &services) != 0;
 }
 
 /***************************************************************************
@@ -390,15 +330,8 @@ ThreeDText::~ThreeDText(void)
 PThreeDText ThreeDText::PtdtDup(void)
 {
     AssertThis(0);
-
-    PThreeDText ptdtDup;
-
-    ptdtDup = ThreeDText::PtdtNew(&_stn, _tdts, &_tagTdf);
-    if (pvNil != ptdtDup)
-        ptdtDup->SetFontResolver(_fontContext, _fontResolver);
-    AssertNilOrPo(ptdtDup, 0);
-
-    return ptdtDup;
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return static_cast<PThreeDText>(three_mm_text_duplicate(this, &services));
 }
 
 /***************************************************************************
@@ -406,46 +339,11 @@ PThreeDText ThreeDText::PtdtDup(void)
 ***************************************************************************/
 bool ThreeDText::FChange(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
-    AssertThis(0);
-    AssertNilOrPo(pstn, 0);
-    if (tdtsNil != tdts)
-        AssertIn(tdts, 0, tdtsLim);
-    AssertNilOrVarMem(ptagTdf);
-
-    String stnSave;
-    LegacyLong tdtsSave;
-    TAG tagTdfSave;
-
-    stnSave = _stn;
-    tdtsSave = _tdts;
-    tagTdfSave = _tagTdf;
-
-    if (pvNil != pstn)
-        _stn = *pstn;
-    if (tdtsNil != tdts)
-        _tdts = tdts;
-    if (pvNil != ptagTdf)
-        _tagTdf = *ptagTdf;
-
-    // This is a bit of a hack, but it makes life easier.  Without it,
-    // the code would have to deal with body part sets with no body
-    // parts in them, and Template and Body would have problems with that
-    // (for one thing, they would compute _cbset incorrectly).
-    if (_stn.Cch() == 0)
-    {
-        achar chSpace = ChLit(' ');
-        _stn.SetRgch(&chSpace, 1);
-    }
-
-    if (!_FInitLists()) // note: unwinds on failure
-    {
-        _stn = stnSave;
-        _tdts = tdtsSave;
-        _tagTdf = tagTdfSave;
-        return fFalse;
-    }
-
-    return fTrue;
+    AssertThis(0); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptagTdf);
+    if (tdts != tdtsNil) AssertIn(tdts, 0, tdtsLim);
+    TextResourceContext context; auto services = _ResourceServices(&context); ThreeMMTag font;
+    if (ptagTdf) TextTagToCore(ptagTdf, &font);
+    return three_mm_text_change(this, pstn, tdts, ptagTdf ? &font : nullptr, &services) != 0;
 }
 
 /***************************************************************************
@@ -453,17 +351,9 @@ bool ThreeDText::FChange(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 ***************************************************************************/
 void ThreeDText::GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 {
-    AssertThis(0);
-    AssertNilOrPo(pstn, 0);
-    AssertNilOrVarMem(ptdts);
-    AssertNilOrVarMem(ptagTdf);
-
-    if (pvNil != pstn)
-        *pstn = _stn;
-    if (pvNil != ptdts)
-        *ptdts = _tdts;
-    if (pvNil != ptagTdf)
-        *ptagTdf = _tagTdf;
+    AssertThis(0); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptdts); AssertNilOrVarMem(ptagTdf);
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    three_mm_text_info(this, pstn, ptdts, ptagTdf, &services);
 }
 
 /***************************************************************************
@@ -504,33 +394,9 @@ PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
 ***************************************************************************/
 bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-    AssertVarMem(pcno);
-
-    ThreeDTextF tdtf;
-    ChunkNumber cnoTdt;
-    DataBlock blck;
-
-    if (!_FWriteTmplf(pcfl, ctg, pcno))
-        return fFalse;
-
-    // Add ThreeDText chunk
-    tdtf.bo = kboCur;
-    tdtf.osk = koskCur;
-    tdtf.tdts = _tdts;
-    tdtf.tagTdf.From(_tagTdf);
-
-    if (!pcfl->FAddChild(ctg, *pcno, kchidTdt, size(ThreeDTextF), kctgTdt, &cnoTdt, &blck))
-    {
-        return fFalse;
-    }
-    if (!blck.FWrite(&tdtf))
-    {
-        pcfl->DeleteChild(ctg, *pcno, kctgTdt, cnoTdt, kchidTdt);
-        return fFalse;
-    }
-    return fTrue;
+    AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
+    TextResourceContext context; auto services = _ResourceServices(&context);
+    return three_mm_text_write(this, pcfl, ctg, pcno, &services) != 0;
 }
 
 /***************************************************************************
@@ -579,8 +445,8 @@ void ThreeDText::_ApplyShape(BMAT34 *pbmat34, LegacyLong tdts, LegacyLong cch, L
 void ThreeDText::AssertValid(LegacyUlong grf)
 {
     ThreeDText_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(_pgstAction, 0); // Localized action names are optional in headless hosts.
-    Assert(_tagTdf.ctg != ctgNil, "ThreeDText has bad _tagTdf");
+    AssertNilOrPo(static_cast<PStringTable_GST>(_actionNames.table), 0); // Localized action names are optional in headless hosts.
+    Assert(_descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
     AssertPo(static_cast<PMaterial_MTRL>(_generated.material), 0);
     if (tdaNil != _generated.action_id)
     {
@@ -591,7 +457,7 @@ void ThreeDText::AssertValid(LegacyUlong grf)
     {
         Assert(pvNil == _generated.action, "_generated.action_id is wrong");
     }
-    AssertIn(_tdts, 0, tdtsLim);
+    AssertIn(_descriptor.shape, 0, tdtsLim);
 }
 
 /***************************************************************************
@@ -613,7 +479,7 @@ void ThreeDText::MarkMem(void)
 ***************************************************************************/
 void ThreeDText::MarkActionNames(void)
 {
-    MarkMemObj(_pgstAction);
+    MarkMemObj(static_cast<PStringTable_GST>(_actionNames.table));
 }
 
 #endif // DEBUG

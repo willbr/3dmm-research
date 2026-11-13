@@ -13,7 +13,7 @@
 ***************************************************************************/
 #ifndef ThreeDText_H
 #define ThreeDText_H
-#include "three_mm/text_generation.h"
+#include "three_mm/text_resource.h"
 
 // 3-D Text Shapes - the positions and orientations of the letters
 enum
@@ -68,10 +68,9 @@ class ThreeDText : public ThreeDText_PAR
     MARKMEM
 
   protected:
-    static PStringTable_GST _pgstAction; // Action names
+    static ThreeMMTextNames _actionNames; // Action names
 
-    LegacyLong _tdts;          // ThreeDText shape
-    TAG _tagTdf;         // Tag to Three-D Font
+    ThreeMMTextDescriptor _descriptor = {};
     ThreeMMTextGenerated _generated = {};
     void *_fontContext = pvNil;
     PThreeDFont (*_fontResolver)(void *, const TAG &) = pvNil;
@@ -80,6 +79,7 @@ class ThreeDText : public ThreeDText_PAR
   protected:
     virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
     static ThreeMMTextGenerationServices _GenerationServices();
+    static ThreeMMTextResourceServices _ResourceServices(void *context);
     bool _FInitLists(void);
     PDynamicArray _PglibactParBuild(void);
     PDynamicArray _PglibsetBuild(void);

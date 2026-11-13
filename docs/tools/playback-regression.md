@@ -5013,3 +5013,92 @@ observations, summaries, diagnostics, current results and latest baselines/
 failures. Evidence is in
 `tmp/c89-text-generation-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
 and `tmp/c89-text-generation-playback-audit.json`.
+
+## ThreeDText lifecycle and resource C89 conversion (13 November 2026)
+
+`text_resource.c` owns construction, duplication, optional text/shape/font changes
+and rollback, info queries, provider selection, template/child read/write, tag
+enumeration and action-name policy. Persistent shape/font state now resides in
+`ThreeMMTextDescriptor`; the optional names owner uses `ThreeMMTextNames`.
+ThreeDText supplies primitive object/String/block/chunk/provider/table services.
+The C controller calls the shared C generated-list initializer directly. Remaining
+String/file/container/render adapters, sound/resource/runtime operations and final
+facade removal keep the full C-only backend unfinished.
+
+Empty text becomes a space for construction/change, but not loading. Even a
+no-op change rebuilds owners and invalidates its action cache. Failure restores
+text, shape and font after generated-list failure leaves old owners untouched.
+Duplication inherits provider hooks only after successful fresh construction.
+Custom-provider failure does not fall back to the default provider. Runtime tags
+preserve borrowed cache bits, including positive-SID tags; on-file tags discard
+the pointer pad and load a NULL cache. The 24-byte record permits trailing bytes
+and retains native opposite-order handling. Direct load failure retains fields
+already published. Save failures retain the parent/output number; payload-write
+failure deletes only its child. Tag error publication precedes list allocation
+and failed-list release. Names publish before retain; first matching ID wins,
+absent tables clear silently and missing entries warn before clearing.
+
+The native baseline was captured twice before production changes. Both traces
+and the converted trace match all 279,277 bytes without masking, SHA-256
+`6C80CF373A4F7F8B6B749EF4CDA6BD7B92EAC799E58F882F9D96B64794EC9E94`.
+The 2,400 cases include 1,440 lifecycle cases, 864 direct/factory/tag loading
+cases and 96 writer cases. Lifecycle coverage includes empty/high-byte text,
+shape extremes, every optional-change mask, BASE/HQ/Pv allocation injection,
+rollback, cached-action references and duplicate provider inheritance. Loading
+covers current/foreign order, short/missing child chunks, missing names and
+packed extended records. Writer traces include successful wire bytes and failed
+chunk graphs/output publication; undefined partial-save payloads are excluded.
+Debug has 1,843 successful operations; SDL release has 2,016. Allocations balance.
+Additional name checks cover absent tables, duplicate IDs and missing entries.
+Native generation/body traces from the preceding conversion also remain exact.
+
+All 71 standalone C checks pass with assertions enabled, including strict C89
+syntax. The new C-only tests additionally cover both host byte orders,
+error-before-release, parent retention, malformed-order diagnostics, no-op cache
+invalidation, provider selection and names publication. MSVC AddressSanitizer
+compiles/runs the resource controller and shared generation/math dependencies as
+C. All 85 focused native checks, SDL save/load, all 57 snapshot comparisons and
+51 freshly linked CLI baselines pass. Both hosts build and headless real-content
+scene/timeline playback passes. No Marcus UI tests were added. Evidence includes
+`tmp/c89-text-resource-standalone.log`, `tmp/c89-text-resource-native-tests.log`,
+`tmp/c89-text-resource-asan.log`, `tmp/c89-text-resource-sdl-after.log`,
+`tmp/c89-text-resource-snapshot-comparison.json`,
+`tmp/c89-text-resource-output-comparison.json` and
+`tmp/c89-text-resource-preview-scene.log`.
+
+Playback binary SHA-256 values are frozen for the capture pass:
+`48835F5B39C629181B4521155C913C26DFFF3085B350DA5DD4B924E613065DD4` (SDL) and
+`59A0D2BDF902366DED0D4B8E49A9F1BBA5E42515C670154BF1B3BAA1F302B4D0`
+(Marcus regression). Preceding same-player baselines are actor-audio
+`20261113T153100Z-435bbe3f`, actor-events `20261113T153402Z-b5c56cdd`,
+scrolling-text `20261113T153805Z-808f45a7` and sampled-audio
+`20261113T154115Z-2320e37b`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T160754Z-ff148af2` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T160914Z-bee4ee37` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T161033Z-b02176d7` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261113T161343Z-60647ee2` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures completed without retries. Movie identities and source/resource/
+content integrity pass. All 540 seek images, authored positions and ordered
+playback changes match preceding same-player results. Only adjacent identical
+position/image observations are collapsed; raw observations/timestamps remain.
+Actor cases retain 60 ordered changes per player; scrolling retains 328 retail/SDL
+and 321 Marcus. First-scene actor 600/1300 Hz coverage passes. Actor peaks remain
+3192 retail and 4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176
+SDL/Marcus. All measured peak deltas are zero. Earlier 4080/4081 SDL variation
+remains a coverage limitation, and peaks/tone coverage do not prove waveform or
+timing parity. Existing cross-player differences and one-repeat inconclusive
+comparisons remain. These suites do not exercise every shape/action in retail;
+the 800-case native generation comparison remains separate evidence.
+
+Both binary hashes remained unchanged throughout capture. The runs reused one
+shared SDL package cache, with private processes/settings/working movies and
+uncontrolled OS caching. No builds or compaction ran during capture. Automatic
+retention pruned superseded raw media while retaining metadata/observations,
+current results, preceding baselines and latest failures. C: retained about
+59.2 GiB free after the pass. Evidence is in
+`tmp/c89-text-resource-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
+and `tmp/c89-text-resource-playback-audit.json`.

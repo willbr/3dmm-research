@@ -1945,6 +1945,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_action_definition_fixture.h"
 #include "engine_font_resource_fixture.h"
 #include "engine_text_generation_fixture.h"
+#include "engine_text_resource_fixture.h"
 #include "engine_movie_sound_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
@@ -2554,6 +2555,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("action definition failed");
     if (!TestFontResources())
         BAIL("font resources failed");
+    if (!TestTextResources())
+        BAIL("text resources failed");
     if (!TestTextGeneration())
         BAIL("text generation failed");
     if (!TestActorCreation(pmvie))
