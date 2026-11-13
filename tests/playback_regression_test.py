@@ -11,6 +11,7 @@ import wave
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 try:
     from PIL import Image
 except ImportError:
@@ -21,6 +22,128 @@ from playback_store import Store, digest, frame_coverage, timing_metrics
 from playback_regression import compare_runs, compare_suite, load_manifest, review, capabilities, verify_feature_observations, import_presentations
 from playback_regression import preserve_warmup_presentations
 from playback_regression import verify_actor_audio
+from playback_retention import plan as retention_plan, prune, shared_cache, require_space
+
+
+class Retention(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.store = Store(self.root / 'playback.sqlite')
+        self.movie = self.root / 'fixture.3mm'
+        self.movie.write_bytes(b'fixture input')
+
+    def tearDown(self):
+        self.store.close()
+        self.temporary.cleanup()
+
+    def suite(self, number, player='retail', status='complete'):
+        name = '20260101T%06dZ-%08x' % (number, number)
+        self.store.insert('suites', id=name, started=str(number).zfill(10),
+                          manifest_json='{}', environment_json='{}', source_revision='fixture')
+        self.store.add_case(name, {'name': 'fixture', 'path': self.movie,
+                                  'reference': 'retail', 'features': []})
+        path = self.root / name
+        path.mkdir()
+        (path / 'summary.json').write_text('{"status":"recorded"}')
+        (path / 'image.png').write_bytes(b'raw image')
+        (path / 'process').mkdir()
+        (path / 'process/runtime.log').write_text('diagnostic')
+        (path / 'cache').mkdir()
+        (path / 'cache/package.json').write_text('duplicate cache metadata')
+        run = self.store.insert('runs', suite_id=name, case_name='fixture', player=player,
+                               mode='seek', preparation='fresh-process', repetition=0,
+                               status=status, artifact_dir=name, capabilities_json='{}')
+        self.store.insert('frames', run_id=run, sequence=0, scene=0, frame=1,
+                          timestamp_ns=100, state_json='{}')
+        return name
+
+    def test_retention_is_per_observation_key_not_last_two_directories(self):
+        old = self.suite(0)
+        sdl = self.suite(1, 'sdl')
+        latest = [self.suite(2), self.suite(3)]
+        result = retention_plan(self.store)
+        self.assertEqual(result['targets'], [old])
+        self.assertTrue(set([sdl] + latest).issubset(result['protected']))
+
+    def test_dry_run_and_apply_keep_observations_and_small_metadata(self):
+        names = [self.suite(i) for i in range(4)]
+        self.assertEqual(prune(self.store)['targets'], names[:2])
+        self.assertTrue((self.root / names[0] / 'image.png').exists())
+        self.assertFalse((self.root / 'retained-metadata').exists())
+        result = prune(self.store, apply=True)
+        self.assertEqual(result['removed'], names[:2])
+        self.assertEqual(self.store.db.execute('SELECT count(*) FROM frames').fetchone()[0], 4)
+        self.assertEqual(self.store.db.execute('SELECT count(*) FROM runs').fetchone()[0], 4)
+        archived = self.root / 'retained-metadata' / names[0]
+        self.assertTrue((archived / 'summary.json').exists())
+        self.assertEqual((archived / 'process/runtime.log').read_text(), 'diagnostic')
+        self.assertFalse((archived / 'image.png').exists())
+        self.assertFalse((archived / 'cache').exists())
+        self.assertTrue(self.movie.exists())
+        self.assertEqual(prune(self.store, apply=True)['removed'], [])
+
+    def test_cache_pins_latest_failure_and_unknown_directories_survive(self):
+        names = [self.suite(i) for i in range(6)]
+        old_failure, latest_failure = self.suite(6, status='failed'), self.suite(7, status='failed')
+        (self.root / 'retention-pins.json').write_text(json.dumps([names[0]]))
+        unknown = self.root / '20260101T999999Z-ffffffff'
+        unknown.mkdir()
+        result = prune(self.store, pins=[names[1]], cache=self.root / names[2] / 'cache', apply=True)
+        self.assertEqual(set(result['removed']), {names[3], old_failure})
+        self.assertTrue((self.root / latest_failure).exists())
+        self.assertTrue(unknown.exists())
+        self.assertTrue(all((self.root / name).exists() for name in names[:3]))
+
+    def test_running_capture_blocks_deletion(self):
+        old = self.suite(0)
+        self.suite(1)
+        self.suite(2)
+        running = self.suite(3, status='running')
+        self.assertIn(running, retention_plan(self.store)['protected'])
+        with self.assertRaisesRegex(RuntimeError, 'running'):
+            prune(self.store, apply=True)
+        self.assertTrue((self.root / old).exists())
+
+    def test_invalid_pin_is_rejected(self):
+        self.suite(0)
+        with self.assertRaises(ValueError):
+            prune(self.store, pins=['../outside'], apply=True)
+
+    def test_latest_summary_kept_even_if_player_unsupported(self):
+        self.suite(0)
+        self.suite(1)
+        latest = self.suite(2, status='unsupported')
+        prune(self.store, apply=True)
+        self.assertTrue((self.root / latest / 'summary.json').exists())
+
+    def test_directory_link_cannot_escape_capture_root(self):
+        old = self.suite(0)
+        self.suite(1)
+        self.suite(2)
+        with tempfile.TemporaryDirectory() as directory:
+            outside = Path(directory)
+            (outside / 'keep').write_text('keep')
+            try:
+                (self.root / old / 'escape').symlink_to(outside, target_is_directory=True)
+            except OSError:
+                self.skipTest('Directory symlinks unavailable')
+            with self.assertRaises(ValueError):
+                prune(self.store, apply=True)
+            self.assertTrue((outside / 'keep').exists())
+            self.assertTrue((self.root / old / 'image.png').exists())
+
+    def test_default_cache_reused_across_runs(self):
+        self.assertEqual(shared_cache(self.root), self.root / 'sdl-cache')
+        explicit = self.root / 'existing-cache'
+        self.assertEqual(shared_cache(self.root, explicit), explicit)
+
+    def test_capture_headroom_checked_before_launch(self):
+        from types import SimpleNamespace
+        with patch('playback_retention.shutil.disk_usage', return_value=SimpleNamespace(free=1024 * 1024)):
+            with self.assertRaisesRegex(RuntimeError, 'Insufficient capture space'):
+                require_space(self.root, 2)
+            require_space(self.root, 1)
 
 
 class Measurements(unittest.TestCase):

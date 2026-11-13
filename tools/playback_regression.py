@@ -24,6 +24,7 @@ import uuid
 import wave
 
 from playback_store import Store, digest, encode, frame_coverage, timing_metrics
+from playback_retention import prune, shared_cache, require_space
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAYERS = ('retail', 'v3dmm', 'sdl', 'marcus')
@@ -547,6 +548,18 @@ def preserve_warmup_presentations(trace, process_directory, warmup_directory):
         event['path'] = str(moved[source])
 
 
+def maintain_captures(store, args):
+    keep = getattr(args, 'keep_captures', 2)
+    if keep:
+        try:
+            retained = prune(store, keep, getattr(args, 'pin_suite', ()),
+                             getattr(args, 'sdl_cache', None), apply=True)
+            if retained['removed']:
+                print('Pruned %d superseded capture suites; metadata retained' % len(retained['removed']))
+        except (OSError, RuntimeError, ValueError) as error:
+            print('Capture retention deferred: ' + str(error), file=sys.stderr)
+
+
 def run_suite(args):
     if os.name != 'nt':
         raise ValueError('Live capture currently requires Windows; review and SQLite are portable')
@@ -566,6 +579,8 @@ def run_suite(args):
         raise ValueError('Invalid preparations; organiser preparation is not implemented yet')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
+    if 'sdl' in players:
+        args.sdl_cache = shared_cache(output, getattr(args, 'sdl_cache', None))
     store = Store(output / 'playback.sqlite')
     suite = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8]
     destination = output / suite
@@ -580,6 +595,8 @@ def run_suite(args):
                          'viewport': args.viewport, 'notes': args.environment_notes, 'working_tree': dirty,
                          'sdl_package_cache': str(args.sdl_cache.resolve()) if getattr(args, 'sdl_cache', None) else 'per-run',
                          'audio_format': '48000 Hz stereo signed 16-bit', 'capture_version': 2}), source_revision=revision)
+        maintain_captures(store, args)
+        require_space(output, getattr(args, 'min_free_mib', 4096))
         product, iso_manifest = session_module.prepare_iso(args.iso, output / 'iso-package')
         resources = args.resources or product / '3DMOVIE.CHK'
         content = args.content_dir or product
@@ -590,7 +607,7 @@ def run_suite(args):
             identities['marcus_capture_sha256'] = digest(args.marcus)
         identities['bridge_sha256'] = digest(args.bridge / 'retail-oracle.dll')
         identities['capture_sources'] = {name: digest(ROOT / 'tools' / name) for name in
-            ('playback_regression.py', 'playback_store.py', 'marcus_regression.cpp', 'presentation_capture.h',
+            ('playback_regression.py', 'playback_store.py', 'playback_retention.py', 'marcus_regression.cpp', 'presentation_capture.h',
              'marcus_capture_audio.h')}
         content_inputs = {str(resources.resolve()): digest(resources)}
         for path in content.iterdir():
@@ -606,6 +623,7 @@ def run_suite(args):
                     continue
                 for mode in modes:
                     for repetition, preparation in itertools.product(range(args.repeat), preparations):
+                        require_space(output, getattr(args, 'min_free_mib', 4096))
                         directory = destination / case['name'] / player / mode / preparation / str(repetition)
                         directory.mkdir(parents=True)
                         caps = capabilities(player, mode)
@@ -720,6 +738,7 @@ def run_suite(args):
             sum(r['status'] != 'complete' for r in summary['runs']),
             sum(c['status'] == 'different' for c in summary['comparisons']),
             sum(c['status'] == 'inconclusive' for c in summary['comparisons'])))
+        maintain_captures(store, args)
         if errors:
             return 2
         return 0 if summary['status'] == 'matched' else 1
@@ -817,7 +836,11 @@ def main():
     run.add_argument('--players', default=','.join(DEFAULT_PLAYERS), help='Defaults to retail,v3dmm,sdl; include marcus explicitly when needed')
     run.add_argument('--modes', default='seek,playback')
     run.add_argument('--sdl-cache', type=Path,
-                     help='Reuse an immutable SDL package cache; processes, settings and working files remain separate')
+                     help='Shared package cache (default: OUTPUT/sdl-cache); processes/settings/working movies remain private')
+    run.add_argument('--keep-captures', type=int, default=2,
+                     help='Keep latest N completed captures per case/player/mode/preparation/repetition, plus latest failures; 0 disables pruning')
+    run.add_argument('--pin-suite', action='append', default=[], help='Protect an additional suite from retention pruning')
+    run.add_argument('--min-free-mib', type=int, default=4096, help='Required free space before preparing inputs and each capture (default: 4096 MiB)')
     run.add_argument('--preparations', default='fresh-process', help='Comma-separated fresh-process,replay; replay first plays the whole movie in the same process')
     run.add_argument('--case', action='append')
     run.add_argument('--repeat', type=int, default=2, help='Independent fresh processes, including original repeatability')
@@ -829,6 +852,12 @@ def main():
     report = commands.add_parser('review', help='Print the most recent suite or an explicit suite ID')
     report.add_argument('--database', type=Path, required=True)
     report.add_argument('--suite')
+    retention = commands.add_parser('prune', help='Preview or remove superseded raw captures, preserving metadata and observations')
+    retention.add_argument('--database', type=Path, required=True)
+    retention.add_argument('--keep-captures', type=int, default=2)
+    retention.add_argument('--pin-suite', action='append', default=[])
+    retention.add_argument('--sdl-cache', type=Path)
+    retention.add_argument('--apply', action='store_true')
     comparison = commands.add_parser('compare', help='Append a new comparison policy without replaying captured observations')
     comparison.add_argument('--database', type=Path, required=True)
     comparison.add_argument('--reference', type=int, required=True)
@@ -846,7 +875,7 @@ def main():
         if args.command == 'prepare':
             return prepare(args)
         if args.command == 'run':
-            if (args.repeat < 1 or not 1 <= args.max_seconds <= 3595 or not math.isfinite(args.frame_tolerance_ms) or
+            if (args.repeat < 1 or args.keep_captures < 0 or args.min_free_mib < 0 or not 1 <= args.max_seconds <= 3595 or not math.isfinite(args.frame_tolerance_ms) or
                     args.frame_tolerance_ms < 0 or not 0 <= args.sample_tolerance <= 32767 or
                     not (0 <= args.viewport[0] < args.viewport[2] and 0 <= args.viewport[1] < args.viewport[3])):
                 parser.error('Invalid repetition, limit, tolerance or viewport')
@@ -858,6 +887,9 @@ def main():
             raise ValueError('Database does not exist: ' + str(args.database))
         store = Store(args.database)
         try:
+            if args.command == 'prune':
+                print(json.dumps(prune(store, args.keep_captures, args.pin_suite, args.sdl_cache, args.apply), indent=2))
+                return 0
             if args.command in ('compare', 'compare-suite'):
                 if (not math.isfinite(args.frame_tolerance_ms) or args.frame_tolerance_ms < 0 or
                         not 0 <= args.sample_tolerance <= 32767):
