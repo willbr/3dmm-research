@@ -4420,3 +4420,102 @@ Raw evidence remains under `tmp/c89-movie-data-regression`. Template/default
 costumes, remaining body/material/resource/runtime implementations, native
 adapters and final C++ facade removal remain unfinished; this slice does not
 complete the shared C89 backend.
+
+## Body materials, visibility and costume ownership C89 conversion (13 November 2026)
+
+`body_runtime.c` owns visibility counts/notification decisions, highlight updates,
+model replacement, matrix/translation sequencing, generic/custom material
+replacement and queries. Same-model assignment returns without a reference or
+notification change. Generic materials retain per part; custom materials retain
+before removal, supporting self-use. Accessory models update before materials;
+absent accessory models preserve existing models. Spare custom material entries
+remain allowed. Removing the last custom owner clears its raw part handles
+without dereferencing those potentially freed handles.
+
+Visibility counts publish before renderer callbacks. Hiding clears bounds and
+detaches before notifying; showing attaches before notifying. Nested counts and
+repeated highlight/material notifications retain native behavior. Renderer fields,
+BRender math/link adapters and resource object implementations remain native
+dependencies, as do remaining body geometry/render hooks and template factories.
+
+`ThreeMMBodyCostume` owns persistent snapshot storage and references in C.
+Capture drops the old snapshot before allocating its replacement, leaving an
+empty owner on allocation failure. Application preserves exact-shape checking
+or explicit smaller-count copying. Empty-owner count is now defined as zero;
+native debug used poison in that unused field. Applying an uncaptured owner
+remains outside the supported preconditions. Getter inactive outputs retain
+native invalidation; pointer bridges and fixture recording copy representations
+without typed reads of possibly uninitialized or poisoned inactive slots.
+
+The 427,368-byte native trace `tmp/c89-body-runtime-before.bin` matches
+`tmp/c89-body-runtime-after.bin` exactly; SHA-256 is
+`25E17FEA3087D7CBB0861DB233E46E41A33097C1EE82B614F449B2CB42F4E715`.
+Its 90 scenarios cover empty/two/six-part bodies, visible/hidden/nested counts,
+same/different models, generic/custom self-assignment, accessory models, matrices,
+renderer notifications, unused getter bytes, snapshot replacement and applying
+to smaller/larger shapes. Debug injection produces 72 successful replacement
+captures and 18 allocation failures; reference/allocation counts restore.
+SDL release covers all 90 successfully without debug injection.
+
+C tests verify release/assign/retain ordering, same-model early return, nested
+visibility notification order, custom self-use, snapshot failure clearing,
+different-shape copying and no dereference after final custom-owner release.
+All 65 standalone C checks, strict C89 syntax, MSVC AddressSanitizer, 79 focused
+native checks, the SDL headless round-trip, 51 snapshots and 51 CLI baselines
+pass. Both hosts build and headless real-content scene playback passes. The
+fixture's final inactive-output recording refinement was recompiled and rerun
+in native and SDL round-trips; all snapshot comparisons still match. Evidence
+includes `tmp/c89-body-runtime-standalone.log`,
+`tmp/c89-body-runtime-native-tests.log`, `tmp/c89-body-runtime-native-after.log`,
+`tmp/c89-body-runtime-sdl-after.log`, `tmp/c89-body-runtime-asan.log`,
+`tmp/c89-body-runtime-snapshot-comparison.json`,
+`tmp/c89-body-runtime-output-comparison.json` and
+`tmp/c89-body-runtime-preview-scene.log`. No Marcus UI tests were added.
+
+Playback binary contents remained frozen: SHA-256
+`A1C03D86A2FA0C8C45F114F755845107966C4F0EC2B780B224A2F8E663C17606` (SDL) and
+`530BE4DED18A217CA3F8A04B0F8D57E820C810A21081D333D4733A808620E933`
+(Marcus regression). Same-player baselines are actor-audio
+`20261113T111704Z-8696baf6`, actor-events `20261113T111839Z-b61c19b2`,
+scrolling-text `20261113T112011Z-76415179` and sampled-audio
+`20261113T112414Z-161b040e`.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T115308Z-943f4642` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T115530Z-aad98120` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261113T115719Z-24e8d014` | scrolling-text | five complete; Marcus playback image capture failed while C: reported zero free space |
+| `20261113T122454Z-07d21f20` | scrolling-text | only failed Marcus playback retried, complete |
+| `20261113T122702Z-7a400836` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+The failed attempt is retained. Superseded capture directories were pruned after
+the terminal failure, preserving their observations/summaries/diagnostics, and
+the retention/shared-cache/free-space fix was installed. The existing warm SDL
+cache moved to `tmp/c89-movie-data-regression/sdl-cache` without copying; final
+sampled audio exercised the new default path and reused its sole existing
+package. Processes/settings/working movies remained private, OS caching
+uncontrolled. No builds or compaction ran during capture. Harness storage
+management changed between the failed attempt and retry; player binary contents
+did not change.
+
+All 21 selected runs ultimately completed (22 attempts including that failure).
+Movie identities and source/resource/content integrity pass. All 540 seek images,
+authored positions and ordered playback changes match preceding same-player
+results. Only adjacent identical position/image observations are collapsed;
+raw timestamps and observations remain. Actor cases retain 60 ordered changes
+per player; scrolling retains 328 retail/SDL and 321 Marcus.
+
+First-scene actor 600/1300 Hz coverage passes. Actor peaks remain 3192 retail and
+4081 SDL/Marcus; scene-audio peaks remain 2380 retail and 2176 SDL/Marcus. All
+measured peak deltas are zero. Earlier SDL 4080/4081 variation remains documented;
+peaks/coverage do not prove waveform/timing parity. Existing cross-player
+differences and one-repeat inconclusive comparisons remain.
+
+The combined report is
+`tmp/c89-body-runtime-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+with counts/actual audio deltas in `tmp/c89-body-runtime-playback-audit.json`.
+Current raw evidence and its latest baselines/failure remain under
+`tmp/c89-movie-data-regression`; superseded raw artifacts follow the retention
+policy above. Template/default-costume construction, body geometry/render hooks,
+resource/format/runtime implementations and final native facade removal keep
+the full C89 backend migration unfinished.

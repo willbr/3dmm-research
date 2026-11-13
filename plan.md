@@ -392,11 +392,12 @@ have shared C89 implementations behind temporary native facades. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,
-restoration and reshaping have also moved into C89. These are completed slices
+restoration, reshaping, body material/visibility updates and costume ownership
+have also moved into C89. These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
 The immediate sequence is remaining template construction, default costumes,
-body material/visibility management and sound-format factory implementations.
+sound-format factory implementations and remaining body geometry/render hooks.
 Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting
 body/template/resource implementations and physical file adapters as their

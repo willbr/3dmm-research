@@ -1588,7 +1588,7 @@ ownership pointers while retaining counts, matching native behavior.
 
 Native services adapt allocation, C-backed lists, BRender actor/material fields
 and links, reference release and renderer notifications. Model/material release
-internals, costume application, template construction, representation adapters
+resource implementations, template construction, representation adapters
 and the native Body representation remain C++ dependencies. Both hosts use the
 converted construction/disposal through their engine-core Body facade; this is
 not yet the final C-only backend boundary.
@@ -1634,7 +1634,42 @@ values. The SDL release fixture covers the same cases without debug injection.
 Standalone C tests independently cover every duplicate/reshape allocation stage,
 reference balance, original-show-before-failed-copy-release ordering, restoration
 and successful/failed shape state. Template/default costumes, remaining body
-material/visibility operations and final native facade removal remain unfinished.
+geometry/render hooks and final native facade removal remain unfinished.
+
+### Body materials, visibility and costume ownership
+
+`body_runtime.c` owns visibility counts and notification decisions, highlight
+updates, model replacement, matrix/translation sequencing, generic/custom
+material replacement and material queries. Reassigning the same model returns
+without reference or notification changes. Generic materials retain per part;
+custom materials retain before removing the old costume, supporting self-use.
+Accessory models update before their part material; absent accessory models
+leave the existing part model intact. Unused trailing custom entries remain
+allowed. Custom removal releases the owner before clearing raw part handles,
+without dereferencing handles whose owner may have just been destroyed.
+
+Showing publishes the decremented hidden count before attaching/notifying.
+Hiding publishes its increment before clearing bounds, detaching and notifying.
+Nested hidden counts and repeated highlight/material notifications retain native
+behavior. Renderer/BRender field and math adapters, resource object internals,
+remaining body geometry/render hooks and native representation remain dependencies.
+
+`ThreeMMBodyCostume` now owns snapshot entries and references in C. Capture drops
+the previous snapshot before allocation; failed replacement leaves it empty.
+Application preserves exact-shape checking or the explicit smaller-count rule.
+The unused count of an empty owner is defined as zero; native debug used poison
+bytes there. Inactive getter outputs retain native invalidation through a small
+adapter, and pointer output bridges copy representations without typed reads of
+possibly uninitialized caller slots.
+
+The 427,368-byte native trace matches C exactly across 90 material/visibility
+scenarios, including accessory models, same-object assignments, nested hiding,
+matrices, renderer notifications, unused getter outputs, costume replacement and
+different-shape application. It records 72 successful replacement captures and
+18 allocation failures, with reference/allocation counts restored. The SDL
+release fixture covers 90 successful captures without debug injection. C tests
+also verify failed replacement clearing, release/assign/retain order and no
+dereference of raw handles after their final custom owner is released.
 
 ### Source names and directory discovery
 

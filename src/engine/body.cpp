@@ -469,16 +469,55 @@ void Body::Restore(PBody pbodyDup)
 /***************************************************************************
     Make this Body visible, if it was invisible.  Keeps a refcount.
 ***************************************************************************/
+ThreeMMBodyRuntimeServices Body::_RuntimeServices(void)
+{
+    ThreeMMBodyRuntimeServices s = {};
+    s.shape = _CreateServices();
+    s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.model = [](void *, void *body, ThreeMMI32 part) -> void * {
+        auto raw = static_cast<PBody>(body)->_PbactPart(part)->model;
+        return raw ? Model::PmodlFromBmdl(raw) : pvNil;
+    };
+    s.assign_model = [](void *, void *body, ThreeMMI32 part, void *object) {
+        auto model = static_cast<PModel>(object); auto actor = static_cast<PBody>(body)->_PbactPart(part);
+        actor->model = model->Pbmdl(); Assert(Model::PmodlFromBmdl(actor->model) == model, "Model problem");
+    };
+    s.part_material = [](void *, void *body, ThreeMMI32 part) -> void * { return static_cast<PBody>(body)->_PbactPart(part)->material; };
+    s.assign_material = [](void *, void *body, ThreeMMI32 part, void *raw) { static_cast<PBody>(body)->_PbactPart(part)->material = static_cast<PBMTL>(raw); };
+    s.material_object = [](void *, void *raw) -> void * { return Material_MTRL::PmtrlFromBmtl(static_cast<PBMTL>(raw)); };
+    s.material_handle = [](void *, void *object) -> void * { return static_cast<PMaterial_MTRL>(object)->Pbmtl(); };
+    s.custom = [](void *, void *body, ThreeMMI32 set) -> void * { return static_cast<PBody>(body)->_prgpcmtl[set]; };
+    s.assign_custom = [](void *, void *body, ThreeMMI32 set, void *object) { static_cast<PBody>(body)->_prgpcmtl[set] = static_cast<PCustomMaterial_CMTL>(object); };
+    s.custom_set = [](void *, void *object) -> ThreeMMI32 { return static_cast<PCustomMaterial_CMTL>(object)->Ibset(); };
+    s.custom_count = [](void *, void *object) -> ThreeMMI32 { return static_cast<PCustomMaterial_CMTL>(object)->Cbprt(); };
+    s.custom_model = [](void *, void *object, ThreeMMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pmodl(i); };
+    s.custom_material = [](void *, void *object, ThreeMMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pbmtl(i); };
+    s.invalidate_output = [](void *, void **out) { TrashVar(out); };
+    s.matrix = [](void *, void *body, ThreeMMI32 actor, const void *matrix) { static_cast<PBody>(body)->_prgbact[actor].t.t.mat = *static_cast<const BMAT34 *>(matrix); };
+    s.translate = [](void *, void *body, ThreeMMI32 x, ThreeMMI32 y, ThreeMMI32 z) { BrMatrix34PostTranslate(&static_cast<PBody>(body)->_PbactRoot()->t.t.mat, x, y, z); };
+    s.highlight = [](void *, void *body, int enabled) { static_cast<PBody>(body)->_PbactHilite()->type = enabled ? BR_ACTOR_MODEL : BR_ACTOR_NONE; };
+    s.attach = [](void *, void *object) { auto body = static_cast<PBody>(object); if (body->_pfnAttach) body->_pfnAttach(body->_pvRenderContext, body); };
+    s.attached = [](void *, void *body) -> int { return static_cast<PBody>(body)->_PbactRoot()->parent != pvNil; };
+    s.detach = [](void *, void *body) { BrActorRemove(static_cast<PBody>(body)->_PbactRoot()); };
+    s.clear_bounds = [](void *, void *body) { static_cast<PBody>(body)->_rcBounds.Zero(); };
+    s.changed = [](void *, void *body) { static_cast<PBody>(body)->_RenderChanged(); };
+    s.is_generic = [](void *, void *object) -> int { return static_cast<BASE *>(object)->FIs(kclsMaterial_MTRL); };
+    s.diagnostic = [](void *, int code) {
+        switch (code) {
+        case THREE_MM_BODY_MISSING_MATERIAL: Assert(false, "body set has no material"); break;
+        case THREE_MM_BODY_EMPTY_SET: Assert(false, "empty body set"); break;
+        case THREE_MM_BODY_SHORT_COSTUME: Assert(false, "not enough custom materials!"); break;
+        case THREE_MM_BODY_COSTUME_SHAPE: Assert(false, "different Body shapes!"); break;
+        }
+    };
+    return s;
+}
+
 void Body::Show(void)
 {
     AssertThis(0);
     Assert(_cactHidden > 0, "object is already visible!");
-    if (--_cactHidden == 0)
-    {
-        if (_pfnAttach != pvNil)
-            _pfnAttach(_pvRenderContext, this);
-        _RenderChanged();
-    }
+    auto s = _RuntimeServices(); three_mm_body_show(this, &s);
 }
 
 /***************************************************************************
@@ -487,16 +526,7 @@ void Body::Show(void)
 void Body::Hide(void)
 {
     AssertThis(0);
-
-    RC rc;
-
-    if (_cactHidden++ == 0)
-    {
-        _rcBounds.Zero();
-        if (_PbactRoot()->parent != pvNil)
-            BrActorRemove(_PbactRoot());
-        _RenderChanged();
-    }
+    auto s = _RuntimeServices(); three_mm_body_hide(this, &s);
 }
 
 /***************************************************************************
@@ -516,12 +546,7 @@ void Body::SetHiliteColor(LegacyLong iclr)
 void Body::Hilite(void)
 {
     AssertThis(0);
-
-    _PbactHilite()->type = BR_ACTOR_MODEL;
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    auto s = _RuntimeServices(); three_mm_body_highlight(this, 1, &s);
 }
 
 /***************************************************************************
@@ -530,12 +555,7 @@ void Body::Hilite(void)
 void Body::Unhilite(void)
 {
     AssertThis(0);
-
-    _PbactHilite()->type = BR_ACTOR_NONE;
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    auto s = _RuntimeServices(); three_mm_body_highlight(this, 0, &s);
 }
 
 /***************************************************************************
@@ -543,16 +563,9 @@ void Body::Unhilite(void)
 ***************************************************************************/
 void Body::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 {
-    AssertThis(0);
-    AssertVarMem(pbmat34);
-
-    _PbactRoot()->t.t.mat = *pbmat34;
-    BrMatrix34PostTranslate(&_PbactRoot()->t.t.mat, xr, yr, zr);
-
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    AssertThis(0); AssertVarMem(pbmat34);
+    static_assert(sizeof(BRS) == sizeof(ThreeMMI32), "body scalar ABI");
+    auto s = _RuntimeServices(); three_mm_body_locate(this, xr, yr, zr, pbmat34, &s);
 }
 
 /***************************************************************************
@@ -560,29 +573,8 @@ void Body::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 ***************************************************************************/
 void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
 {
-    AssertThis(0);
-    AssertIn(ibact, 0, _cbactPart);
-    AssertPo(pmodl, 0);
-
-    BACT *pbact = _PbactPart(ibact);
-    PModel pmodlOld;
-
-    if (pvNil != pbact->model) // Release old Model, unless it's pmodl
-    {
-        pmodlOld = Model::PmodlFromBmdl(pbact->model);
-        AssertPo(pmodlOld, 0);
-        if (pmodl == pmodlOld)
-            return; // We're already using that Model, so do nothing
-        ReleasePpo(&pmodlOld);
-    }
-
-    pbact->model = pmodl->Pbmdl();
-    Assert(Model::PmodlFromBmdl(pbact->model) == pmodl, "Model problem");
-    pmodl->AddRef();
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    AssertThis(0); AssertIn(ibact, 0, _cbactPart); AssertPo(pmodl, 0);
+    auto s = _RuntimeServices(); three_mm_body_set_model(this, ibact, pmodl, &s);
 }
 
 /***************************************************************************
@@ -590,15 +582,8 @@ void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
 ***************************************************************************/
 void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
 {
-    AssertThis(0);
-    AssertIn(ibact, 0, _cbactPart);
-    AssertVarMem(pbmat34);
-
-    _PbactPart(ibact)->t.t.mat = *pbmat34;
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    AssertThis(0); AssertIn(ibact, 0, _cbactPart); AssertVarMem(pbmat34);
+    auto s = _RuntimeServices(); three_mm_body_set_matrix(this, ibact, pbmat34, &s);
 }
 
 /***************************************************************************
@@ -610,36 +595,8 @@ void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
 ***************************************************************************/
 void Body::_RemoveMaterial(LegacyLong ibset)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-
-    PCustomMaterial_CMTL pcmtlOld;
-    BACT *pbact;
-    LegacyLong ibact;
-    bool fCmtl = fFalse;
-
-    pcmtlOld = _prgpcmtl[ibset];
-    if (pvNil != pcmtlOld) // there was a CustomMaterial_CMTL on this bset
-    {
-        fCmtl = fTrue;
-        AssertPo(pcmtlOld, 0);
-        ReleasePpo(&pcmtlOld); // free all old MTRLs
-        _prgpcmtl[ibset] = pvNil;
-    }
-    // for each body part, if this part is in the set ibset, free the Material_MTRL
-    for (ibact = 0; ibact < _cbactPart; ibact++)
-    {
-        if (ibset == _Ibset(ibact))
-        {
-            pbact = _PbactPart(ibact);
-            if (pbact->material != pvNil) // free old Material_MTRL
-            {
-                if (!fCmtl)
-                    Material_MTRL::PmtrlFromBmtl(pbact->material)->Release();
-                pbact->material = pvNil;
-            }
-        }
-    }
+    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    auto s = _RuntimeServices(); three_mm_body_remove_material(this, ibset, &s);
 }
 
 /***************************************************************************
@@ -647,29 +604,8 @@ void Body::_RemoveMaterial(LegacyLong ibset)
 ***************************************************************************/
 void Body::SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-    AssertPo(pmtrl, 0);
-
-    BACT *pbact;
-    LegacyLong ibact;
-
-    _RemoveMaterial(ibset); // remove existing Material_MTRL/CustomMaterial_CMTL, if any
-
-    // for each body part, if this part is in the set ibset, set the Material_MTRL
-    for (ibact = 0; ibact < _cbactPart; ibact++)
-    {
-        if (ibset == _Ibset(ibact))
-        {
-            pbact = _PbactPart(ibact);
-            pbact->material = pmtrl->Pbmtl();
-            pmtrl->AddRef();
-        }
-    }
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    AssertThis(0); AssertIn(ibset, 0, _cbset); AssertPo(pmtrl, 0);
+    auto s = _RuntimeServices(); three_mm_body_set_generic(this, ibset, pmtrl, &s);
 }
 
 /***************************************************************************
@@ -678,42 +614,8 @@ void Body::SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl)
 ***************************************************************************/
 void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
 {
-    AssertThis(0);
-    AssertPo(pcmtl, 0);
-
-    BACT *pbact;
-    LegacyLong ibact;
-    LegacyLong ibmtl = 0;
-    LegacyLong ibset = pcmtl->Ibset();
-    PModel pmodl;
-
-    pcmtl->AddRef();
-    _RemoveMaterial(ibset); // remove existing Material_MTRL/CustomMaterial_CMTL
-    _prgpcmtl[ibset] = pcmtl;
-
-    // for each body part, if this part is in the set ibset, set the Material_MTRL
-    for (ibact = 0; ibact < _cbactPart; ibact++)
-    {
-        if (ibset == _Ibset(ibact))
-        {
-            pbact = _PbactPart(ibact);
-            // Handle model changes for accessories
-            pmodl = pcmtl->Pmodl(ibmtl);
-            if (pvNil != pmodl)
-                SetPartModel(ibact, pmodl);
-            pbact->material = pcmtl->Pbmtl(ibmtl);
-            ibmtl++;
-        }
-    }
-    // Some shipped prop costumes contain spare material entries (e.g.
-    // TMPL 0x1021 has one part, but its alternate CMTLs have two entries).
-    // Only the entries for existing parts are used. Pmodl/Pbmtl check that
-    // each required entry exists; unused trailing entries are harmless.
-    Assert(ibmtl <= pcmtl->Cbprt(), "not enough custom materials!");
-    if (_cactHidden == 0)
-    {
-        _RenderChanged();
-    }
+    AssertThis(0); AssertPo(pcmtl, 0);
+    auto s = _RuntimeServices(); three_mm_body_set_custom(this, pcmtl, &s);
 }
 
 /***************************************************************************
@@ -724,41 +626,13 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
 ***************************************************************************/
 void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl)
 {
-    AssertThis(0);
-    AssertIn(ibset, 0, _cbset);
-    AssertVarMem(pfMtrl);
-    AssertVarMem(ppmtrl);
-    AssertVarMem(ppcmtl);
-
-    BACT *pbact;
-    LegacyLong ibact;
-
-    *ppcmtl = _prgpcmtl[ibset];
-    if (pvNil != *ppcmtl) // there is a CustomMaterial_CMTL on this bset
-    {
-        *pfMtrl = fFalse;
-        AssertPo(*ppcmtl, 0);
-        TrashVar(ppmtrl);
-    }
-    else
-    {
-        *pfMtrl = fTrue;
-        TrashVar(ppcmtl);
-        // Find any body part of ibset...they'll all have the same Material_MTRL
-        for (ibact = 0; ibact < _cbactPart; ibact++)
-        {
-            if (ibset == _Ibset(ibact))
-            {
-                pbact = _PbactPart(ibact);
-                Assert(pvNil != pbact->material, "Why does this body part "
-                                                 "set have neither Material_MTRL nor CustomMaterial_CMTL attached?");
-                *ppmtrl = Material_MTRL::PmtrlFromBmtl(pbact->material);
-                AssertPo(*ppmtrl, 0);
-                return;
-            }
-        }
-        Assert(0, "why are we here?");
-    }
+    AssertThis(0); AssertIn(ibset, 0, _cbset);
+    AssertVarMem(pfMtrl); AssertVarMem(ppmtrl); AssertVarMem(ppcmtl);
+    void *material, *custom; int generic;
+    CopyPb(ppmtrl, &material, sizeof(material)); CopyPb(ppcmtl, &custom, sizeof(custom));
+    auto s = _RuntimeServices(); three_mm_body_get_material(this, ibset, &generic, &material, &custom, &s);
+    *pfMtrl = generic != 0;
+    CopyPb(&material, ppmtrl, sizeof(material)); CopyPb(&custom, ppcmtl, sizeof(custom));
 }
 
 /***************************************************************************
@@ -1083,8 +957,7 @@ void Body::MarkMem(void)
 ***************************************************************************/
 BodyCostume::BodyCostume(void)
 {
-    TrashVar(&_cbset);
-    _prgpo = pvNil;
+    three_mm_body_costume_init(&_costume);
 }
 
 /***************************************************************************
@@ -1102,16 +975,7 @@ BodyCostume::~BodyCostume(void)
 void BodyCostume::_Clear(void)
 {
     AssertBaseThis(0);
-
-    LegacyLong ibset;
-
-    if (pvNil != _prgpo)
-    {
-        for (ibset = 0; ibset < _cbset; ibset++)
-            ReleasePpo(&_prgpo[ibset]); // Release the PCustomMaterial_CMTL or PMaterial_MTRL
-        FreePpv((void **)&_prgpo);
-    }
-    TrashVar(&_cbset);
+    auto s = Body::_RuntimeServices(); three_mm_body_costume_clear(&_costume, &s);
 }
 
 /***************************************************************************
@@ -1119,32 +983,10 @@ void BodyCostume::_Clear(void)
 ***************************************************************************/
 bool BodyCostume::FGet(Body *pbody)
 {
-    AssertThis(0);
-    AssertPo(pbody, 0);
-
-    LegacyLong ibset;
-    PCustomMaterial_CMTL pcmtl;
-    PMaterial_MTRL pmtrl;
-    bool fMtrl;
-
-    _Clear(); // drop previous costume, if any
-
-    if (!FAllocPv((void **)&_prgpo, LwMul(size(BASE *), pbody->Cbset()), fmemClear, mprNormal))
-    {
-        return fFalse;
-    }
-    _cbset = pbody->Cbset();
-    for (ibset = 0; ibset < _cbset; ibset++)
-    {
-        pbody->GetPartSetMaterial(ibset, &fMtrl, &pmtrl, &pcmtl);
-        if (fMtrl)
-            _prgpo[ibset] = pmtrl;
-        else
-            _prgpo[ibset] = pcmtl;
-        _prgpo[ibset]->AddRef();
-    }
-    AssertThis(0);
-    return fTrue;
+    AssertThis(0); AssertPo(pbody, 0);
+    auto s = Body::_RuntimeServices();
+    const bool ok = three_mm_body_costume_capture(&_costume, pbody, &s) != 0;
+    AssertThis(0); return ok;
 }
 
 /***************************************************************************
@@ -1160,32 +1002,8 @@ bool BodyCostume::FGet(Body *pbody)
 ***************************************************************************/
 void BodyCostume::Set(PBody pbody, bool fAllowDifferentShape)
 {
-    AssertThis(0);
-    AssertPo(pbody, 0);
-
-    LegacyLong ibset;
-    BASE *po;
-    LegacyLong cbset;
-
-    if (fAllowDifferentShape) // see comment in function header
-    {
-        cbset = LwMin(_cbset, pbody->Cbset());
-    }
-    else
-    {
-        Assert(_cbset == pbody->Cbset(), "different Body shapes!");
-        cbset = _cbset;
-    }
-
-    for (ibset = 0; ibset < cbset; ibset++)
-    {
-        po = _prgpo[ibset];
-        AssertPo(po, 0);
-        if (po->FIs(kclsMaterial_MTRL))
-            pbody->SetPartSetMtrl(ibset, (PMaterial_MTRL)_prgpo[ibset]);
-        else
-            pbody->SetPartSetCmtl((PCustomMaterial_CMTL)_prgpo[ibset]);
-    }
+    AssertThis(0); AssertPo(pbody, 0);
+    auto s = Body::_RuntimeServices(); three_mm_body_costume_apply(&_costume, pbody, fAllowDifferentShape, &s);
 }
 
 #ifdef DEBUG
@@ -1197,12 +1015,12 @@ void BodyCostume::AssertValid(LegacyUlong grf)
     LegacyLong ibset;
     BASE *po;
 
-    if (pvNil != _prgpo)
+    if (pvNil != _costume.entries)
     {
-        AssertPvCb(_prgpo, LwMul(size(BASE *), _cbset));
-        for (ibset = 0; ibset < _cbset; ibset++)
+        AssertPvCb(_costume.entries, LwMul(size(BASE *), _costume.count));
+        for (ibset = 0; ibset < _costume.count; ibset++)
         {
-            po = _prgpo[ibset];
+            po = static_cast<BASE *>(_costume.entries[ibset]);
             if (po->FIs(kclsMaterial_MTRL))
                 AssertPo((PMaterial_MTRL)po, 0);
             else
@@ -1220,11 +1038,11 @@ void BodyCostume::MarkMem(void)
 
     LegacyLong ibset;
 
-    if (pvNil != _prgpo)
+    if (pvNil != _costume.entries)
     {
-        MarkPv(_prgpo);
-        for (ibset = 0; ibset < _cbset; ibset++)
-            MarkMemObj(_prgpo[ibset]);
+        MarkPv(_costume.entries);
+        for (ibset = 0; ibset < _costume.count; ibset++)
+            MarkMemObj(static_cast<BASE *>(_costume.entries[ibset]));
     }
 }
 

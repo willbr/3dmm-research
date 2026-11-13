@@ -16,6 +16,7 @@
 
 #include "three_mm/body_create.h"
 #include "three_mm/body_edit.h"
+#include "three_mm/body_runtime.h"
 
 using namespace BRender;
 
@@ -28,6 +29,7 @@ typedef class Body *PBody;
 class Body : public Body_PAR
 {
     friend class BodyWorld;
+    friend class BodyCostume;
     RTCLASS_DEC
     ASSERT
     MARKMEM
@@ -57,6 +59,7 @@ class Body : public Body_PAR
     } // can't instantiate directly; must use PbodyNew
     static ThreeMMBodyCreateServices _CreateServices(void);
     static ThreeMMBodyEditServices _EditServices(void);
+    static ThreeMMBodyRuntimeServices _RuntimeServices(void);
     void _DestroyShape(void);
     bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
     bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
@@ -156,11 +159,10 @@ class BodyCostume : public BodyCostume_PAR
     MARKMEM
 
   private:
-    LegacyLong _cbset;   // count of body part sets in _prgpo
-    BASE **_prgpo; // array of MTRLs and CMTLs
+    ThreeMMBodyCostume _costume; // C-owned material references
 
   private:
-    void _Clear(void); // release _prgpo and material references
+    void _Clear(void); // release C-owned entries and material references
 
   public:
     BodyCostume(void);
