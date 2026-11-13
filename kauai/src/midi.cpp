@@ -10,6 +10,7 @@
 
 ***************************************************************************/
 #include "kauai_core.h"
+#include "three_mm/midi.h"
 ASSERTNAME
 
 RTCLASS(MidiStreamParser)
@@ -22,6 +23,7 @@ MidiStreamParser::MidiStreamParser(void)
 {
     AssertBaseThis(0);
     _pmids = pvNil;
+    three_mm_midi_parser_init(&_parser, nullptr, 0, 0, 500000);
 }
 
 /***************************************************************************
@@ -47,26 +49,22 @@ void MidiStreamParser::Init(PMidiStream pmids, LegacyUlong tsStart, LegacyLong l
 
     if (_pmids != pmids)
     {
-        if (pvNil != _pmids)
+        if (_pmids)
         {
             UnlockHq(_pmids->_hqrgb);
             ReleasePpo(&_pmids);
         }
         _pmids = pmids;
-        if (pvNil == _pmids)
+        if (!_pmids)
+        {
+            three_mm_midi_parser_init(&_parser, nullptr, 0, 0, 500000);
             return;
+        }
         _pmids->AddRef();
-
-        _prgb = (byte *)PvLockHq(_pmids->_hqrgb);
-        _pbLim = _prgb + CbOfHq(_pmids->_hqrgb);
+        three_mm_midi_parser_init(&_parser, PvLockHq(_pmids->_hqrgb), CbOfHq(_pmids->_hqrgb), tsStart, lwTempo);
     }
-    else if (pvNil == _pmids)
-        return;
-
-    _pbCur = _prgb;
-    _tsCur = tsStart;
-    _lwTempo = lwTempo;
-    _bStatus = 0;
+    else if (_pmids)
+        three_mm_midi_parser_init(&_parser, _parser.data, _parser.size, tsStart, lwTempo);
     AssertThis(0);
 }
 
@@ -79,172 +77,22 @@ bool MidiStreamParser::FGetEvent(PMIDEV pmidev, bool fAdvance)
     AssertThis(0);
     AssertNilOrVarMem(pmidev);
 
-    byte bT;
-    byte *pbCur;
-    MIDEV midev;
-    LegacyLong cbT;
-    LegacyLong ibSend;
-    LegacyUlong tsCur;
-
-    ClearPb(&midev, size(midev));
-    midev.lwTempo = _lwTempo;
-    if (pvNil == _pmids)
-        goto LFail;
-
-    tsCur = _tsCur;
-    for (pbCur = _pbCur; midev.cb == 0;)
+    ThreeMMMidiEvent event;
+    const bool ok = three_mm_midi_next(&_parser, &event, fAdvance) != 0;
+    if (!ok)
     {
-        // read the delta time
-        if (!_FReadVar(&pbCur, (LegacyLong *)&midev.ts) || pbCur >= _pbLim)
-            goto LFail;
-        tsCur += midev.ts;
-        midev.ts = tsCur;
-
-        if ((bT = *pbCur) & 0x80)
-        {
-            // status byte
-            _bStatus = bT;
-            pbCur++;
-        }
-
-        // NOTE: we never return running status
-        midev.rgbSend[0] = _bStatus;
-        ibSend = 1;
-
-        switch (_bStatus & 0xF0)
-        {
-        default:
-            goto LFail;
-
-        case 0x80: // note off
-        case 0x90: // note on
-        case 0xA0: // key pressure
-        case 0xB0: // control change
-        case 0xE0: // pitch wheel
-            goto LTwoBytes;
-
-        case 0xC0: // program change
-        case 0xD0: // channel pressure
-            goto LOneByte;
-
-        case 0xF0:
-            switch (_bStatus & 0x0F)
-            {
-            default:
-                // unknown opcode
-                goto LFail;
-
-            case 0x02:
-            LTwoBytes:
-                // 2 bytes worth of parameters
-                if (pbCur + 2 > _pbLim)
-                    goto LFail;
-                midev.rgbSend[ibSend++] = *pbCur++;
-                midev.rgbSend[ibSend++] = *pbCur++;
-                midev.cb = ibSend;
-                break;
-
-            case 0x01: // quarter frame
-            case 0x03: // song select
-            LOneByte:
-                // 1 byte worth of parameters
-                if (pbCur >= _pbLim)
-                    goto LFail;
-                midev.rgbSend[ibSend++] = *pbCur++;
-                midev.cb = ibSend;
-                break;
-
-            case 0x06:
-            case 0x08:
-            case 0x0A:
-            case 0x0B:
-            case 0x0C:
-            case 0x0E:
-                // no parameters
-                _bStatus = 0; // can't use running status on this!
-                midev.cb = ibSend;
-                break;
-
-            case 0x00:
-            case 0x07:
-                // system exclusive messages - ignore them
-                // read the length
-                if (!_FReadVar(&pbCur, &cbT) || !FIn(cbT - 1, 0, _pbLim - pbCur))
-                {
-                    goto LFail;
-                }
-                pbCur += cbT;
-                break;
-
-            case 0x0F:
-                // meta event
-                if (pbCur >= _pbLim)
-                    goto LFail;
-                bT = *pbCur++;
-                if (!_FReadVar(&pbCur, &cbT) || !FIn(cbT, 0, _pbLim - pbCur + 1))
-                {
-                    goto LFail;
-                }
-
-                switch (bT)
-                {
-                default:
-                    pbCur += cbT;
-                    break;
-
-                case 0x2F: // end of track
-                    goto LFail;
-
-                case 0x51: // tempo change
-                    if (cbT != 3)
-                        goto LFail;
-                    midev.lwTempo = LwFromBytes(0, pbCur[0], pbCur[1], pbCur[2]);
-                    if (fAdvance)
-                        _lwTempo = midev.lwTempo;
-                    pbCur += 3;
-                    goto LSend;
-                }
-                break;
-            }
-            break;
-        }
+        TrashVar(pmidev);
+        return false;
     }
-
-LSend:
-    if (pvNil != pmidev)
-        *pmidev = midev;
-    if (fAdvance)
+    if (pmidev)
     {
-        _pbCur = pbCur;
-        _tsCur = tsCur;
+        ClearPb(pmidev, size(*pmidev));
+        pmidev->ts = event.timestamp;
+        pmidev->cb = event.count;
+        pmidev->lwTempo = event.tempo;
+        CopyPb(event.send, pmidev->rgbSend, 4);
     }
-    return fTrue;
-
-LFail:
-    _pbCur = _pbLim;
-    TrashVar(pmidev);
-    return fFalse;
-}
-
-/***************************************************************************
-    Read a variable length quantity.
-***************************************************************************/
-bool MidiStreamParser::_FReadVar(byte **ppbCur, LegacyLong *plw)
-{
-    AssertThis(0);
-    AssertVarMem(ppbCur);
-
-    byte bT;
-
-    *plw = 0;
-    do
-    {
-        if (*ppbCur >= _pbLim)
-            return fFalse;
-        bT = *(*ppbCur)++;
-        *plw = (*plw << 7) + (bT & 0x7F);
-    } while (bT & 0x80);
-    return fTrue;
+    return true;
 }
 
 #ifdef DEBUG
@@ -258,9 +106,9 @@ void MidiStreamParser::AssertValid(LegacyUlong grf)
         return;
 
     AssertPo(_pmids, 0);
-    Assert(_prgb == (byte *)QvFromHq(_pmids->_hqrgb), 0);
-    Assert(_pbLim == _prgb + CbOfHq(_pmids->_hqrgb), 0);
-    AssertIn(_pbCur - _prgb, 0, _pbLim - _prgb + 1);
+    Assert(_parser.data == (byte *)QvFromHq(_pmids->_hqrgb), 0);
+    Assert(_parser.size == static_cast<ThreeMMU32>(CbOfHq(_pmids->_hqrgb)), 0);
+    Assert(_parser.cursor <= _parser.size, 0);
 }
 
 /***************************************************************************
@@ -313,31 +161,31 @@ void MidiStream::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                           PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PMidiStream pmids;
+    const auto services = _PayloadServices();
+    return three_mm_midi_payload_fetch(pblck, ppbaco, pcb, &services) != 0;
+}
 
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-    *pcb = pblck->Cb();
-
-    if (pvNil == (pmids = PmidsRead(pblck)))
-    {
-    LFail:
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        return fFalse;
-    }
-    *ppbaco = pmids;
-    return fTrue;
+ThreeMMSoundPayloadServices MidiStream::_PayloadServices()
+{
+    ThreeMMSoundPayloadServices s = {};
+    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+    s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 {
+        return static_cast<PDataBlock>(block)->Cb(packed != 0);
+    };
+    s.create = [](void *) -> void * { return NewObj MidiStream; };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.read_midi = [](void *, void *object, void *block) -> int {
+        return static_cast<PDataBlock>(block)->FReadHq(&static_cast<PMidiStream>(object)->_hqrgb);
+    };
+    s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
+    return s;
 }
 
 /***************************************************************************
@@ -347,16 +195,8 @@ PMidiStream MidiStream::PmidsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 
-    PMidiStream pmids;
-
-    if (pvNil == (pmids = NewObj MidiStream))
-        return pvNil;
-
-    if (!pblck->FUnpackData() || !pblck->FReadHq(&pmids->_hqrgb))
-        ReleasePpo(&pmids);
-
-    AssertNilOrPo(pmids, 0);
-    return pmids;
+    const auto services = _PayloadServices();
+    return static_cast<PMidiStream>(three_mm_midi_payload_read(pblck, &services));
 }
 
 /***************************************************************************
@@ -366,297 +206,37 @@ PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
 
-#pragma pack(1)
-    // Midi chunk header
-    struct MIDCHD
+    auto file = FileObject::PfilOpen(pfni);
+    if (!file)
+        return nullptr;
+    FileLocation location;
+    location.pfil = file;
+    location.fp = 0;
+    location.cb = file->FpMac();
+    HQ source = nullptr;
+    PMidiStream result = nullptr;
+    ThreeMMCollectionStorage scratch;
+    three_mm_storage_init(&scratch, nullptr);
+    if (location.cb > 0 && location.FReadHq(&source, location.cb, 0))
     {
-        LegacyLong lwSig;
-        LegacyLong cb;
-    };
-#define kbomMidchd 0xF0000000
-
-    // Midi file header chunk - should be first chunk
-    struct MIDHED
-    {
-        MIDCHD midchd;
-        short swFmt;
-        short ctrk;
-        short swDiv;
-    };
-#define kbomMidhed 0xF5400000
-#pragma pack()
-
-    struct MIDTR
-    {
-        PMidiStreamParser pmstp;
-        MIDEV midevCur;
-    };
-
-    FileLocation flo;
-    FilePosition fp;
-    MIDHED midhed;
-    MIDCHD midchd;
-    MIDTR midtr;
-    bool fSmpte;
-    MemoryByteStream bsm;
-    RAT ratTempo;
-    LegacyUlong tsTempo, tsRawTempo, tsLast, ts, dts;
-    byte rgbT[5];
-    LegacyLong cbT;
-    bool fSeq;
-    LegacyLong imidtr, imidtrMin;
-    LegacyUlong tsMin;
-    PMidiStream pmids = pvNil;
-    PDynamicArray pglmidtr = pvNil;
-
-    // open the file and set up the source flo
-    if (pvNil == (flo.pfil = FileObject::PfilOpen(pfni)))
-        return pvNil;
-    flo.fp = 0;
-    flo.cb = flo.pfil->FpMac();
-
-    // get the header chunk
-    if (flo.cb < size(MIDHED) || !flo.FReadRgb(&midhed, size(midhed), 0))
-        goto LFail;
-
-        // byte order is always big endian
-#ifdef LITTLE_ENDIAN
-    SwapBytesBom(&midhed, kbomMidhed);
-#endif // LITTLE_ENDIAN
-
-    // make sure it's a valid header chunk
-    if (midhed.midchd.lwSig != 'MThd' || !FIn(midhed.midchd.cb + size(midchd), size(midhed), flo.cb))
-    {
-        goto LFail;
-    }
-
-    // allocate the list of tracks to parse
-    if (pvNil == (pglmidtr = DynamicArray::PglNew(size(MIDTR))))
-        goto LFail;
-
-    // build the track list...
-    for (fp = midhed.midchd.cb + size(midchd); fp < flo.cb;)
-    {
-        // read the next midi chunk header
-        if (fp + size(midchd) > flo.cb || !flo.FReadRgb(&midchd, size(midchd), fp))
+        ThreeMMU32 bytes;
+        const bool ok = three_mm_midi_import(PvLockHq(source), location.cb, &scratch, &bytes) != 0;
+        UnlockHq(source);
+        if (ok && (result = NewObj MidiStream))
         {
-            goto LFail;
-        }
-        fp += size(midchd);
-
-#ifdef LITTLE_ENDIAN
-        SwapBytesBom(&midchd, kbomMidchd);
-#endif // LITTLE_ENDIAN
-
-        // make sure the chunk length is valid
-        if (!FIn(midchd.cb, 0, flo.cb - fp + 1))
-            goto LFail;
-
-        // if it's not a track chunk ignore it
-        if (midchd.lwSig != 'MTrk' || midchd.cb == 0)
-        {
-            fp += midchd.cb;
-            continue;
-        }
-
-        // wrap a midi stream object around the track data
-        if (pvNil == (pmids = NewObj MidiStream) || !flo.FReadHq(&pmids->_hqrgb, midchd.cb, fp))
-        {
-            goto LFail;
-        }
-        fp += midchd.cb;
-
-        // create the midi stream parser for this stream
-        if (pvNil == (midtr.pmstp = NewObj MidiStreamParser))
-            goto LFail;
-        midtr.pmstp->Init(pmids, 0, 500000 /* microseconds per beat */);
-        ReleasePpo(&pmids);
-
-        // get the first event - if there isn't one, just free
-        // the stream parser and continue
-        if (!midtr.pmstp->FGetEvent(&midtr.midevCur))
-        {
-            ReleasePpo(&midtr.pmstp);
-            continue;
-        }
-
-        // add the track to the list
-        if (!pglmidtr->FAdd(&midtr))
-        {
-            ReleasePpo(&midtr.pmstp);
-            goto LFail;
-        }
-
-        if (midhed.swFmt != 1 && midhed.swFmt != 2)
-        {
-            // we're only supposed to have one track and we have it,
-            // so don't bother looking for more.
-            break;
-        }
-    }
-    ReleasePpo(&flo.pfil);
-
-    // make sure we have at least one track
-    if (pglmidtr->IvMac() == 0)
-        goto LFail;
-
-    // set the amount to grow the bsm by
-    bsm.SetMinGrow(1024);
-
-    if (FPure(fSmpte = (midhed.swDiv < 0)))
-    {
-        // SMPTE time
-        LegacyLong fps = (byte)(-BHigh(midhed.swDiv));
-        LegacyLong ctickFrame = BLow(midhed.swDiv);
-
-        if (fps == 29)
-            fps = 30; // 29 is 30 drop frame - 30 is close enough for us
-
-        if (ctickFrame <= 0 || fps <= 0)
-            goto LFail;
-        ratTempo.Set(1000, LwMul(fps, ctickFrame));
-    }
-    else
-    {
-        // midhed.swDiv is the number of ticks per beat.
-        if (midhed.swDiv == 0)
-            goto LFail;
-
-        // assume 120 beats per minute - gives us 500 ms per beat
-        ratTempo.Set(500, midhed.swDiv);
-    }
-
-    // merge the tracks or play them in sequence (according to fSeq).
-    fSeq = pglmidtr->IvMac() == 1 || midhed.swFmt == 2;
-
-    tsTempo = tsRawTempo = 0;
-    tsLast = 0;
-    if (fSeq)
-    {
-        imidtrMin = 0;
-        pglmidtr->Get(0, &midtr);
-    }
-
-    for (;;)
-    {
-        if (!fSeq)
-        {
-            // find the track with the next event
-            imidtrMin = ivNil;
-            tsMin = kluMax;
-            for (imidtr = 0; imidtr < pglmidtr->IvMac(); imidtr++)
+            if (FAllocHq(&result->_hqrgb, bytes, fmemNil, mprNormal))
             {
-                pglmidtr->Get(imidtr, &midtr);
-                if (midtr.midevCur.ts < tsMin)
-                {
-                    tsMin = midtr.midevCur.ts;
-                    imidtrMin = imidtr;
-                }
+                CopyPb(scratch.buffers[0].data, PvLockHq(result->_hqrgb), bytes);
+                UnlockHq(result->_hqrgb);
             }
-
-            Assert(imidtrMin != ivNil, 0);
-            pglmidtr->Get(imidtrMin, &midtr);
-        }
-
-        // get the time of this event
-        ts = ratTempo.LwScale(midtr.midevCur.ts - tsRawTempo) + tsTempo;
-
-        if (midtr.midevCur.cb == 0)
-        {
-            // just a tempo change
-            if (!fSmpte)
-            {
-                RAT ratTempoNew(midtr.midevCur.lwTempo, LwMul(1000, midhed.swDiv));
-
-                if (ratTempo != ratTempoNew)
-                {
-                    ratTempo = ratTempoNew;
-                    tsRawTempo = midtr.midevCur.ts;
-                    tsTempo = ts;
-                }
-            }
-        }
-        else
-        {
-            // write the time out - in variable format
-            Assert(midtr.midevCur.cb > 0, 0);
-            dts = ts - tsLast;
-            cbT = _CbEncodeLu(dts, rgbT);
-            if (!bsm.FReplace(rgbT, cbT, bsm.IbMac(), 0))
-                goto LFail;
-
-            if (!bsm.FReplace(midtr.midevCur.rgbSend, midtr.midevCur.cb, bsm.IbMac(), 0))
-            {
-                goto LFail;
-            }
-        }
-        tsLast = ts;
-
-        if (midtr.pmstp->FGetEvent(&midtr.midevCur))
-        {
-            if (!fSeq)
-                pglmidtr->Put(imidtrMin, &midtr);
-        }
-        else
-        {
-            // imidtrMin is empty
-            ReleasePpo(&midtr.pmstp);
-            pglmidtr->Delete(imidtrMin);
-            if (0 == pglmidtr->IvMac())
-                break;
-            if (fSeq)
-            {
-                tsTempo = tsLast;
-                tsRawTempo = 0;
-                pglmidtr->Get(0, &midtr);
-            }
+            else
+                ReleasePpo(&result);
         }
     }
-
-    if (pvNil != (pmids = NewObj MidiStream) && FAllocHq(&pmids->_hqrgb, bsm.IbMac(), fmemNil, mprNormal))
-    {
-        bsm.FetchRgb(0, bsm.IbMac(), PvLockHq(pmids->_hqrgb));
-        UnlockHq(pmids->_hqrgb);
-    }
-    else
-    {
-    LFail:
-        ReleasePpo(&pmids);
-    }
-
-    // clean up stuff
-    ReleasePpo(&flo.pfil);
-    if (pvNil != pglmidtr)
-    {
-        while (pglmidtr->FPop(&midtr))
-            ReleasePpo(&midtr.pmstp);
-        ReleasePpo(&pglmidtr);
-    }
-
-    AssertNilOrPo(pmids, 0);
-    return pmids;
-}
-
-/***************************************************************************
-    Static method to convert a long to its midi file variable length
-    equivalent.
-***************************************************************************/
-LegacyLong MidiStream::_CbEncodeLu(LegacyUlong lu, byte *prgb)
-{
-    AssertNilOrVarMem(prgb);
-
-    LegacyLong ib;
-
-    if (pvNil != prgb)
-        prgb[0] = (byte)(lu & 0x7F);
-    for (ib = 1; (lu >>= 7) > 0; ib++)
-    {
-        if (pvNil != prgb)
-            prgb[ib] = (byte)((lu & 0x7F) | 0x80);
-    }
-    if (pvNil != prgb)
-        ReversePb(prgb, ib);
-    return ib;
+    three_mm_storage_dispose(&scratch);
+    FreePhq(&source);
+    ReleasePpo(&file);
+    return result;
 }
 
 /***************************************************************************

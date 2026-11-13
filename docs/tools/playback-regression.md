@@ -5222,3 +5222,82 @@ current results, preceding baselines and latest failures. C: retained about
 58.9 GiB free. Evidence is in
 `tmp/c89-sound-resource-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`
 and `tmp/c89-sound-resource-playback-audit.json`.
+
+
+## Sound payload and physical WAVE import C89 conversion (13 November 2026)
+
+The resumed sound work moves MIDI parsing/SMF import, sampled/MIDI payload
+factory control, RIFF parsing and codec-selection rules, PCM/MS ADPCM encoding,
+WAVE import selection and physical import transactions into `libraries/engine`.
+Both hosts use these shared modules through temporary native facades. External
+SDL resampling/decoding, GSM/MP3 codecs, AudioMan/ACM operations and physical
+file/device APIs remain host adapters. Sound queues and scene/movie runtime
+integration belong to later slices; the whole C89 backend remains incomplete.
+
+A native trace was frozen before conversion: 160 SMF imports spanning formats
+0/1/2/other, five divisions including SMPTE/drop-frame, running status, ignored
+meta/SysEx, tempo changes, EOF/EOT and parser peeks; plus 80 PCM/ADPCM pairs
+across short/partial/multiple blocks, two rates and five sample patterns.
+All 314,180 bytes match after conversion, SHA-256
+`C98FC38D594FD6DA2B36C312CBB888004F6AB6457A3BFD02ABAFA5C19149644A`.
+The committed host test also checks FNV-1a `9323C635` on little-endian hosts.
+
+The C-only tests cover parser exhaustion, wrapping timestamps, truncated SMF
+and RIFF payloads, invalid divisions/chunk lengths, PCM/ADPCM wire fields,
+output preservation, allocation failures, converted-sample release on failure,
+factory estimates/publication/ownership and every fallible native import phase,
+including each RIFF write. The native import mock checks the historical
+payload-size comparison using an 88-byte physical file with an 80-byte RIFF
+payload against an 85-byte original. These are controller checks, not proof of
+a working AudioMan decoder on x64: that host still has its pre-existing
+nonworking AudioMan stub. SDL/Windows ACM compatibility tests exercise real
+encoded streams separately. Unsupported MIDI timing arithmetic overflow is
+rejected instead of retaining the former assert/undefined-overflow path.
+
+All 73 standalone C checks (including strict syntax), the MSVC AddressSanitizer
+C build/run, five SDL release checks (payload trace, WAVE import, compressed
+fixtures, movie sound import and movie save/load) pass. The 1,320-case resource
+fixture retains its load/write/invalidation counts and balanced allocations;
+debug MIDI import successes change from 84 to 90 because native parser/list
+allocation points were removed. This expected injection-topology change does
+not change successful payload bytes. A concurrent host-test pass encountered
+a temporary-file creation collision; its focused serial rerun passed. The
+final focused native pass runs serially and all 84 checks pass. The broad `core-checks` build is
+blocked by the pre-existing `tests/three_mm_fixture.cpp:47` call to `SetSzs` on
+`ThreeMMMovieTitle`; the unrelated fixture was left unchanged.
+
+Both hosts build. Capture binaries were frozen at SHA-256
+`5BC0EFC9F30FFFF79387561CED4B6B766C4BDFCCD5EE067D21CA013E1AECD38C`
+(SDL release) and
+`A656360CFB94A2A653AF8023A62D76E7A104467560FA32DB5A071A110C56766D`
+(Marcus regression), with the same hashes checked after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261113T223634Z-4cfdde6d` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261113T223821Z-bec0f1d8` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All nine captures complete without retries; movie/content/resource identities
+remain unchanged. Against the preceding resource-controller suites
+`20261113T164426Z-3595489b` and `20261113T165153Z-af14778b`, all 180 seek images,
+authored frame observations and ordered playback image changes match for each
+player. Only adjacent identical image/position observations are collapsed for
+playback comparison. Actor peaks remain 3192 retail and 4081 SDL/Marcus; scene
+sampled-audio peaks remain 2380 retail and 2176 SDL/Marcus. The actor first-scene
+600/1300 Hz contract passes for all players. These narrower checks show no new
+conversion regression; they do not establish waveform/timing parity. Both
+suite reports retain pre-existing cross-player timing/PCM differences and
+single-repeat inconclusive comparisons. Dedicated retail MIDI rendering was
+not captured; the frozen native parser/import trace and mixer tests cover a
+separate, narrower contract. No Marcus UI tests were added.
+
+Evidence: `tmp/c89-sound-payload-standalone.log`,
+`tmp/c89-sound-payload-asan.log`, `tmp/c89-sound-payload-native-tests.log`,
+`tmp/c89-sound-payload-final-focused.log`,
+`tmp/c89-sound-payload-release-tests.log`,
+`tmp/c89-sound-payload-playback-actor-audio-sampled-audio.json` and the two
+`tmp/c89-sound-payload-capture-*.log` files. Captures reused the shared SDL
+package cache with private processes/settings/working movies; OS caching was
+uncontrolled. No concurrent builds or tests ran during capture. Existing
+retention pruned superseded raw media while preserving metadata and the
+current results.

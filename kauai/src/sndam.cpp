@@ -10,6 +10,7 @@
 
 ***************************************************************************/
 #include "frame.h"
+#include "three_mm/sound_payload.h"
 #include "audioman.h"
 #include "sndampri.h"
 ASSERTNAME
@@ -206,7 +207,8 @@ PDataBlockStream DataBlockStream::PstblNew(FileLocation *pflo, bool fPacked)
             // cache to the hard drive or memory, depending on the size
             DataBlock blck(pflo);
 
-            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > AudioManSoundDevice::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
+            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > AudioManSoundDevice::vcbMaxMemWave) ||
+                !blck.FWriteToBlck(pblck))
             {
                 delete pstbl;
                 return pvNil;
@@ -262,44 +264,38 @@ CachedAudioManSound::~CachedAudioManSound(void)
 /***************************************************************************
     Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                                    PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    FileLocation flo;
-    bool fPacked;
-    PCachedAudioManSound pcams = pvNil;
-    PDataBlockStream pstbl = pvNil;
-
-    *pcb = size(CachedAudioManSound) + size(DataBlockStream);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    *ppbaco = pvNil;
-    if (!pcrf->Pcfl()->FFindFlo(ctg, cno, &flo))
-        return fFalse;
-
-    fPacked = pcrf->Pcfl()->FPacked(ctg, cno);
-    if (pvNil == (pstbl = DataBlockStream::PstblNew(&flo, fPacked)))
-        return fFalse;
-
-    *pcb = size(CachedAudioManSound) + pstbl->CbMem();
-    if (pvNil == (pcams = NewObj CachedAudioManSound) || FAILED(AllocSoundFromStream(&pcams->psnd, pstbl, fTrue, pvNil)))
-    {
-        ReleasePpo(&pcams);
-    }
-
-    if (pvNil != pcams)
-        pcams->_pstbl = pstbl;
-    else
-        ReleasePpo(&pstbl);
-
-    AssertNilOrPo(pcams, 0);
-    *ppbaco = pcams;
-
-    return pvNil != *ppbaco;
+    ThreeMMSoundPayloadServices s = {};
+    s.object_bytes = size(CachedAudioManSound) + size(DataBlockStream);
+    s.open_stream = [](void *, void *cache, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        auto file = static_cast<PChunkyResourceFile>(cache)->Pcfl();
+        FileLocation location;
+        if (!file->FFindFlo(type, number, &location))
+            return nullptr;
+        return DataBlockStream::PstblNew(&location, file->FPacked(type, number));
+    };
+    s.stream_size = [](void *, void *stream) -> ThreeMMI32 {
+        return size(CachedAudioManSound) + static_cast<PDataBlockStream>(stream)->CbMem();
+    };
+    s.create = [](void *) -> void * { return NewObj CachedAudioManSound; };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.decode_stream = [](void *, void *object, void *stream) -> int {
+        return SUCCEEDED(AllocSoundFromStream(&static_cast<PCachedAudioManSound>(object)->psnd,
+                                              static_cast<PDataBlockStream>(stream), fTrue, pvNil));
+    };
+    s.adopt_stream = [](void *, void *object, void *stream) {
+        static_cast<PCachedAudioManSound>(object)->_pstbl = static_cast<PDataBlockStream>(stream);
+    };
+    ThreeMMI32 bytes;
+    const bool ok = three_mm_wave_stream_fetch(pcrf, ctg, cno, ppbaco, &bytes, &s) != 0;
+    *pcb = bytes;
+    return ok;
 }
 
 /***************************************************************************
@@ -311,7 +307,8 @@ PCachedAudioManSound CachedAudioManSound::PcamsNewLoop(PCachedAudioManSound pcam
     Assert(cactPlay != 1, "bad loop count");
     PCachedAudioManSound pcams = pvNil;
 
-    if (pvNil == (pcams = NewObj CachedAudioManSound) || FAILED(AllocLoopFilter(&pcams->psnd, pcamsSrc->psnd, cactPlay - 1)))
+    if (pvNil == (pcams = NewObj CachedAudioManSound) ||
+        FAILED(AllocLoopFilter(&pcams->psnd, pcamsSrc->psnd, cactPlay - 1)))
     {
         ReleasePpo(&pcams);
     }

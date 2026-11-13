@@ -407,15 +407,18 @@ rollback, info queries, resource save/load/tag enumeration and localized
 action-name policy now also use a persistent C-owned descriptor and controller.
 MovieSoundMSND metadata loading/factories, MIDI/WAVE envelope and child writing,
 MIDI import control, invalidation, tool priorities/classes and playback dispatch
-now use C89 and C-owned metadata/status slots as well. Sound payload parsing and
-physical WAVE import/transcoding remain native dependencies.
+now use C89 and C-owned metadata/status slots as well. MIDI event parsing and
+SMF import/track merging, sampled/MIDI payload factory control, RIFF parsing,
+PCM/ADPCM encoding and physical WAVE import control now also use C89. SDL
+resampling, third-party GSM/MP3 decoding, classic AudioMan/ACM codec calls and
+physical file/device services remain host adapters.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
-Work pauses at the user's request after this sound-resource conversion. Resume
-with sound payload factories/parsing and physical WAVE import/transcoding, then
-the remaining body geometry/render hooks. The earlier local sound draft
-checkpoint is superseded by the integrated resource controller and validation
+The sound resource/payload/import slices are complete. Resume with the remaining
+body geometry/render hooks. Temporary native resource/object/HQ facades still
+need removal during final host integration; these slices do not complete the
+whole backend. Sound validation and the earlier local draft's replacement are
 recorded in `docs/tools/playback-regression.md`.
 Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting

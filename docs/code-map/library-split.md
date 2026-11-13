@@ -72,6 +72,7 @@ cmake --build build/engine-c89 --target engine-actor-paste-test
 cmake --build build/engine-c89 --target engine-actor-clipboard-test
 cmake --build build/engine-c89 --target engine-actor-create-test
 cmake --build build/engine-c89 --target engine-movie-sound-test
+cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1902,9 +1903,9 @@ tool priorities/classes and playback dispatch. `ThreeMMSoundResource` holds the
 weak source cache, child identity, style and volume. Separate C silent/invalid
 slots preserve the native String placement and 328-byte x64 cache estimate
 without packing pointers. Native adapters still supply object/String/block/
-chunk/file services, MIDI parsing/serialization and sound-device operations.
-Physical WAVE import/transcoding, sound payload factories/parsing and the native
-facade remain dependencies of the unfinished full C89 backend.
+chunk/file/HQ transfer and sound-device operations. MIDI parsing, sound payload
+factories and physical WAVE import policy now use the following C modules;
+temporary native facades still remain in the unfinished full C89 backend.
 
 The reader retains native foreign-header semantics: only the order/system
 markers swap; style and volume remain in native byte order because the original
@@ -1930,8 +1931,65 @@ padding. C-only tests cover both host byte orders, every writer cleanup phase,
 failed-output publication, short headers and dispatch policy. A further 96
 headless host dispatch combinations and repeated-MIDI checks verify adapters.
 Full evidence and playback coverage limits are in
-`docs/tools/playback-regression.md`. Work pauses after this slice at the user's
-request; the remaining sound payload and rendering work has not been started.
+`docs/tools/playback-regression.md`. The pause after this slice has ended;
+sound payload/import work is completed below. Body rendering remains migration
+work.
+
+### Sound payloads, MIDI parsing and WAVE import
+
+`midi.c` owns the persistent `ThreeMMMidiParser`, variable-length timing,
+running status, peeks, meta/SysEx handling and SMF import. C-owned scratch
+buffers hold track parsers/events and the merged millisecond stream. Formats
+1/2 merge/sequence tracks; other formats retain the first active track.
+Track-count acceptance, equal-time order, SMPTE 29-to-30 handling, sequential
+tempo carry and the legacy tempo-only `last` timestamp update are preserved.
+Two-word integer scaling and unsigned wrapping avoid C99/64-bit dependencies.
+Unsupported timing overflow fails instead of asserting/using undefined signed
+arithmetic. The native facade retains object references, HQ allocation/locking,
+physical reads and raw block serialization; it does not parse events or merge
+tracks. These are temporary facade/allocator adapters, not a finished C-only
+host integration.
+
+`sound_payload.c` owns MIDI, SDL sampled-audio and classic AudioMan resource
+factory sequencing, estimates, output publication and failure cleanup. Opaque
+object/block/stream callbacks retain native cache/device types outside C.
+The AudioMan path transfers its stream to a successful object and releases it
+on failure. The SDL path reads encoded bytes before object allocation and
+releases partial objects after decoder/allocation-size failures.
+
+`wave.c` owns RIFF views, compressed-format selection/validation, legacy-format
+recognition, fact trimming, PCM headers and complete MS ADPCM encoding. Predictor
+error sums use two unsigned words and preserve the native tie order and exact
+bytes. The compressed reader keeps first fmt/data and last fact; legacy-format
+recognition still returns at the first fmt, and the separate fact inspector
+keeps its last-fmt policy. Final odd-chunk pad omission remains accepted where
+it was before. External SDL, GSM and MP3 decoders/resamplers remain C callback
+or codec adapters. Import selection preserves original compatible bytes when
+encoding would not save space, retains the 346-byte fast path and uses PCM for
+up to 1,500 normalized samples because of AudioMan's short-ADPCM duration bug.
+The owning audio buffer accepts signed 32-bit byte sizes without imposing the
+collection subsystem's 128 MiB group limit.
+
+`wave_import.c` owns physical import transactions, name/temp-file sequencing,
+resource writing and cleanup. SDL import calls the common C encoder through
+external decode/resample services. The classic native controller keeps
+AudioMan/ACM as external codec services, writes RIFF/fmt/fact/data in C and
+preserves the original source-size comparison against RIFF payload length
+(excluding its eight-byte header). Callback tests cover each failure phase and
+publication boundary. Physical filename/file APIs and device codecs remain
+host adapters; final facade removal is separate migration work.
+
+The frozen pre-conversion native trace matches all 314,180 bytes (160 MIDI
+imports with parser peeks and 80 PCM/ADPCM pairs), SHA-256
+`C98FC38D594FD6DA2B36C312CBB888004F6AB6457A3BFD02ABAFA5C19149644A`.
+`sound-payload-test` checks its frozen FNV-1a fingerprint automatically on
+little-endian hosts. `engine-sound-payload-test` links with C alone and covers
+malformed/truncated data, allocation faults, factory ownership and all native
+RIFF-write/import failure phases. Debug resource injection now succeeds for
+90 MIDI imports rather than 84 because native parser/list allocations were
+removed; successful payloads retain their separate frozen trace. See
+`docs/tools/playback-regression.md` for host checks, retail comparisons and
+coverage limits. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

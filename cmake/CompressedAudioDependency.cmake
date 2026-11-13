@@ -38,5 +38,5 @@ add_library(kauai-compressed-wave STATIC "${PROJECT_SOURCE_DIR}/kauai/src/compre
   "${PROJECT_SOURCE_DIR}/kauai/src/mp3_decoder.c")
 target_include_directories(kauai-compressed-wave PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src"
   PRIVATE "${dr_libs_SOURCE_DIR}" "${PROJECT_BINARY_DIR}/generated/audio-codecs")
-target_link_libraries(kauai-compressed-wave PRIVATE kauai-gsm)
+target_link_libraries(kauai-compressed-wave PRIVATE kauai-gsm three-mm-engine-c89)
 set_target_properties(kauai-compressed-wave PROPERTIES POSITION_INDEPENDENT_CODE ON)

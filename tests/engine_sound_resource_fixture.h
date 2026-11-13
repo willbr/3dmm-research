@@ -206,7 +206,9 @@ static bool TestSoundResources()
     ReleasePpo(&shortSound); ReleasePpo(&shortFile); vpers->Clear();
     std::fprintf(stderr,"[sound resources] attempts=%d loaded=%d written=%d copied=%d invalidated=%d\n",attempts,loaded,written,copied,invalidated);
 #ifdef DEBUG
-    ok=ok && loaded==524 && written==192 && copied==84 && invalidated==36;
+    // C track parsing removes native parser/list allocations; injection points
+    // now allow 90 MIDI imports. Successful payloads have a separate frozen trace.
+    ok=ok && loaded==524 && written==192 && copied==90 && invalidated==36;
 #else
     ok=ok && loaded==540 && written==192 && copied==96 && invalidated==36;
 #endif

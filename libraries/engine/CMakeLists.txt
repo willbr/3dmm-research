@@ -31,7 +31,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/template_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_runtime.c)
 target_sources(three-mm-engine-c89 PRIVATE src/action_definition.c)
 target_sources(three-mm-engine-c89 PRIVATE src/font_resource.c)
-target_sources(three-mm-engine-c89 PRIVATE src/text_generation.c src/text_generation_math.c src/text_resource.c src/sound_resource.c)
+target_sources(three-mm-engine-c89 PRIVATE src/text_generation.c src/text_generation_math.c src/text_resource.c src/sound_resource.c src/wave.c src/midi.c src/sound_payload.c src/wave_import.c)
 set_target_properties(three-mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(three-mm-engine-c89 PRIVATE -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra)
@@ -393,6 +393,11 @@ add_executable(engine-sound-resource-test EXCLUDE_FROM_ALL "${engine_sound_resou
 target_link_libraries(engine-sound-resource-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-sound-resource-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-sound-resource COMMAND engine-sound-resource-test)
+get_filename_component(engine_sound_payload_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_sound_payload_test.c" ABSOLUTE)
+add_executable(engine-sound-payload-test EXCLUDE_FROM_ALL "${engine_sound_payload_test_source}")
+target_link_libraries(engine-sound-payload-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-sound-payload-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-sound-payload COMMAND engine-sound-payload-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -460,6 +465,10 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_generation_math.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/sound_resource.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/wave.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/midi.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sound_payload.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/wave_import.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rollcall_storage.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_file.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/string_table.c"
@@ -527,5 +536,6 @@ if(ENGINE_C89_COMPILER)
     "${engine_text_generation_test_source}"
     "${engine_text_resource_test_source}"
     "${engine_sound_resource_test_source}"
+    "${engine_sound_payload_test_source}"
     "${engine_test_source}" "${engine_movie_test_source}" "${engine_chunky_test_source}" "${engine_strings_test_source}" "${engine_storage_test_source}" "${engine_collections_test_source}" "${engine_data_stream_test_source}" "${engine_piece_test_source}" "${engine_codec_test_source}" "${engine_block_test_source}" "${engine_owner_test_source}" "${engine_file_policy_test_source}" "${engine_chunk_save_test_source}" "${engine_chunk_heap_test_source}" "${engine_chunk_edit_test_source}" "${engine_chunk_graph_test_source}" "${engine_chunk_ops_test_source}" "${engine_metadata_test_source}" "${engine_forest_test_source}" "${engine_loading_test_source}" "${engine_chunk_storage_test_source}" "${engine_lifecycle_test_source}" "${engine_container_test_source}" "${engine_resource_test_source}" "${engine_chunk_owner_test_source}" "${engine_chunk_table_test_source}" "${engine_tag_test_source}" "${engine_source_test_source}" "${engine_source_names_test_source}" "${engine_movie_owner_test_source}" "${engine_rollcall_storage_test_source}" "${engine_movie_title_root_test_source}" "${engine_scene_data_test_source}" "${engine_actor_data_test_source}" "${engine_actor_track_test_source}" "${engine_actor_motion_test_source}" "${engine_actor_frame_test_source}" "${engine_actor_timeline_test_source}" "${engine_actor_pose_test_source}")
 endif()

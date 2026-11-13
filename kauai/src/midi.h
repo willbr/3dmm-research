@@ -15,6 +15,9 @@
 #ifndef MIDI_H
 #define MIDI_H
 
+#include "three_mm/sound_payload.h"
+#include "three_mm/midi.h"
+
 using namespace Chunky;
 
 typedef class MidiStream *PMidiStream;
@@ -26,8 +29,8 @@ struct MIDEV
     LegacyLong cb;      // number of bytes to send (in rgbSend)
     LegacyLong lwTempo; // the current tempo - at a tempo change, cb will be 0
     union {
-        byte rgbSend[4]; // bytes to send if pvLong is nil
-        LegacyLong lwSend;     // for convenience
+        byte rgbSend[4];   // bytes to send if pvLong is nil
+        LegacyLong lwSend; // for convenience
     };
 };
 typedef MIDEV *PMIDEV;
@@ -46,16 +49,9 @@ class MidiStreamParser : public MidiStreamParser_PAR
     MARKMEM
 
   protected:
-    LegacyUlong _tsCur;
-    LegacyLong _lwTempo;
-    byte *_prgb;
-    byte *_pbLim;
-    byte *_pbCur;
-    byte _bStatus;
+    ThreeMMMidiParser _parser;
 
     Debug(LegacyLong _cactLongLock;) PMidiStream _pmids;
-
-    bool _FReadVar(byte **ppbCur, LegacyLong *plw);
 
   public:
     MidiStreamParser(void);
@@ -78,16 +74,16 @@ class MidiStream : public MidiStream_PAR
     MARKMEM
 
   protected:
+    static ThreeMMSoundPayloadServices _PayloadServices();
     HQ _hqrgb;
 
     friend MidiStreamParser;
 
     MidiStream(void);
 
-    static LegacyLong _CbEncodeLu(LegacyUlong lu, byte *prgb);
-
   public:
-    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PMidiStream PmidsRead(PDataBlock pblck);
     static PMidiStream PmidsReadNative(Filename *pfni);
     ~MidiStream(void);

@@ -1,6 +1,8 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_audio.h"
 #include "wave_codec.h"
+#include "three_mm/wave.h"
+#include "three_mm/collection_storage.h"
 #include "compressed_wave.h"
 #include <SDL3/SDL.h>
 #define SDL_MAIN_HANDLED
@@ -58,51 +60,49 @@ struct WavePCM
 } // namespace
 bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave)
 {
-    if (!data || bytes < 12 || bytes > INT_MAX)
+    if (bytes > INT_MAX)
         return false;
     WavePCM pcm;
-    if (!pcm.Load(data, bytes))
-        return false;
-    const auto decodedBytes = pcm.bytes;
-    if (!decodedBytes || decodedBytes > INT_MAX)
-        return false;
+    ThreeMMWaveImportServices services = {};
+    services.context = &pcm;
+    services.load = [](void *context, const void *data, ThreeMMU32 bytes, ThreeMMU32 *decoded) -> int {
+        auto &pcm = *static_cast<WavePCM *>(context);
+        if (!pcm.Load(data, bytes))
+            return 0;
+        *decoded = pcm.bytes;
+        return 1;
+    };
+    services.convert_u8 = [](void *context, unsigned char **samples, ThreeMMI32 *count) -> int {
+        auto &pcm = *static_cast<WavePCM *>(context);
+        const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, 11025};
+        int bytes = 0;
+        const bool ok = SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(pcm.bytes), &destination,
+                                                samples, &bytes);
+        *count = bytes;
+        return ok;
+    };
+    services.release_samples = [](void *, unsigned char *samples) { SDL_free(samples); };
+    ThreeMMWaveBuffer scratch;
+    three_mm_wave_buffer_init(&scratch, nullptr);
+    bool ok = false;
     try
     {
-        const auto original = static_cast<const std::uint8_t *>(data);
-        const bool legacy = LegacyWaveFormat(data, bytes);
-        // A complete standard ADPCM block plus its headers is at least 346 bytes.
-        if (legacy && bytes <= 346)
+        const unsigned char *selected;
+        ThreeMMU32 count;
+        if (three_mm_wave_prepare(data, static_cast<ThreeMMU32>(bytes), &services, &scratch, &selected, &count))
         {
-            std::vector<std::uint8_t> result(original, original + bytes);
+            std::vector<std::uint8_t> result(selected, selected + count);
             wave.swap(result);
-            return true;
+            ok = true;
         }
-        const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, 11025};
-        Uint8 *converted = nullptr;
-        int count = 0;
-        if (!SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(decodedBytes), &destination, &converted,
-                                     &count))
-            return false;
-        std::unique_ptr<Uint8, decltype(&SDL_free)> samplesOwner(converted, SDL_free);
-        if (count <= 0)
-            return false;
-        std::vector<std::uint8_t> samples(converted, converted + count), compressed;
-        if (!LegacyImportWave(samples, compressed))
-            return false;
-        if (legacy && bytes <= compressed.size())
-        {
-            std::vector<std::uint8_t> result(original, original + bytes);
-            wave.swap(result);
-            return true;
-        }
-        wave.swap(compressed);
-        return true;
     }
     catch (const std::bad_alloc &)
     {
-        return false;
     }
+    three_mm_wave_buffer_dispose(&scratch);
+    return ok;
 }
+
 bool WaveSeconds(const void *data, std::size_t bytes, double &seconds)
 {
     seconds = 0;
@@ -118,8 +118,8 @@ bool WaveSeconds(const void *data, std::size_t bytes, double &seconds)
     // SDL computes the flushed output length without performing conversion.
     // Use its accounting so compressed fact trimming and resampler rounding
     // agree with DecodeWave, including non-integral rate ratios.
-    const bool ready = SDL_PutAudioStreamData(stream, pcm.Data(), static_cast<int>(pcm.bytes)) &&
-                       SDL_FlushAudioStream(stream);
+    const bool ready =
+        SDL_PutAudioStreamData(stream, pcm.Data(), static_cast<int>(pcm.bytes)) && SDL_FlushAudioStream(stream);
     const int available = ready ? SDL_GetAudioStreamAvailable(stream) : -1;
     SDL_DestroyAudioStream(stream);
     if (available < 0 || available % (2 * sizeof(float)))

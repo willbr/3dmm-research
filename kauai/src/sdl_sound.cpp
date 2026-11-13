@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_audio.h"
 #include "sdl_sound.h"
+#include "three_mm/sound_payload.h"
 #include <algorithm>
 #include <new>
 #include "kauai_core.h"
@@ -25,38 +26,39 @@ class SDLWave : public SDLWave_PAR
     static bool Read(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock block, PBaseCacheableObject *result,
                      LegacyLong *bytes)
     {
-        *bytes = sizeof(SDLWave);
-        if (!result)
-            return true;
-        *result = nullptr;
-        if (!block->FUnpackData())
-            return false;
-        const auto count = block->Cb();
-        if (count < 12)
-            return false;
+        struct Context
+        {
+            std::vector<byte> encoded;
+        } context;
+        ThreeMMSoundPayloadServices s = {};
+        s.context = &context;
+        s.object_bytes = sizeof(SDLWave);
+        s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
+        s.block_size = [](void *, void *block, int packed) -> ThreeMMI32 {
+            return static_cast<PDataBlock>(block)->Cb(packed != 0);
+        };
+        s.read_encoded = [](void *p, void *block, ThreeMMI32 bytes) -> int {
+            auto &encoded = static_cast<Context *>(p)->encoded;
+            encoded.resize(bytes);
+            return static_cast<PDataBlock>(block)->FReadRgb(encoded.data(), bytes, 0);
+        };
+        s.create = [](void *) -> void * { return NewObj SDLWave; };
+        s.release = [](void *, void *object) { static_cast<SDLWave *>(object)->Release(); };
+        s.decode = [](void *p, void *object) -> int {
+            auto &encoded = static_cast<Context *>(p)->encoded;
+            return KauaiAudio::DecodeWave(encoded.data(), encoded.size(), static_cast<SDLWave *>(object)->sample);
+        };
+        s.allocation_size = [](void *, void *object, ThreeMMI32 *bytes) -> int {
+            const auto count = static_cast<SDLWave *>(object)->sample->stereo.size();
+            if (count > (INT32_MAX - sizeof(SDLWave)) / sizeof(float))
+                return 0;
+            *bytes = static_cast<ThreeMMI32>(count * sizeof(float) + sizeof(SDLWave));
+            return 1;
+        };
+        s.decoded = [](void *) { ++decodedSounds; };
         try
         {
-            std::vector<byte> encoded(count);
-            if (!block->FReadRgb(encoded.data(), count, 0))
-                return false;
-            auto wave = NewObj SDLWave;
-            if (!wave)
-                return false;
-            if (!KauaiAudio::DecodeWave(encoded.data(), encoded.size(), wave->sample))
-            {
-                wave->Release();
-                return false;
-            }
-            const auto allocated = wave->sample->stereo.size() * sizeof(float) + sizeof(SDLWave);
-            if (allocated > INT32_MAX)
-            {
-                wave->Release();
-                return false;
-            }
-            *bytes = static_cast<LegacyLong>(allocated);
-            *result = wave;
-            ++decodedSounds;
-            return true;
+            return three_mm_wave_payload_fetch(block, result, bytes, &s) != 0;
         }
         catch (const std::bad_alloc &)
         {
