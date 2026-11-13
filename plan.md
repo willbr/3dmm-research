@@ -231,11 +231,18 @@ priority over the older Project 0-4 ordering wherever they conflict.
   now execute in C89. Action edits call the existing C sound editor and event
   evaluator directly. Metadata failure, partial edits, lifetime invalidation,
   freeze/step ordering and borrowed transform-comparison views are retained.
-  General subroute/recording edits, undo and queue/runtime integration remain.
+  Stage/event propagation, backward deletion, recording, undo and queue/runtime
+  integration remain.
 - Costume setting and costume fill now execute in C89, including custom body-set
   resolution, reservation, current-to-incoming comparison, tag-aware deletion and
   resource release ordering. Native services retain material/template/body lookup;
   these resource/body implementations still need conversion.
+- Route-point insertion, event relocation after node insertion/deletion, event
+  searches, reachable-subroute lookup, single-frame Add deletion, truncation and
+  forward deletion now execute in C89. Hide/reset/rewind sequencing is also C,
+  using native table/body/default-costume primitives. Epsilon clamping, wrapped
+  offsets, held-frame handling, dirty/range ordering and terminating event/tweak
+  ordering retain the preceding implementation's behavior.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

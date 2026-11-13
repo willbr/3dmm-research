@@ -56,6 +56,7 @@ cmake --build build/engine-c89 --target engine-c89-test engine-movie-data-test e
 cmake --build build/engine-c89 --target engine-event-edit-test
 cmake --build build/engine-c89 --target engine-action-edit-test
 cmake --build build/engine-c89 --target engine-costume-edit-test
+cmake --build build/engine-c89 --target engine-route-edit-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -989,6 +990,45 @@ costumes, final body identities and resource reference counts. All 51 CLI baseli
 and headless scene/timeline checks pass. No Marcus UI tests were added.
 
 Subroute/recording edits, general undo, queue/runtime integration, resource/body
+implementations and final C++ facade removal remain unfinished.
+
+### Actor route and forward deletion editing
+
+`actor_route_edit.c` owns route-point insertion, event relocation after node
+insertion/deletion, forward/backward event searches, reachable-subroute lookup,
+single-frame Add deletion, truncation, and private/public forward deletion.
+Hide/reset/rewind ordering now also executes in C. Native adapters supply table
+primitives, body visibility/default-costume operations, owner flags, scene dirty
+notifications and diagnostics; project-owned table/body/resource implementations
+remain temporary C++ dependencies.
+
+Insertion preserves terminal zero-distance nodes and one-unit epsilon clamping,
+including updates to the caller's point. Failure leaves it unchanged. Event
+relocation wraps scalar offsets and deletes events attached to removed terminal
+nodes through the shared C event editor. Add-frame deletion preserves nodes still
+used by a preceding event or its positive offset. Reachable-subroute lookup reuses
+the C stalled evaluator, retaining its existing comparisons.
+
+Truncation writes the shortened segment before computing the new endpoint, moves
+the next node, then updates cached events backwards. This order is deliberately
+retained. Forward deletion distinguishes the current subroute from all later
+routes, publishes dirty state before reset, assigns false `alive` before default-
+costume reset, and does not invalidate the frame range for reductions. Enabled
+retail BUG1870/BUG1932 behavior is retained. Public deletion reserves and adds
+terminating freeze/step events only when onstage, then keeps the latest tweak
+last. Expected-operation failures retain partial edits and their diagnostic order.
+
+`engine-route-edit-test` checks failed insertion, epsilon/wrapped arithmetic,
+truncation endpoint ordering, absence of range invalidation, alive/reset observer
+ordering, terminal reservation/application failures and tweak ordering. All 47
+standalone C-only Clang checks (including strict C89 syntax), 61 focused native
+checks and MSVC AddressSanitizer pass. All 33 snapshots match, including the
+158,436-byte trace frozen before conversion across 480 real actor route-edit
+scenarios. All 51 CLI baselines and headless scene/timeline checks pass. No Marcus
+UI tests were added.
+
+Stage entrance/removal integration, event propagation across subroutes, backward
+deletion, recording, undo, queue/runtime integration, remaining body/resource
 implementations and final C++ facade removal remain unfinished.
 
 ### Source names and directory discovery

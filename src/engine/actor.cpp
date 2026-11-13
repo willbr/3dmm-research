@@ -290,12 +290,11 @@ void Actor::SetPscen(Scene *pscen)
 void Actor::_InitState(void)
 {
     AssertBaseThis(0);
-
-    _Hide();
-    _fLifeDirty = fTrue;
-    if (_ptmpl != pvNil && _pbody != pvNil)
-        _ptmpl->FSetDefaultCost(_pbody);
-    _SetStateRewound();
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_reset(&state,_track.Route(),&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -306,8 +305,11 @@ void Actor::_InitState(void)
 void Actor::_SetStateRewound(void)
 {
     AssertBaseThis(0);
-    _fModeRecord = fFalse;
-    _state.RewindRoute(_track);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_rewind(&state,_track.Route(),&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -803,11 +805,10 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 void Actor::_Hide(void)
 {
     AssertBaseThis(0);
-
-    if (_state.onStage && _pbody != pvNil)
-        _pbody->Hide();
-    _state.onStage = fFalse;
-    return;
+    auto state=EngineActorMotion::Core(_state);
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_hide(&state,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -820,53 +821,39 @@ void Actor::_Hide(void)
         dwrPrior is the distance from the previous node to the new one.
 
 ***************************************************************************/
+ThreeMMActorRouteEditServices Actor::_RouteEditServices()
+{
+    ThreeMMActorRouteEditServices s={}; s.edits=_EventEditServices();
+    s.insert_point=[](void *p,ThreeMMI32 i,const ThreeMMActorRoutePoint *v) { return int(static_cast<PDynamicArray>(p)->FInsert(i,const_cast<ThreeMMActorRoutePoint *>(v))); };
+    s.write_point=[](void *p,ThreeMMI32 i,const ThreeMMActorRoutePoint *v) { static_cast<PDynamicArray>(p)->Put(i,const_cast<ThreeMMActorRoutePoint *>(v)); };
+    s.delete_points=[](void *p,ThreeMMI32 i,ThreeMMI32 count) { static_cast<PDynamicArray>(p)->Delete(i,count); };
+    s.clear_route=[](void *p) { static_cast<PDynamicArray>(p)->FSetIvMac(0); };
+    s.write_event=[](void *p,ThreeMMI32 i,const ThreeMMActorEvent *v) { static_cast<PGeneralGroup>(p)->PutFixed(i,const_cast<ThreeMMActorEvent *>(v)); };
+    s.swap_events=[](void *p,ThreeMMI32 a,ThreeMMI32 b) { static_cast<PGeneralGroup>(p)->Swap(a,b); };
+    s.reserve_events=[](void *p,ThreeMMU32 count,ThreeMMU32 bytes) { return int(static_cast<Actor *>(p)->_track.Events()->FEnsureSpace(count,bytes,fgrpNil)); };
+    s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_fLifeDirty=true; };
+    s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_fModeRecord=enabled!=0; };
+    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_pbody) actor->_pbody->Hide(); };
+    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_ptmpl && actor->_pbody) actor->_ptmpl->FSetDefaultCost(actor->_pbody); };
+    s.diagnostic=[](void *,int fault) {
+        switch (fault) {
+        case THREE_MM_ROUTE_BAD_ALIVE: Bug("Invalid fAlive value"); break;
+        case THREE_MM_ROUTE_FREEZE_FAILED: Assert(false,"Expected freeze event to succeed"); break;
+        case THREE_MM_ROUTE_STEP_FAILED: Assert(false,"Expected set step event to succeed"); break;
+        }
+    };
+    return s;
+}
 bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 {
-    AssertBaseThis(0);
-    AssertIn(irpt, 0, _track.Route()->IvMac() + 1);
-    AssertNilOrVarMem(prpt);
-
-    RouteDistancePoint rpt;
-    BRS dwrTotal = rZero; // Dist from prev node to node after the inserted node
-
-    if (!_track.Route()->FInsert(irpt, prpt))
-        return fFalse;
-
-    if (0 < irpt)
-    {
-        _track.Route()->Get(irpt - 1, &rpt);
-        dwrTotal = rpt.dwr;
-
-        // Do not alter end of route dwr's
-        if (rZero != rpt.dwr)
-        {
-            // Adjust the distance from the previous point here
-            rpt.dwr = dwrPrior;
-            if (rZero == rpt.dwr)
-                rpt.dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-            _track.Route()->Put(irpt - 1, &rpt);
-        }
-        else
-            Assert(dwrPrior == rZero, "Illegal distance");
-    }
-
-    if (irpt < _track.Route()->IvMac() - 1)
-    {
-        _track.Route()->Get(irpt + 1, &rpt);
-        if (rZero != prpt->dwr) // If not at end of subroute
-        {
-            // Set the distance to the next point in this subroute
-            Assert(rZero != dwrTotal, "Overwriting end of route");
-            prpt->dwr = BrsSub(dwrTotal, dwrPrior);
-            if (rZero >= prpt->dwr)
-                prpt->dwr = rEps; // Epsilon.  Prevent pathological incorrect end-of-path
-            _track.Route()->Put(irpt, prpt);
-        }
-    }
-    else
-        Assert(rZero == prpt->dwr, "Invalid end sub-node dwr");
-
-    return fTrue;
+    AssertBaseThis(0); AssertIn(irpt,0,_track.Route()->IvMac()+1); AssertVarMem(prpt);
+    static_assert(rEps==1,"actor route epsilon ABI");
+    ThreeMMActorRoutePoint point; std::memcpy(&point,prpt,sizeof(point));
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    bool ok=three_mm_actor_route_edit_insert(_track.Route(),irpt,&point,dwrPrior,&tables,&services)!=0;
+    std::memcpy(prpt,&point,sizeof(point));
+    return ok;
 }
 
 /***************************************************************************
@@ -1265,26 +1252,10 @@ LEnd:
 ***************************************************************************/
 bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 {
-    AssertBaseThis(0);
-    AssertIn(aet, 0, aetLim);
-    AssertIn(iaevCur, 0, _track.Events()->IvMac());
-    AssertVarMem(piaevAdd);
-
-    Base aev;
-
-    iaevCur--;
-    for (; iaevCur >= 0; iaevCur--)
-    {
-        _track.Events()->GetFixed(iaevCur, &aev);
-        if (aev.aet == aet)
-        {
-            *piaevAdd = iaevCur;
-            return fTrue;
-        }
-    }
-
-    *piaevAdd = ivNil;
-    return fFalse;
+    AssertBaseThis(0); AssertIn(aet,0,aetLim); AssertVarMem(piaevAdd);
+    const auto tables=EngineActorMotion::Services();
+    *piaevAdd=three_mm_actor_route_edit_find(_track.Events(),aet,iaevCur,1,&tables);
+    return *piaevAdd>=0;
 }
 
 /***************************************************************************
@@ -1295,25 +1266,10 @@ bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 ***************************************************************************/
 bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 {
-    AssertBaseThis(0);
-    AssertIn(aet, 0, aetLim);
-    AssertIn(iaevCur, 0, _track.Events()->IvMac() + 1);
-    AssertVarMem(piaevAdd);
-
-    Base *paev;
-
-    for (; iaevCur < _track.Events()->IvMac(); iaevCur++)
-    {
-        paev = (Base *)_track.Events()->QvFixedGet(iaevCur);
-        if (paev->aet == aet)
-        {
-            *piaevAdd = iaevCur;
-            return fTrue;
-        }
-    }
-
-    *piaevAdd = ivNil;
-    return fFalse;
+    AssertBaseThis(0); AssertIn(aet,0,aetLim); AssertVarMem(piaevAdd);
+    const auto tables=EngineActorMotion::Services();
+    *piaevAdd=three_mm_actor_route_edit_find(_track.Events(),aet,iaevCur,0,&tables);
+    return *piaevAdd>=0;
 }
 
 /***************************************************************************
@@ -1329,26 +1285,9 @@ bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 ***************************************************************************/
 void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 {
-    AssertBaseThis(0);
-    AssertIn(iaevAdd, 0, _track.Events()->IvMac());
-    if (iaevLim != ivNil)
-        AssertIn(iaevLim, 0, _track.Events()->IvMac() + 1);
-    AssertVarMem(piaevLast);
-
-    Base aev;
-
-    if (iaevLim == ivNil)
-        iaevLim = _track.Events()->IvMac();
-
-    _track.Events()->GetFixed(iaevLim - 1, &aev);
-
-    if (_FIsStalled(iaevAdd, &aev.rtel, piaevLast))
-    {
-        // Last active event stored by _FIsStalled
-        return;
-    }
-
-    *piaevLast = iaevLim - 1;
+    AssertBaseThis(0); AssertVarMem(piaevLast);
+    const auto tables=EngineActorMotion::Services();
+    *piaevLast=three_mm_actor_route_edit_last(_track.Events(),iaevAdd,iaevLim,&tables);
 }
 
 /***************************************************************************
@@ -1428,37 +1367,12 @@ bool Actor::_FDeleteEntireSubrte(void)
 ***************************************************************************/
 void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 {
-    AssertThis(0);
-    long iaev;
-    long irptAdd;
-    Base *paev;
-
-    AssertIn(iaevAdd, 0, iaevLim);
-
-    paev = (Base *)_track.Events()->QvFixedGet(iaevAdd);
-    irptAdd = paev->rtel.irpt;
-
-    // Delete events in current frame of subroute
-    for (iaev = iaevLim - 1; iaev >= iaevAdd; iaev--)
-    {
-        _RemoveAev(iaev);
-    }
-
-    // Delete current point	if unused
-    if (iaevAdd > 0)
-    {
-        paev = (Base *)_track.Events()->QvFixedGet(iaevAdd - 1);
-        if (paev->rtel.irpt == irptAdd || (paev->rtel.irpt == (irptAdd - 1) && paev->rtel.dwrOffset > rZero))
-        {
-            return;
-        }
-    }
-    _AdjustAevForRteDel(irptAdd, iaevAdd);
-    _track.Route()->Delete(irptAdd);
-    if (_state.location.irpt > irptAdd)
-        _state.location.irpt--;
-
-    return;
+    AssertThis(0); AssertIn(iaevAdd,0,iaevLim);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_delete_add(&state,_track.Route(),_track.Events(),iaevAdd,iaevLim,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -2492,50 +2406,10 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 ***************************************************************************/
 void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
-    AssertBaseThis(0);
-    long irptMac = _track.Route()->IvMac();
-    AssertIn(irptAdjust, 0, irptMac);
-    AssertIn(iaevMin, 0, _track.Events()->IvMac() + 1);
-
-    long iaev;
-    Base aev;
-    RouteDistancePoint rptBack, rptAdjust;
-    BRS dwrBack;
-
-    if (irptAdjust > 0)
-    {
-        _track.Route()->Get(irptAdjust - 1, &rptBack);
-        dwrBack = rptBack.dwr;
-    }
-    else
-        dwrBack = rZero;
-
-    _track.Route()->Get(irptAdjust, &rptAdjust);
-
-    for (iaev = iaevMin; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt >= irptAdjust) // offset from later point
-        {
-            aev.rtel.irpt++;
-        }
-        else if (aev.rtel.irpt < irptAdjust - 1)
-        {
-            continue;
-        }
-        else
-        {
-            if ((irptAdjust == irptMac - 1) || (rZero == dwrBack))
-                continue;
-
-            if (aev.rtel.dwrOffset >= dwrBack)
-            {
-                aev.rtel.dwrOffset = BrsSub(aev.rtel.dwrOffset, dwrBack);
-                aev.rtel.irpt++;
-            }
-        }
-        _track.Events()->PutFixed(iaev, &aev);
-    }
+    AssertBaseThis(0); AssertIn(irptAdjust,0,_track.Route()->IvMac()); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_adjust_insert(_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
 }
 /***************************************************************************
 
@@ -2545,51 +2419,12 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 ***************************************************************************/
 void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
-    AssertBaseThis(0);
-    long irptMac = _track.Route()->IvMac();
-    AssertIn(irptAdjust, 0, irptMac);
-    AssertIn(iaevMin, 0, _track.Events()->IvMac() + 1);
-
-    long iaev;
-    Base aev;
-    RouteDistancePoint rptBack, rptAdjust;
-    BRS dwrBack, dwrFwd;
-
-    if (0 == irptAdjust)
-        dwrBack = rZero;
-    else
-    {
-        _track.Route()->Get(irptAdjust - 1, &rptBack);
-        dwrBack = rptBack.dwr;
-    }
-
-    _track.Route()->Get(irptAdjust, &rptAdjust);
-    dwrFwd = rptAdjust.dwr;
-
-    for (iaev = iaevMin; iaev < _track.Events()->IvMac(); iaev++)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt > irptAdjust) // offset from later point
-        {
-            aev.rtel.irpt--;
-        }
-        else if (aev.rtel.irpt == irptAdjust)
-        {
-            if (rptAdjust.dwr == rZero)
-            {
-                // Point will be deleted.  Event must be also
-                _RemoveAev(iaev);
-                iaev--;
-                continue;
-            }
-            aev.rtel.dwrOffset = BrsAdd(dwrBack, aev.rtel.dwrOffset);
-            aev.rtel.irpt--;
-        }
-        else
-            continue;
-
-        _track.Events()->PutFixed(iaev, &aev);
-    }
+    AssertBaseThis(0); AssertIn(irptAdjust,0,_track.Route()->IvMac()); AssertIn(iaevMin,0,_track.Events()->IvMac()+1);
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_adjust_delete(&state,_track.Route(),_track.Events(),irptAdjust,iaevMin,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************
@@ -3302,60 +3137,19 @@ LFail:
 void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 {
     AssertThis(0);
-
-    bool fAlive;
-    long iaev;
-    Base aev;
-
-    _DeleteFwdCore(fDeleteAll, &fAlive, iaevCur);
-
-    if (fAlive && _state.frame >= _nfrmFirst)
-    {
-        // If no space exists, truncation isn't changing a thing
-        if (_track.Events()->FEnsureSpace(2, kcbVarFreeze + kcbVarStep, fgrpNil))
-        {
-#ifdef BUG1932
-            if (_state.addEvent < 0 || _track.Events()->IvMac() == 0)
-            {
-                // Safety net code : don't add events if bug exists
-                Bug("Invalid fAlive value");
-                goto LEnd;
-            }
-#ifdef DEBUG
-            _track.Events()->GetFixed(_state.addEvent, &aev);
-            Assert(aetAdd == aev.aet, "Should be an add event at _state.addEvent");
-#endif // DEBUG
-            if (_state.onStage)
-            {
-                // Insert terminating events ONLY if the actor is shown, not hidden
-                AssertDo(_FFreeze(), "Expected freeze event to succeed");
-                AssertDo(FSetStep(rZero), "Expected set step event to succeed");
-            }
-            else
-                goto LEnd;
-#else  // BUG1932
-            AssertDo(_FFreeze(), "Expected freeze event to succeed");
-            AssertDo(FSetStep(rZero), "Expected set step event to succeed");
-#endif //! BUG1932
-       // By construct, step events SET the location of display
-       // Tweak events override the last step event.
-            for (iaev = _state.nextEvent - 1; iaev > 0; iaev--)
-            {
-                _track.Events()->GetFixed(iaev, &aev);
-                if (aev.rtel != _state.location)
-                    break;
-                if (aev.aet == aetTweak)
-                {
-                    _track.Events()->Swap(iaev, _state.nextEvent - 1);
-                    break;
-                }
-            }
-        }
-    }
-
-LEnd:
-    if (pvNil != pfAlive)
-        *pfAlive = fAlive;
+#ifndef BUG1870
+#error C89 route editing requires the enabled retail BUG1870 policy
+#endif
+#ifndef BUG1932
+#error C89 route editing requires the enabled retail BUG1932 policy
+#endif
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    int alive=0;
+    three_mm_actor_route_edit_delete_forward(&state,_motionSounds.Core(),_track.Route(),_track.Events(),_arid,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
+    if (pfAlive) *pfAlive=alive!=0;
 }
 
 /***************************************************************************
@@ -3377,127 +3171,16 @@ LEnd:
 void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 {
     AssertThis(0);
-
-    long iaev, iaevDelLim;
-    long irpt, irptDelLim;
-    long irptDelFirst;
-    RouteDistancePoint rpt;
-    Base *paev;
-
-    if (ivNil == iaevCur)
-        iaevCur = _state.nextEvent;
-
 #ifndef BUG1870
-    // Delete this section of code: Placement orientation should no
-    // 		longer be overwritten.
-    // Preserve the current orientation
-    if (_state.addEvent >= 0)
-    {
-        // If we are reducing the current subroute to a single point,
-        // it is necessary to store the current orientation for wysiwyg
-        paev = (Base *)_track.Events()->QvFixedGet(_state.addEvent);
-        if (paev->nfrm == _state.frame)
-            _SaveCurPathOrien();
-    }
-#endif //! BUG1870
-
-    // If !fDeleteAll & only one subroute left, redefine fDeleteAll
-    iaevDelLim = _track.Events()->IvMac();
-    irptDelLim = _track.Route()->IvMac();
-    if (!fDeleteAll)
-    {
-        fDeleteAll = fTrue;
-        for (iaev = iaevCur; iaev < _track.Events()->IvMac(); iaev++)
-        {
-            paev = (Base *)_track.Events()->QvFixedGet(iaev);
-            if (aetAdd == paev->aet)
-            {
-                fDeleteAll = fFalse;
-                irptDelLim = paev->rtel.irpt;
-                iaevDelLim = iaev;
-                break;
-            }
-        }
-    }
-
-    // Remove events beyond the current one
-    // excluding the last freeze event
-    if (0 < iaevDelLim)
-    {
-        for (iaev = iaevDelLim - 1; iaev >= _state.nextEvent; iaev--)
-        {
-            _RemoveAev(iaev);
-            _fLifeDirty = fTrue;
-        }
-    }
-
-    // Prune the corresponding route
-    irptDelFirst = _state.location.irpt + 1;
-    if (0 < irptDelLim)
-    {
-        // Note: Last remaining point on path is dependent on the event stream
-        if (_state.nextEvent <= 0 && fDeleteAll)
-        {
-            _track.Route()->FSetIvMac(0);
-            _fLifeDirty = fTrue;
-            _state.location.irpt = -1;
-            goto LDone;
-        }
-        else
-        {
-            // Delete the current path node only if no other events
-            // use the same node
-            if (_state.location.dwrOffset > rZero)
-            {
-                // Shorten the distance between the last two nodes
-                _TruncateSubRte(irptDelLim);
-                irptDelFirst++;
-            }
-            else
-            {
-                // Delete remaining subroute
-                for (irpt = irptDelLim - 1; irpt >= irptDelFirst; irpt--)
-                {
-                    _AdjustAevForRteDel(irpt, 0);
-                    _track.Route()->Delete(irpt);
-                    _fLifeDirty = fTrue;
-                }
-            }
-        }
-
-        // Adjust the distance on the tail point
-        if (_state.location.irpt >= 0)
-        {
-            Assert(_track.Route()->IvMac() > 0, "Logic Error");
-            _track.Route()->Get(_state.location.irpt, &rpt);
-            rpt.dwr = rZero;
-            _track.Route()->Put(_state.location.irpt, &rpt);
-        }
-    }
-
-LDone:
-    _pscen->MarkDirty();
-    if (_state.frame < _nfrmFirst)
-    {
-        if (fDeleteAll)
-        {
-            if (pvNil != pfAlive)
-                *pfAlive = fFalse;
-            _InitState();
-            return;
-        }
-        else if (_track.Events()->IvMac() > 0)
-        {
-            paev = (Base *)_track.Events()->QvFixedGet(0);
-            _nfrmFirst = paev->nfrm;
-            Assert(aetAdd == paev->aet, "Bug in Actor::DeleteFwdCore");
-        }
-    }
-
-    if (pvNil != pfAlive)
-        *pfAlive = fTrue;
-
-    return;
+#error C89 route editing requires the enabled retail BUG1870 policy
+#endif
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    int alive=0;
+    three_mm_actor_route_edit_delete_forward_core(&state,_track.Route(),_track.Events(),fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
+    if (pfAlive) *pfAlive=alive!=0;
 }
 
 /***************************************************************************
@@ -3754,54 +3437,11 @@ void Actor::DeleteBackCore(bool *pfAlive)
 void Actor::_TruncateSubRte(long irptDelLim)
 {
     AssertBaseThis(0);
-
-    Base aev;
-    long iaev;
-    RouteDistancePoint rptNode1;
-    RouteDistancePoint rptNode2;
-    long iaevLim = _state.nextEvent;
-    long irpt = _state.location.irpt;
-
-    if (_state.location.dwrOffset == rZero)
-        return;
-
-    // Store the new length between nodes
-    _track.Route()->Get(irpt, &rptNode1);
-    rptNode1.dwr = _state.location.dwrOffset;
-    _track.Route()->Put(irpt, &rptNode1);
-
-    // Move node 2 rather than inserting a node
-    _GetXyzFromRtel(&_state.location, &rptNode2.xyz);
-    rptNode2.dwr = rZero;
-    Assert(irpt + 1 < _track.Route()->IvMac(), "Error in truncation");
-    _track.Route()->Put(irpt + 1, &rptNode2);
-
-    // Update _state.location
-    _state.location.dnfrm = 0;
-    _state.location.dwrOffset = rZero;
-    _state.location.irpt++;
-
-    // Update aev's rtel's
-    for (iaev = _state.nextEvent - 1; iaev >= 0; iaev--)
-    {
-        _track.Events()->GetFixed(iaev, &aev);
-        if (aev.rtel.irpt < irpt)
-            break;
-        if (aev.rtel.dwrOffset >= rptNode1.dwr)
-        {
-            aev.rtel.dwrOffset = rZero;
-            aev.rtel.irpt++;
-            _track.Events()->PutFixed(iaev, &aev);
-        }
-    }
-
-    // Delete remaining subroute
-    for (irpt = irptDelLim - 1; irpt > _state.location.irpt; irpt--)
-    {
-        _AdjustAevForRteDel(irpt, 0);
-        _track.Route()->Delete(irpt);
-        _fLifeDirty = fTrue;
-    }
+    auto state=EngineActorMotion::Core(_state);
+    const auto tables=EngineActorMotion::Services();
+    const auto services=_RouteEditServices();
+    three_mm_actor_route_edit_truncate(&state,_track.Route(),_track.Events(),irptDelLim,&tables,&services);
+    EngineActorMotion::Publish(_state,state);
 }
 
 /***************************************************************************

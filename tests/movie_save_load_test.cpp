@@ -179,6 +179,106 @@ class TrackTestTemplate : public Template
 class TrackTestActor : public Actor
 {
   public:
+    bool FTestRouteEdit(int mode,FILE *snapshot)
+    {
+        using namespace ActorEvent;
+        ActorTrack track; if (!track.FCreate()) return false;
+        const long distances[]={4,6,0,5,0,0};
+        const long positions[]={0,4,10,20,25,30};
+        for (int i=0;i<6;++i)
+        {
+            RouteDistancePoint point={{BR_SCALAR(positions[i]),rZero,rZero},BR_SCALAR(distances[i])};
+            if (!track.Route()->FInsert(i,&point)) return false;
+        }
+        auto append=[&](long kind,long frame,long node,long offset,long hold) {
+            Base e={kind,frame,{node,BR_SCALAR(offset),hold}};
+            union { Add add; Action action; RoutePoint point; int32_t scalar; } value={};
+            long bytes=4;
+            if (kind==aetAdd) bytes=sizeof(Add);
+            else if (kind==aetActn) { value.action={0,0}; bytes=sizeof(Action); }
+            else if (kind==aetTweak) { value.point={rOne,rZero,rZero}; bytes=sizeof(RoutePoint); }
+            else if (kind==aetRem) bytes=0;
+            else value.scalar=kind==aetFreeze ? 1 : 0;
+            return track.Events()->FInsert(track.Events()->IvMac(),bytes,&value,&e);
+        };
+        if (!append(aetAdd,1,0,0,0) || !append(aetActn,1,0,0,0) || !append(aetTweak,3,0,2,0) ||
+            !append(aetFreeze,4,1,0,0) || !append(aetStep,5,2,0,0) || !append(aetAdd,8,3,0,0) ||
+            !append(aetStep,10,4,0,0) || !append(aetRem,11,4,0,1) || !append(aetAdd,15,5,0,0) ||
+            !append(aetFreeze,15,5,0,0)) return false;
+        _track.Swap(track); _motionSounds.Clear();
+        _state=ActorFrameState(); _state.RewindRoute(_track);
+        _state.frame=3; _state.location={0,BR_SCALAR(2),0}; _state.onStage=true; _state.celCount=4;
+        _state.nextEvent=3; _state.firstEventInFrame=2; _state.actionEvent=1; _state.addEvent=0;
+        _nfrmFirst=1; _nfrmLast=15; _fLifeDirty=false; _fModeRecord=true;
+        bool ok=true,alive=true; long found=-99;
+        RouteDistancePoint supplied={{BR_SCALAR(99),rZero,rZero},rOne};
+        if (mode<128)
+        {
+            long node=(mode%64)%6,first=((mode%64)/6)%4;
+            if (mode&32)
+            {
+                Base e; _track.Events()->GetFixed(2,&e); e.rtel.dwrOffset=klwMax-1; _track.Events()->PutFixed(2,&e);
+            }
+            if (mode<64) _AdjustAevForRteIns(node,first);
+            else _AdjustAevForRteDel(node,first);
+        }
+        else if (mode<160)
+        {
+            const int nodes[]={0,1,2,3,4,6}; long node=nodes[(mode-128)%6];
+            bool moving=node==1 || node==2 || node==4;
+            supplied.dwr=moving ? rOne : rZero;
+            BRS prior=moving ? ((mode&8)?rZero:((mode&16)?BR_SCALAR(8):BR_SCALAR(2))) : rZero;
+            ok=_FInsertGgRpt(node,&supplied,prior);
+        }
+        else if (mode<192)
+        {
+            long add=(mode&1)?5:8,limit=(mode&1)?8:10;
+            if (mode&2)
+            {
+                Base e; _track.Events()->GetFixed(add-1,&e);
+                Base entrance; _track.Events()->GetFixed(add,&entrance);
+                e.rtel.irpt=entrance.rtel.irpt-((mode&4)?1:0); e.rtel.dwrOffset=(mode&4)?rOne:rZero;
+                _track.Events()->PutFixed(add-1,&e);
+            }
+            _state.location.irpt=(mode&8)?5:0;
+            _DelAddFrame(add,limit);
+        }
+        else if (mode<224)
+        {
+            _state.location.dwrOffset=(mode&1)?rZero:BR_SCALAR(2);
+            _state.nextEvent=(mode&2)?3:5;
+            _TruncateSubRte((mode&4)?3:5);
+        }
+        else if (mode<288)
+        {
+            long kind=(mode-224)%aetLim,first=(mode-224)%10;
+            ok=(mode&1)?_FFindPrevAevAet(kind,first,&found):_FFindNextAevAet(kind,first,&found);
+        }
+        else if (mode<416)
+        {
+            if (mode&1) { _state.location.dwrOffset=rZero; _state.location.irpt=1; }
+            if (mode&2) _state.onStage=false;
+            if (mode&4) { _state.frame=0; _state.nextEvent=0; _state.firstEventInFrame=0; _state.location={0,rZero,0}; }
+            long start=(mode&8)?6:ivNil;
+            if (mode<352) _DeleteFwdCore((mode&16)!=0,&alive,start);
+            else DeleteFwdCore((mode&16)!=0,&alive,start);
+        }
+        else
+        {
+            long first=(mode&1)?5:0,limit=(mode&2)?ivNil:((mode&1)?8:5);
+            _FindAevLastSub(first,limit,&found);
+        }
+        auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+        LegacyLong state[]={mode,ok,alive,found,_state.nextEvent,_state.firstEventInFrame,_state.actionEvent,_state.addEvent,
+            _state.location.irpt,_state.location.dwrOffset,_state.location.dnfrm,_state.frame,_state.onStage,_state.frozen,
+            _state.step,_nfrmFirst,_nfrmLast,_fLifeDirty,_fModeRecord,supplied.dwr,_track.Route()->IvMac(),_track.Events()->IvMac()};
+        bool saved=record(state,sizeof(state));
+        for (long i=0;saved && i<_track.Route()->IvMac();++i)
+        { RouteDistancePoint point; _track.Route()->Get(i,&point); saved=record(&point,sizeof(point)); }
+        for (long i=0;saved && i<_track.Events()->IvMac();++i)
+        { Base e; _track.Events()->GetFixed(i,&e); saved=record(&e,sizeof(e)); }
+        return saved;
+    }
     bool FTestCostumeEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,
                           const ChunkNumber *materials,const ChunkNumber *customs)
     {
@@ -936,6 +1036,21 @@ static bool TestActorCostumeEditing(PScene scene)
     return ok;
 }
 
+static bool TestActorRouteEditing(PScene scene)
+{
+    FILE *snapshot=nullptr;
+    if (const char *path=std::getenv("THREE_MM_ACTOR_ROUTE_EDIT_SNAPSHOT"))
+        if (!(snapshot=std::fopen(path,"wb"))) return false;
+    PChunkyFile file=ChunkyFile::PcflCreateTemp();
+    PChunkyResourceFile resource=file ? ChunkyResourceFile::PcrfNew(file,0) : pvNil;
+    auto actor=NewObj TrackTestActor();
+    bool ok=actor && resource && actor->FInitPlayback(scene,resource);
+    for (int mode=0;ok && mode<480;++mode) ok=actor->FTestRouteEdit(mode,snapshot);
+    ReleasePpo(&actor); ReleasePpo(&resource); ReleasePpo(&file);
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok;
+}
+
 class QueueTestSound : public MovieSoundMSND
 {
   public:
@@ -1386,6 +1501,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor fill editing failed");
     if (!TestActorCostumeEditing(pmvie->Pscen()))
         BAIL("actor costume editing failed");
+    if (!TestActorRouteEditing(pmvie->Pscen()))
+        BAIL("actor route editing failed");
     if (!TestSoundQueueRuntime())
         BAIL("sound queue runtime boundary failed");
 
