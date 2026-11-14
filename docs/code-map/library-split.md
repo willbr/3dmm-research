@@ -637,8 +637,8 @@ background/undo sound packets close only opened tags, while embedded frame packe
 close every tag and never free the group's payload separately.
 
 Typed adapters still provide C-backed collection/reference primitives and native
-actor, text and background APIs. Caption/background implementation, scene-sound
-packet helpers, loading/marshalling/editing transactions and final native facade
+actor, text and background APIs. Caption/background implementation, scene sound
+editing/undo, loading/marshalling/editing transactions and final native facade
 removal remain engine dependencies; this is not a C-only Scene implementation.
 The loader's uncommitted local objects still follow its native read transaction.
 
@@ -725,14 +725,53 @@ and may not reenter dispatch or mutate its event groups.
 The native Scene adapters supply typed payload access, collection/reference
 primitives, actor/caption calls, background resources and movie/client effects.
 The published weak background TAG remains native Scene state. SceneSoundEvent
-duplication/construction/marshalling and per-tag playback are still project-owned
-native helpers to convert, along with remaining Scene editing,
-loading, caption/background implementations and final facade removal. This is
+packet helpers now use the C implementation below. Scene sound editing/undo,
+loading, caption/background implementations and final facade removal remain. This is
 not a C-only Scene implementation. Native debug and release traces freeze the
 real pause/sound dispatch path and MIDI allocation failures; C-only tests cover
 all event kinds, callback failure phases, ownership/publication order, start
 prefixes and rewind exceptions. See `docs/tools/playback-regression.md` for
 validation and retail comparison limits.
+
+### Scene sound packets
+
+`scene_sound.c` owns sound-packet allocation/construction, full and group
+duplication, tag append ownership, byte-count validation, wire decoding/encoding
+and per-tag playback. `SceneSoundEvent` inherits the 16-byte C metadata record
+without duplicate fields. Its native tag/child tail is an adapter view, 32 bytes
+per entry on x64; wire records stay 20 bytes. The temporary native facade is in
+`inc/scene_sound.h`; the portable C API header is
+`libraries/engine/include/three_mm/scene_sound.h`.
+
+Construction and full duplication retain every tag. Group duplication retains
+only cache-source tags or clears all cache pointers, reacquiring group data
+after allocation. Append retains only the new tag and transfers the old prefix;
+the caller frees the old allocation without closing that prefix. The former
+unchecked group-copy allocation failure now returns NULL to existing callers
+that already handle failure. Signed/size arithmetic and packet spans are checked
+before unsafe copies. Invalid/truncated decode input is rejected before mutation;
+valid swapped input is normalized before allocation even if allocation fails.
+Decode leaves caches unopened/NULL. Encode writes native order, preserves the
+full four-byte loop value and zeros the reserved wire cache word. Trailing bytes
+remain accepted. The unused native runtime-tag byte-swap method was removed;
+active byte swapping uses the fixed wire layout instead of native pointer size.
+
+Playback resolves cache-source tags, skips resolution failures, stops on a failed
+fetch, ignores enqueue failure and releases every fetched reference. Queue and
+start offset use the original index even after skipped tags. Tool selection is
+captured on entry; the other header fields remain live. Typed adapters provide
+allocation, tag copy/reference/resolve/fetch, group access, priority and queue
+primitives; the resolver still calls the native `Movie::FResolveSndTag` and remains
+a Movie conversion dependency. Scene sound editing/undo, local read/open/tag-collection/save
+transactions, weak background tag state, native tag representation and final
+facade removal remain conversion work.
+
+Native traces freeze field values, reference counts, wire bytes and allocation
+failures without freezing uninitialized native padding. C-only tests additionally
+cover group relocation, bounded malformed inputs, unaligned/opposite-order
+decoding, failed group allocation, ownership transfer, skipped-tag queue/offset
+behavior and resource cleanup. Full gates and retail comparison limits are in
+`docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

@@ -6759,3 +6759,113 @@ Evidence: `tmp/c89-scene-events-before*.bin`, `tmp/c89-scene-events-after.bin`,
 `tmp/c89-scene-events-capture-hashes-*.json` and four
 `tmp/c89-scene-events-capture-*.log` files. The superseded first capture pass and
 its report are retained under `tmp/c89-scene-events-initial-*`.
+
+### C89 Scene sound packets (14 November 2026)
+
+`scene_sound.c` now owns sound-packet allocation/construction, full and group
+duplication, tag append ownership, bounded sizes, wire codecs and per-tag
+playback. The native SceneSoundEvent facade inherits the four-word C metadata
+record directly. Its native tag/child records remain typed adapter views,
+32 bytes on x64; the wire tail stays 20 bytes per tag after a 16-byte header.
+Scene sound editing/undo and read/open/tag-collection/save transactions remain
+native policy. `Movie::FResolveSndTag`, weak background TAG state and final
+native tag/packet facade removal remain backend integration dependencies.
+
+The baseline dispatcher/packet code is from `0d2c6658`. Packet declarations were
+extracted into `inc/scene_sound.h` and the existing wire helpers exposed with an
+input byte count before taking the baseline; the native decoder initially
+ignored that count. Native original/repeat/converted and converted SDL debug
+traces match all 8,232 bytes, SHA-256
+`253373FC27FC11F42C1D1FEB45EC05A9C616F7DCE7D3E71E52C346F3930D4D51`,
+FNV-1a `7C5AE3AD`. Original/converted SDL release traces match 9,904 bytes,
+SHA-256 `13CBF22F5249D4C6EEBCDA190493481781CD89AD60D1BE4A68C1AA9E3B738DEB`,
+FNV-1a `01174345`; release omits fault injection. Hash guards apply to the
+little-endian x64 record layout. C-only behavioral checks cover either native
+record stride without using that x64 fingerprint.
+
+Twelve native cases cover one/two/four tags, looped/unlooped packets and
+allocation injection. They record initialized fields, byte counts, cache
+presence, real cache reference counts and wire bytes; uninitialized native
+padding and pointer values are deliberately excluded. Construction, duplicate,
+append, encoding and both byte-order decode allocation failures are exercised.
+Group duplication is compared in retaining and cache-clearing modes. Owned
+references return to one after every case. Per-tag playback resource behavior
+uses C callback tests and the integration/capture gates below, rather than
+this native packet trace.
+
+Construction/full duplication retain every tag. Group duplication retains only
+cache-source tags or clears every cache pointer, reacquiring its payload after
+allocation. Append retains only the added tag; the caller transfers the old
+prefix and frees its old allocation raw. The original group helper copied into
+NULL after failed allocation. It now returns NULL, and all four existing callers
+already handle that result. Supplemental native checks exercise that failure
+and truncated wire input outside the frozen trace. C size/span checks reject
+negative/overflowing counts and truncated data before unsafe copies. Decode
+requires positive wire counts; trailing bytes remain accepted. Valid swapped
+input is normalized before allocation, even when allocation then fails. Decoded
+caches are unopened/NULL. Encoding preserves the full four-byte loop field and
+zeros reserved wire cache words. The unused native runtime-tag byte-swap method,
+which assumed 32-bit TAG layout, was removed; active normalization uses the
+fixed wire layout without swapping native pointer fields.
+
+Playback skips failed cache-source resolutions, aborts on fetch failure, ignores
+enqueue failure and releases every fetched sound. Original tag index controls
+queue/start offset even if an earlier tag was skipped. Tool selection is fixed
+on entry; other header fields remain live. Callbacks may not resize packet
+storage or reenter packet operations. Group allocation may relocate storage
+without changing its contents/count; other inputs must stay valid across
+allocation.
+
+All 89 standalone C checks pass, including strict C89 syntax. The new fixture
+also builds/runs directly with Clang `-std=c89 -pedantic-errors -Wall -Wextra
+-Werror` and passes MSVC AddressSanitizer. C tests cover ownership transfer,
+zero-tag allocation/duplication, integer-size boundaries, group relocation and
+allocation failures, positive-source cache clearing, all truncation lengths,
+unaligned/opposite-order decode, reserved words, noncanonical loop values,
+failed resolutions/fetches/enqueues, cached tool selection, live header fields
+and fetched-reference balance. All 120 selected native, 16 SDL debug and 28 SDL
+release checks pass, with native/SDL suites run serially. The native selected
+build explicitly includes directly invoked test executables and save/load,
+including targets outside `core-checks`. Both hosts and `core-checks` build; all
+51 freshly linked CLI baselines match. Marcus was stopped before rebuilding
+and relaunched afterward. No Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`8B65D4B205B18B192AEB40334DCF91D4D54C7C50D1AE06EDBD2C4F0FF73E0373`
+(SDL release) and
+`EF8358D4978EBD9CCA0B0BFEBB104EC3F42158B526B5D816A209437B0DB9E929`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T090331Z-6744804a` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T090445Z-3b3cf040` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T090749Z-43d9a20f` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T090903Z-0d72bd13` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures complete, retaining movie identity and suite integrity. Authored
+frames, all 540 seek images and ordered playback image changes match each
+player's preceding Scene-dispatch suites: `20261114T082356Z-05ce3abb`
+(actor-events), `20261114T082510Z-491b3301` (scrolling-text),
+`20261114T082811Z-4efa8400` (actor-audio) and `20261114T082925Z-02980c65`
+(sampled-audio). Playback comparison collapses only adjacent identical
+position/image observations. The actor-audio first-scene-only tone contract
+passes for every player. PCM16 peaks remain 3,192, 4,081 and 4,081 for actor-audio
+and 2,380, 2,176 and 2,176 for sampled-audio (retail, SDL, Marcus respectively),
+all exceeding the nonzero-output threshold. These checks do not establish full
+PCM/MIDI or retail timing parity. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. Captures use a shared warm SDL
+package cache with private processes/settings/movies and uncontrolled OS caching.
+No builds or tests ran concurrently with capture. Marcus was verified running
+after the final gates/captures.
+
+Evidence: `tmp/c89-scene-sound-before*.bin`, `tmp/c89-scene-sound-after.bin`,
+`tmp/c89-scene-sound-final-*.bin`, `tmp/c89-scene-sound-selected-native-build.log`,
+`tmp/c89-scene-sound-native-tests.log`,
+`tmp/c89-scene-sound-sdl-debug-tests.log`,
+`tmp/c89-scene-sound-sdl-release-tests.log`,
+`tmp/c89-scene-sound-standalone.log`, `tmp/c89-scene-sound-strict.log`,
+`tmp/c89-scene-sound-asan.log`, `tmp/c89-scene-sound-output-comparison.json`,
+`tmp/c89-scene-sound-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+`tmp/c89-scene-sound-capture-hashes-*.json` and four
+`tmp/c89-scene-sound-capture-*.log` files.

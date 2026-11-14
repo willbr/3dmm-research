@@ -47,6 +47,7 @@
 
 #include "soc.h"
 #include "body_world.h"
+#include "scene_sound.h"
 #include <cstring>
 
 ASSERTNAME
@@ -64,167 +65,71 @@ const auto kbTransparent = 250;
 //
 // Scene event
 //
-/****************************************
-    TagChildPair - Tag,Chid combo
-    Runtime form: embeds full TAG with runtime pcrf. Allowed to grow on x64.
-    Marshalled to/from TagChildPairOnFile at the SceneSoundEvent variable-array
-    I/O boundary (see _PsseFromOnFile / _FInsertSseAsOnFile).
-****************************************/
-const ByteOrderMask kbomChid = 0xC0000000;
-const ByteOrderMask kbomTagc = kbomChid | (kbomTag >> 2);
-typedef struct TagChildPair *PTagChildPair;
-struct TagChildPair
+
+static ThreeMMSceneSoundPacketServices ScenePacketServices(PMovie movie = nullptr)
 {
-    ChildChunkID chid;
-    TAG tag;
-};
-
-// Wire format. Fixed at 20 bytes on every architecture (chid + TAGOnFile).
-struct TagChildPairOnFile
-{
-    ChildChunkID chid;
-    TAGOnFile tag;
-};
-static_assert(sizeof(TagChildPairOnFile) == 20, "TagChildPairOnFile wire format drift");
-
-/****************************************
-    SceneSoundEvent - scene sound event
-****************************************/
-const ByteOrderMask kbomSse = 0xFF000000;
-typedef struct SceneSoundEvent *PSceneSoundEvent;
-struct SceneSoundEvent
-{
-    int32_t vlm;
-    int32_t sty; // sound type
-    int32_t fLoop; // Retail's on-disk boolean occupies all four bytes.
-    int32_t ctagc;
-    //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SceneSoundEvent
-
-  protected:
-    static long _Cb(long ctagc)
-    {
-        return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
-    }
-    SceneSoundEvent(void){};
-
-  public:
-    static PSceneSoundEvent PsseNew(long ctagc);
-    static PSceneSoundEvent PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc);
-    static PSceneSoundEvent PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags = fTrue);
-
-    PTAG Ptag(long itagc)
-    {
-        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
-        return &(prgtagc[itagc].tag);
-    }
-    PTagChildPair Ptagc(long itagc)
-    {
-        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
-        return &(prgtagc[itagc]);
-    }
-    ChildChunkID *Pchid(long itagc)
-    {
-        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
-        return &(prgtagc[itagc].chid);
-    }
-    PSceneSoundEvent PsseAddTagChid(PTAG ptag, long chid);
-    PSceneSoundEvent PsseDup(void);
-    void PlayAllSounds(PMovie pmvie, ulong dtsStart = 0);
-    void SwapBytes(void)
-    {
-        long itagc;
-
-        SwapBytesBom(this, kbomSse);
-        for (itagc = 0; itagc < ctagc; itagc++)
-        {
-            SwapBytesBom(Ptag(itagc), kbomTag);
-            SwapBytesBom(Pchid(itagc), kbomChid);
-        }
-    }
-    long Cb(void)
-    {
-        return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
-    }
-};
-static_assert(sizeof(SceneSoundEvent) == 16, "SceneSoundEvent on-disk fixed-part layout drift");
-void ReleasePpsse(PSceneSoundEvent *ppsse);
-
-// On-disk byte count for an SSE with ctagc TagChildPairs (16 + ctagc * 20).
-static long _CbSseOnFile(long ctagc)
-{
-    return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPairOnFile));
+    ThreeMMSceneSoundPacketServices s = {};
+    s.context = movie;
+    s.tag_bytes = size(TagChildPair);
+    s.allocate = [](void *, ThreeMMI32 bytes) -> void * {
+        void *p = nullptr;
+        return FAllocPv(&p, bytes, fmemNil, mprNormal) ? p : nullptr;
+    };
+    s.copy_record = [](void *, void *destination, const void *source) {
+        *static_cast<PTagChildPair>(destination) = *static_cast<const TagChildPair *>(source);
+    };
+    s.sid = [](void *, const void *record) -> ThreeMMI32 { return static_cast<const TagChildPair *>(record)->tag.sid; };
+    s.retain = [](void *, void *record) { TagManager::DupTag(&static_cast<PTagChildPair>(record)->tag); };
+    s.clear_cache = [](void *, void *record) { static_cast<PTagChildPair>(record)->tag.pcrf = nullptr; };
+    s.read_tag = [](void *, const void *record, ThreeMMU32 *child, ThreeMMTag *out) {
+        auto value = static_cast<const TagChildPair *>(record);
+        *child = value->chid;
+        *out = {value->tag.sid, value->tag.pcrf, value->tag.ctg, value->tag.cno};
+    };
+    s.write_tag = [](void *, void *record, ThreeMMU32 child, const ThreeMMTag *value) {
+        auto out = static_cast<PTagChildPair>(record);
+        out->chid = child;
+        TagFromCore(&out->tag, *value);
+    };
+    s.group_data = [](void *, void *group, ThreeMMI32 index) -> void * {
+        return static_cast<PGeneralGroup>(group)->QvGet(index);
+    };
+    s.group_size = [](void *, void *group, ThreeMMI32 index) -> ThreeMMI32 {
+        return static_cast<PGeneralGroup>(group)->Cb(index);
+    };
+    s.resolve = [](void *p, void *record) -> int {
+        auto tag = static_cast<PTagChildPair>(record);
+        return static_cast<PMovie>(p)->FResolveSndTag(&tag->tag, tag->chid);
+    };
+    s.fetch = [](void *, void *record) -> void * {
+        return vptagm->PbacoFetch(&static_cast<PTagChildPair>(record)->tag, MovieSoundMSND::FReadMsnd);
+    };
+    s.priority = [](void *, void *sound, int loopTool) -> ThreeMMI32 {
+        return static_cast<PMovieSoundMSND>(sound)->Spr(loopTool ? toolLooper : toolSounder);
+    };
+    s.enqueue = [](void *p, void *sound, int loop, int queue, ThreeMMI32 volume, ThreeMMI32 priority,
+                   ThreeMMU32 start) {
+        static_cast<PMovie>(p)->Pmsq()->FEnqueue(static_cast<PMovieSoundMSND>(sound), 0, loop != 0, queue != 0, volume,
+                                                 priority, fFalse, start);
+    };
+    s.release = [](void *, void *sound) {
+        auto p = static_cast<PMovieSoundMSND>(sound);
+        ReleasePpo(&p);
+    };
+    return s;
 }
-
-// Build a runtime PSceneSoundEvent from on-disk bytes (header + TagChildPairOnFile array).
-// Optionally byteswaps the on-disk bytes in place first. Tags' pcrf is left pvNil;
-// caller is responsible for FOpenTag-ing each runtime tag if needed.
-// Returned SSE is allocated via FAllocPv; free with FreePpv (or ReleasePpsse if
-// the tags have been opened).
-static PSceneSoundEvent _PsseFromOnFileBytes(void *pvOnFile, bool fSwapBytes)
+PSceneSoundEvent SceneSoundFromWire(void *bytes, long byteCount, bool swap)
 {
-    PSceneSoundEvent psseOnFile = (PSceneSoundEvent)pvOnFile;
-    long ctagc;
-    long itag;
-    PSceneSoundEvent psseRuntime;
-    TagChildPairOnFile *prgtagcOnFile;
-
-    if (fSwapBytes)
-    {
-        SwapBytesBom(psseOnFile, kbomSse);
-        ctagc = psseOnFile->ctagc;
-        prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pvOnFile, size(SceneSoundEvent));
-        for (itag = 0; itag < ctagc; itag++)
-        {
-            SwapBytesBom(&prgtagcOnFile[itag].chid, kbomChid);
-            SwapBytesBom(&prgtagcOnFile[itag].tag, kbomTag);
-        }
-    }
-    ctagc = psseOnFile->ctagc;
-    psseRuntime = SceneSoundEvent::PsseNew(ctagc);
-    if (pvNil == psseRuntime)
-        return pvNil;
-    psseRuntime->vlm = psseOnFile->vlm;
-    psseRuntime->sty = psseOnFile->sty;
-    psseRuntime->fLoop = psseOnFile->fLoop;
-    psseRuntime->ctagc = ctagc;
-    prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pvOnFile, size(SceneSoundEvent));
-    for (itag = 0; itag < ctagc; itag++)
-    {
-        *psseRuntime->Pchid(itag) = prgtagcOnFile[itag].chid;
-        TagFromOnFile(psseRuntime->Ptag(itag), prgtagcOnFile[itag].tag);
-    }
-    return psseRuntime;
+    auto services = ScenePacketServices();
+    return static_cast<PSceneSoundEvent>(three_mm_scene_sound_decode(bytes, byteCount, swap, &services));
 }
-
-// Allocate a buffer of on-disk bytes representing this runtime SSE.
-// Caller frees with FreePpv. *pcb gets the byte count.
-static void *_PvOnFileFromSse(PSceneSoundEvent psseRuntime, long *pcb)
+void *SceneSoundToWire(PSceneSoundEvent sound, long *bytes)
 {
-    long ctagc = psseRuntime->ctagc;
-    long cb = _CbSseOnFile(ctagc);
-    void *pv;
-    PSceneSoundEvent psseOnFile;
-    TagChildPairOnFile *prgtagcOnFile;
-    long itag;
-
-    if (!FAllocPv(&pv, cb, fmemNil, mprNormal))
-    {
-        *pcb = 0;
-        return pvNil;
-    }
-    psseOnFile = (PSceneSoundEvent)pv;
-    psseOnFile->vlm = psseRuntime->vlm;
-    psseOnFile->sty = psseRuntime->sty;
-    psseOnFile->fLoop = psseRuntime->fLoop;
-    psseOnFile->ctagc = ctagc;
-    prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pv, size(SceneSoundEvent));
-    for (itag = 0; itag < ctagc; itag++)
-    {
-        prgtagcOnFile[itag].chid = *psseRuntime->Pchid(itag);
-        prgtagcOnFile[itag].tag.From(*psseRuntime->Ptag(itag));
-    }
-    *pcb = cb;
-    return pv;
+    auto services = ScenePacketServices();
+    ThreeMMI32 byteCount;
+    void *out = three_mm_scene_sound_encode(sound, &byteCount, &services);
+    *bytes = byteCount;
+    return out;
 }
 
 //
@@ -4019,7 +3924,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
 
     {
         // Read the wire-format GG (variable parts hold on-disk-stride SSEs
-        // for sevtPlaySnd, sized using TagChildPairOnFile = 16 bytes), then
+        // for sevtPlaySnd, using 20-byte tag/child wire records), then
         // marshal entry-by-entry into the runtime _pggsevFrm (sevtPlaySnd
         // entries get re-emitted with TagChildPair = sizeof(TAG)+chid stride,
         // wider on x64).
@@ -4046,7 +3951,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
                 long itag;
 
                 // Marshal on-disk SSE bytes -> runtime SSE (TagChildPairOnFile -> TagChildPair).
-                psse = _PsseFromOnFileBytes(pggOnFile->QvGet(isevFrm), bo == kboOther);
+                psse = SceneSoundFromWire(pggOnFile->QvGet(isevFrm), pggOnFile->Cb(isevFrm), bo == kboOther);
                 if (pvNil == psse)
                 {
                     ReleasePpo(&pggOnFile);
@@ -4378,7 +4283,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
             // Marshal runtime SSE -> on-disk bytes (TagChildPair -> TagChildPairOnFile).
             {
                 long cbOnFile;
-                void *pvOnFile = _PvOnFileFromSse(psse, &cbOnFile);
+                void *pvOnFile = SceneSoundToWire(psse, &cbOnFile);
                 if (pvNil != pvOnFile)
                 {
                     if (pggFrmTemp->FInsert(isevFrm, cbOnFile, pvOnFile, &sev))
@@ -5281,7 +5186,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
 
             // pggsev came directly from PggRead — variable parts are on-disk
             // bytes (TagChildPairOnFile stride). Marshal to runtime form.
-            psse = _PsseFromOnFileBytes(pggsev->QvGet(isev), bo == kboOther);
+            psse = SceneSoundFromWire(pggsev->QvGet(isev), pggsev->Cb(isev), bo == kboOther);
             if (pvNil == psse)
             {
                 ReleasePpo(&pggsev);
@@ -7134,12 +7039,8 @@ void SceneUndoChop::AssertValid(LegacyUlong grf)
 PSceneSoundEvent SceneSoundEvent::PsseNew(long ctag)
 {
     Assert(ctag > 0, 0);
-
-    PSceneSoundEvent psse;
-
-    if (!FAllocPv((void **)&psse, _Cb(ctag), fmemNil, mprNormal))
-        return pvNil;
-    return psse;
+    auto services = ScenePacketServices();
+    return static_cast<PSceneSoundEvent>(three_mm_scene_sound_allocate(ctag, &services));
 }
 
 /***************************************************************************
@@ -7149,22 +7050,8 @@ PSceneSoundEvent SceneSoundEvent::PsseNew(long vlm, long sty, bool fLoop, long c
 {
     Assert(ctagc > 0, 0);
     AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
-    PSceneSoundEvent psse;
-    long itagc;
-
-    psse = PsseNew(ctagc);
-    if (pvNil == psse)
-        return pvNil;
-    psse->vlm = vlm;
-    psse->sty = sty;
-    psse->fLoop = fLoop;
-    psse->ctagc = ctagc;
-    for (itagc = 0; itagc < ctagc; itagc++)
-    {
-        *psse->Ptagc(itagc) = prgtagc[itagc];
-        TagManager::DupTag(psse->Ptag(itagc));
-    }
-    return psse;
+    auto services = ScenePacketServices();
+    return static_cast<PSceneSoundEvent>(three_mm_scene_sound_make(vlm, sty, fLoop, ctagc, prgtagc, &services));
 }
 
 /***************************************************************************
@@ -7189,34 +7076,8 @@ PSceneSoundEvent SceneSoundEvent::PsseDupFromGg(PGeneralGroup pgg, long iv, bool
     AssertPo(pgg, 0);
     AssertIn(iv, 0, pgg->IvMac());
     Assert(pgg->Cb(iv) >= size(SceneSoundEvent), "variable part too small");
-
-    long ctagc;
-    PSceneSoundEvent psse;
-    long itagc;
-
-    ctagc = ((PSceneSoundEvent)pgg->QvGet(iv))->ctagc;
-
-    psse = PsseNew(ctagc);
-    CopyPb(pgg->QvGet(iv), psse, _Cb(ctagc));
-
-    for (itagc = 0; itagc < psse->ctagc; itagc++)
-    {
-        if (fDupTags)
-        {
-            if (psse->Ptag(itagc)->sid == ksidUseCrf)
-            {
-                AssertPo(psse->Ptag(itagc)->pcrf, 0);
-                TagManager::DupTag(psse->Ptag(itagc));
-            }
-        }
-        else
-        {
-            // Clear the crf on read, since the caller isn't having us dupe the tag
-            psse->Ptag(itagc)->pcrf = pvNil;
-        }
-    }
-
-    return psse;
+    auto services = ScenePacketServices();
+    return static_cast<PSceneSoundEvent>(three_mm_scene_sound_group(pgg, iv, fDupTags, &services));
 }
 
 /***************************************************************************
@@ -7225,22 +7086,10 @@ PSceneSoundEvent SceneSoundEvent::PsseDupFromGg(PGeneralGroup pgg, long iv, bool
 PSceneSoundEvent SceneSoundEvent::PsseAddTagChid(PTAG ptag, long chid)
 {
     AssertVarMem(ptag);
-
-    PSceneSoundEvent psseNew;
-    TagChildPair tagc;
-
-    tagc.tag = *ptag;
-    tagc.chid = chid;
-
-    psseNew = SceneSoundEvent::PsseNew(ctagc + 1);
-    if (pvNil == psseNew)
-        return pvNil;
-
-    CopyPb(this, psseNew, Cb());
-    *psseNew->Ptagc(psseNew->ctagc) = tagc;
-    psseNew->ctagc++;
-    TagManager::DupTag(ptag);
-    return psseNew;
+    TagChildPair tag;
+    tag.tag = *ptag; tag.chid = chid;
+    auto services = ScenePacketServices();
+    return static_cast<PSceneSoundEvent>(three_mm_scene_sound_append(this, &tag, &services));
 }
 
 /***************************************************************************
@@ -7248,17 +7097,8 @@ PSceneSoundEvent SceneSoundEvent::PsseAddTagChid(PTAG ptag, long chid)
 ***************************************************************************/
 PSceneSoundEvent SceneSoundEvent::PsseDup(void)
 {
-    PSceneSoundEvent psse;
-    long itagc;
-
-    if (!FAllocPv((void **)&psse, size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair)), fmemNil, mprNormal))
-    {
-        return pvNil;
-    }
-    CopyPb(this, psse, size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair)));
-    for (itagc = 0; itagc < psse->ctagc; itagc++)
-        TagManager::DupTag(psse->Ptag(itagc));
-    return psse;
+    auto services = ScenePacketServices();
+    return static_cast<PSceneSoundEvent>(three_mm_scene_sound_duplicate(this, &services));
 }
 
 /***************************************************************************
@@ -7266,25 +7106,6 @@ PSceneSoundEvent SceneSoundEvent::PsseDup(void)
 ***************************************************************************/
 void SceneSoundEvent::PlayAllSounds(PMovie pmvie, ulong dtsStart)
 {
-    PMovieSoundMSND pmsnd;
-    long itag;
-    long tool = fLoop ? toolLooper : toolSounder;
-
-    for (itag = 0; itag < ctagc; itag++)
-    {
-        if (Ptag(itag)->sid == ksidUseCrf)
-        {
-            if (!pmvie->FResolveSndTag(Ptag(itag), *Pchid(itag)))
-                continue;
-        }
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(Ptag(itag), MovieSoundMSND::FReadMsnd);
-        if (pvNil == pmsnd)
-            return;
-
-        // Only queue if it's not the first sound; only start at dtsStart for first sound
-        pmvie->Pmsq()->FEnqueue(pmsnd, 0, fLoop, (itag != 0), vlm, pmsnd->Spr(tool), fFalse,
-                                (itag == 0 ? dtsStart : 0));
-
-        ReleasePpo(&pmsnd);
-    }
+    auto services = ScenePacketServices(pmvie);
+    three_mm_scene_sound_play(this, dtsStart, &services);
 }

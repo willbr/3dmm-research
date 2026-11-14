@@ -460,9 +460,11 @@ movement/replay, actor/text force loops, frame-range extension and two-pass
 prerender decisions now use C89 with persistent cursor/effect-mask state.
 Single-event play/unplay and start-event dispatch also use C89, including MIDI
 cache ownership, pause suppression, actor/text append rollback and camera rewind.
-SceneSoundEvent packet construction/marshalling/tag playback, remaining
-loading/editing policy and caption/background callbacks still depend on native
-engine implementations.
+SceneSoundEvent packet allocation/construction, duplication/group copying,
+append ownership, wire conversion and per-tag playback now use C89 too. Native
+tag representations and resource/queue primitives remain adapters. Scene sound
+editing/undo, remaining loading/editing policy and caption/background callbacks
+still depend on native engine implementations.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -471,15 +473,14 @@ runtime policy (`a17d107d`, `66dc67c1`, and the preceding resource/dispatch
 slice). A fresh sound closeout audit is recorded in
 `docs/tools/playback-regression.md`; device/codec/thread adapters and final
 C-only host integration retain the limits described above.
-Scene-specific sound packet helpers are tracked with the remaining Scene work
-below.
+Scene-specific sound packets now also use C89; Scene sound editing/undo remains
+part of the remaining Scene conversion below.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
-export and Scene ownership/lifecycle, frame/replay/prerender and event-dispatch
-slices are complete. Continue with SceneSoundEvent packet construction,
-marshalling and tag playback in
+export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch and
+sound-packet slices are complete. Continue with Scene sound editing/undo in
 `src/engine/scene.cpp`, then remaining scene/movie loading/editing,
 undo/save and caption/transition operations. Final native representation and
 facade removal remains required.
