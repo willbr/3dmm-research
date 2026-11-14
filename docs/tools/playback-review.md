@@ -31,10 +31,20 @@ reopening scenes and rebuilding caption/asset caches before every frame.
   until the movie is rendered again.
 - Wheel over a pane to zoom all three around the pixel under the pointer.
 - Drag with the left or middle button to pan all three together.
+- Hover any pane to mirror a crosshair at the same image pixel in all three.
 - Hold **D** to highlight changed RGB pixels in magenta on both original images;
   release it to restore them. This shortcut is inactive in text inputs.
 - **Fit width**, **Fit all**, **1:1**, the zoom slider and **Columns** control the
   contact-sheet view. Double-click a pane to return to fit width.
+- **Hide matching frames** compacts all three panes to the same remaining
+  frames, retaining their original scene/frame labels. **Match at least** is
+  adjustable from 0 to 100 percent: 100 hides only perfect matches, while 99
+  hides frames where at least 99 percent of native pixels have identical RGB.
+  This measures matching pixels, not average colour error. Scores are computed
+  in the decoder thread before reducing thumbnails and cached per renderer;
+  frames awaiting comparison or missing a capture remain visible. The counts
+  show how many frames remain and how many are uncompared. Filtering preserves
+  zoom and anchors pan to a nearby retained frame.
 
 Diff is the absolute native RGB difference, with black meaning equal RGB.
 Headers and scene/frame labels are UI elements outside the captured pixels, so

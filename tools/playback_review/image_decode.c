@@ -42,6 +42,7 @@ static SDL_Surface *read_png(const char *folder, int backend, int index)
 static void decode(const char *folder, ReviewDecodeResult *job)
 {
     SDL_Surface *a, *b, *delta, *mask, *scaled;
+    unsigned char row[544 * 4];
     int y, i, count;
     a = job->images[0] = read_png(folder, 0, job->index);
     if (!a)
@@ -50,19 +51,32 @@ static void decode(const char *folder, ReviewDecodeResult *job)
     if (job->wanted == 2)
     {
         b = job->images[1] = read_png(folder, job->backend + 1, job->index);
+        if (!b) goto failed;
+        if (job->scores_only)
+        {
+            for (y = 0; y < 306; ++y)
+                job->changed_pixels[0] += review_image_diff_row((unsigned char *)a->pixels + y * a->pitch,
+                    (unsigned char *)b->pixels + y * b->pitch, row, 544);
+            job->score_state[0] = 1;
+            SDL_DestroySurface(a);
+            SDL_DestroySurface(b);
+            job->images[0] = job->images[1] = NULL;
+            return;
+        }
         delta = job->images[2] = SDL_CreateSurface(544, 306, SDL_PIXELFORMAT_RGBA32);
         mask = job->images[3] = SDL_CreateSurface(544, 306, SDL_PIXELFORMAT_RGBA32);
         if (!b || !delta || !mask)
             goto failed;
         for (y = 0; y < 306; ++y)
         {
-            review_image_diff_row((unsigned char *)a->pixels + y * a->pitch,
+            job->changed_pixels[0] += review_image_diff_row((unsigned char *)a->pixels + y * a->pitch,
                 (unsigned char *)b->pixels + y * b->pitch, (unsigned char *)delta->pixels + y * delta->pitch, 544);
             memcpy((unsigned char *)mask->pixels + y * mask->pitch,
                    (unsigned char *)delta->pixels + y * delta->pitch, 544 * 4);
             review_image_highlight_row((unsigned char *)mask->pixels + y * mask->pitch, 544);
         }
         count = 4;
+        job->score_state[0] = 1;
     }
     if (job->tier)
         for (i = 0; i < count; ++i)
@@ -76,6 +90,7 @@ static void decode(const char *folder, ReviewDecodeResult *job)
         }
     return;
 failed:
+    job->score_state[0] = -1;
     SDL_strlcpy(job->error, SDL_GetError(), sizeof(job->error));
 }
 static void decode_atlas(const char *folder, ReviewDecodeResult *job)
@@ -83,7 +98,7 @@ static void decode_atlas(const char *folder, ReviewDecodeResult *job)
     ReviewDecodeResult frame;
     SDL_Surface *destination, *source;
     int index, slot, row, x, y, end;
-    for (slot = 0; slot < 4; ++slot)
+    for (slot = 0; !job->scores_only && slot < 4; ++slot)
     {
         destination = job->images[slot] = SDL_CreateSurface(1088, 616, SDL_PIXELFORMAT_RGBA32);
         if (!destination)
@@ -102,14 +117,20 @@ static void decode_atlas(const char *folder, ReviewDecodeResult *job)
         frame.index = index;
         frame.backend = job->backend;
         frame.tier = 2;
+        frame.scores_only = job->scores_only;
         frame.wanted = index < job->ours_count ? 2 : 1;
+        if (job->scores_only && frame.wanted != 2) continue;
         decode(folder, &frame);
+        job->changed_pixels[index % 64] = frame.changed_pixels[0];
+        job->score_state[index % 64] = frame.score_state[0];
         if (frame.error[0])
         {
             SDL_strlcpy(job->error, frame.error, sizeof(job->error));
             review_decode_free(&frame);
+            if (job->scores_only) continue;
             return;
         }
+        if (job->scores_only) continue;
         x = index % 8 * 136;
         y = (index % 64) / 8 * 77;
         for (slot = 0; slot < 4; ++slot)
@@ -223,8 +244,8 @@ int review_decoder_poll(ReviewDecoder *decoder, ReviewDecodeResult *result)
     SDL_UnlockMutex(decoder->mutex);
     return available;
 }
-int review_decoder_request_atlas(ReviewDecoder *decoder, const char *folder, int page, int backend,
-                                 int retail_count, int ours_count, int total, int revision, unsigned long token)
+static int request_batch(ReviewDecoder *decoder, const char *folder, int page, int backend,
+                         int retail_count, int ours_count, int total, int revision, unsigned long token, int scores_only)
 {
     int accepted;
     SDL_LockMutex(decoder->mutex);
@@ -236,6 +257,7 @@ int review_decoder_request_atlas(ReviewDecoder *decoder, const char *folder, int
         decoder->request.index = page;
         decoder->request.backend = backend;
         decoder->request.atlas = 1;
+        decoder->request.scores_only = scores_only;
         decoder->request.retail_count = retail_count;
         decoder->request.ours_count = ours_count;
         decoder->request.total = total;
@@ -247,4 +269,15 @@ int review_decoder_request_atlas(ReviewDecoder *decoder, const char *folder, int
     }
     SDL_UnlockMutex(decoder->mutex);
     return accepted;
+}
+
+int review_decoder_request_atlas(ReviewDecoder *decoder, const char *folder, int page, int backend,
+                                 int retail_count, int ours_count, int total, int revision, unsigned long token)
+{
+    return request_batch(decoder, folder, page, backend, retail_count, ours_count, total, revision, token, 0);
+}
+int review_decoder_request_scores(ReviewDecoder *decoder, const char *folder, int page, int backend,
+                                  int retail_count, int ours_count, int total, unsigned long token)
+{
+    return request_batch(decoder, folder, page, backend, retail_count, ours_count, total, 0, token, 1);
 }

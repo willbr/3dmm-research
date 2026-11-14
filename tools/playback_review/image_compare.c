@@ -26,6 +26,8 @@ typedef struct Frame
     unsigned long used;
     size_t bytes;
     int loaded, backend, tier, revision, retail_count, ours_count;
+    int score_state[4];
+    size_t changed_pixels[4];
 } Frame;
 typedef struct Pane
 {
@@ -42,6 +44,9 @@ static double zoom_target = 1, zoom_anchor_x, zoom_anchor_y;
 static Uint64 last_navigation, previous_draw;
 static int total, ready[5], candidate, columns = 6, fit = 1, closing;
 static int backend_count = 5;
+static int *visible, visible_count, visible_dirty = 1, uncompared;
+static int hide_matches;
+static float match_threshold = 100;
 static int sheet_width, sheet_height;
 static unsigned long generation;
 static size_t cache_bytes;
@@ -76,6 +81,10 @@ static void clear_frames(void)
         clear_frame(&frames[i]);
     ++decode_token;
     SDL_free(frames);
+    SDL_free(visible);
+    visible = NULL;
+    visible_count = 0;
+    visible_dirty = 1;
     for (i = 0; i < atlas_count; ++i)
         clear_frame(&atlases[i]);
     SDL_free(atlases);
@@ -158,6 +167,7 @@ static void read_status(void)
     FILE *file;
     Frame *next;
     int count, counts[5], i, status, parsed;
+    int *map;
     size_t bytes;
     if (!session[0])
         return;
@@ -185,8 +195,11 @@ static void read_status(void)
                     for (i = 0; i < count; ++i)
                         if (fscanf(manifest, "%d%ld%ld", &next[i].scene, &next[i].number, &next[i].raw) != 3)
                             break;
-                    if (i == count)
+                    map = i == count ? (int *)SDL_malloc((size_t)count * sizeof(int)) : NULL;
+                    if (map)
                     {
+                        visible = map;
+                        visible_dirty = 1;
                         frames = next;
                         total = count;
                         atlas_count = (total + 63) / 64;
@@ -225,11 +238,28 @@ static void upload_decoded(void)
     ReviewDecodeResult result;
     Frame *frame;
     SDL_Surface *surface;
-    int i;
+    int i, index, n;
     if (!review_decoder_poll(decoder, &result))
         return;
     if (result.token == decode_token && result.index < (result.atlas ? atlas_count : total) && result.backend == candidate)
     {
+        n = result.atlas ? 64 : 1;
+        for (i = 0; i < n; ++i)
+        {
+            index = result.atlas ? result.index * 64 + i : result.index;
+            if (index < total && result.score_state[i])
+            {
+                frames[index].score_state[candidate] = result.score_state[i];
+                frames[index].changed_pixels[candidate] = result.changed_pixels[i];
+                visible_dirty = 1;
+            }
+        }
+        if (result.scores_only)
+        {
+            if (result.error[0]) SDL_strlcpy(image_error, result.error, sizeof(image_error));
+            review_decode_free(&result);
+            return;
+        }
         frame = result.atlas ? &atlases[result.index] : &frames[result.index];
         clear_frame(frame);
         frame->backend = result.backend;
@@ -328,12 +358,50 @@ static void choose_renderer(int next)
     if (candidate == next)
         return;
     candidate = next;
+    visible_dirty = 1;
     ++decode_token;
     for (i = 0; i < total; ++i)
         clear_frame(&frames[i]);
     for (i = 0; i < atlas_count; ++i)
         clear_frame(&atlases[i]);
     image_error[0] = 0;
+}
+static void rebuild_visible(void)
+{
+    int i, old_slot, old_index, anchor;
+    if (!visible_dirty || !visible) return;
+    old_slot = (int)((view.y > 8 ? view.y - 8 : 0) / CELL_HEIGHT) * columns +
+        (int)((view.x > 8 ? view.x - 8 : 0) / CELL_WIDTH);
+    if (old_slot >= visible_count) old_slot = visible_count - 1;
+    old_index = old_slot >= 0 ? visible[old_slot] : -1;
+    visible_count = uncompared = 0;
+    for (i = 0; i < total; ++i)
+    {
+        if (frames[i].score_state[candidate] != 1) ++uncompared;
+        if (!hide_matches || !review_image_hide_match(frames[i].score_state[candidate] == 1,
+            frames[i].changed_pixels[candidate], FRAME_WIDTH * FRAME_HEIGHT, match_threshold))
+            visible[visible_count++] = i;
+    }
+    if (old_index >= 0 && visible_count)
+    {
+        for (anchor = 0; anchor < visible_count - 1 && visible[anchor] < old_index; ++anchor) {}
+        view.y += (anchor / columns - old_slot / columns) * CELL_HEIGHT;
+        view.x += (anchor % columns - old_slot % columns) * CELL_WIDTH;
+    }
+    visible_dirty = 0;
+}
+static void request_scores(void)
+{
+    int i, available;
+    if (!hide_matches) return;
+    available = ready[0] < ready[candidate + 1] ? ready[0] : ready[candidate + 1];
+    for (i = 0; i < available; ++i)
+        if (!frames[i].score_state[candidate])
+        {
+            review_decoder_request_scores(decoder, session, i / 64, candidate, ready[0],
+                ready[candidate + 1], total, decode_token);
+            return;
+        }
 }
 static void controls(void)
 {
@@ -400,6 +468,18 @@ static void controls(void)
         zoom_target = view.zoom;
         fit = 0;
     }
+    if (igCheckboxFlags_IntPtr("Hide matching frames", &hide_matches, 1)) visible_dirty = 1;
+    igSameLine(0, -1);
+    igBeginDisabled(!hide_matches);
+    igSetNextItemWidth(220);
+    if (igSliderFloat("Match at least", &match_threshold, 0, 100, "%.2f%%", ImGuiSliderFlags_AlwaysClamp))
+        visible_dirty = 1;
+    igEndDisabled();
+    rebuild_visible();
+    igSameLine(0, -1);
+    igText("Showing %d / %d | Uncompared %d", visible_count, total, uncompared);
+    if (igIsItemHovered(0))
+        igSetTooltip("Match = percentage of native pixels with identical RGB. Uncompared frames stay visible. 100%% hides only perfect matches.");
     igTextUnformatted("Wheel: zoom | Drag: pan all | Hold D: highlight | Tab: renderer | Labels excluded from diff", NULL);
     if (image_error[0])
         igTextWrapped("%s", image_error);
@@ -438,16 +518,17 @@ static void panes(void)
     ImGuiIO *io;
     Frame *frame, *overview, *picture;
     const char *titles[3] = {"Retail", "Ours", "Diff"};
-    int i, index, row, first, last, count_rows, tier, highlight;
-    double scale, top, bottom, elapsed, next_zoom;
+    int i, index, cell, row, first, last, count_rows, tier, highlight, hovered;
+    double scale, top, bottom, elapsed, next_zoom, cursor_x, cursor_y;
     int is_atlas;
     Uint64 now;
     float x, y;
     if (!igBeginTable("Images", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
         return;
     io = igGetIO_Nil();
+    hovered = -1;
     sheet_width = columns * CELL_WIDTH + 8;
-    count_rows = total ? (total + columns - 1) / columns : 1;
+    count_rows = visible_count ? (visible_count + columns - 1) / columns : 1;
     sheet_height = count_rows * CELL_HEIGHT + 8;
     for (i = 0; i < 3; ++i)
     {
@@ -479,6 +560,7 @@ static void panes(void)
             fit = 0;
         }
         igInvisibleButton("Pan and zoom", pane[i].size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
+        if (igIsItemHovered(0)) hovered = i;
         if (total && igIsItemHovered(0) && io->MouseWheel)
         {
             zoom_target *= pow(1.2, io->MouseWheel);
@@ -522,9 +604,10 @@ static void panes(void)
     if (last >= count_rows)
         last = count_rows - 1;
     for (row = first; row <= last; ++row)
-        for (index = row * columns; index < (row + 1) * columns && index < total; ++index)
+        for (cell = row * columns; cell < (row + 1) * columns && cell < visible_count; ++cell)
         {
-            x = (float)((8 + index % columns * CELL_WIDTH - view.x) * view.zoom);
+            index = visible[cell];
+            x = (float)((8 + cell % columns * CELL_WIDTH - view.x) * view.zoom);
             if (x + FRAME_WIDTH * view.zoom < -pane[0].size.x / 2 || x > pane[0].size.x / 2)
                 continue;
             frame = &frames[index];
@@ -547,6 +630,21 @@ static void panes(void)
         used = atlases[i].used;
         load_atlas(i);
         atlases[i].used = used;
+    }
+    request_scores();
+    if (hovered >= 0)
+    {
+        cursor_x = floor(view.x + (io->MousePos.x - pane[hovered].origin.x - pane[hovered].size.x / 2) / view.zoom) + 0.5;
+        cursor_y = floor(view.y + (io->MousePos.y - pane[hovered].origin.y - pane[hovered].size.y / 2) / view.zoom) + 0.5;
+        for (i = 0; i < 3; ++i)
+        {
+            x = pane[i].origin.x + pane[i].size.x / 2 + (float)((cursor_x - view.x) * view.zoom);
+            y = pane[i].origin.y + pane[i].size.y / 2 + (float)((cursor_y - view.y) * view.zoom);
+            ImDrawList_AddLine(pane[i].draw, vec(x - 10, y), vec(x + 10, y), 0xff000000UL, 3, 0);
+            ImDrawList_AddLine(pane[i].draw, vec(x, y - 10), vec(x, y + 10), 0xff000000UL, 3, 0);
+            ImDrawList_AddLine(pane[i].draw, vec(x - 10, y), vec(x + 10, y), 0xff00ffffUL, 1, 0);
+            ImDrawList_AddLine(pane[i].draw, vec(x, y - 10), vec(x, y + 10), 0xff00ffffUL, 1, 0);
+        }
     }
     for (i = 0; i < 3; ++i)
     {

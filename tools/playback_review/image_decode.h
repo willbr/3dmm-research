@@ -6,6 +6,8 @@ typedef struct ReviewDecodeResult
 {
     int index, backend, tier, wanted;
     int atlas, retail_count, ours_count, total, revision;
+    int scores_only, score_state[64];
+    size_t changed_pixels[64];
     unsigned long token;
     SDL_Surface *images[4];
     char error[512];
@@ -18,4 +20,6 @@ int review_decoder_poll(ReviewDecoder *decoder, ReviewDecodeResult *result);
 int review_decoder_request_atlas(ReviewDecoder *decoder, const char *folder, int page, int backend,
                                  int retail_count, int ours_count, int total, int revision, unsigned long token);
 void review_decode_free(ReviewDecodeResult *result);
+int review_decoder_request_scores(ReviewDecoder *decoder, const char *folder, int page, int backend,
+                                  int retail_count, int ours_count, int total, unsigned long token);
 #endif

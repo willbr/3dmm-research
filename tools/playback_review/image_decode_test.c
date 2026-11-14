@@ -110,7 +110,9 @@ int main(int argc, char **argv)
             code = 18;
         else
         {
-            if (result.error[0] || !result.images[2] || result.images[2]->w != 1088 || result.images[2]->h != 616)
+            if (result.error[0] || !result.images[2] || result.images[2]->w != 1088 || result.images[2]->h != 616 ||
+                result.score_state[0] != 1 || result.changed_pixels[0] != 1 ||
+                result.score_state[1] != 1 || result.changed_pixels[1] != 544 * 306)
                 code = 19;
             else
             {
@@ -136,6 +138,19 @@ int main(int argc, char **argv)
                 pixel = (unsigned char *)result.images[2]->pixels;
                 if (pixel[0] || pixel[1] != 255 || pixel[2]) code = 26;
             }
+            review_decode_free(&result);
+        }
+    }
+    if (!code)
+    {
+        review_decoder_request_scores(decoder, argv[1], 0, 0, 3, 3, 3, 23);
+        if (!wait_result(decoder, &result)) code = 27;
+        else
+        {
+            if (!result.scores_only || result.images[0] || result.images[1] || result.images[2] || result.images[3] ||
+                result.score_state[0] != 1 || result.changed_pixels[0] != 1 ||
+                result.score_state[1] != 1 || result.changed_pixels[1] != 544 * 306 ||
+                result.score_state[2] != -1) code = 28;
             review_decode_free(&result);
         }
     }

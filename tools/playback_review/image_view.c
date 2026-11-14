@@ -52,3 +52,10 @@ void review_image_highlight_row(unsigned char *diff, size_t pixels)
         diff[x * 4 + 1] = 0;
     }
 }
+
+int review_image_hide_match(int compared, size_t changed, size_t pixels, double threshold)
+{
+    if (!compared || !pixels || changed > pixels || threshold < 0 || threshold > 100)
+        return 0;
+    return (double)changed * 100 <= (double)pixels * (100 - threshold);
+}

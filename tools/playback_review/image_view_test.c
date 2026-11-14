@@ -38,6 +38,11 @@ int main(void)
         return 7;
     if (review_image_diff_row(a, a, result, 2) != 0 || result[0] || result[4])
         return 6;
-    puts("Image navigation and RGB difference checks passed");
+    if (!review_image_hide_match(1, 0, 166464, 100) || review_image_hide_match(1, 1, 166464, 100) ||
+        !review_image_hide_match(1, 1664, 166464, 99) || review_image_hide_match(1, 1665, 166464, 99) ||
+        review_image_hide_match(0, 0, 166464, 0) || review_image_hide_match(1, 0, 0, 100) ||
+        !review_image_hide_match(1, 1, 100, 99) || review_image_hide_match(1, 2, 100, 99))
+        return 8;
+    puts("Image navigation, match threshold and RGB difference checks passed");
     return 0;
 }
