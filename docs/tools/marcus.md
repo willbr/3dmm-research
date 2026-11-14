@@ -655,8 +655,8 @@ CPU fallback policy. The helper verifies a versioned 32-bit handshake, retains
 the loaded scene between frames, and closes when its player closes or opens a
 different movie. The original x86 assembly backend is Windows-only.
 
-The Ringworld Paybox logo (scene 4/frame 1, stored frame 20) demonstrates the
-current compatibility gap: CPU C differs from retail at 187 native pixels and
+The earlier Ringworld Paybox logo capture (scene 4/frame 1, stored frame 20)
+demonstrated the GPU compatibility gap: CPU C differed from retail at 187 native pixels and
 CPU ASM at 192, versus 10,923 for compute and 10,920 for SDL GPU. Only 988 of
 compute's differing pixels change object/background coverage; the other 9,935
 are inside covered regions. This points to interpolation/texture lookup as well
@@ -669,6 +669,49 @@ specific rasterizer policy differences, not a reason to dismiss the error as
 floating-point noise. Their individual contributions have not been isolated;
 matching the legacy scan converters requires further work. This comparison does
 not establish the cause of the separate CPU/retail near-coplanar surface differences.
+
+CPU parity repairs preserve each Body's actor hierarchy, local transform types,
+inherited materials/styles and sibling order instead of flattening parts into
+world space. Actor attachment order follows the shared evaluator's actual Show
+events; hiding/re-entering an actor can change which equal-depth surface wins.
+Both SDL and Marcus also use retail's scalar multiply/add policy: truncate each
+16.16 product before adding, with 32-bit wrap. This differs from the standalone
+full-accumulation `BrFixedMac*` assembly primitives, which remain unchanged.
+The pinned ISO executable's `BrMatrix34Mul` at RVA `0x76ac4` and
+`BrMatrix4Pre34` at `0x7c84a` confirm the individual shifts. The C89 actor math
+and both BRender scalar headers use the same policy. Actor root/part matrices
+were checked directly against the retail bridge, including generated 3D text.
+
+The portable one-sided on-screen projector now follows `mesh386.asm`: fold the
+viewport into the matrix, keep 32.32 translation and full product accumulation,
+then divide before narrowing. The former generic C path rounded clip-space
+coordinates earlier. Two-sided/clipped models retain their corresponding
+retail paths, including the on-screen overflow fallback. A headless actor-tree
+test checks pixels, depth, sibling ordering, inherited state and embedded actor
+ownership. Its projection hash comes independently from the x86 assembly run;
+restoring the former C projector fails that check. No Marcus UI tests were added.
+
+Ordered captures at 544x306, comparing exact RGB pixels against existing retail
+captures, produced these results (totals count differing pixels across frames):
+
+| Movie | Frames | CPU C before → after | CPU ASM before → after |
+| --- | ---: | ---: | ---: |
+| Rebirth of 3DMM | 952 | 154,155 → 10,363 | 154,710 → 10,362 |
+| Ringworld Act One Teaser Trailer | 153 | 28,617 → 260 | 28,787 → 260 |
+| The Amazingly Pointless Adventures of Gustave! | 404 | 76,136 → 3,856 | 76,535 → 3,856 |
+
+C and ASM are pixel-identical in 1,508 of these 1,509 frames; the remaining
+frame has one pixel different between them. Rebirth scene 4/frame 16 improves
+from 1,134 differing pixels to 4, scene 8/frame 63 from 1,601 to 3, and scene
+19/frame 7 from 1,725 (C) / 1,722 (ASM) to 1. Ringworld's Paybox logo now matches
+retail exactly. The worst remaining frame in these runs differs at 122 of
+166,464 pixels. This is a measured improvement, not complete retail parity:
+small residuals remain, and 25 Rebirth frames have more RGB error than before
+(Ringworld and Gustave have none). Capture history matters: a direct jump can
+give a different retail z-fighting result from visiting every preceding frame.
+Local metrics and decoded frames are under `tmp/cpu-project-parity-*-full/`;
+retail matrix/order probes and the disassembly evidence are in
+`tmp/cpu-retail-order/` and `tmp/cpu-retail-*.txt`.
 
 These are initial GPU implementations: floating-point interpolation and triangle
 edge coverage can differ from the CPU renderer. Completed frames are downloaded

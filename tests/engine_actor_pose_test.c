@@ -71,8 +71,10 @@ static ThreeMMActorMotionServices services = {route_width, route_count, point, e
 static void arithmetic(void)
 {
     ThreeMMActorMatrix a, b, out;
-    CHECK(three_mm_fixed_mac3(1, 32768, 1, 32768, 0, 0) == 1);
-    CHECK(three_mm_fixed_mac3(-1, 32768, 1, 32768, 0, 0) == 0);
+    /* Retail truncates products individually: half + half becomes zero,
+     * while negative half rounds down before adding positive half. */
+    CHECK(three_mm_fixed_mac3(1, 32768, 1, 32768, 0, 0) == 0);
+    CHECK(three_mm_fixed_mac3(-1, 32768, 1, 32768, 0, 0) == -1);
     CHECK(three_mm_fixed_mac3(-1, 1, 0, 0, 0, 0) == -1);
     CHECK(three_mm_fixed_mac3(2147483647L, 2147483647L, 2147483647L, 2147483647L, 2147483647L, 2147483647L) ==
           -196608L);
@@ -92,7 +94,7 @@ static void arithmetic(void)
     a.m[0][2] = 0;
     b.m[0][0] = b.m[1][0] = 32768;
     three_mm_matrix_multiply(&out, &a, &b);
-    CHECK(out.m[0][0] == 1);
+    CHECK(out.m[0][0] == 0);
     three_mm_matrix_identity(&a);
     three_mm_matrix_identity(&b);
     a.m[3][0] = ONE;

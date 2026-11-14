@@ -14,6 +14,7 @@
 #include <utility>
 #include "soc_core.h"
 #include "preview_actor.h"
+#include "preview_actor_tree.h"
 #include "preview_background.h"
 #include "preview_presentation.h"
 #undef size
@@ -31,6 +32,19 @@ bool Fail(Error &error, ErrorCode code, const char *message)
     if (code == ErrorCode::decode_failed && Internal::AssertionFailed())
         error.message += std::string(" ") + Internal::DiagnosticMessage();
     return false;
+}
+std::vector<br_actor *> ModelActors(br_actor *root)
+{
+    std::vector<br_actor *> result;
+    std::vector<br_actor *> pending{root};
+    while (!pending.empty())
+    {
+        auto actor = pending.back();
+        pending.pop_back();
+        if (actor->type == BR_ACTOR_MODEL && actor->model) result.push_back(actor);
+        for (auto child = actor->children; child; child = child->next) pending.push_back(child);
+    }
+    return result;
 }
 struct Frame
 {
@@ -202,6 +216,7 @@ struct Preview::Impl
     float orbitAnchor[3] = {};
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
+    std::uint64_t visibilityClock = 0;
     std::string resolveError;
     void BindTemplate(PTemplate value)
     {
@@ -256,39 +271,25 @@ struct Preview::Impl
     }
     bool AddModels(br_actor *world, std::map<br_actor *, int> *owners = nullptr) const
     {
-        std::vector<std::pair<PBACT, int>> instances;
         const auto append = [&](PBody value, int owner) {
-            for (LegacyLong i = 0; i < value->Cbact() - 2; ++i)
-                if (value->PbactPart(i)->model)
-                    instances.emplace_back(value->PbactPart(i), owner);
+            return Internal::CopyBodyActorTree(world, value->PbactRoot(), owners, owner);
         };
-        if (body)
-            append(body, -1);
+        if (body && !append(body, -1)) return false;
+        std::vector<std::size_t> visible;
         for (std::size_t i = 0; i < actors.size(); ++i)
-            if (actors[i]->Visible())
-                append(actors[i]->body, static_cast<int>(i));
+            if (actors[i]->Visible()) visible.push_back(i);
+        std::stable_sort(visible.begin(), visible.end(), [&](std::size_t a, std::size_t b) {
+            return actors[a]->DrawOrder() < actors[b]->DrawOrder();
+        });
+        for (auto i : visible)
+            if (!append(actors[i]->body, static_cast<int>(i))) return false;
         if (model)
-            instances.emplace_back(nullptr, -1);
-        for (const auto &instance : instances)
         {
-            const auto source = instance.first;
             auto actor = BrActorAllocate(BR_ACTOR_MODEL, nullptr);
-            if (!actor)
-                return false;
+            if (!actor) return false;
             BrActorAdd(world, actor);
-            actor->model = source ? source->model : model->Pbmdl();
-            actor->material = source ? source->material : nullptr;
-            actor->t.type = BR_TRANSFORM_MATRIX34;
-            BrMatrix34Identity(&actor->t.t.mat);
-            // Copy instances, never relink Body's embedded BACTs (not owned by BrRes).
-            for (auto part = source; part; part = part->parent)
-            {
-                br_matrix34 composed;
-                BrMatrix34Mul(&composed, &actor->t.t.mat, &part->t.t.mat);
-                actor->t.t.mat = composed;
-            }
-            if (owners)
-                owners->emplace(actor, instance.second);
+            actor->model = model->Pbmdl();
+            if (owners) owners->emplace(actor, -1);
         }
         return true;
     }
@@ -317,6 +318,7 @@ struct Preview::Impl
     void ClearAsset(bool preserveFraming = false)
     {
         actors.clear();
+        visibilityClock = 0;
         background.reset();
         cameraChanges.clear();
         if (!preserveFraming)
@@ -1071,7 +1073,7 @@ try
             std::unique_ptr<Internal::PreviewActor> actor(new Internal::PreviewActor);
             if (!actor->Load(
                     _impl->cache, number, [&](const TAGOnFile &tag) { return _impl->Resolve(tag); },
-                    [&](PTemplate value) { _impl->BindTemplate(value); }))
+                    [&](PTemplate value) { _impl->BindTemplate(value); }, _impl->visibilityClock))
             {
                 const auto message = _impl->resolveError.empty() ? "Cannot load the actor route, events or template."
                                                                  : _impl->resolveError;
@@ -1512,16 +1514,15 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
                 }
                 BrMaterialUpdate(material, BR_MATU_ALL);
             };
-            for (auto actor = frame.world->children; actor; actor = actor->next)
-                if (actor->model)
-                {
-                    overrideMaterial(actor->material);
-                    for (unsigned i = 0; i < actor->model->nface_groups; ++i)
-                        overrideMaterial(actor->model->face_groups[i].material);
-                }
+            for (auto actor : ModelActors(frame.world))
+            {
+                overrideMaterial(actor->material);
+                for (unsigned i = 0; i < actor->model->nface_groups; ++i)
+                    overrideMaterial(actor->model->face_groups[i].material);
+            }
         }
         if (view.displayMode == 4 && !view.rasterizer)
-            frame.world->render_style = BR_RSTYLE_EDGES;
+            for (auto actor : ModelActors(frame.world)) actor->render_style = BR_RSTYLE_EDGES;
         if (!bg && _impl->background && view.fitSceneDepth)
         {
             const double ySlope = std::tan(float(camera.field_of_view) * (6.283185307179586 / 65536) * .5);
@@ -1529,9 +1530,8 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
             Internal::PreviewDepthRange range((parallel ? BrScalarToFloat(camera.width) : ySlope * BrScalarToFloat(camera.aspect)) * (1 + 2.0 / width),
                                              (parallel ? BrScalarToFloat(camera.height) : ySlope) * (1 + 2.0 / height),
                                              BrScalarToFloat(camera.hither_z), BrScalarToFloat(camera.yon_z), parallel);
-            for (auto actor = frame.world->children; actor; actor = actor->next)
+            for (auto actor : ModelActors(frame.world))
             {
-                if (actor->type != BR_ACTOR_MODEL || !actor->model) continue;
                 const auto model = actor->model;
                 br_matrix34 transform;
                 BrActorToActorMatrix34(&transform, actor, cam);

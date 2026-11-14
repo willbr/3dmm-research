@@ -7,33 +7,13 @@ static ThreeMMU32 magnitude(ThreeMMI32 n)
 {
     return n < 0 ? 0U - (ThreeMMU32)n : (ThreeMMU32)n;
 }
-static ThreeMMWide product(ThreeMMI32 a, ThreeMMI32 b)
-{
-    ThreeMMU32 x = magnitude(a), y = magnitude(b), part, old, high;
-    ThreeMMWide result, zero;
-    result.low = (x & 65535U) * (y & 65535U);
-    high = (x >> 16) * (y >> 16);
-    part = (x >> 16) * (y & 65535U);
-    old = result.low;
-    result.low += part << 16;
-    high += (part >> 16) + (result.low < old);
-    part = (x & 65535U) * (y >> 16);
-    old = result.low;
-    result.low += part << 16;
-    high += (part >> 16) + (result.low < old);
-    result.high = three_mm_signed_word(high);
-    if ((a < 0) != (b < 0))
-    {
-        zero.low = 0;
-        zero.high = 0;
-        result = three_mm_wide_subtract(zero, result);
-    }
-    return result;
-}
 ThreeMMI32 three_mm_fixed_mac3(ThreeMMI32 a, ThreeMMI32 b, ThreeMMI32 c, ThreeMMI32 d, ThreeMMI32 e, ThreeMMI32 f)
 {
-    ThreeMMWide value = three_mm_wide_add(three_mm_wide_add(product(a, b), product(c, d)), product(e, f));
-    return three_mm_signed_word((value.low >> 16) | ((ThreeMMU32)value.high << 16));
+    /* Retail's scalar macro truncates each product before adding, unlike the
+     * standalone BrFixedMac3 assembly primitive. Unsigned addition wraps. */
+    return three_mm_signed_word((ThreeMMU32)three_mm_fixed_mul(a,b) +
+                               (ThreeMMU32)three_mm_fixed_mul(c,d) +
+                               (ThreeMMU32)three_mm_fixed_mul(e,f));
 }
 static ThreeMMI32 signed16(ThreeMMU32 value)
 {

@@ -105,9 +105,15 @@ typedef br_fixed_luf	br_ufraction;
 #define BR_CONST_MUL(a,b)		((a)*(b))
 #define BR_CONST_DIV(a,b)		((a)/(b))
 
-#define BR_MAC2(a,b,c,d)		BrFixedMac2(a,b,c,d)
-#define BR_MAC3(a,b,c,d,e,f)	BrFixedMac3(a,b,c,d,e,f)
-#define BR_MAC4(a,b,c,d,e,f,g,h) BrFixedMac4(a,b,c,d,e,f,g,h)
+/* Retail's inlined scalar multiply/adds truncate every product to 16.16.
+ * The standalone BrFixedMac* assembly routines retain full accumulation. */
+#define BR_MAC2(a, b, c, d) \
+    ((br_scalar)((br_uint_32)BR_MUL(a, b) + (br_uint_32)BR_MUL(c, d)))
+#define BR_MAC3(a, b, c, d, e, f) \
+    ((br_scalar)((br_uint_32)BR_MUL(a, b) + (br_uint_32)BR_MUL(c, d) + (br_uint_32)BR_MUL(e, f)))
+#define BR_MAC4(a, b, c, d, e, f, g, h) \
+    ((br_scalar)((br_uint_32)BR_MUL(a, b) + (br_uint_32)BR_MUL(c, d) + \
+                 (br_uint_32)BR_MUL(e, f) + (br_uint_32)BR_MUL(g, h)))
 
 #define BR_MAC2DIV(a,b,c,d,e)		BrFixedMac2Div(a,b,c,d,e)
 #define BR_MAC3DIV(a,b,c,d,e,f,g)	BrFixedMac3Div(a,b,c,d,e,f,g)

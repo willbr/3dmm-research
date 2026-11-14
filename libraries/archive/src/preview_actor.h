@@ -28,6 +28,8 @@ class PreviewActor
     ActorStepSource Steps() const;
     ActorSoundList motionSounds;
     bool soundDisplay = false;
+    std::uint64_t *visibilityClock = nullptr;
+    mutable std::uint64_t lastShown = 0;
     PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
 
   public:
@@ -37,7 +39,7 @@ class PreviewActor
     ~PreviewActor();
     bool Load(PChunkyResourceFile file, ChunkNumber number,
               std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
-              std::function<void(PTemplate)> bindTemplate);
+              std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
     bool Seek(LegacyLong frame);
     PreviewObject Snapshot() const;
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
@@ -45,6 +47,7 @@ class PreviewActor
     {
         return state.onStage;
     }
+    std::uint64_t DrawOrder() const { return lastShown; }
     LegacyLong FirstFrame() const
     {
         return header.nfrmFirst;

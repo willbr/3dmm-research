@@ -31,8 +31,9 @@ ActorStepSource PreviewActor::Steps() const
 }
 bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
                         std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
-                        std::function<void(PTemplate)> bindTemplate)
+                        std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock)
 {
+    this->visibilityClock = &visibilityClock;
     this->number = number;
     resolve = resolver;
     auto chunky = file->Pcfl();
@@ -340,6 +341,10 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
             host.costume.Set(actor->body);
             break;
         case THREE_MM_EFFECT_SHOW:
+            // Native Body::Show attaches at the head of World's actor list.
+            // Keep attachment history even though preview bodies have no World.
+            actor->lastShown = ++*actor->visibilityClock;
+            break;
         case THREE_MM_EFFECT_HIDE:
             // Preview presentation uses the shared onStage value; Body has no World.
             break;

@@ -1180,8 +1180,11 @@ add_executable(preview-background-mesh-test EXCLUDE_FROM_ALL tests/preview_backg
 target_include_directories(preview-background-mesh-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src"
   "${PROJECT_SOURCE_DIR}/bren/lib/zb" "${PROJECT_SOURCE_DIR}/bren/lib/fw")
 target_link_libraries(preview-background-mesh-test PRIVATE ThreeMM::Preview engine-core)
+add_executable(preview-actor-tree-test EXCLUDE_FROM_ALL tests/preview_actor_tree_test.cpp)
+target_include_directories(preview-actor-tree-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src")
+target_link_libraries(preview-actor-tree-test PRIVATE ThreeMM::Preview engine-core)
 add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-background-test
-  preview-background-mesh-test preview-scene-fixture)
+  preview-background-mesh-test preview-actor-tree-test preview-scene-fixture)
 add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)
 add_executable(portfolio-data-test EXCLUDE_FROM_ALL tests/portfolio_data_test.cpp)
 target_link_libraries(portfolio-data-test PRIVATE engine-core)
@@ -1909,6 +1912,7 @@ if(BUILD_TESTING)
     add_test(NAME ${core}-link COMMAND ${core}-link-test)
   endforeach()
   add_test(NAME preview-background-mesh COMMAND preview-background-mesh-test)
+  add_test(NAME preview-actor-tree COMMAND preview-actor-tree-test)
   set(TEST_CONTENT_DIR "${PROJECT_SOURCE_DIR}/content-files" CACHE PATH "Original 3DMM content fixtures")
   set(TEST_MAIN_CHK "${PROJECT_SOURCE_DIR}/dist/Microsoft Kids/3D Movie Maker/3dmovie.chk"
     CACHE FILEPATH "Main chunky file with shade table for the actor render test")

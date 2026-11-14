@@ -6,6 +6,7 @@
  *
  * Mesh rendering to produce faces
  */
+#include <stdint.h>
 #include "zb.h"
 #include "../../inc/zb_capture.h"
 #include "shortcut.h"
@@ -1379,6 +1380,64 @@ STATIC void ZbOnScreenFindFacesVertsPar(void)
  * For all the active vertices, transform them and work out
  * the per vertex parameters
  */
+#if BASED_FIXED && !FAST_PROJECT
+/* Portable counterpart of mesh386.asm's on-screen projection. It folds the
+ * viewport into the matrix before transforming, retains 32.32 translation,
+ * and divides before narrowing. The generic clip-space path rounds earlier. */
+static int ZbOSCopyModelToScreen_C(void)
+{
+    int row, axis;
+    for (row = 0; row < 3; ++row) {
+        for (axis = 0; axis < 2; ++axis) {
+            int64_t product = (int64_t)fw.model_to_screen.m[row][axis] *
+                (axis ? fw.vp_height : fw.vp_width);
+            product >>= 16;
+            if (product < INT32_MIN || product > INT32_MAX) return 1;
+            zb.os_model_to_screen.m[row][axis] = (br_scalar)product;
+        }
+        zb.os_model_to_screen.m[row][2] = (br_scalar)(0u - (uint32_t)fw.model_to_screen.m[row][2]);
+        zb.os_model_to_screen.m[row][3] = fw.model_to_screen.m[row][3];
+    }
+    for (axis = 0; axis < 3; ++axis) {
+        int64_t product = axis == 2 ?
+            (int64_t)(int32_t)(0u - (uint32_t)fw.model_to_screen.m[3][2]) * 65536 :
+            (int64_t)fw.model_to_screen.m[3][axis] * (axis ? fw.vp_height : fw.vp_width);
+        zb.os_model_to_screen.m[3][axis] = (br_scalar)(uint32_t)product;
+        zb.os_model_to_screen_hi[axis] = (br_scalar)(product >> 32);
+    }
+    zb.os_model_to_screen.m[3][3] = fw.model_to_screen.m[3][3];
+    return 0;
+}
+static void ZbOnScreenProjectVertex_C(struct temp_vertex *out, const br_vertex *vertex)
+{
+    uint64_t sum = 0;
+    int axis, row;
+    int32_t w;
+    for (row = 0; row < 3; ++row)
+        sum += (uint64_t)((int64_t)zb.os_model_to_screen.m[row][3] * vertex->p.v[row]);
+    w = (int32_t)((uint32_t)(sum >> 16) + (uint32_t)zb.os_model_to_screen.m[3][3]);
+    out->comp[C_W] = w;
+    for (axis = 0; axis < 3; ++axis) {
+        sum = ((uint64_t)(uint32_t)zb.os_model_to_screen_hi[axis] << 32) |
+            (uint32_t)zb.os_model_to_screen.m[3][axis];
+        for (row = 0; row < 3; ++row)
+            sum += (uint64_t)((int64_t)zb.os_model_to_screen.m[row][axis] * vertex->p.v[row]);
+        if (axis == 2)
+            out->v[axis] = (br_scalar)(uint32_t)((sum << 15) / (uint32_t)w);
+        else
+            out->v[axis] = (br_scalar)((uint32_t)((int64_t)sum / w) +
+                (uint32_t)(axis ? fw.vp_oy : fw.vp_ox));
+    }
+}
+#define PROJECT_VERTEX_OS_FAST() ZbOnScreenProjectVertex_C(avp,vp)
+#else
+#define PROJECT_VERTEX_OS_FAST() do { \
+    TRANSFORM_VERTEX_OS(); \
+    avp->comp[C_W] = screen.v[W]; \
+    PROJECT_VERTEX(avp,screen.v[X],screen.v[Y],screen.v[Z],screen.v[W]); \
+} while (0)
+#endif
+
 STATIC void ZbOnScreenTransformVertices(void)
 {
 	int v,g,gv;
@@ -1458,9 +1517,7 @@ STATIC void ZbOnScreenTransformVertices(void)
 					if(zb.vertex_counts[v] == 0)
 						continue;
 
-					TRANSFORM_VERTEX_OS();
-					avp->comp[C_W] = screen.v[W];
-					PROJECT_VERTEX(avp,screen.v[X],screen.v[Y],screen.v[Z],screen.v[W]);
+					PROJECT_VERTEX_OS_FAST();
 					UPDATE_BOUNDS(*avp);
 
 					fw.surface_fn(vp, &vp->n, avp->comp);
@@ -1480,9 +1537,7 @@ STATIC void ZbOnScreenTransformVertices(void)
 					if(zb.vertex_counts[v] == 0)
 						continue;
 
-					TRANSFORM_VERTEX_OS();
-					avp->comp[C_W] = screen.v[W];
-					PROJECT_VERTEX(avp,screen.v[X],screen.v[Y],screen.v[Z],screen.v[W]);
+					PROJECT_VERTEX_OS_FAST();
 
 					fw.surface_fn(vp, &vp->n, avp->comp);
 				}
@@ -1502,9 +1557,7 @@ STATIC void ZbOnScreenTransformVertices(void)
 					if(zb.vertex_counts[v] == 0)
 						continue;
 
-					TRANSFORM_VERTEX_OS();
-					avp->comp[C_W] = screen.v[W];
-					PROJECT_VERTEX(avp,screen.v[X],screen.v[Y],screen.v[Z],screen.v[W]);
+					PROJECT_VERTEX_OS_FAST();
 					UPDATE_BOUNDS(*avp);
 				}
 #endif
@@ -1521,9 +1574,7 @@ STATIC void ZbOnScreenTransformVertices(void)
 					if(zb.vertex_counts[v] == 0)
 						continue;
 
-					TRANSFORM_VERTEX_OS();
-					avp->comp[C_W] = screen.v[W];
-					PROJECT_VERTEX(avp,screen.v[X],screen.v[Y],screen.v[Z],screen.v[W]);
+					PROJECT_VERTEX_OS_FAST();
 				}
 #endif
 			}
@@ -1617,7 +1668,7 @@ void ZbMeshRender(br_actor *actor,
 	 */
 	BrBlockFill(scratch,0,((clear_end - (char *)scratch) + 3) / 4);
 
-#if FAST_PROJECT
+#if BASED_FIXED
 	/*
 	 * If on_screen, then let the fast project code pre process the model->screen
 	 * matrix
@@ -1625,7 +1676,11 @@ void ZbMeshRender(br_actor *actor,
 	 * If there was an overflow, revert back to OSC_PARTIAL
 	 */
 	if(on_screen == OSC_ACCEPT)
+#if FAST_PROJECT
 		if(ZbOSCopyModelToScreen_A())
+#else
+		if(ZbOSCopyModelToScreen_C())
+#endif
 			on_screen = OSC_PARTIAL;
 #endif
 
