@@ -25,6 +25,7 @@
 #include "three_mm/scene_load.h"
 #include "three_mm/scene_store.h"
 #include "three_mm/scene_edit.h"
+#include "three_mm/scene_content.h"
 
 //
 // Undo object for actor operations
@@ -49,8 +50,7 @@ class SceneActorUndo : public SceneActorUndo_PAR
     ASSERT
 
   protected:
-    PActor _pactr;
-    long _ut; // Tells which type of undo this is.
+    ThreeMMSceneActorUndo _content = {};
     SceneActorUndo(void)
     {
     }
@@ -61,13 +61,17 @@ class SceneActorUndo : public SceneActorUndo_PAR
 
     void SetActr(PActor pactr)
     {
-        _pactr = pactr;
+        _content.actor = pactr;
     }
     void SetType(long ut)
     {
-        _ut = ut;
+        _content.operation = ut;
     }
 
+    ThreeMMSceneActorUndo *CoreState()
+    {
+        return &_content;
+    }
     virtual bool FDo(PDocumentBase pdocb);
     virtual bool FUndo(PDocumentBase pdocb);
 };
@@ -112,6 +116,8 @@ typedef class Scene *PScene;
 #define kclsScene 'SCEN'
 class Scene : public Scene_PAR
 {
+    friend class SceneActorUndo;
+    friend class SceneUndoText;
     RTCLASS_DEC
     MARKMEM
     ASSERT
@@ -139,6 +145,7 @@ class Scene : public Scene_PAR
     ThreeMMSceneEventServices _EventServices();
     ThreeMMSceneSoundEditServices _SoundEditServices();
     ThreeMMSceneEditServices _EditServices();
+    ThreeMMSceneContentServices _ContentServices();
 
     //
     // Global information

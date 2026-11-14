@@ -470,8 +470,11 @@ traversal now also use C89. Scene tag-collection traversal and save transactions
 now also use C89, including sound adoption, wire-group construction and ordered
 thumbnail/metadata publication. Pause/camera/background editing, their public undo
 transactions and persistent undo payload/swap control now also use C89. Common
-movie/undo services, actor/caption/selection and other editing policy, thumbnail
-generation and background resource implementations remain native dependencies.
+movie/undo services, selection and other editing policy, thumbnail generation and
+background resource implementations remain native dependencies. Scene actor/
+caption add/remove, actor paste and roll-call traversal, lookups, movie binding
+and persistent actor/caption undo ownership/control now also use C89. Actor/
+caption internals and native selection/undo adapters remain dependencies.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -489,9 +492,9 @@ model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
 export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch,
 sound-packet, sound-editing/undo, loading/resolution, tag-collection/save and
-pause/camera/background-editing/undo slices are complete. Continue with Scene
-actor/caption editing and undo in `src/engine/scene.cpp`, then remaining selection,
-scene/movie editing, undo and transition operations.
+pause/camera/background-editing/undo and actor/caption Scene-editing/undo slices
+are complete. Continue with Scene selection and remaining chop/editing/undo in
+`src/engine/scene.cpp`, then other scene/movie editing and transition operations.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

@@ -50,6 +50,7 @@
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
 #include "scene_edit_undo.h"
+#include "scene_content_undo.h"
 #include <cstring>
 
 ASSERTNAME
@@ -220,54 +221,7 @@ class SceneUndoTransition : public SceneUndoTransition_PAR
 //
 // Undo object for text box operations
 //
-typedef class SceneUndoText *PSceneUndoText;
 
-#define SceneUndoText_PAR MovieUndo
-#define kclsSceneUndoText 'SUNX'
-class SceneUndoText : public SceneUndoText_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    PTBOX _ptbox;
-    bool _fAdd;
-    long _itbox;
-    long _nfrmFirst;
-    long _nfrmLast;
-    SceneUndoText(void)
-    {
-    }
-
-  public:
-    static PSceneUndoText PsunxNew(void);
-    ~SceneUndoText(void);
-
-    void SetNfrmFirst(long nfrm)
-    {
-        _nfrmFirst = nfrm;
-    }
-    void SetNfrmLast(long nfrm)
-    {
-        _nfrmLast = nfrm;
-    }
-    void SetItbox(long itbox)
-    {
-        _itbox = itbox;
-    }
-    void SetTbox(PTBOX ptbox)
-    {
-        _ptbox = ptbox;
-    }
-    void SetAdd(bool fAdd)
-    {
-        _fAdd = fAdd;
-    }
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
 
 //
 // Undo object for sound operations
@@ -2120,114 +2074,124 @@ void Scene::SelectTbox(PTBOX ptbox)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FAddActrCore(Actor *pactr)
+ThreeMMSceneContentServices Scene::_ContentServices()
+{
+    ThreeMMSceneContentServices s = {};
+    s.context = this;
+    s.events = _EventServices();
+    s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
+    s.actor_id = [](void *, void *p) -> ThreeMMI32 { return static_cast<PActor>(p)->Arid(); };
+    s.set_actor_id = [](void *, void *p, ThreeMMI32 id) { static_cast<PActor>(p)->SetArid(id); };
+    s.actor_ready = [](void *, void *p) -> int { return static_cast<PActor>(p)->Pbody() != nullptr; };
+    s.actor_onstage = [](void *, void *p) -> int { return static_cast<PActor>(p)->FAddOnStageCore(); };
+    s.actor_paste = [](void *p, void *a, ThreeMMI32 frame) -> int {
+        return static_cast<PActor>(a)->FPaste(frame, static_cast<PScene>(p));
+    };
+    s.hide_actor = [](void *, void *p) {
+        auto actor = static_cast<PActor>(p);
+        if (actor->Pbody())
+            actor->Hide();
+    };
+    s.insert_start = [](void *p, ThreeMMI32 i, int kind, void *object) -> int {
+        SceneEvent event = {0, static_cast<SceneEventType>(kind)};
+        return static_cast<PScene>(p)->_pggsevStart->FInsert(i, sizeof(object), &object, &event);
+    };
+    s.put_start = [](void *p, ThreeMMI32 i, void *object) { static_cast<PScene>(p)->_pggsevStart->Put(i, &object); };
+    s.put_list = [](void *, void *p, ThreeMMI32 i, void *object) { static_cast<PDynamicArray>(p)->Put(i, &object); };
+    s.erase = [](void *, void *p, ThreeMMI32 i) { static_cast<GroupBase *>(p)->Delete(i); };
+    s.selected = [](void *p, int text) -> void * {
+        auto scene = static_cast<PScene>(p);
+        return text ? static_cast<void *>(scene->_ptboxSelected) : static_cast<void *>(scene->_pactrSelected);
+    };
+    s.set_selected = [](void *p, int text, void *object) {
+        auto scene = static_cast<PScene>(p);
+        if (text)
+            scene->_ptboxSelected = static_cast<PTBOX>(object);
+        else
+            scene->_pactrSelected = static_cast<PActor>(object);
+    };
+    s.select = [](void *p, int text, void *object) {
+        auto scene = static_cast<PScene>(p);
+        if (text)
+            scene->SelectTbox(static_cast<PTBOX>(object));
+        else
+            scene->SelectActr(static_cast<PActor>(object));
+    };
+    s.end_placement = [](void *p) {
+        auto view = static_cast<PMovieView>(static_cast<PScene>(p)->_pmvie->PddgGet(0));
+        if (view)
+            view->EndPlaceActor();
+    };
+    s.add_roll = [](void *p, void *object, int templateName) -> int {
+        auto a = static_cast<PActor>(object);
+        String name;
+        if (templateName)
+            a->Ptmpl()->GetName(&name);
+        else
+            a->GetName(&name);
+        return static_cast<PScene>(p)->_pmvie->FAddToRollCall(a, &name);
+    };
+    s.remove_roll = [](void *p, void *a, int only) {
+        static_cast<PScene>(p)->_pmvie->RemFromRollCall(static_cast<PActor>(a), only != 0);
+    };
+    s.dirty = [](void *p) { static_cast<PScene>(p)->_MarkMovieDirty(); };
+    s.invalidate = [](void *p) { static_cast<PScene>(p)->InvalFrmRange(); };
+    s.indicator = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
+    s.update_roll = [](void *p) { static_cast<PScene>(p)->_pmvie->Pmcc()->UpdateRollCall(); };
+    s.bind_text = [](void *p, void *text) { static_cast<PTBOX>(text)->SetScen(static_cast<PScene>(p)); };
+    s.text_select = [](void *, void *text, int selected) { static_cast<PTBOX>(text)->Select(selected != 0); };
+    s.text_lifetime = [](void *, void *text, ThreeMMI32 *first, ThreeMMI32 *last) -> int {
+        long a, b;
+        bool ok = static_cast<PTBOX>(text)->FGetLifetime(&a, &b);
+        if (ok)
+        {
+            *first = a;
+            *last = b;
+        }
+        return ok;
+    };
+    s.hide_text = [](void *, void *text) { static_cast<PTBOX>(text)->HideCore(); };
+    s.new_undo = [](void *, int text) -> void * {
+        return text ? static_cast<void *>(SceneUndoText::PsunxNew()) : static_cast<void *>(SceneActorUndo::PsunaNew());
+    };
+    s.actor_state = [](void *, void *u) { return static_cast<PSceneActorUndo>(u)->CoreState(); };
+    s.text_state = [](void *, void *u) { return static_cast<PSceneUndoText>(u)->CoreState(); };
+    s.commit_undo = [](void *p, void *u) -> int {
+        return static_cast<PScene>(p)->_pmvie->FAddUndo(static_cast<PMovieUndo>(u));
+    };
+    s.release_undo = [](void *, void *u) { static_cast<PMovieUndo>(u)->Release(); };
+    s.clear_undo = [](void *p) { static_cast<PScene>(p)->_pmvie->ClearUndo(); };
+    s.not_undoable = [](void *) { PushErc(ercSocNotUndoable); };
+    s.diagnostic = [](void *, int issue) {
+        switch (issue)
+        {
+        case THREE_MM_SCENE_CONTENT_ACTOR_MISSING:
+            Bug("Actor does not exist in scene");
+            break;
+        case THREE_MM_SCENE_CONTENT_ACTOR_ROLL_MISSING:
+            Bug("Actor does not exist in roll call");
+            break;
+        case THREE_MM_SCENE_CONTENT_TEXT_MISSING:
+            Bug("Could not find text box");
+            break;
+        case THREE_MM_SCENE_CONTENT_TEXT_ROLL_MISSING:
+            Bug("Text box not found in DynamicArray");
+            break;
+        case THREE_MM_SCENE_CONTENT_TEXT_HIDE_FAILED:
+            Bug("Could not hide text box");
+            break;
+        default:
+            Bug("Invalid scene content state");
+            break;
+        }
+    };
+    return s;
+}
+bool Scene::FAddActrCore(Actor *actor)
 {
     AssertThis(0);
-    AssertPo(pactr, 0);
-
-    PSEV qsev;
-    SceneEvent sev;
-    long isev;
-    long ipactr;
-    String stn;
-    PActor pactrOld;
-    bool fRetValue;
-
-    //
-    // Check if actor is in Scene already.
-    //
-    for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-    {
-        qsev = (PSEV)_pggsevStart->QvFixedGet(isev);
-
-        if (qsev->sevt != sevtAddActr)
-        {
-            continue;
-        }
-
-        _pggsevStart->Get(isev, (void *)&pactrOld);
-
-        if (pactrOld->Arid() != pactr->Arid())
-        {
-            continue;
-        }
-
-        //
-        // Replace actor in scene roll call
-        //
-        for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-        {
-            _pglpactr->Get(ipactr, &pactrOld);
-
-            if (pactrOld->Arid() == pactr->Arid())
-            {
-
-                pactr->AddRef();
-                pactr->SetPscen(this);
-
-                //
-                // Plop them into this frame
-                //
-                if (!pactr->FGotoFrame(_data.currentFrame))
-                {
-                    ReleasePpo(&pactr);
-                    return (fFalse);
-                }
-
-                //
-                // Replace starting actor
-                //
-                _pggsevStart->Put(isev, &pactr);
-                _pglpactr->Put(ipactr, &pactr);
-
-                SelectActr(pactr);
-                pactrOld->Hide();
-                ReleasePpo(&pactrOld);
-                InvalFrmRange();
-                _MarkMovieDirty();
-                UpdateSndFrame();
-                return (fTrue);
-            }
-        }
-
-        Bug("Cannot find actor in Roll call");
-    }
-
-    //
-    // Add actor to inital list of events to do.
-    //
-    sev.sevt = sevtAddActr;
-    fRetValue = _pggsevStart->FInsert(0, size(PActor), &pactr, &sev);
-
-    if (fRetValue)
-    {
-        pactr->AddRef();
-
-        pactr->Ptmpl()->GetName(&stn);
-        if (!_pmvie->FAddToRollCall(pactr, &stn))
-        {
-            _pggsevStart->Delete(0);
-            ReleasePpo(&pactr);
-            return (fFalse);
-        }
-
-        fRetValue = _FPlaySev(&sev, &pactr, _runtime.disabled);
-
-        if (!fRetValue)
-        {
-            _pmvie->RemFromRollCall(pactr);
-            _pggsevStart->Delete(0);
-            ReleasePpo(&pactr);
-        }
-        else
-        {
-            InvalFrmRange();
-            _MarkMovieDirty();
-            UpdateSndFrame();
-        }
-    }
-
-    return (fRetValue);
+    auto s = _ContentServices();
+    return three_mm_scene_actor_add(actor, &s) != 0;
 }
 
 /****************************************************
@@ -2243,29 +2207,11 @@ bool Scene::FAddActrCore(Actor *pactr)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FAddActr(Actor *pactr)
+bool Scene::FAddActr(Actor *actor)
 {
     AssertThis(0);
-    AssertPo(pactr, 0);
-
-    if (!FAddActrCore(pactr))
-    {
-        return (fFalse);
-    }
-
-    if (!pactr->FAddOnStageCore())
-    {
-        RemActrCore(pactr->Arid());
-        return (fFalse);
-    }
-
-    SelectActr(pactr);
-
-    //
-    // The MovieView creates the undo object for this because of the mouse
-    // placement.
-    //
-    return (fTrue);
+    auto s = _ContentServices();
+    return three_mm_scene_actor_add_onstage(actor, &s) != 0;
 }
 
 /****************************************************
@@ -2280,100 +2226,11 @@ bool Scene::FAddActr(Actor *pactr)
  *  None
  *
  ****************************************************/
-void Scene::RemActrCore(long arid)
+void Scene::RemActrCore(long id)
 {
     AssertThis(0);
-
-    PSEV qsev;
-    PActor pactrTmp;
-    long isev;
-
-    //
-    // Check if actor is in Scene already.
-    //
-    for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-    {
-        qsev = (PSEV)_pggsevStart->QvFixedGet(isev);
-
-        if (qsev->sevt != sevtAddActr)
-        {
-            continue;
-        }
-
-        _pggsevStart->Get(isev, &pactrTmp);
-        if (pactrTmp->Arid() != arid)
-        {
-            continue;
-        }
-
-        //
-        // Remove actor from inital list of events to do.
-        //
-        _pggsevStart->Delete(isev);
-
-        //
-        // Remove actor from the scene roll call
-        //
-        for (isev = 0; isev < _pglpactr->IvMac(); isev++)
-        {
-            _pglpactr->Get(isev, &pactrTmp);
-
-            if (pactrTmp->Arid() != arid)
-            {
-                continue;
-            }
-
-            _pglpactr->Delete(isev);
-
-            //
-            // Remove actor as the currently selected actor
-            //
-            if (_pactrSelected == pactrTmp)
-            {
-                PMovieView pmvu;
-
-                _pactrSelected = pvNil;
-                pmvu = (PMovieView)_pmvie->PddgGet(0);
-                if (pmvu != pvNil)
-                {
-                    pmvu->EndPlaceActor();
-                }
-            }
-
-            // Remove the actor from the multi-selection extras list as well.
-            if (_pglpactrSelExtra != pvNil)
-            {
-                for (long iactr = _pglpactrSelExtra->IvMac() - 1; iactr >= 0; iactr--)
-                {
-                    PActor pactrEntry;
-                    _pglpactrSelExtra->Get(iactr, &pactrEntry);
-                    if (pactrEntry != pvNil && pactrEntry->Arid() == arid)
-                    {
-                        _pglpactrSelExtra->Delete(iactr);
-                    }
-                }
-            }
-
-            //
-            // Remove actor from the movie roll call
-            //
-            _pmvie->RemFromRollCall(pactrTmp);
-
-            pactrTmp->Hide();
-
-            ReleasePpo(&pactrTmp);
-            _MarkMovieDirty();
-            UpdateSndFrame();
-
-            return;
-        }
-
-        Bug("Actor does not exist in roll call");
-        _MarkMovieDirty();
-        return;
-    }
-
-    Bug("Actor does not exist in scene");
+    auto s = _ContentServices();
+    three_mm_scene_actor_remove(id, &s);
 }
 
 /****************************************************
@@ -2389,51 +2246,11 @@ void Scene::RemActrCore(long arid)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FRemActr(long arid)
+bool Scene::FRemActr(long id)
 {
     AssertThis(0);
-    AssertIn(arid, 0, 500);
-
-    PSceneActorUndo psuna;
-    long ipactr;
-    PActor pactr;
-
-    //
-    // Find the actor for undo purposes
-    //
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        if (pactr->Arid() == arid)
-        {
-            break;
-        }
-    }
-
-    AssertPo(pactr, 0);
-    pactr->AddRef();
-
-    psuna = SceneActorUndo::PsunaNew();
-
-    if (psuna == pvNil)
-    {
-        ReleasePpo(&pactr);
-        return (fFalse);
-    }
-
-    psuna->SetActr(pactr);
-    psuna->SetType(utDel);
-
-    if (!_pmvie->FAddUndo(psuna))
-    {
-        return (fFalse);
-    }
-
-    ReleasePpo(&psuna);
-
-    RemActrCore(arid);
-
-    return (fTrue);
+    auto s = _ContentServices();
+    return three_mm_scene_actor_remove_undo(id, &s) != 0;
 }
 
 /****************************************************
@@ -2493,56 +2310,11 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FAddTboxCore(PTBOX ptbox)
+bool Scene::FAddTboxCore(PTBOX text)
 {
     AssertThis(0);
-    AssertPo(ptbox, 0);
-
-    SceneEvent sev;
-    bool fRetValue;
-
-#ifdef DEBUG
-
-    PSEV qsev;
-    long isev;
-
-    //
-    // Search for duplicate tbox
-    //
-    for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-    {
-        qsev = (PSEV)_pggsevStart->QvFixedGet(isev);
-        if ((qsev->sevt == sevtAddTbox) && (ptbox == (PTBOX)_pggsevStart->QvGet(isev)))
-        {
-            Bug("Error, adding same text box twice");
-            return (fTrue);
-        }
-    }
-#endif
-
-    //
-    // Add text box to event list.
-    //
-    sev.sevt = sevtAddTbox;
-    ptbox->SetScen(this);
-    fRetValue = _pggsevStart->FInsert(_pggsevStart->IvMac(), size(PTBOX), &ptbox, &sev);
-
-    if (fRetValue)
-    {
-        ptbox->AddRef();
-        fRetValue = _FPlaySev(&sev, &ptbox, _runtime.disabled);
-
-        if (!fRetValue)
-        {
-            _pggsevStart->Delete(_pggsevStart->IvMac() - 1);
-        }
-        else
-        {
-            _MarkMovieDirty();
-        }
-    }
-
-    return (fRetValue);
+    auto s = _ContentServices();
+    return three_mm_scene_text_add(text, &s) != 0;
 }
 
 /****************************************************
@@ -2558,53 +2330,11 @@ bool Scene::FAddTboxCore(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FAddTbox(PTBOX ptbox)
+bool Scene::FAddTbox(PTBOX text)
 {
-    PSceneUndoText psunx;
-    long itbox;
-    long nfrmFirst, nfrmLast;
-
-    psunx = SceneUndoText::PsunxNew();
-
-    if (psunx == pvNil)
-    {
-        return (fFalse);
-    }
-
-    if (!FAddTboxCore(ptbox))
-    {
-        ReleasePpo(&psunx);
-        return (fFalse);
-    }
-
-    ptbox->AddRef();
-    ptbox->FGetLifetime(&nfrmFirst, &nfrmLast);
-    psunx->SetTbox(ptbox); // transfers the reference count to the undo object
-    psunx->SetNfrmFirst(nfrmFirst);
-    psunx->SetNfrmLast((nfrmLast == _data.lastFrame) ? klwMax : nfrmLast);
-
-    for (itbox = 0; itbox < _pglptbox->IvMac(); itbox++)
-    {
-        if (ptbox == PtboxFromItbox(itbox))
-        {
-            psunx->SetItbox(itbox);
-            break;
-        }
-    }
-
-    AssertIn(itbox, 0, _pglptbox->IvMac());
-
-    psunx->SetAdd(fTrue);
-
-    if (!_pmvie->FAddUndo(psunx))
-    {
-        PushErc(ercSocNotUndoable);
-        ReleasePpo(&psunx);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunx);
-    return (fTrue);
+    AssertThis(0);
+    auto s = _ContentServices();
+    return three_mm_scene_text_add_undo(text, &s) != 0;
 }
 
 /****************************************************
@@ -2619,80 +2349,11 @@ bool Scene::FAddTbox(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FRemTboxCore(PTBOX ptbox)
+bool Scene::FRemTboxCore(PTBOX text)
 {
     AssertThis(0);
-    AssertPo(ptbox, 0);
-
-    PSEV qsev;
-    long isev;
-    long itbox;
-    long nfrmStart, nfrmLast;
-
-    //
-    // Check if currently selected tbox.
-    //
-    if (ptbox == _ptboxSelected)
-    {
-
-        _ptboxSelected = pvNil;
-        if (ptbox != pvNil)
-        {
-            ptbox->Select(fFalse);
-        }
-    }
-
-    //
-    // Find the text box
-    //
-    for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-    {
-        qsev = (PSEV)_pggsevStart->QvFixedGet(isev);
-
-        if ((qsev->sevt == sevtAddTbox) && ((*(PTBOX *)_pggsevStart->QvGet(isev)) == ptbox))
-        {
-
-            //
-            // Remove it.  Do not ReleasePpo() here as reference count
-            // gets transfered to callee.
-            //
-            _pggsevStart->Delete(isev);
-
-            //
-            // Find it in the _pglptbox
-            //
-            for (itbox = 0; itbox < _pglptbox->IvMac(); itbox++)
-            {
-                if (*(PTBOX *)_pglptbox->QvGet(itbox) == ptbox)
-                {
-
-                    if (_ptboxSelected == ptbox)
-                    {
-                        _ptboxSelected = pvNil;
-                    }
-
-                    _pglptbox->Delete(itbox);
-                    if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast))
-                    {
-                        //
-                        // This will guarantee that the tbox doesn't leave
-                        // any display on the rendering area.
-                        //
-                        AssertDo(ptbox->FGotoFrame(nfrmStart - 1), "Could not remove a text box");
-                    }
-                    ReleasePpo(&ptbox);
-                    _MarkMovieDirty();
-                    return (fTrue);
-                }
-            }
-
-            Bug("Text box not found in DynamicArray");
-            return (fFalse);
-        }
-    }
-
-    Bug("Error! Could not find text box for removal");
-    return (fFalse);
+    auto s = _ContentServices();
+    return three_mm_scene_text_remove(text, &s) != 0;
 }
 
 /****************************************************
@@ -2708,43 +2369,11 @@ bool Scene::FRemTboxCore(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FRemTbox(PTBOX ptbox)
+bool Scene::FRemTbox(PTBOX text)
 {
     AssertThis(0);
-    AssertPo(ptbox, 0);
-
-    PSceneUndoText psunx;
-    long nfrmFirst, nfrmLast;
-
-    psunx = SceneUndoText::PsunxNew();
-
-    if (psunx == pvNil)
-    {
-        return (fFalse);
-    }
-
-    ptbox->AddRef();
-    ptbox->FGetLifetime(&nfrmFirst, &nfrmLast);
-    psunx->SetTbox(ptbox); // transfers the reference count to the undo object
-    psunx->SetAdd(fFalse);
-    psunx->SetNfrmFirst(nfrmFirst);
-    psunx->SetNfrmLast((nfrmLast == _data.lastFrame) ? klwMax : nfrmLast);
-
-    if (!_pmvie->FAddUndo(psunx))
-    {
-        ReleasePpo(&psunx);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunx);
-
-    if (!FRemTboxCore(ptbox))
-    {
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    return (fTrue);
+    auto s = _ContentServices();
+    return three_mm_scene_text_remove_undo(text, &s) != 0;
 }
 
 /****************************************************
@@ -2758,32 +2387,11 @@ bool Scene::FRemTbox(PTBOX ptbox)
  *  Pointer to the text box if itbox is valid, else pvNil.
  *
  ****************************************************/
-TextBox *Scene::PtboxFromItbox(long itbox)
+TextBox *Scene::PtboxFromItbox(long i)
 {
     AssertThis(0);
-    Assert(itbox >= 0, "Bad index value");
-
-    long ipo;
-    PTBOX ptbox;
-
-    for (ipo = 0; ipo < _pglptbox->IvMac(); ipo++)
-    {
-
-        _pglptbox->Get(ipo, &ptbox);
-
-        itbox--;
-        if (itbox == -1)
-        {
-            break;
-        }
-    }
-
-    if (itbox != -1)
-    {
-        ptbox = pvNil;
-    }
-
-    return (ptbox);
+    auto s = _ContentServices();
+    return static_cast<PTBOX>(three_mm_scene_text_at(i, &s));
 }
 
 /****************************************************
@@ -3315,18 +2923,11 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
  *  None
  *
  ****************************************************/
-void Scene::RemActrsFromRollCall(bool fDelIfOnlyRef)
+void Scene::RemActrsFromRollCall(bool only)
 {
     AssertThis(0);
-
-    PActor pactr;
-    long ipactr;
-
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        Pmvie()->RemFromRollCall(pactr, fDelIfOnlyRef);
-    }
+    auto s = _ContentServices();
+    three_mm_scene_roll_remove(only, &s);
 }
 
 /****************************************************
@@ -3343,33 +2944,8 @@ void Scene::RemActrsFromRollCall(bool fDelIfOnlyRef)
 bool Scene::FAddActrsToRollCall(void)
 {
     AssertThis(0);
-
-    PActor pactr;
-    long ipactr;
-    String stn;
-
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-
-        _pglpactr->Get(ipactr, &pactr);
-        AssertPo(pactr, 0);
-        pactr->GetName(&stn);
-
-        if (!Pmvie()->FAddToRollCall(pactr, &stn))
-        {
-
-            for (; ipactr > 0;)
-            {
-                ipactr--;
-                _pglpactr->Get(ipactr, &pactr);
-                Pmvie()->RemFromRollCall(pactr);
-            }
-
-            return (fFalse);
-        }
-    }
-
-    return (fTrue);
+    auto s = _ContentServices();
+    return three_mm_scene_roll_add(&s) != 0;
 }
 
 /****************************************************
@@ -3543,39 +3119,11 @@ void Scene::MarkDirty(bool fDirty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FPasteActrCore(PActor pactr)
+bool Scene::FPasteActrCore(PActor actor)
 {
     AssertThis(0);
-    AssertPo(pactr, 0);
-
-    //
-    // Paste the actor.
-    //
-    if (!pactr->FPaste(_data.currentFrame, this))
-    {
-        return (fFalse);
-    }
-
-    //
-    // Add the actor
-    //
-    if (!FAddActrCore(pactr))
-    {
-        return (fFalse);
-    }
-
-    InvalFrmRange();
-    if (!pactr->FGotoFrame(_data.currentFrame))
-    {
-        RemActrCore(pactr->Arid());
-        return (fFalse);
-    }
-    _MarkMovieDirty();
-
-    _pmvie->Pmcc()->UpdateRollCall();
-    UpdateSndFrame();
-
-    return (fTrue);
+    auto s = _ContentServices();
+    return three_mm_scene_actor_paste(actor, &s) != 0;
 }
 
 /****************************************************
@@ -3730,12 +3278,11 @@ void Scene::_MarkMovieDirty()
  *  None.
  *
  ****************************************************/
-void Scene::SetMvie(PMovie pmvie)
+void Scene::SetMvie(PMovie movie)
 {
     AssertThis(0);
-    AssertPo(pmvie, 0);
-
-    _pmvie = pmvie;
+    auto s = _ContentServices();
+    three_mm_scene_content_bind_movie(movie, &s);
 }
 
 /****************************************************
@@ -3842,28 +3389,11 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
  *   pvNil if failure, else the actor.
  *
  ****************************************************/
-PActor Scene::PactrFromArid(long arid)
+PActor Scene::PactrFromArid(long id)
 {
     AssertThis(0);
-    Assert(arid != aridNil, "Bad long");
-
-    long iactr;
-    PActor pactr;
-
-    //
-    // Search current scene for the actor.
-    //
-    for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
-    {
-        _pglpactr->Get(iactr, &pactr);
-
-        if (pactr->Arid() == arid)
-        {
-            return (pactr);
-        }
-    }
-
-    return (pvNil);
+    auto s = _ContentServices();
+    return static_cast<PActor>(three_mm_scene_actor_find(id, &s));
 }
 
 /****************************************************
@@ -4566,10 +4096,39 @@ PSceneActorUndo SceneActorUndo::PsunaNew()
  * Destructor for scene actor undo objects
  *
  ****************************************************/
+static ThreeMMSceneContentServices SceneContentReleaseServices()
+{
+    ThreeMMSceneContentServices s = {};
+    s.events.owners.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    return s;
+}
+struct SceneContentUndoHost {PMovie movie;long scene,frame;};
+static ThreeMMSceneContentUndoServices SceneContentUndoServices(SceneContentUndoHost *h)
+{
+    ThreeMMSceneContentUndoServices s = {};
+    s.context = h;
+    s.frame = h->frame;
+    s.switch_scene = [](void *p) -> int {
+        auto h = static_cast<SceneContentUndoHost *>(p);
+        return h->movie->FSwitchScen(h->scene);
+    };
+    s.seek = [](void *p, ThreeMMI32 frame) -> int {
+        return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->FGotoFrm(frame);
+    };
+    s.duplicate = [](void *, void *p) -> void * {
+        PActor copy = nullptr;
+        return static_cast<PActor>(p)->FDup(&copy, true) ? copy : nullptr;
+    };
+    s.flush = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.clear = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->ClearUndo(); };
+    s.update_roll = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
+    return s;
+}
 SceneActorUndo::~SceneActorUndo(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_pactr);
+    auto s = SceneContentReleaseServices();
+    three_mm_scene_actor_undo_dispose(&_content, &s);
 }
 
 /****************************************************
@@ -4586,74 +4145,10 @@ SceneActorUndo::~SceneActorUndo(void)
 bool SceneActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    PActor pactr, pactrDup;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    if (_ut == utAdd)
-    {
-
-        if (!_pmvie->Pscen()->FAddActrCore(_pactr))
-        {
-            goto LFail;
-        }
-
-        _pmvie->Pscen()->SelectActr(_pactr);
-
-        if (!_pactr->FDup(&pactrDup, fTrue))
-        {
-            goto LFail;
-        }
-
-        pactrDup->SetArid(_pactr->Arid());
-        ReleasePpo(&_pactr);
-        SetActr(pactrDup);
-    }
-    else if (_ut == utDel)
-    {
-
-        _pmvie->Pscen()->RemActrCore(_pactr->Arid());
-    }
-    else
-    {
-        Assert(_ut == utRep, "Bad Grf");
-
-        pactr = _pmvie->Pscen()->PactrFromArid(_pactr->Arid());
-        if (!pactr->FDup(&pactrDup, fTrue))
-        {
-            goto LFail;
-        }
-
-        if (!_pmvie->Pscen()->FAddActrCore(_pactr))
-        {
-            goto LFail;
-        }
-
-        _pmvie->Pscen()->SelectActr(_pactr);
-
-        pactrDup->SetArid(_pactr->Arid());
-        ReleasePpo(&_pactr);
-        SetActr(pactrDup);
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->Pmcc()->UpdateRollCall();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = SceneContentUndoServices(&host);
+    s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
+    return three_mm_scene_actor_undo(&_content, 1, &s) != 0;
 }
 
 /****************************************************
@@ -4670,75 +4165,10 @@ LFail:
 bool SceneActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    PActor pactr, pactrDup;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    if (_ut == utAdd)
-    {
-
-        _pmvie->Pscen()->RemActrCore(_pactr->Arid());
-    }
-    else if (_ut == utDel)
-    {
-
-        if (!_pactr->FDup(&pactrDup, fTrue))
-        {
-            goto LFail;
-        }
-
-        pactrDup->SetArid(_pactr->Arid());
-
-        if (!_pmvie->Pscen()->FAddActrCore(pactrDup))
-        {
-            ReleasePpo(&pactrDup);
-            goto LFail;
-        }
-
-        _pmvie->Pscen()->SelectActr(pactrDup);
-
-        ReleasePpo(&pactrDup);
-    }
-    else
-    {
-        Assert(_ut == utRep, "Bad Grf");
-
-        pactr = _pmvie->Pscen()->PactrFromArid(_pactr->Arid());
-        if (!pactr->FDup(&pactrDup, fTrue))
-        {
-            goto LFail;
-        }
-
-        if (!_pmvie->Pscen()->FAddActrCore(_pactr))
-        {
-            goto LFail;
-        }
-
-        _pmvie->Pscen()->SelectActr(_pactr);
-
-        pactrDup->SetArid(_pactr->Arid());
-        ReleasePpo(&_pactr);
-        SetActr(pactrDup);
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->Pmcc()->UpdateRollCall();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = SceneContentUndoServices(&host);
+    s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
+    return three_mm_scene_actor_undo(&_content, 0, &s) != 0;
 }
 
 #ifdef DEBUG
@@ -4756,7 +4186,7 @@ void SceneActorUndo::MarkMem(void)
 {
     AssertThis(0);
     SceneActorUndo_PAR::MarkMem();
-    MarkMemObj(_pactr);
+    MarkMemObj(static_cast<PActor>(_content.actor));
 }
 
 /***************************************************************************
@@ -4764,7 +4194,7 @@ void SceneActorUndo::MarkMem(void)
 ***************************************************************************/
 void SceneActorUndo::AssertValid(LegacyUlong grf)
 {
-    AssertPo(_pactr, 0);
+    AssertPo(static_cast<PActor>(_content.actor), 0);
 }
 #endif
 
@@ -4795,7 +4225,8 @@ PSceneUndoText SceneUndoText::PsunxNew()
 SceneUndoText::~SceneUndoText(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_ptbox);
+    auto s = SceneContentReleaseServices();
+    three_mm_scene_text_undo_dispose(&_content, &s);
 }
 
 /****************************************************
@@ -4812,82 +4243,10 @@ SceneUndoText::~SceneUndoText(void)
 bool SceneUndoText::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    PTBOX ptbox;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (_fAdd)
-    {
-
-        if (!_pmvie->Pscen()->FGotoFrm(_nfrmFirst))
-        {
-            goto LFail;
-        }
-
-        if (!_pmvie->Pscen()->FAddTboxCore(_ptbox))
-        {
-            _pmvie->Pscen()->FGotoFrm(_nfrm);
-            goto LFail;
-        }
-
-        if (_nfrmLast < _pmvie->Pscen()->NfrmLast())
-        {
-            AssertDo(_ptbox->FGotoFrame(_nfrmLast + 1), "Should never fail");
-            _ptbox->HideCore();
-        }
-
-        _pmvie->Pscen()->SelectTbox(_ptbox);
-
-        if (_pmvie->Pscen()->FGotoFrm(_nfrm))
-        {
-
-            //
-            // Find the new itbox for this tbox.
-            //
-            for (_itbox = 0;; _itbox++)
-            {
-
-                ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-                AssertPo(ptbox, 0);
-
-                if (ptbox == _ptbox)
-                {
-                    break;
-                }
-            }
-        }
-    }
-    else
-    {
-
-        if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-        {
-            goto LFail;
-        }
-
-        //
-        // NOTE: ptbox may be different than _ptbox since
-        // we may have switched away from the scene.
-        //
-        ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-        if (!_pmvie->Pscen()->FRemTboxCore(ptbox))
-        {
-            goto LFail;
-        }
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = SceneContentUndoServices(&host);
+    s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
+    return three_mm_scene_text_undo(&_content, 1, &s) != 0;
 }
 
 /****************************************************
@@ -4904,81 +4263,10 @@ LFail:
 bool SceneUndoText::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    PTBOX ptbox;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (_fAdd)
-    {
-
-        if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-        {
-            goto LFail;
-        }
-
-        //
-        // NOTE: ptbox may be different than _ptbox since
-        // we may have switched away from the scene.
-        //
-        ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-        if (!_pmvie->Pscen()->FRemTboxCore(ptbox))
-        {
-            ReleasePpo(&ptbox);
-            goto LFail;
-        }
-    }
-    else
-    {
-
-        if (!_pmvie->Pscen()->FGotoFrm(_nfrmFirst))
-        {
-            goto LFail;
-        }
-
-        if (!_pmvie->Pscen()->FAddTboxCore(_ptbox))
-        {
-            goto LFail;
-        }
-
-        if (_nfrmLast < _pmvie->Pscen()->NfrmLast())
-        {
-            AssertDo(_ptbox->FGotoFrame(_nfrmLast + 1), "Should never fail");
-            _ptbox->HideCore();
-        }
-        _pmvie->Pscen()->SelectTbox(_ptbox);
-
-        if (_pmvie->Pscen()->FGotoFrm(_nfrm))
-        {
-
-            //
-            // Find the new itbox for this tbox.
-            //
-            for (_itbox = 0;; _itbox++)
-            {
-
-                ptbox = _pmvie->Pscen()->PtboxFromItbox(_itbox);
-                AssertPo(ptbox, 0);
-
-                if (ptbox == _ptbox)
-                {
-                    break;
-                }
-            }
-        }
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    SceneContentUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = SceneContentUndoServices(&host);
+    s.scene = [](void *p) { return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->_ContentServices(); };
+    return three_mm_scene_text_undo(&_content, 0, &s) != 0;
 }
 #ifdef DEBUG
 /****************************************************
@@ -4995,7 +4283,7 @@ void SceneUndoText::MarkMem(void)
 {
     AssertThis(0);
     SceneUndoText_PAR::MarkMem();
-    MarkMemObj(_ptbox);
+    MarkMemObj(static_cast<PTBOX>(_content.text));
 }
 
 /***************************************************************************
@@ -5003,7 +4291,7 @@ void SceneUndoText::MarkMem(void)
 ***************************************************************************/
 void SceneUndoText::AssertValid(LegacyUlong grf)
 {
-    AssertPo(_ptbox, 0);
+    AssertPo(static_cast<PTBOX>(_content.text), 0);
 }
 #endif
 

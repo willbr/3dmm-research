@@ -935,6 +935,53 @@ undo destruction. Host/retail evidence and limits are in
 Movie operations, background resource policy, thumbnail generation and final
 C-only integration remain conversion work.
 
+### Scene actor and caption editing/undo
+
+`scene_content.c` owns Scene-level actor/caption add/remove, actor on-stage/paste
+transactions, actor lookup, caption indexing, bulk Movie roll-call traversal,
+movie rebinding and persistent actor/caption undo ownership/control. Start groups
+own object references; actor/caption and selection lists borrow them. Typed
+adapters supply group primitives, actor/caption internals, generic selection/UI
+effects and common MovieUndo navigation/list/object lifetime. New start events
+write zero to their unused frame field.
+
+Actor replacement retains/binds/seeks before publishing both pointers, selects
+before hiding/releasing the old actor, then invalidates range, dirties and updates
+the sound indicator. New actors insert before retaining/registering/dispatching;
+failures retain earlier actor ID/binding changes while removing new group/list/
+roll-call references. An actor whose body allocation failed now rejects before
+commit. Removal clears primary placement and matching selection extras before
+Movie roll-call removal, hide and release. Replacement also removes old-ID extras
+so headless selection cannot retain stale actor pointers. Bulk registration rolls
+back its completed prefix in reverse order using actor names; a new actor uses
+its template name. Paste retains the extra range/seek/update ordering.
+
+Caption binding precedes insertion. Failed caption dispatch now releases its new
+reference. Removal clears selection before searching, erases the owning/borrowed
+entries and seeks before the lifetime start to remove display remnants. Public
+add/remove retain their different commit-failure behavior; a successful edit is
+not rolled back merely because adding its undo record fails. Invalid lifetime or
+missing-object paths now fail with bounded cleanup. Caption lookup is bounded;
+undo rebinds by index after scene changes and keeps the legacy asymmetric seek
+restoration and nonfatal final seek after adding a caption.
+
+Actor undo add records the ID assigned by roll-call insertion; replacement swaps
+an independently duplicated current actor and releases it if installation fails.
+Actor remove commit failure now releases its undo record. Caption undo no longer
+releases a borrowed index lookup on failed removal. Owned undo payloads release
+before publishing NULL; failure flushes before clear and touches no state after
+clear, which may destroy the object. Movie rebinding updates the authoritative C
+owner before publishing native views, fixing the previous stale-owner reversion.
+
+Native traces cover prepared real actor bodies/templates, replacement and add
+undo cycles, real hidden captions, reference counts and container fault settings.
+Native supplemental checks cover failed body allocation, failed caption playback,
+stale selection extras and movie rebinding outside the frozen trace. C-only
+fault/ownership tests cover the remaining protocol branches, including caption
+undo navigation and identity rebinding. Full gates and retail limits are recorded
+in `docs/tools/playback-regression.md`. Native selection, actor/caption internals,
+chop/editing, other Scene/Movie operations and final C-only integration remain.
+
 ### Actor header, route and event persistence
 
 `actor_data.c` replaces the actor persistence policy formerly in native ActorData.

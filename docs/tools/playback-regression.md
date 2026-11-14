@@ -7283,3 +7283,119 @@ Evidence: `tmp/c89-scene-edit-before*.bin`, `tmp/c89-scene-edit-after.bin`,
 `tmp/c89-scene-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
 `tmp/c89-scene-edit-capture-hashes-*.json` and four
 `tmp/c89-scene-edit-capture-*.log` files.
+
+### Scene actor/caption editing C89 closeout (14 November 2026)
+
+Baseline: `ff121dcd`, with the private caption undo declaration extracted to
+`inc/scene_content_undo.h` before recording. `scene_content.c` now owns Scene-level
+actor/caption add/remove, actor on-stage/paste control, actor/caption lookup,
+bulk roll-call traversal, movie rebinding and persistent actor/caption undo
+ownership/control. Generic selection/UI, actor/caption internals, typed group
+operations and common MovieUndo navigation/list/object lifetime remain adapters.
+Scene selection, chop/other editing, other Movie operations and final C-only
+integration remain conversion work.
+
+The native fixture uses a minimal in-memory template/action reader, real native
+body construction, resource-cache references and real background/camera/RGB/depth
+resources. It freezes actor add/replacement/removal, replacement/add undo cycles,
+real hidden-caption core/public add/remove and 48 actor-container allocation
+settings (three fault families, 16 settings). Bodies bind before container fault
+injection. The first unprepared-actor experiment exposed a native null-body crash
+on later removal; that failure is covered separately below. Container allocation
+can retry a failed speculative allocation, so injected diagnostics do not imply
+a changed transaction outcome. Native caption undo navigation and visible caption
+views are not frozen by this fixture; C-only protocol tests and existing host/
+playback gates provide that coverage.
+
+Initialized Scene metadata, object IDs/reference counts, start/list membership,
+selection presence, caption lifetimes, cache reference counts and client effects
+are recorded. Unused start-event frames, padding and pointer values are excluded.
+Original native/repeat/final, original/final SDL release and final SDL debug
+traces all match 5,020 bytes, FNV-1a `2F3EEF19`, SHA-256
+`C6D1B2EB7DE593E0BF638272E5B6ADCDA26013CDA9C2C0B4CB18F7471FB9012D`.
+Release omits allocation injection. Guards apply only to the captured
+little-endian x64, one-byte-text layout; other layouts still run the checks.
+
+Replacement retains/binds/seeks before publishing both actor pointers, then
+selects before hiding/releasing the old actor. New actors insert before retaining,
+registering and dispatching. Binding/ID changes and completed prefixes survive
+later failure. Redo-add records the ID assigned during roll-call insertion.
+Actor paste and bulk roll-call registration preserve their extra range/seek/client
+ordering and reverse-prefix rollback. Caption binding precedes insertion; removal
+clears selection before lookup, removes entries and seeks before lifetime start
+before releasing the group reference. Start events now write zero to their unused
+frame. Caption undo rebinds by index after scene changes, preserves asymmetric
+redo/undo seek restoration and keeps a failed final seek after add nonfatal.
+
+Failure corrections are separate from the frozen trace: failed caption dispatch
+releases its newly retained reference; failed actor undo commit releases its undo
+record; failed actor replacement frees its temporary duplicate. Caption undo no
+longer releases a borrowed index result on failed removal. Missing lookups and
+invalid lifetimes fail with bounded cleanup instead of uninitialized/unbounded
+access. Orphaned start references close if the matching list entry is missing.
+An actor whose body allocation failed now rejects before commit, avoiding the
+later null-body removal crash. Actor replacement removes stale old-ID selection
+extras before releasing the old actor, including with no view. Movie rebinding
+updates the C owner before publication, preventing a later owner publish from
+restoring the old Movie pointer. Native supplemental checks verify body-allocation
+failure, failed caption playback reference balance, headless selection extras and
+movie rebinding outside the frozen trace.
+
+C-only tests cover container/registration/seek/body readiness failures, ownership
+transfer, replacement selection/hide/release order, extra-selection cleanup,
+on-stage rollback, paste, roll-call prefix rollback, caption lifetime/commit
+failures, bounded indexing, assigned actor IDs, replacement duplicate cleanup,
+caption identity rebinding and both undo directions/navigation asymmetries. Undo
+payloads release before publishing NULL; failure flushes before clear, which may
+destroy the record, and no state is accessed afterward. The fixture passes Clang
+strict C89 with warnings as errors and MSVC AddressSanitizer.
+
+All 94 standalone C checks (including C89 syntax), 130 selected native, 26 SDL
+debug and 38 SDL release checks pass. Native/SDL suites and final traces ran
+serially. Both hosts and `core-checks` build; directly invoked native test
+executables and save/load targets outside `core-checks` were explicitly rebuilt.
+Concurrent SDL resource compilation failed on file creation; the final SDL
+resource builds ran serially and passed. All 51 freshly linked CLI baselines
+match. Marcus was stopped before rebuilding and relaunched afterward. No Marcus
+UI tests were added.
+
+The final binaries stayed fixed through all 21 fresh-process captures (one
+repeat, no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `589F5C0679D8D94B0979D4C7BACFD6B1469951C6D37A8A84CB12F9D06CE74FCA`.
+- Marcus regression: `4F33C7901B2E33B98B2110E8BAA12D57D4EF86784755B0D6949C2F8B6D7584CD`.
+
+| Final suite | Case | Completion |
+| --- | --- | --- |
+| `20261114T122500Z-e64c5843` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T122619Z-f0793164` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T123021Z-a339a009` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T123145Z-037e0ed2` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+Movie identity and suite integrity pass. All authored frame sequences and all
+540 seek images match each player's preceding Scene-editing capture:
+`20261114T114014Z-dde4b028` (actor-events), `20261114T114132Z-8342b37b`
+(scrolling-text), `20261114T114440Z-2b342fd0` (actor-audio) and
+`20261114T114554Z-a7e99894` (sampled-audio). Playback comparison collapses only
+adjacent identical scene/frame/image samples. SDL and Marcus ordered image
+changes match for every case. Retail actor-events and both audio cases match.
+Retail scrolling playback differs: run 1493 contains 326 changes versus run
+1472's 328, with exactly two intermediate images at scene 0/frame 3 omitted.
+The new sequence is an ordered subsequence of the old, with no added image;
+retail's executable is unchanged. This capture-sampling difference is retained
+explicitly in the report, not counted as an exact playback-image match.
+
+Actor-audio PCM16 peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass in all three players. These checks do not prove
+full PCM/MIDI or retail timing parity. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. Captures use a shared warm SDL
+package cache with private processes, settings and working movies; OS caching
+is uncontrolled.
+
+Evidence: `tmp/c89-scene-content-{strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-scene-content-final-{native,sdl-debug,sdl-release}.bin`,
+`tmp/c89-scene-content-output-comparison.json`,
+`tmp/c89-scene-content-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-scene-content-capture-hashes-{before,after}.json` and
+`tmp/c89-scene-content-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
