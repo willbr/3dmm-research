@@ -7399,3 +7399,92 @@ Evidence: `tmp/c89-scene-content-{strict,asan,standalone,native-tests,sdl-debug-
 `tmp/c89-scene-content-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-scene-content-capture-hashes-{before,after}.json` and
 `tmp/c89-scene-content-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+### Scene selection C89 closeout (14 November 2026)
+
+Baseline: `dc7591dc`. `scene_selection.c` now owns borrowed primary actor/caption
+selection state and plain select/clear, count/index/membership, toggle/promotion,
+select-all, tag/shared-tag selection and visible centroid control. Native primary
+fields are published typed views; content editing reads/writes the same C state.
+Container access/allocation, counted display names, body/view queries, highlights,
+caption display effects and Movie menu/client callbacks remain typed services.
+
+The Scene-content native fixture was extended before extraction with three real
+actors and named tags. It records primary promotion, extra removal, clear,
+select-all, tag/shared-tag queries, missing tags, null caption selection,
+membership/count/index and centroid results in a headless Movie. It also retains
+the preceding actor/caption editing, undo, ownership and container-fault checks.
+The original and repeated native traces match 5,552 bytes, FNV-1a `3D1499BA`,
+SHA-256 `CFA6C7EA4588A99F454A4DB0CBC691BB793D8B3E4FFBC40554F51F4AF633797F`.
+The fixture checks that typed primary views and public C-backed getters agree.
+Native view-dependent highlight/caption selection is not frozen by this headless
+fixture; C-only effect-order tests and the existing host/playback gates cover it.
+The fingerprint guard retains the little-endian x64, one-byte-text restriction.
+
+Plain actor selection clears extra selections and caption effects only in an
+actor-mode view. No-view/text-mode calls preserve extras; membership can still
+find an extra while a null primary makes the selected count zero. Toggling
+searches extras before installing a missing primary. Removing the primary
+promotes the first extra without another highlight. Caption selection preserves
+the actor pointer and invalidate/menu/clear ordering; its already-selected/null
+early return skips caption publication and client notification. New allocation
+and append failures preserve completed prefixes and an allocated empty list.
+
+Tag selection retains ASCII folding and whole-token suffix boundaries, counted
+byte/UTF-16 query units, acceptance of punctuation/non-ASCII query units and the
+native 63-unit shared-seed truncation. Null actors are skipped by tag traversal.
+Centroids skip null/missing-body/offscreen objects, use selection-order wrapped
+16.16 addition/division and leave outputs untouched with no visible selection.
+Invalid C selection indices now return null; native debug range checks remain.
+There are no new Marcus UI tests. Scene chop/editing/undo, actor/caption internals,
+other Scene/Movie operations and final C-only integration remain conversion work.
+
+The final native, SDL debug and SDL release traces match the original/repeat
+trace above byte for byte. All 95 standalone C checks (including C89 syntax),
+131 selected native, 27 SDL debug and 39 SDL release checks pass. Final builds
+and suites ran serially; `core-checks`, directly invoked native test/save-load
+executables, both hosts and the CLI tools were rebuilt. Marcus was stopped
+before rebuilding and relaunched afterward. Clang strict C89 compilation with
+warnings as errors and MSVC AddressSanitizer pass the selection fixture. All 51
+freshly linked CLI baselines match.
+
+The final binaries stayed fixed through all 21 fresh-process captures (one
+repeat, no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `CC4F22D81E288761E62385251AA097203607DCF863B6D188F684EC651F81E0C7`.
+- Marcus regression: `13B41D8B78FD31DF3B73B8328CE13C18F3DF4F90F4FDA27ACFFA9B5621AFD01E`.
+
+| Final suite | Case | Completion |
+| --- | --- | --- |
+| `20261114T125156Z-4fc55e94` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T125314Z-50c18722` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T125628Z-eb8ae07a` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T125804Z-dea50439` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+Movie identity and suite integrity pass. All authored frame sequences and all
+540 seek images match each player's preceding Scene-content capture:
+`20261114T122500Z-e64c5843` (actor-events), `20261114T122619Z-f0793164`
+(scrolling-text), `20261114T123021Z-a339a009` (actor-audio) and
+`20261114T123145Z-037e0ed2` (sampled-audio). Playback comparison collapses only
+adjacent identical scene/frame/image samples. All SDL/Marcus playback sequences
+match. Retail actor-events and both audio cases match. Retail scrolling run 1514
+contains 328 changes versus run 1493's 326: it includes exactly the two images at
+scene 0/frame 3 omitted in the preceding capture. Run 1493 is an ordered
+subsequence of 1514, and 1514 matches earlier retail run 1472 exactly. This
+sampling difference in the unchanged retail player remains explicit in the
+report; it is not counted as an exact match against run 1493.
+
+Actor-audio PCM16 peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass for every player. These checks do not prove full
+PCM/MIDI or retail timing parity. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. Captures use a shared warm SDL
+package cache with private processes, settings and working movies; OS caching
+is uncontrolled.
+
+Evidence: `tmp/c89-selection-{strict-build,strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-selection-{native,native-repeat,final-native,final-sdl-debug,final-sdl-release}.bin`,
+`tmp/c89-selection-output-comparison.json`,
+`tmp/c89-selection-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-selection-capture-hashes-{before,after}.json` and
+`tmp/c89-selection-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.

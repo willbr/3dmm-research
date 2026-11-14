@@ -1512,53 +1512,87 @@ bool Scene::_FAddSev(PSEV psev, long cbVar, void *pvVar)
  *	None
  *
  ****************************************************/
+ThreeMMSceneSelectionServices Scene::_SelectionServices()
+{
+    ThreeMMSceneSelectionServices s = {};
+    s.context = this;
+    s.state = &_selection;
+    s.publish = [](void *p, int text, void *object) {
+        auto scene = static_cast<Scene *>(p);
+        if (text)
+            scene->_ptboxSelected = static_cast<PTBOX>(object);
+        else
+            scene->_pactrSelected = static_cast<PActor>(object);
+    };
+    s.view_mode = [](void *p) {
+        auto view = static_cast<PMovieView>(static_cast<Scene *>(p)->Pmvie()->PddgGet(0));
+        return view ? int(view->FTextMode()) : -1;
+    };
+    s.count = [](void *p, int extras) -> ThreeMMI32 {
+        auto scene = static_cast<Scene *>(p);
+        auto list = extras ? scene->_pglpactrSelExtra : scene->_pglpactr;
+        return list ? list->IvMac() : 0;
+    };
+    s.at = [](void *p, int extras, ThreeMMI32 index) -> void * {
+        auto scene = static_cast<Scene *>(p);
+        PActor actor;
+        (extras ? scene->_pglpactrSelExtra : scene->_pglpactr)->Get(index, &actor);
+        return actor;
+    };
+    s.ensure_extras = [](void *p) {
+        auto scene = static_cast<Scene *>(p);
+        if (!scene->_pglpactrSelExtra)
+            scene->_SetOwner(THREE_MM_SCENE_SELECTION, DynamicArray::PglNew(sizeof(PActor)));
+        return int(scene->_pglpactrSelExtra != nullptr);
+    };
+    s.append_extra = [](void *p, void *object) {
+        auto actor = static_cast<PActor>(object);
+        return int(static_cast<Scene *>(p)->_pglpactrSelExtra->FAdd(&actor));
+    };
+    s.erase_extra = [](void *p, ThreeMMI32 index) { static_cast<Scene *>(p)->_pglpactrSelExtra->Delete(index); };
+    s.clear_extras = [](void *p) {
+        auto list = static_cast<Scene *>(p)->_pglpactrSelExtra;
+        if (list)
+            list->FSetIvMac(0);
+    };
+    s.hilite = [](void *, void *object, int selected) {
+        if (selected)
+            static_cast<PActor>(object)->Hilite();
+        else
+            static_cast<PActor>(object)->Unhilite();
+    };
+    s.text_selected = [](void *, void *object) { return int(static_cast<PTBOX>(object)->FSelected()); };
+    s.select_text = [](void *, void *object, int selected) { static_cast<PTBOX>(object)->Select(selected != 0); };
+    s.invalidate = [](void *p) { static_cast<Scene *>(p)->_pmvie->InvalViews(); };
+    s.action_menu = [](void *p) { static_cast<Scene *>(p)->_pmvie->BuildActionMenu(); };
+    s.text_notice = [](void *p) { static_cast<Scene *>(p)->_pmvie->Pmcc()->TboxSelected(); };
+    s.name = [](void *, void *object, unsigned short *out) -> ThreeMMI32 {
+        static_assert(kcchMaxStn <= 256, "Selection name buffer");
+        String name;
+        static_cast<PActor>(object)->GetName(&name);
+        for (long i = 0; i < name.Cch(); ++i)
+            out[i] = sizeof(achar) == 1 ? static_cast<unsigned char>(name.Prgch()[i])
+                                        : static_cast<unsigned short>(name.Prgch()[i]);
+        return name.Cch();
+    };
+    s.visible_position = [](void *, void *object, ThreeMMActorPoint *out) {
+        auto actor = static_cast<PActor>(object);
+        if (!actor->Pbody() || !actor->FIsInView())
+            return 0;
+        BRS x, y, z;
+        actor->Pbody()->GetPosition(&x, &y, &z);
+        *out = {x, y, z};
+        return 1;
+    };
+    return s;
+}
+
 void Scene::SelectActr(Actor *pactr)
 {
     AssertThis(0);
     AssertNilOrPo(pactr, 0);
-
-    PMovieView pmvu;
-
-    pmvu = (PMovieView)Pmvie()->PddgGet(0);
-    AssertNilOrPo(pmvu, 0);
-
-    if ((pmvu != pvNil) && !pmvu->FTextMode())
-    {
-        if (pvNil != _pactrSelected)
-        {
-            _pactrSelected->Unhilite();
-        }
-
-        // Clear any extras and unhilite each.
-        if (pvNil != _pglpactrSelExtra)
-        {
-            for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
-            {
-                PActor pactrExtra;
-                _pglpactrSelExtra->Get(iactr, &pactrExtra);
-                if (pvNil != pactrExtra)
-                {
-                    pactrExtra->Unhilite();
-                }
-            }
-            _pglpactrSelExtra->FSetIvMac(0); // Empty the list but keep the storage.
-        }
-
-        if (pvNil != pactr)
-        {
-            pactr->Hilite();
-        }
-
-        if (_ptboxSelected != pvNil)
-        {
-            _ptboxSelected->Select(fFalse);
-        }
-    }
-
-    _pmvie->InvalViews();
-    _pactrSelected = pactr;
-
-    _pmvie->BuildActionMenu();
+    auto s = _SelectionServices();
+    three_mm_scene_select_actor(pactr, &s);
 }
 
 /****************************************************
@@ -1585,119 +1619,8 @@ void Scene::ClearSelection(void)
 bool Scene::FSelectAllActrs(void)
 {
     AssertThis(0);
-
-    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
-    long iactr;
-    PActor pactr;
-
-    if (cactr == 0)
-    {
-        // No actors: drop any existing selection (primary, extras, tbox).
-        ClearSelection();
-        return fTrue;
-    }
-
-    // Make the first actor primary; SelectActr drops extras and tbox sel.
-    _pglpactr->Get(0, &pactr);
-    SelectActr(pactr);
-
-    // Add the rest as extras. After SelectActr only the primary is selected,
-    // so each toggle here is an add (not a remove).
-    for (iactr = 1; iactr < cactr; iactr++)
-    {
-        _pglpactr->Get(iactr, &pactr);
-        if (!FToggleActrSelected(pactr))
-        {
-            return fFalse;
-        }
-    }
-    return fTrue;
-}
-
-/****************************************************
- *
- * Tag-name helpers (file-local).
- *
- * A tag is a '#' immediately followed by one or more characters in the set
- * [A-Za-z0-9_], terminated by whitespace, end-of-string, or another '#'.
- * Parsing is ASCII-only and case-insensitive.
- *
- ****************************************************/
-static bool _FIsTagChar(achar ch)
-{
-    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
-           (ch >= '0' && ch <= '9') || ch == '_';
-}
-
-static achar _ChLower(achar ch)
-{
-    return (ch >= 'A' && ch <= 'Z') ? (achar)(ch + ('a' - 'A')) : ch;
-}
-
-// Returns fTrue iff the substring at `prgch[ich+1..]` matches `pszTag`
-// case-insensitively as a whole tag token (i.e., terminated by end-of-
-// range or a non-tag char). `ich` points at the '#'.
-static bool _FTagAt(achar *prgch, long cch, long ich, PZString pszTag, long cchTag)
-{
-    long jch;
-    if (ich + 1 + cchTag > cch)
-        return fFalse;
-    for (jch = 0; jch < cchTag; jch++)
-    {
-        if (_ChLower(prgch[ich + 1 + jch]) != _ChLower(pszTag[jch]))
-            return fFalse;
-    }
-    long ichAfter = ich + 1 + cchTag;
-    if (ichAfter < cch && _FIsTagChar(prgch[ichAfter]))
-        return fFalse; // longer tag, not a match
-    return fTrue;
-}
-
-static bool _FNameContainsTag(PString pstn, PZString pszTag)
-{
-    long cch = pstn->Cch();
-    achar *prgch = pstn->Prgch();
-    long cchTag = CchSz(pszTag);
-    if (cchTag == 0)
-        return fFalse;
-    for (long ich = 0; ich < cch; ich++)
-    {
-        if (prgch[ich] == '#' && _FTagAt(prgch, cch, ich, pszTag, cchTag))
-            return fTrue;
-    }
-    return fFalse;
-}
-
-// Returns fTrue iff pstnA and pstnB have at least one tag token in common
-// (case-insensitive). Tag = '#' followed by [A-Za-z0-9_]+, terminated by
-// whitespace / EOS / another '#'.
-static bool _FNamesShareAnyTag(PString pstnA, PString pstnB)
-{
-    achar *prgchA = pstnA->Prgch();
-    long cchA = pstnA->Cch();
-
-    for (long ich = 0; ich < cchA; ich++)
-    {
-        if (prgchA[ich] != '#')
-            continue;
-        // Walk the run of tag chars after '#'.
-        long jch = ich + 1;
-        while (jch < cchA && _FIsTagChar(prgchA[jch]))
-            jch++;
-        long cchTag = jch - ich - 1;
-        if (cchTag == 0)
-            continue;
-        // Build a zero-terminated copy of the tag for _FNameContainsTag.
-        achar rgch[64];
-        if (cchTag > 63)
-            cchTag = 63;
-        for (long k = 0; k < cchTag; k++)
-            rgch[k] = prgchA[ich + 1 + k];
-        rgch[cchTag] = (achar)0;
-        if (_FNameContainsTag(pstnB, rgch))
-            return fTrue;
-    }
-    return fFalse;
+    auto s = _SelectionServices();
+    return three_mm_scene_selection_all(&s) != 0;
 }
 
 /****************************************************
@@ -1710,40 +1633,8 @@ bool Scene::FSelectActrsSharingTagsWith(PActor pactrSeed)
 {
     AssertThis(0);
     AssertPo(pactrSeed, 0);
-
-    String stnSeed;
-    pactrSeed->GetName(&stnSeed);
-
-    // Quick scan: does the seed have any tags at all?
-    achar *prgch = stnSeed.Prgch();
-    long cch = stnSeed.Cch();
-    bool fHasTag = fFalse;
-    for (long ich = 0; ich < cch && !fHasTag; ich++)
-    {
-        if (prgch[ich] == '#' && ich + 1 < cch && _FIsTagChar(prgch[ich + 1]))
-            fHasTag = fTrue;
-    }
-
-    SelectActr(pactrSeed);
-    if (!fHasTag)
-        return fTrue;
-
-    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
-    String stnOther;
-    for (long iactr = 0; iactr < cactr; iactr++)
-    {
-        PActor pactr;
-        _pglpactr->Get(iactr, &pactr);
-        if (pactr == pvNil || pactr == pactrSeed)
-            continue;
-        pactr->GetName(&stnOther);
-        if (_FNamesShareAnyTag(&stnSeed, &stnOther))
-        {
-            if (!FToggleActrSelected(pactr))
-                return fFalse;
-        }
-    }
-    return fTrue;
+    auto s = _SelectionServices();
+    return three_mm_scene_selection_shared(pactrSeed, &s) != 0;
 }
 
 /****************************************************
@@ -1755,33 +1646,8 @@ bool Scene::FSelectActrsSharingTagsWith(PActor pactrSeed)
 bool Scene::FSelectActrsByTag(PZString pszTag)
 {
     AssertThis(0);
-
-    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
-    PActor pactr;
-    String stnName;
-    bool fAny = fFalse;
-
-    ClearSelection();
-
-    for (long iactr = 0; iactr < cactr; iactr++)
-    {
-        _pglpactr->Get(iactr, &pactr);
-        if (pactr == pvNil)
-            continue;
-        pactr->GetName(&stnName);
-        if (!_FNameContainsTag(&stnName, pszTag))
-            continue;
-        if (!fAny)
-        {
-            SelectActr(pactr);
-            fAny = fTrue;
-        }
-        else if (!FToggleActrSelected(pactr))
-        {
-            return fFalse;
-        }
-    }
-    return fTrue;
+    auto s = _SelectionServices();
+    return three_mm_scene_selection_tag(pszTag, CchSz(pszTag), sizeof(achar) == 2, &s) != 0;
 }
 
 /****************************************************
@@ -1802,35 +1668,13 @@ bool Scene::FXyzSelectionCentroid(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pxr);
     AssertVarMem(pyr);
     AssertVarMem(pzr);
-
-    long cactrSel = CactrSelected();
-    long cactrLive = 0;
-    BRS xrSum = rZero, yrSum = rZero, zrSum = rZero;
-
-    for (long iactr = 0; iactr < cactrSel; iactr++)
-    {
-        PActor pactr = PactrSelectedAt(iactr);
-        if (pactr == pvNil || pactr->Pbody() == pvNil || !pactr->FIsInView())
-        {
-            continue;
-        }
-        BRS xr, yr, zr;
-        pactr->Pbody()->GetPosition(&xr, &yr, &zr);
-        xrSum = BrsAdd(xrSum, xr);
-        yrSum = BrsAdd(yrSum, yr);
-        zrSum = BrsAdd(zrSum, zr);
-        cactrLive++;
-    }
-
-    if (cactrLive == 0)
-    {
+    auto s = _SelectionServices();
+    ThreeMMActorPoint point;
+    if (!three_mm_scene_selection_centroid(&point, &s))
         return fFalse;
-    }
-
-    BRS rCount = BrIntToScalar(cactrLive);
-    *pxr = BrsDiv(xrSum, rCount);
-    *pyr = BrsDiv(yrSum, rCount);
-    *pzr = BrsDiv(zrSum, rCount);
+    *pxr = point.dxr;
+    *pyr = point.dyr;
+    *pzr = point.dzr;
     return fTrue;
 }
 
@@ -1843,11 +1687,8 @@ bool Scene::FXyzSelectionCentroid(BRS *pxr, BRS *pyr, BRS *pzr)
 long Scene::CactrSelected(void)
 {
     AssertThis(0);
-    if (_pactrSelected == pvNil)
-    {
-        return 0;
-    }
-    return 1 + (_pglpactrSelExtra == pvNil ? 0 : _pglpactrSelExtra->IvMac());
+    auto s = _SelectionServices();
+    return three_mm_scene_selection_count(&s);
 }
 
 /****************************************************
@@ -1860,13 +1701,8 @@ PActor Scene::PactrSelectedAt(long iactr)
 {
     AssertThis(0);
     AssertIn(iactr, 0, CactrSelected());
-    if (iactr == 0)
-    {
-        return _pactrSelected;
-    }
-    PActor pactr;
-    _pglpactrSelExtra->Get(iactr - 1, &pactr);
-    return pactr;
+    auto s = _SelectionServices();
+    return static_cast<PActor>(three_mm_scene_selection_at(iactr, &s));
 }
 
 /****************************************************
@@ -1878,28 +1714,8 @@ bool Scene::FIsActrSelected(PActor pactr)
 {
     AssertThis(0);
     AssertNilOrPo(pactr, 0);
-    if (pactr == pvNil)
-    {
-        return fFalse;
-    }
-    if (pactr == _pactrSelected)
-    {
-        return fTrue;
-    }
-    if (_pglpactrSelExtra == pvNil)
-    {
-        return fFalse;
-    }
-    for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
-    {
-        PActor pactrEntry;
-        _pglpactrSelExtra->Get(iactr, &pactrEntry);
-        if (pactrEntry == pactr)
-        {
-            return fTrue;
-        }
-    }
-    return fFalse;
+    auto s = _SelectionServices();
+    return three_mm_scene_selection_contains(pactr, &s) != 0;
 }
 
 /****************************************************
@@ -1913,83 +1729,8 @@ bool Scene::FToggleActrSelected(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
-
-    PMovieView pmvu = (PMovieView)Pmvie()->PddgGet(0);
-    AssertNilOrPo(pmvu, 0);
-    bool fHiliteOk = (pmvu != pvNil) && !pmvu->FTextMode();
-
-    // If toggling the primary: promote first extra to primary, or clear if no extras.
-    if (pactr == _pactrSelected)
-    {
-        if (fHiliteOk)
-        {
-            pactr->Unhilite();
-        }
-        if (_pglpactrSelExtra != pvNil && _pglpactrSelExtra->IvMac() > 0)
-        {
-            PActor pactrPromote;
-            _pglpactrSelExtra->Get(0, &pactrPromote);
-            _pglpactrSelExtra->Delete(0);
-            _pactrSelected = pactrPromote;
-        }
-        else
-        {
-            _pactrSelected = pvNil;
-        }
-        _pmvie->InvalViews();
-        _pmvie->BuildActionMenu();
-        return fTrue;
-    }
-
-    // If toggling an extra: remove it, unhilite.
-    if (_pglpactrSelExtra != pvNil)
-    {
-        for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
-        {
-            PActor pactrEntry;
-            _pglpactrSelExtra->Get(iactr, &pactrEntry);
-            if (pactrEntry == pactr)
-            {
-                if (fHiliteOk)
-                {
-                    pactrEntry->Unhilite();
-                }
-                _pglpactrSelExtra->Delete(iactr);
-                _pmvie->InvalViews();
-                _pmvie->BuildActionMenu();
-                return fTrue;
-            }
-        }
-    }
-
-    // Adding a new actor.
-    // If no primary yet, make it primary (matches plain-click semantics).
-    if (_pactrSelected == pvNil)
-    {
-        SelectActr(pactr);
-        return fTrue;
-    }
-
-    // Add as extra. Lazily allocate the list.
-    if (_pglpactrSelExtra == pvNil)
-    {
-        _SetOwner(THREE_MM_SCENE_SELECTION, DynamicArray::PglNew(size(PActor)));
-        if (_pglpactrSelExtra == pvNil)
-        {
-            return fFalse;
-        }
-    }
-    if (!_pglpactrSelExtra->FAdd(&pactr))
-    {
-        return fFalse;
-    }
-    if (fHiliteOk)
-    {
-        pactr->Hilite();
-    }
-    _pmvie->InvalViews();
-    _pmvie->BuildActionMenu();
-    return fTrue;
+    auto s = _SelectionServices();
+    return three_mm_scene_selection_toggle(pactr, &s) != 0;
 }
 
 /****************************************************
@@ -2008,56 +1749,8 @@ void Scene::SelectTbox(PTBOX ptbox)
 {
     AssertThis(0);
     AssertNilOrPo(ptbox, 0);
-
-    PMovieView pmvu;
-
-    pmvu = (PMovieView)Pmvie()->PddgGet(0);
-    AssertNilOrPo(pmvu, 0);
-
-    _pmvie->InvalViews();
-
-    if ((pmvu != pvNil) && pmvu->FTextMode())
-    {
-
-        if (pvNil != _pactrSelected)
-        {
-            _pactrSelected->Unhilite();
-            _pmvie->BuildActionMenu();
-        }
-
-        // Clear any extras and unhilite each (parity with SelectActr).
-        if (pvNil != _pglpactrSelExtra)
-        {
-            for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
-            {
-                PActor pactrExtra;
-                _pglpactrSelExtra->Get(iactr, &pactrExtra);
-                if (pvNil != pactrExtra)
-                {
-                    pactrExtra->Unhilite();
-                }
-            }
-            _pglpactrSelExtra->FSetIvMac(0);
-        }
-
-        if ((ptbox == _ptboxSelected) && ((ptbox == pvNil) || ptbox->FSelected()))
-        {
-            return;
-        }
-
-        if (pvNil != _ptboxSelected)
-        {
-            _ptboxSelected->Select(fFalse);
-        }
-
-        if (pvNil != ptbox)
-        {
-            ptbox->Select(fTrue);
-        }
-    }
-
-    _ptboxSelected = ptbox;
-    _pmvie->Pmcc()->TboxSelected();
+    auto s = _SelectionServices();
+    three_mm_scene_select_text(ptbox, &s);
 }
 
 /****************************************************
@@ -2100,15 +1793,21 @@ ThreeMMSceneContentServices Scene::_ContentServices()
     s.put_list = [](void *, void *p, ThreeMMI32 i, void *object) { static_cast<PDynamicArray>(p)->Put(i, &object); };
     s.erase = [](void *, void *p, ThreeMMI32 i) { static_cast<GroupBase *>(p)->Delete(i); };
     s.selected = [](void *p, int text) -> void * {
-        auto scene = static_cast<PScene>(p);
-        return text ? static_cast<void *>(scene->_ptboxSelected) : static_cast<void *>(scene->_pactrSelected);
+        auto scene = static_cast<Scene *>(p);
+        return text ? scene->_selection.text : scene->_selection.actor;
     };
     s.set_selected = [](void *p, int text, void *object) {
-        auto scene = static_cast<PScene>(p);
+        auto scene = static_cast<Scene *>(p);
         if (text)
+        {
+            scene->_selection.text = object;
             scene->_ptboxSelected = static_cast<PTBOX>(object);
+        }
         else
+        {
+            scene->_selection.actor = object;
             scene->_pactrSelected = static_cast<PActor>(object);
+        }
     };
     s.select = [](void *p, int text, void *object) {
         auto scene = static_cast<PScene>(p);

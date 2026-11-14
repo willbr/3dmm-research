@@ -328,6 +328,8 @@ struct Access : Scene
     }
     static void State(PScene p)
     {
+        CHECK(p->PactrSelected() == (p->*&Access::_pactrSelected));
+        CHECK(p->PtboxSelected() == (p->*&Access::_ptboxSelected));
         auto &d = p->*&Access::_data;
         Value(d.currentFrame);
         Value(d.firstFrame);
@@ -591,6 +593,64 @@ int main()
                 scene->RemActrCore(actor->Arid());
             ReleasePpo(&actor);
         }
+    /* Freeze the native headless selection policy before its C89 extraction.
+     * In particular, a plain select without a view keeps the borrowed extras. */
+    {
+        auto a = makeActor(), b = makeActor(), c = makeActor();
+        CHECK(scene->FAddActrCore(a) && scene->FAddActrCore(b) && scene->FAddActrCore(c));
+        String name;
+        name.SetSzs(PszLit("A #Team #first"));
+        CHECK(movie->FNameActr(a->Arid(), &name));
+        name.SetSzs(PszLit("B #TEAM #second"));
+        CHECK(movie->FNameActr(b->Arid(), &name));
+        name.SetSzs(PszLit("C #other"));
+        CHECK(movie->FNameActr(c->Arid(), &name));
+        auto state = [&]() {
+            Value(scene->CactrSelected());
+            for (long i = 0; i < scene->CactrSelected(); ++i)
+            {
+                auto selected = scene->PactrSelectedAt(i);
+                Value(selected == a ? 1 : selected == b ? 2 : selected == c ? 3 : 0);
+            }
+            Value(scene->FIsActrSelected(a));
+            Value(scene->FIsActrSelected(b));
+            Value(scene->FIsActrSelected(c));
+            Value(scene->FIsActrSelected(nullptr));
+            BRS x = 17, y = 23, z = 31;
+            Value(scene->FXyzSelectionCentroid(&x, &y, &z));
+            Value(x);
+            Value(y);
+            Value(z);
+        };
+        scene->SelectActr(a);
+        state();
+        Value(scene->FToggleActrSelected(b));
+        state();
+        Value(scene->FToggleActrSelected(c));
+        state();
+        Value(scene->FToggleActrSelected(a));
+        state();
+        Value(scene->FToggleActrSelected(c));
+        state();
+        scene->ClearSelection();
+        state();
+        Value(scene->FSelectAllActrs());
+        state();
+        Value(scene->FSelectActrsByTag(PszLit("team")));
+        state();
+        Value(scene->FSelectActrsSharingTagsWith(a));
+        state();
+        Value(scene->FSelectActrsByTag(PszLit("missing")));
+        state();
+        scene->SelectTbox(nullptr);
+        state();
+        scene->RemActrCore(a->Arid());
+        scene->RemActrCore(b->Arid());
+        scene->RemActrCore(c->Arid());
+        ReleasePpo(&a);
+        ReleasePpo(&b);
+        ReleasePpo(&c);
+    }
 #ifdef THREE_MM_ENGINE_SCENE_CONTENT_H
     recording = false;
     auto unprepared = NewObj ContentActor;
@@ -650,5 +710,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 5020 && hash == 0x2F3EEF19U);
+        CHECK(recorded == 5552 && hash == 0x3D1499BAU);
 }

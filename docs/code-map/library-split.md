@@ -979,8 +979,44 @@ Native supplemental checks cover failed body allocation, failed caption playback
 stale selection extras and movie rebinding outside the frozen trace. C-only
 fault/ownership tests cover the remaining protocol branches, including caption
 undo navigation and identity rebinding. Full gates and retail limits are recorded
-in `docs/tools/playback-regression.md`. Native selection, actor/caption internals,
-chop/editing, other Scene/Movie operations and final C-only integration remain.
+in `docs/tools/playback-regression.md`. Selection is covered below; actor/caption
+internals, chop/editing, other Scene/Movie operations and final C-only integration
+remain.
+
+### Scene selection
+
+`scene_selection.c` owns actor/caption primary selection state and selection
+control: plain select/clear, count/index/membership, toggle with primary
+promotion, select-all, name-tag queries/shared tags and visible centroid
+arithmetic. Selection lists and primary pointers borrow object references.
+Native services provide container primitives, counted display-name access,
+body/view queries, highlight/caption effects and Movie menu/client notifications.
+Native typed primary fields are published views of the C state.
+
+Plain actor selection unhighlights/clears extras and deselects a caption only
+with an actor-mode view. No-view and text-mode calls retain extras, including
+their membership when a null primary makes the count zero. Toggling searches
+extras before installing a missing primary; removing a primary promotes the
+first extra without highlighting it again. Allocation or append failure retains
+the completed prefix and newly allocated empty storage. Caption selection keeps
+the actor pointer, preserves invalidate/menu/highlight ordering and may return
+early after clearing extras without publishing/notifying the caption again.
+
+Tag matching retains ASCII folding/token boundaries, whole-token suffix checks,
+counted byte/UTF-16 query units and the native shared-seed 63-unit truncation.
+Direct queries retain acceptance of non-ASCII and punctuation units. Select-all
+and tag operations retain partial selections on allocation failure. Centroids
+skip null/missing-body/offscreen actors and preserve selection-order 16.16 sum
+wrapping and division; no visible selection leaves outputs untouched. Invalid
+selection indices now return null from the C API; native debug range assertions
+remain.
+
+The native headless trace extends the Scene-content fixture with selection
+transitions, names and centroid outputs. C-only checks exercise all view modes,
+effect/notification ordering, caption early returns, allocation/append failures,
+tag boundaries/truncation/text units and centroid rounding/overflow. No Marcus
+UI tests were added. Scene chop/editing/undo, actor/caption internals, other
+Scene/Movie operations and final C-only integration remain conversion work.
 
 ### Actor header, route and event persistence
 

@@ -26,6 +26,7 @@
 #include "three_mm/scene_store.h"
 #include "three_mm/scene_edit.h"
 #include "three_mm/scene_content.h"
+#include "three_mm/scene_selection.h"
 
 //
 // Undo object for actor operations
@@ -146,6 +147,7 @@ class Scene : public Scene_PAR
     ThreeMMSceneSoundEditServices _SoundEditServices();
     ThreeMMSceneEditServices _EditServices();
     ThreeMMSceneContentServices _ContentServices();
+    ThreeMMSceneSelectionServices _SelectionServices();
 
     //
     // Global information
@@ -155,9 +157,10 @@ class Scene : public Scene_PAR
     PGeneralGroup _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
-    PActor _pactrSelected; // Primary selected actor (still authoritative single-select pointer)
+    ThreeMMSceneSelection _selection = {}; // Authoritative borrowed primary selection.
+    PActor _pactrSelected; // Published typed view of _selection.actor.
     PDynamicArray _pglpactrSelExtra; // Additional selected actors (excluding primary). pvNil when no extras.
-    PTBOX _ptboxSelected;            // Currently selected tbox, if any
+    PTBOX _ptboxSelected;            // Published typed view of _selection.text.
     PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
     PSceneSoundEvent _psseBkgd;       // Background scene sound (starts playing
                           // at start time even if snd event is
@@ -298,7 +301,7 @@ class Scene : public Scene_PAR
     bool FRemActr(long arid);       // Removes an actor from the scene, and undo
     PActor PactrSelected(void)       // Returns selected actor
     {
-        return _pactrSelected;
+        return static_cast<PActor>(_selection.actor);
     }
     void SelectActr(Actor *pactr);                      // Sets the selected actor
     bool FIsActrSelected(PActor pactr); // primary OR in extras
@@ -360,7 +363,7 @@ class Scene : public Scene_PAR
     PTBOX PtboxFromItbox(long itbox); // Returns the ith tbox in this frame.
     PTBOX PtboxSelected(void)         // Returns the tbox currently selected.
     {
-        return _ptboxSelected;
+        return static_cast<PTBOX>(_selection.text);
     }
     void SelectTbox(PTBOX ptbox); // Selects this tbox.
     void HideTboxes(void);        // Hides all text boxes.
