@@ -421,11 +421,13 @@ static void MoreCases()
     m = Material_MTRL::PmtrlNewFromPix(&path);
     CHECK(m);
     State(m, true);
-    // TextureMap's legacy imported-pixelmap lifetime is a later migration input.
-    // Release that SDK owner explicitly after observing material disposal.
+    // The original texture wrapper needed this explicit SDK-owner cleanup.
+    // The C-owned texture releases it during material disposal.
     raw = m->Pbmtl()->colour_map;
     ReleasePpo(&m);
+#ifndef THREE_MM_ENGINE_TEXTURE_RESOURCE_H
     BrPixelmapFree(raw);
+#endif
     CHECK(path.FDelete());
 }
 #if defined(_MSC_VER) && defined(DEBUG)

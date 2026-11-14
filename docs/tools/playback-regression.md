@@ -5660,3 +5660,92 @@ Evidence: `tmp/c89-material-resource-before.bin`,
 `tmp/c89-material-resource-output-comparison.json`,
 `tmp/c89-material-resource-playback-actor-events-scrolling-text.json` and the two
 `tmp/c89-material-resource-capture-*.log` files.
+
+
+### C89 texture resources and imported PIX ownership (14 November 2026)
+
+`texture_resource.c` owns persistent texture descriptors, pixel buffers and
+imported renderer owners, construction, cache factories/estimates, header I/O,
+chunk writes and standalone-file signature/packing/failure control.
+`texture_import.c` owns bitmap import, palette/cache lifetime and nearest-colour
+selection. The native TextureMap retains a BRender pixelmap view plus typed
+allocation, file and bitmap-reader adapters. View synchronization preserves
+legacy metadata/pixel-pointer edits before size queries, writing and disposal.
+The existing `FReadBitmap`/`FWriteBitmap` codecs and final native facade removal
+remain conversion dependencies; the uncompiled inverse-table code is unchanged.
+
+Two original native captures and the converted trace match all 22,000 bytes,
+SHA-256 `DC154CACA679AD177694778EDCEF74C2256BAD6EF81A23AA6C80DA9CE4C5FB43`.
+The debug little-endian test enforces FNV-1a `C5DC711A` automatically. There are
+192 native load attempts covering foreign/native headers, packed/trailing data,
+pixel types/flags, direct/factory loads and BASE/Pv allocation injection. Further
+cases cover pixel constructors, standalone writes, PIX wrapping and real bitmap
+imports for widths 3/4/5/8 with no palette mapping or 0/1/2/7/256 destination
+colours. The preceding 102,316-byte material trace still matches `113D98C1`.
+
+Twenty-byte headers preserve the native swap-on-any-non-native-marker policy;
+pixel payloads remain opaque and unswapped. Bounded reads/writes now reject
+truncated spans before native range assertions, while preserving partial-prefix
+and partial-chunk writes. Negative serialized row/height counts and unsupported
+layouts fail before invalid allocation arithmetic. Packed-size estimates retain
+the supplied block's original byte count. Standalone output retains native-order
+`kaup`/`kapa` signatures, raw fallback when packing fails, error messages, temporary
+file marking and cleanup order.
+
+Palette matching retains the final equal-distance destination candidate and
+leaves pixels unchanged for an empty destination palette. Optional cache
+allocation failure falls back to direct matching. Its temporary DynamicArray
+has become a C-owned integer array, so cache allocation-failure points change;
+the frozen successful bitmap outputs are separate from those topology changes.
+The old importer processes width*height contiguous bytes from its padded bitmap
+buffer; this conversion preserves that behavior and does not silently repack
+rows or reverse orientation.
+
+PIX wrapping transfers ownership only on success. Disposal now frees the
+original BRender pixelmap allocation through `BrPixelmapFree`, including its
+resource children, rather than trying to free an interior pixel pointer. A real
+SDK allocator check requires all imported allocations to balance after releasing
+the wrapper, and requires failed wrapping to leave the raw owner with the
+caller. The material PIX fixture no longer performs manual SDK cleanup in the
+converted path. Failed bitmap construction now frees decoded pixels instead of
+leaking them, and pixel constructors leave input ownership with the caller when
+construction fails. A supplemental native test writes genuinely compressed
+standalone output, decodes its packed body, and verifies all header/pixel bytes,
+including a metadata change through the exposed renderer view.
+
+All 78 standalone C checks, including strict syntax, pass. The C-only texture
+check and MSVC AddressSanitizer run cover endian headers, all read truncations,
+layout limits, transfer/failure ownership, palette ties/cache fallback, invalid
+indices and standalone file/packing/write failures. Both hosts and `core-checks`
+build; all 98 focused native checks, five SDL release checks and 51 freshly
+linked CLI baselines pass. No Marcus UI tests were added.
+
+The final capture executables were frozen at SHA-256
+`F872EB1D2AD3F22FD06348EF27376D699CC7B8F3C52B12BB3A7FA4EADE651895`
+(SDL release) and
+`3A7429D115A3489514AFD434D89E4403B2DE150642B5B1D85ACC4A6C73B4626F`
+(Marcus regression). Both hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T025840Z-f721df5a` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T025953Z-1d8e0c51` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie identity and
+suite integrity. Authored frames, all 360 seek images and ordered playback image
+changes match each player's material-resource suites
+`20261114T021601Z-e526844f` and `20261114T021714Z-a38f7abf`. Only adjacent
+identical position/image observations are collapsed for playback comparison.
+Reports retain existing cross-player differences and single-repeat inconclusive
+comparisons. These checks show no observed texture conversion regression, not
+complete retail timing/PCM parity. Captures use the shared warm SDL package
+cache, private processes/settings/movies and uncontrolled OS caching; no builds
+or tests run concurrently with capture.
+
+Evidence: `tmp/c89-texture-resource-before.bin`,
+`tmp/c89-texture-resource-before-repeat.bin`, `tmp/c89-texture-resource-after.bin`,
+`tmp/c89-texture-resource-standalone.log`, `tmp/c89-texture-resource-asan.log`,
+`tmp/c89-texture-resource-native-tests.log`, `tmp/c89-texture-resource-sdl-tests.log`,
+`tmp/c89-texture-resource-output-comparison.json`,
+`tmp/c89-texture-resource-playback-actor-events-scrolling-text.json` and the two
+`tmp/c89-texture-resource-capture-*.log` files.

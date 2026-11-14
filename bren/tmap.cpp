@@ -1,404 +1,233 @@
 /***************************************************************************
-
-    Texture map (br_pixmap wrapper) class
-
+    Texture map (br_pixelmap wrapper) host services.
 ***************************************************************************/
 #include "bren_core.h"
-
+#include <cstring>
 ASSERTNAME
-
-namespace BRender {
-
+namespace BRender
+{
 RTCLASS(TextureMap)
-
-/***************************************************************************
-    A PFNRPO to read TextureMap objects.
-***************************************************************************/
-bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+static_assert(sizeof(TextureMapFile) == 20, "texture header layout");
+namespace
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-
-    PTextureMap ptmap;
-
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
-        return fTrue;
-    ptmap = PtmapRead(pcrf->Pcfl(), ctg, cno);
-    if (pvNil == ptmap)
-    {
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        return fFalse;
-    }
-    AssertPo(ptmap, 0);
-    *ppbaco = ptmap;
-    return fTrue;
+struct TextureContext
+{
+    DataBlock block;
+};
+void Description(PBPMP p, ThreeMMTextureDescription *d)
+{
+    *d = {p->row_bytes, p->width, p->height, p->base_x, p->base_y, p->origin_x, p->origin_y, p->type, p->flags};
 }
-
-/***************************************************************************
-    Read a TextureMap from a chunk
-***************************************************************************/
-PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+} // namespace
+void TextureMap::_Sync()
 {
-    TextureMapFile tmapf;
-    DataBlock blck;
-    TextureMap *ptmap;
-    void *pixels;
-
-    ptmap = NewObj TextureMap;
-    if (pvNil == ptmap)
-        goto LFail;
-
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
-        goto LFail;
-    if (!blck.FReadRgb(&tmapf, size(TextureMapFile), 0))
-        goto LFail;
-
-    if (kboCur != tmapf.bo)
-        SwapBytesBom(&tmapf, kbomTmapf);
-    Assert(kboCur == tmapf.bo, "bad TextureMapFile");
-
-    ptmap->_bpmp.identifier = (char *)ptmap; // to get TextureMap from a (BPMP *)
-    // BPMP has a four-byte packed ABI, so its pointer fields need not be
-    // naturally aligned on 64-bit hosts. Pass an aligned local to the allocator.
-    if (!FAllocPv(&pixels, LwMul(tmapf.cbRow, tmapf.dyp), fmemClear, mprNormal))
-    {
-        goto LFail;
-    }
-    ptmap->_bpmp.pixels = pixels;
-    ptmap->_bpmp.map = pvNil;
-    ptmap->_bpmp.row_bytes = tmapf.cbRow;
-    ptmap->_bpmp.type = tmapf.type;
-    ptmap->_bpmp.flags = tmapf.grftmap;
-    ptmap->_bpmp.base_x = tmapf.xpLeft;
-    ptmap->_bpmp.base_y = tmapf.ypTop;
-    ptmap->_bpmp.width = tmapf.dxp;
-    ptmap->_bpmp.height = tmapf.dyp;
-    ptmap->_bpmp.origin_x = tmapf.xpOrigin;
-    ptmap->_bpmp.origin_y = tmapf.ypOrigin;
-
-    if (!blck.FReadRgb(ptmap->_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), size(TextureMapFile)))
-    {
-        goto LFail;
-    }
-    return ptmap;
-LFail:
-    ReleasePpo(&ptmap);
-    return pvNil;
+    Description(&_bpmp, &_texture.description);
+    _texture.pixels = _bpmp.pixels;
 }
-
-/***************************************************************************
-    Create a TextureMap from a BRender BPMP...used only for importing PIX's
-***************************************************************************/
-PTextureMap TextureMap::PtmapNewFromBpmp(BPMP *pbpmp)
+ThreeMMTextureServices TextureMap::_Services(void *context)
 {
-    PTextureMap ptmap;
-
-    ptmap = NewObj TextureMap;
-    if (pvNil == ptmap)
-        return pvNil;
-    ptmap->_bpmp = *pbpmp;
-    ptmap->_bpmp.identifier = (char *)ptmap;
-    pbpmp->identifier = (char *)ptmap;
-    ptmap->_fImported = fTrue;
-    return ptmap;
-}
-
-/***************************************************************************
-    destructor
-***************************************************************************/
-TextureMap::~TextureMap(void)
-{
-    if (_fImported)
-    {
-        // REVIEW *****: this crashes BRender...why?
-        //		BrMemFree(_bpmp.pixels);
-    }
-    else
-    {
-        void *pixels = _bpmp.pixels;
-        FreePpv(&pixels);
-        _bpmp.pixels = pvNil;
-    }
-}
-
-/***************************************************************************
-    Write a TextureMap to a chunk
-***************************************************************************/
-bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
-{
-    AssertThis(0);
-    DataBlock blck;
-
-    if (!pcfl->FAdd(size(TextureMapFile) + LwMul(_bpmp.row_bytes, _bpmp.height), ctg, pcno, &blck))
-    {
-        return fFalse;
-    }
-
-    return FWrite(&blck);
-}
-
-/***************************************************************************
-    Write a TextureMap to the given FileLocation
-***************************************************************************/
-bool TextureMap::FWrite(PDataBlock pblck)
-{
-    TextureMapFile tmapf;
-
-    tmapf.bo = kboCur;
-    tmapf.osk = koskCur;
-    tmapf.cbRow = _bpmp.row_bytes;
-    tmapf.type = _bpmp.type;
-    tmapf.grftmap = _bpmp.flags;
-    tmapf.xpLeft = _bpmp.base_x;
-    tmapf.ypTop = _bpmp.base_y;
-    tmapf.dxp = _bpmp.width;
-    tmapf.dyp = _bpmp.height;
-    tmapf.xpOrigin = _bpmp.origin_x;
-    tmapf.ypOrigin = _bpmp.origin_y;
-    if (!pblck->FWriteRgb(&tmapf, size(TextureMapFile), 0))
-        return fFalse;
-    if (!pblck->FWriteRgb(_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), size(TextureMapFile)))
-    {
-        return fFalse;
-    }
-    return fTrue;
-}
-
-#ifndef MAC
-
-#define CALCDIST(bRed1, bGreen1, bBlue1, bRed2, bGreen2, bBlue2)                                                       \
-    (((bRed1) - (bRed2)) * ((bRed1) - (bRed2)) + ((bGreen1) - (bGreen2)) * ((bGreen1) - (bGreen2)) +                   \
-     ((bBlue1) - (bBlue2)) * ((bBlue1) - (bBlue2)))
-
-/*
- *	PtmapReadNative	--	Creates a TextureMap object, reading the data from a .BMP file
- *
- *	input:
- *			pfni	--	the Filename to read the data from
- *			pglclr	--	the colors to map to.
- *
- *	output:
- *			returns the pointer to the new TextureMap
- */
-PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PDynamicArray pglclr)
-{
-    byte *prgb = pvNil;
-    PTextureMap ptmap = pvNil;
-    LegacyLong dxp, dyp;
-    bool fUpsideDown;
-    LegacyLong iclrBest, igl;
-    LegacyLong iprgb;
-    LegacyLong dist, min;
-    Color clr, clrSrc;
-    PDynamicArray pglclrSrc;
-    PDynamicArray pglCache;
-
-    AssertPo(pfni, 0);
-
-    if (FReadBitmap(pfni, &prgb, &pglclrSrc, &dxp, &dyp, &fUpsideDown))
-    {
-        Assert(!fUpsideDown, 0);
-        AssertPo(pglclrSrc, 0);
-
-        if (pglclr != pvNil)
-        {
-            AssertIn(pglclr->IvMac(), 0, 257);
-
-            //
-            // Do a closest color match
-            //
-
-            pglCache = DynamicArray::PglNew(size(LegacyLong), pglclrSrc->IvMac());
-
-            if (pglCache != pvNil)
-            {
-
-                iclrBest = ivNil;
-                for (igl = 0; igl < pglclrSrc->IvMac(); igl++)
-                {
-                    AssertDo(pglCache->FAdd(&iclrBest), "Ensured by creation");
-                }
-            }
-
-            for (iprgb = 0; iprgb < (dxp * dyp); iprgb++)
-            {
-
-                if (pglCache != pvNil)
-                {
-                    pglCache->Get(prgb[iprgb], &iclrBest);
-
-                    if (iclrBest != ivNil)
-                    {
-                        prgb[iprgb] = (uint8_t)iclrBest;
-                        continue;
-                    }
-                }
-
-                pglclrSrc->Get(prgb[iprgb], &clrSrc);
-
-                iclrBest = ivNil;
-                min = klwMax;
-
-                for (igl = 0; igl < pglclr->IvMac(); igl++)
-                {
-
-                    pglclr->Get(igl, &clr);
-                    dist = CALCDIST(clrSrc.bRed, clrSrc.bGreen, clrSrc.bBlue, clr.bRed, clr.bGreen, clr.bBlue);
-
-                    if (dist <= min)
-                    {
-                        min = dist;
-                        iclrBest = igl;
-                    }
-                }
-
-                if (iclrBest != ivNil)
-                {
-                    AssertIn(iclrBest, 0, pglclr->IvMac());
-
-                    if (pglCache != pvNil)
-                    {
-                        pglCache->Put(prgb[iprgb], &iclrBest);
-                    }
-
-                    prgb[iprgb] = (uint8_t)iclrBest;
-                }
-            }
-
-            ReleasePpo(&pglCache);
-        }
-
-        ReleasePpo(&pglclrSrc);
-
-        ptmap = TextureMap::PtmapNew(prgb, dxp, dyp);
-    }
-
-    return ptmap;
-}
-#endif // WIN
-
-#ifdef MAC
-PTextureMap TextureMap::PtmapReadNative(Filename *pfni)
-{
-    RawRtn(); // REVIEW peted: NYI
-    return pvNil;
-}
-#endif // MAC
-
-/*
- *	PtmapNew	--	Given pixel data and attributes, creates a new TextureMap with
- *		the given information.
- *
- *	input:
- *			prgbPixels	--	the actual pixels for the TextureMap
- *			pbmh		--	The bitmap header from the .BMP file
- *
- *	output:
- *			returns the pointer to the new TextureMap
- */
-PTextureMap TextureMap::PtmapNew(byte *prgbPixels, LegacyLong dxp, LegacyLong dyp)
-{
-    PTextureMap ptmap;
-
-    Assert(dxp <= ksuMax, "bitmap too wide");
-    Assert(dyp <= ksuMax, "bitmap too high");
-
-    if ((ptmap = NewObj TextureMap) != pvNil)
-    {
-        ptmap->_fImported = fFalse;
-        ptmap->_bpmp.identifier = (char *)ptmap;
-        ptmap->_bpmp.pixels = prgbPixels;
-        ptmap->_bpmp.map = pvNil;
-        ptmap->_bpmp.row_bytes = (br_int_16)dxp;
-        ptmap->_bpmp.type = BR_PMT_INDEX_8;
-        ptmap->_bpmp.flags = BR_PMF_LINEAR;
-        ptmap->_bpmp.base_x = ptmap->_bpmp.base_y = 0;
-        ptmap->_bpmp.width = (br_uint_16)dxp;
-        ptmap->_bpmp.height = (br_uint_16)dyp;
-        ptmap->_bpmp.origin_x = ptmap->_bpmp.origin_y = 0;
-    }
-    AssertPo(ptmap, 0);
-    return ptmap;
-}
-
-/******************************************************************************
-    FWriteTmapChkFile
-        Writes a stand-alone file with a TextureMap chunk in it.  The file can
-        be later read in by the Compiler class with the FILE command.
-
-    Arguments:
-        PFilename pfniDst   -- Filename indicating the name of the output file
-        bool fCompress -- fTrue if the chunk date is to be compressed
-        PMSNK pmsnkErr -- optional message sink to direct errors to
-
-    Returns: fTrue if the file was written successfully
-
-************************************************************ PETED ***********/
-bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr)
-{
-    AssertThis(0);
-    AssertPo(pfniDst, ffniFile);
-    AssertNilOrPo(pmsnkErr, 0);
-
-    bool fRet = fFalse;
-    LegacyLong lwSig;
-    PZString pszErr = pvNil;
-    FileLocation flo;
-
-    if (pvNil == (flo.pfil = FileObject::PfilCreate(pfniDst)))
-    {
-        pszErr = PszLit("Couldn't create destination file\n");
-        goto LFail;
-    }
-    flo.fp = size(LegacyLong);
-    flo.cb = CbOnFile();
-
-    if (fCompress)
-    {
-        DataBlock blck;
-
-        if (!blck.FSetTemp(flo.cb) || !FWrite(&blck))
-        {
-            pszErr = PszLit("allocation failure\n");
-            goto LFail;
-        }
-        if (!blck.FPackData())
-            lwSig = klwSigUnpackedFile;
+    ThreeMMTextureServices s = {};
+    s.context = context;
+    const unsigned short one = 1;
+    s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
+    s.system = koskCur;
+    s.packed_signature = klwSigPackedFile;
+    s.unpacked_signature = klwSigUnpackedFile;
+    s.indexed_type = BR_PMT_INDEX_8;
+    s.linear_flag = BR_PMF_LINEAR;
+    s.create = [](void *) -> void * { return NewObj TextureMap; };
+    s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.state = [](void *, void *p) -> ThreeMMTextureResource * { return &static_cast<PTextureMap>(p)->_texture; };
+    s.publish = [](void *, void *p, const ThreeMMTextureResource *m) {
+        auto t = static_cast<PTextureMap>(p);
+        auto &b = t->_bpmp;
+        if (m->imported_owner)
+            b = *static_cast<PBPMP>(m->imported_owner);
+        b.identifier = reinterpret_cast<char *>(t);
+        b.pixels = m->pixels;
+        b.row_bytes = static_cast<br_int_16>(m->description.row_bytes);
+        b.width = static_cast<br_uint_16>(m->description.width);
+        b.height = static_cast<br_uint_16>(m->description.height);
+        b.base_x = static_cast<br_uint_16>(m->description.base_x);
+        b.base_y = static_cast<br_uint_16>(m->description.base_y);
+        b.origin_x = static_cast<br_int_16>(m->description.origin_x);
+        b.origin_y = static_cast<br_int_16>(m->description.origin_y);
+        b.type = static_cast<br_uint_8>(m->description.type);
+        b.flags = static_cast<br_uint_8>(m->description.flags);
+        if (m->imported_owner)
+            static_cast<PBPMP>(m->imported_owner)->identifier = reinterpret_cast<char *>(t);
+    };
+    s.describe_import = [](void *, void *p, ThreeMMTextureDescription *d, void **pixels) {
+        auto b = static_cast<PBPMP>(p);
+        Description(b, d);
+        *pixels = b->pixels;
+    };
+    s.free_import = [](void *, void *p) { BrPixelmapFree(static_cast<PBPMP>(p)); };
+    s.allocate = [](void *, ThreeMMI32 n, int clear, void **out) -> int {
+        return FAllocPv(out, n, clear ? fmemClear : fmemNil, mprNormal);
+    };
+    s.free_memory = [](void *, void **p) { FreePpv(p); };
+    s.invalidate = [](void *, void *p, size_t n) { TrashPvCb(p, static_cast<LegacyLong>(n)); };
+    s.diagnostic = [](void *, int code) {
+        if (code == THREE_MM_TEXTURE_ORDER)
+            Assert(false, "bad TextureMapFile");
         else
-        {
-            lwSig = klwSigPackedFile;
-            flo.cb = blck.Cb(fTrue);
-        }
-        if (!flo.pfil->FWriteRgb(&lwSig, size(LegacyLong), 0) || !blck.FWriteToFlo(&flo, fTrue))
-        {
-            pszErr = PszLit("writing to destination file failed\n");
-            goto LFail;
-        }
-    }
-    else
-    {
-        lwSig = klwSigUnpackedFile;
-        if (!flo.pfil->FWriteRgb(&lwSig, size(LegacyLong), 0) || !FWriteFlo(&flo))
-        {
-            pszErr = PszLit("writing to destination file failed\n");
-            goto LFail;
-        }
-    }
-
-    fRet = fTrue;
-LFail:
-    if (pszErr != pvNil && pmsnkErr != pvNil)
-        pmsnkErr->ReportLine(pszErr);
-    if (!fRet && pvNil != flo.pfil)
-        flo.pfil->SetTemp();
-    ReleasePpo(&flo.pfil);
-    return fRet;
+            Assert(false, "upside down bitmap");
+    };
+    s.file = [](void *, void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.find = [](void *p, void *file, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        auto &b = static_cast<TextureContext *>(p)->block;
+        return static_cast<PChunkyFile>(file)->FFind(type, number, &b) ? &b : nullptr;
+    };
+    s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
+    s.size = [](void *, void *p, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
+    s.read = [](void *, void *p, void *out, ThreeMMI32 n, ThreeMMI32 at) -> int {
+        return static_cast<PDataBlock>(p)->FReadRgb(out, n, at);
+    };
+    s.write = [](void *, void *p, const void *data, ThreeMMI32 n, ThreeMMI32 at) -> int {
+        return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), n, at);
+    };
+    s.close_block = [](void *p) { static_cast<TextureContext *>(p)->block.Free(); };
+    s.add = [](void *p, void *file, ThreeMMU32 type, ThreeMMI32 bytes, ThreeMMU32 *number) -> void * {
+        auto &b = static_cast<TextureContext *>(p)->block;
+        ChunkNumber n;
+        std::memcpy(&n, number, sizeof(n));
+        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &b);
+        std::memcpy(number, &n, sizeof(n));
+        return ok ? &b : nullptr;
+    };
+#ifndef MAC
+    s.read_bitmap = [](void *, void *filename, ThreeMMTextureBitmap *out) -> int {
+        byte *pixels = nullptr;
+        PDynamicArray palette = nullptr;
+        LegacyLong w, h;
+        bool upside;
+        if (!FReadBitmap(static_cast<PFilename>(filename), &pixels, &palette, &w, &h, &upside))
+            return 0;
+        *out = {pixels, palette, w, h, upside};
+        return 1;
+    };
+#else
+    s.read_bitmap = [](void *, void *, ThreeMMTextureBitmap *) -> int {
+        RawRtn();
+        return 0;
+    };
+#endif
+    s.palette_count = [](void *, void *p) -> ThreeMMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.palette_colour = [](void *, void *p, ThreeMMI32 i, ThreeMMTextureColour *out) {
+        Color c;
+        static_cast<PDynamicArray>(p)->Get(i, &c);
+        *out = {c.bRed, c.bGreen, c.bBlue};
+    };
+    s.create_file = [](void *, void *p) -> void * { return FileObject::PfilCreate(static_cast<PFilename>(p)); };
+    s.temp_block = [](void *p, ThreeMMI32 n) -> void * {
+        auto &b = static_cast<TextureContext *>(p)->block;
+        return b.FSetTemp(n) ? &b : nullptr;
+    };
+    s.pack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FPackData(); };
+    s.write_file = [](void *, void *p, const void *data, ThreeMMI32 n, ThreeMMI32 at) -> int {
+        return static_cast<PFileObject>(p)->FWriteRgb(const_cast<void *>(data), n, at);
+    };
+    s.copy_to_file = [](void *, void *b, void *f, ThreeMMI32 at, ThreeMMI32 n) -> int {
+        FileLocation loc = {static_cast<PFileObject>(f), at, n};
+        return static_cast<PDataBlock>(b)->FWriteToFlo(&loc, true);
+    };
+    s.make_temporary = [](void *, void *p) { static_cast<PFileObject>(p)->SetTemp(); };
+    s.report = [](void *, void *p, int error) {
+        PZString message = error == THREE_MM_TEXTURE_FILE_CREATE   ? PszLit("Couldn't create destination file\n")
+                           : error == THREE_MM_TEXTURE_FILE_MEMORY ? PszLit("allocation failure\n")
+                                                                   : PszLit("writing to destination file failed\n");
+        static_cast<PMSNK>(p)->ReportLine(message);
+    };
+    return s;
 }
-
+bool TextureMap::FReadTmap(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
+                           PBaseCacheableObject *out, br_int_32 *bytes)
+{
+    AssertPo(cache, 0);
+    AssertPo(block, 0);
+    AssertNilOrVarMem(out);
+    AssertVarMem(bytes);
+    TextureContext context;
+    auto s = _Services(&context);
+    return three_mm_texture_fetch(cache, type, number, block, out, bytes, &s) != 0;
+}
+PTextureMap TextureMap::PtmapRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
+{
+    TextureContext context;
+    auto s = _Services(&context);
+    auto object = static_cast<PTextureMap>(three_mm_texture_read(file, type, number, &s));
+    AssertNilOrPo(object, 0);
+    return object;
+}
+PTextureMap TextureMap::PtmapNewFromBpmp(BPMP *bpmp)
+{
+    auto s = _Services();
+    return static_cast<PTextureMap>(three_mm_texture_wrap(bpmp, &s));
+}
+TextureMap::~TextureMap()
+{
+    _Sync();
+    auto s = _Services();
+    three_mm_texture_dispose(&_texture, &s);
+    _bpmp.pixels = nullptr;
+}
+bool TextureMap::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
+{
+    AssertThis(0);
+    TextureContext context;
+    auto s = _Services(&context);
+    _Sync();
+    ThreeMMU32 n;
+    std::memcpy(&n, number, sizeof(n));
+    bool ok = three_mm_texture_write_chunk(&_texture, file, type, &n, &s) != 0;
+    std::memcpy(number, &n, sizeof(n));
+    return ok;
+}
+bool TextureMap::FWrite(PDataBlock block)
+{
+    _Sync();
+    auto s = _Services();
+    return three_mm_texture_write(&_texture, block, &s) != 0;
+}
+#ifndef MAC
+PTextureMap TextureMap::PtmapReadNative(Filename *filename, PDynamicArray palette)
+{
+    AssertPo(filename, 0);
+    auto s = _Services();
+    return static_cast<PTextureMap>(three_mm_texture_bitmap(filename, palette, &s));
+}
+#else
+PTextureMap TextureMap::PtmapReadNative(Filename *filename)
+{
+    auto s = _Services();
+    return static_cast<PTextureMap>(three_mm_texture_bitmap(filename, nullptr, &s));
+}
+#endif
+PTextureMap TextureMap::PtmapNew(byte *pixels, LegacyLong width, LegacyLong height)
+{
+    Assert(width <= ksuMax, "bitmap too wide");
+    Assert(height <= ksuMax, "bitmap too high");
+    auto s = _Services();
+    auto object = static_cast<PTextureMap>(three_mm_texture_new(pixels, width, height, &s));
+    AssertNilOrPo(object, 0);
+    return object;
+}
+br_int_32 TextureMap::CbOnFile()
+{
+    _Sync();
+    return three_mm_texture_size(&_texture);
+}
+bool TextureMap::FWriteTmapChkFile(PFilename filename, bool compress, PMSNK sink)
+{
+    AssertThis(0);
+    AssertPo(filename, ffniFile);
+    AssertNilOrPo(sink, 0);
+    TextureContext context;
+    auto s = _Services(&context);
+    _Sync();
+    return three_mm_texture_standalone(&_texture, filename, compress, sink, &s) != 0;
+}
 #ifdef NOT_YET_REVIEWED
 byte *TextureMap::PrgbBuildInverseTable(void)
 {
@@ -451,26 +280,18 @@ void TextureMap::_SortInverseTable(byte *prgb, LegacyLong cbRgb, BRCLR brclrLo, 
 #endif // NOT_YET_REVIEWED
 
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the TextureMap.
-***************************************************************************/
-void TextureMap::AssertValid(LegacyUlong grf)
+void TextureMap::AssertValid(LegacyUlong)
 {
     TextureMap_PAR::AssertValid(fobjAllocated);
-    if (!_fImported)
+    if (!_texture.imported_owner)
         AssertPvCb(_bpmp.pixels, LwMul(_bpmp.row_bytes, _bpmp.height));
 }
-
-/***************************************************************************
-    Mark memory used by the TextureMap.
-***************************************************************************/
-void TextureMap::MarkMem(void)
+void TextureMap::MarkMem()
 {
     AssertThis(0);
     TextureMap_PAR::MarkMem();
-    if (!_fImported)
+    if (!_texture.imported_owner)
         MarkPv(_bpmp.pixels);
 }
-#endif // DEBUG
-
-} // end of namespace BRender
+#endif
+} // namespace BRender

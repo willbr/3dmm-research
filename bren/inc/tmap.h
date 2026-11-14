@@ -7,8 +7,10 @@
 *************************************************************************/
 #ifndef TMAP_H
 #define TMAP_H
+#include "three_mm/texture_resource.h"
 
-namespace BRender {
+namespace BRender
+{
 
 const ChunkTagOrType kctgTmap = 'TMAP';
 const ChunkTagOrType kctgTxxf = 'TXXF';
@@ -56,10 +58,12 @@ class TextureMap : public TextureMap_PAR
     MARKMEM
   protected:
     BPMP _bpmp;
-    bool _fImported; // if fTrue, BRender allocated the pixels
-                     // if fFalse, we allocated the pixels
+    ThreeMMTextureResource _texture;
+    static ThreeMMTextureServices _Services(void *context = nullptr);
+    void _Sync();
+
   protected:
-    TextureMap(void)
+    TextureMap(void) : _bpmp{}, _texture{}
     {
     } // can't instantiate directly; must use PtmapRead
 #ifdef NOT_YET_REVIEWED
@@ -79,7 +83,8 @@ class TextureMap : public TextureMap_PAR
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TextureMap
-    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, br_int_32 *pcb);
+    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                          PBaseCacheableObject *ppbaco, br_int_32 *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TextureMap
     static PTextureMap PtmapNewFromBpmp(BPMP *pbpmp);
@@ -100,10 +105,7 @@ class TextureMap : public TextureMap_PAR
     static PTextureMap PtmapNew(byte *prgbPixels, br_int_32 dxWidth, br_int_32 dxHeight);
 
     // Some useful file methods
-    br_int_32 CbOnFile(void)
-    {
-        return (size(TextureMapFile) + LwMul(_bpmp.row_bytes, _bpmp.height));
-    }
+    br_int_32 CbOnFile(void);
     bool FWrite(PDataBlock pblck);
 
 #ifdef NOT_YET_REVIEWED

@@ -75,6 +75,7 @@ cmake --build build/engine-c89 --target engine-movie-sound-test
 cmake --build build/engine-c89 --target engine-body-geometry-test
 cmake --build build/engine-c89 --target engine-model-resource-test
 cmake --build build/engine-c89 --target engine-material-resource-test
+cmake --build build/engine-c89 --target engine-texture-resource-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1797,8 +1798,8 @@ debug validation still expects complete material slots in successful facades.
 The renderer identifier now uses a nonempty pointer-sized placeholder so
 BRender allocates the owner slot, and typed copies avoid aliased pointer reads.
 Failed PIX wrapping no longer publishes a freed/unwrapped pixelmap to material
-disposal. TextureMap storage and the pre-existing lifetime of successfully
-imported PIX allocations remain inputs to the next texture-resource conversion.
+disposal. Successfully imported PIX allocations now use the C-owned texture
+lifetime described below.
 
 `engine-material-resource-test` links with C alone and covers endian codecs,
 legacy markers, sparse child IDs, partial arrays/references, invalid counts,
@@ -1810,6 +1811,49 @@ The native debug little-endian check enforces FNV-1a `113D98C1` without masking.
 The existing body runtime fixture now fills the C-owned model array directly.
 Both host builds, C89/ASan checks, CLI comparisons and retail playback evidence
 are recorded in `docs/tools/playback-regression.md`. No Marcus UI tests were added.
+
+### Texture storage, palette matching and standalone files
+
+`texture_resource.c` owns persistent `ThreeMMTextureResource` descriptors,
+pixel buffers and imported renderer owners. It controls construction, cache
+factories/estimates, 20-byte header codecs, bounded loading/writing, chunk
+creation and standalone file signatures, packing, reports and failure cleanup.
+`texture_import.c` owns bitmap import, source palette/cache lifetime and nearest
+colour selection. The native `TextureMap` keeps a BRender pixelmap view and typed
+allocation/file/bitmap-reader services. Synchronization before serialization,
+size queries and disposal preserves changes through the exposed renderer view.
+The C library has no BRender or C++ dependency.
+
+Loading preserves the legacy swap-on-any-non-native-marker policy and opaque
+pixel payloads. Truncated reads and negative/unrepresentable layouts fail before
+invalid native operations; writes retain partial-prefix and partial-chunk
+behavior. Cache estimates still use the supplied packed block's byte count.
+Palette matching retains the final equal-distance candidate, empty destination
+palette behavior, optional-cache fallback and contiguous width*height processing
+of the bitmap reader's padded storage. It deliberately does not repack or flip
+those rows. The old temporary DynamicArray cache is now a C-owned integer array;
+its allocation-failure topology changes, not its successful pixel results.
+
+Pixel constructors take buffers only on success. Imported PIX wrapping takes
+the original renderer allocation only on success and frees that owner through
+`BrPixelmapFree`, preserving its resource tree rather than freeing an interior
+pixel pointer. Failed bitmap construction now releases decoded pixels instead
+of leaking them. The native bitmap reader/encoder (`FReadBitmap`/`FWriteBitmap`)
+and physical file services remain host dependencies; the uncompiled
+`NOT_YET_REVIEWED` inverse-table code remains unchanged.
+
+`engine-texture-resource-test` links with C alone and covers headers/orders,
+every read truncation, layout limits, ownership transfer, failure cleanup,
+palette ties/cache fallback, source indices and standalone file/packing failures.
+The native `texture-resource-test` freezes 22,000 bytes over 192 load attempts,
+constructors, standalone writes, PIX wrapping and bitmap imports with padded
+rows and destination palettes of 0/1/2/7/256 colours or no mapping. SHA-256 is
+`DC154CACA679AD177694778EDCEF74C2256BAD6EF81A23AA6C80DA9CE4C5FB43`;
+debug little-endian builds enforce FNV-1a `C5DC711A`. Extra native checks require
+balanced BRender allocations after imported-owner disposal, caller ownership
+after failed wrapping, and a real packed-file decode with mutable-view metadata.
+The material trace remains exact without manual imported-pixelmap cleanup.
+Full checks and retail comparisons are in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 
