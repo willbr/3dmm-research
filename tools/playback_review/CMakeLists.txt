@@ -35,16 +35,33 @@ add_library(review-store STATIC store.c)
 target_link_libraries(review-store PUBLIC review-sqlite)
 add_executable(playback-review main.c)
 target_link_libraries(playback-review PRIVATE review-store review-imgui)
+
+add_library(review-image STATIC image_view.c)
+add_executable(image-compare image_compare.c)
+target_link_libraries(image-compare PRIVATE review-image review-imgui)
+if(NOT WIN32)
+  target_link_libraries(image-compare PRIVATE m)
+endif()
+target_include_directories(image-compare SYSTEM PRIVATE
+  "$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>")
 target_include_directories(playback-review SYSTEM PRIVATE
   "$<TARGET_PROPERTY:SDL3::SDL3-static,INTERFACE_INCLUDE_DIRECTORIES>")
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
   target_compile_options(review-store PRIVATE -pedantic-errors -Werror=declaration-after-statement)
   target_compile_options(playback-review PRIVATE -pedantic-errors -Werror=declaration-after-statement)
+  target_compile_options(review-image PRIVATE -pedantic-errors -Werror=declaration-after-statement)
+  target_compile_options(image-compare PRIVATE -pedantic-errors -Werror=declaration-after-statement)
 endif()
 enable_testing()
 add_executable(review-store-test store_test.c)
 target_link_libraries(review-store-test PRIVATE review-store)
 add_test(NAME review-store COMMAND review-store-test)
+add_executable(review-image-test image_view_test.c)
+target_link_libraries(review-image-test PRIVATE review-image)
+if(NOT WIN32)
+  target_link_libraries(review-image-test PRIVATE m)
+endif()
+add_test(NAME review-image COMMAND review-image-test)
 find_program(REVIEW_C89_COMPILER NAMES clang gcc)
 if(REVIEW_C89_COMPILER)
   add_test(NAME review-c89 COMMAND "${REVIEW_C89_COMPILER}" -std=c89 -pedantic-errors
@@ -53,6 +70,11 @@ if(REVIEW_C89_COMPILER)
     -isystem "${review_sqlite_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/main.c" "${CMAKE_CURRENT_SOURCE_DIR}/store.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/store_test.c")
+  add_test(NAME image-compare-c89 COMMAND "${REVIEW_C89_COMPILER}" -std=c89 -pedantic-errors
+    -Werror=declaration-after-statement -D_CRT_SECURE_NO_WARNINGS -fsyntax-only
+    -isystem "${gui}" -isystem "${SDL3_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/image_compare.c" "${CMAKE_CURRENT_SOURCE_DIR}/image_view.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/image_view_test.c")
 endif()
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/licenses")
 configure_file("${gui}/LICENSE" licenses/cimgui-LICENSE.txt COPYONLY)

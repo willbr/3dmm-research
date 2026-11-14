@@ -7,14 +7,14 @@
 #include <windows.h>
 #include <commdlg.h>
 #endif
-int review_pick_database(char *path, int capacity)
+static int pick_file(char *path, int capacity, bool image)
 {
 #ifdef _WIN32
     wchar_t filename[4096] = {0};
     OPENFILENAMEW dialog = {};
     dialog.lStructSize = sizeof(dialog);
-    dialog.lpstrTitle = L"Open playback regression results";
-    dialog.lpstrFilter = L"SQLite results\0*.sqlite;*.db\0All files\0*.*\0";
+    dialog.lpstrTitle = image ? L"Open comparison image" : L"Open playback regression results";
+    dialog.lpstrFilter = image ? L"PNG images\0*.png\0All files\0*.*\0" : L"SQLite results\0*.sqlite;*.db\0All files\0*.*\0";
     dialog.lpstrFile = filename;
     dialog.nMaxFile = sizeof(filename) / sizeof(filename[0]);
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
@@ -24,8 +24,17 @@ int review_pick_database(char *path, int capacity)
 #else
     (void)path;
     (void)capacity;
+    (void)image;
     return 0;
 #endif
+}
+int review_pick_database(char *path, int capacity)
+{
+    return pick_file(path, capacity, false);
+}
+int review_pick_image(char *path, int capacity)
+{
+    return pick_file(path, capacity, true);
 }
 unsigned long review_window_flags(int hidden)
 {

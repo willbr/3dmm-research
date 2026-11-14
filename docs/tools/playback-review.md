@@ -5,6 +5,59 @@ Windows 11. Application and SQLite access code is C89; Dear ImGui, its generated
 cimgui implementation and the small platform/backend adapter compile as C++.
 The build is independent of Marcus and the original engine.
 
+## Image and contact sheet comparison
+
+`image-compare` is a simpler viewer in the same build, with three equal panes:
+**Retail**, **Ours**, and **Diff**. It accepts two PNGs, including complete movie
+contact sheets, without a capture database. The application and navigation/diff
+code are C89 and share Playback Review's cimgui/SDL backend.
+
+```powershell
+cmake --build build/playback-review --target image-compare
+build/playback-review/image-compare.exe retail.png ours.png
+```
+
+Launch without arguments to choose paths in the UI. **Browse...** opens the
+Windows file picker; paths can also be entered directly. Press **Load images**
+after choosing both files. Both images must have identical dimensions. Failed
+loads retain the previous pair. PNGs are limited to 128 megapixels each, and
+large sheets are tiled to respect the renderer's texture-size limit.
+
+- Wheel over any pane to zoom all three around the pixel under the pointer.
+- Drag with the left or middle button in any pane to pan all three together.
+- **Fit width** starts at the top of the sheets. **Fit all** shows the entire
+  images, and **1:1** shows one image pixel per UI pixel. Double-click any pane
+  to return to fit width. The zoom slider preserves the shared image centre.
+
+All panes use the same image-space centre and zoom in the same rendered frame.
+Sampling is nearest-neighbour. Diff shows the absolute difference of each RGB
+channel with opaque alpha; black means equal RGB. The changed-pixel count ignores
+alpha. It compares the entire supplied images, including labels and headings on
+contact sheets. Downsampled contact sheets are useful for browsing; use original
+frame PNGs for exact native-resolution comparisons. Still-frame seeks do not
+cover scrolling/transition presentations between authored frames.
+
+For the complete Stranger captures in this workspace:
+
+```powershell
+build/playback-review/image-compare.exe tmp/stranger1-contact-sheet/stranger1-retail-all-frames.png tmp/stranger1-contact-sheet/stranger1-marcus-all-frames.png
+```
+
+Each sheet includes all 975 authored frames across 46 scenes, labelled with
+one-based scene/frame numbers and ordered left to right, top to bottom. Retail
+uses the pinned ISO executable and its native 544x306 canvas at client rectangle
+`48 100 592 406`; Marcus uses a matching 544x306 render. Contact thumbnails are
+272x153. Original captures and capture metadata are beside the sheets.
+
+`review-image` checks pointer-anchored zoom, pan distances, zoom limits and RGB
+difference values, including alpha-only changes and output bounds.
+`image-compare-c89` checks the new application and helpers with strict C89
+diagnostics. A hidden render check can save a viewer screenshot:
+
+```powershell
+build/playback-review/image-compare.exe retail.png ours.png --smoke viewer.png
+```
+
 ## Build and open
 
 From an x64 Visual Studio developer shell at the repository root:

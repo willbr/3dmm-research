@@ -1,0 +1,43 @@
+#include "image_view.h"
+
+void review_image_zoom(ReviewImageView *view, double zoom, double dx, double dy)
+{
+    double old;
+    old = view->zoom;
+    if (zoom < 0.005)
+        zoom = 0.005;
+    if (zoom > 32)
+        zoom = 32;
+    view->x += dx / old - dx / zoom;
+    view->y += dy / old - dy / zoom;
+    view->zoom = zoom;
+}
+
+void review_image_pan(ReviewImageView *view, double dx, double dy)
+{
+    view->x -= dx / view->zoom;
+    view->y -= dy / view->zoom;
+}
+
+size_t review_image_diff_row(const unsigned char *a, const unsigned char *b, unsigned char *out, size_t pixels)
+{
+    size_t x, changed;
+    int channel, delta, different;
+    changed = 0;
+    for (x = 0; x < pixels; ++x)
+    {
+        different = 0;
+        for (channel = 0; channel < 3; ++channel)
+        {
+            delta = (int)a[x * 4 + channel] - b[x * 4 + channel];
+            if (delta < 0)
+                delta = -delta;
+            out[x * 4 + channel] = (unsigned char)delta;
+            different |= delta;
+        }
+        out[x * 4 + 3] = 255;
+        if (different)
+            ++changed;
+    }
+    return changed;
+}

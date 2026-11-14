@@ -8,6 +8,7 @@ extern "C"
     int review_backend_init(void *window, void *renderer);
     unsigned long review_window_flags(int hidden);
     int review_pick_database(char *path, int capacity);
+    int review_pick_image(char *path, int capacity);
     void review_backend_event(const void *event);
     void review_backend_frame(void);
     void review_backend_render(void *renderer);
