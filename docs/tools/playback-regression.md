@@ -5512,6 +5512,19 @@ fresh Clang strict C89 build with warnings treated as errors. Evidence:
 `tmp/c89-sound-current-sdl-tests.log`. No production changes or new retail
 captures were needed; the host-integration and comparison limits above remain.
 
+The requested sound finish was verified again on `d51b9222`, including the
+subsequent World and Scene ownership conversions. Freshly rebuilt native and
+SDL release selections pass all 16 and 24 checks, respectively, run serially.
+The standalone audio runtime also compiles and passes with Clang
+`-std=c89 -pedantic-errors -Wall -Wextra -Werror`, linking its shared integer
+helpers from `wide.c`. No additional shared sound-policy conversion was found
+necessary. Evidence: `tmp/c89-sound-final-native-build.log`,
+`tmp/c89-sound-final-native-tests.log`, `tmp/c89-sound-final-sdl-build.log`,
+`tmp/c89-sound-final-sdl-tests.log` and `tmp/c89-sound-final-strict.log`.
+This verification adds no retail captures or PCM/timing coverage and does not
+complete final host integration. Marcus itself was not rebuilt; no Marcus UI
+tests were added.
+
 ### C89 model resources and prelighting (14 November 2026)
 
 `model_resource.c` now owns model creation, cache factories/estimates,
