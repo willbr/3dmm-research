@@ -477,7 +477,8 @@ and persistent actor/caption undo ownership/control now also use C89. Actor/
 caption internals and native undo adapters remain dependencies. Scene selection
 state and actor/caption selection, toggling, bulk/tag selection and visible
 selection centroid policy now also use C89; typed view/object effects remain
-adapters.
+adapters. Scene forward/backward chopping, its public undo transaction and
+persistent snapshot resource ownership/save/swap control now also use C89.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -495,8 +496,9 @@ model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
 export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch,
 sound-packet, sound-editing/undo, loading/resolution, tag-collection/save,
-pause/camera/background-editing/undo, actor/caption Scene-editing/undo and
-selection slices are complete. Continue with remaining Scene chop/editing/undo in
+pause/camera/background-editing/undo, actor/caption Scene-editing/undo,
+selection and chop/snapshot-undo slices are complete. Continue with remaining
+Scene name/transition and playback setup/teardown policy in
 `src/engine/scene.cpp`, then other scene/movie editing and transition operations.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using

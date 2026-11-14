@@ -7488,3 +7488,95 @@ Evidence: `tmp/c89-selection-{strict-build,strict,asan,standalone,native-tests,s
 `tmp/c89-selection-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-selection-capture-hashes-{before,after}.json` and
 `tmp/c89-selection-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+### Scene chop/snapshot undo C89 closeout (14 November 2026)
+
+Baseline: `0b19fbd3`, with the private chop undo declaration extracted to
+`inc/scene_chop_undo.h` before recording. `scene_chop.c` now owns forward/backward
+chop traversal, event pruning, frame limits, background-sound owner cleanup,
+public snapshot undo transactions and persistent snapshot resource/save/swap
+control. Actor/caption internals, typed group/object primitives, serialization,
+Movie scene-list/navigation and menu/client effects remain adapters.
+
+The native Scene-content fixture now includes actual empty-Scene save and four
+alternating do/undo snapshot swaps, public forward/backward chop transactions,
+camera/current-frame event retention and both directions of real actor trim.
+The preceding selection, actor/caption editing, undo and allocation checks remain.
+Original/repeat native traces match 6,340 bytes, FNV-1a `6FDCBF8B`, SHA-256
+`7B203D16891AE5ECB3C0FB6980E63F24BDD6C801BFC77C1ACD665D848BCCFF3F`.
+The fingerprint guard retains the little-endian x64, one-byte-text restriction.
+
+Snapshot replay with a synthetic embedded-background tag exposed the native
+null-cache fetch path; the actual frozen snapshot cycle uses an empty Scene.
+Visible caption chopping attempted screen-gob creation in the headless fixture,
+so caption branch/effect coverage is C-only. These fixture limits are not claims
+of native background/caption replay parity. Existing host/save-load and retail
+capture gates remain the wider integration evidence. Native supplemental checks
+verify both chop directions close retained sound-event tag references, outside
+the frozen trace. Relevant investigation logs are
+`tmp/c89-chop-native-crash.log` and `tmp/c89-chop-caption-assert.log`.
+
+Forward chop preserves its cursor and extends overlapping caption lifetimes via
+seek-to-infinity/show/restore. Backward chop retains the newest past camera and
+all current-frame events, then recomputes the cursor and drops a cached background
+sound older than the new first frame. The diagnostic background frame retains
+native debug poison/release no-op behavior. Removed sound tags now close before
+frame-event erasure. Failed caption lifetime queries skip/diagnose instead of
+reading undefined endpoints; failed removals that leave their object in place
+advance instead of stalling. These corrections are separate from the frozen
+successful behavior trace.
+
+Snapshot resources stay owned after failed writes and release before NULL during
+disposal. Save/create/commit precede editing. Swap preserves the read/play/switch/
+retain/insert/close/delete/rewind/write/close/remove ordering and destructive
+failure prefixes. Failed final switch/seek remain nonfatal. Failure flushes before
+clear, which may destroy the undo record, then ends the long operation through
+independent copied context. C-only tests destroy the record during clear and cover
+allocation/save/commit and every fallible swap phase, caption lifetime/removal/
+seek/show behavior, camera pruning, sound-tag closing and cached sound cleanup.
+No Marcus UI tests were added. Remaining Scene name/transition/playback setup,
+other Movie operations and final C-only integration remain conversion work.
+
+Final native, SDL debug and SDL release traces match the original/repeat trace
+above byte for byte. All 96 standalone C checks (including C89 syntax), 132
+selected native, 28 SDL debug and 40 SDL release checks pass. Builds and file-heavy
+suites ran serially; both hosts, `core-checks`, directly invoked native/save-load
+executables and CLI targets were rebuilt. Marcus was stopped before rebuilding
+and relaunched afterward. The C fixture passes Clang strict C89 with warnings as
+errors and MSVC AddressSanitizer. All 51 freshly linked CLI baselines match.
+
+The final binaries stayed fixed through all 21 fresh-process captures (one
+repeat, no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `D5AF52AAF68F36C2B6C2DD64E4F6FAEB55419EC0A86476E0C34280472E6124E5`.
+- Marcus regression: `39AF5769313DA68B0003305A063750B7D1E9E5061D726316E881C350B43AF64B`.
+
+| Final suite | Case | Completion |
+| --- | --- | --- |
+| `20261114T131923Z-e57148d7` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T132041Z-33e71421` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T132404Z-020f3eb7` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T132523Z-1cbe0905` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+Movie identity and suite integrity pass. All authored frame sequences, all 540
+seek images and ordered playback image changes match each player's preceding
+Scene-selection capture: `20261114T125156Z-4fc55e94` (actor-events),
+`20261114T125314Z-50c18722` (scrolling-text), `20261114T125628Z-eb8ae07a`
+(actor-audio) and `20261114T125804Z-dea50439` (sampled-audio). Playback comparison
+collapses only adjacent identical scene/frame/image samples. The preceding
+retail scrolling sampling omission did not recur against this baseline.
+
+Actor-audio PCM16 peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass for every player. These playback regression checks
+do not exercise retail editing commands or prove full PCM/MIDI or retail timing
+parity. Existing cross-player differences and single-repeat inconclusive
+comparisons remain. Captures use a shared warm SDL package cache with private
+processes, settings and working movies; OS caching is uncontrolled.
+
+Evidence: `tmp/c89-chop-{strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-chop-{native,native-repeat,final-native,final-sdl-debug,final-sdl-release}.bin`,
+`tmp/c89-chop-output-comparison.json`,
+`tmp/c89-chop-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-chop-capture-hashes-{before,after}.json` and
+`tmp/c89-chop-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.

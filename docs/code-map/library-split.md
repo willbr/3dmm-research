@@ -979,9 +979,9 @@ Native supplemental checks cover failed body allocation, failed caption playback
 stale selection extras and movie rebinding outside the frozen trace. C-only
 fault/ownership tests cover the remaining protocol branches, including caption
 undo navigation and identity rebinding. Full gates and retail limits are recorded
-in `docs/tools/playback-regression.md`. Selection is covered below; actor/caption
-internals, chop/editing, other Scene/Movie operations and final C-only integration
-remain.
+in `docs/tools/playback-regression.md`. Selection and chopping are covered below;
+actor/caption internals, other editing, other Scene/Movie operations and final
+C-only integration remain.
 
 ### Scene selection
 
@@ -1015,8 +1015,46 @@ The native headless trace extends the Scene-content fixture with selection
 transitions, names and centroid outputs. C-only checks exercise all view modes,
 effect/notification ordering, caption early returns, allocation/append failures,
 tag boundaries/truncation/text units and centroid rounding/overflow. No Marcus
-UI tests were added. Scene chop/editing/undo, actor/caption internals, other
-Scene/Movie operations and final C-only integration remain conversion work.
+UI tests were added. Chopping is covered below. Other Scene editing/undo,
+actor/caption internals, other Scene/Movie operations and final C-only integration
+remain conversion work.
+
+### Scene chop and snapshot undo
+
+`scene_chop.c` owns forward/backward actor/caption traversal, Scene-event pruning,
+frame limits and cached-background-sound cleanup. Forward pruning starts at the
+current cursor; backward pruning moves the most recent camera to the current
+frame and retains all current-frame events before recomputing the cursor. Caption
+forward trim removes future captions or extends an overlapping caption to
+infinity; backward trim removes expired captions or changes their start frame.
+Typed services implement actor trim, caption lifetime/display effects, container
+primitives and dirty notifications. Actor/caption removals use their C policies.
+
+Removed sound-event tags now close before erasing group storage. Failed caption
+lifetime queries diagnose/skip instead of using uninitialized endpoints; failed
+removals that leave the object in place advance instead of looping indefinitely.
+These corrections are separate from the frozen successful native trace. The
+background-frame discard retains native debug poison/release no-op behavior.
+
+The public chop transaction saves/commits a snapshot undo before editing and
+releases its temporary undo reference before core. Persistent snapshot state owns
+the resource cache and chunk number in C. Save retains the cache on a failed
+write for later disposal. Do and undo share the C swap: read/play/switch, retain
+the old Scene, insert the restored Scene, close its temporary reference, delete
+the old snapshot, rewind/write the previous Scene, close it and remove its old
+list entry. Failed writes/removals preserve the native destructive prefixes;
+failed final switch/seek remain nonfatal. Close and release stay distinct typed
+operations. Failure flushes before clearing undo and ends the long operation
+through copied Movie context without accessing the possibly destroyed record.
+
+Native evidence covers real actor trims, camera pruning, public transactions and
+repeated actual empty-Scene snapshot save/swap. The synthetic embedded-background
+replay and visible-caption paths need more than the headless fixture; C-only
+tests cover snapshot failure phases and caption protocol/effect order. Native
+supplemental checks verify sound-tag resource-reference balance in both chop
+directions. No Marcus UI tests were added. Remaining Scene name/transition,
+playback startup/shutdown, other Movie operations and final C-only integration
+remain conversion work.
 
 ### Actor header, route and event persistence
 

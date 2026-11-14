@@ -27,6 +27,7 @@
 #include "three_mm/scene_edit.h"
 #include "three_mm/scene_content.h"
 #include "three_mm/scene_selection.h"
+#include "three_mm/scene_chop.h"
 
 //
 // Undo object for actor operations
@@ -148,6 +149,7 @@ class Scene : public Scene_PAR
     ThreeMMSceneEditServices _EditServices();
     ThreeMMSceneContentServices _ContentServices();
     ThreeMMSceneSelectionServices _SelectionServices();
+    ThreeMMSceneChopServices _ChopServices();
 
     //
     // Global information

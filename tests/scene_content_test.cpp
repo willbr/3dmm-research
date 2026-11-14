@@ -5,6 +5,7 @@
 #include "soc.h"
 #include "scene_sound.h"
 #include "scene_content_undo.h"
+#include "scene_chop_undo.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -294,6 +295,54 @@ struct MovieAccess : Movie
 };
 struct Access : Scene
 {
+    static void ChopSound(PScene p, PChunkyResourceFile cache, bool back)
+    {
+        TagChildPair tag = {0, {ksidUseCrf, cache, kctgMsnd, 123}};
+        auto packet = SceneSoundEvent::PsseNew(80, stySfx, false, 1, &tag);
+        CHECK(packet);
+        auto events = p->*&Access::_pggsevFrm;
+        SceneEvent e = {back ? 1 : 7, sevtPlaySnd};
+        CHECK(events->FInsert(back ? 0 : events->IvMac(), packet->Cb(), packet, &e));
+        FreePpv(reinterpret_cast<void **>(&packet));
+        if (back)
+            ++(p->*&Access::_runtime).next_event;
+    }
+    static void ChopSetup(PScene p, bool cameras = true)
+    {
+        auto &d = p->*&Access::_data;
+        d.firstFrame = 1;
+        d.lastFrame = 40;
+        d.currentFrame = 5;
+        auto events = p->*&Access::_pggsevFrm;
+        while (events->IvMac())
+            events->Delete(events->IvMac() - 1);
+        if (!cameras)
+        {
+            (p->*&Access::_runtime).next_event = 0;
+            return;
+        }
+        for (long frame : {1, 3, 5, 5, 7})
+        {
+            SceneEvent e = {frame, sevtChngCamera};
+            long camera = 0;
+            CHECK(events->FInsert(events->IvMac(), sizeof(camera), &camera, &e));
+        }
+        (p->*&Access::_runtime).next_event = 4;
+    }
+    static void ChopState(PScene p)
+    {
+        State(p);
+        auto events = p->*&Access::_pggsevFrm;
+        Value((p->*&Access::_runtime).next_event);
+        Value(events->IvMac());
+        for (long i = 0; i < events->IvMac(); ++i)
+        {
+            SceneEvent e;
+            events->GetFixed(i, &e);
+            Value(e.nfrm);
+            Value(e.sevt);
+        }
+    }
     static ThreeMMSceneContentServices Services(PScene p)
     {
         return (p->*&Access::_ContentServices)();
@@ -501,9 +550,36 @@ int main()
     observed->AddRef();
     auto file = observed->Pcfl();
     ChunkNumber background;
+    /* Actual snapshot save/swap and frame chopping, captured before extraction. */
+    Access::ChopSetup(scene, false);
+    auto chopUndo = SceneUndoChop::PsuncNew();
+    CHECK(chopUndo);
+    chopUndo->SetPmvie(movie);
+    chopUndo->SetIscen(0);
+    chopUndo->SetNfrm(5);
+    Value(chopUndo->FSave(scene));
+    Value(scene->FChopCore());
+    Access::ChopState(scene);
+    for (int i = 0; i < 4; ++i)
+    {
+        Value(i % 2 ? chopUndo->FUndo(movie) : chopUndo->FDo(movie));
+        scene = movie->Pscen();
+        Access::ChopState(scene);
+    }
+    ReleasePpo(&chopUndo);
     BackgroundFixture(file, &background, 0);
-    TAG tag = {0, observed, kctgBkgd, background}, old;
+    TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
+    Access::ChopSetup(scene);
+    Value(scene->FChopBack());
+    Access::ChopState(scene);
+    movie->ClearUndo();
+    Access::ChopSetup(scene);
+    Value(scene->FChop());
+    Access::ChopState(scene);
+    movie->ClearUndo();
+    Access::ChopSetup(scene);
+    scene->SetNfrmCur(1);
     ChunkNumber number;
     CHECK(file->FAdd(0, kctgTmpl, &number));
     auto makeActor = [&]() {
@@ -511,6 +587,21 @@ int main()
         CHECK(a && a->FInitClipboard(observed, number) && a->PrepareBody(scene));
         return a;
     };
+    for (int back = 0; back < 2; ++back)
+    {
+        Access::ChopSetup(scene);
+        if (back)
+            scene->SetNfrmCur(35);
+        auto testActor = makeActor();
+        CHECK(scene->FAddActrCore(testActor));
+        Value(back ? scene->FChopBackCore() : scene->FChopCore());
+        Access::ChopState(scene);
+        if (scene->PactrFromArid(testActor->Arid()))
+            scene->RemActrCore(testActor->Arid());
+        ReleasePpo(&testActor);
+    }
+    Access::ChopSetup(scene);
+    scene->SetNfrmCur(1);
     auto actor = makeActor();
     Value(scene->FAddActrCore(actor));
     Access::State(scene);
@@ -653,6 +744,17 @@ int main()
     }
 #ifdef THREE_MM_ENGINE_SCENE_CONTENT_H
     recording = false;
+    for (int back = 0; back < 2; ++back)
+    {
+        Access::ChopSetup(scene);
+        auto references = observed->CactRef();
+        Access::ChopSound(scene, observed, back != 0);
+        CHECK(observed->CactRef() == references + 1);
+        CHECK(back ? scene->FChopBackCore() : scene->FChopCore());
+        CHECK(observed->CactRef() == references);
+    }
+    Access::ChopSetup(scene);
+    scene->SetNfrmCur(1);
     auto unprepared = NewObj ContentActor;
     CHECK(unprepared && unprepared->FInitClipboard(observed, number));
 #ifdef DEBUG
@@ -710,5 +812,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 5552 && hash == 0x3D1499BAU);
+        CHECK(recorded == 6340 && hash == 0x6FDCBF8BU);
 }

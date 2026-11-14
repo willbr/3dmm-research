@@ -51,6 +51,7 @@
 #include "scene_sound_undo.h"
 #include "scene_edit_undo.h"
 #include "scene_content_undo.h"
+#include "scene_chop_undo.h"
 #include <cstring>
 
 ASSERTNAME
@@ -149,33 +150,6 @@ void *SceneSoundToWire(PSceneSoundEvent sound, long *bytes)
 //
 // Undo object for chopping operation.
 //
-typedef class SceneUndoChop *PSceneUndoChop;
-
-#define SceneUndoChop_PAR MovieUndo
-#define kclsSceneUndoChop 'SUNC'
-class SceneUndoChop : public SceneUndoChop_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    ChunkNumber _cno;
-    PChunkyResourceFile _pcrf;
-    SceneUndoChop(void)
-    {
-    }
-
-  public:
-    static PSceneUndoChop PsuncNew(void);
-    ~SceneUndoChop(void);
-
-    bool FSave(PScene pscen);
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
-
 //
 // Undo object for background operations
 //
@@ -3106,94 +3080,69 @@ PActor Scene::PactrFromArid(long id)
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
+ThreeMMSceneChopServices Scene::_ChopServices()
+{
+    ThreeMMSceneChopServices s = {};
+    s.context = this;
+    s.data = &_data;
+    s.events = _EventServices();
+    s.trim_actor = [](void *, void *object, int back) {
+        bool alive;
+        auto actor = static_cast<PActor>(object);
+        if (back)
+            actor->DeleteBackCore(&alive);
+        else
+            actor->DeleteFwdCore(fTrue, &alive);
+        return int(alive);
+    };
+    s.remove_actor = [](void *p, void *object) {
+        static_cast<Scene *>(p)->RemActrCore(static_cast<PActor>(object)->Arid());
+    };
+    s.remove_text = [](void *p, void *object) {
+        return int(static_cast<Scene *>(p)->FRemTboxCore(static_cast<PTBOX>(object)));
+    };
+    s.lifetime = [](void *, void *object, ThreeMMI32 *first, ThreeMMI32 *last) {
+        long a, b;
+        if (!static_cast<PTBOX>(object)->FGetLifetime(&a, &b))
+            return 0;
+        *first = a;
+        *last = b;
+        return 1;
+    };
+    s.show_text = [](void *, void *object) { return int(static_cast<PTBOX>(object)->FShowCore()); };
+    s.start_text = [](void *, void *object, ThreeMMI32 frame) {
+        auto text = static_cast<PTBOX>(object);
+        Assert(text->FIsVisible(), "Bad tbox");
+        text->SetStartFrame(frame);
+    };
+    s.erase_frame = [](void *p, ThreeMMI32 index) { static_cast<Scene *>(p)->_pggsevFrm->Delete(index); };
+    s.set_frame = [](void *p, ThreeMMI32 index, ThreeMMI32 frame) {
+        auto events = static_cast<Scene *>(p)->_pggsevFrm;
+        SceneEvent event;
+        events->GetFixed(index, &event);
+        event.nfrm = frame;
+        events->PutFixed(index, &event);
+    };
+    s.dirty = [](void *p) { static_cast<Scene *>(p)->Pmvie()->SetDirty(); };
+    s.discard_background_frame = [](void *p) { TrashVar(&static_cast<Scene *>(p)->_runtime.background_frame); };
+    s.bad_lifetime = [](void *) { Bug("Bad caption lifetime while chopping Scene"); };
+    s.new_undo = [](void *) -> void * { return SceneUndoChop::PsuncNew(); };
+    s.save_undo = [](void *p, void *undo) {
+        return int(static_cast<PSceneUndoChop>(undo)->FSave(static_cast<Scene *>(p)));
+    };
+    s.commit_undo = [](void *p, void *undo) {
+        return int(static_cast<Scene *>(p)->Pmvie()->FAddUndo(static_cast<PSceneUndoChop>(undo)));
+    };
+    s.release_undo = [](void *, void *undo) { static_cast<PSceneUndoChop>(undo)->Release(); };
+    s.clear_undo = [](void *p) { static_cast<Scene *>(p)->Pmvie()->ClearUndo(); };
+    return s;
+}
+
 bool Scene::FChopCore()
 {
     AssertThis(0);
-
-    PTBOX ptbox;
-    PActor pactr;
-    bool fAlive;
-    long ipo;
-    long nfrmStart, nfrmLast;
-
-    if (_data.currentFrame == _data.lastFrame)
-    {
-        return (fTrue);
-    }
-
-    //
-    // Chop all actors off
-    //
-    for (ipo = 0; ipo < _pglpactr->IvMac();)
-    {
-        _pglpactr->Get(ipo, &pactr);
-        AssertPo(pactr, 0);
-        pactr->DeleteFwdCore(fTrue, &fAlive);
-
-        if (!fAlive)
-        {
-            RemActrCore(pactr->Arid());
-        }
-        else
-        {
-            ipo++;
-        }
-    }
-
-    //
-    // Chop all text boxes off
-    //
-    for (ipo = 0; ipo < _pglptbox->IvMac();)
-    {
-        _pglptbox->Get(ipo, &ptbox);
-        AssertPo(ptbox, 0);
-
-        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast) && (nfrmStart > _data.currentFrame))
-        {
-            //
-            // Ok if this fails.
-            //
-            FRemTboxCore(ptbox);
-        }
-        else
-        {
-            if (nfrmLast >= _data.currentFrame)
-            {
-
-                //
-                // Here we extend the lifetime of the text box to
-                // infinite, cuz we removed the frame with the
-                // Hide().
-                //
-                if (ptbox->FGotoFrame(klwMax - 1))
-                {
-                    ptbox->FShowCore();
-                    ptbox->FGotoFrame(_data.currentFrame);
-                }
-            }
-
-            ipo++;
-        }
-    }
-
-    //
-    // Remove all scene events from here forward
-    //
-    for (; _runtime.next_event < _pggsevFrm->IvMac();)
-    {
-        _pggsevFrm->Delete(_runtime.next_event);
-    }
-
-    //
-    // Set new limit
-    //
-    if (_data.lastFrame != _data.currentFrame)
-    {
-        _data.lastFrame = _data.currentFrame;
-        Pmvie()->SetDirty();
-    }
-
-    return (fTrue);
+    auto s = _ChopServices();
+    return three_mm_scene_chop(0, &s) != 0;
 }
 
 /****************************************************
@@ -3210,39 +3159,9 @@ bool Scene::FChopCore()
  ****************************************************/
 bool Scene::FChop()
 {
-    PSceneUndoChop psunc;
-    bool fValid;
-
-    if (_data.currentFrame == _data.lastFrame)
-    {
-        return (fTrue);
-    }
-
-    psunc = SceneUndoChop::PsuncNew();
-    if (psunc != pvNil)
-    {
-        fValid = psunc->FSave(this);
-    }
-    else
-    {
-        fValid = fFalse;
-    }
-
-    if (!fValid || !Pmvie()->FAddUndo(psunc))
-    {
-        ReleasePpo(&psunc);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunc);
-
-    if (!FChopCore())
-    {
-        Pmvie()->ClearUndo();
-        return (fFalse);
-    }
-
-    return (fTrue);
+    AssertThis(0);
+    auto s = _ChopServices();
+    return three_mm_scene_chop_edit(0, &s) != 0;
 }
 
 /****************************************************
@@ -3259,126 +3178,8 @@ bool Scene::FChop()
 bool Scene::FChopBackCore()
 {
     AssertThis(0);
-
-    PTBOX ptbox;
-    PActor pactr;
-    SceneEvent sev;
-    bool fAlive;
-    bool fCopyCam;
-    long ipo;
-    long nfrmStart, nfrmLast;
-
-    if (_data.currentFrame == _data.firstFrame)
-    {
-        return (fTrue);
-    }
-
-    //
-    // Chop all actors off
-    //
-    for (ipo = 0; ipo < _pglpactr->IvMac();)
-    {
-        _pglpactr->Get(ipo, &pactr);
-        AssertPo(pactr, 0);
-        pactr->DeleteBackCore(&fAlive);
-
-        if (!fAlive)
-        {
-            RemActrCore(pactr->Arid());
-        }
-        else
-        {
-            ipo++;
-        }
-    }
-
-    //
-    // Chop all text boxes off
-    //
-    for (ipo = 0; ipo < _pglptbox->IvMac();)
-    {
-        _pglptbox->Get(ipo, &ptbox);
-        AssertPo(ptbox, 0);
-
-        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast) && (nfrmLast < _data.currentFrame))
-        {
-            //
-            // Ok if this fails.
-            //
-            FRemTboxCore(ptbox);
-        }
-        else
-        {
-            if (nfrmStart < _data.currentFrame)
-            {
-                Assert(ptbox->FIsVisible(), "Bad tbox");
-                ptbox->SetStartFrame(_data.currentFrame);
-            }
-
-            ipo++;
-        }
-    }
-
-    //
-    // Remove all scene events from here backward, except camera
-    // changes, keep the most recent camera change.
-    //
-    fCopyCam = fTrue;
-    for (; _runtime.next_event > 0;)
-    {
-        _runtime.next_event--;
-
-        _pggsevFrm->GetFixed(_runtime.next_event, &sev);
-
-        if ((sev.sevt == sevtChngCamera) && (fCopyCam))
-        {
-
-            fCopyCam = fFalse;
-            sev.nfrm = _data.currentFrame;
-            _pggsevFrm->PutFixed(_runtime.next_event, &sev);
-        }
-        else
-        {
-
-            if (sev.nfrm == _data.currentFrame)
-            {
-                continue;
-            }
-
-            _pggsevFrm->Delete(_runtime.next_event);
-        }
-    }
-
-    _runtime.next_event = 0;
-    for (; _runtime.next_event < _pggsevFrm->IvMac(); _runtime.next_event++)
-    {
-
-        _pggsevFrm->GetFixed(_runtime.next_event, &sev);
-        if (sev.nfrm != _data.currentFrame)
-        {
-            break;
-        }
-    }
-
-    //
-    // Set new limit
-    //
-    if (_data.firstFrame != _data.currentFrame)
-    {
-        _data.firstFrame = _data.currentFrame;
-        Pmvie()->SetDirty();
-    }
-
-    //
-    // If _psseBkgd got chopped, get rid of it
-    //
-    if (_psseBkgd != pvNil && _runtime.background_frame < _data.firstFrame)
-    {
-        _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
-        TrashVar(&_runtime.background_frame);
-    }
-
-    return (fTrue);
+    auto s = _ChopServices();
+    return three_mm_scene_chop(1, &s) != 0;
 }
 
 /****************************************************
@@ -3395,39 +3196,9 @@ bool Scene::FChopBackCore()
  ****************************************************/
 bool Scene::FChopBack()
 {
-    PSceneUndoChop psunc;
-    bool fValid;
-
-    if (_data.currentFrame == _data.firstFrame)
-    {
-        return (fTrue);
-    }
-
-    psunc = SceneUndoChop::PsuncNew();
-    if (psunc != pvNil)
-    {
-        fValid = psunc->FSave(this);
-    }
-    else
-    {
-        fValid = fFalse;
-    }
-
-    if (!fValid || !Pmvie()->FAddUndo(psunc))
-    {
-        ReleasePpo(&psunc);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunc);
-
-    if (!FChopBackCore())
-    {
-        Pmvie()->ClearUndo();
-        return (fFalse);
-    }
-
-    return (fTrue);
+    AssertThis(0);
+    auto s = _ChopServices();
+    return three_mm_scene_chop_edit(1, &s) != 0;
 }
 
 /****************************************************
@@ -4346,6 +4117,61 @@ void SceneUndoBackground::AssertValid(LegacyUlong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
+namespace
+{
+struct SceneSnapshotHost
+{
+    PMovie movie;
+};
+ThreeMMSceneSnapshotServices SceneSnapshotServices(SceneSnapshotHost *host)
+{
+    ThreeMMSceneSnapshotServices s = {};
+    s.context = host;
+    s.new_file = [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); };
+    s.new_resource = [](void *, void *file) -> void * {
+        return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0);
+    };
+    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.begin = [](void *) { vpappb->BeginLongOp(); };
+    s.end = [](void *) { vpappb->EndLongOp(); };
+    s.write = [](void *, void *scene, void *resource, ThreeMMU32 *number) {
+        return int(static_cast<PScene>(scene)->FWrite(static_cast<PChunkyResourceFile>(resource), number));
+    };
+    s.read = [](void *p, void *resource, ThreeMMU32 number) -> void * {
+        return Scene::PscenRead(static_cast<SceneSnapshotHost *>(p)->movie, static_cast<PChunkyResourceFile>(resource),
+                                number);
+    };
+    s.start = [](void *, void *scene) { return int(static_cast<PScene>(scene)->FPlayStartEvents()); };
+    s.switch_scene = [](void *p, ThreeMMI32 index) {
+        return int(static_cast<SceneSnapshotHost *>(p)->movie->FSwitchScen(index));
+    };
+    s.current = [](void *p) -> void * { return static_cast<SceneSnapshotHost *>(p)->movie->Pscen(); };
+    s.retain = [](void *, void *scene) { static_cast<PScene>(scene)->AddRef(); };
+    s.close = [](void *, void *scene) {
+        auto value = static_cast<PScene>(scene);
+        Scene::Close(&value);
+    };
+    s.insert = [](void *p, ThreeMMI32 index, void *scene) {
+        return int(static_cast<SceneSnapshotHost *>(p)->movie->FInsScenCore(index, static_cast<PScene>(scene)));
+    };
+    s.remove = [](void *p, ThreeMMI32 index) {
+        return int(static_cast<SceneSnapshotHost *>(p)->movie->FRemScenCore(index));
+    };
+    s.delete_chunk = [](void *, void *resource, ThreeMMU32 number) {
+        static_cast<PChunkyResourceFile>(resource)->Pcfl()->Delete(kctgScen, number);
+    };
+    s.rewind = [](void *, void *scene) {
+        auto value = static_cast<PScene>(scene);
+        value->SetNfrmCur(three_mm_fixed_sub(value->NfrmFirst(), 1));
+    };
+    s.seek = [](void *p, ThreeMMI32 frame) { static_cast<SceneSnapshotHost *>(p)->movie->Pscen()->FGotoFrm(frame); };
+    s.invalidate = [](void *p) { static_cast<SceneSnapshotHost *>(p)->movie->InvalViewsAndScb(); };
+    s.flush = [](void *p) { static_cast<SceneSnapshotHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.clear = [](void *p) { static_cast<SceneSnapshotHost *>(p)->movie->ClearUndo(); };
+    return s;
+}
+} // namespace
+
 PSceneUndoChop SceneUndoChop::PsuncNew()
 {
     PSceneUndoChop psunc;
@@ -4360,8 +4186,8 @@ PSceneUndoChop SceneUndoChop::PsuncNew()
  ****************************************************/
 SceneUndoChop::~SceneUndoChop(void)
 {
-    AssertBaseThis(0);
-    ReleasePpo(&_pcrf);
+    auto s = SceneSnapshotServices(nullptr);
+    three_mm_scene_chop_dispose(&_snapshot, &s);
 }
 
 /****************************************************
@@ -4377,28 +4203,8 @@ SceneUndoChop::~SceneUndoChop(void)
  ****************************************************/
 bool SceneUndoChop::FSave(PScene pscen)
 {
-    PChunkyFile pcfl;
-    bool fRet;
-
-    pcfl = ChunkyFile::PcflCreateTemp();
-    if (pcfl == pvNil)
-    {
-        return (fFalse);
-    }
-
-    _pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
-    if (_pcrf == pvNil)
-    {
-        ReleasePpo(&pcfl);
-        return (fFalse);
-    }
-    ReleasePpo(&pcfl);
-
-    vpappb->BeginLongOp();
-    fRet = pscen->FWrite(_pcrf, &_cno);
-    vpappb->EndLongOp();
-
-    return (fRet);
+    auto s = SceneSnapshotServices(nullptr);
+    return three_mm_scene_chop_save(&_snapshot, pscen, &s) != 0;
 }
 
 /****************************************************
@@ -4415,77 +4221,9 @@ bool SceneUndoChop::FSave(PScene pscen)
 bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    PScene pscen;
-    PScene pscenSave;
-
-    vpappb->BeginLongOp();
-
-    pscen = Scene::PscenRead(_pmvie, _pcrf, _cno);
-
-    if (pscen == pvNil)
-    {
-        goto LFail;
-    }
-
-    if (!pscen->FPlayStartEvents())
-    {
-        Scene::Close(&pscen);
-        goto LFail;
-    }
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        Scene::Close(&pscen);
-        goto LFail;
-    }
-
-    pscenSave = _pmvie->Pscen();
-    pscenSave->AddRef();
-
-    if (!_pmvie->FInsScenCore(_iscen, pscen))
-    {
-        ReleasePpo(&pscenSave);
-        Scene::Close(&pscen);
-        goto LFail;
-    }
-
-    Scene::Close(&pscen);
-
-    _pcrf->Pcfl()->Delete(kctgScen, _cno);
-    pscenSave->SetNfrmCur(pscenSave->NfrmFirst() - 1);
-    if (!pscenSave->FWrite(_pcrf, &_cno))
-    {
-        _pmvie->FRemScenCore(_iscen + 1);
-        Scene::Close(&pscenSave);
-        goto LFail;
-    }
-
-    Scene::Close(&pscenSave);
-
-    if (!_pmvie->FRemScenCore(_iscen + 1))
-    {
-        goto LFail;
-    }
-
-    //
-    // We don't care if we can't switch, everything was restored.
-    //
-    if (_pmvie->FSwitchScen(_iscen))
-    {
-        _pmvie->Pscen()->FGotoFrm(_nfrm);
-        _pmvie->InvalViewsAndScb();
-    }
-
-    vpappb->EndLongOp();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    vpappb->EndLongOp();
-    return (fFalse);
+    SceneSnapshotHost host = {_pmvie};
+    auto s = SceneSnapshotServices(&host);
+    return three_mm_scene_chop_swap(&_snapshot, _iscen, _nfrm, &s) != 0;
 }
 
 /****************************************************
@@ -4520,7 +4258,7 @@ void SceneUndoChop::MarkMem(void)
 {
     AssertThis(0);
     SceneUndoChop_PAR::MarkMem();
-    MarkMemObj(_pcrf);
+    MarkMemObj(static_cast<PChunkyResourceFile>(_snapshot.resource));
 }
 
 /***************************************************************************
@@ -4528,7 +4266,7 @@ void SceneUndoChop::MarkMem(void)
 ***************************************************************************/
 void SceneUndoChop::AssertValid(LegacyUlong grf)
 {
-    AssertNilOrPo(_pcrf, grf);
+    AssertNilOrPo(static_cast<PChunkyResourceFile>(_snapshot.resource), grf);
 }
 #endif
 
