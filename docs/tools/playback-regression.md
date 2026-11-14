@@ -5569,3 +5569,94 @@ Evidence: `tmp/c89-model-resource-before.bin`,
 `tmp/c89-model-resource-native-control-capture.log` and the final capture logs.
 The current 76/94-check gates are in `tmp/c89-sound-runtime-standalone.log` and
 `tmp/c89-sound-runtime-native-tests.log`.
+
+
+### C89 material and custom-material resources (14 November 2026)
+
+Material construction, cache factories/estimates, header/texture/transform
+loading, serialization, shade replacement, disposal and PIX/BMP import control
+now use `material_resource.c`. `custom_material.c` owns persistent material/model
+reference arrays, counts and body-part set identifiers, construction/retains,
+child loading, estimates, queries and disposal. Native adapters retain typed
+BRender fields/allocation, object references, DataBlock/file and TextureMap
+primitives. TextureMap storage/codecs and final native facade removal remain
+conversion work.
+
+The two original native captures and the converted trace match all 102,316
+bytes, SHA-256
+`F31D5481A64AC6D49CA63F6E5FDD288D4C4C70246F196760B158B1E519775225`.
+The debug little-endian test enforces FNV-1a `113D98C1` automatically. It covers
+396 material and 192 custom-material load attempts over ordinary/foreign/legacy
+zero-order headers, packed data, trailing/short records, textures and native/
+foreign/short texture transforms, direct/factory initialization and BASE/Pv
+fault injection. Additional cases cover default/explicit constructors, custom
+reference counts, write/adoption failures and real PIX import. Successful
+material/texture bytes and partial ownership/graph metadata are recorded;
+undefined bytes in failed partial texture writes are not recorded.
+
+Wire records remain 20-byte material headers, 8-byte custom headers and 28-byte
+transforms. Material loading retains its narrow zero-order Windows exception.
+Transform loading swaps every non-native marker before its diagnostic and is
+skipped when there is no texture child. Writing retains native behavior,
+including omitting transform children and deleting only the parent after a
+texture writer fails, which can leave its partial child. An adoption failure
+deletes child then parent. Material factory failures invalidate outputs before
+release; custom factories release before invalidation. Direct loading retains
+partial ownership except the existing local transform-failure cleanup.
+
+Custom slot counts retain the maximum signed child ID across all child types;
+missing material/model slots remain empty. Array allocation/retain order,
+partial references and cache estimates match native. Sizes that cannot fit
+signed allocation/cache arithmetic fail before overflow. The native debug
+facade still requires complete material slots when validating successful
+objects. The body runtime fixture now writes its model references through the
+C-owned array rather than the removed native member.
+
+BRender material identifiers now use a nonempty pointer-sized placeholder:
+clearing a larger local string still made BrResStrDup allocate only one byte.
+Typed pointer copies replace the aliased owner read. Failed PIX wrapping now
+frees the raw pixelmap without first publishing it as a valid TextureMap to
+material disposal. The pre-existing lifetime problem for successfully imported
+PIX allocations remains in TextureMap and is a dependency of the next texture
+conversion. The real PIX fixture explicitly frees that legacy SDK owner after
+material disposal; it does not claim the old TextureMap lifetime is repaired.
+
+All 77 standalone C checks, including strict syntax, pass. The C-only material
+test and MSVC AddressSanitizer run cover endian codecs, legacy markers, sparse
+children, invalid counts, partial owners, callback/allocation failures, factory
+ordering, atomic shade replacement, import failures and write/adoption cleanup.
+The full `core-checks` target and both hosts build; all 96 focused native checks,
+four SDL release checks and 51 freshly linked CLI baselines pass. The final
+focused native material/save-load/link rerun passes after restoring the native
+debug adapter assertions. No Marcus UI tests were added.
+
+The final capture executables were frozen at SHA-256
+`B4C6F327AEB701CDA1E3B8E1026B30E077544965F23AB99FC1FC63F711052431`
+(SDL release) and
+`A8308902E3F69A6AAC6ACD8BACEE648B6BFF1694F3366CCF4094AF3B6C44420A`
+(Marcus regression). Both hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T021601Z-e526844f` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T021714Z-a38f7abf` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie identity and
+suite integrity. Authored frame observations, all 360 seek images and ordered
+playback image changes match each player's preceding model-resource suites
+`20261114T014331Z-3c06dc64` and `20261114T014446Z-76bc208b`. Only adjacent
+identical position/image observations are collapsed for playback comparison.
+Both reports retain existing cross-player differences and single-repeat
+inconclusive comparisons; these gates show no observed conversion regression,
+not complete retail timing/PCM parity. Captures reuse the shared warm SDL
+package cache with private processes/settings/working movies, uncontrolled OS
+caching and no concurrent builds or tests.
+
+Evidence: `tmp/c89-material-resource-before.bin`,
+`tmp/c89-material-resource-before-repeat.bin`, `tmp/c89-material-resource-after.bin`,
+`tmp/c89-material-resource-standalone.log`, `tmp/c89-material-resource-asan.log`,
+`tmp/c89-material-resource-native-tests.log`,
+`tmp/c89-material-resource-final-focused.log`, `tmp/c89-material-resource-sdl-tests.log`,
+`tmp/c89-material-resource-output-comparison.json`,
+`tmp/c89-material-resource-playback-actor-events-scrolling-text.json` and the two
+`tmp/c89-material-resource-capture-*.log` files.

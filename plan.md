@@ -421,13 +421,17 @@ facades is still part of final host integration.
 Model construction/loading, prepared/unprepared wire I/O, DAT import control,
 glyph geometry adjustments and prelighting lifetime/control now also use C89.
 The native Model facade retains BRender field/allocation and block/file services.
+Material/custom-material construction, factories, wire I/O, shade-table
+replacement, texture/model reference ownership and PIX/BMP import orchestration
+now also use C89. Native adapters retain BRender field access, object references
+and TextureMap/file primitives.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
-model-resource slices are complete. Continue with material/custom-material
-construction, wire I/O, shade-table/texture ownership in `mtrl.cpp` and texture
-resource loading/import, then remaining BRender representation adapters.
+model/material/custom-material slices are complete. Continue with TextureMap
+storage, wire I/O, bitmap/PIX import and imported pixelmap ownership in
+`bren/tmap.cpp`, then remaining BRender representation adapters.
 Temporary native resource/object/HQ and
 Body facades still need removal during final host integration; these slices do
 not complete the whole backend. Validation and coverage limits are recorded in

@@ -74,6 +74,7 @@ cmake --build build/engine-c89 --target engine-actor-create-test
 cmake --build build/engine-c89 --target engine-movie-sound-test
 cmake --build build/engine-c89 --target engine-body-geometry-test
 cmake --build build/engine-c89 --target engine-model-resource-test
+cmake --build build/engine-c89 --target engine-material-resource-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1764,6 +1765,51 @@ the test enforces FNV-1a `78C575E5` on native debug little-endian hosts. Real
 retail/SDL/Marcus captures and the native-model caption control are recorded
 with coverage limits in `docs/tools/playback-regression.md`. Material/texture
 resources and final native facade removal remain migration work.
+
+### Materials, custom materials and shade-table ownership
+
+`material_resource.c` owns persistent `ThreeMMMaterialResource` renderer handles
+and the shared `ThreeMMMaterialShade` texture reference. It controls creation,
+factory estimates, header/texture/transform loading, writing, disposal,
+shade-table replacement and PIX/BMP import sequencing. `custom_material.c`
+owns persistent material/model arrays, body-part counts and set identifiers,
+construction/retains, child loading, factory estimates and disposal/queries.
+`mtrl.cpp` retains typed BRender field/allocation, object/reference, block/file
+and TextureMap services. The existing custom-material graph comparisons remain
+in the shared template controller.
+
+Material headers remain 20 bytes, custom headers 8 and texture transforms 28.
+Both host orders and the narrow zero-order Windows material-header exception
+retain their native policy. A non-native texture-transform marker always causes
+swapping before its debug diagnostic. Transform children are considered only
+when a texture child exists. Writing preserves native child creation/adoption
+cleanup, including retained partial texture chunks after a texture writer fails;
+it does not add serialization of texture transforms. Material factories
+invalidate outputs before releasing failed owners; custom factories release
+first. Direct loading retains partial ownership except transform failures,
+which release the texture and renderer material locally.
+
+Custom slot counts still use the highest signed child ID across every child
+type, with missing material/model slots left empty. Arrays allocate in native
+order and preserve partially acquired references on failure. Unrepresentable
+array/cache sizes fail before overflowing signed allocation arithmetic. Native
+debug validation still expects complete material slots in successful facades.
+The renderer identifier now uses a nonempty pointer-sized placeholder so
+BRender allocates the owner slot, and typed copies avoid aliased pointer reads.
+Failed PIX wrapping no longer publishes a freed/unwrapped pixelmap to material
+disposal. TextureMap storage and the pre-existing lifetime of successfully
+imported PIX allocations remain inputs to the next texture-resource conversion.
+
+`engine-material-resource-test` links with C alone and covers endian codecs,
+legacy markers, sparse child IDs, partial arrays/references, invalid counts,
+factory ordering, shade replacement, imports and write/adoption failures.
+`material-resource-test` freezes 102,316 native bytes over 588 material/custom
+load attempts plus construction, writing and real PIX import, SHA-256
+`F31D5481A64AC6D49CA63F6E5FDD288D4C4C70246F196760B158B1E519775225`.
+The native debug little-endian check enforces FNV-1a `113D98C1` without masking.
+The existing body runtime fixture now fills the C-owned model array directly.
+Both host builds, C89/ASan checks, CLI comparisons and retail playback evidence
+are recorded in `docs/tools/playback-regression.md`. No Marcus UI tests were added.
 
 ### Template construction, headers and default costumes
 

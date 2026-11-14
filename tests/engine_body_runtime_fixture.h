@@ -4,7 +4,7 @@ class BodyRuntimeCustomAccess : public CustomMaterial_CMTL
 {
   public:
     static void SetModel(PCustomMaterial_CMTL c,int i,PModel model)
-    { auto member=&BodyRuntimeCustomAccess::_prgpmodl; (c->*member)[i]=model; model->AddRef(); }
+    { auto member=&BodyRuntimeCustomAccess::_custom; (c->*member).models[i]=model; model->AddRef(); }
 };
 static bool TestBodyRuntime()
 {
