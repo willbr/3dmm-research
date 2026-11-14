@@ -237,6 +237,7 @@ static void draw_pane(Pane *pane, int index)
     end = vec(pane->origin.x + pane->size.x, pane->origin.y + pane->size.y);
     ImDrawList_PushClipRect(pane->draw, pane->origin, end, 1);
     ImDrawList_AddRectFilled(pane->draw, pane->origin, end, 0xff181513UL, 0, 0);
+    ImDrawList_AddCallback(pane->draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerNearest, NULL, 0);
     memset(&texture, 0, sizeof(texture));
     for (i = 0; i < images.count; ++i)
     {
@@ -250,6 +251,7 @@ static void draw_pane(Pane *pane, int index)
         texture._TexID = (ImTextureID)(size_t)tile->texture;
         ImDrawList_AddImage(pane->draw, texture, vec(left, top), vec(right, bottom), vec(0, 0), vec(1, 1), 0xffffffffUL);
     }
+    ImDrawList_AddCallback(pane->draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerLinear, NULL, 0);
     ImDrawList_PopClipRect(pane->draw);
 }
 static void panes(void)
