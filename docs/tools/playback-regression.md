@@ -5525,6 +5525,17 @@ This verification adds no retail captures or PCM/timing coverage and does not
 complete final host integration. Marcus itself was not rebuilt; no Marcus UI
 tests were added.
 
+The sound closeout was checked again against the existing `ad30b426` build,
+including the subsequent Scene sound packet, editing/undo and loading/resolution
+conversions. All 18 native and 24 SDL release checks selected by
+`sound|audio|midi|wave|riff|pcm|adpcm` pass, run serially. Evidence:
+`tmp/c89-sound-final-audit-native.log` and
+`tmp/c89-sound-final-audit-sdl.log`. These runs use existing binaries; the
+uncommitted Background camera changes were neither rebuilt nor tested by this
+audit. No additional sound implementation changes, builds or retail captures
+were required. Device/codec/thread adapters and final native facade integration
+retain the limits above.
+
 ### C89 model resources and prelighting (14 November 2026)
 
 `model_resource.c` now owns model creation, cache factories/estimates,
