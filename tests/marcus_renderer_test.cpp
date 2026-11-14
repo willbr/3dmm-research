@@ -1,4 +1,6 @@
 #include "gpu_renderer.h"
+#include "asm_renderer.h"
+#include "asm_protocol.h"
 #include "player.h"
 #include "settings.h"
 #include "three_mm/preview.h"
@@ -28,6 +30,18 @@ int main(int argc, char **argv)
     CHECK(marcus_renderer_from_id("brender") == MARCUS_RENDERER_BRENDER);
     CHECK(marcus_renderer_from_id("brender-compute") == MARCUS_RENDERER_BRENDER_COMPUTE);
     CHECK(marcus_renderer_from_id("sdl-gpu") == MARCUS_RENDERER_SDL_GPU);
+    CHECK(marcus_renderer_from_id("brender-asm") == MARCUS_RENDERER_BRENDER_ASM);
+    CHECK(!marcus_renderer_is_gpu(MARCUS_RENDERER_BRENDER_ASM));
+    {
+        ThreeMM::PreviewView view;
+        view.width=544; view.height=306; view.freeCamera=true; view.authoredCamera=false;
+        view.cameraX=17; view.yaw=31; view.includeDepth=true; view.orbitObject=2;
+        const auto packet=MarcusASM::Encode(3,-5,view);
+        const auto decoded=MarcusASM::Decode(packet);
+        CHECK(packet.scene==3 && packet.frame==-5 && decoded.width==544 && decoded.height==306);
+        CHECK(decoded.freeCamera && !decoded.authoredCamera && decoded.includeDepth && decoded.orbitObject==2);
+        CHECK(decoded.cameraX==17 && decoded.yaw==31 && decoded.rasterizer==nullptr);
+    }
     CHECK(marcus_renderer_from_id("invalid") == -1 && marcus_renderer_from_id(nullptr) == -1);
     auto player = marcus_create();
     CHECK(player && marcus_get_renderer(player) == MARCUS_RENDERER_BRENDER);
@@ -476,6 +490,21 @@ int main(int argc, char **argv)
         CHECK(detailed > 0); // Actors must be rerasterized, not enlarged with the background.
         CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
         const std::vector<unsigned char> cpu(image.rgba, image.rgba + image.pitch * image.height);
+        if (MarcusASMRenderer::Available(error))
+        {
+            CHECK(marcus_set_renderer(player, MARCUS_RENDERER_BRENDER_ASM));
+            CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
+            CHECK(image.width==320 && image.height==240 && image.rgba);
+            const std::vector<unsigned char> assembly(image.rgba, image.rgba+image.pitch*image.height);
+            CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
+            CHECK(!std::memcmp(assembly.data(), image.rgba, assembly.size()));
+            CHECK(marcus_render(player, 320, 240, 0, 15, 10, 1, &image));
+            CHECK(image.projection.valid);
+            CHECK(marcus_info(player, &after) && before.scene==after.scene && before.frame==after.frame);
+            CHECK(marcus_set_renderer(player, MARCUS_RENDERER_BRENDER));
+            CHECK(marcus_render(player, 320, 240, 1, 0, 0, 1, &image));
+            CHECK(!std::memcmp(cpu.data(), image.rgba, cpu.size()));
+        }
         for (int backend : {MARCUS_RENDERER_BRENDER_COMPUTE, MARCUS_RENDERER_SDL_GPU, MARCUS_RENDERER_BRENDER})
         {
             CHECK(marcus_set_renderer(player, backend));

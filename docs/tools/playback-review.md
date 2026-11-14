@@ -18,14 +18,17 @@ build/playback-review/image-compare.exe movies/stranger1.zip
 ```
 
 Launch without arguments and use **Open movie...**, or enter a movie path and
-press **Render movie**. Progress shows completed frames for retail and all three
+press **Render movie**. Progress shows completed frames for retail and all four
 Marcus renderers. Captures arrive together in scene/frame order: the worker
 retains each scene, evaluates one frame, and captures retail plus BRender CPU,
-BRender compute and SDL GPU before proceeding to the next frame. This avoids
+BRender compute, SDL GPU and CPU ASM x86 before proceeding to the next frame. This avoids
 reopening scenes and rebuilding caption/asset caches before every frame.
 
 - **Tab** cycles the Marcus renderer in Ours and Diff while Retail remains fixed.
   Radio buttons select a renderer directly. Switching preserves zoom and pan.
+  The four choices are CPU C, compute, SDL GPU and CPU ASM x86. Existing sessions
+  with only the original three renders still open; the ASM pane is unavailable
+  until the movie is rendered again.
 - Wheel over a pane to zoom all three around the pixel under the pointer.
 - Drag with the left or middle button to pan all three together.
 - Hold **D** to highlight changed RGB pixels in magenta on both original images;
@@ -72,6 +75,12 @@ those dependency paths. The old `marcus-regression.exe` and
 so a running capture does not lock workspace build outputs and its recorded
 hashes describe the binaries actually used. Missing dependencies and failed renderers have explicit
 error/partial statuses; unavailable captures never imply a match.
+
+Build `marcus-asm-worker` in `build/marcus-x86` as described in the Marcus guide
+to enable CPU ASM captures. Each job also snapshots and hashes this helper. If
+it is missing, the other renderers continue and the capture explicitly reports
+the ASM failure. Native geometry is rendered by that x86 process while caption
+and transition composition remains shared with the other Marcus renders.
 
 Retail eagerly caches expansion references from the movie's roll call, including
 assets not fetched by an authored-frame seek. The worker snapshots installed

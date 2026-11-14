@@ -203,9 +203,11 @@ extern "C"
         MARCUS_RENDERER_BRENDER,
         MARCUS_RENDERER_BRENDER_COMPUTE,
         MARCUS_RENDERER_SDL_GPU,
+        MARCUS_RENDERER_BRENDER_ASM,
         MARCUS_RENDERER_COUNT
     };
     const char *marcus_renderer_name(int renderer);
+    int marcus_renderer_is_gpu(int renderer);
     const char *marcus_renderer_id(int renderer);
     int marcus_renderer_from_id(const char *id);
     int marcus_get_renderer(const MarcusPlayer *player);

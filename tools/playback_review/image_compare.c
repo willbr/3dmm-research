@@ -40,14 +40,15 @@ static Frame *frames, *atlases;
 static int atlas_count;
 static double zoom_target = 1, zoom_anchor_x, zoom_anchor_y;
 static Uint64 last_navigation, previous_draw;
-static int total, ready[4], candidate, columns = 6, fit = 1, closing;
+static int total, ready[5], candidate, columns = 6, fit = 1, closing;
+static int backend_count = 5;
 static int sheet_width, sheet_height;
 static unsigned long generation;
 static size_t cache_bytes;
 static ReviewImageView view = {0, 0, 1};
 static char movie[4096], session[4096], message[2048], state[32], image_error[512];
-static const char *names[3] = {"BRender CPU", "BRender compute", "SDL GPU"};
-static const char *backends[4] = {"retail", "brender", "brender-compute", "sdl-gpu"};
+static const char *names[4] = {"BRender CPU C", "BRender compute", "SDL GPU", "BRender CPU ASM x86"};
+static const char *backends[5] = {"retail", "brender", "brender-compute", "sdl-gpu", "brender-asm"};
 
 static ImVec2 vec(float x, float y)
 {
@@ -153,10 +154,10 @@ static void start_capture(void)
 }
 static void read_status(void)
 {
-    char path[8192], next_state[32], next_message[2048];
+    char path[8192], next_state[32], next_message[2048], count_line[256];
     FILE *file;
     Frame *next;
-    int count, counts[4], i, status;
+    int count, counts[5], i, status, parsed;
     size_t bytes;
     if (!session[0])
         return;
@@ -165,9 +166,14 @@ static void read_status(void)
     if (file)
     {
         next_state[0] = next_message[0] = 0;
-        if (fscanf(file, "%31s%d%d%d%d%d\n", next_state, &count, &counts[0], &counts[1], &counts[2], &counts[3]) == 6 &&
-            count >= 0 && count <= 250000 && fgets(next_message, sizeof(next_message), file))
+        memset(counts, 0, sizeof(counts));
+        parsed = 0;
+        if (fscanf(file, "%31s%d\n", next_state, &count) == 2 && fgets(count_line, sizeof(count_line), file))
+            parsed = sscanf(count_line, "%d%d%d%d%d", &counts[0], &counts[1], &counts[2], &counts[3], &counts[4]);
+        if ((parsed == 4 || parsed == 5) && count >= 0 && count <= 250000 &&
+            fgets(next_message, sizeof(next_message), file))
         {
+            backend_count = parsed;
             if (!frames && count > 0)
             {
                 FILE *manifest;
@@ -194,7 +200,7 @@ static void read_status(void)
                     fclose(manifest);
                 SDL_free(next);
             }
-            for (i = 0; i < 4; ++i)
+            for (i = 0; i < 5; ++i)
                 ready[i] = counts[i] >= 0 && counts[i] <= total ? counts[i] : 0;
             SDL_strlcpy(state, next_state, sizeof(state));
             next_message[strcspn(next_message, "\r\n")] = 0;
@@ -349,14 +355,14 @@ static void controls(void)
         else
             start_capture();
     }
-    for (i = 0; i < 3; ++i)
+    for (i = 0; i < 4; ++i)
     {
         igSameLine(0, -1);
         if (igRadioButton_Bool(names[i], candidate == i))
             choose_renderer(i);
     }
     if (!igGetIO_Nil()->WantTextInput && igIsKeyPressed_Bool(ImGuiKey_Tab, 0))
-        choose_renderer((candidate + 1) % 3);
+        choose_renderer((candidate + 1) % 4);
     igSameLine(0, -1);
     next = columns;
     igSetNextItemWidth(100);
@@ -367,9 +373,9 @@ static void controls(void)
     }
     if (total)
     {
-        percent = (float)(ready[0] + ready[1] + ready[2] + ready[3]) / (4 * total);
+        percent = (float)(ready[0] + ready[1] + ready[2] + ready[3] + ready[4]) / (backend_count * total);
         igProgressBar(percent, vec(-1, 0), message);
-        igText("%d frames | Retail %d | CPU %d | Compute %d | SDL GPU %d", total, ready[0], ready[1], ready[2], ready[3]);
+        igText("%d frames | Retail %d | CPU C %d | Compute %d | SDL GPU %d | CPU ASM %d", total, ready[0], ready[1], ready[2], ready[3], ready[4]);
     }
     else
         igTextWrapped("%s", message[0] ? message : "Open a movie to capture all frames in the background.");

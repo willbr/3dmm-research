@@ -4,6 +4,7 @@
 #include "movie_input.h"
 #include "playback.h"
 #include "gpu_renderer.h"
+#include "asm_renderer.h"
 #include "waveform.h"
 #include "sound_timeline.h"
 #include "timing_job.h"
@@ -52,6 +53,7 @@ struct MarcusPlayer
 {
     // Destroy the renderer before deleting any private VMM working files.
     std::unique_ptr<MarcusContent> content;
+    std::unique_ptr<MarcusASMRenderer> asmRenderer;
     ThreeMM::Preview preview;
     // Keep devices alive when movie and work cameras use different backends.
     std::unique_ptr<ThreeMM::PreviewRasterizer> rasterizers[MARCUS_RENDERER_COUNT];
@@ -230,7 +232,7 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
     options.renderAtOutputResolution = true;
     options.fitSceneDepth = true;
     const auto &settings = player->renderOptions;
-    const int scale = player->renderer == MARCUS_RENDERER_BRENDER ? 1 : 1 << settings.antialias;
+    const int scale = marcus_renderer_is_gpu(player->renderer) ? 1 << settings.antialias : 1;
     if (view.width > ThreeMM::PreviewMaxDimension / scale || view.height > ThreeMM::PreviewMaxDimension / scale)
     {
         error.message = "Supersampling exceeds the 4096-pixel render limit. Choose a smaller resolution or turn AA off.";
@@ -245,8 +247,17 @@ bool Render(MarcusPlayer *player, const ThreeMM::PreviewView &view, MarcusImage 
     options.rasterizer = player->rasterizers[player->renderer].get();
     if (options.rasterizer) MarcusConfigureGPURenderer(options.rasterizer, settings);
     options.includeDepth = !view.authoredCamera || view.freeCamera;
-    if (!image || player->selected < 0 || !player->preview.Render(options, player->image, error))
+    if (!image || player->selected < 0)
         return false;
+    if (player->renderer == MARCUS_RENDERER_BRENDER_ASM)
+    {
+        if (!player->asmRenderer)
+            player->asmRenderer = std::make_unique<MarcusASMRenderer>(player->content->movie.u8string(),
+                player->timingResources, player->timingContent);
+        if (!player->asmRenderer->Render(player->selected, player->preview.Info().currentFrame, options, player->image, error))
+        { player->asmRenderer.reset(); return false; }
+    }
+    else if (!player->preview.Render(options, player->image, error)) return false;
     if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error))
         return false;
     if (scale > 1)
@@ -391,6 +402,11 @@ bool Strings(ThreeMM::Archive &archive, ThreeMM::Id id, std::vector<ThreeMM::Str
     }
 }
 } // namespace
+bool MarcusRenderLocalWorld(MarcusPlayer *player, const ThreeMM::PreviewView &view,
+                            ThreeMM::PreviewImage &image, ThreeMM::Error &error)
+{
+    return player && player->preview.Render(view, image, error);
+}
 extern "C"
 {
     MarcusPlayer *marcus_create(void)
@@ -423,7 +439,8 @@ extern "C"
                 error.message = "Unknown movie renderer.";
                 return false;
             }
-            if (renderer != MARCUS_RENDERER_BRENDER && !player->rasterizers[renderer])
+            if (renderer == MARCUS_RENDERER_BRENDER_ASM && !MarcusASMRenderer::Available(error)) return false;
+            if (marcus_renderer_is_gpu(renderer) && !player->rasterizers[renderer])
             {
                 auto replacement = MarcusCreateGPURenderer(renderer == MARCUS_RENDERER_BRENDER_COMPUTE, error);
                 if (!replacement) return false;
@@ -441,7 +458,7 @@ extern "C"
                 error.message = "Camera render settings are invalid.";
                 return false;
             }
-            if (player->renderer == MARCUS_RENDERER_BRENDER &&
+            if (!marcus_renderer_is_gpu(player->renderer) &&
                 (options->display_mode >= MARCUS_DISPLAY_DEPTH || options->wire_overlay || options->antialias || options->texture_filter))
             {
                 error.message = "Depth, normals, wire overlay, AA and filtering require a GPU renderer.";
@@ -585,6 +602,7 @@ extern "C"
             player->timingContent = directory;
             player->timingStarted = player->timingFailed = false;
             ++player->document;
+            player->asmRenderer.reset();
             player->content = std::move(content);
             player->selected = -1;
             player->scenes.clear();

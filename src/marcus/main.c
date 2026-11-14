@@ -1150,7 +1150,7 @@ static void normalize_camera_options(int renderer, MarcusRenderOptions *view)
 {
     /* 3DMM materials already use Gouraud shading in the authored mode. */
     if (view->display_mode == MARCUS_DISPLAY_SMOOTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
-    if (renderer == MARCUS_RENDERER_BRENDER)
+    if (!marcus_renderer_is_gpu(renderer))
     {
         if (view->display_mode >= MARCUS_DISPLAY_DEPTH) view->display_mode = MARCUS_DISPLAY_TEXTURED;
         view->wire_overlay = view->antialias = view->texture_filter = 0;
@@ -1248,7 +1248,7 @@ static void settings_click(App *app, float x, float y)
     edited_resolution = app->settings_work_camera ? &app->edited_shortcuts.work_render_resolution :
                                                    &app->edited_shortcuts.render_resolution;
     view = app->settings_work_camera ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
-    gpu = *edited_renderer != MARCUS_RENDERER_BRENDER;
+    gpu = marcus_renderer_is_gpu(*edited_renderer);
     if (app->rendering_settings)
     {
         left = (app->width - RENDER_SETTINGS_WIDTH) / 2.0f;
@@ -3217,7 +3217,7 @@ static void draw_error(App *app)
 static void draw_debug_panel(App *app, float x, float y, int camera, int frozen);
 static void draw_rendering_settings(App *app)
 {
-    static const char *names[MARCUS_RENDERER_COUNT] = {"BRender CPU", "BRender compute", "SDL GPU"};
+    static const char *names[MARCUS_RENDERER_COUNT] = {"BRender CPU C", "BRender compute", "SDL GPU", "BRender CPU ASM x86"};
     static const char *aa[3] = {"Off", "2x SSAA", "4x SSAA"};
     static const char *axes[4] = {"Free", "Front", "Side", "Top"};
     float x, y;
@@ -3227,7 +3227,7 @@ static void draw_rendering_settings(App *app)
     edited_resolution = app->settings_work_camera ? app->edited_shortcuts.work_render_resolution :
                                                   app->edited_shortcuts.render_resolution;
     view = app->settings_work_camera ? &app->edited_shortcuts.work_view : &app->edited_shortcuts.movie_view;
-    gpu = edited_renderer != MARCUS_RENDERER_BRENDER;
+    gpu = marcus_renderer_is_gpu(edited_renderer);
     x = (app->width - RENDER_SETTINGS_WIDTH) / 2.0f;
     y = (app->height - RENDER_SETTINGS_HEIGHT) / 2.0f;
     ui_opacity(&app->ui, 0.45f);

@@ -50,6 +50,10 @@ int main(int argc, char **argv)
     SDL_snprintf(path, sizeof(path), "%s/brender/000001.png", argv[1]);
     if (!SDL_SavePNG(image, path))
         return 17;
+    SDL_snprintf(path, sizeof(path), "%s/brender-asm", argv[1]);
+    if (!SDL_CreateDirectory(path)) return 22;
+    SDL_snprintf(path, sizeof(path), "%s/brender-asm/000000.png", argv[1]);
+    if (!SDL_SavePNG(image, path)) return 23;
     SDL_DestroySurface(image);
     decoder = review_decoder_create();
     if (!decoder)
@@ -116,6 +120,21 @@ int main(int argc, char **argv)
                 pixel = (unsigned char *)result.images[3]->pixels + 136 * 4;
                 if (pixel[0] != 255 || pixel[1] || pixel[2] != 255 || pixel[3] != 192)
                     code = 21;
+            }
+            review_decode_free(&result);
+        }
+    }
+    if (!code)
+    {
+        review_decoder_request(decoder, argv[1], 0, 3, 0, 2, 22);
+        if (!wait_result(decoder, &result)) code = 24;
+        else
+        {
+            if (result.error[0] || !result.images[2] || result.backend != 3) code = 25;
+            else
+            {
+                pixel = (unsigned char *)result.images[2]->pixels;
+                if (pixel[0] || pixel[1] != 255 || pixel[2]) code = 26;
             }
             review_decode_free(&result);
         }

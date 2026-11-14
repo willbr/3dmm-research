@@ -29,7 +29,7 @@ class Job:
     def __init__(self, output):
         self.output = output.resolve()
         self.output.mkdir(parents=True, exist_ok=True)
-        self.counts = [0, 0, 0, 0]
+        self.counts = [0, 0, 0, 0, 0]
         self.total = 0
 
     def check(self):
@@ -67,6 +67,8 @@ class Marcus:
     def __init__(self, executable, movie, resources, content, output, renderer='brender'):
         environment = os.environ.copy()
         environment['SDL_AUDIODRIVER'] = 'dummy'
+        if (executable.parent / 'marcus-asm-worker.exe').exists():
+            environment['MARCUS_ASM_WORKER'] = str(executable.parent / 'marcus-asm-worker.exe')
         self.log = (output / ('marcus-' + renderer + '.log')).open('w', encoding='utf-8')
         self.process = subprocess.Popen(
             [str(executable), str(movie), str(resources), str(content), str(output), '544', '306',
@@ -207,6 +209,10 @@ def capture(args, job):
     helpers.mkdir(exist_ok=True)
     frozen_executable = helpers / 'marcus-capture.exe'
     shutil.copy2(executable, frozen_executable)
+    asm_worker = args.asm_worker or Path(os.environ.get('MARCUS_ASM_WORKER',
+        ROOT / 'build/marcus-x86/src/marcus/marcus-asm-worker.exe'))
+    if asm_worker.exists():
+        shutil.copy2(asm_worker, helpers / 'marcus-asm-worker.exe')
     preview = executable.parent / 'marcus-preview.exe'
     if preview.exists():
         shutil.copy2(preview, helpers / preview.name)
@@ -284,6 +290,7 @@ def capture(args, job):
         if digest(movie) != original_hash:
             raise RuntimeError('The source movie changed during capture')
         metadata = {'movie': str(movie), 'movie_sha256': original_hash, 'source_sha256': digest(source),
+                    'asm_worker_sha256': digest(helpers / 'marcus-asm-worker.exe') if (helpers / 'marcus-asm-worker.exe').exists() else None,
                     'marcus_sha256': digest(executable), 'bridge_sha256': digest(bridge / 'retail-oracle.dll'),
                     'resources_sha256': digest(resources), 'frames': len(frames), 'counts': job.counts,
                     'retail_content': str(product.parent), 'retail_expansions': expansions,
@@ -301,7 +308,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--movie', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    for option in ('marcus', 'resources', 'content', 'bridge', 'product', 'expansions'):
+    for option in ('marcus', 'resources', 'content', 'bridge', 'product', 'expansions', 'asm-worker'):
         parser.add_argument('--' + option, type=Path)
     parser.add_argument('--limit', type=int, default=0, help='Diagnostic capture limit; zero captures every frame')
     args = parser.parse_args()

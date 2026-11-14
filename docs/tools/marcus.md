@@ -601,7 +601,8 @@ to R because F is now Next Frame. Arrow/Home/End/Page Up/Page Down remain fallba
 navigation keys. Flight keeps physical WASD/QE movement while right mouse is held.
 
 The **Movie camera renderer** and **Work camera renderer** buttons in Settings
-cycle between **BRender (CPU)**, **BRender (compute)** and **SDL GPU**. Apply
+cycle between **BRender (CPU C)**, **BRender (compute)**, **SDL GPU** and
+**BRender (CPU ASM x86)**. Apply
 updates each camera and saves its choices with the other settings. Switching preserves the current
 scene, frame, camera and inspection framing. Cancel discards the edited choice;
 Restore defaults selects BRender CPU. Existing settings files without a renderer
@@ -613,6 +614,7 @@ You can override both cameras' saved renderers for a launch:
 marcus movie.3mm --renderer brender-compute
 marcus movie.3mm --renderer sdl-gpu
 marcus movie.3mm --renderer brender
+marcus movie.3mm --renderer brender-asm
 ```
 
 BRender CPU remains the default. The two GPU backends use SDL3's GPU API, with
@@ -623,6 +625,29 @@ depth comparisons. **SDL GPU** sends those triangles through the GPU graphics
 pipeline. Both retain indexed textures, shade tables, authored background depth
 and perspective scenery, then feed the common caption/transition compositor.
 The SDL interface renderer is independent of this movie-renderer setting.
+
+On Windows, **CPU ASM x86** uses a persistent 32-bit helper linked to the original
+BRender MASM routines, including geometry/math fast paths and scan converters.
+The x64 player sends scene/frame and camera requests over binary pipes and gets
+RGBA, depth and projection data back. Captions, scrolling, audio and transitions
+remain in the host's common compositor; no PNG files are exchanged. Both movie
+and work cameras support this backend, with the same display options as CPU C.
+This is an additional comparison baseline, not a guarantee of retail parity.
+
+Build the helper from an **x86 MSVC developer shell**, in its own build directory:
+
+```console
+cmake -S . -B build/marcus-x86 -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_MARCUS=ON -DBUILD_STUDIO=OFF -DBUILD_PACKAGES=OFF
+cmake --build build/marcus-x86 --target marcus-asm-worker
+```
+
+Then build/run the normal x64 Marcus from its x64 developer shell. The workspace
+build finds `build/marcus-x86/src/marcus/marcus-asm-worker.exe`; a distributed app
+should put that helper beside `marcus.exe`. `MARCUS_ASM_WORKER` overrides the path.
+A missing helper causes an explicit selection error; startup retains the existing
+CPU fallback policy. The helper verifies a versioned 32-bit handshake, retains
+the loaded scene between frames, and closes when its player closes or opens a
+different movie. The original x86 assembly backend is Windows-only.
 
 These are initial GPU implementations: floating-point interpolation and triangle
 edge coverage can differ from the CPU renderer. Completed frames are downloaded

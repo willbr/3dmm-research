@@ -1,8 +1,12 @@
 #include "player.h"
 #include <string.h>
 
-static const char *names[MARCUS_RENDERER_COUNT] = {"BRender (CPU)", "BRender (compute)", "SDL GPU"};
-static const char *ids[MARCUS_RENDERER_COUNT] = {"brender", "brender-compute", "sdl-gpu"};
+static const char *names[MARCUS_RENDERER_COUNT] = {"BRender (CPU C)", "BRender (compute)", "SDL GPU", "BRender (CPU ASM x86)"};
+static const char *ids[MARCUS_RENDERER_COUNT] = {"brender", "brender-compute", "sdl-gpu", "brender-asm"};
+int marcus_renderer_is_gpu(int renderer)
+{
+    return renderer == MARCUS_RENDERER_BRENDER_COMPUTE || renderer == MARCUS_RENDERER_SDL_GPU;
+}
 const char *marcus_display_mode_name(int mode)
 {
     static const char *display_names[MARCUS_DISPLAY_COUNT] = {

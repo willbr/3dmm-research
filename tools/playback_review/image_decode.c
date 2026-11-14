@@ -12,7 +12,7 @@ struct ReviewDecoder
     char folder[4096];
     ReviewDecodeResult request, result;
 };
-static const char *backend_names[4] = {"retail", "brender", "brender-compute", "sdl-gpu"};
+static const char *backend_names[5] = {"retail", "brender", "brender-compute", "sdl-gpu", "brender-asm"};
 
 void review_decode_free(ReviewDecodeResult *result)
 {
