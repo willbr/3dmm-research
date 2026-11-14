@@ -47,6 +47,7 @@
 
 #include "soc.h"
 #include "body_world.h"
+#include <cstring>
 
 ASSERTNAME
 
@@ -1154,6 +1155,119 @@ void Scene::InvalFrmRange(void)
     three_mm_scene_extend_range(&_data, &services);
 }
 
+ThreeMMSceneEventServices Scene::_EventServices()
+{
+    static_assert(styMidi == THREE_MM_SCENE_EVENT_MIDI && transNil == THREE_MM_SCENE_EVENT_NIL_TRANSITION &&
+                      transCut == THREE_MM_SCENE_EVENT_CUT_TRANSITION,
+                  "Scene event constants");
+    static_assert(sevtAddActr == THREE_MM_SCENE_ADD_ACTOR && sevtPlaySnd == THREE_MM_SCENE_PLAY_SOUND &&
+                      sevtAddTbox == THREE_MM_SCENE_ADD_TEXT && sevtChngCamera == THREE_MM_SCENE_CHANGE_CAMERA &&
+                      sevtSetBkgd == THREE_MM_SCENE_SET_BACKGROUND && sevtPause == THREE_MM_SCENE_PAUSE,
+                  "Scene event kinds");
+    ThreeMMSceneEventServices s = {};
+    s.context = s.scene = this;
+    s.runtime = &_runtime;
+    s.data = &_data;
+    s.owner = &_owner;
+    s.owners = _OwnerServices();
+    s.event = [](void *p, void *group, ThreeMMI32 i, ThreeMMI32 *frame, int *kind) {
+        SceneEvent event;
+        static_cast<PGeneralGroup>(group)->GetFixed(i, &event);
+        *kind = event.sevt;
+        // Start-event callers need not initialize the unused frame field.
+        *frame = group == static_cast<PScene>(p)->_pggsevStart && event.sevt != sevtPlaySnd ? 0 : event.nfrm;
+    };
+    s.payload = [](void *, void *group, ThreeMMI32 i) -> void * { return static_cast<PGeneralGroup>(group)->QvGet(i); };
+    s.sound_style = [](void *, void *payload) -> int { return static_cast<PSceneSoundEvent>(payload)->sty; };
+    s.duplicate_sound = [](void *, void *payload) -> void * {
+        return static_cast<PSceneSoundEvent>(payload)->PsseDup();
+    };
+    s.play_sound = [](void *p, void *payload) {
+        static_cast<PSceneSoundEvent>(payload)->PlayAllSounds(static_cast<PScene>(p)->Pmvie());
+    };
+    s.read_tag = [](void *, void *payload, ThreeMMTag *out) {
+        auto tag = static_cast<PTAG>(payload);
+        // Preserve even the unused cache field of non-cache source tags.
+        *out = {tag->sid, tag->pcrf, tag->ctg, tag->cno};
+    };
+    s.fetch_background = [](void *, ThreeMMTag *value) -> void * {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        auto background = vptagm->PbacoFetch(&tag, Background::FReadBkgd);
+        *value = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+        return background;
+    };
+    s.set_camera = [](void *p, void *background, ThreeMMI32 camera) -> int {
+        return static_cast<PBackground>(background)->FSetCamera(static_cast<PScene>(p)->_pmvie->Pbwld(), camera);
+    };
+    s.transition = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->Trans(); };
+    s.set_transition = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->SetTrans(static_cast<TRANS>(value)); };
+    s.publish_tag = [](void *p, const ThreeMMTag *value) { TagFromCore(&static_cast<PScene>(p)->_tagBkgd, *value); };
+    s.read_object = [](void *, void *payload) -> void * {
+        void *object;
+        std::memcpy(&object, payload, sizeof(object));
+        return object;
+    };
+    s.append = [](void *p, int text, void *object) -> int {
+        auto scene = static_cast<PScene>(p);
+        if (text)
+        {
+            auto box = static_cast<PTBOX>(object);
+            AssertPo(box, 0);
+            return scene->_pglptbox->FInsert(scene->_pglptbox->IvMac(), &box);
+        }
+        auto actor = static_cast<PActor>(object);
+        AssertPo(actor, 0);
+        return scene->_pglpactr->FPush(&actor);
+    };
+    s.remove_last = [](void *p, int text) {
+        auto scene = static_cast<PScene>(p);
+        if (text)
+            scene->_pglptbox->Delete(scene->_pglptbox->IvMac() - 1);
+        else
+        {
+            PActor actor;
+            scene->_pglpactr->FPop(&actor);
+        }
+    };
+    s.bind_actor = [](void *p, void *actor) { static_cast<PActor>(actor)->SetPscen(static_cast<PScene>(p)); };
+    s.seek = [](void *, int text, void *object, ThreeMMI32 frame) -> int {
+        return text ? static_cast<PTBOX>(object)->FGotoFrame(frame) : static_cast<PActor>(object)->FGotoFrame(frame);
+    };
+    s.pause_reason = [](void *, void *payload) -> int { return static_cast<const SceneEventPause *>(payload)->wit; };
+    s.pause_delay = [](void *, void *payload) -> ThreeMMI32 {
+        return static_cast<const SceneEventPause *>(payload)->dts;
+    };
+    s.pause_type = [](void *p, int reason) {
+        static_cast<PScene>(p)->Pmvie()->Pmcc()->PauseType(static_cast<WaitReason>(reason));
+    };
+    s.pause = [](void *p, int reason, ThreeMMI32 delay) {
+        static_cast<PScene>(p)->Pmvie()->DoPause(static_cast<WaitReason>(reason), delay);
+    };
+    s.camera = [](void *, void *payload) -> ThreeMMI32 { return *static_cast<const int32_t *>(payload); };
+    s.diagnostic = [](void *, int issue) {
+        switch (issue)
+        {
+        case THREE_MM_SCENE_EVENT_NO_BACKGROUND:
+            Assert(false, "No background in the scene");
+            break;
+        case THREE_MM_SCENE_EVENT_UNKNOWN:
+            Bug("Unhandled sevt");
+            break;
+        case THREE_MM_SCENE_EVENT_RESTORE_FAILED:
+            Assert(false, "Should not fail.");
+            break;
+        case THREE_MM_SCENE_EVENT_FIRST_CAMERA_FAILED:
+            Assert(false, "Should never happen");
+            break;
+        case THREE_MM_SCENE_EVENT_OWNER_OCCUPIED:
+            Assert(false, "Scene owner slot must be empty");
+            break;
+        }
+    };
+    return s;
+}
+
 /****************************************************
  *
  * This routine plays a single event.
@@ -1173,153 +1287,11 @@ void Scene::InvalFrmRange(void)
 bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 {
     AssertThis(0);
+    auto services = _EventServices();
     AssertVarMem(psev);
-
-    PActor pactr;
-    PTBOX ptbox;
-    PBackground pbkgd;
-    TAG tag;
-    WaitReason wit;
-    long dts;
-
-    switch (psev->sevt)
-    {
-    case sevtPlaySnd:
-        PSceneSoundEvent psse;
-
-        psse = (PSceneSoundEvent)qvVar;
-        // If it's midi, copy it to _psseBkgd
-        if (psse->sty == styMidi)
-        {
-            PSceneSoundEvent psseDup;
-            psseDup = psse->PsseDup();
-            if (psseDup == pvNil)
-                return fFalse;
-            _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
-            _SetOwner(THREE_MM_SCENE_BACKGROUND_SOUND, psseDup);
-            _runtime.background_frame = psev->nfrm;
-        }
-        if (grfscen & fscenSounds)
-        {
-            return (fTrue);
-        }
-        psse->PlayAllSounds(Pmvie());
-        break;
-
-    case sevtSetBkgd:
-
-        tag = *(PTAG)qvVar;
-        pbkgd = (PBackground)vptagm->PbacoFetch(&tag, Background::FReadBkgd);
-        if (pvNil == pbkgd)
-        {
-            return fFalse;
-        }
-
-        if (!pbkgd->FSetCamera(_pmvie->Pbwld(), 0))
-        {
-            ReleasePpo(&pbkgd);
-            return (fFalse);
-        }
-
-        if (Pmvie()->Trans() == transNil)
-        {
-            Pmvie()->SetTrans(transCut); // so we do palette change at next draw
-        }
-
-        _SetOwner(THREE_MM_SCENE_BACKGROUND, pbkgd);
-        _tagBkgd = tag;
-        break;
-
-    case sevtAddActr:
-
-        //
-        // Add the actor to the roll call.
-        //
-        pactr = *(PActor *)qvVar;
-
-        AssertPo(pactr, 0);
-
-        if (_pglpactr->FPush(&pactr) == fFalse)
-        {
-            return (fFalse);
-        }
-
-        pactr->SetPscen(this);
-
-        //
-        // Plop them into this frame
-        //
-        if (!pactr->FGotoFrame(_data.currentFrame))
-        {
-            _pglpactr->FPop(&pactr);
-            return (fFalse);
-        }
-
-        break;
-
-    case sevtPause:
-
-        wit = static_cast<const SceneEventPause *>(qvVar)->wit;
-        Pmvie()->Pmcc()->PauseType(wit);
-
-        if (grfscen & fscenPauses)
-        {
-            return (fTrue);
-        }
-
-        dts = static_cast<const SceneEventPause *>(qvVar)->dts;
-        Pmvie()->DoPause(wit, dts);
-        break;
-
-    case sevtAddTbox:
-
-        //
-        // Add the text box to the scene
-        //
-        ptbox = *(PTBOX *)qvVar;
-
-        AssertPo(ptbox, 0);
-
-        //
-        // Insert at the end, because tbox ordering is important
-        // since the client uses itbox to find text boxes.
-        //
-        if (!_pglptbox->FInsert(_pglptbox->IvMac(), &ptbox))
-        {
-            return (fFalse);
-        }
-
-        //
-        // Plop them into this frame
-        //
-        if (!ptbox->FGotoFrame(_data.currentFrame))
-        {
-            _pglptbox->Delete(_pglptbox->IvMac() - 1);
-            return (fFalse);
-        }
-
-        break;
-
-    case sevtChngCamera:
-
-        Assert(_pbkgd != pvNil, "No background in the scene");
-        if (grfscen & fscenCams)
-        {
-            return (fTrue);
-        }
-        if (!_pbkgd->FSetCamera(_pmvie->Pbwld(), *static_cast<const int32_t *>(qvVar)))
-        {
-            return (fFalse);
-        }
-        break;
-
-    default:
-
-        Bug("Unhandled sevt");
-        break;
-    }
-
-    return (fTrue);
+    // Only sound dispatch consumes the event's frame. Other callers may leave it unset.
+    return three_mm_scene_play_event(psev->sevt == sevtPlaySnd ? psev->nfrm : 0, psev->sevt, qvVar, grfscen,
+                                    &services) != 0;
 }
 
 /****************************************************
@@ -1338,76 +1310,9 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
 {
     AssertThis(0);
+    auto services = _EventServices();
     AssertVarMem(psev);
-
-    SceneEvent sev;
-    long isev;
-    PSEV qsevTmp;
-
-    switch (psev->sevt)
-    {
-    case sevtPlaySnd:
-        //
-        // Go backwards and find previous background sound.
-        //
-        for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-        {
-            qsevTmp = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-            if ((qsevTmp->sevt == sevtPlaySnd) && (qsevTmp->nfrm < _data.currentFrame))
-            {
-                sev = *qsevTmp;
-                _FPlaySev(&sev, _pggsevFrm->QvGet(isev), _runtime.disabled | fscenSounds); // Ignore failure.
-                return (fTrue);
-            }
-        }
-
-        //
-        // Not found -- clear variables.
-        //
-        _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
-        break;
-
-    case sevtAddActr:
-    case sevtAddTbox:
-    case sevtPause:
-        break;
-
-    case sevtChngCamera:
-
-        Assert(_pbkgd != pvNil, "No background in scene");
-
-        //
-        // Go backwards and find previous camera position.
-        //
-        for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-        {
-            qsevTmp = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-            if ((qsevTmp->sevt == sevtChngCamera) && (qsevTmp->nfrm < _data.currentFrame))
-            {
-                sev = *qsevTmp;
-                AssertDo(_FPlaySev(&sev, _pggsevFrm->QvGet(isev), _runtime.disabled), "Should not fail.");
-                return (fTrue);
-            }
-        }
-
-        //
-        // Not found -- use starting camera, which is always camera 0.
-        //
-        sev.sevt = sevtChngCamera;
-        int32_t firstCamera = 0;
-
-        if (!_FPlaySev(&sev, &firstCamera, _runtime.disabled))
-        {
-            Assert(0, "Should never happen");
-            return (fFalse);
-        }
-
-        break;
-    }
-
-    return (fTrue);
+    return three_mm_scene_unplay_event(psev->sevt, &services) != 0;
 }
 
 /****************************************************
@@ -4346,27 +4251,8 @@ LFail0:
 bool Scene::FPlayStartEvents(bool fActorsOnly)
 {
     AssertThis(0);
-
-    long isev;
-
-    //
-    // This needs to play all the events in _pggsevStart
-    //
-    for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-    {
-        SceneEvent sev;
-
-        _pggsevStart->GetFixed(isev, &sev);
-        if (fActorsOnly && sev.sevt != sevtAddActr)
-            continue;
-
-        if (!_FPlaySev(&sev, _pggsevStart->QvGet(isev), _runtime.disabled))
-        {
-            return (fFalse);
-        }
-    }
-
-    return (fTrue);
+    auto services = _EventServices();
+    return three_mm_scene_start_events(fActorsOnly, &services) != 0;
 }
 
 /****************************************************

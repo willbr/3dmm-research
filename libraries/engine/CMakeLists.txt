@@ -15,6 +15,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/world_render.c)
 target_sources(three-mm-engine-c89 PRIVATE src/world_export.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_owner.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_runtime.c)
+target_sources(three-mm-engine-c89 PRIVATE src/scene_events.c)
 get_filename_component(engine_scene_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_runtime_test.c" ABSOLUTE)
 add_executable(engine-scene-runtime-test EXCLUDE_FROM_ALL "${engine_scene_runtime_test_source}")
 target_link_libraries(engine-scene-runtime-test PRIVATE three-mm-engine-c89)
@@ -480,6 +481,11 @@ add_executable(engine-scene-owner-test EXCLUDE_FROM_ALL "${engine_scene_owner_te
 target_link_libraries(engine-scene-owner-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-scene-owner-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-scene-owner COMMAND engine-scene-owner-test)
+get_filename_component(engine_scene_events_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_events_test.c" ABSOLUTE)
+add_executable(engine-scene-events-test EXCLUDE_FROM_ALL "${engine_scene_events_test_source}")
+target_link_libraries(engine-scene-events-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-scene-events-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-scene-events COMMAND engine-scene-events-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -513,6 +519,8 @@ if(ENGINE_C89_COMPILER)
     "${engine_world_export_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_owner.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_runtime.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_events.c"
+    "${engine_scene_events_test_source}"
     "${engine_scene_runtime_test_source}"
     "${engine_scene_owner_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/texture_resource.c"

@@ -6653,3 +6653,109 @@ Evidence: `tmp/c89-scene-runtime-before*.bin`,
 `tmp/c89-scene-runtime-playback-actor-events-scrolling-text.json`,
 `tmp/c89-scene-runtime-capture-hashes-*.json` and the two
 `tmp/c89-scene-runtime-capture-*.log` files.
+
+### C89 Scene event dispatch (14 November 2026)
+
+`scene_events.c` now owns single-event play/unplay and start-event sequencing.
+It uses the C Scene owner/runtime/metadata records directly; native wrappers
+provide payload access, collection/reference primitives and typed actor, text,
+background and movie/client operations. SceneSoundEvent packet construction,
+marshalling, duplication and per-tag playback helpers remain native policy to
+convert, along with remaining loading/editing and caption/background operations.
+This slice does not complete Scene or final C-only host integration.
+
+The baseline uses the native dispatcher at `292bb35d`. Original/repeated/converted
+native debug traces and the converted SDL debug trace
+match all 6,928 bytes, SHA-256
+`271A016C24D102C2587A5412884E30C49C58762CD55A0E017EAA6058EB3EAE66`,
+FNV-1a `2B9558ED`. Original/converted SDL release traces match 6,928 bytes,
+SHA-256 `1B98848A750DA650C7910296AE715E7A8444850ED06B9F92AFB0832C42A878BE`,
+FNV-1a `17EBE56D`. The fixture retains the preceding frame/replay trace and adds
+direct MIDI/SFX/pause events, all four pause reasons, no-op unplay kinds, cache
+clearing, empty start dispatch and MIDI duplication allocation failures. Release
+omits allocation injection, explaining its different fingerprint. Expected
+allocation warnings are retained. Real packet tags and actor/text/background
+rendering are not frozen by this fixture; C-only tests and integration/capture
+gates supply the other coverage.
+
+MIDI updates its owned cache and starting frame before sound suppression, but a
+failed duplicate preserves the previous cache/frame. Pause notification occurs
+even when pauses are disabled, and delay is read only after notification when
+enabled. Background setup fetches a reference, sets camera zero, supplies a cut
+transition if absent, publishes ownership, then publishes the weak tag. Failed
+camera setup releases the new reference without changing ownership/transition.
+Tag adaptation preserves all fields, including an unused cache pointer for a
+non-cache source. Actor/text append failures do not seek; failed seeks remove
+the appended entry, retaining the actor's scene binding and any completed start
+prefix. Roll-call entries remain borrowed from the owning start events.
+
+Rewind searches strictly before the current frame. Its first earlier sound event
+may have any style; replay failure is deliberately ignored. Previous-camera
+failure is diagnosed but returns success; failure of the camera-zero fallback
+returns failure. Suppressed cameras still diagnose a missing background. Clearing
+background sound leaves its prior frame value stale, preserving native behavior.
+Unknown play kinds diagnose and return success; unknown unplay kinds remain
+silent no-ops. Actors-only start dispatch never reads non-actor payloads.
+
+Final source review found that the first native adapter read the frame field for
+every event kind, while some native non-sound callers deliberately leave that
+unused field unset. The adapter now reads it only for sound events and supplies
+zero otherwise, including non-sound start records. C start dispatch initializes
+its unused frame output too. A supplemental native case passes a pause event
+with its frame unset, outside the frozen trace; the C start fixture leaves that
+output unwritten for non-sound events. Initial captures passed their comparisons
+but were superseded by fresh captures after this correction. The selected native
+build explicitly includes save/load and each directly invoked test executable,
+including targets outside `core-checks`, before the final gate.
+
+All 88 standalone C checks pass, including strict C89 syntax. The new fixture
+also builds/runs directly with Clang `-std=c89 -pedantic-errors -Wall -Wextra
+-Werror` and passes MSVC AddressSanitizer. C tests cover every event kind, failure
+phase, suppression and publication order, mutable pause delay, actor/text append
+rollback, weak tag fields, completed start prefixes, strict rewind boundaries,
+cache replacement/clearing and camera restore exceptions. All 118 focused native,
+14 SDL debug and 26 SDL release checks pass. The initial SDL release run passed
+with partial overlap with the end of the native gate; its full serial rerun also
+passes, avoiding shared temporary-name contention. All 51 freshly linked CLI
+output baselines match. Both hosts and `core-checks` build. Marcus was stopped
+before rebuilding and relaunched afterward; no Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`4A2EA84DE4F9F516B84D24782749F5EFAD494EDE58EE6D5FA89942260CB2C458`
+(SDL release) and
+`730E633D7488AF8564F09E3CE2DD27CC29DB2E0D3A2B90534B15FE8CFB7FD8AF`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T082356Z-05ce3abb` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T082510Z-491b3301` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T082811Z-4efa8400` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T082925Z-02980c65` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 final captures complete, retaining movie identity and suite integrity.
+Authored frames, all 540 seek images and ordered playback image changes match
+each player's preceding suites: `20261114T074843Z-1e6cf808` (actor-events),
+`20261114T074956Z-622e38ae` (scrolling-text), `20261113T160754Z-ff148af2`
+(actor-audio) and `20261113T161343Z-60647ee2` (sampled-audio). Playback comparison
+collapses only adjacent identical position/image observations. The actor-audio
+first-scene-only tone contract passes for all players. PCM16 peaks remain 3,192,
+4,081 and 4,081 for actor-audio and 2,380, 2,176 and 2,176 for sampled-audio
+(retail, SDL, Marcus respectively); all exceed the nonzero-output threshold.
+These checks do not prove complete PCM, MIDI or retail timing parity. Existing
+cross-player differences and single-repeat inconclusive comparisons remain.
+Captures use a shared warm SDL package cache with private processes, settings
+and movies and uncontrolled OS caching. No builds or tests ran concurrently
+with either capture pass. Marcus was verified running after the final gates/captures.
+
+Evidence: `tmp/c89-scene-events-before*.bin`, `tmp/c89-scene-events-after.bin`,
+`tmp/c89-scene-events-final-*.bin`, `tmp/c89-scene-events-selected-native-build.log`,
+`tmp/c89-scene-events-native-tests.log`,
+`tmp/c89-scene-events-sdl-debug-tests.log`,
+`tmp/c89-scene-events-sdl-release-tests.log`,
+`tmp/c89-scene-events-standalone.log`, `tmp/c89-scene-events-strict.log`,
+`tmp/c89-scene-events-asan.log`, `tmp/c89-scene-events-output-comparison.json`,
+`tmp/c89-scene-events-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+`tmp/c89-scene-events-capture-hashes-*.json` and four
+`tmp/c89-scene-events-capture-*.log` files. The superseded first capture pass and
+its report are retained under `tmp/c89-scene-events-initial-*`.

@@ -637,8 +637,8 @@ background/undo sound packets close only opened tags, while embedded frame packe
 close every tag and never free the group's payload separately.
 
 Typed adapters still provide C-backed collection/reference primitives and native
-actor, text and background APIs. Caption/background implementation, single-event
-play/unplay dispatch, loading/marshalling/editing transactions and final native facade
+actor, text and background APIs. Caption/background implementation, scene-sound
+packet helpers, loading/marshalling/editing transactions and final native facade
 removal remain engine dependencies; this is not a C-only Scene implementation.
 The loader's uncommitted local objects still follow its native read transaction.
 
@@ -686,7 +686,7 @@ snapshot, then shown; static actors become hidden/prerendered. End-prerender
 always restores the World background before showing previously hidden actors.
 Native services provide collection access, typed actor/caption calls, World
 snapshot operations and movie/client notifications. Single-event play/unplay
-policy remains in `_FPlaySev`/`_FUnPlaySev`; this slice does not make Scene C-only.
+policy now uses the C dispatcher below; Scene still has native dependencies.
 
 Original/repeated native and original/converted SDL release traces match 5,664
 bytes, SHA-256 `1F686B330EB64C1D2A56290EF99AFDD9E170DA322507951C268ECCD353B58F7C`,
@@ -696,6 +696,43 @@ nonempty lists, callback failures, signed frame extremes, dynamic counts,
 camera-event range movement and two-pass prerender ordering. Existing integration
 tests and retail/host captures cover actual actors/captions. Full validation and
 comparison limits are recorded in `docs/tools/playback-regression.md`.
+
+### Scene event dispatch
+
+`scene_events.c` owns single-event play/unplay and start-event dispatch. It uses
+the existing C owner and runtime records directly. MIDI sound events duplicate
+their background cache before disposing the previous owner, even when sounds
+are disabled. Cache duplication failure preserves the old owner/frame; clearing
+the cache during rewind leaves its old frame value untouched. Pause suppression
+still notifies the client before deciding whether to read/apply the delay.
+
+Background events fetch a new reference, set camera zero, supply a cut transition
+when none exists, adopt the reference and publish the weak tag in that order.
+Failed camera setup releases the fetched reference without changing ownership or
+transition. Tags preserve all native fields through the C view, including unused
+cache fields on non-cache source tags. Actor/text events append borrowed objects
+then seek them; failed seeks remove the appended entry, retaining an actor's scene
+binding. Object ownership continues to belong to start events, not the roll call.
+
+Rewind searches strictly before the current frame. It restores the first earlier
+sound event of any style, ignoring replay failure; previous-camera failure is
+diagnosed but returns success. Camera zero is used when no earlier camera exists,
+and failure of that fallback returns failure. Camera suppression still checks
+that a background exists. Start dispatch preserves a completed prefix on failure;
+actors-only dispatch skips non-actor payload access. Callbacks are synchronous
+and may not reenter dispatch or mutate its event groups.
+
+The native Scene adapters supply typed payload access, collection/reference
+primitives, actor/caption calls, background resources and movie/client effects.
+The published weak background TAG remains native Scene state. SceneSoundEvent
+duplication/construction/marshalling and per-tag playback are still project-owned
+native helpers to convert, along with remaining Scene editing,
+loading, caption/background implementations and final facade removal. This is
+not a C-only Scene implementation. Native debug and release traces freeze the
+real pause/sound dispatch path and MIDI allocation failures; C-only tests cover
+all event kinds, callback failure phases, ownership/publication order, start
+prefixes and rewind exceptions. See `docs/tools/playback-regression.md` for
+validation and retail comparison limits.
 
 ### Actor header, route and event persistence
 
