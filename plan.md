@@ -453,9 +453,9 @@ model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec slices are complete. Continue with world/camera
 control in `bren/bwld.cpp` and remaining BRender representation
 adapters.
-The SDL release `pixel-canvas` scrolling check at line 607 also needs
-investigation during drawing migration: it fails with both original and
-converted masked-bitmap adapters, while the native debug check passes.
+The SDL release `pixel-canvas` scrolling reference failure is resolved by using
+signed 64-bit reference-loop coordinates and checking guard samples explicitly;
+the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.
 Temporary native resource/object/HQ and
 Body facades still need removal during final host integration; these slices do
 not complete the whole backend. Validation and coverage limits are recorded in

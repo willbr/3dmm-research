@@ -6037,3 +6037,45 @@ Capture evidence: `tmp/c89-masked-bitmap-playback-actor-events-scrolling-text.js
 `tmp/c89-masked-bitmap-capture-hashes-before.json`,
 `tmp/c89-masked-bitmap-capture-hashes-after.json` and the two
 `tmp/c89-masked-bitmap-capture-*.log` files.
+
+### SDL pixel-canvas scrolling reference closeout (14 November 2026)
+
+The release failure recorded above is resolved in the test reference, with no
+renderer or player changes. In the optimized MSVC 19.43 build, the reference
+loop with `int` induction coordinates evaluated the destination guard row
+`y = -1` as visible: for clip mode 2 and delta (-2, -1), it chose sample 10
+instead of the unchanged guard sample 0. The rendered guard byte was correctly
+unchanged. Diagnostic evaluation of the predicate at that point returned true
+despite its `y >= 0` condition. The same failure had already been reproduced
+with the pre-conversion masked-bitmap adapters.
+
+Keeping both reference-loop coordinates signed 64-bit throughout the calculation
+avoids that optimized-build failure. The coordinate domain, independent
+visibility predicate, deltas, expected pixel values and 8/32-bit comparisons
+are unchanged. A new assertion explicitly requires every guard-row/padding
+coordinate to select its original sample. The matrix retains three clipping
+modes, six deltas (including extreme signed values and zero), six rows and eight
+columns. No compiler optimization is disabled.
+
+An optimized AddressSanitizer build of the original test, `kauai-core` and the
+C89 library also passes without a sanitizer diagnostic. That instrumented build
+is separate evidence; the final tests use ordinary optimized release libraries.
+All thirteen selected SDL release checks now pass, including `pixel-canvas`,
+and the native debug pixel-canvas check passes. The full test continues beyond
+scrolling through bitmap, polygon, indexed brush and coverage checks.
+
+No new playback captures were taken for this test-only correction. Player
+SHA-256 values remain exactly those of the masked-bitmap capture above:
+`C8227B534E7C783A655C2C111DE0D6994364833C6A1BE58E604BB8AAF14A30EA`
+(SDL release) and
+`233F5E53040399322CA1957A36C25A0993E62084473E4732C335856D8DD10482`
+(Marcus regression). Marcus was neither rebuilt nor stopped; no Marcus UI tests
+were added. World/camera and the remaining rendering/host integration work keep
+the full C89 migration active.
+
+Evidence: `tmp/c89-masked-bitmap-pixel-scroll-diagnostic.log`,
+`tmp/c89-pixel-scroll-visibility.log`, `tmp/c89-pixel-scroll-asan-build.log`,
+`tmp/c89-pixel-scroll-asan.log`, `tmp/c89-scroll-check-final-sdl-build.log`,
+`tmp/c89-scroll-check-final-sdl-tests.log`,
+`tmp/c89-scroll-check-final-native-build.log` and
+`tmp/c89-scroll-check-final-native-tests.log`.

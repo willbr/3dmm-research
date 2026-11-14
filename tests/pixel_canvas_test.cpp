@@ -597,13 +597,18 @@ int main()
                 return x >= 0 && x < 5 && y >= 0 && y < 4 && (clipping == 2 || (x >= 1 && y >= 1)) &&
                        (clipping != 0 || !(x >= 2 && x < 4 && y == 2));
             };
-            for (int y = -1; y <= 4; ++y)
-                for (int x = 0; x < 8; ++x)
+            // Keep guard coordinates signed and wide throughout the reference
+            // calculation; the optimized MSVC build mis-evaluated y=-1 when
+            // these induction variables were int and widened inside visible().
+            for (std::int64_t y = -1; y <= 4; ++y)
+                for (std::int64_t x = 0; x < 8; ++x)
                 {
                     const auto sx = std::int64_t(x) - delta.x, sy = std::int64_t(y) - delta.y;
                     const auto index = (y + 1) * 8 + x;
                     const auto sample =
                         visible(x, y) && visible(sx, sy) ? std::size_t((sy + 1) * 8 + sx) : std::size_t(index);
+                    if (y < 0 || y >= 4 || x >= 5)
+                        CHECK(sample == std::size_t(index));
                     CHECK(scrolling8[index] == original8[sample]);
                     CHECK(scrolling32[index] == original32[sample]);
                 }
