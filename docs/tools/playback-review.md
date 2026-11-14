@@ -25,6 +25,9 @@ large sheets are tiled to respect the renderer's texture-size limit.
 
 - Wheel over any pane to zoom all three around the pixel under the pointer.
 - Drag with the left or middle button in any pane to pan all three together.
+- Hold **D** to highlight changed RGB pixels in magenta on both original images;
+  release it to restore the originals. This shortcut is inactive while editing
+  a path. The Diff pane continues to show the absolute RGB difference.
 - **Fit width** starts at the top of the sheets. **Fit all** shows the entire
   images, and **1:1** shows one image pixel per UI pixel. Double-click any pane
   to return to fit width. The zoom slider preserves the shared image centre.

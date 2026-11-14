@@ -17,7 +17,7 @@ typedef struct ImageTile
 } ImageTile;
 typedef struct ImageSet
 {
-    ImageTile *tiles[3];
+    ImageTile *tiles[4];
     int count, width, height;
     unsigned long changed;
 } ImageSet;
@@ -43,7 +43,7 @@ static ImVec2 vec(float x, float y)
 static void clear_images(ImageSet *set)
 {
     int i, j;
-    for (i = 0; i < 3; ++i)
+    for (i = 0; i < 4; ++i)
     {
         if (set->tiles[i])
             for (j = 0; j < set->count; ++j)
@@ -113,7 +113,7 @@ static int load_images(void)
     columns = (next.width + size - 1) / size;
     rows = (next.height + size - 1) / size;
     next.count = columns * rows;
-    for (i = 0; i < 3; ++i)
+    for (i = 0; i < 4; ++i)
     {
         next.tiles[i] = (ImageTile *)SDL_calloc((size_t)next.count, sizeof(ImageTile));
         if (!next.tiles[i])
@@ -126,7 +126,7 @@ static int load_images(void)
     {
         x = (index % columns) * size;
         y = (index / columns) * size;
-        for (i = 0; i < 3; ++i)
+        for (i = 0; i < 4; ++i)
         {
             tile = &next.tiles[i][index];
             tile->x = x;
@@ -157,6 +157,11 @@ static int load_images(void)
             next.changed += (unsigned long)review_image_diff_row(a, b, d, (size_t)tile->w);
         }
         if (!tile_texture(tile, delta))
+            goto failed;
+        for (row = 0; row < tile->h; ++row)
+            review_image_highlight_row((unsigned char *)delta->pixels + row * delta->pitch, (size_t)tile->w);
+        if (!tile_texture(&next.tiles[3][index], delta) ||
+            !SDL_SetTextureBlendMode(next.tiles[3][index].texture, SDL_BLENDMODE_BLEND))
             goto failed;
         SDL_DestroySurface(delta);
         delta = NULL;
@@ -218,7 +223,7 @@ static void controls(void)
         fit = 0;
     }
     igEndDisabled();
-    igTextUnformatted("Wheel: zoom at pointer | Drag any pane: pan all three | Double-click: fit width", NULL);
+    igTextUnformatted("Wheel: zoom | Drag: pan all three | Double-click: fit width | Hold D: highlight differences", NULL);
     if (images.count)
         igText("%d x %d | %lu changed RGB pixels (%.2f%%) | Diff: absolute RGB difference; black = equal",
                images.width, images.height, images.changed,
@@ -227,7 +232,7 @@ static void controls(void)
         igTextWrapped("%s%s", error, images.count ? " (Previous images remain displayed.)" : "");
 }
 
-static void draw_pane(Pane *pane, int index)
+static void draw_pane(Pane *pane, int index, int highlight)
 {
     int i;
     float left, top, right, bottom;
@@ -250,6 +255,11 @@ static void draw_pane(Pane *pane, int index)
             continue;
         texture._TexID = (ImTextureID)(size_t)tile->texture;
         ImDrawList_AddImage(pane->draw, texture, vec(left, top), vec(right, bottom), vec(0, 0), vec(1, 1), 0xffffffffUL);
+        if (highlight && index < 2)
+        {
+            texture._TexID = (ImTextureID)(size_t)images.tiles[3][i].texture;
+            ImDrawList_AddImage(pane->draw, texture, vec(left, top), vec(right, bottom), vec(0, 0), vec(1, 1), 0xffffffffUL);
+        }
     }
     ImDrawList_AddCallback(pane->draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerLinear, NULL, 0);
     ImDrawList_PopClipRect(pane->draw);
@@ -310,7 +320,7 @@ static void panes(void)
     }
     /* Apply input before drawing any pane so all three use this frame's view. */
     for (i = 0; i < 3; ++i)
-        draw_pane(&pane[i], i);
+        draw_pane(&pane[i], i, !io->WantTextInput && igIsKeyDown_Nil(ImGuiKey_D));
     igEndTable();
 }
 

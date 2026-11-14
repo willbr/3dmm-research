@@ -33,6 +33,9 @@ int main(void)
     memset(result, 0x7e, sizeof(result));
     if (review_image_diff_row(a, b, result, 2) != 1 || memcmp(result, expected, 8) || result[8] != 0x7e)
         return 5;
+    review_image_highlight_row(result, 2);
+    if (result[3] || result[7] != 192 || result[4] != 255 || result[5] || result[6] != 255 || result[8] != 0x7e)
+        return 7;
     if (review_image_diff_row(a, a, result, 2) != 0 || result[0] || result[4])
         return 6;
     puts("Image navigation and RGB difference checks passed");

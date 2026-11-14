@@ -41,3 +41,14 @@ size_t review_image_diff_row(const unsigned char *a, const unsigned char *b, uns
     }
     return changed;
 }
+
+void review_image_highlight_row(unsigned char *diff, size_t pixels)
+{
+    size_t x;
+    for (x = 0; x < pixels; ++x)
+    {
+        diff[x * 4 + 3] = (unsigned char)((diff[x * 4] || diff[x * 4 + 1] || diff[x * 4 + 2]) ? 192 : 0);
+        diff[x * 4] = diff[x * 4 + 2] = 255;
+        diff[x * 4 + 1] = 0;
+    }
+}
