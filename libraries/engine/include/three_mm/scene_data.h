@@ -49,7 +49,7 @@ extern "C"
      * Failed reads preserve output; failed name write may follow committed header. */
     int three_mm_scene_transition_read(ThreeMMU32, unsigned unit, ThreeMMI32 *, const ThreeMMSceneIO *);
     int three_mm_scene_transition_write(ThreeMMU32, unsigned unit, ThreeMMI32 transition, int system, int big_endian,
-                                       const ThreeMMSceneIO *);
+                                        const ThreeMMSceneIO *);
     typedef struct ThreeMMSceneGroupServices
     {
         ThreeMMU32 (*fixed_width)(void *group);
@@ -62,6 +62,27 @@ extern "C"
      * contents and frame ordering. Byte order describes fixed/variable data, not
      * the already-decoded GG offsets/header. */
     int three_mm_scene_valid_events(void *group, int big_endian, int start, const ThreeMMSceneGroupServices *);
+    enum
+    {
+        THREE_MM_SCENE_GROUP_HEADERS_ONLY = -1,
+        THREE_MM_SCENE_GROUP_NATIVE_ORDER = 1,
+        THREE_MM_SCENE_GROUP_OTHER_ORDER = 256
+    };
+    typedef struct ThreeMMSceneReadGroupServices
+    {
+        void *context;
+        ThreeMMSceneGroupServices groups;
+        void *(*read)(void *, int *order);
+        void (*release)(void *, void *group);
+    } ThreeMMSceneReadGroupServices;
+    /* read returns an owned group with collection headers/locations decoded but
+     * Scene payloads still in the returned order. Reject unknown markers or invalid
+     * Scene layout, releasing exactly once. Success transfers ownership and publishes
+     * optional order only after validation. Failures leave order untouched. No payload
+     * rewriting, host effects or reentrancy. native_big describes the host layout.
+     * HEADERS_ONLY mode checks fixed width only, retaining unknown event/payload
+     * acceptance for tag collection; start=0/1 validates full frame/start layout. */
+    void *three_mm_scene_read_event_group(int start, int native_big, int *order, const ThreeMMSceneReadGroupServices *);
     typedef struct ThreeMMSceneEventIO
     {
         void *context;

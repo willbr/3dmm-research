@@ -1872,32 +1872,28 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
 {
     AssertThis(0);
     AssertVarMem(pibset);
-
-    Actor *pactr;
-    Body *pbody;
-    long ipactr;
-
-    pbody = BodyWorld::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
-    if (pvNil == pbody)
+    struct Host
     {
-        return pvNil;
-    }
-
-    //
-    // loop through actors, call FIsMyBody()
-    //
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        if (pactr->FIsMyBody(pbody))
-        {
-            return pactr;
-        }
-    }
-
-    Bug("weird...we clicked a pbody, but we don't know whose it is!");
-
-    return pvNil;
+        Scene *scene;
+        long *part;
+    } host = {this, pibset};
+    const ThreeMMScenePickServices services = {
+        &host,
+        [](void *p, ThreeMMI32 x, ThreeMMI32 y) -> void * {
+            auto h = static_cast<Host *>(p);
+            return BodyWorld::PbodyClicked(x, y, h->scene->Pmvie()->Pbwld(), h->part);
+        },
+        [](void *p) -> ThreeMMI32 { return static_cast<Host *>(p)->scene->_pglpactr->IvMac(); },
+        [](void *p, ThreeMMI32 index) -> void * {
+            PActor actor;
+            static_cast<Host *>(p)->scene->_pglpactr->Get(index, &actor);
+            return actor;
+        },
+        [](void *, void *actor, void *body) {
+            return int(static_cast<PActor>(actor)->FIsMyBody(static_cast<Body *>(body)));
+        },
+        [](void *) { Bug("weird...we clicked a pbody, but we don't know whose it is!"); }};
+    return static_cast<Actor *>(three_mm_scene_pick_actor(xp, yp, &services));
 }
 
 /****************************************************
@@ -2353,19 +2349,12 @@ bool Scene::FGetTagBkgd(PTAG ptag)
     AssertThis(0);
     AssertVarMem(ptag);
 
-    SceneEvent sev;
-    long isevStart;
-
-    for (isevStart = 0; isevStart < _pggsevStart->IvMac(); isevStart++)
-    {
-        sev = *(PSEV)_pggsevStart->QvFixedGet(isevStart);
-        if (sevtSetBkgd == sev.sevt)
-        {
-            *ptag = *(PTAG)_pggsevStart->QvGet(isevStart);
-            return fTrue;
-        }
-    }
-    return fFalse;
+    auto services = _EventServices();
+    ThreeMMTag tag;
+    if (!three_mm_scene_background_tag(&tag, &services))
+        return fFalse;
+    TagFromCore(ptag, tag);
+    return fTrue;
 }
 
 /****************************************************
@@ -2905,12 +2894,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
         if (!file->FGetKidChidCtg(kctgScen, scene, start ? 1 : 0, start ? kctgStartGg : kctgFrmGg, &kid) ||
             !file->FFind(kid.cki.ctg, kid.cki.cno, &block))
             return nullptr;
-        auto group = GeneralGroup::PggRead(&block, &bo);
-        if (group && group->CbFixed() != sizeof(SceneEvent))
-        {
-            ReleasePpo(&group);
-            return nullptr;
-        }
+        auto group = SceneData::PggReadEventHeaders(&block, &bo);
         if (group)
             *swap = bo == kboOther;
         return group;

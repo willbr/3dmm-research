@@ -1121,8 +1121,58 @@ counts across replacement, clean-cache reuse, frame/effect-mask restoration and
 dirty marking through an offscreen engine MovieView. C-only tests cover every
 gate/allocation/seek/bitmap failure branch, selection mode changes, publication/
 unlock order, graphics-environment references and sound restoration. No Marcus UI
-tests were added. Remaining Scene background-tag query/glue audit, background
-resource policy, other Movie operations and final C-only integration remain.
+tests were added. Scene query/group gates and the bridge audit are covered below.
+Background resource policy, other Movie operations and final C-only integration
+remain conversion work.
+
+### Scene queries and loaded-group acceptance
+
+`scene_events.c` now owns the first-background-start lookup and click-to-actor
+traversal. Background lookup borrows the tag/cache, stops at the first match and
+leaves output untouched on absence, even when a live background object exists.
+It performs no fetch/retain/release/playback. Picking calls the existing world
+backend first, preserving its body-part output. A miss skips actor traversal and
+diagnostics; a hit returns the first actor owning that body. Orphaned hits retain
+the original diagnostic/null result without restoring the part output or changing
+selection. Native services supply typed world picking and body ownership queries.
+
+`scene_data.c` now owns loaded-group acceptance and failure release. Collection
+headers/locations are already decoded; event fixed/variable payloads stay in their
+original byte order. Full mode validates native/foreign markers and start/frame
+layout before transferring the owned group and publishing optional order. Failure
+releases exactly once and leaves output untouched. Header-only mode checks fixed
+width for tag collection while retaining its unknown-event/payload acceptance;
+using the full event validator there would alter collector diagnostics/prefixes.
+Native adapters supply decoded group reads and typed short-order publication.
+
+Native/SDL traces cover first/absent background lookup, borrowed-cache reference
+counts, a real world-picking miss/body-part output, native/foreign group round
+trips, schema rejection, missing output and backend read failure. C-only tests
+cover duplicate background starts, hit/miss/orphan/empty actor traversal, first
+ownership match, output prefixes, both host endian layouts, full/header-only
+acceptance, optional order and exact failure release. Positive/orphan picking is
+tested through the C protocol; the native trace freezes the real backend miss.
+
+### Scene native bridge audit
+
+The branch/loop audit of `src/engine/scene.cpp` and `scene_data.cpp` checked public
+methods, undo methods, service factories and debug paths. Remaining native code
+still matters to final integration; moving policy does not remove its typed
+storage, object lifetime or UI/resource dependencies.
+
+| Native responsibility | Policy boundary/current status |
+| --- | --- |
+| Scene creation/close/owners and frame/replay/prerender | C owner/runtime/event modules; native fields publish borrowed typed views |
+| Sound/editing, actor/caption/selection, chop and property undo | C policy/state modules; native undo factories/common Movie services and per-object primitives remain |
+| Queries and loaded-group acceptance | C first-match/traversal/validation/release; native picking output and short/enum/tag conversions remain |
+| Scene load, tag collection, save and metadata/events | C traversal/transactions/codecs; native chunk lookup, decompression, collection-header/location decoding and typed I/O remain |
+| Thumbnail generation and dirty propagation | C ordering/ownership/cleanup; native graphics environments, drawing/palette/ports and Movie SetDirty remain |
+| Native output guards, actor/text dispatch and optional lifetime outputs | Typed adaptation/publication; no independent Scene edit/replay choice |
+| Native debug MarkMem/AssertValid/diagnostic switches | C++ object/debug instrumentation, including typed pointer traversals; not converted into C policy |
+
+Remaining work includes Background resource policy, native actor/caption internals,
+Movie control/editing/undo, native representation/facade removal and final C-only
+integration. No Marcus UI tests were added.
 
 ### Actor header, route and event persistence
 

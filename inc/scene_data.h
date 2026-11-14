@@ -84,6 +84,7 @@ struct SceneData : ThreeMMSceneState
     static bool FWriteTransition(PChunkyFile, ChunkNumber, ThreeMMI32);
     // Wire groups contain chunk IDs and fixed-width TAGs, never object pointers.
     static PGeneralGroup PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents);
+    static PGeneralGroup PggReadEventHeaders(PDataBlock block, short *byteOrder);
     static bool FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts);
 };
 #endif

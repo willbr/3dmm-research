@@ -1,6 +1,38 @@
 /* Scene event dispatch converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "three_mm/scene_events.h"
+#include <stddef.h>
+void *three_mm_scene_pick_actor(ThreeMMI32 x, ThreeMMI32 y, const ThreeMMScenePickServices *s)
+{
+    ThreeMMI32 i;
+    void *actor, *body = s->pick(s->context, x, y);
+    if (!body)
+        return NULL;
+    for (i = 0; i < s->count(s->context); ++i)
+    {
+        actor = s->actor(s->context, i);
+        if (s->owns_body(s->context, actor, body))
+            return actor;
+    }
+    s->orphan_body(s->context);
+    return NULL;
+}
+int three_mm_scene_background_tag(ThreeMMTag *out, const ThreeMMSceneEventServices *s)
+{
+    void *group = s->owner->owned[THREE_MM_SCENE_STARTS];
+    ThreeMMI32 i, frame;
+    int kind;
+    for (i = 0; i < s->owners.count(s->owners.context, group); ++i)
+    {
+        s->event(s->context, group, i, &frame, &kind);
+        if (kind == THREE_MM_SCENE_SET_BACKGROUND)
+        {
+            s->read_tag(s->context, s->payload(s->context, group, i), out);
+            return 1;
+        }
+    }
+    return 0;
+}
 static void adopt(int slot, void *object, const ThreeMMSceneEventServices *s)
 {
     if (s->owner->owned[slot])

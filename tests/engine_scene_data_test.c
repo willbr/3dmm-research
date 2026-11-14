@@ -41,6 +41,8 @@ struct Host
     int group_calls, group_fail, groups, root_fail, root, read_fail, io_fail;
     ThreeMMU32 *number, length;
     unsigned char header[16];
+    Group *read_group;
+    int read_order, read_fail_group, read_releases;
 };
 static void event(Host *h, char c)
 {
@@ -458,12 +460,89 @@ static void creation(void)
               !h.root && !h.created[0] && !h.created[1]);
     }
 }
+static void *read_event_group(void *p, int *order)
+{
+    Host *h = (Host *)p;
+    event(h, 'r');
+    *order = h->read_order;
+    return h->read_fail_group ? NULL : h->read_group;
+}
+static void release_event_group(void *p, void *group)
+{
+    Host *h = (Host *)p;
+    CHECK(group == h->read_group);
+    ++h->read_releases;
+    event(h, 'x');
+}
+static void group_reading(void)
+{
+    Host h;
+    Group group;
+    ThreeMMSceneReadGroupServices s;
+    int native_big, swapped, start, order, big, failure;
+    s.context = &h;
+    s.groups = group_services();
+    s.read = read_event_group;
+    s.release = release_event_group;
+    for (native_big = 0; native_big < 2; ++native_big)
+        for (swapped = 0; swapped < 2; ++swapped)
+            for (start = 0; start < 2; ++start)
+                for (failure = 0; failure < 4; ++failure)
+                {
+                    reset(&h);
+                    h.read_group = &group;
+                    h.read_order = swapped ? THREE_MM_SCENE_GROUP_OTHER_ORDER : THREE_MM_SCENE_GROUP_NATIVE_ORDER;
+                    big = native_big != swapped;
+                    init_group(&group, &h, start, THREE_MM_SCENE_CHANGE_CAMERA, 4, big);
+                    order = 77;
+                    if (failure == 1)
+                        h.read_fail_group = 1;
+                    if (failure == 2)
+                        h.read_order = 999;
+                    if (failure == 3)
+                        group.sizes[0] = 5;
+                    if (!failure)
+                    {
+                        unsigned char original[8];
+                        memcpy(original, group.fixed[0], 8);
+                        CHECK(three_mm_scene_read_event_group(start, native_big, &order, &s) == &group);
+                        CHECK(order == h.read_order && !h.read_releases && !strcmp(h.log, "r"));
+                        CHECK(!memcmp(original, group.fixed[0], 8));
+                        CHECK(three_mm_scene_read_event_group(start, native_big, NULL, &s) == &group &&
+                              !h.read_releases);
+                    }
+                    else
+                    {
+                        CHECK(!three_mm_scene_read_event_group(start, native_big, &order, &s));
+                        CHECK(order == 77 && h.read_releases == (failure != 1));
+                        CHECK(!strcmp(h.log, failure == 1 ? "r" : "rx"));
+                    }
+                }
+    reset(&h);
+    h.read_group = &group;
+    h.read_order = THREE_MM_SCENE_GROUP_NATIVE_ORDER;
+    init_group(&group, &h, 1, THREE_MM_SCENE_ADD_ACTOR, 4, 0);
+    order = 77;
+    CHECK(!three_mm_scene_read_event_group(0, 0, &order, &s) && order == 77 && h.read_releases == 1);
+    reset(&h);
+    h.read_group = &group;
+    h.read_order = THREE_MM_SCENE_GROUP_NATIVE_ORDER;
+    init_group(&group, &h, 0, 99, 7, 0);
+    order = 77;
+    CHECK(three_mm_scene_read_event_group(THREE_MM_SCENE_GROUP_HEADERS_ONLY, 0, &order, &s) == &group);
+    CHECK(order == THREE_MM_SCENE_GROUP_NATIVE_ORDER && !h.read_releases);
+    group.fixed_width = 7;
+    order = 77;
+    CHECK(!three_mm_scene_read_event_group(THREE_MM_SCENE_GROUP_HEADERS_ONLY, 0, &order, &s));
+    CHECK(order == 77 && h.read_releases == 1);
+}
 int main(void)
 {
     validation();
     transactions();
     headers();
     creation();
+    group_reading();
     puts("scene data passed");
     return 0;
 }

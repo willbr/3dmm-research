@@ -36,7 +36,12 @@ enum
     EVENT,
     PAYLOAD,
     DIAG,
-    RELEASE
+    RELEASE,
+    PICK,
+    PICK_COUNT,
+    PICK_ACTOR,
+    PICK_OWNER,
+    PICK_ORPHAN
 };
 typedef struct Object
 {
@@ -74,6 +79,8 @@ typedef struct Fixture
     int counts[2], ops[128], used, issues[5], live, dup_fail, fetch_fail, camera_fail;
     int append_fail, seek_fail, transition, camera, releases, sounds, payloads, last_payload, mutate_delay;
     ThreeMMI32 published_frame;
+    void *clicked;
+    int hit_part, orphan_count;
 } Fixture;
 static void log_op(Fixture *f, int op)
 {
@@ -555,6 +562,106 @@ static void starts(void)
     CHECK(three_mm_scene_start_events(0, &f.s));
     CHECK(f.payloads == 3 && f.counts[0] == 1 && f.counts[1] == 1 && f.transition == 0);
 }
+static void background_query(void)
+{
+    Fixture f;
+    ThreeMMTag out;
+    const int found[] = {EVENT, EVENT, PAYLOAD, TAG};
+    init(&f);
+    out.sid = 99;
+    out.cache = &f.objects[3];
+    out.type = 12;
+    out.number = 34;
+    f.owner.owned[THREE_MM_SCENE_BACKGROUND] = &f.objects[0];
+    CHECK(!three_mm_scene_background_tag(&out, &f.s));
+    CHECK(!f.used && out.sid == 99 && out.cache == &f.objects[3] && out.type == 12 && out.number == 34);
+    f.starts.count = 3;
+    f.starts.events[0].kind = THREE_MM_SCENE_ADD_ACTOR;
+    f.starts.events[1].kind = f.starts.events[2].kind = THREE_MM_SCENE_SET_BACKGROUND;
+    f.starts.events[1].payload.tag = f.packet.tag;
+    f.starts.events[2].payload.tag = f.packet.tag;
+    f.starts.events[2].payload.tag.number = 42;
+    CHECK(three_mm_scene_background_tag(&out, &f.s));
+    CHECK(out.sid == f.packet.tag.sid && out.cache == f.packet.tag.cache && out.type == f.packet.tag.type &&
+          out.number == f.packet.tag.number);
+    expect(&f, found, sizeof(found) / sizeof(*found));
+    CHECK(!f.releases && !f.live && f.payloads == 1 && f.last_payload == 1);
+    f.starts.count = 1;
+    CHECK(!three_mm_scene_background_tag(&out, &f.s));
+    CHECK(out.number == f.packet.tag.number && f.used == 1 && f.ops[0] == EVENT);
+}
+static void *pick_body(void *p, ThreeMMI32 x, ThreeMMI32 y)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(x == -7 && y == 13);
+    f->hit_part = 41;
+    log_op(f, PICK);
+    return f->clicked;
+}
+static ThreeMMI32 pick_count(void *p)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(f->hit_part == 41);
+    log_op(f, PICK_COUNT);
+    return f->counts[0];
+}
+static void *pick_actor(void *p, ThreeMMI32 i)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(i >= 0 && i < f->counts[0]);
+    log_op(f, PICK_ACTOR);
+    return f->lists[0][i];
+}
+static int pick_owner(void *p, void *actor, void *body)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(body == f->clicked);
+    log_op(f, PICK_OWNER);
+    return actor == body;
+}
+static void pick_orphan(void *p)
+{
+    Fixture *f = (Fixture *)p;
+    ++f->orphan_count;
+    log_op(f, PICK_ORPHAN);
+}
+static void picking(void)
+{
+    Fixture f;
+    ThreeMMScenePickServices s;
+    int i;
+    init(&f);
+    s.context = &f;
+    s.pick = pick_body;
+    s.count = pick_count;
+    s.actor = pick_actor;
+    s.owns_body = pick_owner;
+    s.orphan_body = pick_orphan;
+    CHECK(!three_mm_scene_pick_actor(-7, 13, &s) && f.hit_part == 41 && !f.orphan_count);
+    {
+        const int e[] = {PICK};
+        expect(&f, e, 1);
+    }
+    for (i = 0; i < 3; ++i)
+        f.lists[0][i] = &f.objects[i];
+    f.counts[0] = 3;
+    f.clicked = &f.objects[1];
+    CHECK(three_mm_scene_pick_actor(-7, 13, &s) == &f.objects[1]);
+    {
+        const int e[] = {PICK, PICK_COUNT, PICK_ACTOR, PICK_OWNER, PICK_COUNT, PICK_ACTOR, PICK_OWNER};
+        expect(&f, e, 7);
+    }
+    f.clicked = &f.objects[3];
+    CHECK(!three_mm_scene_pick_actor(-7, 13, &s) && f.orphan_count == 1 && f.hit_part == 41);
+    CHECK(f.used == 12 && f.ops[f.used - 1] == PICK_ORPHAN && !f.releases && !f.live);
+    f.used = 0;
+    f.counts[0] = 0;
+    CHECK(!three_mm_scene_pick_actor(-7, 13, &s) && f.orphan_count == 2);
+    {
+        const int e[] = {PICK, PICK_COUNT, PICK_ORPHAN};
+        expect(&f, e, 3);
+    }
+}
 int main(void)
 {
     sounds();
@@ -563,6 +670,8 @@ int main(void)
     pauses_and_cameras();
     rewind_events();
     starts();
+    background_query();
+    picking();
     puts("C89 Scene event dispatch, ownership, suppression, start prefixes and rewind failures passed.");
     return 0;
 }

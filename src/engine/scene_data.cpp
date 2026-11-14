@@ -8,6 +8,8 @@ static_assert(transNil == -1 && transCut == 0 && transLim == THREE_MM_SCENE_TRAN
 static_assert(sevtAddActr == 0 && sevtPlaySnd == 1 && sevtAddTbox == 2 && sevtChngCamera == 3 && sevtSetBkgd == 4 &&
                   sevtPause == 5,
               "scene event encoding");
+static_assert(kboCur == THREE_MM_SCENE_GROUP_NATIVE_ORDER && kboOther == THREE_MM_SCENE_GROUP_OTHER_ORDER,
+              "Scene group byte order markers");
 namespace
 {
 bool NativeBig()
@@ -134,22 +136,32 @@ bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, ThreeMMI3
     const auto io = SceneIO(&host);
     return three_mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
 }
+static PGeneralGroup ReadSceneEvents(PDataBlock block, short *byteOrder, int layout)
+{
+    const ThreeMMSceneReadGroupServices services = {
+        block, Groups(),
+        [](void *p, int *order) -> void * {
+            short bo;
+            auto group = GeneralGroup::PggRead(static_cast<PDataBlock>(p), &bo);
+            if (group)
+                *order = bo;
+            return group;
+        },
+        [](void *, void *group) { static_cast<PGeneralGroup>(group)->Release(); }};
+    int order;
+    auto group =
+        static_cast<PGeneralGroup>(three_mm_scene_read_event_group(layout, NativeBig(), &order, &services));
+    if (group && byteOrder)
+        *byteOrder = static_cast<short>(order);
+    return group;
+}
 PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)
 {
-    short bo;
-    auto group = GeneralGroup::PggRead(block, &bo);
-    if (!group)
-        return nullptr;
-    const auto services = Groups();
-    if ((bo != kboCur && bo != kboOther) ||
-        !three_mm_scene_valid_events(group, (bo == kboCur) == NativeBig(), startEvents, &services))
-    {
-        ReleasePpo(&group);
-        return nullptr;
-    }
-    if (byteOrder)
-        *byteOrder = bo;
-    return group;
+    return ReadSceneEvents(block, byteOrder, startEvents);
+}
+PGeneralGroup SceneData::PggReadEventHeaders(PDataBlock block, short *byteOrder)
+{
+    return ReadSceneEvents(block, byteOrder, THREE_MM_SCENE_GROUP_HEADERS_ONLY);
 }
 bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts)
 {

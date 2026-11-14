@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
@@ -580,6 +581,64 @@ int main()
     TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
     {
+        TAG found = {ksidInvalid, nullptr, 0, 0};
+        auto references = observed->CactRef();
+        Value(scene->FGetTagBkgd(&found));
+        Value(found.sid);
+        Value(found.pcrf == observed);
+        Value(found.ctg == kctgBkgd);
+        Value(found.cno == background);
+        CHECK(observed->CactRef() == references);
+        long part = 71;
+        Value(scene->PactrFromPt(-7, 13, &part) != nullptr);
+        Value(part);
+        for (short order : {kboCur, kboOther})
+            for (int valid = 0; valid < 2; ++valid)
+            {
+                auto group = GeneralGroup::PggNew(sizeof(SceneEvent));
+                CHECK(group);
+                SceneEvent e = {7, valid ? sevtChngCamera : static_cast<SceneEventType>(99)};
+                LegacyLong camera = 0;
+                if (order == kboOther)
+                    Reverse(&e, sizeof(e));
+                CHECK(group->FAdd(sizeof(camera), nullptr, &camera, &e));
+                ChunkNumber n;
+                DataBlock block;
+                CHECK(file->FAdd(group->CbOnFile(), kctgFrmGg, &n, &block) && group->FWrite(&block, order));
+                block.Free();
+                CHECK(file->FFind(kctgFrmGg, n, &block));
+                short out = 0x7777;
+                auto loaded = SceneData::PggReadEvents(&block, &out, false);
+                Value(loaded != nullptr);
+                Value(out);
+                CHECK((loaded != nullptr) == bool(valid));
+                CHECK(out == (valid ? order : 0x7777));
+                if (loaded)
+                {
+                    loaded->GetFixed(0, &e);
+                    Record(&e, sizeof(e));
+                }
+                auto optional = SceneData::PggReadEvents(&block, nullptr, false);
+                CHECK((optional != nullptr) == bool(valid));
+                ReleasePpo(&optional);
+                ReleasePpo(&loaded);
+                block.Free();
+                ReleasePpo(&group);
+                file->Delete(kctgFrmGg, n);
+            }
+        byte invalid = 0;
+        ChunkNumber n;
+        DataBlock block;
+        CHECK(file->FAddPv(&invalid, 1, kctgFrmGg, &n) && file->FFind(kctgFrmGg, n, &block));
+        short order = 0x7777;
+        auto failed = SceneData::PggReadEvents(&block, &order, false);
+        CHECK(!failed && order == 0x7777);
+        Value(failed != nullptr);
+        Value(order);
+        block.Free();
+        file->Delete(kctgFrmGg, n);
+    }
+    {
         String name;
         name.SetSzs(PszLit("Original #scene"));
         scene->SetNameCore(&name);
@@ -872,6 +931,12 @@ int main()
     recording = true;
 #endif
     {
+        TAG absent = {91, observed, kctgMsnd, 17};
+        Value(scene->FGetTagBkgd(&absent));
+        Value(absent.sid);
+        Value(absent.pcrf == observed);
+        Value(absent.ctg == kctgMsnd);
+        Value(absent.cno);
         movie->DocumentBase::SetDirty(false);
         movie->SetDirty(false);
         scene->MarkDirty(false);
@@ -939,5 +1004,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 30192 && hash == 0x21EF5458U);
+        CHECK(recorded == 30296 && hash == 0x2B757265U);
 }

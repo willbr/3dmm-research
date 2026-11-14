@@ -7756,3 +7756,90 @@ Evidence: `tmp/c89-thumbnail-{strict-build,strict,asan,standalone,native-tests,s
 `tmp/c89-thumbnail-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-thumbnail-capture-hashes-{before,after}.json` and
 `tmp/c89-thumbnail-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+### Scene query/group-gate C89 closeout (14 November 2026)
+
+Baseline: `cc138746`. `scene_events.c` now owns first-background-start lookup and
+click-to-actor traversal. `scene_data.c` now owns full/header-only loaded-group
+acceptance, failure release and byte-order publication. Typed tag/short/object
+conversions, world picking/body ownership, group decoding and file I/O remain
+adapters. The Scene bridge audit is recorded in `docs/code-map/library-split.md`;
+native debug/object/storage/front-end dependencies remain final integration work.
+
+The native Scene-content fixture extends the preceding content/selection/chop/
+property/playback/thumbnail evidence with borrowed background-tag lookup, unchanged
+absence output despite a live background, a real world-pick miss/body-part output,
+native/foreign collection serialization/readback, valid/invalid Scene layout,
+optional byte-order output and backend read failure. Original native methods were
+restored for the final baseline after the picking traversal was found by the
+broader branch audit. Original native/repeat and original SDL debug/release traces
+match 30,296 bytes, FNV-1a `2B757265`, SHA-256
+`3DE81D80C7D261068B4F1281D75E6B6E2C072ED47E19785BCAC3303E6B603582`.
+The guard retains the little-endian x64, one-byte-text restriction.
+
+Background lookup stops at the first matching start event without fetching or
+retaining its cache and does not fall back to the live background object. Picking
+preserves the backend's part-output prefix, skips all actor work on a miss,
+returns the first body owner and diagnoses an orphan without selection/lifetime
+effects. Positive/orphan picking uses C-only protocol tests; the native trace
+freezes the existing real backend's miss.
+
+Loaded groups retain foreign-order Scene payloads after collection metadata is
+decoded. Full acceptance checks order marker and start/frame schema, transfers
+ownership on success and publishes optional order after validation. Failure
+releases once and keeps output unchanged. Tag collection uses header-only mode:
+it retains the original width check and acceptance of unknown events/payloads for
+the collector's own diagnostics/prefix behavior, rather than imposing the full
+schema validator. No wire versions, payload normalization or additional tag/cache
+references were introduced.
+
+C-only tests cover empty/duplicate background starts and absence output, picking
+miss/first-owner/orphan/empty-list paths, forwarded coordinates and part output,
+both host/order combinations, start/frame/header-only acceptance, read/marker/
+layout failures, optional order, failure release and unchanged wire bytes. No
+Marcus UI tests were added. Background resource policy, native object/facade
+dependencies, Movie operations and final C-only integration remain work.
+
+Final native, SDL debug and SDL release traces match all four original traces
+above byte for byte. All 98 standalone C checks (including C89 syntax), 134
+selected native, 30 SDL debug and 42 SDL release checks pass with the expanded
+fixtures. Builds and file-heavy suites ran serially; both hosts, `core-checks`,
+directly invoked native/save-load executables and CLI targets were rebuilt.
+Marcus was stopped before rebuilding and relaunched afterward. Both expanded C
+fixtures pass Clang strict C89 with warnings as errors and MSVC AddressSanitizer.
+All 51 freshly linked CLI baselines match.
+
+The final binaries stayed fixed through all 21 fresh-process captures (one
+repeat, no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `F7E6EFE7BC52CAB5BC8379626697282ECF9EC181714F374A0B4C2F1C79A35E5C`.
+- Marcus regression: `662C08B12D4E8E35479037432632C1B3413F243B9DE5F6AE126BD74AB7D022D3`.
+
+| Final suite | Case | Completion |
+| --- | --- | --- |
+| `20261114T145218Z-815dfe36` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T145333Z-67e62dbd` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T145639Z-eaaf8c65` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T145759Z-cfa20af2` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+Movie identity and suite integrity pass. All authored frame sequences, all 540
+seek images and ordered playback image changes match each player's preceding
+Scene-thumbnail capture: `20261114T141441Z-84e297e2` (actor-events),
+`20261114T141559Z-e36e5bce` (scrolling-text), `20261114T141915Z-96939dcb`
+(actor-audio) and `20261114T142032Z-128eb9ec` (sampled-audio). Playback comparison
+collapses only adjacent identical scene/frame/image samples.
+
+Actor-audio PCM16 peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass for every player. These playback checks do not
+exercise retail picking/editing commands or prove full PCM/MIDI or retail timing
+parity. Existing cross-player differences and single-repeat inconclusive
+comparisons remain. Captures use a shared warm SDL package cache with private
+processes, settings and working movies; OS caching is uncontrolled.
+
+Evidence: `tmp/c89-scene-glue-{events-strict-build,events-strict,data-strict-build,data-strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-scene-glue-{native,native-repeat,original-sdl-debug,original-sdl-release,final-native,final-sdl-debug,final-sdl-release}.bin`,
+`tmp/c89-scene-glue-output-comparison.json`,
+`tmp/c89-scene-glue-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-scene-glue-capture-hashes-{before,after}.json` and
+`tmp/c89-scene-glue-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.

@@ -141,6 +141,25 @@ int three_mm_scene_valid_events(void *group, int big, int start, const ThreeMMSc
     }
     return 1;
 }
+void *three_mm_scene_read_event_group(int start, int native_big, int *order, const ThreeMMSceneReadGroupServices *s)
+{
+    int loaded_order;
+    void *group = s->read(s->context, &loaded_order);
+    if (!group)
+        return NULL;
+    if ((loaded_order != THREE_MM_SCENE_GROUP_NATIVE_ORDER && loaded_order != THREE_MM_SCENE_GROUP_OTHER_ORDER) ||
+        (start == THREE_MM_SCENE_GROUP_HEADERS_ONLY
+             ? s->groups.fixed_width(group) != THREE_MM_SCENE_EVENT_BYTES
+             : !three_mm_scene_valid_events(
+                   group, (loaded_order == THREE_MM_SCENE_GROUP_NATIVE_ORDER) == (native_big != 0), start, &s->groups)))
+    {
+        s->release(s->context, group);
+        return NULL;
+    }
+    if (order)
+        *order = loaded_order;
+    return group;
+}
 int three_mm_scene_write_events(ThreeMMU32 scene, void *frames, void *starts, const ThreeMMSceneEventIO *s)
 {
     ThreeMMU32 old_frame, old_start, frame = 0xffffffffUL, start = 0xffffffffUL;

@@ -69,6 +69,25 @@ extern "C"
                                   const ThreeMMSceneEventServices *);
     int three_mm_scene_unplay_event(int kind, const ThreeMMSceneEventServices *);
     int three_mm_scene_start_events(int actors_only, const ThreeMMSceneEventServices *);
+    /* First background start event wins. The result borrows its cache; no retain,
+     * fetch, playback or selection effects. Absence leaves output unchanged, even
+     * when a live background object exists. Traversal cannot be reentered/mutated. */
+    int three_mm_scene_background_tag(ThreeMMTag *, const ThreeMMSceneEventServices *);
+    typedef struct ThreeMMScenePickServices
+    {
+        void *context;
+        /* The backend owns hit-part output, including no-hit/failure prefixes. */
+        void *(*pick)(void *, ThreeMMI32 x, ThreeMMI32 y);
+        ThreeMMI32 (*count)(void *);
+        void *(*actor)(void *, ThreeMMI32 index);
+        int (*owns_body)(void *, void *actor, void *body);
+        void (*orphan_body)(void *);
+    } ThreeMMScenePickServices;
+    /* Borrowed actors/body. A miss skips actor traversal and diagnostics. A hit
+     * searches in list order, returning the first owner; an orphan diagnoses and
+     * returns NULL. No selection, retain/release or hit-part restoration. Callbacks
+     * are synchronous and must not mutate/reenter the actor traversal. */
+    void *three_mm_scene_pick_actor(ThreeMMI32 x, ThreeMMI32 y, const ThreeMMScenePickServices *);
 #ifdef __cplusplus
 }
 #endif
