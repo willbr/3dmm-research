@@ -25,9 +25,32 @@ Scrolling now uses a portable adapter to the same `MoviePlaybackEvaluator`
 scrolling branch used by SDL Studio. It moves each eligible credits box one
 pixel per five-tick alarm (nominally 12 steps/second), discards late-alarm debt,
 and holds the authored frame through the final completion-check alarm. Pausing
-freezes the remaining interval; seeks reset it. Layout/font metrics and other
-Marcus playback policies are still separate and require further parity work.
+freezes the remaining interval; seeks reset it. Caption line layout now shares
+the SDL port's rich-text formatter; font rasterization and the remaining
+presentation policies still require parity verification.
 Timeline durations describe nominal scheduling; a slow host can take longer.
+
+Marcus and SDL now use `kauai/src/rich_text_layout.h` for character runs, tabs,
+word wrapping, paragraph alignment/spacing and baseline calculation. The original
+formatter was extracted from `rtxt2.cpp` behind document/font measurement hosts;
+Marcus no longer approximates it with a separate per-character layout loop.
+Blank lines and paragraph-ending characters contribute actual font metrics.
+The portable font catalog also preserves native bitmap strikes instead of
+doubling the missing-font System fallback; enlarged caption rendering preserves
+those pixels while outline fonts can still be rerasterized at higher resolution.
+
+Native 544x306 Stranger captures verified the title (scene 4/frame 15) and ending
+(scene 46/frame 55) as exact RGB matches to retail across BRender CPU, BRender
+compute and SDL GPU. Warning text at scene 1/frame 3 dropped from 5,601,450 to
+1,602 summed absolute RGB channel error (99.97% reduction); a few glyph pixels
+still differ. These are still-frame observations, not continuous-playback parity.
+Legacy synthetic bold now uses retail's one-pixel horizontal overstrike and
+advance adjustment instead of FreeType's size-dependent emboldening. In Gustave,
+this prevents the Impact title from wrapping or clipping: scene 3/frame 5's text
+region drops from 5,848,042 to 9,130 summed RGB error across all renderers, and
+scene 5/frame 19's upper region drops from 1,028,240 to 5,036 with BRender CPU.
+Headless shared-formatter checks cover CRLF/blank lines, styled paragraph ends,
+tabs, wrapping, spacing and UTF-16 buffer movement. No Marcus UI test was added.
 
 The headless playback regression covers first-alarm delay, a ten-second late
 callback moving only one pixel, no catch-up debt, the final completion-check

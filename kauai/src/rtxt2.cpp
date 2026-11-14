@@ -10,6 +10,7 @@
     Rich text document and associated DocumentDisplayGraphicsObject, continued
 
 ***************************************************************************/
+#include "rich_text_layout.h"
 #include "frame.h"
 ASSERTNAME
 
@@ -20,474 +21,75 @@ const long kdxpMax = 0x01000000;
 /***************************************************************************
     Character run data.
 ***************************************************************************/
-typedef struct CHRD *PCHRD;
-struct CHRD
+// The native UI and Marcus share the same formatter through different hosts.
+struct NativeTextLayoutHost
 {
-    long cpLim;
-    long cpLimDraw;
-    long xpLim;
-    long xpLimDraw;
+    using Character = achar;
+    using CharacterProperties = CHP;
+    using ParagraphProperties = PAP;
+    using Rectangle = RC;
+    PTextDocumentBase document;
+    PGraphicsEnvironment graphics;
+    long CpMac()
+    {
+        return document->CpMac();
+    }
+    bool FMinPara(long cp)
+    {
+        return document->FMinPara(cp);
+    }
+    void FetchRgch(long cp, long count, achar *text)
+    {
+        document->FetchRgch(cp, count, text);
+    }
+    unsigned long Flags(achar ch)
+    {
+        return GrfchFromCh(ch);
+    }
+    long Offset(const CHP &chp)
+    {
+        return chp.dypOffset;
+    }
+    void SetFont(const CHP &chp)
+    {
+        graphics->SetFont(chp.onn, chp.grfont, chp.dypFont, tahLeft, tavBaseline);
+    }
+    void WarmFont()
+    {
+#ifndef SOC_BUG_1500
+        achar ch = kchSpace;
+        graphics->DrawRgch(&ch, 1, 0, 0);
+#endif
+    }
+    void GetRcFromRgch(RC *rc, achar *text, long count)
+    {
+        graphics->GetRcFromRgch(rc, text, count);
+    }
+    bool FGetObjectRc(long cp, CHP *chp, RC *rc)
+    {
+        return document->FGetObjectRc(cp, graphics, chp, rc);
+    }
 };
-
-/***************************************************************************
-    Character run class. This is used to format a line, draw a line,
-    map between cp and xp on a line, etc.
-***************************************************************************/
-const long kcchMaxChr = 128;
-class CHR
+using CHRD = KauaiTextLayout::RunData;
+class CHR : public KauaiTextLayout::CharacterRun<NativeTextLayoutHost>
 {
-    ASSERT
-
-  private:
-    CHP _chp;
-    PAP _pap;
-    PTextDocumentBase _ptxtb;
-    PGraphicsEnvironment _pgnv;
-    bool _fMustAdvance : 1;
-    bool _fBreak : 1;
-    bool _fObject : 1;
-
-    long _cpMin;
-    long _cpLim;
-    long _cpLimFetch;
-    long _xpMin;
-    long _xpBreak;
-
-    CHRD _chrd;
-    CHRD _chrdBop;
-
-    long _dypAscent;
-    long _dypDescent;
-
-    achar _rgch[kcchMaxChr];
-
-    bool _FFit(void);
-    void _SetToBop(void);
-    void _SkipIgnores(void);
-    void _DoTab(void);
+    NativeTextLayoutHost host;
 
   public:
-    void Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGraphicsEnvironment pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
-              long xpBreak);
-
-    void GetNextRun(bool fMustAdvance = fFalse);
-    bool FBreak(void)
+    void Init(CHP *chp, PAP *pap, PTextDocumentBase document, PGraphicsEnvironment graphics, long first, long limit,
+              long x, long width, long stop)
     {
-        return _fBreak;
-    }
-    void GetChrd(PCHRD pchrd, PCHRD pchrdBop = pvNil)
-    {
-        AssertNilOrVarMem(pchrd);
-        AssertNilOrVarMem(pchrdBop);
-
-        if (pvNil != pchrd)
-            *pchrd = _chrd;
-        if (pvNil != pchrdBop)
-            *pchrdBop = _chrdBop;
-    }
-    long DypAscent(void)
-    {
-        return _dypAscent;
-    }
-    long DypDescent(void)
-    {
-        return _dypDescent;
-    }
-    long XpMin(void)
-    {
-        return _xpMin;
-    }
-    long XpBreak(void)
-    {
-        return _xpBreak;
-    }
-    achar *Prgch(void)
-    {
-        return _rgch;
-    }
-    long CpMin(void)
-    {
-        return _cpMin;
-    }
-    bool FObject(void)
-    {
-        return _fObject;
+        host.document = document;
+        host.graphics = graphics;
+        CharacterRun::Init(chp, pap, &host, first, limit, x, width, stop);
     }
 };
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a CHR.
-***************************************************************************/
-void CHR::AssertValid(LegacyUlong grf)
-{
-    AssertThisMem();
-    AssertPo(_ptxtb, 0);
-    AssertPo(_pgnv, 0);
-}
-#endif // DEBUG
-
-/***************************************************************************
-    Initialize the CHR.
-***************************************************************************/
-void CHR::Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGraphicsEnvironment pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
-               long xpBreak)
-{
-    AssertVarMem(pchp);
-    AssertVarMem(ppap);
-    AssertPo(ptxtb, 0);
-    AssertPo(pgnv, 0);
-    AssertIn(cpMin, 0, ptxtb->CpMac());
-    AssertIn(cpLim, cpMin + 1, ptxtb->CpMac() + 1);
-    Assert(xpBase <= xpLimLine, "xpBase > xpLimLine");
-
-    RC rc;
-
-    _chp = *pchp;
-    _pap = *ppap;
-    _ptxtb = ptxtb;
-    _pgnv = pgnv;
-    _fBreak = fFalse;
-
-    _cpMin = cpMin;
-    _cpLim = cpLim;
-    _cpLimFetch = cpMin;
-    _xpMin = xpBase;
-    _xpBreak = LwMin(xpBreak, xpLimLine);
-
-    // apply any indenting
-    if (0 == xpBase)
-    {
-        switch (_pap.nd)
-        {
-        case ndFirst:
-            if (_ptxtb->FMinPara(_cpMin))
-                _xpMin += _pap.dxpTab;
-            break;
-        case ndRest:
-            if (!_ptxtb->FMinPara(_cpMin))
-                _xpMin += _pap.dxpTab;
-            break;
-        case ndAll:
-            _xpMin += _pap.dxpTab;
-            break;
-        }
-    }
-    if (ndAll == _pap.nd)
-        _xpBreak = LwMin(_xpBreak, xpLimLine - _pap.dxpTab);
-
-    _chrd.cpLim = _chrd.cpLimDraw = _cpMin;
-    _chrd.xpLim = _chrd.xpLimDraw = _xpMin;
-    _chrdBop = _chrd;
-
-    // get the vertical dimensions
-    _pgnv->SetFont(_chp.onn, _chp.grfont, _chp.dypFont, tahLeft, tavBaseline);
-
-#ifndef SOC_BUG_1500 // REVIEW shonk: Win95 bug workaround
-    // If we don't draw to the _pgnv before getting the metrics, the metrics
-    // can be different than after we draw!
-    achar ch = kchSpace;
-    _pgnv->DrawRgch(&ch, 1, 0, 0);
-#endif //! REVIEW
-
-    _pgnv->GetRcFromRgch(&rc, pvNil, 0);
-    _dypAscent = LwMax(0, -rc.ypTop - _chp.dypOffset);
-    _dypDescent = LwMax(0, rc.ypBottom + _chp.dypOffset);
-
-    AssertThis(0);
-}
-
-/***************************************************************************
-    Get the next run (within the bounds we were inited with).
-***************************************************************************/
-void CHR::GetNextRun(bool fMustAdvance)
-{
-    AssertThis(0);
-    ulong grfch;
-    achar ch;
-    RC rc;
-
-    // Start the next run
-    if (FIn(_chrd.cpLim, _cpMin + 1, _cpLimFetch))
-        BltPb(_rgch + _chrd.cpLim - _cpMin, _rgch, _cpLimFetch - _chrd.cpLim);
-    _cpMin = _chrd.cpLimDraw = _chrd.cpLim;
-    _xpMin = _chrd.xpLimDraw = _chrd.xpLim;
-    _xpBreak = LwMax(_xpBreak, _xpMin);
-    _chrdBop = _chrd;
-
-    if (_cpMin >= _cpLim)
-        return;
-
-    // Refill the buffer
-    if (_cpLimFetch < _cpLim && _cpLimFetch < _cpMin + kcchMaxChr)
-    {
-        long cpFetch = LwMax(_cpMin, _cpLimFetch);
-
-        _cpLimFetch = LwMin(kcchMaxChr, _cpLim - _cpMin) + _cpMin;
-        _ptxtb->FetchRgch(cpFetch, _cpLimFetch - cpFetch, _rgch + cpFetch - _cpMin);
-    }
-
-    _fMustAdvance = FPure(fMustAdvance);
-    _fBreak = fFalse;
-    _fObject = fFalse;
-
-    _pgnv->SetFont(_chp.onn, _chp.grfont, _chp.dypFont, tahLeft, tavBaseline);
-    for (;;)
-    {
-        if (_chrd.cpLim >= _cpLimFetch || (fchIgnore & (grfch = GrfchFromCh(ch = _rgch[_chrd.cpLim - _cpMin]))))
-        {
-            // we're out of characters or this is an ignoreable character -
-            // return the run
-            if (!_FFit())
-                _SetToBop();
-            else
-                _SkipIgnores();
-            break;
-        }
-
-        if (grfch & fchTab)
-        {
-            // handle the string of tabs, then return the run
-            _DoTab();
-            break;
-        }
-
-        if (grfch & fchBreak)
-        {
-            // This line must break after this character - return the run.
-            if (!_FFit())
-            {
-                _SetToBop();
-                break;
-            }
-
-            _chrd.cpLim++;
-            _SkipIgnores();
-
-            // this is a BOP
-            _chrdBop = _chrd;
-            _fBreak = fTrue;
-            break;
-        }
-
-        if (grfch & fchMayBreak)
-        {
-            _chrd.cpLimDraw = ++_chrd.cpLim;
-            if (_FFit())
-            {
-                // this is a BOP
-                _chrdBop = _chrd;
-                continue;
-            }
-
-            _fBreak = fTrue;
-            if (grfch & fchWhiteOverhang)
-            {
-                // see if everything but this character fits
-                long xp = _chrd.xpLim;
-
-                _chrd.cpLimDraw--;
-                if (_FFit())
-                {
-                    // fits with the overhang
-                    _chrd.xpLim = xp;
-                    _chrdBop = _chrd;
-                    _SkipIgnores();
-                    break;
-                }
-            }
-
-            _SetToBop();
-            break;
-        }
-
-        if (kchObject == ch)
-        {
-            // this is an object character
-            if (_chrd.cpLim > _cpMin)
-            {
-                // return the run before processing the object - objects
-                // go in their own run.
-                if (!_FFit())
-                    _SetToBop();
-                else
-                    _chrdBop = _chrd;
-                break;
-            }
-
-            // return just the object (if it really is an object)
-            if (!_ptxtb->FGetObjectRc(_chrd.cpLim, _pgnv, &_chp, &rc))
-            {
-                // treat as a normal character
-                _chrd.cpLimDraw = ++_chrd.cpLim;
-                continue;
-            }
-
-            rc.Offset(0, _chp.dypOffset);
-            Assert(!rc.FEmpty() && rc.xpRight >= 0, "bad rectangle for the object");
-
-            if (fMustAdvance || _xpMin + rc.xpRight <= _xpBreak)
-            {
-                _fObject = fTrue;
-                _chrd.cpLimDraw = ++_chrd.cpLim;
-                _chrd.xpLim = _chrd.xpLimDraw = _xpMin + rc.xpRight;
-                _chrdBop = _chrd;
-
-                _dypAscent = LwMax(_dypAscent, -rc.ypTop);
-                _dypDescent = LwMax(_dypDescent, rc.ypBottom);
-
-                if (_xpMin + rc.xpRight >= _xpBreak)
-                    _fBreak = fTrue;
-                _SkipIgnores();
-            }
-            break;
-        }
-
-        // normal character
-        _chrd.cpLimDraw = ++_chrd.cpLim;
-    }
-
-    AssertThis(0);
-}
-
-/***************************************************************************
-    Test whether everything from _cpMin to _chrd.cpLimDraw fits. Assumes the
-    font is set in the _pgnv.
-***************************************************************************/
-bool CHR::_FFit(void)
-{
-    AssertThis(0);
-    RC rc;
-
-    if (_chrd.cpLimDraw == _cpMin)
-        _chrd.xpLim = _chrd.xpLimDraw = _xpMin;
-    else
-    {
-        _pgnv->GetRcFromRgch(&rc, _rgch, _chrd.cpLimDraw - _cpMin);
-        _chrd.xpLim = _chrd.xpLimDraw = _xpMin + rc.Dxp();
-    }
-
-    return _chrd.xpLimDraw <= _xpBreak;
-}
-
-/***************************************************************************
-    Set the CHR to the last break opportunity. If there wasn't one and
-    _fMustAdvance is true, gobble as many characters as we can, but at least
-    one.
-***************************************************************************/
-void CHR::_SetToBop(void)
-{
-    AssertThis(0);
-
-    _fBreak = fTrue;
-    if (_chrdBop.cpLim <= _cpMin && _fMustAdvance)
-    {
-        // no break opportunity seen - gobble as many characters as we can,
-        // but at least one.
-        // do a binary search for the character to break at
-        Assert(_chrd.cpLimDraw > _cpMin, "why is _chrd.cpLimDraw == _cpMin?");
-
-        RC rc;
-        long ivMin, ivLim, iv;
-        long dxp = _xpBreak - _xpMin;
-
-        for (ivMin = 0, ivLim = _chrd.cpLimDraw - _cpMin; ivMin < ivLim;)
-        {
-            iv = (ivMin + ivLim) / 2 + 1;
-            AssertIn(iv, ivMin + 1, ivLim + 1);
-            _pgnv->GetRcFromRgch(&rc, _rgch, iv);
-            if (rc.Dxp() <= dxp)
-                ivMin = iv;
-            else
-                ivLim = iv - 1;
-        }
-        AssertIn(ivMin, 0, _chrd.cpLimDraw - _cpMin + 1);
-        if (ivMin == 0)
-        {
-            // nothing fits - use one character
-            ivMin = 1;
-        }
-
-        // set _chrd.cpLim and _chrd.cpLimDraw, then set the _xp values
-        _chrd.cpLim = _chrd.cpLimDraw = _cpMin + ivMin;
-        _FFit();
-    }
-    else
-        _chrd = _chrdBop;
-
-    _SkipIgnores();
-}
-
-/***************************************************************************
-    Skip any trailing ignore characters. Just changes _chrd.cpLim.
-***************************************************************************/
-void CHR::_SkipIgnores(void)
-{
-    AssertThis(0);
-
-    while (_chrd.cpLim < _cpLimFetch && (fchIgnore & GrfchFromCh(_rgch[_chrd.cpLim - _cpMin])))
-    {
-        _chrd.cpLim++;
-    }
-
-    if (_chrd.cpLim == _cpLimFetch)
-    {
-        achar ch;
-        long cpMac = _ptxtb->CpMac();
-
-        while (_chrd.cpLim < cpMac)
-        {
-            _ptxtb->FetchRgch(_chrd.cpLim, 1, &ch);
-            if (!(fchIgnore & GrfchFromCh(ch)))
-                return;
-            _chrd.cpLim++;
-        }
-    }
-}
-
-/***************************************************************************
-    Swallow as many tabs as possible.
-***************************************************************************/
-void CHR::_DoTab(void)
-{
-    AssertThis(0);
-
-    if (!_FFit())
-    {
-        _SetToBop();
-        return;
-    }
-
-    while (_chrd.cpLim < _cpLimFetch && (fchTab & GrfchFromCh(_rgch[_chrd.cpLim - _cpMin])))
-    {
-        _chrd.cpLim++;
-        _chrd.xpLim = LwRoundAway(_chrd.xpLim + 1, _pap.dxpTab);
-        if (_chrd.xpLim > _xpBreak)
-        {
-            // this tab would carry us over the edge.
-            if (_chrd.cpLim == _cpMin + 1 && _fMustAdvance)
-            {
-                // the line is empty, so we have to force the tab onto the line
-                _SkipIgnores();
-                _fBreak = fTrue;
-            }
-            else
-                _SetToBop();
-            return;
-        }
-
-        // this is a BOP
-        _chrd.xpLimDraw = _chrd.xpLim;
-        _chrdBop = _chrd;
-    }
-
-    _SkipIgnores();
-}
 
 /***************************************************************************
     Constructor for the text document display GraphicsObject.
 ***************************************************************************/
-TextDocumentGraphicsObject::TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb) : TextDocumentGraphicsObject_PAR(ptxtb, pgcb)
+TextDocumentGraphicsObject::TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb)
+    : TextDocumentGraphicsObject_PAR(ptxtb, pgcb)
 {
     AssertBaseThis(0);
     _ptxtb = ptxtb;
@@ -1089,122 +691,32 @@ void TextDocumentGraphicsObject::_Reformat(long cp, long ccpIns, long ccpDel, lo
     Calculate the end of the line, the left position of the line, the height
     of the line and the ascent of the line.
 ***************************************************************************/
+struct TextDocumentGraphicsObject::LayoutHost : NativeTextLayoutHost
+{
+    TextDocumentGraphicsObject *view;
+    void FetchChp(long cp, CHP *chp, long *limit)
+    {
+        view->_FetchChp(cp, chp, pvNil, limit);
+    }
+    void FetchPap(long cp, PAP *pap, long *limit)
+    {
+        view->_FetchPap(cp, pap, pvNil, limit);
+    }
+};
 void TextDocumentGraphicsObject::_CalcLine(long cpMin, long dypBase, LIN *plin)
 {
-    AssertThis(0);
-    AssertIn(cpMin, 0, _ptxtb->CpMac());
-    AssertVarMem(plin);
-
-    struct RUN
-    {
-        long cpLim;
-        long xpLim;
-        long dypAscent;
-        long dypDescent;
-    };
-
-    long dxpDoc;
-    PAP pap;
-    CHP chp;
-    long cpLimPap, cpLimChp;
-    CHR chr;
-    CHRD chrd, chrdBop;
-    RUN run, runSure, runT;
-
-    dxpDoc = _DxpDoc();
-    _FetchPap(cpMin, &pap, pvNil, &cpLimPap);
-
-    cpLimChp = cpMin;
-    run.cpLim = cpMin;
-    run.xpLim = 0;
-    run.dypAscent = run.dypDescent = 0;
-    runSure = run;
-
-    for (;;)
-    {
-        // make sure the chp is valid
-        if (run.cpLim >= cpLimChp)
-        {
-            _FetchChp(run.cpLim, &chp, pvNil, &cpLimChp);
-            cpLimChp = LwMin(cpLimChp, cpLimPap);
-            if (cpLimChp <= run.cpLim)
-            {
-                Bug("why is run.cpLim >= cpLimChp?");
-                break;
-            }
-
-            chr.Init(&chp, &pap, _ptxtb, _pgnv, run.cpLim, cpLimChp, run.xpLim, dxpDoc, dxpDoc);
-        }
-
-        chr.GetNextRun(runSure.cpLim == cpMin);
-        chr.GetChrd(&chrd, &chrdBop);
-
-        if (chrd.cpLim == run.cpLim)
-        {
-            // didn't move forward - use runSure
-            Assert(runSure.cpLim > cpMin, "why don't we have a BOP?");
-            run = runSure;
-            break;
-        }
-
-        runT = run;
-        run.cpLim = chrd.cpLim;
-        run.xpLim = chrd.xpLimDraw;
-        run.dypAscent = LwMax(run.dypAscent, chr.DypAscent());
-        run.dypDescent = LwMax(run.dypDescent, chr.DypDescent());
-
-        if (chr.FBreak())
-        {
-            // we know that this is the end of the line - use run or runT
-            if (run.xpLim > chr.XpBreak() && runT.cpLim > cpMin)
-                run = runT;
-            break;
-        }
-
-        if (chrdBop.cpLim > runT.cpLim)
-        {
-            // put chrdBop info into runSure
-            runSure.cpLim = chrdBop.cpLim;
-            runSure.xpLim = chrdBop.xpLimDraw;
-            runSure.dypAscent = LwMax(runSure.dypAscent, chr.DypAscent());
-            runSure.dypDescent = LwMax(runSure.dypDescent, chr.DypDescent());
-        }
-    }
-
-    Assert(run.dypAscent > 0 || run.dypDescent > 0, "bad run");
-    Assert(run.cpLim > cpMin, "why is cch zero?");
-
-    switch (pap.jc)
-    {
-    default:
-        plin->xpLeft = 0;
-        break;
-    case jcRight:
-        plin->xpLeft = (short)(dxpDoc - run.xpLim);
-        break;
-    case jcCenter:
-        plin->xpLeft = (dxpDoc - run.xpLim) / 2;
-        break;
-    }
-
-    plin->ccp = (short)(run.cpLim - cpMin);
-    plin->dyp = (short)(run.dypAscent + run.dypDescent);
-    if (pap.numLine != kdenLine)
-        plin->dyp = (short)LwMulDiv(plin->dyp, pap.numLine, kdenLine);
-    plin->dyp += pap.dypExtraLine;
-    if (_ptxtb->FMinPara(run.cpLim) || run.cpLim == _ptxtb->CpMac())
-    {
-        if (pap.numAfter != kdenAfter)
-            plin->dyp = (short)LwMulDiv(plin->dyp, pap.numAfter, kdenAfter);
-        plin->dyp += pap.dypExtraAfter;
-    }
-    if (plin->dyp <= 0)
-        plin->dyp = 1;
-    plin->dypAscent = (short)run.dypAscent;
-    if (plin->dypAscent <= 0)
-        plin->dypAscent = 1;
-    plin->cpMin = cpMin;
-    plin->dypTot = dypBase;
+    LayoutHost host;
+    host.document = _ptxtb;
+    host.graphics = _pgnv;
+    host.view = this;
+    KauaiTextLayout::Line line;
+    KauaiTextLayout::CalculateLine(host, _DxpDoc(), cpMin, dypBase, &line);
+    plin->cpMin = line.cpMin;
+    plin->dypTot = line.dypTot;
+    plin->ccp = line.ccp;
+    plin->xpLeft = line.xpLeft;
+    plin->dyp = line.dyp;
+    plin->dypAscent = line.dypAscent;
 }
 
 /***************************************************************************

@@ -428,6 +428,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     MARKMEM
 
   protected:
+    struct LayoutHost;
     // line information
     struct LIN
     {

@@ -97,6 +97,10 @@ int main(int argc, char **argv)
     auto system = host.Open({"System", 6}, 16, false, false, false);
     Metrics bitmapMetrics;
     CHECK(system && system->Measure({"AV fj", 5}, bitmapMetrics) && bitmapMetrics.cellHeight > 0);
+    auto largeSystem = host.Open({"System", 6}, 24, false, false, false);
+    Metrics largeBitmap;
+    CHECK(largeSystem && largeSystem->Measure({"AV fj", 5}, largeBitmap));
+    CHECK(largeBitmap.cellHeight == bitmapMetrics.cellHeight && largeBitmap.advance == bitmapMetrics.advance);
     // A failed reconfiguration must preserve both the catalog and System face.
     auto invalid = config;
     invalid.systemBitmap = Child(fixture.root, "missing.fon");

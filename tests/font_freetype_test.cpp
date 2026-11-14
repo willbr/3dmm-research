@@ -98,6 +98,28 @@ int main(int argc, char **argv)
     options = {};
     CHECK(!CreateFreeTypeFace({}, options));
     CHECK(!CreateFreeTypeFace(std::vector<std::uint8_t>(128, 0), options));
+    const auto regularBytes = Read(argv[1]);
+    std::vector<FontInfo> regularInfo;
+    CHECK(InspectFreeTypeFont(regularBytes, regularInfo) && !regularInfo.empty());
+    if (!regularInfo.front().bold)
+        for (int pixels : {18, 36, 48, 72})
+        {
+            FreeTypeOptions legacy;
+            legacy.pixels = pixels;
+            legacy.legacyCellMetrics = true;
+            auto normal = CreateFreeTypeFace(regularBytes, legacy);
+            legacy.bold = true;
+            auto bold = CreateFreeTypeFace(regularBytes, legacy);
+            const char phrase[] = " A Newdream Production";
+            Metrics a, b;
+            Mask plainInk, boldInk;
+            CHECK(normal && bold && normal->Measure({phrase, sizeof(phrase) - 1}, a) &&
+                  bold->Measure({phrase, sizeof(phrase) - 1}, b));
+            CHECK(b.advance == a.advance + sizeof(phrase) - 1 && b.cellHeight == a.cellHeight && b.ascent == a.ascent);
+            CHECK(normal->Rasterize({"H", 1}, plainInk) && bold->Rasterize({"H", 1}, boldInk));
+            CHECK(boldInk.height == plainInk.height && boldInk.top == plainInk.top &&
+                  boldInk.width == plainInk.width + 1);
+        }
     for (int source = 1; source < 3; ++source)
     {
         const auto bytes = Read(argv[source]);

@@ -193,6 +193,11 @@ class FreeTypeFace final : public Face
         }
         return true;
     }
+    bool LegacyBold() const
+    {
+        return options.bold && !(face->style_flags & FT_STYLE_FLAG_BOLD) &&
+               (options.legacyCellMetrics || options.useCellMetrics);
+    }
     bool Load(std::uint32_t character, bool render)
     {
         if (face->charmap && face->charmap->encoding == FT_ENCODING_MS_SYMBOL && character < 256 &&
@@ -201,7 +206,7 @@ class FreeTypeFace final : public Face
         const auto flags = options.monochrome ? FT_LOAD_TARGET_MONO : FT_LOAD_TARGET_NORMAL;
         if (FT_Load_Char(face, character, flags))
             return false;
-        if (options.bold && !(face->style_flags & FT_STYLE_FLAG_BOLD))
+        if (options.bold && !(face->style_flags & FT_STYLE_FLAG_BOLD) && !LegacyBold())
             FT_GlyphSlot_Embolden(face->glyph);
         if (options.italic && !(face->style_flags & FT_STYLE_FLAG_ITALIC) &&
             face->glyph->format == FT_GLYPH_FORMAT_OUTLINE)
@@ -221,13 +226,14 @@ class FreeTypeFace final : public Face
             if (!Load(character, glyphs != nullptr))
                 return false;
             auto slot = face->glyph;
+            const auto factor = FT_IS_SCALABLE(face) ? 1 : options.bitmapScale;
+            const auto legacyBold = LegacyBold() ? factor : 0;
             if (glyphs)
             {
                 const auto &bitmap = slot->bitmap;
                 if (bitmap.width > INT32_MAX || bitmap.rows > INT32_MAX ||
                     (bitmap.pixel_mode != FT_PIXEL_MODE_MONO && bitmap.pixel_mode != FT_PIXEL_MODE_GRAY))
                     return false;
-                const auto factor = FT_IS_SCALABLE(face) ? 1 : options.bitmapScale;
                 const auto gx = pen + std::int64_t(slot->bitmap_left) * factor,
                            gy = std::int64_t(cell.ascent) - std::int64_t(slot->bitmap_top) * factor;
                 if (gx < INT32_MIN || gx > INT32_MAX || gy < INT32_MIN || gy > INT32_MAX)
@@ -271,9 +277,30 @@ class FreeTypeFace final : public Face
                     glyph.width = static_cast<std::int32_t>(width);
                     glyph.pixels.swap(slanted);
                 }
+                if (legacyBold && glyph.width && glyph.height)
+                {
+                    // GDI synthesizes bold as a one-pixel horizontal
+                    // overstrike, independent of outline point size. FT's
+                    // em-based emboldener also grows vertically and changes
+                    // advances by several pixels at large sizes, causing
+                    // native captions to wrap differently.
+                    const auto width = std::int64_t(glyph.width) + legacyBold;
+                    if (width > INT32_MAX || std::uint64_t(width) * glyph.height > glyph.pixels.max_size())
+                        return false;
+                    std::vector<std::uint8_t> bold(std::size_t(width) * glyph.height, 0);
+                    for (std::int32_t y = 0; y < glyph.height; ++y)
+                        for (std::int32_t x = 0; x < glyph.width; ++x)
+                            for (int offset = 0; offset <= legacyBold; ++offset)
+                            {
+                                auto &pixel = bold[std::size_t(y) * width + x + offset];
+                                pixel = std::max(pixel, glyph.pixels[std::size_t(y) * glyph.width + x]);
+                            }
+                    glyph.width = static_cast<std::int32_t>(width);
+                    glyph.pixels.swap(bold);
+                }
                 glyphs->push_back(std::move(glyph));
             }
-            pen += ((std::int64_t(slot->advance.x) + 32) / 64) * (FT_IS_SCALABLE(face) ? 1 : options.bitmapScale);
+            pen += ((std::int64_t(slot->advance.x) + 32) / 64) * factor + legacyBold;
             if (pen < 0 || pen > INT32_MAX)
                 return false;
         }

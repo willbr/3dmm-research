@@ -12,7 +12,7 @@ struct FreeTypeOptions
     bool bold = false, italic = false, underline = false;
     bool monochrome = true;
     // A host can preserve legacy cell geometry while changing rasterizers.
-    // The advance is always computed from the loaded font's glyph metrics.
+    // Advances use loaded glyph metrics plus legacy synthetic-style adjustments.
     bool useCellMetrics = false;
     Metrics cellMetrics;
     // Derive legacy Windows cell geometry from the font's OS/2 or WinFNT

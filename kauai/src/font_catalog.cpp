@@ -198,9 +198,9 @@ std::unique_ptr<Face> FontCatalog::Open(const std::string &family, FreeTypeOptio
         if (!source || !Read(source->path, bytes))
             return nullptr;
         options.faceIndex = source->info.faceIndex;
-        if (options.legacyCellMetrics && source->info.bitmapPixels > 0)
-            options.bitmapScale =
-                std::max(1, (options.pixels + source->info.bitmapPixels / 2) / source->info.bitmapPixels);
+        // Legacy bitmap fonts select a real strike. They do not
+        // multiply the bitmap to approximate an unsupported character height.
+        // Explicit bitmapScale remains available to callers requesting scaling.
         return CreateFreeTypeFace(std::move(bytes), options);
     }
     catch (const std::bad_alloc &)
