@@ -392,8 +392,9 @@ have shared C89 implementations behind temporary native facades. Actor event
 insertion/merging, evaluation, stage/recording/transform edits, ownership, undo,
 copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,
-restoration, reshaping, body material/visibility updates and costume ownership
-have also moved into C89, along with template resource factories/header I/O,
+restoration, reshaping, body material/visibility updates, costume ownership,
+bounds/render preparation and hit-selection policy have also moved into C89,
+along with template resource factories/header I/O,
 normal template initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
 and accessory graph operations. ActionDefinition construction, header/list
@@ -415,11 +416,13 @@ physical file/device services remain host adapters.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
-The sound resource/payload/import slices are complete. Resume with the remaining
-body geometry/render hooks. Temporary native resource/object/HQ facades still
-need removal during final host integration; these slices do not complete the
-whole backend. Sound validation and the earlier local draft's replacement are
-recorded in `docs/tools/playback-regression.md`.
+The sound resource/payload/import and body geometry/render-control slices are
+complete. Continue with model resource construction/loading, wire I/O and
+prelighting in `modl.cpp`, then remaining material/texture resource ownership
+and BRender representation adapters. Temporary native resource/object/HQ and
+Body facades still need removal during final host integration; these slices do
+not complete the whole backend. Validation and coverage limits are recorded in
+`docs/tools/playback-regression.md`.
 Continue through the remaining scene/movie
 editing, undo/save and queue/caption/transition runtime operations, converting
 body/template/resource implementations and physical file adapters as their

@@ -26,7 +26,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/actor_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_sound.c)
 target_sources(three-mm-engine-c89 PRIVATE src/body_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/body_edit.c)
-target_sources(three-mm-engine-c89 PRIVATE src/body_runtime.c)
+target_sources(three-mm-engine-c89 PRIVATE src/body_runtime.c src/body_geometry.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_runtime.c)
 target_sources(three-mm-engine-c89 PRIVATE src/action_definition.c)
@@ -398,6 +398,11 @@ add_executable(engine-sound-payload-test EXCLUDE_FROM_ALL "${engine_sound_payloa
 target_link_libraries(engine-sound-payload-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-sound-payload-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-sound-payload COMMAND engine-sound-payload-test)
+get_filename_component(engine_body_geometry_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_body_geometry_test.c" ABSOLUTE)
+add_executable(engine-body-geometry-test EXCLUDE_FROM_ALL "${engine_body_geometry_test_source}")
+target_link_libraries(engine-body-geometry-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-body-geometry-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-body-geometry COMMAND engine-body-geometry-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -457,6 +462,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_runtime.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/body_geometry.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/action_definition.c"
@@ -529,6 +535,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_body_create_test_source}"
     "${engine_body_edit_test_source}"
     "${engine_body_runtime_test_source}"
+    "${engine_body_geometry_test_source}"
     "${engine_template_create_test_source}"
     "${engine_template_runtime_test_source}"
     "${engine_action_definition_test_source}"

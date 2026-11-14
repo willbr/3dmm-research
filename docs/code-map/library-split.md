@@ -72,6 +72,7 @@ cmake --build build/engine-c89 --target engine-actor-paste-test
 cmake --build build/engine-c89 --target engine-actor-clipboard-test
 cmake --build build/engine-c89 --target engine-actor-create-test
 cmake --build build/engine-c89 --target engine-movie-sound-test
+cmake --build build/engine-c89 --target engine-body-geometry-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
@@ -1634,8 +1635,9 @@ Resource reference counts and native allocation counts return to their starting
 values. The SDL release fixture covers the same cases without debug injection.
 Standalone C tests independently cover every duplicate/reshape allocation stage,
 reference balance, original-show-before-failed-copy-release ordering, restoration
-and successful/failed shape state. Remaining template action/text operations, body
-geometry/render hooks and final native facade removal remain unfinished.
+and successful/failed shape state. Body geometry/render policy now uses the
+following C module; resource/representation adapters and final native facade
+removal remain unfinished.
 
 ### Body materials, visibility and costume ownership
 
@@ -1652,8 +1654,9 @@ without dereferencing handles whose owner may have just been destroyed.
 Showing publishes the decremented hidden count before attaching/notifying.
 Hiding publishes its increment before clearing bounds, detaching and notifying.
 Nested hidden counts and repeated highlight/material notifications retain native
-behavior. Renderer/BRender field and math adapters, resource object internals,
-remaining body geometry/render hooks and native representation remain dependencies.
+behavior. Body geometry/render policy is now C as described below. Renderer
+field adapters, external BRender primitives, resource object internals and the
+native representation remain dependencies.
 
 `ThreeMMBodyCostume` now owns snapshot entries and references in C. Capture drops
 the previous snapshot before allocation; failed replacement leaves it empty.
@@ -1671,6 +1674,49 @@ different-shape application. It records 72 successful replacement captures and
 release fixture covers 90 successful captures without debug injection. C tests
 also verify failed replacement clearing, release/assign/retain order and no
 dereference of raw handles after their final custom owner is released.
+
+### Body geometry, render callbacks and picking
+
+`body_geometry.c` owns persistent `ThreeMMBodyGeometry` bounds/last-visible/hit
+state, render-bound accumulation, prepare callbacks, visible-rectangle/center/
+position queries, highlight exclusion/restoration, world bounds and hit-selection
+policy. Body construction initializes this plain C state; duplication and restore
+retain the earlier C controllers' copy/swap sequencing. Native rectangle/matrix/
+actor bridges expose values and field access, not another geometry evaluator.
+`BrActorToBounds` traversal and `BrBoundsToMatrix34` remain external BRender
+primitive services. Native object/actor-tree and model/material representations
+remain temporary dependencies of the unfinished C-only backend.
+
+Preparing a visible body saves its current rectangle and then clears it.
+Already-empty (including inverted) current rectangles remain untouched, and
+queries fall back to last-visible bounds. Rendered empty rectangles do not
+contribute to unions. Highlight actors are temporarily changed to the host's
+none type for bounds traversal and restored before matrix callbacks. World
+bounds retain all eight native corners and the original +/-10000 initial
+extrema; C uses the existing full-product 16.16 accumulator plus exact wrapped
+translation, matching native `BR_MAC4`. Rectangle centers preserve wrapped
+32-bit sums followed by truncation toward zero, using unsigned magnitudes
+rather than relying on C89's implementation-defined negative division.
+
+`BodyWorld` supplies synchronous renderer traversal. Closest-hit state is now a
+caller-owned `ThreeMMBodyPick`, replacing the three process-wide Body picking
+fields. A strictly closer visible hit wins, so the first equal-depth hit remains.
+Root/highlight hits may select a body with set -1. Point-in-body search marks
+found for a highlight hit but continues looking for a real part. An unsuccessful
+closest-body query leaves the optional caller set output unchanged. C tests
+exercise two independent pick contexts and exact callback publication/order.
+No Marcus UI tests were added.
+
+The native 76,608-byte trace matches exactly over 144 real BRender body cases,
+SHA-256 `0EA33C3F9F3B7D6F22B857B6FBAB336B0EDA558DF19F1FD4F22B1C79AD519327`.
+It spans 1/3/6-part hierarchies, six root transforms, highlighting, visibility
+rectangles, local/world bounds, render unions, centers/positions, actor-to-set
+lookup and search/closest-hit callbacks. The committed fixture automatically
+checks frozen FNV-1a `ECFB9185` on little-endian hosts. Prior 1,880,872-byte
+body-edit and 427,368-byte body-runtime traces remain exact. Standalone C and
+AddressSanitizer checks, both hosts, 88 focused native checks, 51 CLI baselines
+and retail/SDL/Marcus actor-events/actor-audio comparisons are recorded with
+coverage limits in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

@@ -31,33 +31,15 @@ Body *BodyWorld::PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset)
     AssertNilOrVarMem(pibset);
     AssertPo(pbwld, 0);
 
-    PBody pbody;
-    long ibact;
-
-    Body::_pbodyClosestClicked = pvNil;
-    Body::_dzpClosestClicked = BR_SCALAR_MAX;
-
-    pbwld->IterateActorsInPt(Body::_FFilter, pvNil, xp, yp);
-
-    pbody = Body::_pbodyClosestClicked;
-    if (pvNil == Body::_pbodyClosestClicked)
-    {
-        return pvNil;
-    }
-    AssertPo(Body::_pbodyClosestClicked, 0);
-    if (pvNil != pibset)
-    {
-        *pibset = ivNil;
-        for (ibact = 0; ibact < Body::_pbodyClosestClicked->_cbactPart; ibact++)
-        {
-            if (Body::_pbactClosestClicked == Body::_pbodyClosestClicked->_PbactPart(ibact))
-            {
-                *pibset = Body::_pbodyClosestClicked->_Ibset(ibact);
-                break;
-            }
-        }
-    }
-    return Body::_pbodyClosestClicked;
+    ThreeMMBodyPick pick;
+    three_mm_body_pick_begin(&pick);
+    pbwld->IterateActorsInPt(Body::_FFilter, &pick, xp, yp);
+    auto services = Body::_GeometryServices();
+    ThreeMMI32 set;
+    auto body = static_cast<PBody>(three_mm_body_pick_result(&pick, pibset ? &set : nullptr, &services));
+    if (body && pibset)
+        *pibset = set;
+    return body;
 }
 
 bool BodyWorld::FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibset)
@@ -65,9 +47,8 @@ bool BodyWorld::FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibs
     AssertPo(body, 0);
     AssertPo(world, 0);
     AssertVarMem(pibset);
-    body->_fFound = fFalse;
-    body->_ibset = ivNil;
+    three_mm_body_search_begin(&body->_geometry);
     world->IterateActorsInPt(&Body::_FFilterSearch, body, xp, yp);
-    *pibset = body->_ibset;
-    return body->_fFound;
+    *pibset = body->_geometry.set;
+    return body->_geometry.found != 0;
 }

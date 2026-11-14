@@ -5,20 +5,18 @@ class BodyEditFixtureAccess : public Body
   public:
     static void Seed(PBody b)
     {
-        auto found=&BodyEditFixtureAccess::_fFound; auto set=&BodyEditFixtureAccess::_ibset;
-        auto bounds=&BodyEditFixtureAccess::_rcBounds; auto last=&BodyEditFixtureAccess::_rcBoundsLastVis;
-        b->*found=true; b->*set=1; (b->*bounds).Set(1,2,30,40); (b->*last).Set(5,6,70,80);
+        auto member=&BodyEditFixtureAccess::_geometry; auto &g=b->*member;
+        g.found=1; g.set=1; g.bounds={1,2,30,40}; g.last_visible={5,6,70,80};
     }
     static bool Record(PBody b,FILE *out,PBACT host)
     {
-        auto found=&BodyEditFixtureAccess::_fFound; auto set=&BodyEditFixtureAccess::_ibset;
-        auto bounds=&BodyEditFixtureAccess::_rcBounds; auto last=&BodyEditFixtureAccess::_rcBoundsLastVis;
+        auto member=&BodyEditFixtureAccess::_geometry;
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         LegacyLong fields[]={b!=nullptr,b?b->Cbact():0,b?b->Cbset():0,b?BodyCreateFixtureAccess::Hidden(b):0,
-            b && b->*found,b?b->*set:0};
+            b && (b->*member).found,b?(b->*member).set:0};
         if (!record(fields,sizeof(fields))) return false;
         if (!b) return true;
-        if (!record(&(b->*bounds),sizeof(RC)) || !record(&(b->*last),sizeof(RC))) return false;
+        if (!record(&(b->*member).bounds,sizeof(RC)) || !record(&(b->*member).last_visible,sizeof(RC))) return false;
         auto root=b->PbactRoot();
         auto index=[&](PBACT p)->LegacyLong { if (!p) return -1; for (int i=0;i<b->Cbact();++i) if (p==root+i) return i; return -2; };
         for (int i=0;i<b->Cbact();++i)

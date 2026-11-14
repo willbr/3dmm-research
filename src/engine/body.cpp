@@ -140,10 +140,6 @@ void Body::ReleaseSharedMaterial(void)
     }
 }
 
-PBody Body::_pbodyClosestClicked;
-LegacyLong Body::_dzpClosestClicked;
-PBACT Body::_pbactClosestClicked;
-
 /***************************************************************************
     Set the optional renderer binding while this body is hidden.
 ***************************************************************************/
@@ -298,29 +294,11 @@ Body *Body::PbodyFromBact(BACT *pbact, LegacyLong *pibset)
     AssertVarMem(pbact);
     AssertNilOrVarMem(pibset);
 
-    PBody pbody;
-    LegacyLong ibact;
-
-    pbody = (Body *)pbact->identifier;
-    if (pvNil == pbody)
-    {
-        Bug("What actor is this?  It has no Body");
-        return pvNil;
-    }
-    AssertPo(pbody, 0);
-    if (pvNil != pibset)
-    {
-        *pibset = ivNil;
-        for (ibact = 0; ibact < pbody->_cbactPart; ibact++)
-        {
-            if (pbact == pbody->_PbactPart(ibact))
-            {
-                *pibset = pbody->_Ibset(ibact);
-                break;
-            }
-        }
-    }
-    return pbody;
+    auto services = _GeometryServices();
+    ThreeMMI32 set;
+    auto body = static_cast<PBody>(three_mm_body_from_actor(pbact, pibset ? &set : nullptr, &services));
+    if (body && pibset) *pibset = set;
+    return body;
 }
 
 /***************************************************************************
@@ -334,18 +312,8 @@ int Body::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, B
     AssertVarMem(pbvec3RayPos);
     AssertVarMem(pbvec3RayDir);
 
-    PBody pbody;
-
-    pbody = Body::PbodyFromBact(pbact);
-
-    if ((dzpNear < _dzpClosestClicked) && (pbody != pvNil) && (pbody->FIsInView()))
-    {
-        _pbodyClosestClicked = pbody;
-        _dzpClosestClicked = dzpNear;
-        _pbactClosestClicked = pbact;
-    }
-
-    return fFalse; // fFalse means keep searching
+    auto services = _GeometryServices();
+    return three_mm_body_pick_visit(static_cast<ThreeMMBodyPick *>(pv), pbact, dzpNear, &services);
 }
 
 /***************************************************************************
@@ -379,7 +347,7 @@ ThreeMMBodyEditServices Body::_EditServices(void)
     s.copy_bindings = [](void *, void *to, void *from) {
         auto dst = static_cast<PBody>(to); auto src = static_cast<PBody>(from);
         dst->_pvRenderContext = src->_pvRenderContext; dst->_pfnAttach = src->_pfnAttach;
-        dst->_pfnChanged = src->_pfnChanged; dst->_fFound = src->_fFound; dst->_ibset = src->_ibset;
+        dst->_pfnChanged = src->_pfnChanged; dst->_geometry.found = src->_geometry.found; dst->_geometry.set = src->_geometry.set;
     };
     s.copy_actors = [](void *, void *to, void *from, ThreeMMI32 count) { CopyPb(from, to, LwMul(count, size(BACT))); };
     s.rebase_actor = [](void *, void *body, void *to, void *from, ThreeMMI32 index, int root) {
@@ -404,7 +372,7 @@ ThreeMMBodyEditServices Body::_EditServices(void)
     };
     s.copy_bounds = [](void *, void *to, void *from) {
         auto dst = static_cast<PBody>(to); auto src = static_cast<PBody>(from);
-        dst->_rcBounds = src->_rcBounds; dst->_rcBoundsLastVis = src->_rcBoundsLastVis;
+        dst->_geometry.bounds = src->_geometry.bounds; dst->_geometry.last_visible = src->_geometry.last_visible;
     };
     s.material = [](void *, void *body, ThreeMMI32 set, int *generic) -> void * {
         bool isGeneric; PMaterial_MTRL material; PCustomMaterial_CMTL custom;
@@ -499,7 +467,7 @@ ThreeMMBodyRuntimeServices Body::_RuntimeServices(void)
     s.attach = [](void *, void *object) { auto body = static_cast<PBody>(object); if (body->_pfnAttach) body->_pfnAttach(body->_pvRenderContext, body); };
     s.attached = [](void *, void *body) -> int { return static_cast<PBody>(body)->_PbactRoot()->parent != pvNil; };
     s.detach = [](void *, void *body) { BrActorRemove(static_cast<PBody>(body)->_PbactRoot()); };
-    s.clear_bounds = [](void *, void *body) { static_cast<PBody>(body)->_rcBounds.Zero(); };
+    s.clear_bounds = [](void *, void *body) { three_mm_body_clear_bounds(&static_cast<PBody>(body)->_geometry); };
     s.changed = [](void *, void *body) { static_cast<PBody>(body)->_RenderChanged(); };
     s.is_generic = [](void *, void *object) -> int { return static_cast<BASE *>(object)->FIs(kclsMaterial_MTRL); };
     s.diagnostic = [](void *, int code) {
@@ -635,6 +603,38 @@ void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **pp
     CopyPb(&material, ppmtrl, sizeof(material)); CopyPb(&custom, ppcmtl, sizeof(custom));
 }
 
+ThreeMMBodyGeometryServices Body::_GeometryServices(void)
+{
+    ThreeMMBodyGeometryServices s = {};
+    s.owner = [](void *, void *actor) -> void * {
+        auto body = reinterpret_cast<PBody>(static_cast<PBACT>(actor)->identifier);
+        AssertNilOrPo(body, 0); return body;
+    };
+    s.state = [](void *, void *body) -> ThreeMMBodyGeometry * { return &static_cast<PBody>(body)->_geometry; };
+    s.part_count = [](void *, void *body) -> ThreeMMI32 { return static_cast<PBody>(body)->_cbactPart; };
+    s.part = [](void *, void *body, ThreeMMI32 part) -> void * { return static_cast<PBody>(body)->_PbactPart(part); };
+    s.part_set = [](void *, void *body, ThreeMMI32 part) -> ThreeMMI32 { return static_cast<PBody>(body)->_Ibset(part); };
+    s.highlight = [](void *, void *body) -> void * { return static_cast<PBody>(body)->_PbactHilite(); };
+    s.actor_type = [](void *, void *actor) -> int { return static_cast<PBACT>(actor)->type; };
+    s.set_actor_type = [](void *, void *actor, int type) { static_cast<PBACT>(actor)->type = static_cast<byte>(type); };
+    s.local_bounds = [](void *, void *body, ThreeMMBodyBounds *out) {
+        BRB bounds; BrActorToBounds(&bounds, static_cast<PBody>(body)->_PbactRoot());
+        for (int i = 0; i < 3; ++i) { out->min[i] = bounds.min.v[i]; out->max[i] = bounds.max.v[i]; }
+    };
+    s.root_matrix = [](void *, void *body, ThreeMMActorMatrix *out) {
+        const auto &matrix = static_cast<PBody>(body)->_PbactRoot()->t.t.mat;
+        for (int row = 0; row < 4; ++row) for (int col = 0; col < 3; ++col) out->m[row][col] = matrix.m[row][col];
+    };
+    s.highlight_matrix = [](void *, void *body, const ThreeMMBodyBounds *in) {
+        BRB bounds;
+        for (int i = 0; i < 3; ++i) { bounds.min.v[i] = in->min[i]; bounds.max.v[i] = in->max[i]; }
+        BrBoundsToMatrix34(&static_cast<PBody>(body)->_PbactHilite()->t.t.mat, &bounds);
+    };
+    s.missing_owner = [](void *) { Bug("What actor is this?  It has no Body"); };
+    s.none_type = BR_ACTOR_NONE; s.model_type = BR_ACTOR_MODEL;
+    return s;
+}
+
 /***************************************************************************
     Filter callback proc for FPtInActor(). Stops when the Body is hit.
 ***************************************************************************/
@@ -645,61 +645,20 @@ int Body::_FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *ray_pos, 
     AssertVarMem(ray_pos);
     AssertVarMem(ray_dir);
 
-    PBody pbody = (PBody)pvArg;
-    PBody pbodyFound;
-    LegacyLong ibset;
-
-    AssertPo(pbody, 0);
-
-    pbodyFound = Body::PbodyFromBact(pbact, &ibset);
-    if (pbodyFound == pvNil)
-    {
-        Bug("What actor is this?  It has no Body");
-        return fFalse;
-    }
-
-    AssertPo(pbodyFound, 0);
-
-    if (pbody != pbodyFound)
-        return fFalse; // keep searching
-
-    pbody->_fFound = fTrue;
-    if (pbact == pbody->_PbactHilite())
-        return fFalse; // keep searching
-    pbody->_ibset = ibset;
-    return fTrue; // stop searching
+    auto services = _GeometryServices();
+    return three_mm_body_search_visit(pvArg, pbact, &services);
 }
 
 /***************************************************************************
-    World is about to render the world, so clear out this Body's _rcBounds
-    (but save the last good bounds in _rcBoundsLastVis).  Also size the
+    World is about to render, so clear this Body's current C bounds
+    (but save the last good bounds in its last-visible C rectangle).  Also size the
     bounding box correctly.
 ***************************************************************************/
 void Body::_PrepareToRender(PBACT pbact)
 {
     AssertVarMem(pbact);
-    PBody pbody;
-    RC rc;
-    BCB bcb;
-
-    pbody = PbodyFromBact(pbact);
-    AssertPo(pbody, 0);
-
-    if (pbody->FIsInView())
-    {
-        pbody->_rcBoundsLastVis = pbody->_rcBounds;
-        pbody->_rcBounds.Zero();
-    }
-
-    // Prepare bounding box, if Body is highlighted
-    if (pbody->_PbactHilite()->type == BR_ACTOR_MODEL)
-    {
-        // Need to temporarily change type to 'none' so that the bounding
-        // box isn't counted when calculating size of actor
-        pbody->GetBcbBounds(&bcb);
-        Assert(size(BRB) == size(BCB), "should be same structure");
-        BrBoundsToMatrix34(&pbody->_PbactHilite()->t.t.mat, (BRB *)&bcb);
-    }
+    auto services = _GeometryServices();
+    three_mm_body_prepare_render(pbact, &services);
 }
 
 /***************************************************************************
@@ -710,13 +669,12 @@ void Body::_GetRc(PBACT pbact, RC *prc)
     AssertVarMem(pbact);
     AssertVarMem(prc);
 
-    PBody pbody;
-
-    pbody = PbodyFromBact(pbact);
-    AssertPo(pbody, 0);
-
-    if (pvNil != pbody)
-        *prc = pbody->_rcBounds;
+    auto services = _GeometryServices();
+    ThreeMMBodyRect rect;
+    static_assert(sizeof(rect) == sizeof(*prc), "body rectangle bridge");
+    CopyPb(prc, &rect, sizeof(rect));
+    three_mm_body_render_rect(pbact, &rect, &services);
+    CopyPb(&rect, prc, sizeof(rect));
 }
 
 /***************************************************************************
@@ -730,85 +688,24 @@ void Body::GetBcbBounds(BCB *pbcb, bool fWorld)
     AssertThis(0);
     AssertVarMem(pbcb);
 
-    BRB brb;
-    byte type = _PbactHilite()->type;
-    LegacyLong ibv3;
-    br_vector3 bv3;
-
-    _PbactHilite()->type = BR_ACTOR_NONE;
-    Assert(size(BRB) == size(BCB), "should be same structure");
-    BrActorToBounds(&brb, _PbactRoot());
-    _PbactHilite()->type = type;
-    *(BRB *)pbcb = brb;
-
-    if (fWorld)
-    {
-        br_vector3 rgbv3[8];
-        BMAT34 bmat34;
-
-        rgbv3[0] = brb.min;
-        rgbv3[1] = brb.min;
-        rgbv3[1].v[0] = brb.max.v[0];
-        rgbv3[2] = brb.min;
-        rgbv3[2].v[1] = brb.max.v[1];
-        rgbv3[3] = brb.min;
-        rgbv3[3].v[2] = brb.max.v[2];
-        rgbv3[4] = brb.max;
-        rgbv3[5] = brb.max;
-        rgbv3[5].v[0] = brb.min.v[0];
-        rgbv3[6] = brb.max;
-        rgbv3[6].v[1] = brb.min.v[1];
-        rgbv3[7] = brb.max;
-        rgbv3[7].v[2] = brb.min.v[2];
-
-        bmat34 = _PbactRoot()->t.t.mat;
-
-        for (ibv3 = 0; ibv3 < 8; ibv3++)
-        {
-            bv3.v[0] = BR_MAC4(rgbv3[ibv3].v[0], bmat34.m[0][0], rgbv3[ibv3].v[1], bmat34.m[1][0], rgbv3[ibv3].v[2],
-                               bmat34.m[2][0], BR_SCALAR(1.0), bmat34.m[3][0]);
-            bv3.v[1] = BR_MAC4(rgbv3[ibv3].v[0], bmat34.m[0][1], rgbv3[ibv3].v[1], bmat34.m[1][1], rgbv3[ibv3].v[2],
-                               bmat34.m[2][1], BR_SCALAR(1.0), bmat34.m[3][1]);
-            bv3.v[2] = BR_MAC4(rgbv3[ibv3].v[0], bmat34.m[0][2], rgbv3[ibv3].v[1], bmat34.m[1][2], rgbv3[ibv3].v[2],
-                               bmat34.m[2][2], BR_SCALAR(1.0), bmat34.m[3][2]);
-            rgbv3[ibv3].v[0] = bv3.v[0];
-            rgbv3[ibv3].v[1] = bv3.v[1];
-            rgbv3[ibv3].v[2] = bv3.v[2];
-        }
-        pbcb->xrMin = pbcb->yrMin = pbcb->zrMin = BR_SCALAR(10000.0);
-        pbcb->xrMax = pbcb->yrMax = pbcb->zrMax = BR_SCALAR(-10000.0);
-        // Union with body's bounds
-        for (ibv3 = 0; ibv3 < 8; ibv3++)
-        {
-            if (rgbv3[ibv3].v[0] < pbcb->xrMin)
-                pbcb->xrMin = rgbv3[ibv3].v[0];
-            if (rgbv3[ibv3].v[1] < pbcb->yrMin)
-                pbcb->yrMin = rgbv3[ibv3].v[1];
-            if (rgbv3[ibv3].v[2] < pbcb->zrMin)
-                pbcb->zrMin = rgbv3[ibv3].v[2];
-            if (rgbv3[ibv3].v[0] > pbcb->xrMax)
-                pbcb->xrMax = rgbv3[ibv3].v[0];
-            if (rgbv3[ibv3].v[1] > pbcb->yrMax)
-                pbcb->yrMax = rgbv3[ibv3].v[1];
-            if (rgbv3[ibv3].v[2] > pbcb->zrMax)
-                pbcb->zrMax = rgbv3[ibv3].v[2];
-        }
-    }
+    auto services = _GeometryServices();
+    ThreeMMBodyBounds bounds;
+    three_mm_body_bounds(this, fWorld, &bounds, &services);
+    pbcb->xrMin = bounds.min[0]; pbcb->yrMin = bounds.min[1]; pbcb->zrMin = bounds.min[2];
+    pbcb->xrMax = bounds.max[0]; pbcb->yrMax = bounds.max[1]; pbcb->zrMax = bounds.max[2];
 }
 
 /***************************************************************************
     World calls this function when each BACT is rendered.  It unions the
-    BACT bounds with the Body's _rcBounds
+    BACT bounds with the Body's current C rectangle
 ***************************************************************************/
 void Body::_BactRendered(PBACT pbact, RC *prc)
 {
     AssertVarMem(pbact);
     AssertVarMem(prc);
-    PBody pbody;
-
-    pbody = PbodyFromBact(pbact);
-    if (pvNil != pbody)
-        pbody->_rcBounds.Union(prc);
+    auto services = _GeometryServices();
+    const ThreeMMBodyRect rect = {prc->xpLeft, prc->ypTop, prc->xpRight, prc->ypBottom};
+    three_mm_body_rendered(pbact, &rect, &services);
 }
 
 /***************************************************************************
@@ -817,7 +714,7 @@ void Body::_BactRendered(PBACT pbact, RC *prc)
 bool Body::FIsInView(void)
 {
     AssertThis(0);
-    return !_rcBounds.FEmpty();
+    return three_mm_body_in_view(&_geometry) != 0;
 }
 
 /***************************************************************************
@@ -830,10 +727,9 @@ void Body::GetRcBounds(RC *prc)
     AssertThis(0);
     AssertVarMem(prc);
 
-    if (FIsInView())
-        *prc = _rcBounds;
-    else
-        *prc = _rcBoundsLastVis;
+    ThreeMMBodyRect rect;
+    three_mm_body_visible_rect(&_geometry, &rect);
+    prc->Set(rect.left, rect.top, rect.right, rect.bottom);
 }
 
 /***************************************************************************
@@ -847,16 +743,9 @@ void Body::GetCenter(LegacyLong *pxp, LegacyLong *pyp)
     AssertVarMem(pxp);
     AssertVarMem(pyp);
 
-    if (FIsInView())
-    {
-        *pxp = _rcBounds.XpCenter();
-        *pyp = _rcBounds.YpCenter();
-    }
-    else
-    {
-        *pxp = _rcBoundsLastVis.XpCenter();
-        *pyp = _rcBoundsLastVis.YpCenter();
-    }
+    ThreeMMI32 x, y;
+    three_mm_body_center(&_geometry, &x, &y);
+    *pxp = x; *pyp = y;
 }
 
 /***************************************************************************
@@ -869,9 +758,10 @@ void Body::GetPosition(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pyr);
     AssertVarMem(pzr);
 
-    *pxr = _PbactRoot()->t.t.mat.m[3][0];
-    *pyr = _PbactRoot()->t.t.mat.m[3][1];
-    *pzr = _PbactRoot()->t.t.mat.m[3][2];
+    auto services = _GeometryServices();
+    ThreeMMI32 position[3];
+    three_mm_body_position(this, position, &services);
+    *pxr = position[0]; *pyr = position[1]; *pzr = position[2];
 }
 
 #ifdef DEBUG

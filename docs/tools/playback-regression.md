@@ -5301,3 +5301,84 @@ package cache with private processes/settings/working movies; OS caching was
 uncontrolled. No concurrent builds or tests ran during capture. Existing
 retention pruned superseded raw media while preserving metadata and the
 current results.
+
+
+## Body geometry and render-control C89 conversion (14 November 2026)
+
+`body_geometry.c` now owns the Body's persistent bounds/last-visible/hit state,
+render-bound unions and prepare callbacks, highlight exclusion/restoration,
+world-bounds transforms, rectangle/center/position queries and picking/search
+policy. `BodyWorld` uses an explicit per-query C pick context rather than the
+three former process-wide closest-hit fields. Native Body/World facades supply
+actor fields and synchronous BRender traversal; BRender bounds primitives and
+remaining model/material/actor-tree representations remain adapters/dependencies.
+This completes a geometry/control slice, not the full C89 engine migration.
+
+Before conversion, a real BRender fixture froze 144 cases: 1/3/6-part bodies,
+six root transforms (identity, translation, reflection/scale, fractional shear,
+rotation and translations outside +/-10000), highlighting on/off and four
+initial rectangle states. It records local/world bounds, highlight matrices,
+five render unions, centers/positions, visible/last-visible rectangles,
+actor-to-body/set mapping, highlight/root/part search and closest-hit order.
+All 76,608 bytes match after conversion, SHA-256
+`0EA33C3F9F3B7D6F22B857B6FBAB336B0EDA558DF19F1FD4F22B1C79AD519327`.
+The committed fixture checks FNV-1a `ECFB9185` on little-endian hosts. The prior
+body-edit (1,880,872 bytes) and body-runtime (427,368 bytes) traces also match
+exactly after moving their private-state fixture bridge to the C record.
+
+C-only tests cover initialization, empty/inverted rectangles, unions and
+last-visible fallback, wrapped center sums (including INT32_MIN),
+C89-defined truncation of negative halves, highlight-off/query/restore order,
+local/world bounds, in-place transforms, +/-10000 extrema, negative depths,
+equal-depth first-hit retention, visibility filtering, independent pick contexts,
+orphan actors and unchanged optional outputs after a miss. Search retains
+highlight-found-without-stop and root-with-set--1 behavior. The C implementation
+uses existing two-word/full-product fixed arithmetic and has no native SDK,
+BRender or C++ dependency. MSVC AddressSanitizer compiles and runs the new tests
+and their arithmetic dependencies as C.
+
+All 74 standalone C checks (including strict C89 syntax), 88 focused native
+checks, two SDL release checks (movie save/load and engine-core link), and all
+51 freshly linked CLI baselines pass. The full native `core-checks` target now
+builds: the stale `three_mm_fixture.cpp` scene-name call identified in the sound
+slice was updated to `SceneData::SetName`, preserving its exact fixture string.
+The new body fixture and earlier body fixtures run inside the existing headless
+save/load test, including SDL release; no Marcus UI tests were added.
+
+Both hosts build. Frozen capture SHA-256 values are
+`085C5CC495D1BB3E4AEBEAC23F5F1D08A68A9EA7DCAF3FBD4030AEA90F6A0B64`
+(SDL release) and
+`C21F6427480B531AA1F56C679211BDADDE5B488E71E7E002CF825A01D0CF30F0`
+(Marcus regression). Both hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T000009Z-ca2a61d8` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T000122Z-b4ba634c` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie/resource/content
+integrity. Against `20261113T164613Z-1cfd43da` (actor-events) and
+`20261113T223634Z-4cfdde6d` (actor-audio), all 360 seek images, authored frame
+observations and ordered playback image changes match for every player.
+Only adjacent identical image/position observations are collapsed for playback
+comparison. The cases include actors, costumes, props, 3D text and routes;
+actor-events also tags rotation/scale/stretch/freeze/entrance-exit coverage.
+This does not prove every geometry or pointer-coordinate/UI path against retail.
+
+First-scene 600/1300 Hz actor tone coverage passes. Actor peaks remain 3192
+retail and 4081 SDL/Marcus. Earlier 4080/4081 SDL variation remains a coverage
+limit; peaks/tone checks do not establish exact PCM/timing parity.
+Cross-player timing/PCM differences and single-repeat inconclusive comparisons
+remain in both suite reports. These narrower checks show no new geometry
+regression, not complete retail playback equivalence.
+
+Evidence includes `tmp/c89-body-geometry-before.bin`,
+`tmp/c89-body-geometry-after.bin`, `tmp/c89-body-geometry-release.bin`,
+`tmp/c89-body-geometry-standalone.log`,
+`tmp/c89-body-geometry-asan.log`, `tmp/c89-body-geometry-native-build.log`,
+`tmp/c89-body-geometry-native-tests.log`, `tmp/c89-body-geometry-sdl-tests.log`,
+`tmp/c89-body-geometry-output-comparison.json` and
+`tmp/c89-body-geometry-playback-actor-events-actor-audio.json`. Captures reuse the
+shared SDL package cache with private processes/settings/working movies and
+uncontrolled OS caching. No builds or tests run concurrently with capture.
+Retention prunes superseded raw media while keeping metadata/current results.

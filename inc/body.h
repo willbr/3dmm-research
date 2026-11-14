@@ -17,6 +17,7 @@
 #include "three_mm/body_create.h"
 #include "three_mm/body_edit.h"
 #include "three_mm/body_runtime.h"
+#include "three_mm/body_geometry.h"
 
 using namespace BRender;
 
@@ -36,9 +37,6 @@ class Body : public Body_PAR
 
   protected:
     static BMTL *_pbmtlHilite; // hilight material
-    static Body *_pbodyClosestClicked;
-    static LegacyLong _dzpClosestClicked;
-    static BACT *_pbactClosestClicked;
     BACT *_prgbact;      // array of BACTs
     PDynamicArray _pglibset;       // body part set IDs
     LegacyLong _cbset;         // count of body part sets
@@ -48,18 +46,17 @@ class Body : public Body_PAR
     void *_pvRenderContext; // non-owning renderer binding, copied with the body
     void (*_pfnAttach)(void *, Body *);
     void (*_pfnChanged)(void *);
-    RC _rcBounds;        // bounds of body after last render
-    RC _rcBoundsLastVis; // bounds of body last time it was visible
-    bool _fFound;        // is the actor found under the mouse?
-    LegacyLong _ibset;         // which body part got hit.
+    ThreeMMBodyGeometry _geometry; // C-owned bounds and hit-search state
 
   protected:
     Body(void)
     {
+        three_mm_body_geometry_init(&_geometry);
     } // can't instantiate directly; must use PbodyNew
     static ThreeMMBodyCreateServices _CreateServices(void);
     static ThreeMMBodyEditServices _EditServices(void);
     static ThreeMMBodyRuntimeServices _RuntimeServices(void);
+    static ThreeMMBodyGeometryServices _GeometryServices(void);
     void _DestroyShape(void);
     bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
     bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);

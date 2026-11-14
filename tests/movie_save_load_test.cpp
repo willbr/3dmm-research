@@ -1940,6 +1940,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_body_create_fixture.h"
 #include "engine_body_edit_fixture.h"
 #include "engine_body_runtime_fixture.h"
+#include "engine_body_geometry_fixture.h"
 #include "engine_template_create_fixture.h"
 #include "engine_template_runtime_fixture.h"
 #include "engine_action_definition_fixture.h"
@@ -2548,6 +2549,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("body editing failed");
     if (!TestBodyRuntime())
         BAIL("body runtime failed");
+    if (!TestBodyGeometry())
+        BAIL("body geometry failed");
     if (!TestTemplateConstruction())
         BAIL("template construction failed");
     if (!TestTemplateRuntime())

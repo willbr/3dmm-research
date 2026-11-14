@@ -44,7 +44,9 @@ int main(int argc, char **argv)
     file->Move(kctgMvie, created, kctgMvie, root);
     SceneData scene;
     scene.lastFrame = variant == 2 ? 13 : 12;
-    scene.name.SetSzs(PszLit("Scene \"one\"\\\n"));
+    String sceneName;
+    sceneName.SetSzs(PszLit("Scene \"one\"\\\n"));
+    scene.SetName(&sceneName);
     Check(scene.FWrite(file, 5));
     ActorChunkOnFile actor = {};
     actor.bo = kboCur;
