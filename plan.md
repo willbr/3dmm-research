@@ -435,6 +435,10 @@ bitmap facade supplies file/allocation and palette-object services.
 Depth-buffer construction, pixel ownership, native-order wire I/O, cache
 factory control, clipping and full/half-resolution drawing now use C89 as well.
 Native ZBMP objects retain typed allocation/block and region-scanner services.
+Masked-bitmap construction/cropping, RLE encoding, wire validation/normalization,
+hit testing, cache factories, BMP import control and pixel lifetime now also use
+C89. C-owned contiguous buffers replace persistent HQ owners. Native drawing
+adapters borrow the host-order header/row-table/RLE view.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -445,10 +449,13 @@ slice). A fresh sound closeout audit is recorded in
 C-only host integration retain the limits described above.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
-model/material/custom-material/texture-resource, indexed-BMP and depth-buffer
-slices are complete. Continue with masked-bitmap ownership/codecs in `kauai/src/mbmp.cpp`,
-then world/camera control in `bren/bwld.cpp` and remaining BRender representation
+model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
+masked-bitmap ownership/codec slices are complete. Continue with world/camera
+control in `bren/bwld.cpp` and remaining BRender representation
 adapters.
+The SDL release `pixel-canvas` scrolling check at line 607 also needs
+investigation during drawing migration: it fails with both original and
+converted masked-bitmap adapters, while the native debug check passes.
 Temporary native resource/object/HQ and
 Body facades still need removal during final host integration; these slices do
 not complete the whole backend. Validation and coverage limits are recorded in

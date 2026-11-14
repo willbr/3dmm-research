@@ -19,501 +19,180 @@ ASSERTNAME
 
 RTCLASS(MaskedBitmapMBMP)
 
-/***************************************************************************
-    Destructor for a masked bitmap.
-***************************************************************************/
-MaskedBitmapMBMP::~MaskedBitmapMBMP(void)
+namespace {
+struct MaskedContext
 {
-    AssertBaseThis(0);
-    FreePhq(&_hqrgb);
+    PBaseCacheableObject *object = nullptr;
+    LegacyLong *bytes = nullptr;
+};
+ThreeMMMaskedRect MaskedRect(const RC &r)
+{
+    return {r.xpLeft, r.ypTop, r.xpRight, r.ypBottom};
 }
-
-/***************************************************************************
-    Static method to create a new MaskedBitmapMBMP based on the given prgbPixels with
-    extracting rectangle *prc and transparent color bTransparent.  prgbPixels
-    should be a two-dimensional matrix of 8-bit pixels with width cbRow and
-    height dyp.  prc should be the desired extracting rectangle.  xp and yp
-    are the coordinates for the reference point of the MaskedBitmapMBMP (with (0,0) being
-    the upper-left corner).  bTransparent should be the pixel value for the
-    transparent color for the MaskedBitmapMBMP.
-***************************************************************************/
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, RC *prc, LegacyLong xpRef, LegacyLong ypRef, byte bTransparent,
-                     LegacyUlong grfmbmp, byte bDefault)
+} // namespace
+ThreeMMMaskedServices MaskedBitmapMBMP::_Services(void *context)
 {
-    AssertIn(cbRow, 1, kcbMax);
-    AssertIn(dyp, 1, kcbMax);
-    AssertPvCb(prgbPixels, LwMul(cbRow, dyp));
-    AssertVarMem(prc);
-    PMaskedBitmapMBMP pmbmp;
-
-    if (pvNil != (pmbmp = NewObj MaskedBitmapMBMP) &&
-        !pmbmp->_FInit(prgbPixels, cbRow, dyp, prc, xpRef, ypRef, bTransparent, grfmbmp, bDefault))
-    {
-        ReleasePpo(&pmbmp);
-    }
-    return pmbmp;
-}
-
-/***************************************************************************
-    Initialize the MaskedBitmapMBMP based on the given pixels.
-***************************************************************************/
-bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, RC *prc, LegacyLong xpRef, LegacyLong ypRef, byte bTransparent,
-                  LegacyUlong grfmbmp, byte bDefault)
-{
-    AssertIn(cbRow, 1, kcbMax);
-    AssertIn(dyp, 1, kcbMax);
-    AssertPvCb(prgbPixels, LwMul(cbRow, dyp));
-    AssertVarMem(prc);
-    Assert(!prc->FEmpty() && prc->xpLeft >= 0 && prc->xpRight <= cbRow && prc->ypTop >= 0 && prc->ypBottom <= dyp,
-           "Invalid rectangle");
-    short *qrgcb;
-    byte *pb, *pbRow, *pbLimRow;
-    byte *qbDst, *qbDstPrev;
-    LegacyLong cbPixelData, cbPrev, cbOpaque, cbRun;
-    LegacyLong dibRow;
-    bool fTrans, fMask;
-    LegacyLong xpMin, xpLim, ypLim, xp, yp;
-    RC rc = *prc;
-
-    // allocate enough space for the rgcb
-    if (!FAllocHq(&_hqrgb, size(MaskedBitmapOnFile) + LwMul(rc.Dyp(), size(short)), fmemNil, mprNormal))
-    {
-        return fFalse;
-    }
-
-    _Qmbmph()->fMask = fMask = FPure(grfmbmp & fmbmpMask);
-    _Qmbmph()->bFill = bDefault;
-    dibRow = (grfmbmp & fmbmpUpsideDown) ? -cbRow : cbRow;
-
-    // crop the bitmap and get an upper bound on the size of the pixel data
-    pbRow = prgbPixels + LwMul(cbRow, ((grfmbmp & fmbmpUpsideDown) ? dyp - rc.ypTop - 1 : rc.ypTop));
-    qrgcb = _Qrgcb();
-    xpMin = rc.xpRight;
-    xpLim = rc.xpLeft;
-    ypLim = rc.ypTop;
-    cbPixelData = 0;
-    for (yp = rc.ypTop; yp < rc.ypBottom; pbRow += dibRow, yp++)
-    {
-        pb = pbRow + rc.xpLeft;
-        pbLimRow = pbRow + rc.xpRight;
-        cbPrev = cbPixelData;
-        cbRun = cbOpaque = 0;
-        fTrans = fTrue;
-        for (;;)
+    static_assert(sizeof(MaskedBitmapOnFile) == 28, "masked bitmap header layout");
+    ThreeMMMaskedServices s = {};
+    s.context = context;
+    const unsigned short one = 1;
+    s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
+    s.system = koskCur;
+    s.create = [](void *) -> void * { return NewObj MaskedBitmapMBMP; };
+    s.state = [](void *, void *p) -> ThreeMMMaskedBitmap * { return &static_cast<PMaskedBitmapMBMP>(p)->_bitmap; };
+    s.release = [](void *, void *p) { static_cast<PMaskedBitmapMBMP>(p)->Release(); };
+    s.allocate = [](void *, ThreeMMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
+    s.free_memory = [](void *, void **p) { FreePpv(p); };
+    s.diagnostic = [](void *, int code) {
+        if (code == THREE_MM_MASKED_EMPTY)
         {
-            // check for overflow or change in transparent status, or the
-            // end of the row
-            if (pb == pbLimRow || fTrans != (*pb == bTransparent) || cbRun == kbMax)
-            {
-                if (fTrans && pb == pbLimRow)
-                    break;
-                cbPixelData++;
-                if (!fTrans && cbRun > 0)
-                {
-                    xp = pb - pbRow;
-                    if (xpMin > xp - cbRun)
-                        xpMin = xp - cbRun;
-                    if (xpLim < xp)
-                        xpLim = xp;
-                    cbOpaque += cbRun;
-                    if (!fMask)
-                        cbPixelData += cbRun;
-                }
-                if (pb == pbLimRow)
-                    break;
-                cbRun = 0;
-                fTrans = !fTrans;
-            }
-            else
-            {
-                // Increment pixel count and go on to next pixel.
-                cbRun++;
-                pb++;
-            }
-        }
-
-        if (0 == cbOpaque)
-        {
-            // nothing in this row but transparent pixels
-            if (yp == rc.ypTop)
-                rc.ypTop++;
-            else
-                qrgcb[yp - rc.ypTop] = 0;
-            cbPixelData = cbPrev;
+            Warn("Empty source bitmap for MaskedBitmapMBMP");
         }
         else
         {
-            // set the row length in the rgcb.
-            AssertIn(cbPixelData - cbPrev, 2 + !fMask, kswMax + 1);
-            qrgcb[yp - rc.ypTop] = (short)(cbPixelData - cbPrev);
-            ypLim = yp + 1;
+            Bug("Wrong sized block");
         }
-    }
-    rc.ypBottom = ypLim;
-    rc.xpLeft = xpMin;
-    rc.xpRight = xpLim;
-    if (rc.FEmpty())
-    {
-        Warn("Empty source bitmap for MaskedBitmapMBMP");
-        rc.Zero();
-    }
-
-    // reallocate the _hqrgb to the size actually needed
-    AssertIn(LwMul(rc.Dyp(), size(short)), 0, CbOfHq(_hqrgb) - size(MaskedBitmapOnFile) + 1);
-
-    _cbRgcb = LwMul(rc.Dyp(), size(short));
-    if (!FResizePhq(&_hqrgb, _cbRgcb + size(MaskedBitmapOnFile) + cbPixelData, fmemNil, mprNormal))
-    {
-        return fFalse;
-    }
-
-    // now actually construct the pixel data
-    qrgcb = _Qrgcb();
-    qbDst = (byte *)PvAddBv(qrgcb, _cbRgcb);
-    pbRow = prgbPixels + LwMul(cbRow, ((grfmbmp & fmbmpUpsideDown) ? dyp - rc.ypTop - 1 : rc.ypTop));
-    for (yp = rc.ypTop; yp < rc.ypBottom; pbRow += dibRow, yp++)
-    {
-        if (qrgcb[yp - rc.ypTop] == 0)
+    };
+    s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
+    s.size = [](void *, void *p, int packed) -> ThreeMMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
+    s.read = [](void *, void *p, void *out, ThreeMMI32 n) -> int {
+        return static_cast<PDataBlock>(p)->FReadRgb(out, n, 0);
+    };
+    s.write = [](void *, void *p, const void *data, ThreeMMI32 n) -> int {
+        return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), n, 0);
+    };
+    s.is_memory = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->CbMem() != 0; };
+    s.consume = [](void *, void *p) { static_cast<PDataBlock>(p)->Free(); };
+    s.publish_fetch = [](void *p, int valid, void *object, ThreeMMI32 bytes) {
+        auto c = static_cast<MaskedContext *>(p);
+        if (valid)
         {
-            // empty row, no need to scan it
-            AssertIn(yp, rc.ypTop + 1, rc.ypBottom);
-            continue;
+            if (c->object)
+                *c->object = static_cast<PMaskedBitmapMBMP>(object);
+            *c->bytes = bytes;
         }
-
-        pb = pbRow + rc.xpLeft;
-        pbLimRow = pbRow + rc.xpRight;
-        qbDstPrev = qbDst;
-        cbRun = 0;
-        fTrans = fTrue;
-        for (;;)
+        else
         {
-            // check for overflow or change in transparent status, or the
-            // end of the row
-            if (pb == pbLimRow || fTrans != (*pb == bTransparent) || cbRun == kbMax)
-            {
-                if (fTrans && pb == pbLimRow)
-                    break;
-                *qbDst++ = (byte)cbRun;
-                if (!fTrans)
-                {
-                    if (!fMask)
-                    {
-                        CopyPb(pb - cbRun, qbDst, cbRun);
-                        qbDst += cbRun;
-                    }
-                    if (pb == pbLimRow)
-                        break;
-                }
-                cbRun = 0;
-                fTrans = !fTrans;
-            }
-            else
-            {
-                // Increment pixel count and go on to next pixel.
-                cbRun++;
-                pb++;
-            }
+            TrashVar(c->object);
+            TrashVar(c->bytes);
         }
-
-        // Set the row length in the rgcb.
-        cbRun = qbDst - qbDstPrev;
-        AssertIn(cbRun, 2 + !fMask, qrgcb[yp - rc.ypTop] + 1);
-        qrgcb[yp - rc.ypTop] = (short)cbRun;
-    }
-
-    // shrink _hqrgb to the actual size needed
-    cbRun = BvSubPvs(qbDst, QvFromHq(_hqrgb));
-    AssertIn(cbRun, 0, CbOfHq(_hqrgb) + 1);
-    AssertDo(FResizePhq(&_hqrgb, cbRun, fmemNil, mprNormal), "shrinking failed!");
-
-    // set the bounding rectangle of the MaskedBitmapMBMP
-    rc.Offset(-xpRef, -ypRef);
-    _Qmbmph()->rc = rc;
-
+    };
+    s.bitmap_read = [](void *, void *filename, unsigned char transparent, ThreeMMMaskedSource *out) -> int {
+        byte *pixels = nullptr;
+        LegacyLong w, h;
+        bool up;
+        if (!FReadBitmap(static_cast<PFilename>(filename), &pixels, nullptr, &w, &h, &up, transparent))
+            return 0;
+        *out = {pixels, w, h, up};
+        return 1;
+    };
+    return s;
+}
+MaskedBitmapMBMP::~MaskedBitmapMBMP()
+{
+    AssertBaseThis(0);
+    auto s = _Services();
+    three_mm_masked_dispose(&_bitmap, &s);
+}
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *pixels, LegacyLong row, LegacyLong height, RC *extract, LegacyLong x,
+                                             LegacyLong y, byte transparent, LegacyUlong flags, byte fill)
+{
+    AssertIn(row, 1, kcbMax);
+    AssertIn(height, 1, kcbMax);
+    AssertPvCb(pixels, LwMul(row, height));
+    AssertVarMem(extract);
+    auto r = MaskedRect(*extract);
+    auto s = _Services();
+    return static_cast<PMaskedBitmapMBMP>(
+        three_mm_masked_new(pixels, row, height, &r, x, y, transparent, flags, fill, &s));
+}
+bool MaskedBitmapMBMP::_FInit(byte *pixels, LegacyLong row, LegacyLong height, RC *extract, LegacyLong x, LegacyLong y,
+                              byte transparent, LegacyUlong flags, byte fill)
+{
+    AssertVarMem(extract);
+    auto r = MaskedRect(*extract);
+    auto s = _Services();
+    return three_mm_masked_init(&_bitmap, pixels, row, height, &r, x, y, transparent, flags, fill, &s) != 0;
+}
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *filename, byte transparent, LegacyLong x, LegacyLong y,
+                                                    LegacyUlong flags, byte fill)
+{
+    AssertPo(filename, ffniFile);
+    auto s = _Services();
+    return static_cast<PMaskedBitmapMBMP>(three_mm_masked_import(filename, transparent, x, y, flags, fill, &s));
+}
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock block)
+{
+    AssertPo(block, 0);
+    auto s = _Services();
+    return static_cast<PMaskedBitmapMBMP>(three_mm_masked_read(block, &s));
+}
+LegacyLong MaskedBitmapMBMP::CbOnFile()
+{
     AssertThis(0);
-    return fTrue;
+    return _bitmap.bytes;
 }
-
-/****************************************************************************
-    This function will read in a bitmap file and return a PMaskedBitmapMBMP made from it.
-    (xp, yp) will be the reference point of the mbmp [(0,0) is uppper-left].
-    All pixels with the same value as bTransparent will be read in as
-    transparent. The bitmap file must be uncompressed and have a bit depth
-    of 8.  The palette information is be ignored.
-****************************************************************************/
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, LegacyLong xp, LegacyLong yp, LegacyUlong grfmbmp, byte bDefault)
+bool MaskedBitmapMBMP::FWrite(PDataBlock block)
 {
-    AssertPo(pfni, ffniFile);
-    byte *prgb;
-    RC rc;
-    LegacyLong dxp, dyp;
-    bool fUpsideDown;
-    PMaskedBitmapMBMP pmbmp = pvNil;
-
-    if (!FReadBitmap(pfni, &prgb, pvNil, &dxp, &dyp, &fUpsideDown, bTransparent))
-        return pvNil;
-
-    rc.Set(0, 0, dxp, dyp);
-    pmbmp = MaskedBitmapMBMP::PmbmpNew(prgb, CbRoundToLong(rc.xpRight), rc.ypBottom, &rc, xp, yp, bTransparent,
-                           (fUpsideDown ? grfmbmp : grfmbmp ^ fmbmpUpsideDown), bDefault);
-    FreePpv((void **)&prgb);
-
-    return pmbmp;
+    AssertThis(0);
+    AssertPo(block, 0);
+    auto s = _Services();
+    return three_mm_masked_write(&_bitmap, block, &s) != 0;
 }
-
-/***************************************************************************
-    Read a masked bitmap from a block.  May free the block or modify it.
-***************************************************************************/
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
+void MaskedBitmapMBMP::GetRc(RC *out)
 {
-    AssertPo(pblck, 0);
-    PMaskedBitmapMBMP pmbmp;
-    MaskedBitmapOnFile *qmbmph;
-    LegacyLong cbRgcb;
-    LegacyLong cbTot;
-    bool fSwap;
-    RC rc;
-    HQ hqrgb = hqNil;
-
-    if (!pblck->FUnpackData())
-        return pvNil;
-    cbTot = pblck->Cb();
-
-    if (cbTot < size(MaskedBitmapOnFile) || hqNil == (hqrgb = pblck->HqFree()))
-        return pvNil;
-
-    qmbmph = (MaskedBitmapOnFile *)QvFromHq(hqrgb);
-    fSwap = (kboOther == qmbmph->bo);
-    if (fSwap)
-        SwapBytesBom(qmbmph, kbomMbmph);
-    else if (qmbmph->bo != kboCur)
-        goto LFail;
-
-    if (qmbmph->swReserved != 0 || qmbmph->cb != cbTot)
-        goto LFail;
-
-    rc = qmbmph->rc;
-    if (rc.FEmpty())
-    {
-        if (cbTot != size(MaskedBitmapOnFile))
-            goto LFail;
-        qmbmph->rc.xpRight = rc.xpLeft;
-        qmbmph->rc.ypBottom = rc.ypTop;
-    }
-
-    cbRgcb = LwMul(rc.Dyp(), size(short));
-    if (size(MaskedBitmapOnFile) + cbRgcb > cbTot)
-        goto LFail;
-
-    if (pvNil == (pmbmp = NewObj MaskedBitmapMBMP))
-    {
-    LFail:
-        FreePhq(&hqrgb);
-        return pvNil;
-    }
-
-    pmbmp->_cbRgcb = cbRgcb;
-    pmbmp->_hqrgb = hqrgb;
-
-    if (fSwap)
-    {
-        // swap bytes in the rgcb
-        SwapBytesRgsw(pmbmp->_Qrgcb(), rc.Dyp());
-    }
-
+    AssertThis(0);
+    AssertVarMem(out);
+    auto s = _Services();
+    ThreeMMMaskedRect r;
+    three_mm_masked_bounds(&_bitmap, s.host_big_endian, &r);
+    out->Set(r.left, r.top, r.right, r.bottom);
+}
+bool MaskedBitmapMBMP::FPtIn(LegacyLong x, LegacyLong y)
+{
+    AssertThis(0);
+    auto s = _Services();
+    return three_mm_masked_hit(&_bitmap, s.host_big_endian, x, y) != 0;
+}
 #ifdef DEBUG
-    // verify the rgcb and rgb
-    LegacyLong ccb, cb, dxp;
-    byte *qb;
-    bool fMask = pmbmp->_Qmbmph()->fMask;
-    short *qcb = pmbmp->_Qrgcb();
-    byte *qbRow = (byte *)PvAddBv(qcb, cbRgcb);
-
-    cbTot -= size(MaskedBitmapOnFile) + cbRgcb;
-    for (ccb = rc.Dyp(); ccb-- > 0;)
-    {
-        cb = *qcb++;
-        if (!FIn(cb, 0, cbTot + 1))
-            goto LFailDebug;
-        cbTot -= cb;
-        qb = qbRow;
-        dxp = 0;
-        while (qb < qbRow + cb)
-        {
-            dxp += *qb++;
-            if (qb >= qbRow + cb)
-                break;
-            dxp += *qb;
-            if (fMask)
-                qb++;
-            else
-                qb += *qb + 1;
-        }
-        if (dxp > rc.Dxp() || qb != qbRow + cb)
-            goto LFailDebug;
-        qbRow = qb;
-    }
-    if (cbTot != 0)
-    {
-    LFailDebug:
-        Bug("Attempted to read bad MaskedBitmapMBMP");
-        ReleasePpo(&pmbmp);
-    }
-#endif // DEBUG
-
-    AssertNilOrPo(pmbmp, 0);
-    return pmbmp;
-}
-
-/***************************************************************************
-    Return the total size on file.
-***************************************************************************/
-LegacyLong MaskedBitmapMBMP::CbOnFile(void)
-{
-    AssertThis(0);
-    return CbOfHq(_hqrgb);
-}
-
-/***************************************************************************
-    Write the masked bitmap (and its header) to the given block.
-***************************************************************************/
-bool MaskedBitmapMBMP::FWrite(PDataBlock pblck)
-{
-    AssertThis(0);
-    AssertPo(pblck, 0);
-    MaskedBitmapOnFile *qmbmph;
-
-    qmbmph = _Qmbmph();
-    qmbmph->bo = kboCur;
-    qmbmph->osk = koskCur;
-    qmbmph->swReserved = 0;
-    qmbmph->cb = CbOfHq(_hqrgb);
-
-    if (qmbmph->cb != pblck->Cb())
-    {
-        Bug("Wrong sized block");
-        return fFalse;
-    }
-
-    if (!pblck->FWriteHq(_hqrgb, 0))
-        return fFalse;
-
-    return fTrue;
-}
-
-/***************************************************************************
-    Get the natural rectangle for the mbmp.
-***************************************************************************/
-void MaskedBitmapMBMP::GetRc(RC *prc)
-{
-    AssertThis(0);
-    *prc = _Qmbmph()->rc;
-}
-
-/***************************************************************************
-    Return whether the given (xp, yp) is in a non-transparent pixel of
-    the MaskedBitmapMBMP.  (xp, yp) should be given in MaskedBitmapMBMP coordinates.
-***************************************************************************/
-bool MaskedBitmapMBMP::FPtIn(LegacyLong xp, LegacyLong yp)
-{
-    AssertThis(0);
-    byte *qb, *qbLim;
-    short *qcb;
-    short cb;
-    MaskedBitmapOnFile *qmbmph;
-
-    qmbmph = _Qmbmph();
-    if (!qmbmph->rc.FPtIn(xp, yp))
-        return fFalse;
-
-    qcb = _Qrgcb();
-    qb = (byte *)PvAddBv(qcb, _cbRgcb);
-    for (yp -= qmbmph->rc.ypTop; yp-- > 0;)
-        qb += *qcb++;
-
-    qbLim = qb + *qcb;
-    for (xp -= qmbmph->rc.xpLeft; qb < qbLim;)
-    {
-        if (0 > (xp -= *qb++) || qb >= qbLim)
-            break;
-        cb = *qb++;
-        if (0 > (xp -= cb))
-            return fTrue;
-        if (!qmbmph->fMask)
-            qb += cb;
-    }
-    Assert(qb <= qbLim, "bad row in MaskedBitmapMBMP");
-    return fFalse;
-}
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a MaskedBitmapMBMP.
-***************************************************************************/
 void MaskedBitmapMBMP::AssertValid(LegacyUlong grf)
 {
-    LegacyLong ccb;
-    LegacyLong cbTot;
-    short *qcb;
-    RC rc;
-
     MaskedBitmapMBMP_PAR::AssertValid(0);
-    AssertHq(_hqrgb);
-
-    rc = _Qmbmph()->rc;
-    ccb = rc.Dyp();
-    Assert(_cbRgcb == LwMul(rc.Dyp(), size(short)), "_cbRgcb wrong");
-    cbTot = 0;
-    qcb = _Qrgcb();
-    while (ccb-- > 0)
+    AssertPvCb(_bitmap.data, _bitmap.bytes);
+    RC r = _Qmbmph()->rc;
+    Assert(_bitmap.row_bytes == LwMul(r.Dyp(), sizeof(short)), "wrong row table size");
+    LegacyLong total = 28 + _bitmap.row_bytes;
+    auto rows = _Qrgcb();
+    for (LegacyLong i = 0; i < r.Dyp(); ++i)
     {
-        AssertIn(*qcb, 0, kcbMax);
-        cbTot += *qcb++;
+        AssertIn(rows[i], 0, kcbMax);
+        total += rows[i];
     }
-    Assert(cbTot + _cbRgcb + size(MaskedBitmapOnFile) == CbOfHq(_hqrgb), "_hqrgb wrong size");
+    Assert(total == _bitmap.bytes, "wrong bitmap size");
+    (void)grf;
 }
-
-/***************************************************************************
-    Mark memory for the MaskedBitmapMBMP.
-***************************************************************************/
-void MaskedBitmapMBMP::MarkMem(void)
+void MaskedBitmapMBMP::MarkMem()
 {
-    AssertValid(0);
+    AssertThis(0);
     MaskedBitmapMBMP_PAR::MarkMem();
-    MarkHq(_hqrgb);
+    MarkPv(_bitmap.data);
 }
-#endif // DEBUG
-
-/***************************************************************************
-    A PFNRPO to read an MaskedBitmapMBMP.
-***************************************************************************/
-bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+#endif
+bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
+                                 PBaseCacheableObject *out, LegacyLong *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, fblckReadable);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-    PMaskedBitmapMBMP pmbmp;
-
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-    *pcb = pblck->Cb();
-
-    if (pvNil == (pmbmp = PmbmpRead(pblck)))
-    {
-    LFail:
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        return fFalse;
-    }
-    *ppbaco = pmbmp;
-    return fTrue;
+    AssertPo(cache, 0);
+    AssertPo(block, fblckReadable);
+    AssertNilOrVarMem(out);
+    AssertVarMem(bytes);
+    (void)type;
+    (void)number;
+    MaskedContext context;
+    context.object = out;
+    context.bytes = bytes;
+    auto s = _Services(&context);
+    return three_mm_masked_fetch(block, out != nullptr, &s) != 0;
 }
-
 /***************************************************************************
     Given an Filename refering to a bitmap file, returns the interesting parts of
     the header and the pixel data and palette.  Fails if the bitmap is not

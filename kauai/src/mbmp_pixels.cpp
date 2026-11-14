@@ -13,9 +13,9 @@ bool MaskedBitmapMBMP::_FGetRleBitmap(KauaiPixels::RleBitmap8 *bitmap)
         *bitmap = {};
         return true;
     }
-    const auto encodedOffset = std::int64_t(sizeof(MaskedBitmapOnFile)) + _cbRgcb;
-    const auto total = CbOfHq(_hqrgb);
-    if (width > INT32_MAX || height > INT32_MAX || _cbRgcb != height * sizeof(short) || encodedOffset > total)
+    const auto encodedOffset = std::int64_t(sizeof(MaskedBitmapOnFile)) + _bitmap.row_bytes;
+    const auto total = _bitmap.bytes;
+    if (width > INT32_MAX || height > INT32_MAX || _bitmap.row_bytes != height * sizeof(short) || encodedOffset > total)
         return false;
     *bitmap = {reinterpret_cast<const std::uint8_t *>(header) + encodedOffset,
                static_cast<std::size_t>(total - encodedOffset),

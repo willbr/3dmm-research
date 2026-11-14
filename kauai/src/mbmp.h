@@ -16,6 +16,7 @@
 #ifndef MBMP_H
 #define MBMP_H
 #include "color.h"
+#include "three_mm/masked_bitmap.h"
 class Region;
 typedef Region *PRegion;
 namespace KauaiPixels { struct Surface32; struct PackedSurface; struct Surface8; struct RleBitmap8; struct MaskedTransfer8; }
@@ -42,11 +43,11 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
     // rc (in the MaskedBitmapOnFile) is the bounding rectangle of the mbmp. It implicitly
     // holds the reference point.
 
-    // _hqrgb holds an MaskedBitmapOnFile followed by an array of the length of each row
+    // C storage holds a MaskedBitmapOnFile followed by an array of the length of each row
     // (rgcb) followed by the actual pixel data. The rgcb is an array of shorts
-    // of length rc.Dyp(). We store the whole MaskedBitmapOnFile in the _hqrgb so that
+    // of length rc.Dyp(). We store the whole MaskedBitmapOnFile in C storage so that
     // loading the MaskedBitmapMBMP from a chunky file is fast. If the chunk is compressed,
-    // storing anything less than the full chunk in _hqrgb requires another blt.
+    // the host renderer can borrow one contiguous view.
 
     // The pixel data is stored row by row with transparency encoded using
     // an RLE scheme. For each row, the first byte is the number of consecutive
@@ -56,10 +57,10 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
     // the row, and then the next row begins. Rows should never end with a
     // transparent byte.
 
-    // If fMask is true, the non-transparent pixels are not in _hqrgb. Instead,
+    // If fMask is true, the non-transparent pixels are not in the buffer. Instead,
     // all non-transparent pixels have the value bFill.
-    LegacyLong _cbRgcb; // size of the rgcb portion of _hqrgb
-    HQ _hqrgb;    // MaskedBitmapOnFile, short rgcb[_rc.Dyp()] followed by the pixel data
+    ThreeMMMaskedBitmap _bitmap;
+    static ThreeMMMaskedServices _Services(void *context = nullptr);
 
     // MaskedBitmapMBMP header on file
     struct MaskedBitmapOnFile
@@ -82,11 +83,11 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
 
     short *_Qrgcb(void)
     {
-        return (short *)PvAddBv(QvFromHq(_hqrgb), size(MaskedBitmapOnFile));
+        return (short *)PvAddBv(_bitmap.data, size(MaskedBitmapOnFile));
     }
     MaskedBitmapOnFile *_Qmbmph(void)
     {
-        return (MaskedBitmapOnFile *)QvFromHq(_hqrgb);
+        return (MaskedBitmapOnFile *)_bitmap.data;
     }
 
   public:

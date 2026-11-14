@@ -67,7 +67,7 @@ void MaskedBitmapMBMP::Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, 
         regsc.InitRc(&rcClip, &rcClip);
 
     qcb = _Qrgcb();
-    qbRowSrc = (byte *)PvAddBv(qcb, _cbRgcb);
+    qbRowSrc = (byte *)PvAddBv(qcb, _bitmap.row_bytes);
     prgbPixels += LwMul(rcClip.ypTop, cbRow) + rcClip.xpLeft;
     rcMbmp.Offset(-rcClip.xpLeft, -rcClip.ypTop);
     rcClip.OffsetToOrigin();
@@ -317,7 +317,7 @@ LFill:
         regsc.InitRc(&rcClip, &rcClip);
 
     qcb = _Qrgcb();
-    qbRowSrc = (byte *)PvAddBv(qcb, _cbRgcb);
+    qbRowSrc = (byte *)PvAddBv(qcb, _bitmap.row_bytes);
     prgbPixels += LwMul(rcClip.ypTop, cbRow) + rcClip.xpLeft;
     rcMbmp.Offset(-rcClip.xpLeft, -rcClip.ypTop);
     rcClip.OffsetToOrigin();
@@ -451,7 +451,7 @@ void MaskedBitmapMBMP::DrawMask(byte *prgbPixels, LegacyLong cbRow, LegacyLong d
         return;
 
     qcb = _Qrgcb();
-    qbRowSrc = (byte *)PvAddBv(qcb, _cbRgcb);
+    qbRowSrc = (byte *)PvAddBv(qcb, _bitmap.row_bytes);
     prgbPixels += LwMul(rcClip.ypTop, cbRow);
 
     // Step down through rgcb until to top of clipping rc

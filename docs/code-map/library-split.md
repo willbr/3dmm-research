@@ -78,6 +78,7 @@ cmake --build build/engine-c89 --target engine-material-resource-test
 cmake --build build/engine-c89 --target engine-texture-resource-test
 cmake --build build/engine-c89 --target engine-bitmap-file-test
 cmake --build build/engine-c89 --target engine-depth-bitmap-test
+cmake --build build/engine-c89 --target engine-masked-bitmap-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1864,7 +1865,8 @@ Full checks and retail comparisons are in `docs/tools/playback-regression.md`.
 admission, RGB pixel reads, RLE8 decoding, canonical BMP writing, row reversal
 and partial-owner/output cleanup. `FReadBitmap` and `FWriteBitmap` in
 `kauai/src/mbmp.cpp` retain native file, allocator and palette-object callbacks.
-The masked-bitmap codec in the rest of that file remains migration work.
+The masked-bitmap codec in the rest of that file delegates to the C implementation
+below as well.
 
 The reader preserves on-disk padded rows and reports orientation separately.
 Palette validation and its 1,024-byte read occur only when requested. Metadata
@@ -1915,6 +1917,42 @@ debug little-endian builds enforce FNV-1a `1BE82F14`. The C-only fixture covers
 both host byte orders, truncations, empty/negative layouts, failure cleanup,
 factory estimates, partial writes, region clipping and bounded drawing.
 Full gates and retail capture limits are in `docs/tools/playback-regression.md`.
+
+### Masked-bitmap ownership, encoding and hit testing
+
+`masked_bitmap.c` owns persistent contiguous header/row-table/RLE buffers,
+construction/cropping, 255-byte run continuations, mask-only encoding,
+foreign-to-host normalization, bounded row validation, hit testing, cache
+factories, serialization and BMP import orientation/cleanup. Persistent HQ
+handles and their resize sequence are removed from `MaskedBitmapMBMP`. Native
+facades provide typed allocation/block/BMP services and borrow a host-order view
+for the existing drawing adapters in `mbmpgui.cpp` and `mbmp_pixels.cpp`.
+Those drawing primitives and their region/pixel services remain dependencies of
+the unfinished C-only backend.
+
+Encoding trims empty edge rows/columns, retains interior empty rows, emits zero
+continuations between long runs, and stores no opaque pixel bytes in mask mode.
+Empty output retains the translated reference point. Row lengths must fit
+signed 16 bits. C allocates one exact buffer after sizing, and reinitialization
+preserves the old owner on failure. Writing sets canonical host-order metadata
+before checking the destination size, matching native mutation order.
+
+Reads preserve memory-source consumption and file-source retention, including
+header-validation/object-creation failures after a successful byte transfer.
+Fixed allocation or byte-read failures retain the source. This allocation
+topology differs from adopting an existing HQ; the original successful bytes
+and block effects are frozen separately. Row validation now runs in release
+builds too, rejecting malformed lengths, overruns and trailing data before a
+renderer or hit test can walk them.
+
+The native fixture freezes 210,848 bytes over 800 constructors, 24 direct/factory
+loads and 24 real BMP imports, including mask/upside-down modes, crops, foreign
+headers/row tables, packed resources, block consumption and hit probes. SHA-256
+is `A9AF8AC0605D7612E5175AFEA856765DC880627BFBC85A19B6996B9337B4D6F2`;
+debug little-endian builds enforce FNV-1a `65C24F63`. Supplemental native failure
+checks require balanced BASE/HQ/Pv allocations. The C-only fixture covers both
+host orders, long runs, malformed rows, transaction failures, exact-size writes
+and import/source ownership. Full gates are in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

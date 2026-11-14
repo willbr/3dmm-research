@@ -5940,3 +5940,100 @@ Capture evidence: `tmp/c89-depth-bitmap-playback-actor-events-scrolling-text.jso
 `tmp/c89-depth-bitmap-capture-hashes-before.json`,
 `tmp/c89-depth-bitmap-capture-hashes-after.json` and the two
 `tmp/c89-depth-bitmap-capture-*.log` files.
+
+### C89 masked-bitmap ownership and codecs (14 November 2026)
+
+`masked_bitmap.c` owns persistent contiguous header/row-table/RLE storage,
+construction/cropping, run encoding, byte-order normalization, bounded wire/row
+validation, hit testing, cache factories, serialization and BMP import control.
+The native `MaskedBitmapMBMP` facade retains typed allocation/block/BMP services;
+its drawing adapters borrow the host-order header/row table and encoded bytes.
+Persistent HQ storage and its resize sequence are removed. Native drawing,
+region/pixel services, World/camera control and final facade removal remain
+dependencies of the unfinished full C-only backend.
+
+Two original native traces and the final converted trace match all 210,848 bytes
+without masking, SHA-256
+`A9AF8AC0605D7612E5175AFEA856765DC880627BFBC85A19B6996B9337B4D6F2`.
+The debug little-endian fixture enforces FNV-1a `65C24F63`. It covers 800
+constructors across widths 1/3/8/256/600, heights 1/5, mask/upside-down flags,
+transparent/solid/sparse/edge patterns, crops and reference points; 24 direct/
+factory loads across memory/file, native/foreign/bad headers and packed forms;
+and 24 real BMP imports across padded widths, row reversal and mask/orientation
+flags. Serialized bytes, cropped bounds, hit probes, factory estimates and
+post-load source-block lengths are frozen.
+
+Encoding preserves empty-edge trimming, interior empty rows, translated empty
+reference points, zero continuation runs at 255-byte boundaries and omitted
+opaque payloads in mask mode. C sizes and allocates one exact buffer, replacing
+the native HQ grow/shrink sequence. Failed reinitialization retains its prior
+owner. The writer canonicalizes header metadata before checking exact block
+size, retaining the native mutation order and single-span byte output.
+
+The reader accepts native/foreign byte-order markers, normalizes header and row
+table words, preserves raw flag/fill bytes and validates exact payload accounting.
+Memory-backed blocks are consumed after successful byte transfer and before
+header validation/object creation; file-backed sources remain intact. Plain
+buffer allocation or read failure leaves the source intact. This changes failure
+topology from HQ adoption; the original successful bytes and block effects above
+are separate from those new allocation points. Native BASE/HQ/Pv injection checks
+verify balanced owners over 54 constructor/load attempts.
+
+Signed row lengths, all run spans, total row accounting and coordinate/size
+arithmetic are checked in C. Malformed RLE now fails in release builds too,
+instead of depending on the old debug-only validation. Overlong encoded rows,
+negative/inconsistent extents, truncated data and trailing bytes fail before
+renderers/hit tests receive the resource. These safety guards are checked
+separately from the safe native trace.
+
+All 81 standalone C checks pass with assertions enabled, including strict C89
+syntax. The C-only masked fixture and MSVC AddressSanitizer run cover both host
+orders, long transparent/opaque continuations, masks, malformed rows, every
+truncated source size, source consumption, allocation/read/unpack/create/import
+failures, transaction rollback, exact-size writes and balanced cleanup. Both
+hosts and `core-checks` build; all 104 focused native checks and 51 freshly linked
+CLI baselines pass. Twelve of thirteen selected SDL release checks pass,
+including the bitmap drawing adapter. The broader `pixel-canvas` check fails at
+line 607 in scrolling, before its bitmap checks. Rebuilding/running that check
+with the four original native masked-bitmap adapter files restored from
+`e7a12bf5` reproduces the same failure. The converted files were restored and
+rebuilt afterward. This baseline failure remains open; it is not claimed as a
+passing check or diagnosed here. Native debug `pixel-canvas` passes. No Marcus
+UI tests were added.
+
+Evidence: `tmp/c89-masked-bitmap-before.bin`,
+`tmp/c89-masked-bitmap-before-repeat.bin`, `tmp/c89-masked-bitmap-after.bin`,
+`tmp/c89-masked-bitmap-standalone.log`, `tmp/c89-masked-bitmap-asan.log`,
+`tmp/c89-masked-bitmap-native-tests.log`, `tmp/c89-masked-bitmap-sdl-tests.log`,
+`tmp/c89-masked-bitmap-final-sdl-tests.log`,
+`tmp/c89-masked-bitmap-output-comparison.json`,
+`tmp/c89-masked-bitmap-sdl-pixel-baseline-build.log` and
+`tmp/c89-masked-bitmap-sdl-pixel-baseline.log`.
+
+The final capture executables were frozen at SHA-256
+`C8227B534E7C783A655C2C111DE0D6994364833C6A1BE58E604BB8AAF14A30EA`
+(SDL release) and
+`233F5E53040399322CA1957A36C25A0993E62084473E4732C335856D8DD10482`
+(Marcus regression). Both hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T042014Z-c750368b` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T042128Z-9aed56b4` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie identity and
+suite integrity. Authored frames, all 360 seek images and ordered playback image
+changes match each player's depth-buffer suites
+`20261114T035518Z-d76e61b8` and `20261114T035631Z-4ab7a114`. Only adjacent
+identical position/image observations are collapsed for playback comparison.
+Both reports retain existing cross-player differences and single-repeat
+inconclusive comparisons. These captures show no observed masked-bitmap
+conversion regression; they do not establish full retail timing or PCM parity,
+and do not resolve the separate SDL pixel-canvas test failure above. Captures
+use the shared warm SDL package cache with private processes/settings/movies
+and uncontrolled OS caching; no builds or tests run concurrently with capture.
+
+Capture evidence: `tmp/c89-masked-bitmap-playback-actor-events-scrolling-text.json`,
+`tmp/c89-masked-bitmap-capture-hashes-before.json`,
+`tmp/c89-masked-bitmap-capture-hashes-after.json` and the two
+`tmp/c89-masked-bitmap-capture-*.log` files.
