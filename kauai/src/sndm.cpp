@@ -11,6 +11,7 @@
 ***************************************************************************/
 #include "kauai_core.h"
 #include "sndm.h"
+#include "three_mm/wide.h"
 ASSERTNAME
 
 RTCLASS(SoundDevice)
@@ -57,17 +58,10 @@ SoundManager::SoundManager(void)
 ***************************************************************************/
 SoundManager::~SoundManager(void)
 {
-    AssertBaseThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    if (pvNil != _pglsndmpe)
+    if (_pglsndmpe)
     {
-        for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-        {
-            _pglsndmpe->Get(isndmpe, &sndmpe);
-            ReleasePpo(&sndmpe.psndv);
-        }
+        auto s = _Services();
+        three_mm_sound_endpoints_release(&s, 0);
         ReleasePpo(&_pglsndmpe);
     }
 }
@@ -129,7 +123,7 @@ bool SoundManager::_FInit(void)
         return fFalse;
 
     _pglsndmpe->SetMinGrow(1);
-    _fActive = fTrue;
+    _control.active = fTrue;
 
     AssertThis(0);
     return fTrue;
@@ -140,29 +134,21 @@ bool SoundManager::_FInit(void)
 ***************************************************************************/
 bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(psndmpe);
-    AssertNilOrVarMem(pisndmpe);
-    LegacyLong isndmpe;
-    SNDMPE sndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
+    auto s = _Services();
+    ThreeMMSoundEndpoint e;
+    ThreeMMI32 i;
+    if (!three_mm_sound_manager_find(&s, ctg, &e, &i))
     {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        if (sndmpe.ctg == ctg)
-        {
-            if (pvNil != psndmpe)
-                *psndmpe = sndmpe;
-            if (pvNil != pisndmpe)
-                *pisndmpe = isndmpe;
-            return fTrue;
-        }
+        TrashVar(psndmpe);
+        if (pisndmpe)
+            *pisndmpe = i;
+        return false;
     }
-
-    TrashVar(psndmpe);
-    if (pvNil != pisndmpe)
-        *pisndmpe = _pglsndmpe->IvMac();
-    return fFalse;
+    if (psndmpe)
+        *psndmpe = {e.tag, static_cast<PSoundDevice>(e.object)};
+    if (pisndmpe)
+        *pisndmpe = i;
+    return true;
 }
 
 /***************************************************************************
@@ -170,34 +156,8 @@ bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pi
 ***************************************************************************/
 bool SoundManager::FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv)
 {
-    AssertThis(0);
-    AssertPo(psndv, 0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-    LegacyLong cact;
-
-    psndv->AddRef();
-    if (_FFindCtg(ctg, &sndmpe, &isndmpe))
-    {
-        ReleasePpo(&sndmpe.psndv);
-        sndmpe.psndv = psndv;
-        _pglsndmpe->Put(isndmpe, &sndmpe);
-    }
-    else
-    {
-        sndmpe.ctg = ctg;
-        sndmpe.psndv = psndv;
-        if (!_pglsndmpe->FInsert(isndmpe, &sndmpe))
-        {
-            ReleasePpo(&psndv);
-            return fFalse;
-        }
-    }
-
-    psndv->Activate(_fActive);
-    for (cact = 0; cact < _cactSuspend; cact++)
-        psndv->Suspend(fTrue);
-    return fTrue;
+    auto s = _Services();
+    return three_mm_sound_manager_add(&s, &_control, ctg, psndv) != 0;
 }
 
 /***************************************************************************
@@ -219,15 +179,8 @@ PSoundDevice SoundManager::PsndvFromCtg(ChunkTagOrType ctg)
 ***************************************************************************/
 void SoundManager::RemoveSndv(ChunkTagOrType ctg)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    if (!_FFindCtg(ctg, &sndmpe, &isndmpe))
-        return;
-
-    _pglsndmpe->Delete(isndmpe);
-    ReleasePpo(&sndmpe.psndv);
+    auto s = _Services();
+    three_mm_sound_manager_remove(&s, ctg);
 }
 
 /***************************************************************************
@@ -237,7 +190,7 @@ bool SoundManager::FActive(void)
 {
     AssertThis(0);
 
-    return _fActive;
+    return _control.active;
 }
 
 /***************************************************************************
@@ -245,19 +198,8 @@ bool SoundManager::FActive(void)
 ***************************************************************************/
 void SoundManager::Activate(bool fActive)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    if (FPure(fActive) == FPure(_fActive))
-        return;
-
-    _fActive = FPure(fActive);
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->Activate(fActive);
-    }
+    auto s = _Services();
+    three_mm_sound_activate(&s, &_control, fActive, 0);
 }
 
 /***************************************************************************
@@ -265,21 +207,8 @@ void SoundManager::Activate(bool fActive)
 ***************************************************************************/
 void SoundManager::Suspend(bool fSuspend)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    if (fSuspend)
-        _cactSuspend++;
-    else
-        _cactSuspend--;
-
-    Assert(_cactSuspend >= FPure(fSuspend), "bad _cactSuspend");
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->Suspend(fSuspend);
-    }
+    auto s = _Services();
+    three_mm_sound_suspend(&s, &_control, fSuspend, 0);
 }
 
 /***************************************************************************
@@ -287,15 +216,8 @@ void SoundManager::Suspend(bool fSuspend)
 ***************************************************************************/
 void SoundManager::SetVlm(LegacyLong vlm)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->SetVlm(vlm);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_VOLUME, 0, 0, vlm, 0);
 }
 
 /***************************************************************************
@@ -303,41 +225,24 @@ void SoundManager::SetVlm(LegacyLong vlm)
 ***************************************************************************/
 LegacyLong SoundManager::VlmCur(void)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-    LegacyLong vlm;
-
-    vlm = 0;
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        vlm = LwMax(vlm, sndmpe.psndv->VlmCur());
-    }
-
-    return vlm;
+    auto s = _Services();
+    return three_mm_sound_dispatch(&s, THREE_MM_SOUND_GET_VOLUME, 0, 0, 0, 0);
 }
 
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-LegacyLong SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
+LegacyLong SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
+                                 LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr,
+                                 LegacyLong scl)
 {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     if (_playObserver)
         _playObserver(ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
 #endif
-    AssertThis(0);
-    AssertPo(prca, 0);
-    SNDMPE sndmpe;
-
-    if (scl < _sclFirst || scl > _sclLast)
-        return _SiiAlloc();
-
-    if (!_FFindCtg(ctg, &sndmpe))
-        return _SiiAlloc();
-
-    return sndmpe.psndv->SiiPlay(prca, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
+    ThreeMMSoundPlay p = {prca, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl};
+    auto s = _Services();
+    return three_mm_sound_manager_play(&s, &p, _sclFirst, _sclLast);
 }
 
 /***************************************************************************
@@ -345,15 +250,8 @@ LegacyLong SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkN
 ***************************************************************************/
 void SoundManager::Stop(LegacyLong sii)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->Stop(sii);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_STOP, 0, 0, sii, 0);
 }
 
 /***************************************************************************
@@ -361,15 +259,8 @@ void SoundManager::Stop(LegacyLong sii)
 ***************************************************************************/
 void SoundManager::StopAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->StopAll(sqn, scl);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_STOP, 0, 0, sqn, scl);
 }
 
 /***************************************************************************
@@ -377,15 +268,8 @@ void SoundManager::StopAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 void SoundManager::Pause(LegacyLong sii)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->Pause(sii);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_PAUSE, 0, 0, sii, 0);
 }
 
 /***************************************************************************
@@ -393,15 +277,8 @@ void SoundManager::Pause(LegacyLong sii)
 ***************************************************************************/
 void SoundManager::PauseAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->PauseAll(sqn, scl);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_PAUSE, 0, 0, sqn, scl);
 }
 
 /***************************************************************************
@@ -409,15 +286,8 @@ void SoundManager::PauseAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 void SoundManager::Resume(LegacyLong sii)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->Resume(sii);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_RESUME, 0, 0, sii, 0);
 }
 
 /***************************************************************************
@@ -425,15 +295,8 @@ void SoundManager::Resume(LegacyLong sii)
 ***************************************************************************/
 void SoundManager::ResumeAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->ResumeAll(sqn, scl);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_RESUME, 0, 0, sqn, scl);
 }
 
 /***************************************************************************
@@ -441,18 +304,8 @@ void SoundManager::ResumeAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 bool SoundManager::FPlaying(LegacyLong sii)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        if (sndmpe.psndv->FPlaying(sii))
-            return fTrue;
-    }
-
-    return fFalse;
+    auto s = _Services();
+    return three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_PLAYING, 0, 0, sii, 0) != 0;
 }
 
 /***************************************************************************
@@ -461,18 +314,8 @@ bool SoundManager::FPlaying(LegacyLong sii)
 ***************************************************************************/
 bool SoundManager::FPlayingAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        if (sndmpe.psndv->FPlayingAll(sqn, scl))
-            return fTrue;
-    }
-
-    return fFalse;
+    auto s = _Services();
+    return three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_PLAYING, 0, 0, sqn, scl) != 0;
 }
 
 /***************************************************************************
@@ -480,15 +323,8 @@ bool SoundManager::FPlayingAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 void SoundManager::Flush(void)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->Flush();
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_FLUSH, 0, 0, 0, 0);
 }
 
 /***************************************************************************
@@ -496,15 +332,8 @@ void SoundManager::Flush(void)
 ***************************************************************************/
 void SoundManager::BeginSynch(void)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->BeginSynch();
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_BEGIN, 0, 0, 0, 0);
 }
 
 /***************************************************************************
@@ -512,15 +341,8 @@ void SoundManager::BeginSynch(void)
 ***************************************************************************/
 void SoundManager::EndSynch(void)
 {
-    AssertThis(0);
-    SNDMPE sndmpe;
-    LegacyLong isndmpe;
-
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        sndmpe.psndv->EndSynch();
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_END, 0, 0, 0, 0);
 }
 
 /***************************************************************************
@@ -532,17 +354,10 @@ void SoundManager::EndSynch(void)
 ***************************************************************************/
 SoundManagerQueue::~SoundManagerQueue(void)
 {
-    AssertBaseThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    if (pvNil != _pglsnqd)
+    if (_pglsnqd)
     {
-        for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-        {
-            _pglsnqd->Get(isnqd, &snqd);
-            ReleasePpo(&snqd.psnque);
-        }
+        auto s = _Services();
+        three_mm_sound_endpoints_release(&s, 1);
         ReleasePpo(&_pglsnqd);
     }
 }
@@ -586,7 +401,7 @@ bool SoundManagerQueue::_FInit(void)
     if (pvNil == (_pglsnqd = DynamicArray::PglNew(size(SNQD))))
         return fFalse;
 
-    _fActive = fTrue;
+    _control.active = fTrue;
     AssertThis(0);
 
     return fTrue;
@@ -597,55 +412,20 @@ bool SoundManagerQueue::_FInit(void)
 ***************************************************************************/
 bool SoundManagerQueue::_FEnsureQueue(LegacyLong sqn, SNQD *psnqd, LegacyLong *pisnqd)
 {
-    AssertThis(0);
-    AssertNilOrVarMem(psnqd);
-    AssertNilOrVarMem(pisnqd);
-
-    LegacyLong isnqd, isnqdEmpty;
-    SNQD snqd;
-
-    isnqdEmpty = ivNil;
-    for (isnqd = _pglsnqd->IvMac(); isnqd-- > 0;)
+    auto s = _Services();
+    ThreeMMSoundEndpoint e;
+    ThreeMMI32 i;
+    if (!three_mm_sound_ensure_queue(&s, sqn, ksqnNone, sclNil, &e, &i))
     {
-        _pglsnqd->Get(isnqd, &snqd);
-        if (snqd.sqn == sqn && sqn != ksqnNone)
-        {
-            // we found it
-            goto LFound;
-        }
-
-        if (ivNil == isnqdEmpty && !snqd.psnque->FPlayingAll())
-        {
-            // here's an empty queue
-            isnqdEmpty = isnqd;
-            if (sqn == ksqnNone)
-                break;
-        }
-    }
-
-    if (ivNil != (isnqd = isnqdEmpty))
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        snqd.sqn = sqn;
-        _pglsnqd->Put(isnqd, &snqd);
-        goto LFound;
-    }
-
-    snqd.sqn = sqn;
-    if (pvNil == (snqd.psnque = _PsnqueNew()) || !_pglsnqd->FAdd(&snqd, &isnqd))
-    {
-        ReleasePpo(&snqd.psnque);
         TrashVar(psnqd);
         TrashVar(pisnqd);
-        return fFalse;
+        return false;
     }
-
-LFound:
-    if (pvNil != psnqd)
-        *psnqd = snqd;
-    if (pvNil != pisnqd)
-        *pisnqd = isnqd;
-    return fTrue;
+    if (psnqd)
+        *psnqd = {static_cast<PSoundQueue>(e.object), three_mm_signed_word(e.tag)};
+    if (pisnqd)
+        *pisnqd = i;
+    return true;
 }
 
 /***************************************************************************
@@ -655,7 +435,7 @@ bool SoundManagerQueue::FActive(void)
 {
     AssertThis(0);
 
-    return _fActive;
+    return _control.active;
 }
 
 /***************************************************************************
@@ -663,13 +443,8 @@ bool SoundManagerQueue::FActive(void)
 ***************************************************************************/
 void SoundManagerQueue::Activate(bool fActive)
 {
-    AssertThis(0);
-
-    if (FPure(fActive) == FPure(_fActive))
-        return;
-
-    _fActive = FPure(fActive);
-    _Suspend(_cactSuspend > 0 || !_fActive);
+    auto s = _Services();
+    three_mm_sound_activate(&s, &_control, fActive, 1);
 }
 
 /***************************************************************************
@@ -677,21 +452,16 @@ void SoundManagerQueue::Activate(bool fActive)
 ***************************************************************************/
 void SoundManagerQueue::Suspend(bool fSuspend)
 {
-    AssertThis(0);
-
-    if (fSuspend)
-        _cactSuspend++;
-    else
-        _cactSuspend--;
-
-    Assert(_cactSuspend >= FPure(fSuspend), "bad _cactSuspend");
-    _Suspend(_cactSuspend > 0 || !_fActive);
+    auto s = _Services();
+    three_mm_sound_suspend(&s, &_control, fSuspend, 1);
 }
 
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-LegacyLong SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
+LegacyLong SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
+                                      LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr,
+                                      LegacyLong scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -717,15 +487,8 @@ LegacyLong SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, C
 ***************************************************************************/
 void SoundManagerQueue::Stop(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        snqd.psnque->Stop(sii);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_STOP, 0, 0, sii, 0);
 }
 
 /***************************************************************************
@@ -733,16 +496,8 @@ void SoundManagerQueue::Stop(LegacyLong sii)
 ***************************************************************************/
 void SoundManagerQueue::StopAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        if (sqnNil == sqn || snqd.sqn == sqn)
-            snqd.psnque->StopAll(scl);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_STOP, sqn != sqnNil, (ThreeMMU32)sqn, scl, 0);
 }
 
 /***************************************************************************
@@ -750,15 +505,8 @@ void SoundManagerQueue::StopAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 void SoundManagerQueue::Pause(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        snqd.psnque->Pause(sii);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_PAUSE, 0, 0, sii, 0);
 }
 
 /***************************************************************************
@@ -766,16 +514,8 @@ void SoundManagerQueue::Pause(LegacyLong sii)
 ***************************************************************************/
 void SoundManagerQueue::PauseAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        if (sqnNil == sqn || snqd.sqn == sqn)
-            snqd.psnque->PauseAll(scl);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_PAUSE, sqn != sqnNil, (ThreeMMU32)sqn, scl, 0);
 }
 
 /***************************************************************************
@@ -783,15 +523,8 @@ void SoundManagerQueue::PauseAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 void SoundManagerQueue::Resume(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        snqd.psnque->Resume(sii);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_RESUME, 0, 0, sii, 0);
 }
 
 /***************************************************************************
@@ -799,16 +532,8 @@ void SoundManagerQueue::Resume(LegacyLong sii)
 ***************************************************************************/
 void SoundManagerQueue::ResumeAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        if (sqnNil == sqn || snqd.sqn == sqn)
-            snqd.psnque->ResumeAll(scl);
-    }
+    auto s = _Services();
+    three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_RESUME, sqn != sqnNil, (ThreeMMU32)sqn, scl, 0);
 }
 
 /***************************************************************************
@@ -816,18 +541,8 @@ void SoundManagerQueue::ResumeAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 bool SoundManagerQueue::FPlaying(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        if (snqd.psnque->FPlaying(sii))
-            return fTrue;
-    }
-
-    return fFalse;
+    auto s = _Services();
+    return three_mm_sound_dispatch(&s, THREE_MM_SOUND_INSTANCE_PLAYING, 0, 0, sii, 0) != 0;
 }
 
 /***************************************************************************
@@ -836,20 +551,8 @@ bool SoundManagerQueue::FPlaying(LegacyLong sii)
 ***************************************************************************/
 bool SoundManagerQueue::FPlayingAll(LegacyLong sqn, LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        if ((sqnNil == sqn || snqd.sqn == sqn) && snqd.psnque->FPlayingAll(scl))
-        {
-            return fTrue;
-        }
-    }
-
-    return fFalse;
+    auto s = _Services();
+    return three_mm_sound_dispatch(&s, THREE_MM_SOUND_ALL_PLAYING, sqn != sqnNil, (ThreeMMU32)sqn, scl, 0) != 0;
 }
 
 /***************************************************************************
@@ -857,21 +560,8 @@ bool SoundManagerQueue::FPlayingAll(LegacyLong sqn, LegacyLong scl)
 ***************************************************************************/
 void SoundManagerQueue::Flush()
 {
-    AssertThis(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
-    // Don't free the last channel
-    for (isnqd = _pglsnqd->IvMac(); isnqd-- > 0;)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        snqd.psnque->Flush();
-        if (!snqd.psnque->FPlayingAll() && _pglsnqd->IvMac() > 1)
-        {
-            ReleasePpo(&snqd.psnque);
-            _pglsnqd->Delete(isnqd);
-        }
-    }
+    auto s = _Services();
+    three_mm_sound_queues_flush(&s, sclNil);
 }
 
 /***************************************************************************
@@ -977,55 +667,24 @@ void SoundQueue::_Leave(void)
 ***************************************************************************/
 void SoundQueue::_Flush(void)
 {
-    AssertThis(0);
-    SNDIN sndin;
-
-    _Enter();
-
-    while (_isndinCur > 0)
-    {
-        _isndinCur--;
-        _pglsndin->Get(_isndinCur, &sndin);
-        _pglsndin->Delete(_isndinCur);
-        ReleasePpo(&sndin.pbaco);
-    }
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_flush(&s);
 }
 
 /***************************************************************************
     Put the given sound on the queue.
 ***************************************************************************/
-void SoundQueue::Enqueue(LegacyLong sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
+void SoundQueue::Enqueue(LegacyLong sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong vlm,
+                         LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
-    SNDIN sndin;
-    LegacyLong isndin;
-
-    if (pvNil == (sndin.pbaco = _PbacoFetch(prca, ctg, cno)))
+    auto object = _PbacoFetch(prca, ctg, cno);
+    if (!object)
         return;
-
-    _Enter();
-    _Flush();
-
-    sndin.sii = sii;
-    sndin.vlm = vlm;
-    sndin.cactPlay = cactPlay;
-    sndin.dtsStart = dtsStart;
-    sndin.spr = spr;
-    sndin.scl = scl;
-    sndin.cactPause = 0;
-    if (!_pglsndin->FAdd(&sndin, &isndin))
-    {
-        ReleasePpo(&sndin.pbaco);
-        _Leave();
-        return;
-    }
-
-    _Queue(isndin);
-
-    _Leave();
+    ThreeMMSoundEntry e = {object, sii, vlm, cactPlay, dtsStart, spr, scl, 0};
+    auto s = _Services();
+    three_mm_sound_queue_enqueue(&s, &e);
 }
 
 /***************************************************************************
@@ -1033,23 +692,8 @@ void SoundQueue::Enqueue(LegacyLong sii, PResourceCache prca, ChunkTagOrType ctg
 ***************************************************************************/
 LegacyLong SoundQueue::SprCur(void)
 {
-    AssertThis(0);
-    SNDIN sndin;
-    LegacyLong spr;
-
-    _Enter();
-    _Flush();
-
-    if (_pglsndin->IvMac() >= _isndinCur)
-        spr = klwMin;
-    else
-    {
-        _pglsndin->Get(_isndinCur, &sndin);
-        spr = sndin.spr;
-    }
-
-    _Leave();
-    return spr;
+    auto s = _Services();
+    return three_mm_sound_queue_priority(&s);
 }
 
 /***************************************************************************
@@ -1057,31 +701,8 @@ LegacyLong SoundQueue::SprCur(void)
 ***************************************************************************/
 void SoundQueue::Stop(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (sndin.sii == sii)
-        {
-            if (0 <= sndin.cactPause)
-            {
-                sndin.cactPause = -1;
-                _pglsndin->Put(isndin, &sndin);
-                _Queue(isndin);
-            }
-
-            _Leave();
-            return;
-        }
-    }
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_edit(&s, THREE_MM_SOUND_STOP, 0, sii, sclNil);
 }
 
 /***************************************************************************
@@ -1089,29 +710,8 @@ void SoundQueue::Stop(LegacyLong sii)
 ***************************************************************************/
 void SoundQueue::StopAll(LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-    LegacyLong isndinMin = klwMax;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (0 <= sndin.cactPause && (sclNil == scl || sndin.scl == scl))
-        {
-            sndin.cactPause = -1;
-            _pglsndin->Put(isndin, &sndin);
-            isndinMin = isndin;
-        }
-    }
-
-    if (isndinMin < klwMax)
-        _Queue(isndinMin);
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_edit(&s, THREE_MM_SOUND_STOP, 1, scl, sclNil);
 }
 
 /***************************************************************************
@@ -1119,32 +719,8 @@ void SoundQueue::StopAll(LegacyLong scl)
 ***************************************************************************/
 void SoundQueue::Pause(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (sndin.sii == sii)
-        {
-            if (0 <= sndin.cactPause)
-            {
-                sndin.cactPause++;
-                _pglsndin->Put(isndin, &sndin);
-                if (1 == sndin.cactPause)
-                    _PauseQueue(isndin);
-            }
-
-            _Leave();
-            return;
-        }
-    }
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_edit(&s, THREE_MM_SOUND_PAUSE, 0, sii, sclNil);
 }
 
 /***************************************************************************
@@ -1152,29 +728,8 @@ void SoundQueue::Pause(LegacyLong sii)
 ***************************************************************************/
 void SoundQueue::PauseAll(LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-    LegacyLong isndinMin = klwMax;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (0 <= sndin.cactPause && (sclNil == scl || sndin.scl == scl))
-        {
-            if (0 == sndin.cactPause++)
-                isndinMin = isndin;
-            _pglsndin->Put(isndin, &sndin);
-        }
-    }
-
-    if (isndinMin < klwMax)
-        _PauseQueue(isndinMin);
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_edit(&s, THREE_MM_SOUND_PAUSE, 1, scl, sclNil);
 }
 
 /***************************************************************************
@@ -1182,32 +737,8 @@ void SoundQueue::PauseAll(LegacyLong scl)
 ***************************************************************************/
 void SoundQueue::Resume(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (sndin.sii == sii)
-        {
-            if (0 < sndin.cactPause)
-            {
-                sndin.cactPause--;
-                _pglsndin->Put(isndin, &sndin);
-                if (0 == sndin.cactPause)
-                    _ResumeQueue(isndin);
-            }
-
-            _Leave();
-            return;
-        }
-    }
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_edit(&s, THREE_MM_SOUND_RESUME, 0, sii, sclNil);
 }
 
 /***************************************************************************
@@ -1215,29 +746,8 @@ void SoundQueue::Resume(LegacyLong sii)
 ***************************************************************************/
 void SoundQueue::ResumeAll(LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-    LegacyLong isndinMin = klwMax;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (0 < sndin.cactPause && (sclNil == scl || sndin.scl == scl))
-        {
-            if (0 == --sndin.cactPause)
-                isndinMin = isndin;
-            _pglsndin->Put(isndin, &sndin);
-        }
-    }
-
-    if (isndinMin < klwMax)
-        _ResumeQueue(isndinMin);
-
-    _Leave();
+    auto s = _Services();
+    three_mm_sound_queue_edit(&s, THREE_MM_SOUND_RESUME, 1, scl, sclNil);
 }
 
 /***************************************************************************
@@ -1245,26 +755,8 @@ void SoundQueue::ResumeAll(LegacyLong scl)
 ***************************************************************************/
 bool SoundQueue::FPlaying(LegacyLong sii)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (sndin.sii == sii)
-        {
-            _Leave();
-            return 0 <= sndin.cactPause;
-        }
-    }
-
-    _Leave();
-
-    return fFalse;
+    auto s = _Services();
+    return three_mm_sound_queue_playing(&s, 0, sii, sclNil) != 0;
 }
 
 /***************************************************************************
@@ -1273,26 +765,8 @@ bool SoundQueue::FPlaying(LegacyLong sii)
 ***************************************************************************/
 bool SoundQueue::FPlayingAll(LegacyLong scl)
 {
-    AssertThis(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-
-    _Enter();
-    _Flush();
-
-    for (isndin = _pglsndin->IvMac(); isndin-- > _isndinCur;)
-    {
-        _pglsndin->Get(isndin, &sndin);
-        if (0 <= sndin.cactPause && (sclNil == scl || sndin.scl == scl))
-        {
-            _Leave();
-            return fTrue;
-        }
-    }
-
-    _Leave();
-
-    return fFalse;
+    auto s = _Services();
+    return three_mm_sound_queue_playing(&s, 1, scl, sclNil) != 0;
 }
 
 /***************************************************************************
@@ -1311,15 +785,209 @@ void SoundQueue::Flush(void)
 ***************************************************************************/
 LegacyUlong LuVolScale(LegacyUlong luVol, LegacyLong vlm)
 {
-    Assert(kvlmFull == 0x10000, "this code assumes kvlmFull is 0x10000");
-    LegacyUlong luHigh, luLow;
-    ushort suHigh, suLow;
+    return three_mm_sound_volume_scale(luVol, vlm);
+}
 
-    MulLu(SuLow(luVol), vlm, &luHigh, &luLow);
-    suLow = (luHigh > 0) ? (ushort)(-1) : SuHigh(luLow);
+namespace
+{
+ThreeMMSoundEntry SoundEntry(const SNDIN &e)
+{
+    return {e.pbaco, e.sii, e.vlm, e.cactPlay, e.dtsStart, e.spr, e.scl, e.cactPause};
+}
+SNDIN NativeEntry(const ThreeMMSoundEntry &e)
+{
+    return {static_cast<PBaseCacheableObject>(e.object),
+            e.id,
+            e.volume,
+            e.plays,
+            e.offset,
+            e.priority,
+            e.sound_class,
+            e.pause};
+}
+} // namespace
+ThreeMMSoundQueueServices SoundQueue::_Services()
+{
+    ThreeMMSoundQueueServices s = {};
+    s.context = this;
+    s.enter = [](void *p) { static_cast<SoundQueue *>(p)->_Enter(); };
+    s.leave = [](void *p) { static_cast<SoundQueue *>(p)->_Leave(); };
+    s.flush = [](void *p) { static_cast<SoundQueue *>(p)->_Flush(); };
+    s.count = [](void *p) -> ThreeMMI32 { return static_cast<SoundQueue *>(p)->_pglsndin->IvMac(); };
+    s.current = [](void *p) -> ThreeMMI32 { return static_cast<SoundQueue *>(p)->_isndinCur; };
+    s.set_current = [](void *p, ThreeMMI32 n) { static_cast<SoundQueue *>(p)->_isndinCur = n; };
+    s.get = [](void *p, ThreeMMI32 i, ThreeMMSoundEntry *out) {
+        SNDIN e;
+        static_cast<SoundQueue *>(p)->_pglsndin->Get(i, &e);
+        *out = SoundEntry(e);
+    };
+    s.put = [](void *p, ThreeMMI32 i, const ThreeMMSoundEntry *in) {
+        auto e = NativeEntry(*in);
+        static_cast<SoundQueue *>(p)->_pglsndin->Put(i, &e);
+    };
+    s.add = [](void *p, const ThreeMMSoundEntry *in, ThreeMMI32 *index) -> int {
+        auto e = NativeEntry(*in);
+        LegacyLong native;
+        if (!static_cast<SoundQueue *>(p)->_pglsndin->FAdd(&e, &native))
+            return 0;
+        *index = native;
+        return 1;
+    };
+    s.erase = [](void *p, ThreeMMI32 i) { static_cast<SoundQueue *>(p)->_pglsndin->Delete(i); };
+    s.release = [](void *, void *object) { static_cast<PBaseCacheableObject>(object)->Release(); };
+    s.changed = [](void *p, int op, ThreeMMI32 i) {
+        auto q = static_cast<SoundQueue *>(p);
+        switch (op)
+        {
+        case THREE_MM_SOUND_STOP:
+            q->_Queue(i);
+            break;
+        case THREE_MM_SOUND_PAUSE:
+            q->_PauseQueue(i);
+            break;
+        case THREE_MM_SOUND_RESUME:
+            q->_ResumeQueue(i);
+            break;
+        }
+    };
+    return s;
+}
 
-    MulLu(SuHigh(luVol), vlm, &luHigh, &luLow);
-    suHigh = (luHigh > 0) ? (ushort)(-1) : SuHigh(luLow);
-
-    return LuHighLow(suHigh, suLow);
+ThreeMMSoundManagerServices SoundManager::_Services()
+{
+    ThreeMMSoundManagerServices s = {};
+    s.context = this;
+    s.count = [](void *p) -> ThreeMMI32 { return static_cast<SoundManager *>(p)->_pglsndmpe->IvMac(); };
+    s.get = [](void *p, ThreeMMI32 i, ThreeMMSoundEndpoint *out) {
+        SNDMPE e;
+        static_cast<SoundManager *>(p)->_pglsndmpe->Get(i, &e);
+        *out = {e.psndv, e.ctg};
+    };
+    s.put = [](void *p, ThreeMMI32 i, const ThreeMMSoundEndpoint *in) {
+        SNDMPE e = {in->tag, static_cast<PSoundDevice>(in->object)};
+        static_cast<SoundManager *>(p)->_pglsndmpe->Put(i, &e);
+    };
+    s.insert = [](void *p, ThreeMMI32 i, const ThreeMMSoundEndpoint *in) -> int {
+        SNDMPE e = {in->tag, static_cast<PSoundDevice>(in->object)};
+        return static_cast<SoundManager *>(p)->_pglsndmpe->FInsert(i, &e);
+    };
+    s.erase = [](void *p, ThreeMMI32 i) { static_cast<SoundManager *>(p)->_pglsndmpe->Delete(i); };
+    s.retain = [](void *, void *p) { static_cast<PSoundDevice>(p)->AddRef(); };
+    s.release = [](void *, void *p) { static_cast<PSoundDevice>(p)->Release(); };
+    s.allocate_id = [](void *) -> ThreeMMI32 { return _SiiAlloc(); };
+    s.play = [](void *, void *o, const ThreeMMSoundPlay *p) -> ThreeMMI32 {
+        return static_cast<PSoundDevice>(o)->SiiPlay(static_cast<PResourceCache>(p->cache), p->type, p->number,
+                                                     p->queue, p->volume, p->plays, p->offset, p->priority,
+                                                     p->sound_class);
+    };
+    s.call = [](void *, void *p, int op, ThreeMMI32 a, ThreeMMI32 b) -> ThreeMMI32 {
+        auto d = static_cast<PSoundDevice>(p);
+        switch (op)
+        {
+        case THREE_MM_SOUND_ACTIVE:
+            d->Activate(a != 0);
+            break;
+        case THREE_MM_SOUND_SUSPEND:
+            d->Suspend(a != 0);
+            break;
+        case THREE_MM_SOUND_VOLUME:
+            d->SetVlm(a);
+            break;
+        case THREE_MM_SOUND_GET_VOLUME:
+            return d->VlmCur();
+        case THREE_MM_SOUND_INSTANCE_STOP:
+            d->Stop(a);
+            break;
+        case THREE_MM_SOUND_ALL_STOP:
+            d->StopAll(a, b);
+            break;
+        case THREE_MM_SOUND_INSTANCE_PAUSE:
+            d->Pause(a);
+            break;
+        case THREE_MM_SOUND_ALL_PAUSE:
+            d->PauseAll(a, b);
+            break;
+        case THREE_MM_SOUND_INSTANCE_RESUME:
+            d->Resume(a);
+            break;
+        case THREE_MM_SOUND_ALL_RESUME:
+            d->ResumeAll(a, b);
+            break;
+        case THREE_MM_SOUND_INSTANCE_PLAYING:
+            return d->FPlaying(a);
+        case THREE_MM_SOUND_ALL_PLAYING:
+            return d->FPlayingAll(a, b);
+        case THREE_MM_SOUND_FLUSH:
+            d->Flush();
+            break;
+        case THREE_MM_SOUND_BEGIN:
+            d->BeginSynch();
+            break;
+        case THREE_MM_SOUND_END:
+            d->EndSynch();
+            break;
+        }
+        return 0;
+    };
+    return s;
+}
+ThreeMMSoundManagerServices SoundManagerQueue::_Services()
+{
+    ThreeMMSoundManagerServices s = {};
+    s.context = this;
+    s.count = [](void *p) -> ThreeMMI32 { return static_cast<SoundManagerQueue *>(p)->_pglsnqd->IvMac(); };
+    s.get = [](void *p, ThreeMMI32 i, ThreeMMSoundEndpoint *out) {
+        SNQD e;
+        static_cast<SoundManagerQueue *>(p)->_pglsnqd->Get(i, &e);
+        *out = {e.psnque, (ThreeMMU32)e.sqn};
+    };
+    s.put = [](void *p, ThreeMMI32 i, const ThreeMMSoundEndpoint *in) {
+        SNQD e = {static_cast<PSoundQueue>(in->object), three_mm_signed_word(in->tag)};
+        static_cast<SoundManagerQueue *>(p)->_pglsnqd->Put(i, &e);
+    };
+    s.insert = [](void *p, ThreeMMI32 i, const ThreeMMSoundEndpoint *in) -> int {
+        SNQD e = {static_cast<PSoundQueue>(in->object), three_mm_signed_word(in->tag)};
+        return static_cast<SoundManagerQueue *>(p)->_pglsnqd->FInsert(i, &e);
+    };
+    s.erase = [](void *p, ThreeMMI32 i) { static_cast<SoundManagerQueue *>(p)->_pglsnqd->Delete(i); };
+    s.release = [](void *, void *p) { static_cast<PSoundQueue>(p)->Release(); };
+    s.create_queue = [](void *p) -> void * { return static_cast<SoundManagerQueue *>(p)->_PsnqueNew(); };
+    s.call = [](void *context, void *p, int op, ThreeMMI32 a, ThreeMMI32) -> ThreeMMI32 {
+        if (op == THREE_MM_SOUND_SUSPEND)
+        {
+            static_cast<SoundManagerQueue *>(context)->_Suspend(a != 0);
+            return 0;
+        }
+        auto q = static_cast<PSoundQueue>(p);
+        switch (op)
+        {
+        case THREE_MM_SOUND_INSTANCE_STOP:
+            q->Stop(a);
+            break;
+        case THREE_MM_SOUND_ALL_STOP:
+            q->StopAll(a);
+            break;
+        case THREE_MM_SOUND_INSTANCE_PAUSE:
+            q->Pause(a);
+            break;
+        case THREE_MM_SOUND_ALL_PAUSE:
+            q->PauseAll(a);
+            break;
+        case THREE_MM_SOUND_INSTANCE_RESUME:
+            q->Resume(a);
+            break;
+        case THREE_MM_SOUND_ALL_RESUME:
+            q->ResumeAll(a);
+            break;
+        case THREE_MM_SOUND_INSTANCE_PLAYING:
+            return q->FPlaying(a);
+        case THREE_MM_SOUND_ALL_PLAYING:
+            return q->FPlayingAll(a);
+        case THREE_MM_SOUND_FLUSH:
+            q->Flush();
+            break;
+        }
+        return 0;
+    };
+    return s;
 }

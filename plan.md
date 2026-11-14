@@ -412,11 +412,16 @@ now use C89 and C-owned metadata/status slots as well. MIDI event parsing and
 SMF import/track merging, sampled/MIDI payload factory control, RIFF parsing,
 PCM/ADPCM encoding and physical WAVE import control now also use C89. SDL
 resampling, third-party GSM/MP3 decoding, classic AudioMan/ACM codec calls and
-physical file/device services remain host adapters.
+physical file/device services remain host adapters. Sound-manager dispatch,
+queue selection and pause/stop/resume policy, sampled-audio mixing, streamed
+MIDI construction/seeking, priority arbitration and frame-clock scheduling now
+also use C89. Mutexes, device threads, synth/decoder calls and native object
+references remain host adapters; removing temporary native collection/object
+facades is still part of final host integration.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
-The sound resource/payload/import and body geometry/render-control slices are
+The sound resource/payload/import/runtime and body geometry/render-control slices are
 complete. Continue with model resource construction/loading, wire I/O and
 prelighting in `modl.cpp`, then remaining material/texture resource ownership
 and BRender representation adapters. Temporary native resource/object/HQ and
@@ -424,7 +429,7 @@ Body facades still need removal during final host integration; these slices do
 not complete the whole backend. Validation and coverage limits are recorded in
 `docs/tools/playback-regression.md`.
 Continue through the remaining scene/movie
-editing, undo/save and queue/caption/transition runtime operations, converting
+editing, undo/save and caption/transition runtime operations, converting
 body/template/resource implementations and physical file adapters as their
 dependencies require. Extend the C API and regression coverage as each C++
 dependency is removed. Final host integration must replace the temporary

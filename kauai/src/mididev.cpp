@@ -818,7 +818,7 @@ PMidiPlayer MidiPlayer::PmidpNew(void)
     if (!pmidp->_FInit())
         ReleasePpo(&pmidp);
 
-    pmidp->_Suspend(!pmidp->_fActive || pmidp->_cactSuspend > 0);
+    pmidp->_Suspend(!pmidp->_control.active || pmidp->_control.suspended > 0);
 
     AssertNilOrPo(pmidp, 0);
     return pmidp;

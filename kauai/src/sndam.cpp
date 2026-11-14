@@ -860,7 +860,7 @@ bool AudioManSoundDevice::_FInit(long wav)
             return fFalse;
     }
 
-    _Suspend(_cactSuspend > 0 || !_fActive);
+    _Suspend(_control.suspended > 0 || !_control.active);
 
     AssertThis(0);
     return fTrue;
@@ -907,7 +907,7 @@ void AudioManSoundDevice::SetVlm(long vlm)
     if (_vlm != vlm)
     {
         _vlm = vlm;
-        if (_cactSuspend <= 0 && _fActive)
+        if (_control.suspended <= 0 && _control.active)
             _pamix->SetMixerVolume(LuVolScale(_luVolSys, vlm));
     }
 }

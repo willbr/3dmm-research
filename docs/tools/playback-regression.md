@@ -5382,3 +5382,85 @@ Evidence includes `tmp/c89-body-geometry-before.bin`,
 shared SDL package cache with private processes/settings/working movies and
 uncontrolled OS caching. No builds or tests run concurrently with capture.
 Retention prunes superseded raw media while keeping metadata/current results.
+
+
+### C89 sound runtime (14 November 2026)
+
+The shared sound runtime now delegates manager dispatch, class filtering,
+activation/suspend nesting, queue selection, instance/class pause/stop/resume,
+completed-prefix cleanup and volume scaling to C89. The sampled mixer owns
+queue/voice state in C, including transactional updates, offsets, loops, groups,
+clipping and counters. Streamed MIDI construction/seeking, queue progression,
+priority/tie selection, preemption, expiry, outstanding-buffer control and
+frame-clock rendering also use C89. Unsigned two-word arithmetic preserves
+64-bit positions, counters, delay products and fractional carry without C99.
+
+Mutexes, worker/event primitives, shared sample references, native collection
+facades, physical devices and SoundFont/SDL/AudioMan/ACM codecs remain host
+adapters. In particular the optional classic direct-WinMM/AudioMan device paths
+remain native device implementations; this is completion of the shared sound
+runtime policy slice, not removal of every C++ sound file or completion of
+final C-only host integration. The separate in-progress model-resource edits
+were preserved and are included in the capture working tree.
+
+Three pre-conversion native fingerprints are frozen in executable checks:
+
+- `audio-runtime-trace`: 4,000 sampled mixer updates, PCM and statistics,
+  FNV-1a `D1FA52C3`.
+- `midi-runtime-trace`: deterministic synth double, scheduling, messages,
+  offsets/repeats, gains, completion tags and statistics, `28316524`.
+- `midi-mixer`: 2,200 cached MIDI events with every seek position, including
+  many state-event batches, `6B4B5C94`.
+
+The tests enforce their native little-endian/float/word-width conditions.
+The stream baseline was captured with the original cached-stream/seek
+implementation restored temporarily, then compared with the converted code.
+These traces complement the existing real SoundFont and asynchronous device
+checks; the synth double does not stand in for those real codec tests.
+
+All 76 standalone C checks pass, including strict C89 syntax. The C-only audio
+runtime test and its MSVC AddressSanitizer build/run cover arithmetic carry and
+wrap, allocation failures, transactional PCM updates, groups, stopped entries,
+nested pauses, manager references and queue reuse, MIDI delays/completions and
+large seek batches with write failures. All 94 focused native checks pass,
+including movie save/load, resource fixtures, Marcus playback/player and
+asynchronous MIDI arbitration. All thirteen focused SDL release checks, including the SDL MIDI-device
+check, pass. The real synth test also passes all 128 GM
+programs, 47 percussion notes, controls and fractional-frame timing. No Marcus
+UI tests were added.
+
+The final capture executables were frozen at SHA-256
+`3E8D8AFCFD21AAC99778C17BAB1179111B51A68E0C021A517EBDE88256D69DC9`
+(SDL release) and
+`BD153780ABE4AC60370118D1F6AC48D727E05D69DCA16B10C49591D020489B53`
+(Marcus regression). The hashes were unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T013743Z-e5691581` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T013857Z-fd2a4ebe` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All nine captures complete without retries and preserve movie identity and
+suite integrity. Against `20261114T000122Z-b4ba634c` (actor audio) and
+`20261113T223821Z-bec0f1d8` (sampled scene audio), authored frame observations,
+all 180 seek images and ordered playback image changes match for each player.
+Only adjacent identical position/image observations are collapsed for playback.
+Actor PCM16 peaks remain 3192 retail and 4081 SDL/Marcus; sampled-scene peaks
+remain 2380 retail and 2176 SDL/Marcus. The first-scene-only 600/1300 Hz actor
+contract passes for every player. Captures use the shared warm SDL package
+cache with private processes/settings/movies; OS caching is uncontrolled and
+no builds or tests run concurrently with capture.
+
+These checks show no observed sound conversion regression. They do not prove
+retail waveform or timing parity: reports retain cross-player differences and
+single-repeat inconclusive comparisons. Dedicated retail MIDI rendering was
+not captured; frozen native scheduling/seek traces and real synth/device tests
+cover a narrower MIDI contract.
+
+Evidence: `tmp/c89-sound-runtime-standalone.log`,
+`tmp/c89-sound-runtime-asan.log`, `tmp/c89-sound-runtime-native-tests.log`,
+`tmp/c89-sound-runtime-sdl-tests.log`,
+`tmp/c89-sound-runtime-midi-device-test.log`,
+`tmp/c89-midi-stream-before.log`, `tmp/c89-midi-stream-after.log`,
+`tmp/c89-sound-runtime-playback-actor-audio-sampled-audio.json` and the two
+`tmp/c89-sound-runtime-capture-*.log` files.

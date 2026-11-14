@@ -94,7 +94,7 @@ bool MidiStreamPlayer::_FInit(KauaiMidi::HostFactory factory)
     if (pvNil == (_pmsmix = MidiStreamMixer::PmsmixNew(factory)))
         return fFalse;
 
-    _Suspend(_cactSuspend > 0 || !_fActive);
+    _Suspend(_control.suspended > 0 || !_control.active);
 
     AssertThis(0);
     return fTrue;
@@ -179,7 +179,8 @@ void MidiStreamCached::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MidiStreamCached::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+bool MidiStreamCached::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                                 PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -235,71 +236,45 @@ PMidiStreamCached MidiStreamCached::PmdwsRead(PDataBlock pblck)
 bool MidiStreamCached::_FInit(PMidiStream pmids)
 {
     AssertPo(pmids, 0);
-
-    MidiStreamParser mstp;
-    LegacyUlong tsCur;
-    MEV rgmev[100];
-    PMEV pmev, pmevLim;
-    MIDEV midev;
-    bool fEvt;
-
-    if (pvNil == (_pglmev = DynamicArray::PglNew(size(MEV))))
-        return fFalse;
-
-    Assert(KauaiMidi::shortMessage == 0, "this code assumes KauaiMidi::shortMessage is 0 and it's not");
-
-    ClearPb(rgmev, size(rgmev));
-    pmev = rgmev;
-    pmevLim = rgmev + CvFromRgv(rgmev);
-
-    // use 1 second per quarter. We'll use 1000 ticks per quarter when
-    // setting up the stream. The net result is that milliseconds correspond
-    // to ticks, so no conversion is necessary here.
-    pmev->eventWord = ((LegacyUlong)KauaiMidi::tempo << 24) | 1000000;
-    pmev++;
-
-    mstp.Init(pmids, 0);
-    tsCur = 0;
-    for (;;)
+    if (!(_pglmev = DynamicArray::PglNew(size(MEV))))
+        return false;
+    struct Context
     {
-        fEvt = mstp.FGetEvent(&midev);
-        if (pmev >= pmevLim || !fEvt)
-        {
-            // append the MEVs in rgmev to the _pglmev
-            LegacyLong imev, cmev;
-
-            imev = _pglmev->IvMac();
-            cmev = pmev - rgmev;
-            if (!_pglmev->FSetIvMac(imev + cmev))
-                return fFalse;
-            CopyPb(rgmev, _pglmev->QvGet(imev), LwMul(cmev, size(MEV)));
-            if (!fEvt)
-            {
-                // Add a final NOP so when we seek and there's only one
-                // event left, it's not an important one.
-                rgmev[0].deltaTicks = 0;
-                rgmev[0].streamId = 0;
-                rgmev[0].eventWord = (LegacyUlong)KauaiMidi::noOperation << 24;
-                if (!_pglmev->FAdd(&rgmev[0]))
-                    return fFalse;
-
-                _pglmev->FEnsureSpace(0, fgrpShrink);
-                break;
-            }
-            pmev = rgmev;
-        }
-
-        if (midev.cb > 0)
-        {
-            pmev->deltaTicks = midev.ts - tsCur;
-            pmev->eventWord = midev.lwSend & 0x00FFFFFF;
-            pmev++;
-            tsCur = midev.ts;
-        }
-    }
-
-    _dts = tsCur;
-    return fTrue;
+        MidiStreamParser parser;
+        PDynamicArray output;
+    } context;
+    context.parser.Init(pmids, 0);
+    context.output = _pglmev;
+    ThreeMMMidiStreamBuildServices s = {};
+    s.context = &context;
+    s.next = [](void *p, ThreeMMMidiEvent *out) -> int {
+        MIDEV e;
+        auto c = static_cast<Context *>(p);
+        if (!c->parser.FGetEvent(&e))
+            return 0;
+        ClearPb(out, sizeof(*out));
+        out->timestamp = e.ts;
+        out->count = e.cb;
+        out->send[0] = (byte)e.lwSend;
+        out->send[1] = (byte)(e.lwSend >> 8);
+        out->send[2] = (byte)(e.lwSend >> 16);
+        return 1;
+    };
+    s.append = [](void *p, const MEV *events, ThreeMMI32 count) -> int {
+        auto output = static_cast<Context *>(p)->output;
+        auto index = output->IvMac();
+        if (count > klwMax / (LegacyLong)sizeof(MEV) - index || !output->FSetIvMac(index + count))
+            return 0;
+        if (count)
+            CopyPb(const_cast<PMEV>(events), output->QvGet(index), count * sizeof(MEV));
+        return 1;
+    };
+    ThreeMMU32 duration;
+    if (!three_mm_midi_stream_build(&s, &duration))
+        return false;
+    _pglmev->FEnsureSpace(0, fgrpShrink);
+    _dts = duration;
+    return true;
 }
 
 /***************************************************************************
@@ -432,32 +407,10 @@ PBaseCacheableObject MidiStreamQueue::_PbacoFetch(PResourceCache prca, ChunkTagO
 ***************************************************************************/
 void MidiStreamQueue::_Queue(LegacyLong isndinMin)
 {
-    AssertThis(0);
-    SNDIN sndin;
-
-    _mutx.Enter();
-
-    if (_isndinCur == isndinMin && pvNil != _pglsndin)
-    {
-        for (; _isndinCur < _pglsndin->IvMac(); _isndinCur++)
-        {
-            _pglsndin->Get(_isndinCur, &sndin);
-            if (0 < sndin.cactPause)
-                break;
-
-            if (0 == sndin.cactPause && _pmsmix->FPlay(this, (PMidiStreamCached)sndin.pbaco, sndin.sii, sndin.spr, sndin.cactPlay,
-                                                       sndin.dtsStart, sndin.vlm))
-            {
-                _tsStart = TsCurrentSystem() - sndin.dtsStart;
-                goto LDone;
-            }
-        }
-
-        _pmsmix->FPlay(this);
-    }
-
-LDone:
-    _mutx.Leave();
+    if (!_pglsndin)
+        return;
+    auto s = _QueueServices();
+    three_mm_midi_queue_run(&s, isndinMin);
 }
 
 /***************************************************************************
@@ -465,21 +418,10 @@ LDone:
 ***************************************************************************/
 void MidiStreamQueue::_PauseQueue(LegacyLong isndinMin)
 {
-    AssertThis(0);
-    SNDIN sndin;
-
-    _mutx.Enter();
-
-    if (_isndinCur == isndinMin && _pglsndin->IvMac() > _isndinCur)
-    {
-        _pglsndin->Get(_isndinCur, &sndin);
-        sndin.dtsStart = TsCurrentSystem() - _tsStart;
-        _pglsndin->Put(_isndinCur, &sndin);
-
-        _Queue(isndinMin);
-    }
-
-    _mutx.Leave();
+    if (!_pglsndin)
+        return;
+    auto s = _QueueServices();
+    three_mm_midi_queue_pause(&s, isndinMin);
 }
 
 /***************************************************************************
@@ -498,22 +440,10 @@ void MidiStreamQueue::_ResumeQueue(LegacyLong isndinMin)
 ***************************************************************************/
 void MidiStreamQueue::Notify(PMidiStreamCached pmdws)
 {
-    AssertThis(0);
-    SNDIN sndin;
-
-    _mutx.Enter();
-
-    if (pvNil != _pglsndin && _pglsndin->IvMac() > _isndinCur)
-    {
-        _pglsndin->Get(_isndinCur, &sndin);
-        if (pmdws == sndin.pbaco)
-        {
-            _isndinCur++;
-            _Queue(_isndinCur);
-        }
-    }
-
-    _mutx.Leave();
+    if (!_pglsndin)
+        return;
+    auto s = _QueueServices();
+    three_mm_midi_queue_notify(&s, pmdws);
 }
 
 /***************************************************************************
@@ -521,8 +451,8 @@ void MidiStreamQueue::Notify(PMidiStreamCached pmdws)
 ***************************************************************************/
 MidiStreamMixer::MidiStreamMixer(void)
 {
-    _vlmBase = kvlmFull;
-    _vlmSound = kvlmFull;
+    _mix.base_volume = kvlmFull;
+    _mix.sound_volume = kvlmFull;
 }
 
 /***************************************************************************
@@ -580,7 +510,6 @@ bool MidiStreamMixer::_FInit(KauaiMidi::HostFactory factory)
     }
 
     return _worker.Start(_ThreadProc, this);
-
 }
 
 #ifdef DEBUG
@@ -620,16 +549,9 @@ void MidiStreamMixer::MarkMem(void)
 ***************************************************************************/
 void MidiStreamMixer::Suspend(bool fSuspend)
 {
-    AssertThis(0);
-
     _mutx.Enter();
-
-    if (fSuspend)
-        _StopStream();
-    if (!_pmisi->FActivate(!fSuspend) && !fSuspend)
-        PushErc(ercSndMidiDeviceBusy);
-    _Restart();
-
+    auto s = _Services();
+    three_mm_midi_mix_suspend(&_mix, &s, fSuspend);
     _mutx.Leave();
 }
 
@@ -639,26 +561,8 @@ void MidiStreamMixer::Suspend(bool fSuspend)
 ***************************************************************************/
 void MidiStreamMixer::_StopStream(void)
 {
-    AssertThis(0);
-
-    if (!_fPlaying)
-        return;
-
-    // set _fPlaying to false first so the call back knows that we're
-    // aborting the current stream - so it doesn't notify us.
-    _fPlaying = fFalse;
-
-    _pmisi->StopPlaying();
-
-    // Wait for the buffers to be returned
-    _fWaiting = fTrue;
-    while (_cpvOut > 0)
-    {
-        _mutx.Leave();
-        _buffersReturned.Wait();
-        _mutx.Enter();
-    }
-    _fWaiting = fFalse;
+    auto s = _Services();
+    three_mm_midi_mix_stop(&_mix, &s);
 }
 
 /***************************************************************************
@@ -666,15 +570,9 @@ void MidiStreamMixer::_StopStream(void)
 ***************************************************************************/
 void MidiStreamMixer::SetVlm(LegacyLong vlm)
 {
-    AssertThis(0);
-    LegacyUlong luHigh, luLow;
-
     _mutx.Enter();
-
-    _vlmBase = vlm;
-    MulLu(_vlmBase, _vlmSound, &luHigh, &luLow);
-    _pmisi->SetVlm(LuHighLow(SuLow(luHigh), SuHigh(luLow)));
-
+    auto s = _Services();
+    three_mm_midi_mix_volume(&_mix, &s, vlm);
     _mutx.Leave();
 }
 
@@ -685,83 +583,23 @@ LegacyLong MidiStreamMixer::VlmCur(void)
 {
     AssertThis(0);
 
-    return _vlmBase;
+    return _mix.base_volume;
 }
 
 /***************************************************************************
     Play the given midi stream from the indicated queue.
 ***************************************************************************/
-bool MidiStreamMixer::FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws, LegacyLong sii, LegacyLong spr, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong vlm)
+bool MidiStreamMixer::FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws, LegacyLong sii, LegacyLong spr,
+                            LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong vlm)
 {
-    AssertThis(0);
     AssertPo(pmsque, 0);
     AssertNilOrPo(pmdws, 0);
-    LegacyLong imsos;
-    MSOS msos;
-    bool fNew = fFalse;
-    bool fRet = fTrue;
-
-    if (pvNil != pmdws && pmdws->Dts() == 0)
-        return fFalse;
-
+    ThreeMMMidiMixVoice v = {pmsque, pmdws, sii, spr, cactPlay, 0, dtsStart, vlm, 0};
     _mutx.Enter();
-
-    // stop any current midi stream on this msque
-    for (imsos = _pglmsos->IvMac(); imsos-- > 0;)
-    {
-        _pglmsos->Get(imsos, &msos);
-        if (msos.pmsque == pmsque)
-        {
-            if (0 == imsos)
-                _StopStream();
-            _pglmsos->Get(imsos, &msos);
-            _pglmsos->Delete(imsos);
-            break;
-        }
-    }
-
-    // start up the new midi stream
-    if (pvNil != pmdws)
-    {
-        // find the position to insert the new one
-        for (imsos = 0; imsos < _pglmsos->IvMac(); imsos++)
-        {
-            _pglmsos->Get(imsos, &msos);
-            if (msos.spr < spr || msos.spr == spr && msos.sii < sii)
-            {
-                // insert before the current one
-                break;
-            }
-        }
-
-        if (0 == imsos)
-        {
-            fNew = fTrue;
-            _StopStream();
-        }
-
-        ClearPb(&msos, size(msos));
-        msos.pmsque = pmsque;
-        msos.pmdws = pmdws;
-        msos.sii = sii;
-        msos.spr = spr;
-        msos.cactPlay = cactPlay;
-        msos.dts = pmdws->Dts();
-        msos.dtsStart = dtsStart;
-        msos.vlm = vlm;
-        msos.tsStart = TsCurrentSystem() - msos.dtsStart;
-
-        if (!_pglmsos->FInsert(imsos, &msos))
-        {
-            fRet = fFalse;
-            fNew = fFalse;
-        }
-    }
-
-    _Restart(fNew);
-
+    auto s = _Services();
+    bool ok = three_mm_midi_mix_play(&_mix, &s, &v) != 0;
     _mutx.Leave();
-    return fRet;
+    return ok;
 }
 
 /***************************************************************************
@@ -770,25 +608,8 @@ bool MidiStreamMixer::FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws, Le
 ***************************************************************************/
 void MidiStreamMixer::_Restart(bool fNew)
 {
-    AssertThis(0);
-
-    if (_pmisi->FActive() && !_fPlaying && _pglmsos->IvMac() > 0)
-    {
-        // start playing the first MSOS
-        MSOS msos;
-        LegacyUlong tsCur = TsCurrentSystem();
-
-        if (fNew)
-        {
-            _pglmsos->Get(0, &msos);
-            msos.tsStart = tsCur - msos.dtsStart;
-            _pglmsos->Put(0, &msos);
-        }
-        _SubmitBuffers(tsCur);
-    }
-
-    // signal the aux thread that the list changed
-    _worker.Signal();
+    auto s = _Services();
+    three_mm_midi_mix_restart(&_mix, &s, fNew);
 }
 
 /***************************************************************************
@@ -797,94 +618,8 @@ void MidiStreamMixer::_Restart(bool fNew)
 ***************************************************************************/
 void MidiStreamMixer::_SubmitBuffers(LegacyUlong tsCur)
 {
-    Assert(!_fPlaying, "already playing!");
-    LegacyLong cb, cbSkip;
-    MSOS msos;
-    LegacyLong imsos;
-    void *pvData;
-    LegacyLong cactSkip;
-
-    for (imsos = 0; imsos < _pglmsos->IvMac(); imsos++)
-    {
-        _pglmsos->Get(imsos, &msos);
-
-        cactSkip = (tsCur - msos.tsStart) / msos.dts;
-        if (cactSkip > 0)
-        {
-            LegacyUlong dtsSeek;
-
-            // we need to skip at least one loop of this sound
-            if (msos.cactPlay > 0 && (msos.cactPlay -= cactSkip) <= 0)
-                goto LTryNext;
-
-            dtsSeek = (tsCur - msos.tsStart) % msos.dts;
-            msos.tsStart = tsCur - dtsSeek;
-            _pglmsos->Put(imsos, &msos);
-        }
-
-        // Calling SetVlm causes us to tell the MidiStreamInterface about the new volume
-        _vlmSound = msos.vlm;
-        SetVlm(_vlmBase);
-
-        cbSkip = 0;
-        if (tsCur != msos.tsStart)
-        {
-            // have to seek into the stream
-            if (!_FGetKeyEvents(msos.pmdws, tsCur - msos.tsStart, &cbSkip))
-                goto LTryNext;
-
-            cb = LwMul(_pglmevKey->IvMac(), size(MEV));
-            if (0 < cb)
-            {
-                pvData = _pglmevKey->PvLock(0);
-                if (!_pmisi->FQueueBuffer(pvData, cb, 0, 1, 0))
-                {
-                    // streaming the key events failed
-                    _pglmevKey->Unlock();
-                    goto LTryNext;
-                }
-
-                _cpvOut++;
-                _fPlaying = fTrue;
-            }
-        }
-
-        _cpvOut++;
-        pvData = msos.pmdws->PvLockData(&cb);
-        if (_pmisi->FQueueBuffer(pvData, cb, cbSkip, msos.cactPlay, (std::uintptr_t)msos.pmdws))
-        {
-            // it worked!
-            _fPlaying = fTrue;
-            break;
-        }
-
-        // submitting the buffer failed
-        msos.pmdws->UnlockData();
-        _cpvOut--;
-
-    LTryNext:
-        // make this one disappear
-        // stop the seek buffer from playing
-        _StopStream();
-
-        // make this MSOS have lowest possible priority and 0 time
-        // remaining to play - we'll move it to the end of _pglmsos
-        // in the code below.
-        msos.tsStart = tsCur - msos.dtsStart;
-        msos.cactPlay = 1;
-        msos.sii = klwMin;
-        msos.spr = klwMin;
-        _pglmsos->Put(imsos, &msos);
-    }
-
-    if (_fPlaying && imsos > 0)
-    {
-        // move the skipped ones to the end of the list
-        LegacyLong cmsos = _pglmsos->IvMac();
-
-        AssertIn(imsos, 1, cmsos);
-        SwapBlocks(_pglmsos->QvGet(0), LwMul(imsos, size(MSOS)), LwMul(cmsos - imsos, size(MSOS)));
-    }
+    auto s = _Services();
+    three_mm_midi_mix_submit(&_mix, &s, tsCur);
 }
 
 /***************************************************************************
@@ -893,158 +628,32 @@ void MidiStreamMixer::_SubmitBuffers(LegacyUlong tsCur)
 ***************************************************************************/
 bool MidiStreamMixer::_FGetKeyEvents(PMidiStreamCached pmdws, LegacyUlong dtsSeek, LegacyLong *pcbSkip)
 {
-    AssertPo(pmdws, 0);
-    AssertVarMem(pcbSkip);
-
-    // This keeps track of which events we've seen (so we only record the
-    // most recent one. We record tempo changes, program changes and
-    // controller changes.
-    struct MKEY
-    {
-        ushort grfbitProgram;
-        ushort grfbitChannelPressure;
-        ushort grfbitPitchWheel;
-        ushort fTempo : 1;
-
-        ushort rggrfbitControl[120];
-    };
-
-    MKEY mkey;
-    PMEV pmev;
-    PMEV pmevMin;
-    PMEV pmevLim;
-
-    MEV rgmev[100];
-    PMEV pmevDst;
-    PMEV pmevLimDst;
-
-    LegacyLong cb;
-    LegacyUlong dts;
-    LegacyLong igrfbit;
-    ushort fbit;
-    ushort *pgrfbit;
-    byte bT;
-
-    ClearPb(&mkey, size(mkey));
-    ClearPb(rgmev, size(rgmev));
-
-    if (pvNil == _pglmevKey && (pvNil == (_pglmevKey = DynamicArray::PglNew(size(MEV)))))
-        return fFalse;
+    if (!_pglmevKey && !(_pglmevKey = DynamicArray::PglNew(size(MEV))))
+        return false;
     _pglmevKey->FSetIvMac(0);
-
-    pmevMin = (PMEV)pmdws->PvLockData(&cb);
-    cb = LwRoundToward(cb, size(MEV));
-    pmevLim = (PMEV)PvAddBv(pmevMin, cb);
-
-    dts = 0;
-    for (pmev = pmevMin; pmev < pmevLim; pmev++)
-    {
-        dts += pmev->deltaTicks;
-        if (dts >= dtsSeek)
-            break;
-    }
-
-    if (pmev + 1 >= pmevLim)
-    {
-        // dtsSeek goes past the end!
-        goto LFail;
-    }
-
-    // get the destination pointer - this walks backwards
-    pmevLimDst = rgmev + CvFromRgv(rgmev);
-    pmevDst = pmevLimDst;
-
-    // put the first event in the key frame list with a smaller time
-    --pmevDst;
-    pmevDst->deltaTicks = dts - dtsSeek;
-    pmevDst->eventWord = pmev->eventWord;
-    *pcbSkip = BvSubPvs(pmev + 1, pmevMin);
-
-    for (;;)
-    {
-        if (pmevDst <= rgmev || pmev <= pmevMin)
-        {
-            // destination buffer is full - write it out
-            LegacyLong cmev, cmevNew;
-            PMEV qrgmev;
-
-            cmev = _pglmevKey->IvMac();
-            cmevNew = pmevLimDst - pmevDst;
-
-            if (!_pglmevKey->FSetIvMac(cmev + cmevNew))
-            {
-            LFail:
-                _pglmevKey->FSetIvMac(0);
-                _pglmevKey->FEnsureSpace(0, fgrpShrink);
-                pmdws->UnlockData();
-                return fFalse;
-            }
-
-            qrgmev = (PMEV)_pglmevKey->QvGet(0);
-            BltPb(qrgmev, qrgmev + cmevNew, LwMul(cmev, size(MEV)));
-            CopyPb(pmevDst, qrgmev, LwMul(cmevNew, size(MEV)));
-
-            if (pmev <= pmevMin)
-                break;
-
-            pmevDst = pmevLimDst;
-        }
-
-        --pmev;
-        switch (pmev->eventWord >> 24)
-        {
-        case KauaiMidi::shortMessage:
-            bT = (byte)pmev->eventWord;
-
-            // The high nibble of bT is the status value
-            // The low nibble is the channel
-            switch (bT & 0xF0)
-            {
-            case 0xB0: // control change
-                igrfbit = BHigh(SuLow(pmev->eventWord));
-                if (!FIn(igrfbit, 0, CvFromRgv(mkey.rggrfbitControl)))
-                    break;
-                pgrfbit = &mkey.rggrfbitControl[igrfbit];
-                goto LTest;
-
-            case 0xC0: // program change
-                pgrfbit = &mkey.grfbitProgram;
-                goto LTest;
-
-            case 0xD0: // channel pressure
-                pgrfbit = &mkey.grfbitChannelPressure;
-                goto LTest;
-
-            case 0xE0: // pitch wheel
-                pgrfbit = &mkey.grfbitPitchWheel;
-            LTest:
-                fbit = 1 << (bT & 0x0F);
-                if (!(*pgrfbit & fbit))
-                {
-                    // first time we've seen this event on this channel
-                    *pgrfbit |= fbit;
-                    goto LCopy;
-                }
-                break;
-            }
-            break;
-
-        case KauaiMidi::tempo:
-            if (!mkey.fTempo)
-            {
-                mkey.fTempo = fTrue;
-            LCopy:
-                pmevDst--;
-                pmevDst->deltaTicks = 0;
-                pmevDst->eventWord = pmev->eventWord;
-            }
-            break;
-        }
-    }
-
+    LegacyLong bytes;
+    auto events = static_cast<const MEV *>(pmdws->PvLockData(&bytes));
+    ThreeMMI32 skip;
+    const bool ok = three_mm_midi_stream_seek(
+                        events, bytes / sizeof(MEV), dtsSeek, _pglmevKey,
+                        [](void *p, const MEV *events, ThreeMMI32 count) -> int {
+                            auto output = static_cast<PDynamicArray>(p);
+                            auto old = output->IvMac();
+                            if (count > klwMax / (LegacyLong)sizeof(MEV) - old || !output->FSetIvMac(old + count))
+                                return 0;
+                            auto data = static_cast<PMEV>(output->QvGet(0));
+                            BltPb(data, data + count, old * sizeof(MEV));
+                            CopyPb(const_cast<PMEV>(events), data, count * sizeof(MEV));
+                            return 1;
+                        },
+                        &skip) != 0;
+    if (!ok)
+        _pglmevKey->FSetIvMac(0);
     _pglmevKey->FEnsureSpace(0, fgrpShrink);
     pmdws->UnlockData();
-    return fTrue;
+    if (ok)
+        *pcbSkip = skip;
+    return ok;
 }
 
 /***************************************************************************
@@ -1068,56 +677,12 @@ void MidiStreamMixer::_MidiProc(std::uintptr_t luUser, void *pvData, std::uintpt
 ***************************************************************************/
 void MidiStreamMixer::_Notify(void *pvData, PMidiStreamCached pmdws)
 {
-    AssertNilOrPo(pmdws, 0);
-    MSOS msos;
-
     _mutx.Enter();
-
-    Assert(_cpvOut > 0, "what buffer is this?");
-    _cpvOut--;
-    if (_cpvOut == 0)
-        _buffersReturned.Signal();
-    if (pvNil != pmdws)
-    {
-        AssertVar(_pglmsos->IvMac() > 0 && ((MSOS *)_pglmsos->QvGet(0))->pmdws == pmdws, "Wrong pmdws", &pmdws);
-        pmdws->UnlockData();
-    }
-    else if (pvNil != _pglmevKey && pvData == _pglmevKey->QvGet(0))
-        _pglmevKey->Unlock();
-    else
-    {
-        Bug("Bad pvData/pmdws combo");
-    }
-
-    if (!_fPlaying)
-    {
-        // we don't need to notify or start the next sound.
-        _mutx.Leave();
-        return;
-    }
-
-    if (_fPlaying && _cpvOut == 0)
-    {
-        // all headers are in and we're supposed to be playing - so notify the
-        // previous pmdws and start up the next one.
-        _fPlaying = fFalse;
-        if (0 < _pglmsos->IvMac())
-        {
-            _pglmsos->Get(0, &msos);
-            _pglmsos->Delete(0);
-
-            _mutx.Leave();
-
-            // do the notify
-            msos.pmsque->Notify(msos.pmdws);
-
-            _mutx.Enter();
-        }
-
-        if (_pglmsos->IvMac() > 0)
-            _Restart();
-    }
-
+    Assert(_mix.outstanding > 0, "what buffer is this?");
+    Assert(pmdws || (_pglmevKey && pvData == _pglmevKey->QvGet(0)), "Bad pvData/pmdws combo");
+    Assert(!pmdws || (_pglmsos->IvMac() > 0 && static_cast<MSOS *>(_pglmsos->QvGet(0))->pmdws == pmdws), "Wrong pmdws");
+    auto s = _Services();
+    three_mm_midi_mix_return(&_mix, &s, pmdws);
     _mutx.Leave();
 }
 
@@ -1138,61 +703,113 @@ std::uint32_t MidiStreamMixer::_ThreadProc(void *pv)
 ***************************************************************************/
 std::uint32_t MidiStreamMixer::_ExpireSounds(void)
 {
-    AssertThis(0);
-    LegacyUlong tsCur;
-    LegacyLong imsos;
-    MSOS msos;
-    LegacyLong cactSkip;
-    LegacyUlong dtsNextStop = kluMax;
-
     _mutx.Enter();
-
-    if (_fWaiting)
-    {
-        // we're waiting for buffers to be returned, so don't touch
-        // anything!
-        dtsNextStop = 1;
-    }
-    else
-    {
-        // See if any sounds have expired...
-        tsCur = TsCurrentSystem();
-        dtsNextStop = kluMax;
-        for (imsos = _pglmsos->IvMac(); imsos-- > 0;)
-        {
-            if (imsos == 0 && _fPlaying)
-                break;
-            _pglmsos->Get(imsos, &msos);
-
-            cactSkip = (tsCur - msos.tsStart) / msos.dts;
-            if (cactSkip > 0)
-            {
-                LegacyUlong dtsSeek;
-
-                if (msos.cactPlay > 0 && (msos.cactPlay -= cactSkip) <= 0)
-                {
-                    // this sound is done
-                    _pglmsos->Delete(imsos);
-                    _mutx.Leave();
-
-                    // do the notify
-                    msos.pmsque->Notify(msos.pmdws);
-
-                    _mutx.Enter();
-                    dtsNextStop = 0;
-                    break;
-                }
-
-                // adjust the values in the MSOS
-                dtsSeek = (tsCur - msos.tsStart) % msos.dts;
-                msos.tsStart = tsCur - dtsSeek;
-                _pglmsos->Put(imsos, &msos);
-            }
-
-            dtsNextStop = LuMin(dtsNextStop, msos.dts - (tsCur - msos.tsStart));
-        }
-    }
-
+    auto s = _Services();
+    auto wait = three_mm_midi_mix_expire(&_mix, &s);
     _mutx.Leave();
-    return dtsNextStop;
+    return wait;
+}
+
+ThreeMMMidiMixServices MidiStreamMixer::_Services()
+{
+    ThreeMMMidiMixServices s = {};
+    s.context = this;
+    s.count = [](void *p) -> ThreeMMI32 { return static_cast<MidiStreamMixer *>(p)->_pglmsos->IvMac(); };
+    s.get = [](void *p, ThreeMMI32 i, ThreeMMMidiMixVoice *out) {
+        MSOS v;
+        static_cast<MidiStreamMixer *>(p)->_pglmsos->Get(i, &v);
+        *out = {v.pmsque, v.pmdws, v.sii, v.spr, v.cactPlay, v.dts, v.dtsStart, v.vlm, v.tsStart};
+    };
+    s.put = [](void *p, ThreeMMI32 i, const ThreeMMMidiMixVoice *in) {
+        MSOS v = {static_cast<PMidiStreamQueue>(in->queue),
+                  static_cast<PMidiStreamCached>(in->sound),
+                  in->id,
+                  in->priority,
+                  in->plays,
+                  in->duration,
+                  in->offset,
+                  in->volume,
+                  in->start};
+        static_cast<MidiStreamMixer *>(p)->_pglmsos->Put(i, &v);
+    };
+    s.insert = [](void *p, ThreeMMI32 i, const ThreeMMMidiMixVoice *in) -> int {
+        MSOS v = {static_cast<PMidiStreamQueue>(in->queue),
+                  static_cast<PMidiStreamCached>(in->sound),
+                  in->id,
+                  in->priority,
+                  in->plays,
+                  in->duration,
+                  in->offset,
+                  in->volume,
+                  in->start};
+        return static_cast<MidiStreamMixer *>(p)->_pglmsos->FInsert(i, &v);
+    };
+    s.erase = [](void *p, ThreeMMI32 i) { static_cast<MidiStreamMixer *>(p)->_pglmsos->Delete(i); };
+    s.rotate = [](void *p, ThreeMMI32 n) {
+        auto list = static_cast<MidiStreamMixer *>(p)->_pglmsos;
+        SwapBlocks(list->QvGet(0), n * sizeof(MSOS), (list->IvMac() - n) * sizeof(MSOS));
+    };
+    s.clock = [](void *) -> ThreeMMU32 { return TsCurrentSystem(); };
+    s.duration = [](void *, void *p) -> ThreeMMU32 { return static_cast<PMidiStreamCached>(p)->Dts(); };
+    s.enter = [](void *p) { static_cast<MidiStreamMixer *>(p)->_mutx.Enter(); };
+    s.leave = [](void *p) { static_cast<MidiStreamMixer *>(p)->_mutx.Leave(); };
+    s.stop_device = [](void *p) { static_cast<MidiStreamMixer *>(p)->_pmisi->StopPlaying(); };
+    s.wait_return = [](void *p) {
+        auto m = static_cast<MidiStreamMixer *>(p);
+        m->_mutx.Leave();
+        m->_buffersReturned.Wait();
+        m->_mutx.Enter();
+    };
+    s.signal_return = [](void *p) { static_cast<MidiStreamMixer *>(p)->_buffersReturned.Signal(); };
+    s.signal_worker = [](void *p) { static_cast<MidiStreamMixer *>(p)->_worker.Signal(); };
+    s.active = [](void *p) -> int { return static_cast<MidiStreamMixer *>(p)->_pmisi->FActive(); };
+    s.activate = [](void *p, int a) -> int { return static_cast<MidiStreamMixer *>(p)->_pmisi->FActivate(a != 0); };
+    s.busy = [](void *) { PushErc(ercSndMidiDeviceBusy); };
+    s.volume = [](void *p, ThreeMMI32 v) { static_cast<MidiStreamMixer *>(p)->_pmisi->SetVlm(v); };
+    s.seek = [](void *p, void *sound, ThreeMMU32 time, ThreeMMI32 *skip) -> int {
+        LegacyLong bytes;
+        if (!static_cast<MidiStreamMixer *>(p)->_FGetKeyEvents(static_cast<PMidiStreamCached>(sound), time, &bytes))
+            return 0;
+        *skip = bytes;
+        return 1;
+    };
+    s.lock_key = [](void *p, ThreeMMI32 *bytes) -> void * {
+        auto list = static_cast<MidiStreamMixer *>(p)->_pglmevKey;
+        *bytes = list->IvMac() * sizeof(MEV);
+        return *bytes > 0 ? list->PvLock(0) : nullptr;
+    };
+    s.unlock_key = [](void *p) { static_cast<MidiStreamMixer *>(p)->_pglmevKey->Unlock(); };
+    s.lock_sound = [](void *, void *p, ThreeMMI32 *bytes) -> void * {
+        LegacyLong n;
+        auto data = static_cast<PMidiStreamCached>(p)->PvLockData(&n);
+        *bytes = n;
+        return data;
+    };
+    s.unlock_sound = [](void *, void *p) { static_cast<PMidiStreamCached>(p)->UnlockData(); };
+    s.submit = [](void *p, void *data, ThreeMMI32 bytes, ThreeMMI32 skip, ThreeMMI32 repeats, void *sound) -> int {
+        return static_cast<MidiStreamMixer *>(p)->_pmisi->FQueueBuffer(data, bytes, skip, repeats,
+                                                                       reinterpret_cast<std::uintptr_t>(sound));
+    };
+    s.notify = [](void *, void *queue, void *sound) {
+        static_cast<PMidiStreamQueue>(queue)->Notify(static_cast<PMidiStreamCached>(sound));
+    };
+    return s;
+}
+
+ThreeMMMidiQueueServices MidiStreamQueue::_QueueServices()
+{
+    ThreeMMMidiQueueServices s = {};
+    s.entries = _Services();
+    s.context = this;
+    s.clock = [](void *) -> ThreeMMU32 { return TsCurrentSystem(); };
+    s.start = [](void *p) -> ThreeMMU32 { return static_cast<MidiStreamQueue *>(p)->_tsStart; };
+    s.set_start = [](void *p, ThreeMMU32 t) { static_cast<MidiStreamQueue *>(p)->_tsStart = t; };
+    s.play = [](void *p, const ThreeMMSoundEntry *e) -> int {
+        auto q = static_cast<MidiStreamQueue *>(p);
+        if (!e)
+            return q->_pmsmix->FPlay(q);
+        return q->_pmsmix->FPlay(q, static_cast<PMidiStreamCached>(e->object), e->id, e->priority, e->plays, e->offset,
+                                 e->volume);
+    };
+    return s;
 }

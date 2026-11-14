@@ -18,6 +18,7 @@
 
 #include "midi_stream_host.h"
 #include "midi_worker.h"
+#include "three_mm/midi_mix.h"
 using MEV = KauaiMidi::StreamEvent;
 typedef MEV *PMEV;
 
@@ -41,7 +42,8 @@ class MidiStreamCached : public MidiStreamCached_PAR
     bool _FInit(PMidiStream pmids);
 
   public:
-    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PMidiStreamCached PmdwsRead(PDataBlock pblck);
 
     ~MidiStreamCached(void);
@@ -71,10 +73,11 @@ class MidiStreamQueue : public MidiStreamQueue_PAR
     MARKMEM
 
   protected:
-    Mutex _mutx;     // restricts access to member variables
+    Mutex _mutx;          // restricts access to member variables
     LegacyUlong _tsStart; // when we started the current sound
     PMidiStreamMixer _pmsmix;
 
+    ThreeMMMidiQueueServices _QueueServices();
     MidiStreamQueue(void);
 
     virtual void _Enter(void);
@@ -109,15 +112,15 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
   protected:
     struct MSOS
     {
-        PMidiStreamQueue pmsque;  // the "channel" or queue that the sound is on
-        PMidiStreamCached pmdws;    // the sound
-        LegacyLong sii;       // its sound id (for a priority tie breaker)
-        LegacyLong spr;       // its priority
-        LegacyLong cactPlay;  // how many times to play the sound
-        LegacyUlong dts;      // length of this sound
-        LegacyUlong dtsStart; // position to start at
-        LegacyLong vlm;       // volume to play at
-        LegacyUlong tsStart;  // when we "started" the sound (minus dtsStart)
+        PMidiStreamQueue pmsque; // the "channel" or queue that the sound is on
+        PMidiStreamCached pmdws; // the sound
+        LegacyLong sii;          // its sound id (for a priority tie breaker)
+        LegacyLong spr;          // its priority
+        LegacyLong cactPlay;     // how many times to play the sound
+        LegacyUlong dts;         // length of this sound
+        LegacyUlong dtsStart;    // position to start at
+        LegacyLong vlm;          // volume to play at
+        LegacyUlong tsStart;     // when we "started" the sound (minus dtsStart)
     };
 
     // Mutex to protect our member variables
@@ -126,16 +129,12 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     KauaiPlatform::AutoResetEvent _buffersReturned;
 
     PMidiStreamInterface _pmisi; // the midi stream interface
-    PDynamicArray _pglmsos; // the list of current sounds, in priority order
-    LegacyLong _cpvOut; // number of buffers submitted (0, 1, or 2)
+    PDynamicArray _pglmsos;      // the list of current sounds, in priority order
 
-    PDynamicArray _pglmevKey;     // to accumulate state events for seeking
-    bool _fPlaying : 1; // whether we're currently playing the first stream
-    bool _fWaiting : 1; // we're waiting for our buffers to get returned
+    PDynamicArray _pglmevKey; // to accumulate state events for seeking
 
-    LegacyLong _vlmBase;  // the base device volume
-    LegacyLong _vlmSound; // the volume for the current sound
-
+    ThreeMMMidiMixState _mix;
+    ThreeMMMidiMixServices _Services();
     MidiStreamMixer(void);
     bool _FInit(KauaiMidi::HostFactory factory);
     void _StopStream(void);
@@ -154,8 +153,8 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     static PMidiStreamMixer PmsmixNew(KauaiMidi::HostFactory factory);
     ~MidiStreamMixer(void);
 
-    bool FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws = pvNil, LegacyLong sii = siiNil, LegacyLong spr = 0, LegacyLong cactPlay = 1,
-               LegacyUlong dtsStart = 0, LegacyLong vlm = kvlmFull);
+    bool FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws = pvNil, LegacyLong sii = siiNil, LegacyLong spr = 0,
+               LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0, LegacyLong vlm = kvlmFull);
 
     void Suspend(bool fSuspend);
     void SetVlm(LegacyLong vlm);

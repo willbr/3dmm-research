@@ -1,32 +1,36 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "audio_mixer.h"
-#include <algorithm>
-#include <cmath>
+#include "three_mm/audio_mixer.h"
 #include <map>
 #include <mutex>
 #include <new>
 namespace KauaiAudio
 {
+namespace
+{
+ThreeMMAudioCounter Counter(std::uint64_t n)
+{
+    return three_mm_audio_counter(std::uint32_t(n), std::uint32_t(n >> 32));
+}
+std::uint64_t Number(ThreeMMAudioCounter n)
+{
+    return (std::uint64_t(n.high) << 32) | n.low;
+}
+} // namespace
 struct Mixer::Impl
 {
-    struct Playing
-    {
-        Voice voice;
-        std::uint64_t position = 0;
-        bool done = false, started = false, grouped = false;
-    };
-    struct Queue
-    {
-        std::vector<Playing> voices;
-        std::size_t head = 0;
-    };
     mutable std::recursive_mutex mutex;
-    std::map<std::uint64_t, Queue> queues;
-    std::uint64_t next = 1;
-    float volume = 1;
-    bool suspended = false;
-    unsigned groups = 0;
-    MixerStats stats;
+    ThreeMMAudioMixer state;
+    // Keep borrowed PCM alive. Playback state and queue ordering belong to C.
+    std::map<std::uint64_t, std::vector<Voice>> samples;
+    Impl()
+    {
+        three_mm_audio_mixer_init(&state, nullptr);
+    }
+    ~Impl()
+    {
+        three_mm_audio_mixer_dispose(&state);
+    }
 };
 Mixer::Mixer() : impl(new Impl)
 {
@@ -43,62 +47,47 @@ void Mixer::Unlock()
 std::uint64_t Mixer::AddQueue()
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    if (!impl->next)
+    const auto id = Number(three_mm_audio_mixer_add(&impl->state));
+    if (!id)
         return 0;
     try
     {
-        const auto id = impl->next++;
-        impl->queues.emplace(id, Impl::Queue{});
+        impl->samples.emplace(id, std::vector<Voice>{});
         return id;
     }
     catch (const std::bad_alloc &)
     {
+        three_mm_audio_mixer_remove(&impl->state, Counter(id));
         return 0;
     }
 }
 void Mixer::RemoveQueue(std::uint64_t id)
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    impl->queues.erase(id);
+    three_mm_audio_mixer_remove(&impl->state, Counter(id));
+    impl->samples.erase(id);
 }
 bool Mixer::Sync(std::uint64_t id, const std::vector<Voice> &voices)
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    auto found = impl->queues.find(id);
-    if (found == impl->queues.end())
+    auto found = impl->samples.find(id);
+    if (found == impl->samples.end())
         return false;
     try
     {
-        std::vector<Impl::Playing> result;
-        result.reserve(voices.size());
-        for (const auto &voice : voices)
+        std::vector<Voice> retained(voices);
+        std::vector<ThreeMMAudioVoice> input;
+        input.reserve(voices.size());
+        for (const auto &v : voices)
         {
-            if (!voice.id || voice.plays < 0 || !voice.sample || voice.sample->stereo.size() % 2 ||
-                !std::isfinite(voice.volume) || voice.volume < 0)
+            if (!v.sample || v.sample->stereo.size() % 2)
                 return false;
-            for (const auto &earlier : result)
-                if (earlier.voice.id == voice.id)
-                    return false;
-            Impl::Playing playing;
-            const auto old = std::find_if(found->second.voices.begin(), found->second.voices.end(),
-                                          [&](const Impl::Playing &item) { return item.voice.id == voice.id; });
-            if (old != found->second.voices.end())
-            {
-                if (old->voice.sample != voice.sample || old->voice.plays != voice.plays ||
-                    old->voice.offsetMs != voice.offsetMs)
-                    return false;
-                playing = *old;
-            }
-            else
-            {
-                playing.position = std::uint64_t(voice.offsetMs) * SampleRate / 1000;
-                playing.grouped = impl->groups > 0;
-            }
-            playing.voice = voice;
-            result.push_back(std::move(playing));
+            input.push_back({v.id, v.plays, v.sample.get(), v.sample->stereo.data(), v.sample->stereo.size() / 2,
+                             v.volume, v.offsetMs, v.paused, v.stopped});
         }
-        found->second.voices.swap(result);
-        found->second.head = 0;
+        if (!three_mm_audio_mixer_sync(&impl->state, Counter(id), input.data(), input.size()))
+            return false;
+        found->second.swap(retained);
         return true;
     }
     catch (const std::bad_alloc &)
@@ -109,94 +98,36 @@ bool Mixer::Sync(std::uint64_t id, const std::vector<Voice> &voices)
 bool Mixer::Done(std::uint64_t id, std::int32_t voice) const
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    auto queue = impl->queues.find(id);
-    if (queue == impl->queues.end())
-        return true;
-    for (const auto &item : queue->second.voices)
-        if (item.voice.id == voice)
-            return item.done || item.voice.stopped;
-    return false; // Not submitted yet.
+    return three_mm_audio_mixer_done(&impl->state, Counter(id), voice) != 0;
 }
-void Mixer::SetVolume(float volume)
+void Mixer::SetVolume(float v)
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    if (std::isfinite(volume) && volume >= 0)
-        impl->volume = volume;
+    three_mm_audio_mixer_volume(&impl->state, v);
 }
-void Mixer::Suspend(bool suspended)
+void Mixer::Suspend(bool b)
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    impl->suspended = suspended;
+    three_mm_audio_mixer_suspend(&impl->state, b);
 }
 void Mixer::BeginGroup()
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    ++impl->groups;
+    three_mm_audio_mixer_begin(&impl->state);
 }
 void Mixer::EndGroup()
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    if (impl->groups && --impl->groups == 0)
-        for (auto &queue : impl->queues)
-            for (auto &item : queue.second.voices)
-                item.grouped = false;
+    three_mm_audio_mixer_end(&impl->state);
 }
-void Mixer::Render(float *output, std::size_t frames)
+void Mixer::Render(float *out, std::size_t n)
 {
-    if (!output || frames > SIZE_MAX / (2 * sizeof(float)))
-        return;
-    std::fill(output, output + frames * 2, 0.0f);
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    if (impl->suspended)
-        return;
-    for (auto &entry : impl->queues)
-    {
-        auto &queue = entry.second;
-        std::size_t offset = 0;
-        while (offset < frames && queue.head < queue.voices.size())
-        {
-            auto &item = queue.voices[queue.head];
-            const auto count = item.voice.sample->stereo.size() / 2;
-            if (item.done || item.voice.stopped || !count ||
-                (item.voice.plays && item.position / count >= static_cast<std::uint32_t>(item.voice.plays)))
-            {
-                if (!item.done)
-                {
-                    item.done = true;
-                    ++impl->stats.completed;
-                }
-                ++queue.head;
-                continue;
-            }
-            if (item.voice.paused || item.grouped)
-                break;
-            if (!item.started)
-            {
-                item.started = true;
-                ++impl->stats.started;
-            }
-            const auto position = static_cast<std::size_t>(item.position % count);
-            const auto take = std::min(frames - offset, count - position);
-            const auto volume = item.voice.volume * impl->volume;
-            for (std::size_t i = 0; i < take * 2; ++i)
-                output[offset * 2 + i] += item.voice.sample->stereo[position * 2 + i] * volume;
-            item.position += take;
-            offset += take;
-            if (item.voice.plays && item.position / count >= static_cast<std::uint32_t>(item.voice.plays))
-            {
-                item.done = true;
-                ++impl->stats.completed;
-                ++queue.head;
-            }
-        }
-    }
-    for (std::size_t i = 0; i < frames * 2; ++i)
-        output[i] = std::max(-1.0f, std::min(1.0f, output[i]));
-    impl->stats.renderedFrames += frames;
+    three_mm_audio_mixer_render(&impl->state, out, n);
 }
 MixerStats Mixer::Stats() const
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    return impl->stats;
+    return {Number(impl->state.started), Number(impl->state.completed), Number(impl->state.rendered_frames)};
 }
 } // namespace KauaiAudio

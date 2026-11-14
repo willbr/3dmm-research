@@ -127,6 +127,26 @@ static KauaiMidi::StreamHost *MakeHost(KauaiMidi::Completion complete, std::uint
 class MixerProbe : public MidiStreamMixer
 {
   public:
+    std::uint32_t trace = 2166136261U;
+    void Record(const void *data, std::size_t bytes)
+    {
+        auto p = static_cast<const byte *>(data);
+        while (bytes--)
+            trace = (trace ^ *p++) * 16777619U;
+    }
+    void TraceSeek(PMidiStreamCached sound, LegacyUlong time)
+    {
+        LegacyLong skip = 0;
+        const auto ok = _FGetKeyEvents(sound, time, &skip);
+        Record(&ok, sizeof(ok));
+        if (!ok)
+            return;
+        Record(&skip, sizeof(skip));
+        auto count = _pglmevKey->IvMac();
+        Record(&count, sizeof(count));
+        if (count)
+            Record(_pglmevKey->QvGet(0), count * sizeof(KauaiMidi::StreamEvent));
+    }
     static MixerProbe *Make()
     {
         auto self = NewObj MixerProbe;
@@ -171,8 +191,49 @@ static PMidiStreamCached Fixture(byte program, LegacyLong duration)
     ReleasePpo(&file);
     return stream;
 }
+static void StreamTrace()
+{
+    auto mixer = MixerProbe::Make();
+    CHECK(mixer);
+    std::vector<byte> raw;
+    for (unsigned i = 0; i < 2200; ++i)
+    {
+        raw.push_back(static_cast<byte>(i % 3));
+        const byte status[] = {0xB0, 0xC0, 0xD0, 0xE0, 0x90, 0x80};
+        auto type = status[(i / 16) % 6];
+        raw.push_back(type | (i % 16));
+        raw.push_back((i / 7) % 128);
+        if (type != 0xC0 && type != 0xD0)
+            raw.push_back((i / 13) % 128);
+    }
+    raw.insert(raw.end(), {0, 0xff, 0x2f, 0});
+    auto file = ChunkyFile::PcflCreateTemp();
+    DataBlock block;
+    ChunkNumber number;
+    CHECK(file && file->FAdd(raw.size(), 'MIDS', &number, &block));
+    CHECK(block.FWriteRgb(raw.data(), raw.size(), 0));
+    auto sound = MidiStreamCached::PmdwsRead(&block);
+    CHECK(sound);
+    auto duration = sound->Dts();
+    mixer->Record(&duration, sizeof(duration));
+    LegacyLong bytes;
+    auto data = sound->PvLockData(&bytes);
+    mixer->Record(data, bytes);
+    sound->UnlockData();
+    for (LegacyUlong time = 0; time <= duration + 3; ++time)
+        mixer->TraceSeek(sound, time);
+    std::printf("Stream construction/seek trace: %08X\n", mixer->trace);
+    unsigned short one = 1;
+    if (*reinterpret_cast<unsigned char *>(&one) && sizeof(bool) == 1)
+        CHECK(mixer->trace == 0x6B4B5C94U);
+    sound->Release();
+    block.Free();
+    file->Release();
+    mixer->Release();
+}
 int main()
 {
+    StreamTrace();
     auto previousClock = KauaiPlatform::SetTickSource(Ticks);
     CHECK(!MidiStreamPlayer::PmdpsNew(nullptr));
     auto player = MidiStreamPlayer::PmdpsNew(MakeHost);

@@ -74,6 +74,7 @@ cmake --build build/engine-c89 --target engine-actor-create-test
 cmake --build build/engine-c89 --target engine-movie-sound-test
 cmake --build build/engine-c89 --target engine-body-geometry-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
+cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -2036,6 +2037,46 @@ RIFF-write/import failure phases. Debug resource injection now succeeds for
 removed; successful payloads retain their separate frozen trace. See
 `docs/tools/playback-regression.md` for host checks, retail comparisons and
 coverage limits. No Marcus UI tests were added.
+
+### Sound queues, mixing and streamed MIDI runtime
+
+`sound_manager.c` owns device dispatch, sound-class filtering, activation and
+suspend nesting, sound ID wrapping and named/anonymous queue selection. Queue
+reuse keeps the original reverse search and last-empty-queue retention.
+`sound_queue.c` owns reverse instance/class scans, nested pause/resume, stopped
+entries, completed-prefix cleanup and packed system-volume scaling. It retains
+the original inverted front-priority test rather than changing queue behavior.
+The native `sndm.cpp` classes supply typed object/reference, C-backed collection
+and virtual device/locking callbacks. Their temporary collection facades remain
+part of the final host-integration work.
+
+`audio_mixer.c` owns persistent sampled-audio queues, playback positions, loop
+counts, grouping, transactional synchronization, mixing, clipping and statistics.
+PCM and sample identity are borrowed until a successful replacement/removal; the
+C++ adapter retains shared sample references and serializes calls. Rendering
+allocates nothing. Queue order and final clipping preserve the native mixer.
+`audio_clock.c` supplies unsigned two-word arithmetic so offsets, counters and
+MIDI delays retain 64-bit range without C99 integer types.
+
+`midi_mix.c` owns cached stream construction, state-event reconstruction when
+seeking, queue progression, priority/tie arbitration, preemption, loop skips,
+background expiry and completion/restart control. The persistent C mixer state
+tracks outstanding buffers and stop/wait phases. Host callbacks perform mutex
+release/wait/reacquire and device buffer transfers; notifications retain their
+original lock boundaries. `midi_render.c` owns persistent frame-clock sequencing,
+tempo/fraction carry, repeated buffers, volume and returned-buffer lists. It
+borrows immutable event storage and performs no allocation or client completion
+notification during rendering. SoundFont synthesis, SDL resampling/output,
+WinMM/AudioMan device implementations and thread primitives remain host code.
+
+`engine-audio-runtime-test` links with C alone and covers arithmetic boundaries,
+allocation failure, transactional PCM replacement, queue state, manager dispatch,
+MIDI timing, large seek batches and cleanup. Frozen pre-conversion native traces
+cover 4,000 sampled mixer steps (`D1FA52C3`), MIDI rendering (`28316524`) and 2,200
+cached MIDI events with every seek position (`6B4B5C94`). Existing synth, SDL
+device and asynchronous MIDI tests exercise the real adapters. Fingerprints use
+their documented native little-endian/word-width conditions; they are separate
+from retail waveform/timing comparisons. No Marcus UI tests were added.
 
 ### Source names and directory discovery
 

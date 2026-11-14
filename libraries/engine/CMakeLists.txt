@@ -6,6 +6,7 @@ endif()
 
 add_library(three-mm-engine-c89 STATIC src/playback.c src/scroll.c src/read_stream.c src/movie_data.c src/movie_owner.c src/movie_title.c src/movie_root.c src/scene_data.c src/actor_data.c src/actor_track.c src/actor_fixed.c src/actor_route.c src/actor_state.c src/actor_frame.c src/actor_timeline.c src/actor_seek.c src/actor_math.c src/actor_pose.c src/actor_effect.c src/actor_sound.c src/actor_edit.c src/actor_sound_edit.c src/rollcall_storage.c src/chunky_file.c src/string_table.c src/text.c src/collection_storage.c src/collections.c src/collection_headers.c src/data_stream.c src/codec.c src/piece_table.c src/block_io.c src/block_owner.c src/file_text.c src/chunk_save.c src/chunk_heap.c src/chunk_edit.c src/chunk_graph.c src/chunk_ops.c src/chunk_metadata.c src/string_wire.c src/codec_registry.c src/chunk_forest.c src/chunk_loading.c src/chunk_storage.c src/chunk_lifecycle.c src/chunk_container.c src/chunk_context.c src/chunk_owner.c src/chunk_table.c src/tag.c src/tag_list.c src/source.c src/source_names.c src/source_discovery.c src/wide.c src/resource_cache.c src/resource_manager.c)
 target_include_directories(three-mm-engine-c89 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_sources(three-mm-engine-c89 PRIVATE src/audio_clock.c src/audio_mixer.c src/midi_render.c src/sound_queue.c src/sound_manager.c src/midi_mix.c)
 target_sources(three-mm-engine-c89 PRIVATE src/actor_action_edit.c)
 target_sources(three-mm-engine-c89 PRIVATE src/actor_costume_edit.c)
 target_sources(three-mm-engine-c89 PRIVATE src/actor_route_edit.c)
@@ -403,6 +404,11 @@ add_executable(engine-body-geometry-test EXCLUDE_FROM_ALL "${engine_body_geometr
 target_link_libraries(engine-body-geometry-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-body-geometry-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-body-geometry COMMAND engine-body-geometry-test)
+get_filename_component(engine_audio_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_audio_runtime_test.c" ABSOLUTE)
+add_executable(engine-audio-runtime-test EXCLUDE_FROM_ALL "${engine_audio_runtime_test_source}")
+target_link_libraries(engine-audio-runtime-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-audio-runtime-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-audio-runtime COMMAND engine-audio-runtime-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -420,6 +426,13 @@ if(ENGINE_C89_COMPILER)
     -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror -fsyntax-only
     "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/playback.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/audio_clock.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/audio_mixer.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_render.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/midi_mix.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sound_queue.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/sound_manager.c"
+    "${engine_audio_runtime_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scroll.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/read_stream.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_data.c"
