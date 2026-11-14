@@ -77,6 +77,7 @@ cmake --build build/engine-c89 --target engine-model-resource-test
 cmake --build build/engine-c89 --target engine-material-resource-test
 cmake --build build/engine-c89 --target engine-texture-resource-test
 cmake --build build/engine-c89 --target engine-bitmap-file-test
+cmake --build build/engine-c89 --target engine-depth-bitmap-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1883,6 +1884,37 @@ debug little-endian builds enforce FNV-1a `C71364BE`. The C-only fixture adds
 truncated headers/pixels, malformed RLE canaries, layout limits, balanced
 allocations/locks and write-failure deletion checks. Full build and playback
 evidence is in `docs/tools/playback-regression.md`.
+
+### Depth-buffer storage and drawing
+
+`depth_bitmap.c` owns persistent depth bounds, row/byte counts and pixel storage,
+construction/contiguous renderer imports, cache estimate/load control, 12-byte
+headers, exact-size payload reads, chunk writing, clipping and full/half drawing.
+The native `ZBMP` facade supplies object/allocation/block services and the
+existing region scanner; bounds intersection, row traversal and span addressing
+execute in C. Pixel bytes remain mutable through `Prgb()` without a second owner.
+
+Reading deliberately ignores the stored byte-order/system markers and decodes
+signed shorts in host order, matching the original reader. Pixel payloads remain
+opaque. Empty serialized layouts are accepted; negative layouts and overflowing
+sizes fail before allocation. Writes retain native-order header fields and
+partially created chunks on failure. New buffers fill with `0xff`; renderer
+imports copy contiguous bytes, ignoring the renderer's stride.
+
+Drawing without a clip or region does nothing. Reference offsets move the
+clipping bounds but do not change absolute source/destination addressing. Half
+mode doubles only the bottom bound and scans every other row from the actual
+clipped top, including odd tops. These native behaviors are preserved. Invalid
+arithmetic or spans now stop before the offending copy; earlier valid spans
+remain copied. Region ownership/scan primitives remain native dependencies.
+
+`depth-bitmap-test` freezes 65,880 bytes over 256 load attempts, 288 constructor
+attempts and 216 drawing combinations. Two original traces and the converted
+trace match SHA-256 `C9CA1CDA746BD0DB2ADA91D4AC6B196A6DB915C0255E81A804CD0F9FEEC735A2`;
+debug little-endian builds enforce FNV-1a `1BE82F14`. The C-only fixture covers
+both host byte orders, truncations, empty/negative layouts, failure cleanup,
+factory estimates, partial writes, region clipping and bounded drawing.
+Full gates and retail capture limits are in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

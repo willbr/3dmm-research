@@ -10,6 +10,7 @@
 *************************************************************************/
 #ifndef ZBMP_H
 #define ZBMP_H
+#include "three_mm/depth_bitmap.h"
 
 namespace BRender {
 
@@ -41,10 +42,8 @@ class ZBMP : public ZBMP_PAR
     MARKMEM
 
   protected:
-    RC _rc;      // bounding rectangle of ZBMP
-    br_int_32 _cbRow; // bytes per row
-    br_int_32 _cb;    // count of bytes in Z buffer
-    byte *_prgb; // Z buffer
+    ThreeMMDepthBitmap _depth;
+    static ThreeMMDepthServices _Services(void *context = nullptr);
     ZBMP(void)
     {
     }
@@ -58,11 +57,11 @@ class ZBMP : public ZBMP_PAR
 
     byte *Prgb(void)
     {
-        return _prgb;
+        return static_cast<byte *>(_depth.pixels);
     }
     br_int_32 CbRow(void)
     {
-        return _cbRow;
+        return _depth.row_bytes;
     }
 
     void Draw(byte *prgbPixels, br_int_32 cbRow, br_int_32 dyp, br_int_32 xpRef, br_int_32 ypRef, RC *prcClip = pvNil,

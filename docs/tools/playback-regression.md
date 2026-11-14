@@ -5861,3 +5861,82 @@ Evidence: `tmp/c89-bitmap-file-before.bin`,
 `tmp/c89-bitmap-file-capture-hashes-before.json`,
 `tmp/c89-bitmap-file-capture-hashes-after.json` and the two
 `tmp/c89-bitmap-file-capture-*.log` files.
+
+### C89 depth-buffer storage, wire I/O and drawing (14 November 2026)
+
+`depth_bitmap.c` owns persistent Z-buffer bounds, row/byte counts and pixel
+storage, creation/contiguous renderer copies, resource factory control, header
+encoding/decoding, exact-size payload reads, chunk writes, clipping and full/half
+drawing. The native `ZBMP` facade supplies typed object, allocation, block and
+region-scanner services. Region representations, masked-bitmap ownership/codecs,
+World/camera control and final native facade removal remain migration work.
+
+Two original native traces and the final converted trace match all 65,880 bytes
+without masking, SHA-256
+`C9CA1CDA746BD0DB2ADA91D4AC6B196A6DB915C0255E81A804CD0F9FEEC735A2`.
+The debug little-endian native executable enforces FNV-1a `1BE82F14`. The trace
+covers 256 direct/factory load attempts with BASE/Pv allocation failures,
+ordinary/packed/exact-size/empty resources, changed byte-order markers and
+nonzero origins; 288 constructor/import attempts across four widths and three
+heights; and 216 full/half drawing combinations across reference offsets,
+rectangular/empty/absent clips and disjoint/empty/absent regions. Successful
+serialized headers and pixel payloads are included.
+
+The reader retains the original host-order short decoding and ignores stored
+byte-order/system markers; it does not introduce swapping or repair. Pixels
+remain opaque. Zero-sized serialized layouts remain accepted. New buffers fill
+with `0xff`; renderer copies retain the old contiguous-copy behavior without
+using renderer row stride. Writes preserve host-order fields and partial chunks
+on header/pixel write failure. Factory estimates use packed size without loading
+an object, and successful estimates include the native facade's size.
+
+Drawing retains the original no-clip/no-region no-op. Reference offsets translate
+the clipping bounds but do not shift absolute source/destination addressing.
+Half mode doubles only the bottom bound and scans every other row from the
+actual clipped top, including odd tops. C now checks size arithmetic, translated
+bounds, scanner spans and source/destination ranges before each copy. Invalid
+spans stop before that copy; preceding valid spans remain copied. Negative
+serialized dimensions and unrepresentable new layouts fail before allocation.
+Malformed-input guards are covered separately from the safe native trace.
+
+All 80 standalone C checks pass with assertions enabled, including strict C89
+syntax. The C-only depth fixture and MSVC AddressSanitizer run cover both host
+byte orders, ignored markers, every truncated header/payload size, empty/negative
+layouts, allocation/read/unpack failures, balanced owners, estimate overflow,
+partial writes, full/half/region clipping, odd half-height limits and rejected
+overflow/invalid scanner spans with canaries. Both hosts and `core-checks` build;
+all 102 focused native checks, nine focused SDL release checks and 51 freshly
+linked CLI baselines pass. No Marcus UI tests were added.
+
+Evidence: `tmp/c89-depth-bitmap-before.bin`,
+`tmp/c89-depth-bitmap-before-repeat.bin`, `tmp/c89-depth-bitmap-after.bin`,
+`tmp/c89-depth-bitmap-standalone.log`, `tmp/c89-depth-bitmap-asan.log`,
+`tmp/c89-depth-bitmap-native-tests.log`, `tmp/c89-depth-bitmap-sdl-tests.log`
+and `tmp/c89-depth-bitmap-output-comparison.json`.
+
+The final capture executables were frozen at SHA-256
+`F98FEDF6030E8442C834F261A72A7ACD94724AF91CCB132AA6A609DC7D0BD6D9`
+(SDL release) and
+`F927439AAB6B38D69AE0E98DD0D69968F3AFE36A9413046B41EC22177955C28D`
+(Marcus regression). Both hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T035518Z-d76e61b8` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T035631Z-4ab7a114` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie identity and
+suite integrity. Authored frames, all 360 seek images and ordered playback image
+changes match each player's indexed-BMP suites
+`20261114T033915Z-68c30f75` and `20261114T034028Z-dcc46a83`. Only adjacent
+identical position/image observations are collapsed for playback comparison.
+Both reports retain existing cross-player differences and single-repeat
+inconclusive comparisons. These gates show no observed depth-buffer conversion
+regression; they do not establish full retail timing or PCM parity. Captures
+use the shared warm SDL package cache with private processes/settings/movies
+and uncontrolled OS caching; no builds or tests run concurrently with capture.
+
+Capture evidence: `tmp/c89-depth-bitmap-playback-actor-events-scrolling-text.json`,
+`tmp/c89-depth-bitmap-capture-hashes-before.json`,
+`tmp/c89-depth-bitmap-capture-hashes-after.json` and the two
+`tmp/c89-depth-bitmap-capture-*.log` files.

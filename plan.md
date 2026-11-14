@@ -432,6 +432,9 @@ through their original BRender owner; bitmap import failures release decoded
 pixels. Shared indexed-BMP header validation, padded pixel I/O, RLE8 decoding,
 palette admission, writing and failure cleanup now also use C89. The native
 bitmap facade supplies file/allocation and palette-object services.
+Depth-buffer construction, pixel ownership, native-order wire I/O, cache
+factory control, clipping and full/half-resolution drawing now use C89 as well.
+Native ZBMP objects retain typed allocation/block and region-scanner services.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -442,9 +445,8 @@ slice). A fresh sound closeout audit is recorded in
 C-only host integration retain the limits described above.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
-model/material/custom-material/texture-resource and indexed-BMP slices are
-complete. Continue with depth-buffer storage, wire I/O and drawing in
-`bren/zbmp.cpp` and masked-bitmap ownership/codecs in `kauai/src/mbmp.cpp`,
+model/material/custom-material/texture-resource, indexed-BMP and depth-buffer
+slices are complete. Continue with masked-bitmap ownership/codecs in `kauai/src/mbmp.cpp`,
 then world/camera control in `bren/bwld.cpp` and remaining BRender representation
 adapters.
 Temporary native resource/object/HQ and
