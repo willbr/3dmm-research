@@ -970,7 +970,7 @@ extern "C"
                 return false;
             if (!player->preview.SetFrame(static_cast<std::int32_t>(frame), error))
                 return false;
-            player->playback.Seek();
+            player->playback.Seek(&player->preview);
             player->finished = false;
             player->restoreAudio = true;
             player->objects = player->preview.Objects();

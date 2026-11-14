@@ -13,7 +13,7 @@ class MarcusPlayback
     MarcusPlayback();
     ~MarcusPlayback();
     bool Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bool preserveAudio = false);
-    void Seek();
+    void Seek(ThreeMM::Preview *preview = nullptr);
     void Stop();
     static bool ReadTiming(const ThreeMM::PreviewPresentation &presentation, MarcusSoundTiming &timing,
                            ThreeMM::Error &error);

@@ -49,6 +49,12 @@ advance adjustment instead of FreeType's size-dependent emboldening. In Gustave,
 this prevents the Impact title from wrapping or clipping: scene 3/frame 5's text
 region drops from 5,848,042 to 9,130 summed RGB error across all renderers, and
 scene 5/frame 19's upper region drops from 1,028,240 to 5,036 with BRender CPU.
+Overlapping captions now follow SDL/retail `TextBox::FGotoFrame`: a box moves to
+the front when it becomes visible, while surviving boxes keep their order across
+seeks. A fixed caption-list order previously let older text or blank boxes cover
+newer text. Rebirth of 3DMM scene 2/frame 7 (stored frame 6), captured in order,
+drops from 692,374 to 6,176 summed RGB error with both CPU backends. Headless
+checks cover staggered activation, rewind, direct seeks and retained stacking.
 Headless shared-formatter checks cover CRLF/blank lines, styled paragraph ends,
 tabs, wrapping, spacing and UTF-16 buffer movement. No Marcus UI test was added.
 
@@ -648,6 +654,21 @@ A missing helper causes an explicit selection error; startup retains the existin
 CPU fallback policy. The helper verifies a versioned 32-bit handshake, retains
 the loaded scene between frames, and closes when its player closes or opens a
 different movie. The original x86 assembly backend is Windows-only.
+
+The Ringworld Paybox logo (scene 4/frame 1, stored frame 20) demonstrates the
+current compatibility gap: CPU C differs from retail at 187 native pixels and
+CPU ASM at 192, versus 10,923 for compute and 10,920 for SDL GPU. Only 988 of
+compute's differing pixels change object/background coverage; the other 9,935
+are inside covered regions. This points to interpolation/texture lookup as well
+as edges. CPU textured scan conversion floors projected vertices to integer
+coordinates and computes fixed-point scanline gradients; the shader interpolates
+from fractional vertices at pixel centres. The compute depth test also currently
+accepts equal depth for all triangles, whereas BRender's untextured intensity
+scanner uses a strict less-than test (textured scanners accept ties). These are
+specific rasterizer policy differences, not a reason to dismiss the error as
+floating-point noise. Their individual contributions have not been isolated;
+matching the legacy scan converters requires further work. This comparison does
+not establish the cause of the separate CPU/retail near-coplanar surface differences.
 
 These are initial GPU implementations: floating-point interpolation and triangle
 edge coverage can differ from the CPU renderer. Completed frames are downloaded

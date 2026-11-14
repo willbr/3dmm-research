@@ -378,6 +378,8 @@ struct CaptionImage
     int height = 0;
     int scroll = 0;
     bool ready = false;
+    bool visible = false;
+    std::uint64_t paintOrder = 0;
     std::size_t maskBytes = 0;
 };
 using FaceKey = std::tuple<std::string, int, int>;
@@ -405,6 +407,18 @@ struct MarcusPlayback::Impl
 {
     PreviewPresentation scene;
     std::vector<CaptionImage> captions;
+    std::uint64_t nextPaintOrder = 0;
+    void ObserveCaptions(std::int32_t frame)
+    {
+        // SDL/retail TextBox::FGotoFrame creates a new frontmost GOB when a
+        // box becomes visible. Surviving boxes keep their order across seeks.
+        for (auto &caption : captions)
+        {
+            const bool visible = frame >= caption.data.firstFrame && frame < caption.data.endFrame;
+            if (visible && !caption.visible) caption.paintOrder = ++nextPaintOrder;
+            caption.visible = visible;
+        }
+    }
     std::map<FaceKey, std::unique_ptr<KauaiFonts::Face>> faces;
     std::size_t captionBytes = 0;
     std::map<std::tuple<std::string, int, int, std::u16string>, CaptionRaster> captionRasters;
@@ -797,6 +811,7 @@ bool MarcusPlayback::Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bo
     else
         Stop();
     impl->captions.clear();
+    impl->nextPaintOrder = 0;
     impl->captionBytes = 0;
     impl->captionRasters.clear();
     impl->rasterBytes = 0;
@@ -809,6 +824,7 @@ bool MarcusPlayback::Select(ThreeMM::Preview &preview, ThreeMM::Error &error, bo
         impl->captions.push_back(std::move(value));
     }
     impl->scene.captions.clear();
+    impl->ObserveCaptions(preview.Info().currentFrame);
     return true;
 }
 void MarcusPlayback::Stop()
@@ -825,10 +841,11 @@ void MarcusPlayback::Mute(bool muted)
 {
     impl->audio.Mute(muted);
 }
-void MarcusPlayback::Seek()
+void MarcusPlayback::Seek(ThreeMM::Preview *preview)
 {
     impl->audio.Clear();
     impl->ResetTiming();
+    if (preview) impl->ObserveCaptions(preview->Info().currentFrame);
 }
 int MarcusPlayback::Wait() const
 {
@@ -863,6 +880,7 @@ void MarcusPlayback::BeginTransition(int kind, const ThreeMM::PreviewImage &prev
 bool MarcusPlayback::Update(ThreeMM::Preview &preview, bool playing, double elapsed, bool click, bool &advance,
                             ThreeMM::Error &error)
 {
+    impl->ObserveCaptions(preview.Info().currentFrame);
     advance = false;
     impl->audio.Suspend(!playing);
     impl->audio.Collect();
@@ -997,6 +1015,7 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
                                ThreeMM::Error &error)
 {
     const auto frame = preview.Info().currentFrame;
+    impl->ObserveCaptions(frame);
     if (!authored && !std::any_of(impl->captions.begin(), impl->captions.end(), [&](const CaptionImage &caption) {
             return frame >= caption.data.firstFrame && frame < caption.data.endFrame;
         }))
@@ -1038,8 +1057,15 @@ bool MarcusPlayback::Composite(ThreeMM::Preview &preview, bool authored, ThreeMM
         };
         // Saved captions use the retail 544x306 workspace, independently of
         // the background bitmap's size or the host's chosen render resolution.
+        std::vector<CaptionImage *> paintOrder;
         for (auto &caption : impl->captions)
+            if (caption.visible) paintOrder.push_back(&caption);
+        std::sort(paintOrder.begin(), paintOrder.end(), [](const CaptionImage *a, const CaptionImage *b) {
+            return a->paintOrder < b->paintOrder;
+        });
+        for (auto *item : paintOrder)
         {
+            auto &caption = *item;
             const auto &data = caption.data;
             if (frame < data.firstFrame || frame >= data.endFrame)
                 continue;

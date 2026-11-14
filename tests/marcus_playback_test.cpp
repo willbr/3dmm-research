@@ -311,15 +311,16 @@ void PresentationClock()
         CHECK(timing.transition == expected);
     }
 }
-ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false)
+ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false, int layer = -1)
 {
     RichTextData text;
     text.fontName.SetSzs(PszLit("Arial"));
     text.defaults.dypFont = 18;
     text.defaults.dxpDef = 400;
     text.defaults.lwAcrBack = scrolling ? 0x01000000 : 0x01ffffff;
+    if (layer >= 0) text.defaults.lwAcrBack = layer == 0 ? 0x01000000 : layer == 1 ? 0x01ff0000 : 0x0100ff00;
     text.textOsk = koskUniWin;
-    const std::u16string content = edge ? u"E" : scrolling ? u"Credits one\rCredits two\rCredits three\rCredits four\rCredits five"
+    const std::u16string content = layer >= 0 ? u"" : edge ? u"E" : scrolling ? u"Credits one\rCredits two\rCredits three\rCredits four\rCredits five"
                                              : u"Marcus captions \u00e9\u03a9\rA second line";
     text.text.pfil = FileObject::PfilCreateTemp();
     text.text.cb = static_cast<LegacyLong>(content.size() * 2);
@@ -339,11 +340,55 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false)
         box.bounds.Set(500, 230, 544, 306);
     box.firstFrame = scrolling ? 0 : -2;
     box.maxFrame = scrolling ? 5 : -1;
+    if (layer >= 0) { box.firstFrame = layer; box.maxFrame = 4; }
     box.story = !scrolling;
     ChunkNumber number;
     CHECK(file->FAdd(0, kctgTbox, &number) && box.FWrite(file, number));
     CHECK(file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0));
     return number;
+}
+void CaptionStacking(const char *path, const char *resources, const char *content)
+{
+    String name;
+    name.SetSzs(const_cast<char *>(path));
+    Filename filename;
+    CHECK(filename.FBuildFromPath(&name));
+    auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
+    CHECK(file);
+    ChunkNumber root, sceneNumber;
+    CHECK(MovieData::FCreateRoot(file, &root));
+    SceneData scene;
+    scene.firstFrame = 0; scene.lastFrame = 3; scene.transition = transCut;
+    CHECK(scene.FCreate(file, &sceneNumber) && file->FAdoptChild(kctgMvie, root, kctgScen, sceneNumber, 0));
+    auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
+    auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
+    CHECK(starts && frames);
+    for (unsigned slot = 0; slot < 3; ++slot)
+    {
+        auto box = Caption(file, false, false, 2 - slot);
+        SceneEvent event = {0, sevtAddTbox};
+        CHECK(file->FAdoptChild(kctgScen, sceneNumber, kctgTbox, box, slot));
+        CHECK(starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &event));
+    }
+    CHECK(SceneData::FWriteEvents(file, sceneNumber, frames, starts));
+    CHECK(file->FSave(kctgSoc));
+    ReleasePpo(&starts); ReleasePpo(&frames); ReleasePpo(&file);
+    player = marcus_create();
+    CHECK(player && marcus_open(player, path, resources, content));
+    const auto check = [&](long frame, unsigned char red, unsigned char green) {
+        CHECK(marcus_seek(player, frame));
+        MarcusImage image;
+        CHECK(marcus_render(player, 544, 306, 1, 0, 0, 1, &image));
+        const auto pixel = image.rgba + 80 * image.pitch + 100 * 4;
+        CHECK(pixel[0] == red && pixel[1] == green && pixel[2] == 0);
+    };
+    check(0, 0, 0);
+    check(1, 255, 0);
+    check(2, 0, 255); // New visibility brings green above red, regardless of list order.
+    check(0, 0, 0);
+    check(2, 255, 0); // Direct seek creates green then red: red is frontmost.
+    check(3, 255, 0); // Repeated visibility retains the existing order.
+    marcus_destroy(player); player = nullptr;
 }
 void SceneSound(PGeneralGroup events, int frame, ChunkNumber sound, int slot, bool midi, bool loop = false,
                 bool queued = false, int style = styNil)
@@ -1016,6 +1061,7 @@ int main(int argc, char **argv)
     player = nullptr;
     CHECK(Bytes(argv[1]) == movieBefore && Bytes(argv[2]) == resourcesBefore);
     CarryIntegration((std::string(argv[1]) + ".carry.3mm").c_str(), argv[2], argv[3]);
+    CaptionStacking((std::string(argv[1]) + ".stack.3mm").c_str(), argv[2], argv[3]);
     std::puts(
         "Headless playback: caption visibility/rewind, Unicode, scrolling, click/time/sound waits, MIDI/WAVE audio,");
     std::puts("queued clips, outgoing scene transitions, looping, pause/resume, and unchanged input files.");
