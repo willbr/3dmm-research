@@ -405,7 +405,8 @@ static void request_scores(void)
 }
 static void controls(void)
 {
-    int i, next;
+    int i, next, match_step;
+    char match_format[32];
     float percent;
     igBeginDisabled(process != NULL);
     igSetNextItemWidth(-145);
@@ -472,8 +473,14 @@ static void controls(void)
     igSameLine(0, -1);
     igBeginDisabled(!hide_matches);
     igSetNextItemWidth(220);
-    if (igSliderFloat("Match at least", &match_threshold, 90, 100, "%.2f%%", ImGuiSliderFlags_AlwaysClamp))
+    match_step = (int)(match_threshold * 2 + 0.5f);
+    SDL_snprintf(match_format, sizeof(match_format), "%.1f%%%%", match_step * 0.5f);
+    if (igSliderInt("Match at least", &match_step, 180, 200, match_format,
+                    ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_NoInput))
+    {
+        match_threshold = match_step * 0.5f;
         visible_dirty = 1;
+    }
     igEndDisabled();
     rebuild_visible();
     igSameLine(0, -1);

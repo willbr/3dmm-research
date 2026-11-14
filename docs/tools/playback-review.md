@@ -45,7 +45,7 @@ Startup and dependency preparation are excluded from these lane timings.
   contact-sheet view. Double-click a pane to return to fit width.
 - **Hide matching frames** compacts all three panes to the same remaining
   frames, retaining their original scene/frame labels. **Match at least** is
-  adjustable from 90 to 100 percent: 100 hides only perfect matches, while 99
+  adjustable from 90 to 100 percent in 0.5 percent steps: 100 hides only perfect matches, while 99
   hides frames where at least 99 percent of native pixels have identical RGB.
   This measures matching pixels, not average colour error. Scores are computed
   in the decoder thread before reducing thumbnails and cached per renderer;
