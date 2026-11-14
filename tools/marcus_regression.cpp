@@ -156,6 +156,23 @@ int main(int argc, char **argv)
                         input >> command;
                         if (command == "state")
                             result = State(player, playing);
+                        else if (command == "scenes")
+                        {
+                            MarcusInfo info;
+                            Check(player, marcus_info(player, &info));
+                            std::ostringstream response;
+                            response << "{\"scenes\":[";
+                            for (int index = 0; index < info.scene_count; ++index)
+                            {
+                                MarcusScene scene;
+                                Check(player, marcus_scene(player, index, &scene));
+                                if (index) response << ',';
+                                response << "{\"number\":" << index + 1 << ",\"first_frame\":" << scene.first_frame
+                                    << ",\"last_frame\":" << scene.last_frame << '}';
+                            }
+                            response << "],\"state\":" << State(player, playing) << '}';
+                            result = response.str();
+                        }
                         else if (command == "capture-frame")
                         {
                             int scene;

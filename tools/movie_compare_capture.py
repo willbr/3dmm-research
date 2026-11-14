@@ -31,6 +31,7 @@ class Job:
         self.output.mkdir(parents=True, exist_ok=True)
         self.counts = [0, 0, 0, 0, 0]
         self.total = 0
+        self.status_lock = threading.Lock()
 
     def check(self):
         if (self.output / 'cancel').exists():
@@ -52,14 +53,15 @@ class Job:
 
     def status(self, state, message):
         message = message.replace('\n', ' ').replace('\r', ' ')
-        self.atomic_text('status.txt', '%s\n%d\n%s\n%s\n' %
-                         (state, self.total, ' '.join(map(str, self.counts)), message))
+        with self.status_lock:
+            self.atomic_text('status.txt', '%s\n%d\n%s\n%s\n' %
+                             (state, self.total, ' '.join(map(str, self.counts)), message))
 
     def save(self, image, backend, sequence):
         directory = self.output / backend
         directory.mkdir(exist_ok=True)
         temporary = directory / ('%06d.new.png' % sequence)
-        image.save(temporary)
+        image.save(temporary, compress_level=1)
         temporary.replace(directory / ('%06d.png' % sequence))
 
 
@@ -187,6 +189,81 @@ def reference_content(product, installed, cache):
     return destination / product.name, files
 
 
+def capture_retail_frame(reference, job, index, position):
+    scene, frame, raw = position
+    # Retain the scene for ascending frame seeks; do not reload its
+    # actors, captions and assets before every frame.
+    result = reference.oracle.request(2, scene, frame, 1)
+    actual = result['state']
+    if (not result['success'] or actual['movie_scene'] != scene - 1 or
+            actual['scene_frame'] != raw or actual['error_stack_depth']):
+        raise RuntimeError('Retail failed to evaluate scene %d frame %d' % (scene, frame))
+    bitmap = job.output / 'retail-session/frame.bmp'
+    reference.oracle.capture(bitmap)
+    with Image.open(bitmap) as image:
+        if image.size != (640, 480):
+            raise RuntimeError('Unexpected retail client size: ' + str(image.size))
+        job.save(image.convert('RGB').crop((48, 100, 592, 406)), 'retail', index)
+    bitmap.unlink()
+    job.counts[0] = index + 1
+
+def capture_marcus_frame(cpu, job, index, position, failures):
+    scene, frame, raw = position
+    prefix = job.output / 'capture'
+    result = cpu.command('capture-frame %d %d %s' % (scene, frame, json.dumps(str(prefix))))
+    actual = result['state']
+    if actual['movie_scene'] != scene - 1 or actual['scene_frame'] != raw:
+        raise RuntimeError('Marcus returned the wrong scene/frame')
+    for backend, item in enumerate(result['renderers'], 1):
+        renderer = item['id']
+        if not item['success']:
+            failures.setdefault(renderer, item['error'])
+            continue
+        ppm = Path(str(prefix) + '-' + renderer + '.ppm')
+        if renderer not in failures:
+            with Image.open(ppm) as image:
+                if image.size != (544, 306):
+                    raise RuntimeError('Unexpected Marcus canvas size')
+                job.save(image.convert('RGB'), renderer, index)
+            job.counts[backend] = index + 1
+        ppm.unlink()
+
+def capture_frames(reference, cpu, job, frames):
+    # Each engine advances in authored order, but retail need not wait for the
+    # four Marcus renderers and their image encoders before its next frame.
+    stopped = threading.Event()
+    errors, failures, timings = [], {}, {}
+
+    def run(name, render):
+        started = time.perf_counter()
+        try:
+            for index, position in enumerate(frames):
+                job.check()
+                if stopped.is_set():
+                    raise Cancelled()
+                render(index, position)
+                job.status('rendering', '%s: scene %d / frame %d' % (name, position[0], position[1]))
+        except BaseException as error:
+            errors.append(error)
+            stopped.set()
+        finally:
+            timings[name + '_seconds'] = time.perf_counter() - started
+
+    started = time.perf_counter()
+    retail = threading.Thread(target=run, name='retail capture',
+        args=('Retail', lambda index, position: capture_retail_frame(reference, job, index, position)))
+    retail.start()
+    try:
+        run('Marcus', lambda index, position: capture_marcus_frame(cpu, job, index, position, failures))
+    finally:
+        retail.join()  # Finish ownership before closing the native pipe/process.
+    timings['capture_wall_seconds'] = time.perf_counter() - started
+    job.atomic_text('timings.json', json.dumps(timings, indent=2))
+    if errors:
+        raise errors[0]
+    return failures, timings
+
+
 def capture(args, job):
     movie = args.movie.resolve()
     original_hash = digest(movie)
@@ -223,12 +300,16 @@ def capture(args, job):
     cpu = Marcus(executable, source, resources, content, job.output)
     frames = []
     try:
-        state = cpu.command('state')
-        for scene in range(1, state['movie_scene_count'] + 1):
+        metadata = cpu.command('scenes')
+        state = metadata['state']
+        if len(metadata['scenes']) != state['movie_scene_count']:
+            raise RuntimeError('Marcus returned incomplete scene metadata')
+        for scene, info in enumerate(metadata['scenes'], 1):
             job.check()
-            info = cpu.command('seek %d 1' % scene)['state']
-            frames.extend((scene, frame, info['scene_first_frame'] + frame - 1)
-                          for frame in range(1, info['scene_last_frame'] - info['scene_first_frame'] + 2))
+            if info['number'] != scene or info['last_frame'] < info['first_frame']:
+                raise RuntimeError('Marcus returned invalid scene metadata')
+            frames.extend((scene, frame, info['first_frame'] + frame - 1)
+                          for frame in range(1, info['last_frame'] - info['first_frame'] + 2))
         if args.limit:
             frames = frames[:args.limit]
         job.total = len(frames)
@@ -247,42 +328,7 @@ def capture(args, job):
         try:
             if reference.state()['movie_scene_count'] != state['movie_scene_count']:
                 raise RuntimeError('Retail and Marcus disagree about the scene count')
-            for index, (scene, frame, raw) in enumerate(frames):
-                job.check()
-                # Retain the scene for ascending frame seeks; do not reload its
-                # actors, captions and assets before every frame.
-                result = reference.oracle.request(2, scene, frame, 1)
-                actual = result['state']
-                if (not result['success'] or actual['movie_scene'] != scene - 1 or
-                        actual['scene_frame'] != raw or actual['error_stack_depth']):
-                    raise RuntimeError('Retail failed to evaluate scene %d frame %d' % (scene, frame))
-                bitmap = job.output / 'retail-session/frame.bmp'
-                reference.oracle.capture(bitmap)
-                with Image.open(bitmap) as image:
-                    if image.size != (640, 480):
-                        raise RuntimeError('Unexpected retail client size: ' + str(image.size))
-                    job.save(image.convert('RGB').crop((48, 100, 592, 406)), 'retail', index)
-                bitmap.unlink()
-                job.counts[0] = index + 1
-                prefix = job.output / 'capture'
-                result = cpu.command('capture-frame %d %d %s' % (scene, frame, json.dumps(str(prefix))))
-                actual = result['state']
-                if actual['movie_scene'] != scene - 1 or actual['scene_frame'] != raw:
-                    raise RuntimeError('Marcus returned the wrong scene/frame')
-                for backend, item in enumerate(result['renderers'], 1):
-                    renderer = item['id']
-                    if not item['success']:
-                        failures.setdefault(renderer, item['error'])
-                        continue
-                    ppm = Path(str(prefix) + '-' + renderer + '.ppm')
-                    if renderer not in failures:
-                        with Image.open(ppm) as image:
-                            if image.size != (544, 306):
-                                raise RuntimeError('Unexpected Marcus canvas size')
-                            job.save(image.convert('RGB'), renderer, index)
-                        job.counts[backend] = index + 1
-                    ppm.unlink()
-                job.status('rendering', 'Scene %d / frame %d: retail and all Marcus renderers' % (scene, frame))
+            failures, timings = capture_frames(reference, cpu, job, frames)
             reference.validate_assets()
         finally:
             reference.close()
@@ -295,7 +341,7 @@ def capture(args, job):
                     'resources_sha256': digest(resources), 'frames': len(frames), 'counts': job.counts,
                     'retail_content': str(product.parent), 'retail_expansions': expansions,
                     'retail_viewport': [48, 100, 592, 406], 'mode': 'ordered authored-frame seeks, retaining each scene',
-                    'failures': failures}
+                    'failures': failures, 'timings': timings}
         job.atomic_text('capture.json', json.dumps(metadata, indent=2))
         job.status('complete' if not failures else 'partial',
                    'All frames captured' if not failures else '; '.join(failures))

@@ -19,10 +19,17 @@ build/playback-review/image-compare.exe movies/stranger1.zip
 
 Launch without arguments and use **Open movie...**, or enter a movie path and
 press **Render movie**. Progress shows completed frames for retail and all four
-Marcus renderers. Captures arrive together in scene/frame order: the worker
-retains each scene, evaluates one frame, and captures retail plus BRender CPU,
-BRender compute, SDL GPU and CPU ASM x86 before proceeding to the next frame. This avoids
-reopening scenes and rebuilding caption/asset caches before every frame.
+Marcus renderers. Retail and Marcus capture concurrently, each retaining its
+scene and advancing in authored-frame order. Retail publishes its frames without
+waiting for the four Marcus backends. PNG encoding uses fast, lossless compression.
+`timings.json` records each capture lane and total capture time, excluding startup.
+This avoids reopening scenes and rebuilding caption/asset caches before every
+frame; no authored frames are skipped.
+In a 30-frame Ringworld check, retail finished its capture lane in 0.96 seconds
+while Marcus took 7.12 seconds. The preceding sequential implementation's retail
+seek/capture/PNG work took only 0.85 seconds but waited behind Marcus between
+frames. All 150 decoded output images matched the sequential capture exactly.
+Startup and dependency preparation are excluded from these lane timings.
 
 - **Tab** cycles the Marcus renderer in Ours and Diff while Retail remains fixed.
   Radio buttons select a renderer directly. Switching preserves zoom and pan.
