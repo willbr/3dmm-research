@@ -42,6 +42,14 @@ int main(int argc, char **argv)
     SDL_snprintf(path, sizeof(path), "%s/brender/000000.png", argv[1]);
     if (!SDL_SavePNG(image, path))
         return 6;
+    SDL_FillSurfaceRect(image, NULL, SDL_MapSurfaceRGBA(image, 0, 0, 0, 255));
+    SDL_snprintf(path, sizeof(path), "%s/retail/000001.png", argv[1]);
+    if (!SDL_SavePNG(image, path))
+        return 16;
+    SDL_FillSurfaceRect(image, NULL, SDL_MapSurfaceRGBA(image, 0, 255, 0, 255));
+    SDL_snprintf(path, sizeof(path), "%s/brender/000001.png", argv[1]);
+    if (!SDL_SavePNG(image, path))
+        return 17;
     SDL_DestroySurface(image);
     decoder = review_decoder_create();
     if (!decoder)
@@ -81,13 +89,34 @@ int main(int argc, char **argv)
     }
     if (!code)
     {
-        review_decoder_request(decoder, argv[1], 1, 0, 0, 2, 20);
+        review_decoder_request(decoder, argv[1], 2, 0, 0, 2, 20);
         if (!wait_result(decoder, &result))
             code = 14;
         else
         {
             if (!result.error[0])
                 code = 15;
+            review_decode_free(&result);
+        }
+    }
+    if (!code)
+    {
+        review_decoder_request_atlas(decoder, argv[1], 0, 0, 2, 2, 2, 132, 21);
+        if (!wait_result(decoder, &result))
+            code = 18;
+        else
+        {
+            if (result.error[0] || !result.images[2] || result.images[2]->w != 1088 || result.images[2]->h != 616)
+                code = 19;
+            else
+            {
+                pixel = (unsigned char *)result.images[2]->pixels + 136 * 4;
+                if (pixel[0] || pixel[1] != 255 || pixel[2])
+                    code = 20;
+                pixel = (unsigned char *)result.images[3]->pixels + 136 * 4;
+                if (pixel[0] != 255 || pixel[1] || pixel[2] != 255 || pixel[3] != 192)
+                    code = 21;
+            }
             review_decode_free(&result);
         }
     }

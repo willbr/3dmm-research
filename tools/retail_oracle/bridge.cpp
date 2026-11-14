@@ -179,9 +179,25 @@ bool Instance(const void *object, DWORD vtable)
 {
     return Readable(object, 8) && *static_cast<const DWORD *>(object) == base + vtable;
 }
+bool ReadyObject(const void *object, DWORD vtable)
+{
+    if (!Instance(object, vtable))
+        return false;
+    if (vtable != MovieVtable)
+        return true;
+    // Opening a movie temporarily creates a child document alongside its
+    // parent. Neither is a playable movie until a valid scene is installed.
+    // Do not cache a loading document or mistake that transient pair for two
+    // active movies. Startup callers retry native_object_not_ready.
+    if (!Readable(object, 0x198))
+        return false;
+    const auto count = Read<int>(object, 0x14c), index = Read<int>(object, 0x150);
+    return count > 0 && count <= 100000 && index >= 0 && index < count &&
+           Instance(Pointer(object, 0x148), SceneVtable) && Pointer(object, 0x194) != nullptr;
+}
 void *FindObject(DWORD vtable, void *&cached)
 {
-    if (Instance(cached, vtable))
+    if (ReadyObject(cached, vtable))
         return cached;
     std::vector<void *> matches;
     std::uintptr_t address = 0x10000;
@@ -198,7 +214,7 @@ void *FindObject(DWORD vtable, void *&cached)
         {
             const auto words = static_cast<const DWORD *>(memory.BaseAddress);
             for (std::size_t i = 0; i < memory.RegionSize / sizeof(DWORD); ++i)
-                if (words[i] == base + vtable)
+                if (words[i] == base + vtable && ReadyObject(words + i, vtable))
                     matches.push_back(const_cast<DWORD *>(words + i));
         }
         address = end;
@@ -441,17 +457,28 @@ HWND WINAPI CreateWindowWithoutActivation(DWORD extended, LPCSTR cls, LPCSTR tit
                                          HINSTANCE instance, LPVOID parameter)
 {
     if (!(style & WS_CHILD))
-        extended |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-    return CreateWindowExA(extended, cls, title, style, x, y, width, height, parent, menu, instance, parameter);
+        extended = (extended & ~WS_EX_TOPMOST) | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+    HWND window = CreateWindowExA(extended, cls, title, style, x, y, width, height, parent, menu, instance, parameter);
+    if (window && !(style & WS_CHILD))
+        SetWindowPos(window, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    return window;
 }
 BOOL WINAPI ShowWithoutActivation(HWND window, int command)
 {
     if (command != SW_HIDE)
         command = SW_SHOWNOACTIVATE;
-    return ShowWindow(window, command);
+    const auto shown = ShowWindow(window, command);
+    if (!(GetWindowLongPtr(window, GWL_STYLE) & WS_CHILD))
+        SetWindowPos(window, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    return shown;
 }
 BOOL WINAPI PositionWithoutActivation(HWND window, HWND after, int x, int y, int width, int height, UINT flags)
 {
+    if (!(GetWindowLongPtr(window, GWL_STYLE) & WS_CHILD))
+    {
+        after = HWND_BOTTOM;
+        flags &= ~SWP_NOZORDER;
+    }
     return SetWindowPos(window, after, x, y, width, height, flags | SWP_NOACTIVATE);
 }
 BOOL WINAPI IgnoreForegroundRequest(HWND)

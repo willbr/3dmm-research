@@ -78,6 +78,52 @@ static void decode(const char *folder, ReviewDecodeResult *job)
 failed:
     SDL_strlcpy(job->error, SDL_GetError(), sizeof(job->error));
 }
+static void decode_atlas(const char *folder, ReviewDecodeResult *job)
+{
+    ReviewDecodeResult frame;
+    SDL_Surface *destination, *source;
+    int index, slot, row, x, y, end;
+    for (slot = 0; slot < 4; ++slot)
+    {
+        destination = job->images[slot] = SDL_CreateSurface(1088, 616, SDL_PIXELFORMAT_RGBA32);
+        if (!destination)
+        {
+            SDL_strlcpy(job->error, SDL_GetError(), sizeof(job->error));
+            return;
+        }
+        SDL_FillSurfaceRect(destination, NULL, SDL_MapSurfaceRGBA(destination, 0, 0, 0, slot == 3 ? 0 : 255));
+    }
+    end = (job->index + 1) * 64;
+    if (end > job->total)
+        end = job->total;
+    for (index = job->index * 64; index < end && index < job->retail_count; ++index)
+    {
+        memset(&frame, 0, sizeof(frame));
+        frame.index = index;
+        frame.backend = job->backend;
+        frame.tier = 2;
+        frame.wanted = index < job->ours_count ? 2 : 1;
+        decode(folder, &frame);
+        if (frame.error[0])
+        {
+            SDL_strlcpy(job->error, frame.error, sizeof(job->error));
+            review_decode_free(&frame);
+            return;
+        }
+        x = index % 8 * 136;
+        y = (index % 64) / 8 * 77;
+        for (slot = 0; slot < 4; ++slot)
+        {
+            source = frame.images[slot];
+            destination = job->images[slot];
+            if (source)
+                for (row = 0; row < 77; ++row)
+                    memcpy((unsigned char *)destination->pixels + (y + row) * destination->pitch + x * 4,
+                           (unsigned char *)source->pixels + row * source->pitch, 136 * 4);
+        }
+        review_decode_free(&frame);
+    }
+}
 static int SDLCALL decoder_thread(void *context)
 {
     ReviewDecoder *decoder;
@@ -98,7 +144,10 @@ static int SDLCALL decoder_thread(void *context)
         SDL_strlcpy(folder, decoder->folder, sizeof(folder));
         decoder->pending = 0;
         SDL_UnlockMutex(decoder->mutex);
-        decode(folder, &job);
+        if (job.atlas)
+            decode_atlas(folder, &job);
+        else
+            decode(folder, &job);
         SDL_LockMutex(decoder->mutex);
         decoder->result = job;
         decoder->ready = 1;
@@ -173,4 +222,29 @@ int review_decoder_poll(ReviewDecoder *decoder, ReviewDecodeResult *result)
     }
     SDL_UnlockMutex(decoder->mutex);
     return available;
+}
+int review_decoder_request_atlas(ReviewDecoder *decoder, const char *folder, int page, int backend,
+                                 int retail_count, int ours_count, int total, int revision, unsigned long token)
+{
+    int accepted;
+    SDL_LockMutex(decoder->mutex);
+    accepted = !decoder->busy;
+    if (accepted)
+    {
+        SDL_strlcpy(decoder->folder, folder, sizeof(decoder->folder));
+        memset(&decoder->request, 0, sizeof(decoder->request));
+        decoder->request.index = page;
+        decoder->request.backend = backend;
+        decoder->request.atlas = 1;
+        decoder->request.retail_count = retail_count;
+        decoder->request.ours_count = ours_count;
+        decoder->request.total = total;
+        decoder->request.revision = revision;
+        decoder->request.wanted = 2;
+        decoder->request.token = token;
+        decoder->busy = decoder->pending = 1;
+        SDL_SignalCondition(decoder->condition);
+    }
+    SDL_UnlockMutex(decoder->mutex);
+    return accepted;
 }

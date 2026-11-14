@@ -1,12 +1,15 @@
 """Capture every authored frame for the native movie comparison viewer."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
 import queue
+import shutil
 import subprocess
 import sys
 import threading
+import tempfile
 import time
 import zipfile
 
@@ -133,18 +136,83 @@ def source_movie(movie, output):
     return movie
 
 
+def reference_content(product, installed, cache):
+    """Keep the ISO executable, adding installed expansion data in a private copy.
+
+    Retail eagerly caches roll-call dependencies, including unused assets that
+    Marcus does not fetch during an authored-frame seek. Without their source
+    directories it waits in its insert-media loop before installing a scene.
+    Never redirect that process to an installed executable or writable settings.
+    """
+    files = []
+    for folder in ('EXPANSIONS', 'DORAEMON', 'N3DMM EXPANSION', 'FRANKIE'):
+        directory = installed / folder
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.iterdir()):
+            if path.is_file() and path.suffix.lower() in ('.3cn', '.3th'):
+                files.append({'source': str(path.resolve()), 'relative': folder + '/' + path.name,
+                              'sha256': digest(path)})
+    if not files:
+        return product, []
+    # Include the base files too: an explicitly replaced ISO package must not
+    # reuse a cache constructed from a different executable or asset set.
+    base = [{'relative': str(path.relative_to(product)), 'sha256': digest(path)}
+            for path in sorted(product.rglob('*')) if path.is_file()]
+    identity = hashlib.sha256(json.dumps([2, str(product.resolve()), base, files],
+                                        sort_keys=True).encode()).hexdigest()
+    cache.mkdir(parents=True, exist_ok=True)
+    destination = cache / identity
+    if not destination.exists():
+        staging = Path(tempfile.mkdtemp(prefix='staging-', dir=cache))
+        shutil.copytree(product, staging / product.name)
+        common = product.parent / 'Common Files'
+        if common.is_dir():
+            shutil.copytree(common, staging / common.name)
+        for user in ('McZee', 'Melanie', 'Oracle'):
+            (staging / 'Users' / user).mkdir(parents=True, exist_ok=True)
+        for item in files:
+            target = staging / item['relative']
+            target.parent.mkdir(exist_ok=True)
+            shutil.copy2(item['source'], target)
+            if digest(target) != item['sha256']:
+                raise RuntimeError('Expansion content changed while staging: ' + item['source'])
+        (staging / 'expansions.json').write_text(json.dumps(files, indent=2), encoding='utf-8')
+        try:
+            staging.rename(destination)
+        except FileExistsError:
+            pass  # A concurrent job published the same immutable content set.
+    return destination / product.name, files
+
+
 def capture(args, job):
     movie = args.movie.resolve()
     original_hash = digest(movie)
     source = source_movie(movie, job.output)
-    executable = args.marcus or ROOT / 'build/marcus-x64/src/marcus/marcus-regression.exe'
+    executable = args.marcus or ROOT / 'build/marcus-x64/src/marcus/marcus-capture.exe'
+    if not args.marcus and not executable.exists():
+        executable = ROOT / 'build/marcus-x64/src/marcus/marcus-regression.exe'
     resources = args.resources or ROOT / 'build/studio-portable-x64/3dmovie/utest.chk'
     content = args.content or ROOT / 'content-files'
-    bridge = args.bridge or ROOT / 'tmp/retail-oracle/build'
+    bridge = args.bridge or ROOT / 'build/movie-compare-retail'
+    if not args.bridge and not (bridge / 'retail-oracle.dll').exists():
+        bridge = ROOT / 'tmp/retail-oracle/build'
     product = args.product or ROOT / 'tmp/retail-oracle/package/Microsoft Kids/3D Movie Maker'
     for path in (executable, resources, content, bridge / 'retail-oracle.dll', bridge / 'retail-oracle-launch.exe'):
         if not path.exists():
             raise RuntimeError('Required capture dependency is missing: ' + str(path))
+    # A capture owns frozen helpers. Rebuilding the workspace must not change
+    # its implementation mid-run or fail because its EXE/DLL is in use.
+    helpers = job.output / 'helpers'
+    helpers.mkdir(exist_ok=True)
+    frozen_executable = helpers / 'marcus-capture.exe'
+    shutil.copy2(executable, frozen_executable)
+    preview = executable.parent / 'marcus-preview.exe'
+    if preview.exists():
+        shutil.copy2(preview, helpers / preview.name)
+    for name in ('retail-oracle.dll', 'retail-oracle-launch.exe'):
+        shutil.copy2(bridge / name, helpers / name)
+    executable, bridge = frozen_executable, helpers
     job.status('rendering', 'Reading movie scenes')
     cpu = Marcus(executable, source, resources, content, job.output)
     frames = []
@@ -162,6 +230,12 @@ def capture(args, job):
         if not (product / '3DMOVIE.EXE').exists():
             job.status('rendering', 'Preparing the retail ISO resources')
             product, _ = prepare_iso(ROOT / 'dist/3DMOVIE100.iso', product.parents[1])
+        expansions = []
+        if not args.product or args.expansions:
+            installed = args.expansions or Path(os.environ.get('ProgramFiles(x86)', r'C:\Program Files (x86)')) / 'Microsoft Kids'
+            job.status('rendering', 'Preparing isolated retail expansion content')
+            product, expansions = reference_content(product, installed, ROOT / 'tmp/movie-compare/content')
+            job.atomic_text('retail-expansions.json', json.dumps(expansions, indent=2))
         reference = RetailSession(bridge, product, source, job.output / 'retail-session', background=True)
         failures = {}
         try:
@@ -212,6 +286,7 @@ def capture(args, job):
         metadata = {'movie': str(movie), 'movie_sha256': original_hash, 'source_sha256': digest(source),
                     'marcus_sha256': digest(executable), 'bridge_sha256': digest(bridge / 'retail-oracle.dll'),
                     'resources_sha256': digest(resources), 'frames': len(frames), 'counts': job.counts,
+                    'retail_content': str(product.parent), 'retail_expansions': expansions,
                     'retail_viewport': [48, 100, 592, 406], 'mode': 'ordered authored-frame seeks, retaining each scene',
                     'failures': failures}
         job.atomic_text('capture.json', json.dumps(metadata, indent=2))
@@ -226,7 +301,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--movie', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    for option in ('marcus', 'resources', 'content', 'bridge', 'product'):
+    for option in ('marcus', 'resources', 'content', 'bridge', 'product', 'expansions'):
         parser.add_argument('--' + option, type=Path)
     parser.add_argument('--limit', type=int, default=0, help='Diagnostic capture limit; zero captures every frame')
     args = parser.parse_args()

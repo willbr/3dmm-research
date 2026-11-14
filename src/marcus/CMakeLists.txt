@@ -16,10 +16,12 @@ set_target_properties(marcus-playback PROPERTIES C_STANDARD 90 C_STANDARD_REQUIR
 target_link_libraries(marcus-playback PRIVATE marcus-player)
 
 # Playback-quality capture through the C API; never creates an application UI.
-add_executable(marcus-regression EXCLUDE_FROM_ALL ../../tools/marcus_regression.cpp)
-target_compile_features(marcus-regression PRIVATE cxx_std_17)
-target_link_libraries(marcus-regression PRIVATE marcus-player SDL3::SDL3-static)
-kauai_copy_midi_assets(marcus-regression)
+foreach(capture_target IN ITEMS marcus-regression marcus-capture)
+  add_executable(${capture_target} EXCLUDE_FROM_ALL ../../tools/marcus_regression.cpp)
+  target_compile_features(${capture_target} PRIVATE cxx_std_17)
+  target_link_libraries(${capture_target} PRIVATE marcus-player SDL3::SDL3-static)
+  kauai_copy_midi_assets(${capture_target})
+endforeach()
 
 add_executable(marcus-preview preview_helper.cpp browser_preview.cpp)
 target_compile_features(marcus-preview PRIVATE cxx_std_17)

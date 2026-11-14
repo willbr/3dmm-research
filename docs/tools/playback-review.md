@@ -43,10 +43,14 @@ pixels; small overviews use reduced cached textures.
 
 Movie rendering runs in owned child processes. A bounded decoder thread reads
 frame files, computes differences and overlays, and prepares reduced surfaces.
-The UI uploads at most one decoded frame set per iteration. Cached textures are
-trimmed toward a 128 MiB budget, retaining those used by the current view. Retail
-launches with no activation and capture-only window hooks prevent its own
-show/focus calls from taking foreground focus. It still uses its original
+The UI uploads at most one decoded frame set per iteration. The overview uses
+persistent 64-frame texture atlases that stay valid across
+zoom changes and are prefetched while idle. Wheel motion eases around its image
+anchor, and native-resolution detail upgrades after the gesture settles. Cached
+textures are trimmed toward a 256 MiB budget, retaining those used by the current
+view. Retail launches with no activation and capture-only window hooks keep it
+behind other windows and prevent its own show/focus calls from taking foreground
+focus. It still uses its original
 renderer and an interactive desktop; no minimized-window rendering is assumed.
 
 **Cancel capture** requests cooperative cancellation. Closing the viewer also
@@ -59,12 +63,28 @@ build/playback-review/image-compare.exe --session tmp/movie-compare/run-EXAMPLE
 ```
 
 The worker is `tools/movie_compare_capture.py` and requires Python with Pillow,
-`build/marcus-x64/src/marcus/marcus-regression.exe`, the x86 bridge in
-`tmp/retail-oracle/build`, original content in `content-files`, and
+`build/marcus-x64/src/marcus/marcus-capture.exe`, the x86 bridge in
+`build/movie-compare-retail`, original content in `content-files`, and
 `build/studio-portable-x64/3dmovie/utest.chk`. It reuses the prepared ISO package
 or prepares it from `dist/3DMOVIE100.iso`. Its CLI accepts explicit overrides for
-those dependency paths. Missing dependencies and failed renderers have explicit
+those dependency paths. The old `marcus-regression.exe` and
+`tmp/retail-oracle/build` paths remain fallbacks. Each job snapshots its helpers
+so a running capture does not lock workspace build outputs and its recorded
+hashes describe the binaries actually used. Missing dependencies and failed renderers have explicit
 error/partial statuses; unavailable captures never imply a match.
+
+Retail eagerly caches expansion references from the movie's roll call, including
+assets not fetched by an authored-frame seek. The worker snapshots installed
+`EXPANSIONS`, `DORAEMON`, `N3DMM EXPANSION` and `FRANKIE` data beside a private copy
+of the ISO executable and assets. It discovers these under
+`ProgramFiles(x86)/Microsoft Kids`, or the CLI's `--expansions` root. The cache is
+keyed by base and expansion file hashes; each capture records the original paths
+and expansion hashes in `retail-expansions.json` and `capture.json`. It does not
+launch an installed executable. Explicit `--product` disables automatic expansion
+discovery unless `--expansions` is also supplied. This resolves the native
+insert-media startup stall seen in Ringworld Act One Teaser Trailer (153 frames)
+and Liberation Day Teaser Trailer (391 frames), both captured fully in all four
+backends after supplying their expansion data.
 
 These are ordered still-frame seeks, retaining each scene, rather than
 normal-speed playback or independent scene resets for every frame. They do not

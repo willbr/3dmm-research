@@ -16,7 +16,7 @@
 #define FRAME_HEIGHT 306
 #define CELL_WIDTH 552
 #define CELL_HEIGHT 336
-#define CACHE_BUDGET (128u * 1024u * 1024u)
+#define CACHE_BUDGET (256u * 1024u * 1024u)
 
 typedef struct Frame
 {
@@ -25,7 +25,7 @@ typedef struct Frame
     SDL_Texture *texture[4];
     unsigned long used;
     size_t bytes;
-    int loaded, backend, tier;
+    int loaded, backend, tier, revision, retail_count, ours_count;
 } Frame;
 typedef struct Pane
 {
@@ -36,7 +36,10 @@ static SDL_Renderer *renderer;
 static SDL_Process *process;
 static ReviewDecoder *decoder;
 static unsigned long decode_token;
-static Frame *frames;
+static Frame *frames, *atlases;
+static int atlas_count;
+static double zoom_target = 1, zoom_anchor_x, zoom_anchor_y;
+static Uint64 last_navigation, previous_draw;
 static int total, ready[4], candidate, columns = 6, fit = 1, closing;
 static int sheet_width, sheet_height;
 static unsigned long generation;
@@ -72,6 +75,11 @@ static void clear_frames(void)
         clear_frame(&frames[i]);
     ++decode_token;
     SDL_free(frames);
+    for (i = 0; i < atlas_count; ++i)
+        clear_frame(&atlases[i]);
+    SDL_free(atlases);
+    atlases = NULL;
+    atlas_count = 0;
     frames = NULL;
     total = 0;
     memset(ready, 0, sizeof(ready));
@@ -175,6 +183,10 @@ static void read_status(void)
                     {
                         frames = next;
                         total = count;
+                        atlas_count = (total + 63) / 64;
+                        atlases = (Frame *)SDL_calloc((size_t)atlas_count, sizeof(Frame));
+                        if (!atlases)
+                            atlas_count = 0;
                         next = NULL;
                     }
                 }
@@ -210,12 +222,15 @@ static void upload_decoded(void)
     int i;
     if (!review_decoder_poll(decoder, &result))
         return;
-    if (result.token == decode_token && result.index < total && result.backend == candidate)
+    if (result.token == decode_token && result.index < (result.atlas ? atlas_count : total) && result.backend == candidate)
     {
-        frame = &frames[result.index];
+        frame = result.atlas ? &atlases[result.index] : &frames[result.index];
         clear_frame(frame);
         frame->backend = result.backend;
         frame->tier = result.tier;
+        frame->revision = result.revision;
+        frame->retail_count = result.retail_count;
+        frame->ours_count = result.ours_count;
         if (!result.error[0])
             for (i = 0; i < 4; ++i)
             {
@@ -253,16 +268,40 @@ static Frame *load_frame(int index, int tier)
     if (wanted && ready[candidate + 1] > index)
         wanted = 2;
     frame->used = generation;
-    if (frame->backend != candidate || frame->tier != tier ||
-        (frame->loaded >= 0 && frame->loaded != wanted))
+    if (frame->backend != candidate)
     {
         clear_frame(frame);
         frame->backend = candidate;
         frame->tier = tier;
     }
-    if (wanted && !frame->loaded)
+    if (wanted && frame->loaded >= 0 && frame->loaded != wanted)
         review_decoder_request(decoder, session, index, candidate, tier, wanted, decode_token);
     return frame;
+}
+static Frame *load_atlas(int page)
+{
+    Frame *atlas;
+    int r, o, end, revision;
+    if (!atlas_count)
+        return NULL;
+    atlas = &atlases[page];
+    atlas->used = generation;
+    r = ready[0];
+    o = ready[candidate + 1];
+    if (!strcmp(state, "rendering"))
+    {
+        if (r != total) r -= r % 16;
+        if (o != total) o -= o % 16;
+    }
+    end = (page + 1) * 64;
+    if (r > end) r = end;
+    if (o > end) o = end;
+    if (r < page * 64) r = page * 64;
+    if (o < page * 64) o = page * 64;
+    revision = (r - page * 64) * 65 + o - page * 64;
+    if (revision && (!atlas->loaded || atlas->revision != revision))
+        review_decoder_request_atlas(decoder, session, page, candidate, r, o, total, revision, decode_token);
+    return atlas;
 }
 static void trim_cache(void)
 {
@@ -272,6 +311,10 @@ static void trim_cache(void)
         for (i = 0; i < total && cache_bytes > CACHE_BUDGET; ++i)
             if (frames[i].loaded && frames[i].used != generation)
                 clear_frame(&frames[i]);
+    if (cache_bytes > CACHE_BUDGET)
+        for (i = 0; i < atlas_count && cache_bytes > CACHE_BUDGET; ++i)
+            if (atlases[i].loaded && atlases[i].used != generation)
+                clear_frame(&atlases[i]);
 }
 static void choose_renderer(int next)
 {
@@ -282,6 +325,8 @@ static void choose_renderer(int next)
     ++decode_token;
     for (i = 0; i < total; ++i)
         clear_frame(&frames[i]);
+    for (i = 0; i < atlas_count; ++i)
+        clear_frame(&atlases[i]);
     image_error[0] = 0;
 }
 static void controls(void)
@@ -337,6 +382,7 @@ static void controls(void)
     if (igButton("1:1", vec(0, 0)))
     {
         review_image_zoom(&view, 1, 0, 0);
+        zoom_target = view.zoom;
         fit = 0;
     }
     igSameLine(0, -1);
@@ -345,28 +391,33 @@ static void controls(void)
     if (igSliderFloat("Zoom", &percent, 0.5f, 3200, "%.1f%%", ImGuiSliderFlags_Logarithmic))
     {
         review_image_zoom(&view, percent / 100, 0, 0);
+        zoom_target = view.zoom;
         fit = 0;
     }
     igTextUnformatted("Wheel: zoom | Drag: pan all | Hold D: highlight | Tab: renderer | Labels excluded from diff", NULL);
     if (image_error[0])
         igTextWrapped("%s", image_error);
 }
-static void draw_frame(Pane *pane, Frame *frame, int slot, float x, float y, int highlight)
+static void draw_frame(Pane *pane, Frame *frame, Frame *picture, int index, int is_atlas, int slot, float x, float y, int highlight)
 {
     ImTextureRef texture;
     char label[80];
-    ImVec2 min, max;
+    ImVec2 min, max, uv_min, uv_max;
+    int available;
+    uv_min = is_atlas ? vec((index % 8) / 8.0f, ((index % 64) / 8) / 8.0f) : vec(0, 0);
+    uv_max = is_atlas ? vec(uv_min.x + 0.125f, uv_min.y + 0.125f) : vec(1, 1);
+    available = picture && (!is_atlas || (index < picture->retail_count && (slot == 0 || index < picture->ours_count)));
     min = vec(x, y);
     max = vec(x + (float)(FRAME_WIDTH * view.zoom), y + (float)(FRAME_HEIGHT * view.zoom));
     memset(&texture, 0, sizeof(texture));
-    if (frame->texture[slot])
+    if (available && picture->texture[slot])
     {
-        texture._TexID = (ImTextureID)(size_t)frame->texture[slot];
-        ImDrawList_AddImage(pane->draw, texture, min, max, vec(0, 0), vec(1, 1), 0xffffffffUL);
-        if (slot < 2 && highlight && frame->texture[3])
+        texture._TexID = (ImTextureID)(size_t)picture->texture[slot];
+        ImDrawList_AddImage(pane->draw, texture, min, max, uv_min, uv_max, 0xffffffffUL);
+        if (slot < 2 && highlight && picture->texture[3])
         {
-            texture._TexID = (ImTextureID)(size_t)frame->texture[3];
-            ImDrawList_AddImage(pane->draw, texture, min, max, vec(0, 0), vec(1, 1), 0xffffffffUL);
+            texture._TexID = (ImTextureID)(size_t)picture->texture[3];
+            ImDrawList_AddImage(pane->draw, texture, min, max, uv_min, uv_max, 0xffffffffUL);
         }
     }
     else
@@ -379,10 +430,12 @@ static void panes(void)
 {
     Pane pane[3];
     ImGuiIO *io;
-    Frame *frame;
+    Frame *frame, *overview, *picture;
     const char *titles[3] = {"Retail", "Ours", "Diff"};
     int i, index, row, first, last, count_rows, tier, highlight;
-    double scale, top, bottom;
+    double scale, top, bottom, elapsed, next_zoom;
+    int is_atlas;
+    Uint64 now;
     float x, y;
     if (!igBeginTable("Images", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
         return;
@@ -414,18 +467,26 @@ static void panes(void)
             if (fit == 2 && pane[i].size.y / sheet_height < scale)
                 scale = pane[i].size.y / sheet_height;
             review_image_zoom(&view, scale, 0, 0);
+            zoom_target = view.zoom;
             view.x = sheet_width / 2.0;
             view.y = fit == 2 ? sheet_height / 2.0 : pane[i].size.y / (2 * view.zoom);
             fit = 0;
         }
         igInvisibleButton("Pan and zoom", pane[i].size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
         if (total && igIsItemHovered(0) && io->MouseWheel)
-            review_image_zoom(&view, view.zoom * pow(1.2, io->MouseWheel),
-                io->MousePos.x - pane[i].origin.x - pane[i].size.x / 2,
-                io->MousePos.y - pane[i].origin.y - pane[i].size.y / 2);
+        {
+            zoom_target *= pow(1.2, io->MouseWheel);
+            if (zoom_target < 0.005) zoom_target = 0.005;
+            if (zoom_target > 32) zoom_target = 32;
+            zoom_anchor_x = io->MousePos.x - pane[i].origin.x - pane[i].size.x / 2;
+            zoom_anchor_y = io->MousePos.y - pane[i].origin.y - pane[i].size.y / 2;
+            last_navigation = SDL_GetTicks();
+        }
         if (igIsItemActive() && (igIsMouseDragging(ImGuiMouseButton_Left, 0) || igIsMouseDragging(ImGuiMouseButton_Middle, 0)))
         {
             review_image_pan(&view, io->MouseDelta.x, io->MouseDelta.y);
+            zoom_target = view.zoom;
+            last_navigation = SDL_GetTicks();
             igSetMouseCursor(ImGuiMouseCursor_ResizeAll);
         }
         if (igIsItemHovered(0) && igIsMouseDoubleClicked_Nil(ImGuiMouseButton_Left))
@@ -433,7 +494,14 @@ static void panes(void)
         igEndChild();
         igPopID();
     }
-    tier = view.zoom < 0.125 ? 3 : view.zoom < 0.25 ? 2 : view.zoom < 0.5 ? 1 : 0;
+    now = SDL_GetTicks();
+    elapsed = previous_draw ? (now - previous_draw) / 1000.0 : 0.016;
+    if (elapsed > 0.05) elapsed = 0.05;
+    previous_draw = now;
+    next_zoom = view.zoom + (zoom_target - view.zoom) * (1 - exp(-24 * elapsed));
+    if (fabs(next_zoom - zoom_target) < zoom_target * 0.0001) next_zoom = zoom_target;
+    review_image_zoom(&view, next_zoom, zoom_anchor_x, zoom_anchor_y);
+    tier = 0;
     highlight = !io->WantTextInput && igIsKeyDown_Nil(ImGuiKey_D);
     for (i = 0; i < 3; ++i)
     {
@@ -453,13 +521,27 @@ static void panes(void)
             x = (float)((8 + index % columns * CELL_WIDTH - view.x) * view.zoom);
             if (x + FRAME_WIDTH * view.zoom < -pane[0].size.x / 2 || x > pane[0].size.x / 2)
                 continue;
-            frame = load_frame(index, tier);
+            frame = &frames[index];
+            overview = load_atlas(index / 64);
+            if (view.zoom >= 0.5 && now - last_navigation >= 150)
+                frame = load_frame(index, tier);
+            is_atlas = !(view.zoom >= 0.5 && frame->texture[0] && frame->backend == candidate);
+            picture = is_atlas ? overview : frame;
             for (i = 0; i < 3; ++i)
             {
                 y = pane[i].origin.y + pane[i].size.y / 2 + (float)((8 + row * CELL_HEIGHT - view.y) * view.zoom);
-                draw_frame(&pane[i], frame, i, pane[i].origin.x + pane[i].size.x / 2 + x, y, highlight);
+                draw_frame(&pane[i], frame, picture, index, is_atlas, i, pane[i].origin.x + pane[i].size.x / 2 + x, y, highlight);
             }
         }
+    /* Warm nearby sheet tiles while idle so zooming out reveals cached images,
+     * rather than initiating a decode for each newly visible frame. */
+    for (i = 0; i < atlas_count && i < 24 && cache_bytes < CACHE_BUDGET * 3 / 4; ++i)
+    {
+        unsigned long used;
+        used = atlases[i].used;
+        load_atlas(i);
+        atlases[i].used = used;
+    }
     for (i = 0; i < 3; ++i)
     {
         ImDrawList_AddCallback(pane[i].draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerLinear, NULL, 0);
@@ -563,7 +645,7 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(renderer);
         trim_cache();
-        if (smoke && generation > (unsigned long)(total + 5) && --smoke == 0)
+        if (smoke && generation > (unsigned long)((atlas_count < 120 ? atlas_count : 120) + 20) && --smoke == 0)
         {
             closing = 1;
             cancel_capture();
