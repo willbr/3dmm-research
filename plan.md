@@ -448,7 +448,10 @@ bounds conversion now also use C89. The render-changed latch, begin/render/bound
 sequencing, model-style traversal, temporary material overrides, clipped dirty
 RGB/depth cleanup, prerendering and screen/draw control now also use C89. Native
 adapters provide SDK, graphics-port, region/scanner and application primitives.
-Bitmap export policy and final native representations are still work.
+Current/scaled bitmap export sizing, background fill, resource/lock/material/
+callback cleanup and palette ownership now also use C89. Both live and export
+depth copying use the shared C nearest-neighbor resampler. SDK/native object
+representations still remain for final integration.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -460,11 +463,11 @@ C-only host integration retain the limits described above.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
-masked-bitmap ownership/codec, and World buffer/background/camera/picking/render
-slices are complete. Continue with bitmap export
-construction/background scaling, palette lifetime and export transactions in
-`bren/bwld.cpp` and remaining BRender representation
-adapters.
+masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
+export slices are complete. Continue with Scene construction/disposal and frame/
+event runtime in `src/engine/scene.cpp`, then the remaining scene/movie editing,
+undo/save and caption/transition operations. Final native representation and
+facade removal remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.

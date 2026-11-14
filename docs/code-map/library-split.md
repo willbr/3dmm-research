@@ -82,6 +82,7 @@ cmake --build build/engine-c89 --target engine-masked-bitmap-test
 cmake --build build/engine-c89 --target engine-world-buffers-test
 cmake --build build/engine-c89 --target engine-world-camera-test
 cmake --build build/engine-c89 --target engine-world-render-test
+cmake --build build/engine-c89 --target engine-world-export-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1964,8 +1965,8 @@ retained background cache, mode dimensions, renderer-view descriptions,
 construction/disposal ordering, mode rollback and background loading/control.
 Native World fields and BRender pixelmaps borrow this state. Typed host services
 provide allocation, locks, region creation, SDK scene setup and graphics blits;
-camera/picking and render policy are described next; export policy and final
-representation removal remain work.
+camera/picking, render and export policy are described next; final representation
+removal remains work.
 
 Scale values stay 1/2/4, with a 4,096-pixel limit per rendered axis. Half flags
 reduce dimensions only at scale 1; the extra stretch port remains exclusive to
@@ -1998,8 +1999,8 @@ state, camera publication/working-region dirty ordering, pick reset/dispatch,
 coordinate conversion, actor-root owner traversal and rendered-bound conversion.
 The native camera is an SDK mirror. Typed adapters retain SDK field access,
 the actual SDK intersection query, region mutation and client callback dispatch.
-Temporary native pick fields mirror the C result. Render policy is described
-below; export control and final SDK/object representation removal remain work.
+Temporary native pick fields mirror the C result. Render/export policy is
+described below; final SDK/object representation removal remains work.
 
 Camera changes dirty the working region without setting the changed latch,
 matching the original behavior. Half-resolution picking truncates negative
@@ -2026,8 +2027,8 @@ copy loops and depth-clean dispatch, prerender snapshots, background restoration
 dispatch and screen/draw control. Native World fields borrow the C latch; typed
 services supply actor fields, SDK rasterization, material-registry access,
 graphics-port locks/blits, region/scanner primitives and application marking.
-SDK/object/region representations and bitmap export construction/background
-scaling/palette lifetime/transaction policy remain native dependencies.
+SDK/object/region representations remain native dependencies. Bitmap export
+policy is described next.
 
 Immediate NONE roots receive begin callbacks before cleaning. Working dirt is
 unioned into screen dirt before clearing; after render and material restoration,
@@ -2042,7 +2043,7 @@ texture removal uses the retail solid grey ramp (base/range 15). Allocation or
 snapshot-capacity failure restores the applied prefix and skips the SDK render,
 leaving the world dirty for retry. Prerendering commits no snapshot after render
 failure. The debug supersampled exporter uses the same C scope and restores its
-callback/lock before returning failure. Its outer export policy is still native.
+callback/lock before returning failure. Export control is now C as described next.
 
 RGB cleanup clips against buffer dimensions, validates actual pitches/spans and
 copies only scanned spans, unlocking working then background even on failure.
@@ -2061,6 +2062,48 @@ all eight style-option combinations, full/half/scaled modes, prerendering and
 offset drawing. C-only tests cover rollback, locks, spans, style exclusions,
 callback changes, output policy and snapshot failure. Full validation and capture
 limits are in `docs/tools/playback-regression.md`.
+
+### World bitmap export and palette ownership
+
+`world_export.c` owns current-buffer/scaled bitmap export sizing, the 4096-axis
+scale ceiling, native-view background fill, cache fetch/reference order,
+temporary resource ownership, renderer descriptor construction, style/material
+scope sequencing, render-bounds callback suppression/restoration, flush/lock
+ordering, palette ownership and writer dispatch. Typed native services retain
+graphics, file/palette-object and SDK rasterizer primitives. World's export
+facades remain debug-only; the C API and C-only tests build in all configurations.
+Native SDK/object/region representations and final facade removal still keep
+the whole backend unfinished.
+
+Requested scales 1..16 decrement until both axes fit, so a 640x480 view requested
+at 16x exports at 6x (3840x2880). Scaled exports ignore live half/scale modes,
+retain the original tight SDK row, leave live buffers/camera/dirt untouched and
+write from the actual graphics-port pitch. No-cache ports retain default RGB
+zero/depth FF fill. Background depth sampling intentionally ignores cached
+origins, matching the native exporter's direct-row policy. The shared
+`three_mm_world_depth_resample` now supports export factors 1..16, while live
+buffer modes remain restricted to 1/2/4. Copies preserve opaque two-byte samples
+without interpolation, validate spans and retain only the completed prefix on
+failure. Current export writes the existing buffer without rendering.
+
+Palette copies release after unlock on success and failure; current-buffer export
+previously leaked them. Failed palette snapshots and malformed pixel/depth spans
+now return failure before unsafe writes/rasterization. Scaled exports restore
+materials and the bounds callback, flush/unlock, then write, releasing RGB before
+depth in native order. Writer-level file semantics remain with the shared bitmap
+writer; the export controller does not introduce atomic file replacement.
+
+Two original native runs, an original SDL debug run and converted native/SDL
+debug runs match all 13,188,586 bytes, SHA-256
+`456793441243CD84817FB55F5BC5EF40B031B177D4040B459BC35CD8B2C2F246`.
+Little-endian fixtures enforce FNV-1a `E235ADA9`. The 243 exports cover six live
+modes, all eight render options, scales 1/2/4/16, depth occlusion, no-cache fill,
+non-power-of-two scale clamping and live-state preservation. Supplemental native
+and SDL debug allocation injection checks 66 attempts apiece, including the
+current-buffer palette leak fix. C-only checks cover all scale factors,
+transaction failure phases, prefix bounds, ownership, locks and callback/material
+restoration. Full validation and coverage limits are in
+`docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

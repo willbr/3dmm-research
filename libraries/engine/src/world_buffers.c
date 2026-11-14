@@ -106,12 +106,12 @@ void three_mm_world_buffers_dispose(ThreeMMWorldBuffers *w, const ThreeMMWorldBu
     w->rgb.pixels = w->z.pixels = NULL;
     s->publish(s->context, w);
 }
-static int resample(const ThreeMMWorldDepthSpan *src, const ThreeMMWorldDepthSpan *dst, ThreeMMI32 width,
-                    ThreeMMI32 height, ThreeMMI32 scale, int hx, int hy)
+int three_mm_world_depth_resample(const ThreeMMWorldDepthSpan *src, const ThreeMMWorldDepthSpan *dst, ThreeMMI32 width,
+                                  ThreeMMI32 height, ThreeMMI32 scale, int hx, int hy)
 {
     ThreeMMI32 y, x, sy, sx, n;
     if (width <= 0 || height <= 0 || width > MAXIMUM / 2 || src->row < 0 || dst->row < width * 2 || src->bytes < 0 ||
-        dst->bytes < 0 || !src->pixels || !dst->pixels || !valid_scale(scale))
+        dst->bytes < 0 || !src->pixels || !dst->pixels || scale < 1 || scale > 16)
         return 0;
     if (height > MAXIMUM / dst->row || dst->row * height > dst->bytes)
         return 0;
@@ -148,7 +148,7 @@ static int scaled(ThreeMMWorldBuffers *w, void *bitmap, void *depth, const Three
     s->draw_depth(s->context, depth, native, w->width, w->height);
     s->depth_span(s->context, native, &src);
     s->depth_span(s->context, w->owners[THREE_MM_WORLD_DEPTH_BACKGROUND], &dst);
-    ok = resample(&src, &dst, w->buffer_width, w->buffer_height, w->scale, 0, 0);
+    ok = three_mm_world_depth_resample(&src, &dst, w->buffer_width, w->buffer_height, w->scale, 0, 0);
     s->release(s->context, native);
     return ok;
 }
@@ -193,7 +193,7 @@ int three_mm_world_buffers_background(ThreeMMWorldBuffers *w, void *cache, Three
         s->release(s->context, full);
         s->depth_span(s->context, depth, &src);
         s->depth_span(s->context, w->owners[THREE_MM_WORLD_DEPTH_BACKGROUND], &dst);
-        ok = resample(&src, &dst, w->buffer_width, w->buffer_height, 1, w->half_x, w->half_y);
+        ok = three_mm_world_depth_resample(&src, &dst, w->buffer_width, w->buffer_height, 1, w->half_x, w->half_y);
         s->release(s->context, depth);
         if (!ok)
             return 0;

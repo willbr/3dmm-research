@@ -6359,3 +6359,105 @@ Evidence: `tmp/c89-world-render-before*.bin`,
 `tmp/c89-world-render-capture-hashes-*.json`,
 `tmp/c89-world-render-initial-capture-*` and the two final
 `tmp/c89-world-render-capture-*.log` files.
+
+### C89 World bitmap export and palette lifetime (14 November 2026)
+
+`world_export.c` now owns current/scaled export sizing, native-view background
+fill, cache fetch/reference order, temporary colour/depth ownership, renderer
+descriptions, style/material scope sequencing, bounds-callback suppression and
+restoration, flush/lock ordering, palette lifetime and bitmap-writer dispatch.
+Native facades retain typed graphics/file/palette-object and SDK primitives.
+World's existing export entry points remain debug-only; the C export API is
+available in all configurations. SDK/object/region representations and final
+facade removal remain dependencies of the unfinished whole C89 backend.
+
+Two original native runs, an original SDL debug run and converted native/SDL
+debug runs match all 13,188,586 bytes without masking, SHA-256
+`456793441243CD84817FB55F5BC5EF40B031B177D4040B459BC35CD8B2C2F246`.
+Little-endian host fixtures enforce FNV-1a `E235ADA9`. The 243 exports cover
+six full/half/scaled live modes; eight wire/flat/no-texture settings; current
+buffer output and supersampling at 1/2/4/16; occluding depth samples; no-cache
+fill; a 640x2 view clamped from 16x to 6x; and defined live buffer, camera,
+dirty-region and callback-count preservation. Actual BMP files are read back
+and included in the trace. Native and SDL debug fixtures verify live-state
+fingerprints around each export; callbacks remain suppressed during temporary
+rendering. The test also checks actor style outside the export loop.
+
+Scale selection decrements within 1..16 until both axes fit 4096, ignoring live
+half/scale settings. A 640x480 request at 16x therefore selects 6x, 3840x2880.
+The legacy tight SDK row is preserved; the writer receives the actual port
+pitch, and the native BMP adapter verifies four-byte row alignment. No-cache
+exports retain default RGB-zero/depth-FF fill. Current export writes the existing
+working buffer without rendering. Applied model styles remain applied, as in the
+native exporter; the controller does not promise style rollback.
+
+Both live and export depth copies now call `three_mm_world_depth_resample`.
+The public helper supports factors 1..16; live mode admission remains 1/2/4.
+It copies opaque two-byte samples without interpolation, supports padded rows
+and checks all source/destination spans before each copy. Partial prefixes can
+remain after malformed later source samples; temporary export resources are
+then released and no file is written. Export depth reads direct source rows,
+ignoring cached origins exactly as the original exporter did.
+
+Owned palette copies release after unlocking on both success and failure.
+This fixes the current-buffer export's palette leak. Palette-allocation failure
+now returns false before the original null-palette writer assertion. Invalid
+pixel/depth spans fail before unsafe rasterization/writing. Material and bounds
+state restore before flush/unlock; output writing happens afterward, then RGB
+releases before depth. Existing bitmap-writer file/error semantics are preserved;
+this controller does not add atomic file replacement.
+
+All 85 standalone C checks pass with assertions enabled, including strict C89
+syntax. The new C-only fixture builds/runs directly with Clang
+`-std=c89 -pedantic-errors -Wall -Wextra -Werror` and passes MSVC AddressSanitizer.
+It checks every scale 1..16, scale clamping/invalid requests, padded depth rows
+and guards, source truncation, ten scaled-export failure phases, three current
+export failure phases, no-cache fill, distinct live/export dimensions, palette
+release, retained renderer locks and callback/material cleanup. Supplemental
+native and SDL debug fixtures each run 66 BASE/HQ/Pv allocation attempts and
+require balanced owner counts and unchanged live state, including successful
+current-buffer export. An initial counter increase was the default warning
+logger's lazy persistent FileObject, not an exporter owner; routing test warnings
+directly to stderr removes that observer allocation from the checks.
+
+Both hosts and `core-checks` build. All 112 focused native checks, eight SDL debug
+World checks, twenty SDL release checks and 51 freshly linked CLI baselines pass.
+The SDL debug configuration exercises the actual export adapters; SDL release
+exercises the C controller but has no native debug export entry point. The native
+export CTest fixture returns skip code 77 in release configurations. Marcus was
+stopped before rebuilding and relaunched afterward. No Marcus UI tests were added.
+
+Capture executables were frozen before/after capture at SHA-256
+`CF26D47044CCC92438CA599F3A84441EEF6B85B12BA0397B521ADAA7D754C572`
+(SDL release) and
+`2C9D45A794E1D44FEBD1B1FDB79772CD1DC4B7DFB669C44DFFC8941554A65449`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T063118Z-b337a43e` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T063235Z-d38a8d14` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries, retaining movie identity and suite
+integrity. Authored frames, all 360 seek images and ordered playback image changes
+match each player's preceding World-render suites `20261114T055809Z-bf2d3736`
+and `20261114T055922Z-4f06e1ad`. Playback comparison collapses only adjacent
+identical position/image observations. Reports retain existing cross-player
+differences and single-repeat inconclusive comparisons. These gates show no
+observed playback regression from the shared depth-resampler change; export
+behavior itself is covered by the debug native/SDL and C-only fixtures, not these
+noninteractive captures. Full retail timing and PCM parity remain unproven.
+Captures use a shared warm SDL package cache with private processes/settings/
+movies and uncontrolled OS caching. No builds or tests run concurrently with
+capture.
+
+Evidence: `tmp/c89-world-export-native-before*.bin`,
+`tmp/c89-world-export-sdl-before.bin`, `tmp/c89-world-export-*-after.bin`,
+`tmp/c89-world-export-native-trace.log`, `tmp/c89-world-export-sdl-debug-trace.log`,
+`tmp/c89-world-export-standalone.log`, `tmp/c89-world-export-asan.log`,
+`tmp/c89-world-export-native-tests.log`, `tmp/c89-world-export-sdl-debug-tests.log`,
+`tmp/c89-world-export-sdl-release-tests.log`,
+`tmp/c89-world-export-output-comparison.json`,
+`tmp/c89-world-export-playback-actor-events-scrolling-text.json`,
+`tmp/c89-world-export-capture-hashes-*.json` and the two
+`tmp/c89-world-export-capture-*.log` files.

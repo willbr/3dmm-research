@@ -64,6 +64,11 @@ extern "C"
     int three_mm_world_buffers_init(ThreeMMWorldBuffers *, ThreeMMI32 width, ThreeMMI32 height, ThreeMMI32 scale,
                                     int half_x, int half_y, const ThreeMMWorldBufferServices *);
     void three_mm_world_buffers_dispose(ThreeMMWorldBuffers *, const ThreeMMWorldBufferServices *);
+    /* Shared live/export nearest-neighbor copying of opaque two-byte samples.
+     * Scale is 1..16; half-axis sampling applies only at scale 1. Failure may
+     * retain completed prefix copies, but never reads/writes outside spans. */
+    int three_mm_world_depth_resample(const ThreeMMWorldDepthSpan *, const ThreeMMWorldDepthSpan *, ThreeMMI32 width,
+                                      ThreeMMI32 height, ThreeMMI32 scale, int half_x, int half_y);
     /* Mode changes hold old buffers until allocation/background reload succeeds;
      * failure restores owners, descriptors and mode. Dirty/cache owners survive. */
     int three_mm_world_buffers_mode(ThreeMMWorldBuffers *, int half_x, int half_y, ThreeMMI32 scale,

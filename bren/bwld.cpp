@@ -101,32 +101,13 @@ static ThreeMMWorldMaterialServices WorldMaterialServices()
     s.free = [](void *, void *p) { std::free(p); };
     return s;
 }
-class RenderMaterialScope
-{
-    ThreeMMWorldMaterials scope;
-    ThreeMMWorldMaterialServices services;
-    bool ready;
-
-  public:
-    RenderMaterialScope() : services(WorldMaterialServices())
-    {
-        ready = three_mm_world_materials_begin(&scope, World::FlatShading(), World::NoTexture(), &services) != 0;
-    }
-    bool Ready() const
-    {
-        return ready;
-    }
-    ~RenderMaterialScope()
-    {
-        three_mm_world_materials_end(&scope, &services);
-    }
-};
 struct WorldRenderContext
 {
     PWorld world;
     RegionScanner scanner;
     PGraphicsEnvironment destination = nullptr;
     PGraphicsObject gob = nullptr;
+    PFilename filename = nullptr;
 };
 static PWorld RenderWorld(void *p)
 {
@@ -768,227 +749,71 @@ void World::MarkMem(void)
     MarkMemObj(_pgptStretch);
 }
 
-/******************************************************************************
-    FWriteBmp
-        Writes the current rendered buffer out to the given file
-
-    Arguments:
-        PFilename pfni -- the name of the file
-
-    Returns: fTrue if the file could be written successfully
-
-************************************************************ PETED ***********/
+// SDK descriptor construction is a typed primitive; export sequencing and
+// resource/lock/palette ownership live in the C controller.
+static BPMP ExportPixelmap(const ThreeMMWorldPixelView &view)
+{
+    BPMP p = {};
+    p.type = static_cast<br_uint_8>(view.type);
+    p.row_bytes = static_cast<short>(view.row);
+    p.width = static_cast<ushort>(view.width);
+    p.height = static_cast<ushort>(view.height);
+    p.origin_x = static_cast<short>(view.x);
+    p.origin_y = static_cast<short>(view.y);
+    p.pixels = view.pixels;
+    return p;
+}
+ThreeMMWorldExportServices World::_ExportServices(void *context)
+{
+    ThreeMMWorldExportServices s = {};
+    s.context = context;
+    s.buffers = _BufferServices();
+    s.render = _RenderServices(context);
+    s.palette = [](void *) -> void * { return GraphicsPort::PglclrGetPalette(); };
+    s.lock = [](void *, void *port, ThreeMMWorldPixels *out) -> int {
+        auto p = static_cast<PGraphicsPort>(port);
+        RC r;
+        out->pixels = p->PrgbLockPixels(&r);
+        out->row = p->CbRow();
+        out->bytes = size_t(out->row) * r.Dyp();
+        return out->pixels != nullptr;
+    };
+    s.bounds_callback = [](void *, int enabled) {
+        BrZbSetRenderBoundsCallback(enabled ? World::_ActorRendered : nullptr);
+    };
+    s.raster = [](void *p, const ThreeMMWorldPixelView *rgb, const ThreeMMWorldPixelView *depth) {
+        auto w = RenderWorld(p);
+        auto colour = ExportPixelmap(*rgb), z = ExportPixelmap(*depth);
+        BrZbSceneRender(&w->_bactWorld, &w->_bactCamera, &colour, &z);
+    };
+    s.write = [](void *p, const ThreeMMWorldPixels *pixels, void *palette, ThreeMMI32 width, ThreeMMI32 height) -> int {
+        // The shared BMP writer consumes four-byte-aligned indexed rows.
+        if (pixels->row != ((width + 3) & ~3))
+            return 0;
+        return FWriteBitmap(static_cast<WorldRenderContext *>(p)->filename, pixels->pixels,
+                            static_cast<PDynamicArray>(palette), width, height);
+    };
+    return s;
+}
 bool World::FWriteBmp(PFilename pfni)
 {
     AssertPo(pfni, 0);
-
-    bool fRet;
-    RC rc;
-
-    fRet = FWriteBitmap(pfni, _pgptWorking->PrgbLockPixels(&rc), GraphicsPort::PglclrGetPalette(), _rcBuffer.Dxp(),
-                        _rcBuffer.Dyp());
-    _pgptWorking->Unlock();
-    return fRet;
+    WorldRenderContext context = {this};
+    context.filename = pfni;
+    auto services = _ExportServices(&context);
+    return three_mm_world_export_current(&_buffers, &services) != 0;
 }
-
-/******************************************************************************
-    _FFillHiResBackground
-        Fetch the current background MBMP+ZBMP at native (rcView) resolution
-        and nearest-neighbor upscale into pgptDst / pzbmpDst, which must be
-        sized scale*_rcView.Dxp() x scale*_rcView.Dyp().
-        Used by FWriteBmpScaled.
-******************************************************************************/
-bool World::_FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale)
-{
-    AssertThis(0);
-    AssertPo(pgptDst, 0);
-    AssertPo(pzbmpDst, 0);
-    AssertIn(scale, 1, 17);
-
-    if (pvNil == _pcrf)
-        return fTrue; // no background loaded; leave dst with default fill (0xff Z, 0 RGB)
-
-    PMaskedBitmapMBMP pmbmp = pvNil;
-    PZBMP pzbmpSrc = pvNil;
-    PGraphicsPort pgptFull = pvNil;
-    bool fRet = fFalse;
-    RC rcView = _rcView;
-    RC rcHi(0, 0, LwMul(rcView.Dxp(), scale), LwMul(rcView.Dyp(), scale));
-
-    pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctgRGB, _cnoRGB, MaskedBitmapMBMP::FReadMbmp);
-    if (pvNil == pmbmp)
-        goto LFail;
-    pzbmpSrc = (PZBMP)_pcrf->PbacoFetch(_ctgZ, _cnoZ, ZBMP::FReadZbmp);
-    if (pvNil == pzbmpSrc)
-        goto LFail;
-
-    // Render the MBMP into a full-resolution intermediate, then stretch into the
-    // hi-res destination via CopyPixels (which handles indexed-8 stretching).
-    pgptFull = GraphicsPort::PgptNewOffscreen(&rcView, kcbitPixelRGB);
-    if (pvNil == pgptFull)
-        goto LFail;
-    {
-        GraphicsEnvironment gnvFull(pgptFull);
-        GraphicsEnvironment gnvHi(pgptDst);
-        gnvFull.DrawMbmp(pmbmp, 0, 0);
-        gnvHi.CopyPixels(&gnvFull, &rcView, &rcHi);
-    }
-
-    // Nearest-neighbor upscale the Z buffer. Bilinear would create halfway Z
-    // values that don't represent real surface depths and would cause artifacts
-    // at silhouettes, so we replicate each Z value scale*scale times.
-    {
-        Assert(kcbPixelZ == 2, "Z upscale assumes 16-bit Z");
-        long dxpSrc = rcView.Dxp();
-        long dypSrc = rcView.Dyp();
-        long cbRowSrc = pzbmpSrc->CbRow();
-        long cbRowDst = pzbmpDst->CbRow();
-        Assert(cbRowSrc == LwMul(dxpSrc, kcbPixelZ), "unexpected src Z stride");
-        Assert(cbRowDst == LwMul(LwMul(dxpSrc, scale), kcbPixelZ), "unexpected dst Z stride");
-        byte *pbSrcRow = pzbmpSrc->Prgb();
-        byte *pbDstRow = pzbmpDst->Prgb();
-        for (long ypSrc = 0; ypSrc < dypSrc; ypSrc++)
-        {
-            ushort *psuSrc = (ushort *)pbSrcRow;
-            ushort *psuDst = (ushort *)pbDstRow;
-            for (long xpSrc = 0; xpSrc < dxpSrc; xpSrc++)
-            {
-                ushort suZ = *psuSrc++;
-                for (long i = 0; i < scale; i++)
-                    *psuDst++ = suZ;
-            }
-            // Replicate the row scale-1 more times.
-            byte *pbRowFirst = pbDstRow;
-            for (long i = 1; i < scale; i++)
-            {
-                pbDstRow += cbRowDst;
-                CopyPb(pbRowFirst, pbDstRow, cbRowDst);
-            }
-            pbDstRow += cbRowDst;
-            pbSrcRow += cbRowSrc;
-        }
-    }
-
-    fRet = fTrue;
-
-LFail:
-    ReleasePpo(&pmbmp);
-    ReleasePpo(&pzbmpSrc);
-    ReleasePpo(&pgptFull);
-    return fRet;
-}
-
-/******************************************************************************
-    FWriteBmpScaled
-        Render the current scene into a temporary supersampled buffer
-        (scale x scale times the size of _rcView), then write it as a BMP.
-        Camera, actors, render style and palette match the live render; only
-        the rasterization resolution differs. The live working buffers are
-        untouched, so this can be called at any time.
-
-        BRender's rasterizer is resolution-independent for a given camera
-        (aspect = rcView.Dxp()/rcView.Dyp()), so feeding it scale-sized BPMPs
-        produces a true higher-resolution render of foreground actors. The
-        background bitmap chunk is at native resolution, so we fetch it and
-        nearest-neighbor upscale it as both the seed RGB and the seed Z so
-        actors composite correctly against it.
-
-        Half-mode is ignored: the screenshot always uses _rcView dimensions
-        as the basis (scale=4 yields 4x of the on-screen viewport, not 4x of
-        the half-mode reduced buffer).
-******************************************************************************/
 bool World::FWriteBmpScaled(PFilename pfni, long scale)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
     AssertIn(scale, 1, 17);
-
-    // Keep exports inside the renderer's viewport cap. PIZ2TP1024 names a
-    // texture-size specialization, not the maximum output resolution.
-    const long kdxpRenderMax = 4096;
-
-    bool rendered = false;
-    long scaleRender = scale;
-    while (scaleRender > 1 &&
-           (LwMul(_rcView.Dxp(), scaleRender) > kdxpRenderMax || LwMul(_rcView.Dyp(), scaleRender) > kdxpRenderMax))
-    {
-        scaleRender--;
-    }
-
-    bool fRet = fFalse;
-    PGraphicsPort pgptRender = pvNil;
-    PZBMP pzbmpRender = pvNil;
-    long dxpRender = LwMul(_rcView.Dxp(), scaleRender);
-    long dypRender = LwMul(_rcView.Dyp(), scaleRender);
-    RC rcRender(0, 0, dxpRender, dypRender);
-    // Zero-init: BRender reads base_x / base_y / flags / map / context that
-    // the live engine leaves at zero (its class-member BPMPs are value-init).
-    BPMP bpmpRGB = {};
-    BPMP bpmpZ = {};
-    RC rcLock;
-
-    pgptRender = GraphicsPort::PgptNewOffscreen(&rcRender, kcbitPixelRGB);
-    if (pvNil == pgptRender)
-        goto LFail;
-    pzbmpRender = ZBMP::PzbmpNew(dxpRender, dypRender);
-    if (pvNil == pzbmpRender)
-        goto LFail;
-
-    if (!_FFillHiResBackground(pgptRender, pzbmpRender, scaleRender))
-        goto LFail;
-
-    // Match Render()'s wireframe override.
-    {
-        WorldRenderContext context = {this};
-        auto services = _RenderServices(&context);
-        three_mm_world_render_styles(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES, &services);
-    }
-
-    bpmpRGB.type = BR_PMT_INDEX_8;
-    bpmpRGB.row_bytes = (short)LwMul(dxpRender, kcbPixelRGB);
-    bpmpRGB.width = (ushort)dxpRender;
-    bpmpRGB.height = (ushort)dypRender;
-    bpmpRGB.origin_x = (short)(dxpRender / 2);
-    bpmpRGB.origin_y = (short)(dypRender / 2);
-    bpmpRGB.pixels = pgptRender->PrgbLockPixels();
-
-    bpmpZ.type = BR_PMT_DEPTH_16;
-    bpmpZ.row_bytes = (short)LwMul(dxpRender, kcbPixelZ);
-    bpmpZ.width = (ushort)dxpRender;
-    bpmpZ.height = (ushort)dypRender;
-    bpmpZ.origin_x = bpmpRGB.origin_x;
-    bpmpZ.origin_y = bpmpRGB.origin_y;
-    bpmpZ.pixels = pzbmpRender->Prgb();
-
-    BrZbSetRenderBoundsCallback(nullptr);
-    {
-        RenderMaterialScope materials;
-        rendered = materials.Ready();
-        if (rendered)
-            BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
-    }
-    BrZbSetRenderBoundsCallback(_ActorRendered);
-    GraphicsPort::Flush();
-    pgptRender->Unlock();
-    if (!rendered)
-        goto LFail;
-
-    {
-        // PglclrGetPalette() allocates a fresh palette copy that the caller
-        // owns -- FWriteBitmap doesn't release it. (FWriteBmp above leaks for
-        // the same reason; left untouched here.)
-        PDynamicArray pglclr = GraphicsPort::PglclrGetPalette();
-        fRet = FWriteBitmap(pfni, pgptRender->PrgbLockPixels(&rcLock), pglclr, dxpRender, dypRender);
-        pgptRender->Unlock();
-        ReleasePpo(&pglclr);
-    }
-
-LFail:
-    // Locks and the render-bounds callback are restored before reaching here,
-    // including a failed temporary material allocation.
-    ReleasePpo(&pgptRender);
-    ReleasePpo(&pzbmpRender);
-    return fRet;
+    if (scale < 1 || scale > 16)
+        return false;
+    WorldRenderContext context = {this};
+    context.filename = pfni;
+    auto services = _ExportServices(&context);
+    return three_mm_world_export_scaled(&_buffers, scale, &services) != 0;
 }
 
 #endif // DEBUG

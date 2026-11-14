@@ -13,6 +13,7 @@
 #include "three_mm/world_buffers.h"
 #include "three_mm/world_camera.h"
 #include "three_mm/world_render.h"
+#include "three_mm/world_export.h"
 
 namespace BRender {
 
@@ -87,7 +88,7 @@ class World : public World_PAR
     bool _FSetBufferMode(bool fHalfX, bool fHalfY, long scale);
     void _CleanWorkingBuffers(void);
 #ifdef DEBUG
-    bool _FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale);
+    ThreeMMWorldExportServices _ExportServices(void *context);
 #endif // DEBUG
     static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
                                     BRS dzpNear, BRS dzpFar, void *pbwld);
