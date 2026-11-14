@@ -80,6 +80,7 @@ cmake --build build/engine-c89 --target engine-bitmap-file-test
 cmake --build build/engine-c89 --target engine-depth-bitmap-test
 cmake --build build/engine-c89 --target engine-masked-bitmap-test
 cmake --build build/engine-c89 --target engine-world-buffers-test
+cmake --build build/engine-c89 --target engine-world-camera-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1962,7 +1963,8 @@ retained background cache, mode dimensions, renderer-view descriptions,
 construction/disposal ordering, mode rollback and background loading/control.
 Native World fields and BRender pixelmaps borrow this state. Typed host services
 provide allocation, locks, region creation, SDK scene setup and graphics blits;
-camera/render/picking/export policy and final representation removal remain work.
+camera/picking policy is described next; render/export policy and final
+representation removal remain work.
 
 Scale values stay 1/2/4, with a 4,096-pixel limit per rendered axis. Half flags
 reduce dimensions only at scale 1; the extra stretch port remains exclusive to
@@ -1987,6 +1989,34 @@ buffer descriptions, modes, dirty bounds and background colour/depth bytes.
 The C-only fixture covers initialization failures, mode rollback, cache and lock
 lifetime, temporary-port failure and partial background writes. Full gates and
 capture limits are in `docs/tools/playback-regression.md`.
+
+### World camera and picking
+
+`world_camera.c` owns persistent camera matrix/near/far/FOV and nearest-pick
+state, camera publication/working-region dirty ordering, pick reset/dispatch,
+coordinate conversion, actor-root owner traversal and rendered-bound conversion.
+The native camera is an SDK mirror. Typed adapters retain SDK field access,
+the actual SDK intersection query, region mutation and client callback dispatch.
+Temporary native pick fields mirror the C result. Render sequencing, material
+overrides, dirty-region copy loops, prerendering, drawing/export control and
+final SDK/object representation removal remain migration work.
+
+Camera changes dirty the working region without setting the changed latch,
+matching the original behavior. Half-resolution picking truncates negative
+coordinates toward zero; higher scales multiply before subtracting pixelmap
+origins. There is no viewport clamp. Equal-depth hits keep the first actor,
+and a depth of scalar MAX is not selected. Rendered SDK bounds are inclusive;
+the client rectangle is exclusive and retains the original negative-coordinate
+rounding expression. Overflow now fails before SDK dispatch/client publication.
+
+Two original native traces, the original SDL trace and converted native/SDL
+traces match all 44,472 bytes, SHA-256
+`1C21E2C115C4777BC39977DCA67A05A55A27866FD7E880F4053C0D367436C63A`.
+Little-endian fixtures enforce FNV-1a `AD744449`. The fixture records optional
+camera outputs, actual SDK hits, selection ties, origin offsets, full/half/scaled
+modes and negative rendered bounds. C-only tests cover publication order,
+integer limits, output preservation on failure, pick reset and actor-root routing.
+Full validation and capture limits are in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

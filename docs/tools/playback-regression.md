@@ -6174,3 +6174,82 @@ Evidence: `tmp/c89-world-buffers-before*.bin`, `tmp/c89-world-buffers-after*.bin
 `tmp/c89-world-buffers-output-comparison.json`,
 `tmp/c89-world-buffers-playback-actor-events-scrolling-text.json` and the two
 `tmp/c89-world-buffers-capture-*.log` files.
+
+### C89 World camera and picking (14 November 2026)
+
+`world_camera.c` now owns persistent camera matrix/near/far/FOV state and
+nearest-hit state. It controls camera publication then working-region dirtying,
+pick reset/dispatch, scale/half/origin coordinate conversion, strict nearest-hit
+selection, actor-root owner traversal and inclusive-to-exclusive rendered bounds.
+The native camera and pick fields are borrowed mirrors. Typed services retain
+SDK field access and intersection queries, region mutation and client callback
+dispatch. Render sequencing, temporary material overrides, dirty-region copying,
+prerendering, drawing/export control and final native representation removal
+remain work; neither the World conversion nor the whole C89 backend is complete.
+
+Two original native runs, an original SDL run and converted native/SDL runs match
+all 44,472 bytes without masking, SHA-256
+`1C21E2C115C4777BC39977DCA67A05A55A27866FD7E880F4053C0D367436C63A`.
+The little-endian host fixture enforces FNV-1a `AD744449`. It covers six full,
+half-X, half-Y, half-both, 2x and 4x modes, three cameras and all eight optional
+camera-output combinations, working-region/latch state, real SDK hits across
+714 points per mode with two origins, synthetic MAX/near/equal/negative depth
+candidates, nested actor-root routing and negative rendered-bound callbacks.
+The points include 21/18/17/15/21/18 hits respectively, so the trace covers hits
+as well as misses. Callback removal suppresses subsequent client publication.
+
+Camera changes retain the native working-region dirtying without setting the
+world-changed latch. Half-mode picking truncates negative halves toward zero;
+high-resolution picking multiplies before subtracting the origin and does not
+clamp to the viewport. Equal-depth candidates keep the first actor, MAX-depth
+candidates do not select an actor, and searching always continues. Rendered
+bounds retain the legacy `(exclusive + scale - 1) / scale` expression even for
+negative coordinates. Checked arithmetic now rejects unrepresentable pick
+coordinates and rendered bounds before SDK/client dispatch; optional outputs
+and failed coordinate/rectangle outputs remain untouched. C89 division behavior
+is explicit rather than dependent on the compiler's negative-division choice.
+
+All 83 standalone C checks pass with assertions enabled, including strict C89
+syntax. The new C-only fixture also builds/runs directly with Clang
+`-std=c89 -pedantic-errors -Wall -Wextra -Werror` and passes MSVC AddressSanitizer.
+It checks publication order, optional outputs, matrix aliasing, boundary
+coordinates, overflow-output preservation, callback dispatch/reset, tie selection
+and actor-root ownership. Both hosts and `core-checks` build; all 108 focused
+native checks, seventeen focused SDL release checks and 51 freshly linked CLI
+baselines pass. After explicit include/mirror-comment cleanup, four World native
+checks and all seventeen SDL checks pass on the final rebuild. Marcus was stopped
+before each rebuild and relaunched afterward. No Marcus UI tests were added.
+
+Capture executables were frozen before/after capture at SHA-256
+`1C17FA92507C686C6EAA8F3F2074B229BEFB0164AC8055274D967B99388B2734`
+(SDL release) and
+`648BD908D2E0D8FAD42D69E22C2DF294E992FA021096718B038E1FA76E54D90C`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T052551Z-996e1e80` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T052705Z-ea4c2c0f` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries, with movie identity and suite
+integrity preserved. Authored frames, all 360 seek images and ordered playback
+image changes match each player's preceding World-buffer suites
+`20261114T045551Z-b3e51c55` and `20261114T045703Z-490c8fac`. Playback comparison
+collapses only adjacent identical position/image observations. Existing
+cross-player differences and single-repeat inconclusive comparisons remain;
+these gates show no observed camera/picking conversion regression and do not
+establish complete retail timing or PCM parity. Captures use a shared warm SDL
+package cache with private processes/settings/movies and uncontrolled OS caching.
+No builds or tests run concurrently with capture. Picking itself is covered by
+the native/C fixtures rather than by these noninteractive playback captures.
+
+Evidence: `tmp/c89-world-camera-native-before*.bin`,
+`tmp/c89-world-camera-sdl-before.bin`, `tmp/c89-world-camera-*-after.bin`,
+`tmp/c89-world-camera-standalone.log`, `tmp/c89-world-camera-asan.log`,
+`tmp/c89-world-camera-native-tests.log`,
+`tmp/c89-world-camera-native-final-focused.log`,
+`tmp/c89-world-camera-sdl-tests.log`,
+`tmp/c89-world-camera-output-comparison.json`,
+`tmp/c89-world-camera-playback-actor-events-scrolling-text.json`,
+`tmp/c89-world-camera-capture-hashes-*.json` and the two
+`tmp/c89-world-camera-capture-*.log` files.

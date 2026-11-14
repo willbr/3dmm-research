@@ -11,6 +11,7 @@
 #ifndef BWLD_H
 #define BWLD_H
 #include "three_mm/world_buffers.h"
+#include "three_mm/world_camera.h"
 
 namespace BRender {
 
@@ -42,6 +43,8 @@ class World : public World_PAR
     static bool _fBRenderInited; // Whether BrBegin() has been called
     ThreeMMWorldBuffers _buffers; // owns resources; native fields below are borrowed views
     ThreeMMWorldBufferServices _BufferServices();
+    ThreeMMWorldCamera _camera; // authoritative camera and closest-pick state
+    ThreeMMWorldCameraServices _CameraServices();
     RC _rcBuffer;                // Bounds of the rendering space
     RC _rcView;                  // Bounds of view
     BACT _bactWorld;             // The world root actor
@@ -64,8 +67,8 @@ class World : public World_PAR
     PFNBEGINREND _pfnbeginrend;  // Callback to each actor before rendering
     PFNBACTREND _pfnbactrend;    // Callback when an actor is rendered
     PFNGETRECT _pfngetrect;      // Callback to get an actor's bounding rect
-    PBACT _pbactClosestClicked;  // The closest actor that has been clicked
-    BRS _dzpClosestClicked;      // Distance of the closest clicked actor
+    PBACT _pbactClosestClicked;  // Borrowed mirror of the C selection
+    BRS _dzpClosestClicked;      // Mirror of the C selection distance
     // Keep reference to last background in case we switch to/from halfmode:
     PChunkyResourceFile _pcrf;
     ChunkTagOrType _ctgRGB;

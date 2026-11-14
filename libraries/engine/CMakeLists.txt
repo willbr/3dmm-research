@@ -10,6 +10,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/bitmap_file.c)
 target_sources(three-mm-engine-c89 PRIVATE src/depth_bitmap.c)
 target_sources(three-mm-engine-c89 PRIVATE src/masked_bitmap.c)
 target_sources(three-mm-engine-c89 PRIVATE src/world_buffers.c)
+target_sources(three-mm-engine-c89 PRIVATE src/world_camera.c)
 target_sources(three-mm-engine-c89 PRIVATE src/texture_resource.c src/texture_import.c)
 target_sources(three-mm-engine-c89 PRIVATE src/material_resource.c src/custom_material.c)
 target_sources(three-mm-engine-c89 PRIVATE src/audio_clock.c src/audio_mixer.c src/midi_render.c src/sound_queue.c src/sound_manager.c src/midi_mix.c)
@@ -450,6 +451,11 @@ add_executable(engine-world-buffers-test EXCLUDE_FROM_ALL "${engine_world_buffer
 target_link_libraries(engine-world-buffers-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-world-buffers-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-world-buffers COMMAND engine-world-buffers-test)
+get_filename_component(engine_world_camera_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_world_camera_test.c" ABSOLUTE)
+add_executable(engine-world-camera-test EXCLUDE_FROM_ALL "${engine_world_camera_test_source}")
+target_link_libraries(engine-world-camera-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-world-camera-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-world-camera COMMAND engine-world-camera-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -475,6 +481,8 @@ if(ENGINE_C89_COMPILER)
     "${engine_masked_bitmap_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_buffers.c"
     "${engine_world_buffers_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/world_camera.c"
+    "${engine_world_camera_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/texture_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/texture_import.c"
     "${engine_texture_resource_test_source}"

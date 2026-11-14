@@ -18,6 +18,8 @@
 
 ***************************************************************************/
 #include <stdlib.h>
+#include <cstdint>
+#include <cstring>
 #include <vector>
 #include "bren.h"
 
@@ -292,6 +294,7 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
 
     if (dxp <= 0 || dyp <= 0 || dxp > 4096 || dyp > 4096)
         return false;
+    three_mm_world_camera_init(&_camera);
     auto s = _BufferServices();
     if (!three_mm_world_buffers_init(&_buffers, dxp, dyp, _renderScale, fHalfX, fHalfY, &s))
         return false;
@@ -364,19 +367,39 @@ bool World::FSetBackground(PChunkyResourceFile cache, ChunkTagOrType rgbType, Ch
 /***************************************************************************
     Change the camera matrix
 ***************************************************************************/
+ThreeMMWorldCameraServices World::_CameraServices()
+{
+    ThreeMMWorldCameraServices s = {};
+    s.context = this;
+    s.publish = [](void *p, const ThreeMMWorldCamera *camera) {
+        auto w = static_cast<PWorld>(p);
+        static_assert(sizeof(BMAT34) == sizeof(camera->matrix), "camera matrix layout");
+        static_assert(sizeof(BRS) == sizeof(ThreeMMI32), "fixed scalar width");
+        std::memcpy(&w->_bactCamera.t.t.mat, &camera->matrix, sizeof(camera->matrix));
+        w->_bcam.hither_z = camera->near_z;
+        w->_bcam.yon_z = camera->far_z;
+        w->_bcam.field_of_view = camera->fov;
+    };
+    s.dirty = [](void *p) {
+        auto w = static_cast<PWorld>(p);
+        w->_pregnDirtyWorking->SetRc(&w->_rcBuffer);
+    };
+    s.pick = [](void *p, ThreeMMI32 x, ThreeMMI32 y) {
+        auto w = static_cast<PWorld>(p);
+        BrScenePick2D(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, x, y, World::_FFilter, w);
+    };
+    return s;
+}
 void World::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
     Assert(zrYon > zrHither, "Yon must be further than hither");
 
-    _bactCamera.t.t.mat = *pbmat34;
-    _bcam.hither_z = zrHither;
-    _bcam.yon_z = zrYon;
-    _bcam.field_of_view = aFov;
-
-    // entire working buffer is dirty because of camera change
-    _pregnDirtyWorking->SetRc(&_rcBuffer);
+    ThreeMMActorMatrix matrix;
+    std::memcpy(&matrix, pbmat34, sizeof(matrix));
+    auto s = _CameraServices();
+    three_mm_world_camera_set(&_camera, &matrix, zrHither, zrYon, aFov, &s);
 }
 
 /***************************************************************************
@@ -390,13 +413,17 @@ void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
     AssertNilOrVarMem(pzrYon);
     AssertNilOrVarMem(paFov);
 
-    *pbmat34 = _bactCamera.t.t.mat;
-    if (pvNil != pzrHither)
-        *pzrHither = _bcam.hither_z;
-    if (pvNil != pzrYon)
-        *pzrYon = _bcam.yon_z;
-    if (pvNil != paFov)
-        *paFov = _bcam.field_of_view;
+    ThreeMMActorMatrix matrix;
+    ThreeMMI32 nearZ, farZ;
+    unsigned short fov;
+    three_mm_world_camera_get(&_camera, &matrix, &nearZ, &farZ, &fov);
+    std::memcpy(pbmat34, &matrix, sizeof(matrix));
+    if (pzrHither)
+        *pzrHither = nearZ;
+    if (pzrYon)
+        *pzrYon = farZ;
+    if (paFov)
+        *paFov = fov;
 }
 
 /***************************************************************************
@@ -572,21 +599,14 @@ void World::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bSty
 {
     AssertVarMem(pbact);
 
-    PBACT pbactT = pbact;
-    PWorld pbwld;
-    RC rc(bounds[0], bounds[1], bounds[2] + 1, bounds[3] + 1);
-
-    while (pbactT->parent != pvNil)
-        pbactT = pbactT->parent;
-    pbwld = (PWorld)pbactT->identifier;
+    auto pbwld = static_cast<PWorld>(three_mm_world_actor_owner(
+        pbact, [](void *p) -> void * { return static_cast<PBACT>(p)->parent; },
+        [](void *p) -> void * { return static_cast<PBACT>(p)->identifier; }));
     AssertPo(pbwld, 0);
-    if (pbwld->_renderScale > 1)
-    {
-        rc.xpLeft /= pbwld->_renderScale;
-        rc.ypTop /= pbwld->_renderScale;
-        rc.xpRight = (rc.xpRight + pbwld->_renderScale - 1) / pbwld->_renderScale;
-        rc.ypBottom = (rc.ypBottom + pbwld->_renderScale - 1) / pbwld->_renderScale;
-    }
+    ThreeMMI32 input[4] = {bounds[0], bounds[1], bounds[2], bounds[3]}, output[4];
+    if (!three_mm_world_rendered_bounds(pbwld->_buffers.scale, input, output))
+        return;
+    RC rc(output[0], output[1], output[2], output[3]);
     if (pvNil != pbwld->_pfnbactrend)
         pbwld->_pfnbactrend(pbact, &rc); // call client callback
 }
@@ -652,13 +672,10 @@ int World::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, 
     PWorld pbwld = (PWorld)pvData;
     AssertPo(pbwld, 0);
 
-    if (dzpNear < pbwld->_dzpClosestClicked)
-    {
-        pbwld->_pbactClosestClicked = pbact;
-        pbwld->_dzpClosestClicked = dzpNear;
-    }
-
-    return fFalse; // fFalse means keep searching
+    int result = three_mm_world_pick_visit(&pbwld->_camera, pbact, dzpNear);
+    pbwld->_pbactClosestClicked = static_cast<PBACT>(pbwld->_camera.picked);
+    pbwld->_dzpClosestClicked = pbwld->_camera.pick_depth;
+    return result;
 }
 
 /***************************************************************************
@@ -668,23 +685,11 @@ void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp,
 {
     AssertThis(0);
 
-    // Convert to _rcBuffer coordinates:
-    if (_renderScale > 1)
-    {
-        xp *= _renderScale;
-        yp *= _renderScale;
-    }
-    else
-    {
-        if (_fHalfX)
-            xp /= 2;
-        if (_fHalfY)
-            yp /= 2;
-    }
-    xp -= _bpmpRGB.origin_x;
-    yp -= _bpmpRGB.origin_y;
-
-    BrScenePick2D(&_bactWorld, &_bactCamera, &_bpmpRGB, xp, yp, pfnCallback, pvArg);
+    if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
+        return;
+    ThreeMMI32 x, y;
+    if (three_mm_world_pick_point(&_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &x, &y))
+        BrScenePick2D(&_bactWorld, &_bactCamera, &_bpmpRGB, x, y, pfnCallback, pvArg);
 }
 
 /***************************************************************************
@@ -696,10 +701,13 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
     AssertThis(0);
     AssertVarMem(ppbact);
 
-    _pbactClosestClicked = pvNil;
-    _dzpClosestClicked = BR_SCALAR_MAX;
-
-    IterateActorsInPt(World::_FFilter, this, xp, yp);
+    auto s = _CameraServices();
+    if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
+        three_mm_world_pick_begin(&_camera);
+    else
+        three_mm_world_pick(&_camera, &_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &s);
+    _pbactClosestClicked = static_cast<PBACT>(_camera.picked);
+    _dzpClosestClicked = _camera.pick_depth;
 
     if (pvNil != _pbactClosestClicked)
     {
