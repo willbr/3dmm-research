@@ -5,60 +5,80 @@ Windows 11. Application and SQLite access code is C89; Dear ImGui, its generated
 cimgui implementation and the small platform/backend adapter compile as C++.
 The build is independent of Marcus and the original engine.
 
-## Image and contact sheet comparison
+## Movie comparison
 
-`image-compare` is a simpler viewer in the same build, with three equal panes:
-**Retail**, **Ours**, and **Diff**. It accepts two PNGs, including complete movie
-contact sheets, without a capture database. The application and navigation/diff
-code are C89 and share Playback Review's cimgui/SDL backend.
+`image-compare` opens a **movie**, captures every authored frame in the
+background, and displays synchronized **Retail**, **Ours**, and **Diff** contact
+sheets. Choose a `.3mm` file or a ZIP containing one `.3mm` movie. PNG paths are
+not part of the user workflow.
 
 ```powershell
 cmake --build build/playback-review --target image-compare
-build/playback-review/image-compare.exe retail.png ours.png
+build/playback-review/image-compare.exe movies/stranger1.zip
 ```
 
-Launch without arguments to choose paths in the UI. **Browse...** opens the
-Windows file picker; paths can also be entered directly. Press **Load images**
-after choosing both files. Both images must have identical dimensions. Failed
-loads retain the previous pair. PNGs are limited to 128 megapixels each, and
-large sheets are tiled to respect the renderer's texture-size limit.
+Launch without arguments and use **Open movie...**, or enter a movie path and
+press **Render movie**. Progress shows completed frames for retail and all three
+Marcus renderers. Captures arrive together in scene/frame order: the worker
+retains each scene, evaluates one frame, and captures retail plus BRender CPU,
+BRender compute and SDL GPU before proceeding to the next frame. This avoids
+reopening scenes and rebuilding caption/asset caches before every frame.
 
-- Wheel over any pane to zoom all three around the pixel under the pointer.
-- Drag with the left or middle button in any pane to pan all three together.
+- **Tab** cycles the Marcus renderer in Ours and Diff while Retail remains fixed.
+  Radio buttons select a renderer directly. Switching preserves zoom and pan.
+- Wheel over a pane to zoom all three around the pixel under the pointer.
+- Drag with the left or middle button to pan all three together.
 - Hold **D** to highlight changed RGB pixels in magenta on both original images;
-  release it to restore the originals. This shortcut is inactive while editing
-  a path. The Diff pane continues to show the absolute RGB difference.
-- **Fit width** starts at the top of the sheets. **Fit all** shows the entire
-  images, and **1:1** shows one image pixel per UI pixel. Double-click any pane
-  to return to fit width. The zoom slider preserves the shared image centre.
+  release it to restore them. This shortcut is inactive in text inputs.
+- **Fit width**, **Fit all**, **1:1**, the zoom slider and **Columns** control the
+  contact-sheet view. Double-click a pane to return to fit width.
 
-All panes use the same image-space centre and zoom in the same rendered frame.
-Sampling is nearest-neighbour. Diff shows the absolute difference of each RGB
-channel with opaque alpha; black means equal RGB. The changed-pixel count ignores
-alpha. It compares the entire supplied images, including labels and headings on
-contact sheets. Downsampled contact sheets are useful for browsing; use original
-frame PNGs for exact native-resolution comparisons. Still-frame seeks do not
-cover scrolling/transition presentations between authored frames.
+Diff is the absolute native RGB difference, with black meaning equal RGB.
+Headers and scene/frame labels are UI elements outside the captured pixels, so
+neither appears in Diff or the D overlay. Scene/frame labels are one-based.
+Sources are captured at 544x306, including retail's exact canvas at client
+rectangle `48 100 592 406`. Nearest-neighbour sampling is explicitly selected
+through the cimgui renderer. At magnification the viewer uses original frame
+pixels; small overviews use reduced cached textures.
 
-For the complete Stranger captures in this workspace:
+Movie rendering runs in owned child processes. A bounded decoder thread reads
+frame files, computes differences and overlays, and prepares reduced surfaces.
+The UI uploads at most one decoded frame set per iteration. Cached textures are
+trimmed toward a 128 MiB budget, retaining those used by the current view. Retail
+launches with no activation and capture-only window hooks prevent its own
+show/focus calls from taking foreground focus. It still uses its original
+renderer and an interactive desktop; no minimized-window rendering is assumed.
+
+**Cancel capture** requests cooperative cancellation. Closing the viewer also
+requests cancellation and waits for the worker to close its owned processes.
+Source movies and installed retail preferences remain unchanged. Captures and
+provenance are saved under `tmp/movie-compare/run-*`. For diagnostic reopening:
 
 ```powershell
-build/playback-review/image-compare.exe tmp/stranger1-contact-sheet/stranger1-retail-all-frames.png tmp/stranger1-contact-sheet/stranger1-marcus-all-frames.png
+build/playback-review/image-compare.exe --session tmp/movie-compare/run-EXAMPLE
 ```
 
-Each sheet includes all 975 authored frames across 46 scenes, labelled with
-one-based scene/frame numbers and ordered left to right, top to bottom. Retail
-uses the pinned ISO executable and its native 544x306 canvas at client rectangle
-`48 100 592 406`; Marcus uses a matching 544x306 render. Contact thumbnails are
-272x153. Original captures and capture metadata are beside the sheets.
+The worker is `tools/movie_compare_capture.py` and requires Python with Pillow,
+`build/marcus-x64/src/marcus/marcus-regression.exe`, the x86 bridge in
+`tmp/retail-oracle/build`, original content in `content-files`, and
+`build/studio-portable-x64/3dmovie/utest.chk`. It reuses the prepared ISO package
+or prepares it from `dist/3DMOVIE100.iso`. Its CLI accepts explicit overrides for
+those dependency paths. Missing dependencies and failed renderers have explicit
+error/partial statuses; unavailable captures never imply a match.
 
-`review-image` checks pointer-anchored zoom, pan distances, zoom limits and RGB
-difference values, including alpha-only changes and output bounds.
-`image-compare-c89` checks the new application and helpers with strict C89
-diagnostics. A hidden render check can save a viewer screenshot:
+These are ordered still-frame seeks, retaining each scene, rather than
+normal-speed playback or independent scene resets for every frame. They do not
+cover intermediate scrolling/transition presentations. The ordinary regression
+seek commands retain their independent scene-selection behavior.
+
+`review-image` checks navigation and RGB/overlay calculations;
+`review-image-decode` checks background decoding, queue bounds, native diff/mask
+pixels, reduced surfaces and missing-file failures. `image-compare-c89` checks
+the new application and helpers with strict C89 diagnostics. A hidden render
+check can save a viewer screenshot from existing captures:
 
 ```powershell
-build/playback-review/image-compare.exe retail.png ours.png --smoke viewer.png
+build/playback-review/image-compare.exe --session tmp/movie-compare/run-EXAMPLE --smoke viewer.png
 ```
 
 ## Build and open

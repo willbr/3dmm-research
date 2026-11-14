@@ -72,7 +72,7 @@ def delete_registry_tree(name):
 
 class RetailSession:
     def __init__(self, build, product, source, artifacts, timeout=30, *, executable=None, environment=None,
-                 expected_hash=EXE_SHA256):
+                 expected_hash=EXE_SHA256, background=False):
         self.build, self.product = pathlib.Path(build).resolve(), pathlib.Path(product).resolve()
         self.source, self.artifacts = pathlib.Path(source).resolve(), pathlib.Path(artifacts).resolve()
         self.artifacts.mkdir(parents=True, exist_ok=True)
@@ -96,7 +96,10 @@ class RetailSession:
                 str(self.build / 'retail-oracle.dll'), str(self.product.parent), str(self.movie)]
             if environment:
                 command.append(str(environment))
-            launch = subprocess.run(command,
+            launch_environment = os.environ.copy()
+            if background:
+                launch_environment['THREEDMM_ORACLE_BACKGROUND'] = '1'
+            launch = subprocess.run(command, env=launch_environment,
                 capture_output=True, text=True, timeout=50, creationflags=subprocess.CREATE_NO_WINDOW)
             (self.artifacts / 'bootstrap.log').write_text(launch.stderr, encoding='utf-8')
             if launch.returncode:

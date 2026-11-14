@@ -7,14 +7,14 @@
 #include <windows.h>
 #include <commdlg.h>
 #endif
-static int pick_file(char *path, int capacity, bool image)
+static int pick_file(char *path, int capacity, int kind)
 {
 #ifdef _WIN32
     wchar_t filename[4096] = {0};
     OPENFILENAMEW dialog = {};
     dialog.lStructSize = sizeof(dialog);
-    dialog.lpstrTitle = image ? L"Open comparison image" : L"Open playback regression results";
-    dialog.lpstrFilter = image ? L"PNG images\0*.png\0All files\0*.*\0" : L"SQLite results\0*.sqlite;*.db\0All files\0*.*\0";
+    dialog.lpstrTitle = kind == 2 ? L"Choose a movie to compare" : kind == 1 ? L"Open comparison image" : L"Open playback regression results";
+    dialog.lpstrFilter = kind == 2 ? L"3DMM movies\0*.3mm;*.zip\0All files\0*.*\0" : kind == 1 ? L"PNG images\0*.png\0All files\0*.*\0" : L"SQLite results\0*.sqlite;*.db\0All files\0*.*\0";
     dialog.lpstrFile = filename;
     dialog.nMaxFile = sizeof(filename) / sizeof(filename[0]);
     dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
@@ -24,7 +24,7 @@ static int pick_file(char *path, int capacity, bool image)
 #else
     (void)path;
     (void)capacity;
-    (void)image;
+    (void)kind;
     return 0;
 #endif
 }
@@ -35,6 +35,10 @@ int review_pick_database(char *path, int capacity)
 int review_pick_image(char *path, int capacity)
 {
     return pick_file(path, capacity, true);
+}
+int review_pick_movie(char *path, int capacity)
+{
+    return pick_file(path, capacity, 2);
 }
 unsigned long review_window_flags(int hidden)
 {

@@ -1,4 +1,4 @@
-/* Three synchronized image panes. Application code is C89. */
+﻿/* Movie comparison viewer. Application code uses C89. */
 #include <SDL3/SDL.h>
 #include <math.h>
 #include <stdio.h>
@@ -8,30 +8,43 @@
 #include <cimgui.h>
 #include "backend.h"
 #include "image_view.h"
+#include "image_decode.h"
+#ifndef REVIEW_SOURCE_DIR
+#define REVIEW_SOURCE_DIR "."
+#endif
+#define FRAME_WIDTH 544
+#define FRAME_HEIGHT 306
+#define CELL_WIDTH 552
+#define CELL_HEIGHT 336
+#define CACHE_BUDGET (128u * 1024u * 1024u)
 
-#define TILE_SIZE 1024
-typedef struct ImageTile
+typedef struct Frame
 {
-    SDL_Texture *texture;
-    int x, y, w, h;
-} ImageTile;
-typedef struct ImageSet
-{
-    ImageTile *tiles[4];
-    int count, width, height;
-    unsigned long changed;
-} ImageSet;
+    int scene;
+    long number, raw;
+    SDL_Texture *texture[4];
+    unsigned long used;
+    size_t bytes;
+    int loaded, backend, tier;
+} Frame;
 typedef struct Pane
 {
     ImDrawList *draw;
     ImVec2 origin, size;
 } Pane;
-
 static SDL_Renderer *renderer;
-static ImageSet images;
+static SDL_Process *process;
+static ReviewDecoder *decoder;
+static unsigned long decode_token;
+static Frame *frames;
+static int total, ready[4], candidate, columns = 6, fit = 1, closing;
+static int sheet_width, sheet_height;
+static unsigned long generation;
+static size_t cache_bytes;
 static ReviewImageView view = {0, 0, 1};
-static char paths[2][4096], error[1024];
-static int fit = 1;
+static char movie[4096], session[4096], message[2048], state[32], image_error[512];
+static const char *names[3] = {"BRender CPU", "BRender compute", "SDL GPU"};
+static const char *backends[4] = {"retail", "brender", "brender-compute", "sdl-gpu"};
 
 static ImVec2 vec(float x, float y)
 {
@@ -40,169 +53,281 @@ static ImVec2 vec(float x, float y)
     v.y = y;
     return v;
 }
-static void clear_images(ImageSet *set)
-{
-    int i, j;
-    for (i = 0; i < 4; ++i)
-    {
-        if (set->tiles[i])
-            for (j = 0; j < set->count; ++j)
-                SDL_DestroyTexture(set->tiles[i][j].texture);
-        SDL_free(set->tiles[i]);
-    }
-    memset(set, 0, sizeof(*set));
-}
-static SDL_Surface *read_image(const char *path)
-{
-    SDL_Surface *source, *rgba;
-    source = SDL_LoadPNG(path);
-    if (!source)
-        return NULL;
-    if ((double)source->w * source->h > 128000000)
-    {
-        SDL_DestroySurface(source);
-        SDL_SetError("Image exceeds the 128 megapixel limit");
-        return NULL;
-    }
-    rgba = SDL_ConvertSurface(source, SDL_PIXELFORMAT_RGBA32);
-    SDL_DestroySurface(source);
-    return rgba;
-}
-static int tile_texture(ImageTile *tile, SDL_Surface *surface)
-{
-    tile->texture = SDL_CreateTextureFromSurface(renderer, surface);
-    if (!tile->texture)
-        return 0;
-    SDL_SetTextureScaleMode(tile->texture, SDL_SCALEMODE_NEAREST);
-    SDL_SetTextureBlendMode(tile->texture, SDL_BLENDMODE_NONE);
-    return 1;
-}
-static int load_images(void)
-{
-    ImageSet next;
-    SDL_Surface *source[2], *part, *delta;
-    ImageTile *tile;
-    unsigned char *a, *b, *d;
-    int i, index, x, y, row, columns, rows, size;
-    SDL_PropertiesID properties;
-    memset(&next, 0, sizeof(next));
-    memset(source, 0, sizeof(source));
-    delta = NULL;
-    error[0] = 0;
-    for (i = 0; i < 2; ++i)
-    {
-        source[i] = read_image(paths[i]);
-        if (!source[i])
-        {
-            SDL_snprintf(error, sizeof(error), "%s: %s", i ? "Ours" : "Retail", SDL_GetError());
-            goto failed;
-        }
-    }
-    if (source[0]->w != source[1]->w || source[0]->h != source[1]->h)
-    {
-        SDL_snprintf(error, sizeof(error), "Image sizes differ: Retail %dx%d, Ours %dx%d. Use matching captures.",
-                     source[0]->w, source[0]->h, source[1]->w, source[1]->h);
-        goto failed;
-    }
-    next.width = source[0]->w;
-    next.height = source[0]->h;
-    properties = SDL_GetRendererProperties(renderer);
-    size = (int)SDL_GetNumberProperty(properties, SDL_PROP_RENDERER_MAX_TEXTURE_SIZE_NUMBER, TILE_SIZE);
-    if (size <= 0 || size > TILE_SIZE)
-        size = TILE_SIZE;
-    columns = (next.width + size - 1) / size;
-    rows = (next.height + size - 1) / size;
-    next.count = columns * rows;
-    for (i = 0; i < 4; ++i)
-    {
-        next.tiles[i] = (ImageTile *)SDL_calloc((size_t)next.count, sizeof(ImageTile));
-        if (!next.tiles[i])
-        {
-            SDL_SetError("Cannot allocate image tiles");
-            goto failed;
-        }
-    }
-    for (index = 0; index < next.count; ++index)
-    {
-        x = (index % columns) * size;
-        y = (index / columns) * size;
-        for (i = 0; i < 4; ++i)
-        {
-            tile = &next.tiles[i][index];
-            tile->x = x;
-            tile->y = y;
-            tile->w = next.width - x < size ? next.width - x : size;
-            tile->h = next.height - y < size ? next.height - y : size;
-        }
-        tile = &next.tiles[2][index];
-        for (i = 0; i < 2; ++i)
-        {
-            part = SDL_CreateSurfaceFrom(tile->w, tile->h, SDL_PIXELFORMAT_RGBA32,
-                       (unsigned char *)source[i]->pixels + y * source[i]->pitch + x * 4, source[i]->pitch);
-            if (!part)
-                goto failed;
-            row = tile_texture(&next.tiles[i][index], part);
-            SDL_DestroySurface(part);
-            if (!row)
-                goto failed;
-        }
-        delta = SDL_CreateSurface(tile->w, tile->h, SDL_PIXELFORMAT_RGBA32);
-        if (!delta)
-            goto failed;
-        for (row = 0; row < tile->h; ++row)
-        {
-            a = (unsigned char *)source[0]->pixels + (y + row) * source[0]->pitch + x * 4;
-            b = (unsigned char *)source[1]->pixels + (y + row) * source[1]->pitch + x * 4;
-            d = (unsigned char *)delta->pixels + row * delta->pitch;
-            next.changed += (unsigned long)review_image_diff_row(a, b, d, (size_t)tile->w);
-        }
-        if (!tile_texture(tile, delta))
-            goto failed;
-        for (row = 0; row < tile->h; ++row)
-            review_image_highlight_row((unsigned char *)delta->pixels + row * delta->pitch, (size_t)tile->w);
-        if (!tile_texture(&next.tiles[3][index], delta) ||
-            !SDL_SetTextureBlendMode(next.tiles[3][index].texture, SDL_BLENDMODE_BLEND))
-            goto failed;
-        SDL_DestroySurface(delta);
-        delta = NULL;
-    }
-    SDL_DestroySurface(source[0]);
-    SDL_DestroySurface(source[1]);
-    clear_images(&images);
-    images = next;
-    fit = 1;
-    return 1;
-failed:
-    if (!error[0])
-        SDL_strlcpy(error, SDL_GetError(), sizeof(error));
-    SDL_DestroySurface(delta);
-    SDL_DestroySurface(source[0]);
-    SDL_DestroySurface(source[1]);
-    clear_images(&next);
-    return 0;
-}
-
-static void controls(void)
+static void clear_frame(Frame *frame)
 {
     int i;
-    float percent;
-    const char *labels[2] = {"Retail", "Ours"};
-    for (i = 0; i < 2; ++i)
+    for (i = 0; i < 4; ++i)
     {
-        igPushID_Int(i);
-        igText("%-6s", labels[i]);
-        igSameLine(0, -1);
-        igSetNextItemWidth(-90);
-        igInputTextWithHint("##path", "PNG image or contact sheet", paths[i], sizeof(paths[i]), 0, NULL, NULL);
-        igSameLine(0, -1);
-        if (igButton("Browse...", vec(0, 0)))
-            review_pick_image(paths[i], (int)sizeof(paths[i]));
-        igPopID();
+        SDL_DestroyTexture(frame->texture[i]);
+        frame->texture[i] = NULL;
     }
-    if (igButton("Load images", vec(0, 0)))
-        load_images();
+    cache_bytes -= frame->bytes;
+    frame->bytes = 0;
+    frame->loaded = 0;
+}
+static void clear_frames(void)
+{
+    int i;
+    for (i = 0; i < total; ++i)
+        clear_frame(&frames[i]);
+    ++decode_token;
+    SDL_free(frames);
+    frames = NULL;
+    total = 0;
+    memset(ready, 0, sizeof(ready));
+}
+static void cancel_capture(void)
+{
+    char path[8192];
+    SDL_IOStream *file;
+    if (!process)
+        return;
+    SDL_snprintf(path, sizeof(path), "%s/cancel", session);
+    file = SDL_IOFromFile(path, "wb");
+    if (file)
+        SDL_CloseIO(file);
+    SDL_strlcpy(message, "Stopping capture...", sizeof(message));
+}
+static void start_capture(void)
+{
+    char script[8192], parent[8192];
+    const char *args[9];
+    SDL_PropertiesID properties;
+    SDL_PathInfo info;
+    int attempt;
+    if (process || !movie[0])
+        return;
+    SDL_snprintf(parent, sizeof(parent), "%s/tmp/movie-compare", REVIEW_SOURCE_DIR);
+    if (!SDL_CreateDirectory(parent))
+    {
+        SDL_strlcpy(message, SDL_GetError(), sizeof(message));
+        return;
+    }
+    for (attempt = 0; attempt < 100; ++attempt)
+    {
+        SDL_snprintf(session, sizeof(session), "%s/run-%lu-%d", parent,
+                     (unsigned long)SDL_GetPerformanceCounter(), attempt);
+        if (!SDL_GetPathInfo(session, &info) && SDL_CreateDirectory(session))
+            break;
+    }
+    if (attempt == 100)
+    {
+        SDL_strlcpy(message, "Cannot reserve a capture directory", sizeof(message));
+        return;
+    }
+    SDL_snprintf(script, sizeof(script), "%s/tools/movie_compare_capture.py", REVIEW_SOURCE_DIR);
+    args[0] = "python";
+    args[1] = "-B";
+    args[2] = script;
+    args[3] = "--movie";
+    args[4] = movie;
+    args[5] = "--output";
+    args[6] = session;
+    args[7] = NULL;
+    properties = SDL_CreateProperties();
+    SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
+    SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, 1);
+    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
+    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
+    SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_STDERR_TO_STDOUT_BOOLEAN, 1);
+    process = SDL_CreateProcessWithProperties(properties);
+    SDL_DestroyProperties(properties);
+    if (!process)
+    {
+        SDL_strlcpy(message, SDL_GetError(), sizeof(message));
+        return;
+    }
+    clear_frames();
+    candidate = 0;
+    fit = 1;
+    state[0] = image_error[0] = 0;
+    SDL_strlcpy(message, "Starting background capture...", sizeof(message));
+}
+static void read_status(void)
+{
+    char path[8192], next_state[32], next_message[2048];
+    FILE *file;
+    Frame *next;
+    int count, counts[4], i, status;
+    size_t bytes;
+    if (!session[0])
+        return;
+    SDL_snprintf(path, sizeof(path), "%s/status.txt", session);
+    file = fopen(path, "rb");
+    if (file)
+    {
+        next_state[0] = next_message[0] = 0;
+        if (fscanf(file, "%31s%d%d%d%d%d\n", next_state, &count, &counts[0], &counts[1], &counts[2], &counts[3]) == 6 &&
+            count >= 0 && count <= 250000 && fgets(next_message, sizeof(next_message), file))
+        {
+            if (!frames && count > 0)
+            {
+                FILE *manifest;
+                SDL_snprintf(path, sizeof(path), "%s/frames.tsv", session);
+                manifest = fopen(path, "rb");
+                next = (Frame *)SDL_calloc((size_t)count, sizeof(Frame));
+                if (manifest && next)
+                {
+                    for (i = 0; i < count; ++i)
+                        if (fscanf(manifest, "%d%ld%ld", &next[i].scene, &next[i].number, &next[i].raw) != 3)
+                            break;
+                    if (i == count)
+                    {
+                        frames = next;
+                        total = count;
+                        next = NULL;
+                    }
+                }
+                if (manifest)
+                    fclose(manifest);
+                SDL_free(next);
+            }
+            for (i = 0; i < 4; ++i)
+                ready[i] = counts[i] >= 0 && counts[i] <= total ? counts[i] : 0;
+            SDL_strlcpy(state, next_state, sizeof(state));
+            next_message[strcspn(next_message, "\r\n")] = 0;
+            SDL_strlcpy(message, next_message, sizeof(message));
+        }
+        fclose(file);
+    }
+    if (process && SDL_WaitProcess(process, 0, &status))
+    {
+        if (strcmp(state, "complete") && strcmp(state, "partial") && strcmp(state, "cancelled") && strcmp(state, "error"))
+        {
+            bytes = SDL_ReadIO(SDL_GetProcessOutput(process), next_message, sizeof(next_message) - 1);
+            next_message[bytes] = 0;
+            SDL_snprintf(message, sizeof(message), "Capture process exited (%d). %s", status, next_message);
+        }
+        SDL_DestroyProcess(process);
+        process = NULL;
+    }
+}
+static void upload_decoded(void)
+{
+    ReviewDecodeResult result;
+    Frame *frame;
+    SDL_Surface *surface;
+    int i;
+    if (!review_decoder_poll(decoder, &result))
+        return;
+    if (result.token == decode_token && result.index < total && result.backend == candidate)
+    {
+        frame = &frames[result.index];
+        clear_frame(frame);
+        frame->backend = result.backend;
+        frame->tier = result.tier;
+        if (!result.error[0])
+            for (i = 0; i < 4; ++i)
+            {
+                surface = result.images[i];
+                if (!surface)
+                    continue;
+                frame->texture[i] = SDL_CreateTextureFromSurface(renderer, surface);
+                if (!frame->texture[i])
+                {
+                    SDL_strlcpy(result.error, SDL_GetError(), sizeof(result.error));
+                    break;
+                }
+                SDL_SetTextureScaleMode(frame->texture[i], SDL_SCALEMODE_NEAREST);
+                SDL_SetTextureBlendMode(frame->texture[i], i == 3 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+                frame->bytes += (size_t)surface->w * surface->h * 4;
+                cache_bytes += (size_t)surface->w * surface->h * 4;
+            }
+        if (result.error[0])
+        {
+            SDL_strlcpy(image_error, result.error, sizeof(image_error));
+            clear_frame(frame);
+            frame->loaded = -1;
+        }
+        else
+            frame->loaded = result.wanted;
+    }
+    review_decode_free(&result);
+}
+static Frame *load_frame(int index, int tier)
+{
+    Frame *frame;
+    int wanted;
+    frame = &frames[index];
+    wanted = ready[0] > index ? 1 : 0;
+    if (wanted && ready[candidate + 1] > index)
+        wanted = 2;
+    frame->used = generation;
+    if (frame->backend != candidate || frame->tier != tier ||
+        (frame->loaded >= 0 && frame->loaded != wanted))
+    {
+        clear_frame(frame);
+        frame->backend = candidate;
+        frame->tier = tier;
+    }
+    if (wanted && !frame->loaded)
+        review_decoder_request(decoder, session, index, candidate, tier, wanted, decode_token);
+    return frame;
+}
+static void trim_cache(void)
+{
+    int i;
+    /* Never release a texture referenced by the current frame's draw data. */
+    if (cache_bytes > CACHE_BUDGET)
+        for (i = 0; i < total && cache_bytes > CACHE_BUDGET; ++i)
+            if (frames[i].loaded && frames[i].used != generation)
+                clear_frame(&frames[i]);
+}
+static void choose_renderer(int next)
+{
+    int i;
+    if (candidate == next)
+        return;
+    candidate = next;
+    ++decode_token;
+    for (i = 0; i < total; ++i)
+        clear_frame(&frames[i]);
+    image_error[0] = 0;
+}
+static void controls(void)
+{
+    int i, next;
+    float percent;
+    igBeginDisabled(process != NULL);
+    igSetNextItemWidth(-145);
+    if (igInputTextWithHint("##movie", "Choose a .3mm movie or ZIP", movie, sizeof(movie),
+                            ImGuiInputTextFlags_EnterReturnsTrue, NULL, NULL))
+        start_capture();
     igSameLine(0, -1);
-    igBeginDisabled(!images.count);
+    if (igButton("Open movie...", vec(0, 0)) && review_pick_movie(movie, (int)sizeof(movie)))
+        start_capture();
+    igEndDisabled();
+    if (igButton(process ? "Cancel capture" : "Render movie", vec(0, 0)))
+    {
+        if (process)
+            cancel_capture();
+        else
+            start_capture();
+    }
+    for (i = 0; i < 3; ++i)
+    {
+        igSameLine(0, -1);
+        if (igRadioButton_Bool(names[i], candidate == i))
+            choose_renderer(i);
+    }
+    if (!igGetIO_Nil()->WantTextInput && igIsKeyPressed_Bool(ImGuiKey_Tab, 0))
+        choose_renderer((candidate + 1) % 3);
+    igSameLine(0, -1);
+    next = columns;
+    igSetNextItemWidth(100);
+    if (igInputInt("Columns", &next, 1, 1, 0))
+    {
+        columns = next < 1 ? 1 : next > 24 ? 24 : next;
+        fit = 1;
+    }
+    if (total)
+    {
+        percent = (float)(ready[0] + ready[1] + ready[2] + ready[3]) / (4 * total);
+        igProgressBar(percent, vec(-1, 0), message);
+        igText("%d frames | Retail %d | CPU %d | Compute %d | SDL GPU %d", total, ready[0], ready[1], ready[2], ready[3]);
+    }
+    else
+        igTextWrapped("%s", message[0] ? message : "Open a movie to capture all frames in the background.");
     if (igButton("Fit width", vec(0, 0)))
         fit = 1;
     igSameLine(0, -1);
@@ -222,66 +347,60 @@ static void controls(void)
         review_image_zoom(&view, percent / 100, 0, 0);
         fit = 0;
     }
-    igEndDisabled();
-    igTextUnformatted("Wheel: zoom | Drag: pan all three | Double-click: fit width | Hold D: highlight differences", NULL);
-    if (images.count)
-        igText("%d x %d | %lu changed RGB pixels (%.2f%%) | Diff: absolute RGB difference; black = equal",
-               images.width, images.height, images.changed,
-               100.0 * images.changed / ((double)images.width * images.height));
-    if (error[0])
-        igTextWrapped("%s%s", error, images.count ? " (Previous images remain displayed.)" : "");
+    igTextUnformatted("Wheel: zoom | Drag: pan all | Hold D: highlight | Tab: renderer | Labels excluded from diff", NULL);
+    if (image_error[0])
+        igTextWrapped("%s", image_error);
 }
-
-static void draw_pane(Pane *pane, int index, int highlight)
+static void draw_frame(Pane *pane, Frame *frame, int slot, float x, float y, int highlight)
 {
-    int i;
-    float left, top, right, bottom;
-    ImageTile *tile;
     ImTextureRef texture;
-    ImVec2 end;
-    end = vec(pane->origin.x + pane->size.x, pane->origin.y + pane->size.y);
-    ImDrawList_PushClipRect(pane->draw, pane->origin, end, 1);
-    ImDrawList_AddRectFilled(pane->draw, pane->origin, end, 0xff181513UL, 0, 0);
-    ImDrawList_AddCallback(pane->draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerNearest, NULL, 0);
+    char label[80];
+    ImVec2 min, max;
+    min = vec(x, y);
+    max = vec(x + (float)(FRAME_WIDTH * view.zoom), y + (float)(FRAME_HEIGHT * view.zoom));
     memset(&texture, 0, sizeof(texture));
-    for (i = 0; i < images.count; ++i)
+    if (frame->texture[slot])
     {
-        tile = &images.tiles[index][i];
-        left = pane->origin.x + pane->size.x / 2 + (float)((tile->x - view.x) * view.zoom);
-        top = pane->origin.y + pane->size.y / 2 + (float)((tile->y - view.y) * view.zoom);
-        right = left + (float)(tile->w * view.zoom);
-        bottom = top + (float)(tile->h * view.zoom);
-        if (right <= pane->origin.x || bottom <= pane->origin.y || left >= end.x || top >= end.y)
-            continue;
-        texture._TexID = (ImTextureID)(size_t)tile->texture;
-        ImDrawList_AddImage(pane->draw, texture, vec(left, top), vec(right, bottom), vec(0, 0), vec(1, 1), 0xffffffffUL);
-        if (highlight && index < 2)
+        texture._TexID = (ImTextureID)(size_t)frame->texture[slot];
+        ImDrawList_AddImage(pane->draw, texture, min, max, vec(0, 0), vec(1, 1), 0xffffffffUL);
+        if (slot < 2 && highlight && frame->texture[3])
         {
-            texture._TexID = (ImTextureID)(size_t)images.tiles[3][i].texture;
-            ImDrawList_AddImage(pane->draw, texture, vec(left, top), vec(right, bottom), vec(0, 0), vec(1, 1), 0xffffffffUL);
+            texture._TexID = (ImTextureID)(size_t)frame->texture[3];
+            ImDrawList_AddImage(pane->draw, texture, min, max, vec(0, 0), vec(1, 1), 0xffffffffUL);
         }
     }
-    ImDrawList_AddCallback(pane->draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerLinear, NULL, 0);
-    ImDrawList_PopClipRect(pane->draw);
+    else
+        ImDrawList_AddRectFilled(pane->draw, min, max, 0xff282420UL, 0, 0);
+    SDL_snprintf(label, sizeof(label), "Scene %02d / Frame %03ld", frame->scene, frame->number);
+    ImDrawList_AddText_FontPtr(pane->draw, NULL, (float)(16 * view.zoom),
+        vec(x, max.y + (float)(3 * view.zoom)), 0xffe9ded7UL, label, NULL, 0, NULL);
 }
 static void panes(void)
 {
     Pane pane[3];
     ImGuiIO *io;
-    int i, show;
-    double scale;
+    Frame *frame;
     const char *titles[3] = {"Retail", "Ours", "Diff"};
-    memset(pane, 0, sizeof(pane));
+    int i, index, row, first, last, count_rows, tier, highlight;
+    double scale, top, bottom;
+    float x, y;
     if (!igBeginTable("Images", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame, vec(0, 0), 0))
         return;
     io = igGetIO_Nil();
+    sheet_width = columns * CELL_WIDTH + 8;
+    count_rows = total ? (total + columns - 1) / columns : 1;
+    sheet_height = count_rows * CELL_HEIGHT + 8;
     for (i = 0; i < 3; ++i)
     {
         igTableNextColumn();
         igTextUnformatted(titles[i], NULL);
+        if (i == 1)
+        {
+            igSameLine(0, -1);
+            igText("- %s", names[candidate]);
+        }
         igPushID_Int(i);
-        show = igBeginChild_Str("Canvas", vec(0, 0), 0,
-                   ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        igBeginChild_Str("Canvas", vec(0, 0), 0, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         pane[i].origin = igGetCursorScreenPos();
         pane[i].size = igGetContentRegionAvail();
         pane[i].draw = igGetWindowDrawList();
@@ -289,55 +408,90 @@ static void panes(void)
             pane[i].size.x = 1;
         if (pane[i].size.y < 1)
             pane[i].size.y = 1;
-        if (!i && images.count && fit)
+        if (!i && total && fit)
         {
-            scale = pane[i].size.x / images.width;
-            if (fit == 2 && pane[i].size.y / images.height < scale)
-                scale = pane[i].size.y / images.height;
+            scale = pane[i].size.x / sheet_width;
+            if (fit == 2 && pane[i].size.y / sheet_height < scale)
+                scale = pane[i].size.y / sheet_height;
             review_image_zoom(&view, scale, 0, 0);
-            view.x = images.width / 2.0;
-            view.y = fit == 2 ? images.height / 2.0 : pane[i].size.y / (2 * view.zoom);
+            view.x = sheet_width / 2.0;
+            view.y = fit == 2 ? sheet_height / 2.0 : pane[i].size.y / (2 * view.zoom);
             fit = 0;
         }
         igInvisibleButton("Pan and zoom", pane[i].size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonMiddle);
-        if (show && images.count)
+        if (total && igIsItemHovered(0) && io->MouseWheel)
+            review_image_zoom(&view, view.zoom * pow(1.2, io->MouseWheel),
+                io->MousePos.x - pane[i].origin.x - pane[i].size.x / 2,
+                io->MousePos.y - pane[i].origin.y - pane[i].size.y / 2);
+        if (igIsItemActive() && (igIsMouseDragging(ImGuiMouseButton_Left, 0) || igIsMouseDragging(ImGuiMouseButton_Middle, 0)))
         {
-            if (igIsItemHovered(0) && io->MouseWheel)
-                review_image_zoom(&view, view.zoom * pow(1.2, io->MouseWheel),
-                                  io->MousePos.x - pane[i].origin.x - pane[i].size.x / 2,
-                                  io->MousePos.y - pane[i].origin.y - pane[i].size.y / 2);
-            if (igIsItemActive() && (igIsMouseDragging(ImGuiMouseButton_Left, 0) ||
-                                    igIsMouseDragging(ImGuiMouseButton_Middle, 0)))
-            {
-                review_image_pan(&view, io->MouseDelta.x, io->MouseDelta.y);
-                igSetMouseCursor(ImGuiMouseCursor_ResizeAll);
-            }
-            if (igIsItemHovered(0) && igIsMouseDoubleClicked_Nil(ImGuiMouseButton_Left))
-                fit = 1;
+            review_image_pan(&view, io->MouseDelta.x, io->MouseDelta.y);
+            igSetMouseCursor(ImGuiMouseCursor_ResizeAll);
         }
+        if (igIsItemHovered(0) && igIsMouseDoubleClicked_Nil(ImGuiMouseButton_Left))
+            fit = 1;
         igEndChild();
         igPopID();
     }
-    /* Apply input before drawing any pane so all three use this frame's view. */
+    tier = view.zoom < 0.125 ? 3 : view.zoom < 0.25 ? 2 : view.zoom < 0.5 ? 1 : 0;
+    highlight = !io->WantTextInput && igIsKeyDown_Nil(ImGuiKey_D);
     for (i = 0; i < 3; ++i)
-        draw_pane(&pane[i], i, !io->WantTextInput && igIsKeyDown_Nil(ImGuiKey_D));
+    {
+        ImDrawList_PushClipRect(pane[i].draw, pane[i].origin,
+            vec(pane[i].origin.x + pane[i].size.x, pane[i].origin.y + pane[i].size.y), 1);
+        ImDrawList_AddCallback(pane[i].draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerNearest, NULL, 0);
+    }
+    top = view.y - pane[0].size.y / (2 * view.zoom);
+    bottom = view.y + pane[0].size.y / (2 * view.zoom);
+    first = top <= 8 ? 0 : (int)((top - 8) / CELL_HEIGHT);
+    last = bottom <= 0 ? -1 : (int)(bottom / CELL_HEIGHT);
+    if (last >= count_rows)
+        last = count_rows - 1;
+    for (row = first; row <= last; ++row)
+        for (index = row * columns; index < (row + 1) * columns && index < total; ++index)
+        {
+            x = (float)((8 + index % columns * CELL_WIDTH - view.x) * view.zoom);
+            if (x + FRAME_WIDTH * view.zoom < -pane[0].size.x / 2 || x > pane[0].size.x / 2)
+                continue;
+            frame = load_frame(index, tier);
+            for (i = 0; i < 3; ++i)
+            {
+                y = pane[i].origin.y + pane[i].size.y / 2 + (float)((8 + row * CELL_HEIGHT - view.y) * view.zoom);
+                draw_frame(&pane[i], frame, i, pane[i].origin.x + pane[i].size.x / 2 + x, y, highlight);
+            }
+        }
+    for (i = 0; i < 3; ++i)
+    {
+        ImDrawList_AddCallback(pane[i].draw, igGetPlatformIO_Nil()->DrawCallback_SetSamplerLinear, NULL, 0);
+        ImDrawList_PopClipRect(pane[i].draw);
+    }
     igEndTable();
 }
-
 int main(int argc, char **argv)
 {
     SDL_Window *window;
     SDL_Event event;
     SDL_Surface *screenshot;
-    int running, width, height, smoke, status;
-    if (argc != 1 && argc != 3 && !(argc == 5 && !strcmp(argv[3], "--smoke")))
+    const char *smoke_path;
+    int i, smoke, running, width, height, status;
+    Uint64 next_poll;
+    smoke_path = NULL;
+    for (i = 1; i < argc; ++i)
     {
-        fprintf(stderr, "Usage: image-compare [retail.png ours.png [--smoke screenshot.png]]\n");
-        return 2;
+        if (!strcmp(argv[i], "--session") && i + 1 < argc)
+            SDL_strlcpy(session, argv[++i], sizeof(session));
+        else if (!strcmp(argv[i], "--smoke") && i + 1 < argc)
+            smoke_path = argv[++i];
+        else if (argv[i][0] != '-' && !movie[0])
+            SDL_strlcpy(movie, argv[i], sizeof(movie));
+        else
+        {
+            fprintf(stderr, "Usage: image-compare [movie.3mm|movie.zip] [--session capture-directory] [--smoke screenshot.png]\n");
+            return 2;
+        }
     }
-    smoke = argc == 5 ? 3 : 0;
-    status = 0;
-    if (!SDL_Init(SDL_INIT_VIDEO) || !SDL_CreateWindowAndRenderer("3DMM Image Compare", 1740, 1000,
+    smoke = smoke_path ? 3 : 0;
+    if (!SDL_Init(SDL_INIT_VIDEO) || !SDL_CreateWindowAndRenderer("3DMM Movie Compare", 1740, 1000,
             review_window_flags(smoke), &window, &renderer))
     {
         fprintf(stderr, "%s\n", SDL_GetError());
@@ -349,46 +503,46 @@ int main(int argc, char **argv)
     igGetIO_Nil()->IniFilename = NULL;
     igStyleColorsDark(NULL);
     if (!review_backend_init(window, renderer))
+        return 1;
+    decoder = review_decoder_create();
+    if (!decoder)
     {
-        fprintf(stderr, "ImGui backend initialization failed\n");
-        igDestroyContext(NULL);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+        fprintf(stderr, "Cannot start image decoder: %s\n", SDL_GetError());
         return 1;
     }
-    if (argc >= 3)
-    {
-        if (strlen(argv[1]) >= sizeof(paths[0]) || strlen(argv[2]) >= sizeof(paths[1]))
-        {
-            SDL_strlcpy(error, "Input path is too long", sizeof(error));
-            status = 1;
-        }
-        else
-        {
-            strcpy(paths[0], argv[1]);
-            strcpy(paths[1], argv[2]);
-            if (!load_images())
-                status = 1;
-        }
-        if (status)
-            fprintf(stderr, "%s\n", error);
-    }
-    running = !smoke || !status;
+    if (session[0])
+        read_status();
+    else if (movie[0])
+        start_capture();
+    status = 0;
+    running = 1;
+    next_poll = 0;
     while (running)
     {
+        ++generation;
         while (SDL_PollEvent(&event))
         {
             review_backend_event(&event);
             if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
-                running = 0;
+            {
+                closing = 1;
+                cancel_capture();
+            }
         }
+        if (SDL_GetTicks() >= next_poll)
+        {
+            read_status();
+            next_poll = SDL_GetTicks() + 150;
+        }
+        if (closing && !process)
+            running = 0;
+        upload_decoded();
         review_backend_frame();
         igNewFrame();
         SDL_GetWindowSize(window, &width, &height);
         igSetNextWindowPos(vec(0, 0), 0, vec(0, 0));
         igSetNextWindowSize(vec((float)width, (float)height), 0);
-        igBegin("Image comparison", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+        igBegin("Movie comparison", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
                 ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
         controls();
         panes();
@@ -400,7 +554,7 @@ int main(int argc, char **argv)
         if (smoke == 1)
         {
             screenshot = SDL_RenderReadPixels(renderer, NULL);
-            if (!screenshot || !SDL_SavePNG(screenshot, argv[4]))
+            if (!screenshot || !SDL_SavePNG(screenshot, smoke_path))
             {
                 fprintf(stderr, "Screenshot failed: %s\n", SDL_GetError());
                 status = 1;
@@ -408,11 +562,16 @@ int main(int argc, char **argv)
             SDL_DestroySurface(screenshot);
         }
         SDL_RenderPresent(renderer);
-        if (smoke && --smoke == 0)
-            running = 0;
+        trim_cache();
+        if (smoke && generation > (unsigned long)(total + 5) && --smoke == 0)
+        {
+            closing = 1;
+            cancel_capture();
+        }
         SDL_Delay(10);
     }
-    clear_images(&images);
+    review_decoder_destroy(decoder);
+    clear_frames();
     review_backend_quit();
     igDestroyContext(NULL);
     SDL_DestroyRenderer(renderer);

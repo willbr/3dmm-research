@@ -84,9 +84,9 @@ std::string State(MarcusPlayer *player, bool playing)
 
 int main(int argc, char **argv)
 {
-    if (argc != 7)
+    if (argc != 7 && !(argc == 9 && std::string(argv[7]) == "--renderer"))
     {
-        std::cerr << "Usage: marcus-regression MOVIE RESOURCES CONTENT OUTPUT WIDTH HEIGHT\n";
+        std::cerr << "Usage: marcus-regression MOVIE RESOURCES CONTENT OUTPUT WIDTH HEIGHT [--renderer ID]\n";
         return 2;
     }
     const int width = std::atoi(argv[5]), height = std::atoi(argv[6]);
@@ -98,6 +98,13 @@ int main(int argc, char **argv)
     try
     {
         Check(player, marcus_open(player, argv[1], argv[2], argv[3]));
+        if (argc == 9)
+        {
+            const int renderer = marcus_renderer_from_id(argv[8]);
+            if (renderer < 0)
+                throw std::runtime_error("Unknown renderer ID");
+            Check(player, marcus_set_renderer(player, renderer));
+        }
         MarcusCaptureSilence silence;
         if (!silence.Open())
             throw std::runtime_error(std::string("Cannot prepare capture silence: ") + SDL_GetError());
@@ -149,6 +156,44 @@ int main(int argc, char **argv)
                         input >> command;
                         if (command == "state")
                             result = State(player, playing);
+                        else if (command == "capture-frame")
+                        {
+                            int scene;
+                            long frame;
+                            std::string prefix;
+                            if (!(input >> scene >> frame >> std::quoted(prefix)) || scene < 1 || frame < 1)
+                                throw std::runtime_error("Invalid capture scene/frame/path");
+                            MarcusScene metadata;
+                            MarcusInfo current;
+                            Check(player, marcus_scene(player, scene - 1, &metadata));
+                            if (frame > metadata.last_frame - metadata.first_frame + 1)
+                                throw std::runtime_error("Frame outside scene");
+                            Check(player, marcus_info(player, &current));
+                            playing = false;
+                            if (current.scene != scene - 1)
+                                Check(player, marcus_select_scene(player, scene - 1));
+                            Check(player, marcus_seek(player, metadata.first_frame + frame - 1));
+                            std::ostringstream response;
+                            response << "{\"renderers\":[";
+                            for (int backend = 0; backend < MARCUS_RENDERER_COUNT; ++backend)
+                            {
+                                response << (backend ? "," : "") << "{\"id\":" << Quote(marcus_renderer_id(backend));
+                                try
+                                {
+                                    MarcusImage image;
+                                    Check(player, marcus_set_renderer(player, backend));
+                                    Check(player, marcus_render(player, width, height, 1, 0, 0, 1, &image));
+                                    SaveImage(prefix + "-" + marcus_renderer_id(backend) + ".ppm", image);
+                                    response << ",\"success\":true}";
+                                }
+                                catch (const std::exception &error)
+                                {
+                                    response << ",\"success\":false,\"error\":" << Quote(error.what()) << '}';
+                                }
+                            }
+                            response << "],\"state\":" << State(player, playing) << '}';
+                            result = response.str();
+                        }
                         else if (command == "seek")
                         {
                             int scene;

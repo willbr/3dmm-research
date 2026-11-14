@@ -185,6 +185,12 @@ int wmain(int argc, wchar_t **argv)
         }
         STARTUPINFOW startup = {};
         startup.cb = sizeof(startup);
+        wchar_t background[8] = {};
+        if (GetEnvironmentVariableW(L"THREEDMM_ORACLE_BACKGROUND", background, 8) && background[0] == L'1')
+        {
+            startup.dwFlags |= STARTF_USESHOWWINDOW;
+            startup.wShowWindow = SW_SHOWNOACTIVATE;
+        }
         Check(CreateProcessW(executable.c_str(), &command[0], nullptr, nullptr, FALSE, DEBUG_ONLY_THIS_PROCESS, nullptr,
                              directory.c_str(), &startup, &child) != 0,
               "Launch isolated retail EXE");

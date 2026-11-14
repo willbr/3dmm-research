@@ -436,6 +436,32 @@ HWND MainWindow()
         throw std::runtime_error("main_window_not_ready");
     return result;
 }
+HWND WINAPI CreateWindowWithoutActivation(DWORD extended, LPCSTR cls, LPCSTR title, DWORD style,
+                                         int x, int y, int width, int height, HWND parent, HMENU menu,
+                                         HINSTANCE instance, LPVOID parameter)
+{
+    if (!(style & WS_CHILD))
+        extended |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+    return CreateWindowExA(extended, cls, title, style, x, y, width, height, parent, menu, instance, parameter);
+}
+BOOL WINAPI ShowWithoutActivation(HWND window, int command)
+{
+    if (command != SW_HIDE)
+        command = SW_SHOWNOACTIVATE;
+    return ShowWindow(window, command);
+}
+BOOL WINAPI PositionWithoutActivation(HWND window, HWND after, int x, int y, int width, int height, UINT flags)
+{
+    return SetWindowPos(window, after, x, y, width, height, flags | SWP_NOACTIVATE);
+}
+BOOL WINAPI IgnoreForegroundRequest(HWND)
+{
+    return TRUE;
+}
+HWND WINAPI IgnoreFocusRequest(HWND)
+{
+    return GetFocus();
+}
 void CaptureBMP(const wchar_t *path)
 {
     HWND window = MainWindow();
@@ -773,7 +799,13 @@ std::string Process(const Request &job)
             throw std::runtime_error("scene_out_of_range");
         const int sceneIndex = job.arguments[0] - 1;
         using Move = int(__thiscall *)(void *, int);
-        bool success = reinterpret_cast<Move>(base + SwitchScene)(movie, sceneIndex) != 0;
+        // Ordered frame capture may retain the current scene. The ordinary
+        // seek protocol still performs an independent absolute scene selection.
+        if (job.arguments[2] != 0 && job.arguments[2] != 1)
+            throw std::runtime_error("invalid_seek_mode");
+        bool success = job.arguments[2] == 1 && Read<int>(movie, 0x150) == sceneIndex;
+        if (!success)
+            success = reinterpret_cast<Move>(base + SwitchScene)(movie, sceneIndex) != 0;
         void *scene = Scene(movie);
         const int first = Read<int>(scene, 0x10), last = Read<int>(scene, 0xc);
         const auto frame = std::int64_t(first) + job.arguments[1] - 1;
@@ -1028,6 +1060,16 @@ extern "C" __declspec(dllexport) DWORD WINAPI OracleStart(void *argument)
         !PatchImport(reinterpret_cast<void *>(realFindFile), reinterpret_cast<void *>(&FindFileTracked)) ||
         !PatchImport(reinterpret_cast<void *>(realSemaphore), reinterpret_cast<void *>(&CreatePrivateSemaphore)))
         return 13;
+    char background[8] = {};
+    if (GetEnvironmentVariableA("THREEDMM_ORACLE_BACKGROUND", background, sizeof(background)) && background[0] == '1')
+    {
+        if (!PatchImport(reinterpret_cast<void *>(&CreateWindowExA), reinterpret_cast<void *>(&CreateWindowWithoutActivation)) ||
+            !PatchImport(reinterpret_cast<void *>(&ShowWindow), reinterpret_cast<void *>(&ShowWithoutActivation)) ||
+            !PatchImport(reinterpret_cast<void *>(&SetWindowPos), reinterpret_cast<void *>(&PositionWithoutActivation)) ||
+            !PatchImport(reinterpret_cast<void *>(&SetForegroundWindow), reinterpret_cast<void *>(&IgnoreForegroundRequest)) ||
+            !PatchImport(reinterpret_cast<void *>(&SetFocus), reinterpret_cast<void *>(&IgnoreFocusRequest)))
+            return 22;
+    }
     // Install before the launcher resumes the original application's UI thread.
     auto dispatchSlot = reinterpret_cast<DWORD *>(base + SoundManagerVtable) + 10;
     DWORD oldProtection;
