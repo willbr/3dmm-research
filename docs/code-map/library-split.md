@@ -725,8 +725,8 @@ and may not reenter dispatch or mutate its event groups.
 The native Scene adapters supply typed payload access, collection/reference
 primitives, actor/caption calls, background resources and movie/client effects.
 The published weak background TAG remains native Scene state. SceneSoundEvent
-packet helpers now use the C implementation below. Scene sound editing/undo,
-loading, caption/background implementations and final facade removal remain. This is
+packet helpers and sound editing/undo now use the C implementations below.
+Loading, caption/background implementations and final facade removal remain. This is
 not a C-only Scene implementation. Native debug and release traces freeze the
 real pause/sound dispatch path and MIDI allocation failures; C-only tests cover
 all event kinds, callback failure phases, ownership/publication order, start
@@ -761,8 +761,9 @@ fetch, ignores enqueue failure and releases every fetched reference. Queue and
 start offset use the original index even after skipped tags. Tool selection is
 captured on entry; the other header fields remain live. Typed adapters provide
 allocation, tag copy/reference/resolve/fetch, group access, priority and queue
-primitives; the resolver still calls the native `Movie::FResolveSndTag` and remains
-a Movie conversion dependency. Scene sound editing/undo, local read/open/tag-collection/save
+primitives. `Movie::FResolveSndTag` already delegates resolution policy to
+`three_mm_movie_sound_resolve`; its native facade remains an integration dependency.
+Local read/open/tag-collection/save
 transactions, weak background tag state, native tag representation and final
 facade removal remain conversion work.
 
@@ -771,6 +772,45 @@ failures without freezing uninitialized native padding. C-only tests additionall
 cover group relocation, bounded malformed inputs, unaligned/opposite-order
 decoding, failed group allocation, ownership transfer, skipped-tag queue/offset
 behavior and resource cleanup. Full gates and retail comparison limits are in
+`docs/tools/playback-regression.md`.
+
+### Scene sound editing and undo
+
+`scene_sound_edit.c` owns current-frame sound search, insert/replace/queue/remove,
+query, volume, preview, background offsets/playback and sound-frame indicators.
+It also owns sound-undo packet/style state and swap control. The native
+`SceneUndoSound` facade is declared in `inc/scene_sound_undo.h`; common MovieUndo
+targets/navigation, undo-list/object lifetime, typed groups and resource/queue
+operations remain host services. This completes a policy slice, not a C-only
+Scene or undo system.
+
+Insertion marks dirty and advances the event cursor before insertion, rolling
+the cursor back on failure. Searches stop at the current-frame boundary. Queue
+append transfers the old packet prefix and retains only the appended tag. Failed
+group replacement releases the temporary prefix exactly once, preserving the
+group's references. Remove-with-undo now handles an older-frame prefix and cleans
+temporary state on failure. Failed undo capture releases its temporary packet;
+undo clear may destroy its object, so C accesses no state afterward. These are
+bounded corrections to unsafe native failure paths, covered separately from
+the frozen valid-operation trace.
+
+Preview continues after failed fetches, whereas packet playback aborts. Input
+indices still determine queue position. Queued preview uses requested volume and
+loop values while the stored packet retains its prior metadata. Query returns
+borrowed tag copies and publishes list/metadata before releasing its temporary
+packet; missing/failing queries leave volume/loop untouched. List-resize failure
+cleans both temporary owners. Background offsets preserve signed 32-bit frame
+subtraction and the original 1000/6 clock with C89 quotient/remainder arithmetic;
+overflow is diagnosed before returning the low unsigned word. Volume edits leave
+the cached background packet unchanged, and indicator scans ignore suppression.
+
+Native debug poisoning of unused built-in child IDs is retained; release now
+initializes that unused word to zero. Unsupported queued restore rejects the
+formerly uninitialized-packet path. Neither affects valid serialized sound data.
+Native traces freeze sound edits, allocation failures, references and repeated
+undo swaps; C-only tests cover callback ordering, relocation, ownership failures,
+query publication, clock boundaries and object destruction during undo clear.
+Strict C89, sanitizer, host and retail capture evidence is recorded in
 `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence

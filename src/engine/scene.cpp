@@ -48,6 +48,7 @@
 #include "soc.h"
 #include "body_world.h"
 #include "scene_sound.h"
+#include "scene_sound_undo.h"
 #include <cstring>
 
 ASSERTNAME
@@ -117,6 +118,17 @@ static ThreeMMSceneSoundPacketServices ScenePacketServices(PMovie movie = nullpt
         ReleasePpo(&p);
     };
     return s;
+}
+
+static ThreeMMSceneSoundValueServices SceneSoundValues(PMovie movie = nullptr)
+{
+    ThreeMMSceneSoundValueServices v = {};
+    v.packets = ScenePacketServices(movie);
+    v.release = [](void *, ThreeMMSceneSound *sound) {
+        auto p = static_cast<PSceneSoundEvent>(sound);
+        ReleasePpsse(&p);
+    };
+    return v;
 }
 PSceneSoundEvent SceneSoundFromWire(void *bytes, long byteCount, bool swap)
 {
@@ -333,47 +345,6 @@ class SceneUndoText : public SceneUndoText_PAR
 //
 // Undo object for sound operations
 //
-typedef class SceneUndoSound *PSceneUndoSound;
-
-#define SceneUndoSound_PAR MovieUndo
-#define kclsSceneUndoSound 'SUNS'
-class SceneUndoSound : public SceneUndoSound_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    PSceneSoundEvent _psse; // may be pvNil
-    long _sty;  // sty to use if _psse is pvNil
-
-    SceneUndoSound(void)
-    {
-    }
-
-  public:
-    static PSceneUndoSound PsunsNew(void);
-    ~SceneUndoSound(void);
-
-    bool FSetSnd(PSceneSoundEvent psse)
-    {
-        PSceneSoundEvent psseDup = psse->PsseDup();
-        if (psseDup == pvNil)
-            return fFalse;
-        ReleasePpsse(&_psse);
-        _psse = psseDup;
-        _sty = _psse->sty;
-        return fTrue;
-    }
-    void SetSty(long sty)
-    {
-        _sty = sty;
-    }
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
-
 //
 // Undo object for title operations
 //
@@ -1240,6 +1211,141 @@ void Scene::_MoveBackFirstFrame(long nfrm)
     three_mm_scene_move_first(&_data, nfrm, &services);
 }
 
+ThreeMMSceneSoundEditServices Scene::_SoundEditServices()
+{
+    ThreeMMSceneSoundEditServices s = {};
+    s.context = this;
+    s.events = _EventServices();
+    s.values = SceneSoundValues(Pmvie());
+    s.insert = [](void *p, ThreeMMI32 index, ThreeMMI32 frame, int kind, ThreeMMI32 bytes, const void *payload) -> int {
+        SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
+        return static_cast<PScene>(p)->_pggsevFrm->FInsert(index, bytes, const_cast<void *>(payload), &event);
+    };
+    s.put = [](void *p, ThreeMMI32 index, ThreeMMI32 bytes, const void *payload) -> int {
+        return static_cast<PScene>(p)->_pggsevFrm->FPut(index, bytes, const_cast<void *>(payload));
+    };
+    s.erase = [](void *p, ThreeMMI32 index) { static_cast<PScene>(p)->_pggsevFrm->Delete(index); };
+    s.allocate_records = [](void *, ThreeMMI32 bytes) -> void * {
+        void *p = nullptr;
+        return FAllocPv(&p, bytes, fmemClear, mprNormal) ? p : nullptr;
+    };
+    s.free_raw = [](void *, void *p) { FreePpv(&p); };
+    s.input_tag = [](void *, void *tags, ThreeMMI32 index, ThreeMMTag *out) {
+        auto p = &static_cast<PTAG>(tags)[index];
+        *out = {p->sid, p->pcrf, p->ctg, p->cno};
+    };
+    s.child = [](void *p, ThreeMMU32 number, ThreeMMU32 *child) -> int {
+        ChildChunkID value = *child;
+        bool ok = static_cast<PScene>(p)->Pmvie()->FChidFromUserSndCno(number, &value);
+        *child = value;
+        return ok;
+    };
+    s.unused_child = [](void *) -> ThreeMMU32 {
+        ChildChunkID value = 0;
+        TrashVar(&value);
+        return value;
+    };
+    s.resolve_input = [](void *p, void *tags, ThreeMMI32 index, ThreeMMU32 child) -> int {
+        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(&static_cast<PTAG>(tags)[index], child);
+    };
+    s.fetch_input = [](void *, void *tags, ThreeMMI32 index) -> void * {
+        return vptagm->PbacoFetch(&static_cast<PTAG>(tags)[index], MovieSoundMSND::FReadMsnd);
+    };
+    s.create_tag_list = [](void *, ThreeMMI32 count) -> void * { return DynamicArray::PglNew(size(TAG), count); };
+    s.resize_tag_list = [](void *, void *list, ThreeMMI32 count) -> int {
+        return static_cast<PDynamicArray>(list)->FSetIvMac(count);
+    };
+    s.put_list_tag = [](void *, void *list, ThreeMMI32 index, const ThreeMMTag *value) {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        static_cast<PDynamicArray>(list)->Put(index, &tag);
+    };
+    s.release_list = [](void *, void *list) {
+        auto p = static_cast<PDynamicArray>(list);
+        ReleasePpo(&p);
+    };
+    s.actor_count = [](void *p) -> ThreeMMI32 { return static_cast<PScene>(p)->_pglpactr->IvMac(); };
+    s.actor_sound = [](void *p, ThreeMMI32 index) -> int {
+        PActor actor;
+        static_cast<PScene>(p)->_pglpactr->Get(index, &actor);
+        AssertPo(actor, 0);
+        return actor->FSoundInFrm();
+    };
+    s.dirty = [](void *p) { static_cast<PScene>(p)->_MarkMovieDirty(); };
+    s.sound_frame = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->Pmcc()->SetSndFrame(value != 0); };
+    s.new_undo = [](void *) -> void * { return SceneUndoSound::PsunsNew(); };
+    s.undo_state = [](void *, void *undo) { return static_cast<PSceneUndoSound>(undo)->CoreState(); };
+    s.commit_undo = [](void *p, void *undo) -> int {
+        return static_cast<PScene>(p)->Pmvie()->FAddUndo(static_cast<PSceneUndoSound>(undo));
+    };
+    s.release_undo = [](void *, void *undo) {
+        auto p = static_cast<PSceneUndoSound>(undo);
+        ReleasePpo(&p);
+    };
+    s.clear_undo = [](void *p) { static_cast<PScene>(p)->Pmvie()->ClearUndo(); };
+    s.diagnostic = [](void *, int issue) {
+        switch (issue)
+        {
+        case THREE_MM_SCENE_SOUND_STYLE_MISSING:
+            Bug("sty not found");
+            break;
+        case THREE_MM_SCENE_SOUND_MISSING:
+            Bug("No such sound");
+            break;
+        case THREE_MM_SCENE_SOUND_QUEUE_RESTORE:
+            Bug("Should never queue when undoing");
+            break;
+        case THREE_MM_SCENE_SOUND_OFFSET_OVERFLOW:
+            Assert(false, "overflow in background sound offset");
+            break;
+        case THREE_MM_SCENE_SOUND_LIST_RESIZE:
+            Assert(false, "PglNew should have ensured space");
+            break;
+        }
+    };
+    return s;
+}
+ThreeMMSceneSoundValueServices SceneUndoSound::_Values()
+{
+    return SceneSoundValues();
+}
+ThreeMMSceneSoundUndoServices SceneUndoSound::_Services()
+{
+    ThreeMMSceneSoundUndoServices s = {};
+    s.context = this;
+    s.values = SceneSoundValues(_pmvie);
+    s.switch_scene = [](void *p) -> int {
+        auto u = static_cast<PSceneUndoSound>(p);
+        return u->_pmvie->FSwitchScen(u->_iscen);
+    };
+    s.seek_frame = [](void *p) -> int {
+        auto u = static_cast<PSceneUndoSound>(p);
+        return u->_pmvie->Pscen()->FGotoFrm(u->_nfrm);
+    };
+    s.flush = [](void *p) { static_cast<PSceneUndoSound>(p)->_pmvie->Pmsq()->FlushMsq(); };
+    s.play = [](void *p) { static_cast<PSceneUndoSound>(p)->_pmvie->Pmsq()->PlayMsq(); };
+    s.clear = [](void *p) { static_cast<PSceneUndoSound>(p)->_pmvie->ClearUndo(); };
+    s.get = [](void *p, ThreeMMI32 style, int *found, ThreeMMSceneSound **out) -> int {
+        auto u = static_cast<PSceneUndoSound>(p);
+        bool hit;
+        PSceneSoundEvent sound = nullptr;
+        bool ok = u->_pmvie->Pscen()->FGetSnd(style, &hit, &sound);
+        *found = hit;
+        if (!ok || hit)
+            *out = sound;
+        return ok;
+    };
+    s.remove = [](void *p, ThreeMMI32 style) { static_cast<PSceneUndoSound>(p)->_pmvie->Pscen()->RemSndCore(style); };
+    s.restore = [](void *p, const ThreeMMSceneSound *value) -> int {
+        auto u = static_cast<PSceneUndoSound>(p);
+        auto sound = static_cast<PSceneSoundEvent>(const_cast<ThreeMMSceneSound *>(value));
+        return u->_pmvie->Pscen()->FAddSndCoreTagc(sound->fLoop != 0, false, sound->vlm, sound->sty, sound->ctagc,
+                                                   sound->Ptagc(0));
+    };
+    s.diagnostic = [](void *, int) { Bug("where's the sound event?"); };
+    return s;
+}
+
 /****************************************************
  *
  * This routine adds a sound to the event list for this frame.
@@ -1261,167 +1367,11 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
 {
     AssertThis(0);
     AssertPvCb(prgtag, LwMul(ctag, size(TAG)));
-    Assert(!fQueue || (ctag == 1), "if fQueue'ing, you should only be adding one sound");
+    Assert(!fQueue || ctag == 1, "if queueing, add only one sound");
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
-
-    SceneEvent sev;
-    PSceneSoundEvent psseOld;
-    PSceneSoundEvent psseNew;
-    long isev;
-    ChildChunkID chid;
-    long isevSnd = ivNil;
-    PTAG ptag;
-    PMovieSoundMSND pmsnd;
-    long itag, itagBase;
-
-    //
-    // Find any other sevtPlaySnd events in this frame with the same sty
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.nfrm != _data.currentFrame)
-            break;
-        if (sev.sevt == sevtPlaySnd)
-        {
-            psseOld = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
-            if (psseOld->sty == sty)
-            {
-                // Found a match, which we will either add to or replace
-                isevSnd = isev;
-                break;
-            }
-        }
-    }
-
-    if (isevSnd == ivNil)
-    {
-        fQueue = fFalse; // nothing to queue to
-    }
-
-    sev.nfrm = _data.currentFrame;
-    sev.sevt = sevtPlaySnd;
-
-    if (!fQueue)
-    {
-        PTagChildPair prgtagc;
-        long itagc;
-
-        if (!FAllocPv((void **)&prgtagc, LwMul(size(TagChildPair), ctag), fmemClear, mprNormal))
-            return fFalse;
-        for (itagc = 0; itagc < ctag; itagc++)
-        {
-            prgtagc[itagc].tag = prgtag[itagc];
-            if (prgtagc[itagc].tag.sid == ksidUseCrf)
-            {
-                if (!_pmvie->FChidFromUserSndCno(prgtag[itagc].cno, &chid))
-                {
-                    FreePpv((void **)&prgtagc);
-                    return fFalse;
-                }
-                prgtagc[itagc].chid = chid;
-            }
-            else
-            {
-                TrashVar(&prgtagc[itagc].chid);
-            }
-        }
-        // Create new event, replace any old event of same sty
-        itagBase = 0;
-        psseNew = SceneSoundEvent::PsseNew(vlm, sty, fLoop, ctag, prgtagc);
-        FreePpv((void **)&prgtagc);
-        if (pvNil == psseNew)
-        {
-            return fFalse;
-        }
-        if (!_FAddSev(&sev, psseNew->Cb(), psseNew))
-        {
-            ReleasePpsse(&psseNew);
-            return fFalse;
-        }
-        if (isevSnd != ivNil)
-        {
-            // Delete old event, if any
-            PSceneSoundEvent psse;
-            long itagc;
-            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isevSnd);
-            for (itagc = 0; itagc < psse->ctagc; itagc++)
-            {
-                TagManager::CloseTag(psse->Ptag(itagc));
-            }
-            _pggsevFrm->Delete(isevSnd);
-            _runtime.next_event--;
-        }
-    }
-    else // we're queueing
-    {
-        // Add this sound to isevSnd
-        psseOld = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isevSnd);
-        if (pvNil == psseOld)
-        {
-            return fFalse;
-        }
-        // ctag == 1
-        if (prgtag[0].sid == ksidUseCrf)
-        {
-            if (!_pmvie->FChidFromUserSndCno(prgtag[0].cno, &chid))
-            {
-                ReleasePpsse(&psseOld);
-                return fFalse;
-            }
-        }
-        else
-            TrashVar(&chid);
-
-        itagBase = psseOld->ctagc;
-        psseNew = psseOld->PsseAddTagChid(prgtag, chid);
-        if (pvNil == psseNew)
-        {
-            ReleasePpsse(&psseOld);
-            return fFalse;
-        }
-        if (!_pggsevFrm->FPut(isevSnd, psseNew->Cb(), psseNew))
-        {
-            ReleasePpsse(&psseOld);
-            ReleasePpsse(&psseNew);
-            return fFalse;
-        }
-        ReleasePpsse(&psseOld);
-    }
-
-    //
-    // Play only these sounds
-    //
-    for (itag = 0; itag < ctag; itag++)
-    {
-        ptag = &(prgtag[itag]);
-        if (ptag->sid == ksidUseCrf)
-        {
-            if (!Pmvie()->FResolveSndTag(ptag, *(psseNew->Pchid(itag + itagBase))))
-                continue;
-        }
-
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
-        if (pvNil == pmsnd)
-            continue;
-
-        // Only queue if it's not the first sound.
-        Pmvie()->Pmsq()->FEnqueue(pmsnd, 0, fLoop, (itag != 0), vlm, pmsnd->Spr(fLoop ? toolLooper : toolSounder),
-                                  fFalse, 0);
-
-        ReleasePpo(&pmsnd);
-    }
-
-    if (!_FPlaySev(&sev, psseNew, _runtime.disabled | fscenSounds))
-    {
-        // non-fatal error...ignore it
-    }
-    FreePpv((void **)&psseNew); // don't ReleasePpsse because GeneralGroup got the tags
-
-    _MarkMovieDirty();
-    Pmvie()->Pmcc()->SetSndFrame(fTrue);
-    return fTrue;
+    auto services = _SoundEditServices();
+    return three_mm_scene_sound_add(fLoop, fQueue, vlm, sty, ctag, prgtag, &services) != 0;
 }
 
 /****************************************************
@@ -1446,83 +1396,11 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
 {
     AssertThis(0);
     AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
-    Assert(!fQueue || (ctagc == 1), "if fQueue'ing, you should only be adding one sound");
+    Assert(!fQueue || ctagc == 1, "if queueing, add only one sound");
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
-
-    SceneEvent sev;
-    PSceneSoundEvent psseOld;
-    PSceneSoundEvent psseNew;
-    long isev;
-    long isevSnd = ivNil;
-
-    //
-    // Find any other sevtPlaySnd events in this frame with the same sty
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.nfrm != _data.currentFrame)
-            break;
-        if (sev.sevt == sevtPlaySnd)
-        {
-            psseOld = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
-            if (psseOld->sty == sty)
-            {
-                // Found a match, which we will either add to or replace
-                isevSnd = isev;
-                break;
-            }
-        }
-    }
-
-    if (isevSnd == ivNil)
-    {
-        fQueue = fFalse; // nothing to queue to
-    }
-
-    sev.nfrm = _data.currentFrame;
-    sev.sevt = sevtPlaySnd;
-
-    if (!fQueue)
-    {
-        // Create new event, replace any old event of same sty
-        psseNew = SceneSoundEvent::PsseNew(vlm, sty, fLoop, ctagc, prgtagc);
-        if (pvNil == psseNew)
-            return fFalse;
-        if (!_FAddSev(&sev, psseNew->Cb(), psseNew))
-        {
-            ReleasePpsse(&psseNew);
-            return fFalse;
-        }
-        if (isevSnd != ivNil)
-        {
-            // Delete old event, if any
-            PSceneSoundEvent psse;
-            long itagc;
-            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isevSnd);
-            for (itagc = 0; itagc < psse->ctagc; itagc++)
-            {
-                TagManager::CloseTag(psse->Ptag(itagc));
-            }
-            _pggsevFrm->Delete(isevSnd);
-            _runtime.next_event--;
-        }
-    }
-    else // we're queueing
-    {
-        Bug("Should never queue when undoing");
-    }
-
-    if (!_FPlaySev(&sev, psseNew, _runtime.disabled))
-    {
-        // non-fatal error...ignore it
-    }
-
-    FreePpv((void **)&psseNew); // don't ReleasePpsse because GeneralGroup got the tags
-    _MarkMovieDirty();
-    Pmvie()->Pmcc()->SetSndFrame(fTrue);
-    return fTrue;
+    auto services = _SoundEditServices();
+    return three_mm_scene_sound_restore(fLoop, fQueue, vlm, sty, ctagc, prgtagc, &services) != 0;
 }
 
 /****************************************************
@@ -1547,52 +1425,8 @@ bool Scene::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
     AssertVarMem(ptag);
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
-
-    PSceneUndoSound psuns;
-    PSceneSoundEvent psse;
-    bool fFound;
-
-    // Create a SceneUndoSound with nil _psse
-    psuns = SceneUndoSound::PsunsNew();
-
-    if (psuns == pvNil)
-    {
-        return (fFalse);
-    }
-    psuns->SetSty(sty);
-
-    // grab sound before edit, if any
-    if (!FGetSnd(sty, &fFound, &psse))
-    {
-        ReleasePpo(&psuns);
-        return fFalse;
-    }
-    if (fFound)
-    {
-        if (!psuns->FSetSnd(psse))
-        {
-            ReleasePpsse(&psse);
-            ReleasePpo(&psuns);
-            return fFalse;
-        }
-        ReleasePpsse(&psse);
-    }
-
-    if (!_pmvie->FAddUndo(psuns))
-    {
-        ReleasePpo(&psuns);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psuns);
-
-    if (!FAddSndCore(fLoop, fQueue, vlm, sty, 1, ptag))
-    {
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    return (fTrue);
+    auto services = _SoundEditServices();
+    return three_mm_scene_sound_add_undo(fLoop, fQueue, vlm, sty, ptag, &services) != 0;
 }
 
 /****************************************************
@@ -1611,51 +1445,8 @@ void Scene::RemSndCore(long sty)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
-
-    PSEV qsev;
-    long isev;
-
-    //
-    // Find the sound
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-        if (qsev->nfrm != _data.currentFrame)
-        {
-            Bug("sty not found");
-            return;
-        }
-
-        if ((qsev->sevt == sevtPlaySnd) && ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty == sty)
-        {
-            //
-            // Remove it
-            //
-            PSceneSoundEvent psse;
-            long itagc;
-            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
-            for (itagc = 0; itagc < psse->ctagc; itagc++)
-            {
-                TagManager::CloseTag(psse->Ptag(itagc));
-            }
-            _pggsevFrm->Delete(isev);
-            _runtime.next_event--;
-
-            if (sty == styMidi)
-            {
-                _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
-            }
-
-            UpdateSndFrame();
-
-            _MarkMovieDirty();
-            return;
-        }
-    }
-
-    Bug("No such sound");
+    auto services = _SoundEditServices();
+    three_mm_scene_sound_remove(sty, &services);
 }
 
 /****************************************************
@@ -1675,59 +1466,8 @@ bool Scene::FRemSnd(long sty)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
-
-    PSceneUndoSound psuns;
-    PSceneSoundEvent psse = pvNil;
-    long isev;
-    PSEV qsev;
-
-    psuns = SceneUndoSound::PsunsNew();
-
-    if (psuns == pvNil)
-    {
-        return (fFalse);
-    }
-
-    //
-    // Find the sound
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-        if (qsev->nfrm != _data.currentFrame)
-        {
-            Bug("sty not found");
-            return fTrue;
-        }
-
-        if ((qsev->sevt == sevtPlaySnd) && ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty == sty)
-        {
-            psse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isev);
-            if (psse == pvNil)
-            {
-                return fFalse;
-            }
-        }
-    }
-    if (!psuns->FSetSnd(psse))
-    {
-        ReleasePpsse(&psse);
-        return fFalse;
-    }
-    ReleasePpsse(&psse);
-
-    if (!_pmvie->FAddUndo(psuns))
-    {
-        ReleasePpo(&psuns);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psuns);
-
-    RemSndCore(sty);
-
-    return (fTrue);
+    auto services = _SoundEditServices();
+    return three_mm_scene_sound_remove_undo(sty, &services) != 0;
 }
 
 /****************************************************
@@ -1748,42 +1488,15 @@ bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
     AssertThis(0);
     AssertIn(sty, 0, styLim);
     AssertVarMem(ppsse);
-
-    PSEV qsev;
-    long isev;
-
-    *pfFound = fFalse;
-    //
-    // Check event list.
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-        if (qsev->nfrm != _data.currentFrame)
-        {
-            break; // sound not found
-        }
-
-        if (qsev->sevt == sevtPlaySnd)
-        {
-            if (sty == ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty)
-            {
-                *ppsse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isev);
-                if (*ppsse == pvNil)
-                {
-                    return fFalse; // memory error
-                }
-                *pfFound = fTrue;
-                return fTrue;
-            }
-        }
-    }
-
-    //
-    // End of list...sound not found
-    //
-    return (fTrue);
+    *pfFound = false;
+    auto services = _SoundEditServices();
+    int found;
+    ThreeMMSceneSound *sound = nullptr;
+    bool ok = three_mm_scene_sound_get(sty, &found, &sound, &services) != 0;
+    if (!ok || found)
+        *ppsse = static_cast<PSceneSoundEvent>(sound);
+    *pfFound = found != 0;
+    return ok;
 }
 
 /****************************************************
@@ -1803,17 +1516,9 @@ bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
 void Scene::PlayBkgdSnd(void)
 {
     AssertThis(0);
-
-    ulong dtsStart;
-    ulong dfrm;
-
-    if (pvNil != _psseBkgd)
-    {
-        dfrm = Nfrm() - _runtime.background_frame;
-        Assert(dfrm >= 0, "this sound is in the future!");
-        dtsStart = LwMulDiv(dfrm, kdtsSecond, kfps);
-        _psseBkgd->PlayAllSounds(Pmvie(), dtsStart);
-    }
+    static_assert(kdtsSecond == 1000 && kfps == 6, "Scene background clock");
+    auto services = _SoundEditServices();
+    three_mm_scene_sound_background_play(&services);
 }
 
 /****************************************************
@@ -1834,37 +1539,27 @@ bool Scene::FQuerySnd(long sty, PDynamicArray *ppgltagSnd, long *pvlm, bool *pfL
     AssertVarMem(ppgltagSnd);
     AssertVarMem(pvlm);
     AssertVarMem(pfLoop);
-
-    PSceneSoundEvent psse;
-    bool fFound;
-    long itag;
-
-    *ppgltagSnd = pvNil;
-
-    if (!FGetSnd(sty, &fFound, &psse))
+    auto services = _SoundEditServices();
+    struct Output
     {
-        return fFalse; // error
-    }
-    if (!fFound)
-    {
-        return fTrue; // no sounds (*ppglTagSnd is nil)
-    }
-    *ppgltagSnd = DynamicArray::PglNew(size(TAG), psse->ctagc);
-    if (pvNil == *ppgltagSnd)
-    {
-        ReleasePpsse(&psse);
-        return fFalse;
-    }
-    AssertDo((*ppgltagSnd)->FSetIvMac(psse->ctagc), "PglNew should have ensured space");
-    for (itag = 0; itag < psse->ctagc; itag++)
-    {
-        (*ppgltagSnd)->Put(itag, psse->Ptag(itag));
-    }
-    *pvlm = psse->vlm;
-    *pfLoop = psse->fLoop;
-    ReleasePpsse(&psse);
-
-    return fTrue;
+        PDynamicArray *list;
+        long *volume;
+        bool *loop;
+    } output = {ppgltagSnd, pvlm, pfLoop};
+    services.query_context = &output;
+    services.publish_query = [](void *p, void *list, int metadata, ThreeMMI32 volume, int loop) {
+        auto out = static_cast<Output *>(p);
+        *out->list = static_cast<PDynamicArray>(list);
+        if (metadata)
+        {
+            *out->volume = volume;
+            *out->loop = loop != 0;
+        }
+    };
+    void *list = nullptr;
+    ThreeMMI32 volume = 0;
+    int loop = 0;
+    return three_mm_scene_sound_query(sty, &list, &volume, &loop, &services) != 0;
 }
 
 /****************************************************
@@ -1885,40 +1580,8 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
     AssertThis(0);
     AssertIn(sty, 0, styLim);
     AssertIn(vlmNew, 0, kvlmFull + 1);
-
-    PSEV qsev;
-    long isev;
-    PSceneSoundEvent psse;
-
-    //
-    // Check event list.
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-        if (qsev->nfrm != _data.currentFrame)
-        {
-            Bug("No such sound");
-            break; // sound not found
-        }
-
-        if (qsev->sevt == sevtPlaySnd)
-        {
-            psse = ((PSceneSoundEvent)_pggsevFrm->QvGet(isev));
-            if (sty == psse->sty)
-            {
-                psse->vlm = vlmNew;
-                _MarkMovieDirty();
-                return;
-            }
-        }
-    }
-
-    //
-    // End of list...sound not found
-    //
-    Bug("No such sound");
+    auto services = _SoundEditServices();
+    three_mm_scene_sound_volume(sty, vlmNew, &services);
 }
 
 /******************************************************************************
@@ -1930,42 +1593,8 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
 ************************************************************ PETED ***********/
 void Scene::UpdateSndFrame(void)
 {
-    bool fSoundInFrame = fFalse;
-    long iv = _runtime.next_event;
-
-    while (iv-- > 0)
-    {
-        PSEV qsev = (PSEV)_pggsevFrm->QvFixedGet(iv);
-
-        if (qsev->nfrm != _data.currentFrame)
-        {
-            iv = -1;
-            break;
-        }
-
-        if (qsev->sevt == sevtPlaySnd)
-        {
-            fSoundInFrame = fTrue;
-            goto LDone;
-        }
-    }
-
-    while (++iv < _pglpactr->IvMac())
-    {
-        PActor pactr;
-
-        _pglpactr->Get(iv, &pactr);
-        AssertPo(pactr, 0);
-
-        if (pactr->FSoundInFrm())
-        {
-            fSoundInFrame = fTrue;
-            goto LDone;
-        }
-    }
-
-LDone:
-    Pmvie()->Pmcc()->SetSndFrame(fSoundInFrame);
+    auto services = _SoundEditServices();
+    three_mm_scene_sound_update_indicator(&services);
 }
 
 /****************************************************
@@ -1986,22 +1615,8 @@ bool Scene::_FAddSev(PSEV psev, long cbVar, void *pvVar)
     AssertThis(0);
     AssertVarMem(psev);
     AssertIn(cbVar, 0, klwMax);
-
-    bool fRetValue;
-
-    //
-    // Add the event to the scene
-    //
-    _MarkMovieDirty();
-
-    fRetValue = _pggsevFrm->FInsert(_runtime.next_event++, cbVar, pvVar, psev);
-
-    if (!fRetValue)
-    {
-        _runtime.next_event--;
-    }
-
-    return (fRetValue);
+    auto services = _SoundEditServices();
+    return three_mm_scene_edit_insert(psev->nfrm, psev->sevt, cbVar, pvVar, &services) != 0;
 }
 
 /****************************************************
@@ -5855,7 +5470,8 @@ PSceneUndoSound SceneUndoSound::PsunsNew()
 SceneUndoSound::~SceneUndoSound(void)
 {
     AssertBaseThis(0);
-    ReleasePpsse(&_psse);
+    auto values = _Values();
+    three_mm_scene_sound_undo_dispose(&_sound, &values);
 }
 
 /****************************************************
@@ -5873,82 +5489,8 @@ bool SceneUndoSound::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
-
-    long isevSnd = ivNil;
-    bool fFound;
-    PSceneSoundEvent psseOld = pvNil;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    // swap the event in the event list (if any) with _psse (if any)
-
-    if (!_pmvie->Pscen()->FGetSnd(_sty, &fFound, &psseOld))
-    {
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    if (_psse != pvNil)
-    {
-        if (fFound)
-        {
-            _pmvie->Pscen()->RemSndCore(psseOld->sty);
-            if (!_pmvie->Pscen()->FAddSndCoreTagc(_psse->fLoop, fFalse, _psse->vlm, _psse->sty, _psse->ctagc,
-                                                  _psse->Ptagc(0)))
-            {
-                ReleasePpsse(&psseOld);
-                _pmvie->ClearUndo();
-                return (fFalse);
-            }
-            ReleasePpsse(&_psse);
-            _psse = psseOld;
-            _sty = psseOld->sty;
-        }
-        else // no sse to replace, just add this one
-        {
-            if (!_pmvie->Pscen()->FAddSndCoreTagc(_psse->fLoop, fFalse, _psse->vlm, _psse->sty, _psse->ctagc,
-                                                  _psse->Ptagc(0)))
-            {
-                _pmvie->ClearUndo();
-                return (fFalse);
-            }
-            ReleasePpsse(&_psse);
-        }
-    }
-    else // _psse is pvNil...remember what's there then nuke the event
-    {
-        if (!fFound)
-        {
-            Bug("where's the sound event?");
-            return (fFalse);
-        }
-        else
-        {
-            if (!FSetSnd(psseOld))
-            {
-                _pmvie->ClearUndo();
-                return (fFalse);
-            }
-            ReleasePpsse(&psseOld);
-            _pmvie->Pscen()->RemSndCore(_sty);
-        }
-    }
-
-    _pmvie->Pmsq()->PlayMsq();
-
-    return (fTrue);
+    auto services = _Services();
+    return three_mm_scene_sound_undo_swap(&_sound, &services) != 0;
 }
 
 /****************************************************
@@ -5985,8 +5527,8 @@ void SceneUndoSound::MarkMem(void)
 {
     AssertThis(0);
     SceneUndoSound_PAR::MarkMem();
-    if (_psse != pvNil)
-        MarkPv(_psse);
+    if (_sound.sound != pvNil)
+        MarkPv(_sound.sound);
 }
 
 /***************************************************************************
@@ -5995,11 +5537,11 @@ void SceneUndoSound::MarkMem(void)
 void SceneUndoSound::AssertValid(LegacyUlong grf)
 {
     SceneUndoSound_PAR::AssertValid(grf);
-    if (_psse != pvNil)
+    if (_sound.sound != pvNil)
     {
-        AssertPvCb(_psse, size(SceneSoundEvent));
-        AssertPvCb(_psse, _psse->Cb());
-        Assert(_sty == _psse->sty, "sty's don't match");
+        AssertPvCb(_sound.sound, size(SceneSoundEvent));
+        AssertPvCb(_sound.sound, three_mm_scene_sound_size(_sound.sound->ctagc, size(TagChildPair)));
+        Assert(_sound.style == _sound.sound->sty, "sty's don't match");
     }
 }
 #endif

@@ -6869,3 +6869,96 @@ Evidence: `tmp/c89-scene-sound-before*.bin`, `tmp/c89-scene-sound-after.bin`,
 `tmp/c89-scene-sound-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
 `tmp/c89-scene-sound-capture-hashes-*.json` and four
 `tmp/c89-scene-sound-capture-*.log` files.
+
+### Scene sound editing and undo C89 closeout (14 November 2026)
+
+Baseline: `2e13e9de`, with the private SceneUndoSound declaration extracted to
+`inc/scene_sound_undo.h` before recording. `scene_sound_edit.c` now owns Scene
+sound insertion/replacement/queueing/removal, query/volume, preview/background
+playback, indicators and sound-undo payload state/swap control. Common MovieUndo
+navigation, undo-list/object lifetime, typed groups and resource/queue primitives
+remain native services. Scene loading/tag-collection/save, caption/background
+policy and final facade removal remain; this completes the sound editing slice.
+
+The native fixture records current-frame edits across three styles, queued
+append, query/volume, public add/remove with undo, seven allocation-injection
+settings and two four-cycle direct undo sequences. Native original/repeat/final
+and final SDL debug traces match all 3,796 bytes, FNV-1a `D3F41FF2`, SHA-256
+`931B0597DFFBE43D6357FB81EBC3BF1E3560C6279CDB8E14A4697F0E554ED944`.
+Original/final SDL release traces match 3,812 bytes, FNV-1a `52AE7716`, SHA-256
+`4AF0BAEE207B519E3EFC32AEABCA65C272024DA8B5D848DB5DAE94FB4FCB736B`.
+Hash guards apply to the little-endian x64 record layout. The fixture records
+initialized event/cache/undo state and real resource reference counts, excluding
+pointer values, padding and unused built-in child words. Release omits debug
+allocation injection.
+
+The fixture uses a zero-byte dummy MSND with real Movie child mapping and cache
+ownership. Resource-load Error 500 and injected out-of-memory Error 1 messages
+are expected; this trace does not freeze successful preview audio. Successful
+preview protocol is exercised by C callback tests, and actual audio by the
+playback captures. Supplemental native checks outside the frozen trace verify
+failed queued group replacement preserves references, failed undo capture frees
+its temporary packet, and remove-with-undo handles an older-frame event prefix.
+These correct unsafe native failure paths. Query list-resize failure now cleans
+both temporary owners, unsupported queued restore rejects an uninitialized
+packet path, and release initializes unused built-in child IDs to zero while
+retaining native debug poisoning.
+
+C-only tests cover insert/put/allocation/child/undo failures, relocated group
+payloads, shared-prefix ownership, requested preview metadata versus stored
+queued metadata, skipped resolutions and continued fetch failures, input/frame
+snapshots, nonfatal MIDI-cache failure, query borrowed tags/publication timing,
+actor indicators, unchanged background-cache volume, missing-style diagnostics,
+restore fetch abort, undo swap/destructive-prefix behavior and immediate object
+destruction during clear. Clock tests cover 166/333 ms truncation, negative wrap
+and signed overflow. The fixture passes Clang strict C89 with warnings as errors
+and MSVC AddressSanitizer.
+
+All 90 standalone C checks (including C89 syntax), 122 selected native, 18 SDL
+debug and 30 SDL release checks pass. Native and SDL suites ran serially. Both
+hosts and `core-checks` build; the native selected build explicitly rebuilds
+direct test executables and save/load targets outside `core-checks`. All 51
+freshly linked CLI baselines match. Marcus was stopped before rebuilding and
+relaunched afterward. No Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`BEAF7AC35B01BB12F3844E9DF3DBB135E690FBC61656E66D60B92A120FBF2366`
+(SDL release) and
+`95C072FC81D1F0FCCF10C6AB304F236D79F58A4C1FDC23553695A165881F0DD2`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T101927Z-f1c88b9f` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T102043Z-b84a1b4e` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T102346Z-842decc8` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T102501Z-fcf6e6de` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures complete, retaining movie identity and suite integrity. Authored
+frames, all 540 seek images and ordered playback image changes match each
+player's preceding Scene sound-packet suites: `20261114T090331Z-6744804a`
+(actor-events), `20261114T090445Z-3b3cf040` (scrolling-text),
+`20261114T090749Z-43d9a20f` (actor-audio) and `20261114T090903Z-0d72bd13`
+(sampled-audio). Playback comparison collapses only adjacent identical
+position/image observations. The actor-audio first-scene-only tone contract
+passes for every player. PCM16 peaks are 3,192, 4,080 and 4,081 for actor-audio
+and 2,380, 2,176 and 2,176 for sampled-audio (retail, SDL, Marcus respectively).
+The SDL actor-audio peak is one count below its preceding capture; all tone and
+nonzero-output checks pass. These checks do not establish full PCM/MIDI or retail
+timing parity. Existing cross-player differences and single-repeat inconclusive
+comparisons remain. Captures use a shared warm SDL package cache with private
+processes/settings/movies and uncontrolled OS caching. No builds or tests ran
+concurrently with capture. Marcus was verified running after the final captures.
+
+Evidence: `tmp/c89-scene-sound-edit-before*.bin`,
+`tmp/c89-scene-sound-edit-after.bin`, `tmp/c89-scene-sound-edit-final-*.bin`,
+`tmp/c89-scene-sound-edit-selected-native-build.log`,
+`tmp/c89-scene-sound-edit-native-tests.log`,
+`tmp/c89-scene-sound-edit-sdl-debug-tests.log`,
+`tmp/c89-scene-sound-edit-sdl-release-tests.log`,
+`tmp/c89-scene-sound-edit-standalone.log`,
+`tmp/c89-scene-sound-edit-strict.log`, `tmp/c89-scene-sound-edit-asan.log`,
+`tmp/c89-scene-sound-edit-output-comparison.json`,
+`tmp/c89-scene-sound-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+`tmp/c89-scene-sound-edit-capture-hashes-*.json` and four
+`tmp/c89-scene-sound-edit-capture-*.log` files.

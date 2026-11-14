@@ -463,8 +463,10 @@ cache ownership, pause suppression, actor/text append rollback and camera rewind
 SceneSoundEvent packet allocation/construction, duplication/group copying,
 append ownership, wire conversion and per-tag playback now use C89 too. Native
 tag representations and resource/queue primitives remain adapters. Scene sound
-editing/undo, remaining loading/editing policy and caption/background callbacks
-still depend on native engine implementations.
+editing/query, preview/background playback, indicators and sound-undo payload
+state/swap control now also use C89. Common movie/undo services, remaining
+loading/editing policy and caption/background callbacks still depend on native
+engine implementations.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -473,17 +475,17 @@ runtime policy (`a17d107d`, `66dc67c1`, and the preceding resource/dispatch
 slice). A fresh sound closeout audit is recorded in
 `docs/tools/playback-regression.md`; device/codec/thread adapters and final
 C-only host integration retain the limits described above.
-Scene-specific sound packets now also use C89; Scene sound editing/undo remains
-part of the remaining Scene conversion below.
+Scene-specific sound packets and sound editing/undo now also use C89; Scene
+persistence and final native facade integration remain conversion work.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
-export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch and
-sound-packet slices are complete. Continue with Scene sound editing/undo in
-`src/engine/scene.cpp`, then remaining scene/movie loading/editing,
-undo/save and caption/transition operations. Final native representation and
-facade removal remains required.
+export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch,
+sound-packet and sound-editing/undo slices are complete. Continue with Scene
+loading/tag-resolution/tag-collection/save transactions in `src/engine/scene.cpp`,
+then remaining scene/movie editing, undo and caption/transition operations.
+Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.

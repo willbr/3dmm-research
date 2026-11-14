@@ -21,6 +21,7 @@
 #include "three_mm/scene_owner.h"
 #include "three_mm/scene_runtime.h"
 #include "three_mm/scene_events.h"
+#include "three_mm/scene_sound_edit.h"
 
 //
 // Undo object for actor operations
@@ -133,6 +134,7 @@ class Scene : public Scene_PAR
     ThreeMMSceneRuntime _runtime; // C-owned cursor, effect mask and background-sound frame.
     ThreeMMSceneRuntimeServices _RuntimeServices();
     ThreeMMSceneEventServices _EventServices();
+    ThreeMMSceneSoundEditServices _SoundEditServices();
 
     //
     // Global information

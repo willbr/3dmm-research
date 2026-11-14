@@ -64,6 +64,8 @@ extern "C"
                                                   const ThreeMMSceneSoundPacketServices *);
     ThreeMMSceneSound *three_mm_scene_sound_append(const ThreeMMSceneSound *, const void *record,
                                                    const ThreeMMSceneSoundPacketServices *);
+    ThreeMMSceneSound *three_mm_scene_sound_append_tag(const ThreeMMSceneSound *, ThreeMMU32 child, const ThreeMMTag *,
+                                                       const ThreeMMSceneSoundPacketServices *);
     ThreeMMSceneSound *three_mm_scene_sound_decode(void *bytes, ThreeMMI32 size, int swap,
                                                    const ThreeMMSceneSoundPacketServices *);
     void *three_mm_scene_sound_encode(const ThreeMMSceneSound *, ThreeMMI32 *size,

@@ -83,8 +83,7 @@ ThreeMMSceneSound *three_mm_scene_sound_group(void *group, ThreeMMI32 index, int
     }
     return p;
 }
-ThreeMMSceneSound *three_mm_scene_sound_append(const ThreeMMSceneSound *source, const void *tag,
-                                               const ThreeMMSceneSoundPacketServices *s)
+static ThreeMMSceneSound *append_storage(const ThreeMMSceneSound *source, const ThreeMMSceneSoundPacketServices *s)
 {
     ThreeMMSceneSound *p;
     ThreeMMI32 bytes = three_mm_scene_sound_size(source->ctagc, s->tag_bytes);
@@ -94,9 +93,31 @@ ThreeMMSceneSound *three_mm_scene_sound_append(const ThreeMMSceneSound *source, 
     if (!p)
         return NULL;
     memcpy(p, source, (size_t)bytes);
-    s->copy_record(s->context, record(p, p->ctagc, s), tag);
+    return p;
+}
+static void retain_appended(ThreeMMSceneSound *p, const ThreeMMSceneSoundPacketServices *s)
+{
     ++p->ctagc;
     s->retain(s->context, record(p, p->ctagc - 1, s));
+}
+ThreeMMSceneSound *three_mm_scene_sound_append(const ThreeMMSceneSound *source, const void *tag,
+                                               const ThreeMMSceneSoundPacketServices *s)
+{
+    ThreeMMSceneSound *p = append_storage(source, s);
+    if (!p)
+        return NULL;
+    s->copy_record(s->context, record(p, p->ctagc, s), tag);
+    retain_appended(p, s);
+    return p;
+}
+ThreeMMSceneSound *three_mm_scene_sound_append_tag(const ThreeMMSceneSound *source, ThreeMMU32 child,
+                                                   const ThreeMMTag *tag, const ThreeMMSceneSoundPacketServices *s)
+{
+    ThreeMMSceneSound *p = append_storage(source, s);
+    if (!p)
+        return NULL;
+    s->write_tag(s->context, record(p, p->ctagc, s), child, tag);
+    retain_appended(p, s);
     return p;
 }
 static ThreeMMU32 reverse(ThreeMMU32 n)
