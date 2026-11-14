@@ -6253,3 +6253,109 @@ Evidence: `tmp/c89-world-camera-native-before*.bin`,
 `tmp/c89-world-camera-playback-actor-events-scrolling-text.json`,
 `tmp/c89-world-camera-capture-hashes-*.json` and the two
 `tmp/c89-world-camera-capture-*.log` files.
+
+### C89 World rendering and material scopes (14 November 2026)
+
+`world_render.c` now owns the persistent changed latch, begin/clean/render/bounds
+sequencing, recursive model-style overrides, temporary material snapshots and
+restoration, clipped RGB dirty-region copy loops, depth-clean dispatch,
+prerender snapshots, background-restoration dispatch and screen/draw control.
+Native adapters retain SDK actor/material fields and registry enumeration,
+rasterization, graphics-port/region/scanner primitives and application marking.
+The native changed flag is a borrowed mirror. Bitmap export construction,
+background scaling, palette lifetime, export transactions and final native
+representations remain work; this does not complete the whole C89 backend.
+
+Two original native traces, an original SDL trace and converted native/SDL
+traces match all 528,048 bytes without masking, SHA-256
+`3C1559759C1D70B0ED937F918C3E6773805AB615640CE2CED9CE3A1B759D5EEC`.
+Little-endian fixtures enforce FNV-1a `4FC7CD7D`. The fixture covers six full,
+half-X, half-Y, half-both, 2x and 4x modes; all eight wire/flat/no-texture options;
+begin/rendered/root-rectangle callback order; material flags/textures/palette
+ranges during and after rendering; dirty-region bounds; defined RGB/depth
+buffers; redundant renders; prerender/unprerender and offset drawing. Its initial
+smooth textured test material omitted both lighting and prelit inputs, producing
+unstable SDK colour values. Adding the prelit flag corrected the fixture before
+freezing the native baseline; no production renderer change was made for that.
+
+Begin callbacks visit immediate NONE roots before cleanup. Working dirt is
+unioned into screen dirt before clearing and again after SDK rendering and
+restored materials. Root-rectangle callback availability remains dynamic.
+The changed latch clears last, including when marked by render callbacks.
+Style traversal leaves the world root and bounding-point/edge/face models
+untouched while still traversing their descendants. Texture removal preserves
+the retail solid grey ramp, base/range 15; flattening alone leaves textured
+materials unchanged. Material restoration uses forward enumeration order.
+
+The C material scope owns bounded snapshot storage. Allocation/size/capacity
+failure restores the applied prefix, releases storage and skips SDK rendering;
+the world remains dirty for retry. Prerendering commits no background snapshot
+after render failure. The debug supersampled export path uses the same C scope
+and restores its global bounds callback and RGB lock before returning failure.
+This replaces an uncaught vector-allocation exception with bounded failure;
+completed cleanup/style work before the failed allocation is retained.
+
+RGB cleanup intersects region bounds with buffer dimensions and validates
+pitches, available bytes and each relative scan span before copying. Completed
+prefix copies remain after a later malformed span. Locks release working then
+background; scanner references/locks release immediately afterward, before
+dirty-region mutation. Review caught an initial adapter lifetime extension that
+kept the scanner alive until the outer render returned. It was corrected after
+the first capture set and all gates/captures were rerun. The C fixture now asserts
+that no scanner owner survives into region union. The first capture metadata/logs
+are retained as intermediate evidence, not used as the final gate.
+
+Scaled actor rectangles and draw offsets reject unrepresentable arithmetic
+before region publication/blitting. Drawing retains the original negative offset
+and ignored clip argument; host blits clip. Screen-region Scale/Offset arithmetic
+remains a host primitive, not a new general overflow guarantee.
+
+All 84 standalone C checks pass with assertions enabled, including strict C89
+syntax. The new C-only fixture also builds/runs directly with Clang
+`-std=c89 -pedantic-errors -Wall -Wextra -Werror` and passes MSVC AddressSanitizer.
+It covers all four flat/no-texture combinations, exact restoration order,
+allocation/size/capacity failure and prefix rollback, distinct source/destination
+pitches and guard bytes, empty/invalid scan paths, lock failure, scanner lifetime,
+all three bounding styles and descendants, changed-latch/callback behavior,
+option changes during begin callbacks, dynamic rectangle registration, failed
+prerender/retry and screen/draw control. Both hosts and `core-checks` build;
+all 110 focused native checks, nineteen focused SDL release checks and 51 freshly
+linked CLI baselines pass after the scanner fix. A final callback-contract comment
+clarification was followed by rebuilds, six native World checks and the nineteen
+SDL checks. Marcus was stopped before each rebuild and relaunched afterward.
+No Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`21F33AC2E4C3DD1A64DF723D71BB75AC9BA91E37B53AEA0060029B221885EC2E`
+(SDL release) and
+`1200E0883BB43BF755CB14F27B1FD46447338AF9734F559CF1B70BB7FF22BCD9`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T055809Z-bf2d3736` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T055922Z-4f06e1ad` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve final captures complete without retries, retaining movie identity and
+suite integrity. Authored frames, all 360 seek images and ordered playback image
+changes match each player's preceding camera/picking suites
+`20261114T052551Z-996e1e80` and `20261114T052705Z-ea4c2c0f`. Playback comparison
+collapses only adjacent identical position/image observations. Reports retain
+existing cross-player differences and single-repeat inconclusive comparisons;
+these gates show no observed render-policy regression and do not establish full
+retail timing or PCM parity. Captures use a shared warm SDL package cache with
+private processes/settings/movies and uncontrolled OS caching. No builds or tests
+run concurrently with capture. The final comparison selects only environment
+revision 2; intermediate pre-scanner-fix suites `20261114T054811Z-92599730` and
+`20261114T054924Z-1d21cfc7` cannot satisfy the final gate.
+
+Evidence: `tmp/c89-world-render-before*.bin`,
+`tmp/c89-world-render-sdl-before.bin`, `tmp/c89-world-render-*-after.bin`,
+`tmp/c89-world-render-after.bin`, `tmp/c89-world-render-standalone.log`,
+`tmp/c89-world-render-asan.log`, `tmp/c89-world-render-native-tests.log`,
+`tmp/c89-world-render-final-world-checks.log`, `tmp/c89-world-render-sdl-tests.log`,
+`tmp/c89-world-render-output-comparison.json`,
+`tmp/c89-world-render-playback-actor-events-scrolling-text.json`,
+`tmp/c89-world-render-capture-hashes-*.json`,
+`tmp/c89-world-render-initial-capture-*` and the two final
+`tmp/c89-world-render-capture-*.log` files.

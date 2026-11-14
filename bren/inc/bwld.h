@@ -12,6 +12,7 @@
 #define BWLD_H
 #include "three_mm/world_buffers.h"
 #include "three_mm/world_camera.h"
+#include "three_mm/world_render.h"
 
 namespace BRender {
 
@@ -45,6 +46,8 @@ class World : public World_PAR
     ThreeMMWorldBufferServices _BufferServices();
     ThreeMMWorldCamera _camera; // authoritative camera and closest-pick state
     ThreeMMWorldCameraServices _CameraServices();
+    ThreeMMWorldRender _render;
+    ThreeMMWorldRenderServices _RenderServices(void *context);
     RC _rcBuffer;                // Bounds of the rendering space
     RC _rcView;                  // Bounds of view
     BACT _bactWorld;             // The world root actor
@@ -63,7 +66,7 @@ class World : public World_PAR
     bool _fHalfY;                // Render at half vertical resolution
     long _renderScale = 1;
     static long _defaultRenderScale;
-    bool _fWorldChanged;         // Need to rerender?
+    bool _fWorldChanged;         // Mirror of the C render latch
     PFNBEGINREND _pfnbeginrend;  // Callback to each actor before rendering
     PFNBACTREND _pfnbactrend;    // Callback when an actor is rendered
     PFNGETRECT _pfngetrect;      // Callback to get an actor's bounding rect
@@ -100,7 +103,8 @@ class World : public World_PAR
     // Dirtying the BRender world and bitmap
     void MarkDirty(void)
     {
-        _fWorldChanged = fTrue;
+        three_mm_world_render_dirty(&_render);
+        _fWorldChanged = _render.changed != 0;
     }
     void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 

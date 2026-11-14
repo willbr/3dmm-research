@@ -444,7 +444,11 @@ transactions, background loading and depth resampling now also use C89. Native
 World fields and SDK pixelmaps are borrowed views; graphics operations and SDK
 scene setup remain host primitives. Camera matrix/clip/FOV state, nearest-pick
 selection, pick-coordinate conversion, actor-root owner traversal and rendered
-bounds conversion now also use C89. Render sequencing/export control is still work.
+bounds conversion now also use C89. The render-changed latch, begin/render/bounds
+sequencing, model-style traversal, temporary material overrides, clipped dirty
+RGB/depth cleanup, prerendering and screen/draw control now also use C89. Native
+adapters provide SDK, graphics-port, region/scanner and application primitives.
+Bitmap export policy and final native representations are still work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -456,9 +460,9 @@ C-only host integration retain the limits described above.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
-masked-bitmap ownership/codec and World buffer/background/camera/picking slices
-are complete. Continue with render sequencing, temporary material overrides,
-dirty-region copy policy, prerendering, drawing and export control in
+masked-bitmap ownership/codec, and World buffer/background/camera/picking/render
+slices are complete. Continue with bitmap export
+construction/background scaling, palette lifetime and export transactions in
 `bren/bwld.cpp` and remaining BRender representation
 adapters.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using

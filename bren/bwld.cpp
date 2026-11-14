@@ -17,10 +17,9 @@
     full view resolution.
 
 ***************************************************************************/
-#include <stdlib.h>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 #include "bren.h"
 
 // REVIEW *****: _pgptStretch is completely unused...remove it!
@@ -41,7 +40,7 @@ static void BR_CALLBACK WorldError(char *message)
 {
     AppendCrashLog("BRENDER_FATAL", message);
     MessageBox(0, message, "BRender Fatal Error", MB_OK);
-    exit(10);
+    std::exit(10);
 }
 
 static br_diaghandler WorldDiagHandler = {"World DiagHandler", WorldWarning, WorldError};
@@ -62,64 +61,208 @@ bool World::_fFlatShading = fFalse;
 bool World::_fNoTexture = fFalse;
 long World::_defaultRenderScale = 1;
 
-// Overrides exist only during a render. Cached/newly loaded materials and
-// movie saves always retain their original textures, palette ranges and flags.
+// Only SDK field access and registry enumeration live in this adapter.
+struct WorldMaterialEnumeration
+{
+    int (*visit)(void *, void *);
+    void *argument;
+};
+static br_uint_32 BR_CALLBACK WorldMaterialVisit(br_material *material, void *context)
+{
+    auto e = static_cast<WorldMaterialEnumeration *>(context);
+    return e->visit(e->argument, material);
+}
+static ThreeMMWorldMaterialServices WorldMaterialServices()
+{
+    ThreeMMWorldMaterialServices s = {};
+    s.gouraud = BR_MATF_GOURAUD;
+    s.count = [](void *) -> size_t { return BrMaterialCount(nullptr); };
+    s.enumerate = [](void *, int (*visit)(void *, void *), void *argument) {
+        WorldMaterialEnumeration e = {visit, argument};
+        BrMaterialEnum(nullptr, WorldMaterialVisit, &e);
+    };
+    s.read = [](void *, void *p, ThreeMMWorldMaterial *out) {
+        auto m = static_cast<br_material *>(p);
+        out->object = m;
+        out->flags = m->flags;
+        out->texture = m->colour_map;
+        out->base = m->index_base;
+        out->range = m->index_range;
+    };
+    s.write = [](void *, const ThreeMMWorldMaterial *in) {
+        auto m = static_cast<br_material *>(in->object);
+        m->flags = in->flags;
+        m->colour_map = static_cast<br_pixelmap *>(in->texture);
+        m->index_base = in->base;
+        m->index_range = in->range;
+        BrMaterialUpdate(m, BR_MATU_ALL);
+    };
+    s.allocate = [](void *, size_t bytes) -> void * { return std::malloc(bytes); };
+    s.free = [](void *, void *p) { std::free(p); };
+    return s;
+}
 class RenderMaterialScope
 {
-    struct SavedMaterial
-    {
-        br_material *material;
-        br_uint_32 flags;
-        br_pixelmap *texture;
-        br_uint_8 indexBase, indexRange;
-    };
-    std::vector<SavedMaterial> saved;
-    static br_uint_32 BR_CALLBACK Apply(br_material *material, void *context)
-    {
-        const bool removeTexture = World::NoTexture() && material->colour_map;
-        const bool flatten =
-            World::FlatShading() && (!material->colour_map || removeTexture) && (material->flags & BR_MATF_GOURAUD);
-        if (removeTexture || flatten)
-        {
-            auto &scope = *static_cast<RenderMaterialScope *>(context);
-            scope.saved.push_back(
-                {material, material->flags, material->colour_map, material->index_base, material->index_range});
-            if (removeTexture)
-            {
-                material->colour_map = nullptr;
-                // Texture lighting rows are not palette indices. Use the
-                // retail default solid material's grey ramp (entries 15-30).
-                material->index_base = 15;
-                material->index_range = 15;
-            }
-            if (flatten)
-                material->flags &= ~BR_MATF_GOURAUD;
-            BrMaterialUpdate(material, BR_MATU_ALL);
-        }
-        return 0;
-    }
+    ThreeMMWorldMaterials scope;
+    ThreeMMWorldMaterialServices services;
+    bool ready;
 
   public:
-    RenderMaterialScope()
+    RenderMaterialScope() : services(WorldMaterialServices())
     {
-        if (World::FlatShading() || World::NoTexture())
-        {
-            saved.reserve(BrMaterialCount(pvNil));
-            BrMaterialEnum(pvNil, Apply, this);
-        }
+        ready = three_mm_world_materials_begin(&scope, World::FlatShading(), World::NoTexture(), &services) != 0;
+    }
+    bool Ready() const
+    {
+        return ready;
     }
     ~RenderMaterialScope()
     {
-        for (const auto &entry : saved)
-        {
-            entry.material->flags = entry.flags;
-            entry.material->colour_map = entry.texture;
-            entry.material->index_base = entry.indexBase;
-            entry.material->index_range = entry.indexRange;
-            BrMaterialUpdate(entry.material, BR_MATU_ALL);
-        }
+        three_mm_world_materials_end(&scope, &services);
     }
 };
+struct WorldRenderContext
+{
+    PWorld world;
+    RegionScanner scanner;
+    PGraphicsEnvironment destination = nullptr;
+    PGraphicsObject gob = nullptr;
+};
+static PWorld RenderWorld(void *p)
+{
+    return static_cast<WorldRenderContext *>(p)->world;
+}
+static RC RenderRect(const ThreeMMI32 r[4])
+{
+    return RC(r[0], r[1], r[2], r[3]);
+}
+static void RenderRectOut(const RC &r, ThreeMMI32 out[4])
+{
+    out[0] = r.xpLeft;
+    out[1] = r.ypTop;
+    out[2] = r.xpRight;
+    out[3] = r.ypBottom;
+}
+ThreeMMWorldRenderServices World::_RenderServices(void *context)
+{
+    ThreeMMWorldRenderServices s = {};
+    s.context = context;
+    s.root = &_bactWorld;
+    s.actor_none = BR_ACTOR_NONE;
+    s.actor_model = BR_ACTOR_MODEL;
+    s.bounding_points = BR_RSTYLE_BOUNDING_POINTS;
+    s.bounding_edges = BR_RSTYLE_BOUNDING_EDGES;
+    s.bounding_faces = BR_RSTYLE_BOUNDING_FACES;
+    s.faces = BR_RSTYLE_FACES;
+    s.edges = BR_RSTYLE_EDGES;
+    s.child = [](void *, void *p) -> void * { return static_cast<PBACT>(p)->children; };
+    s.next = [](void *, void *p) -> void * { return static_cast<PBACT>(p)->next; };
+    s.type = [](void *, void *p) -> int { return static_cast<PBACT>(p)->type; };
+    s.style = [](void *, void *p) -> int { return static_cast<PBACT>(p)->render_style; };
+    s.set_style = [](void *, void *p, int style) { static_cast<PBACT>(p)->render_style = style; };
+    s.has = [](void *p, int kind) -> int {
+        auto w = RenderWorld(p);
+        return kind == THREE_MM_WORLD_BEGIN ? w->_pfnbeginrend != nullptr : w->_pfngetrect != nullptr;
+    };
+    s.begin = [](void *p, void *actor) { RenderWorld(p)->_pfnbeginrend(static_cast<PBACT>(actor)); };
+    s.rect = [](void *p, void *actor, ThreeMMI32 out[4]) {
+        RC r;
+        RenderWorld(p)->_pfngetrect(static_cast<PBACT>(actor), &r);
+        RenderRectOut(r, out);
+    };
+    s.options = [](void *, int *wire, int *flat, int *noTexture) {
+        *wire = World::RenderWireframe();
+        *flat = World::FlatShading();
+        *noTexture = World::NoTexture();
+    };
+    s.region_bounds = [](void *p, int kind, ThreeMMI32 out[4]) -> int {
+        RC r;
+        auto region = static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind]);
+        if (region->FEmpty(&r))
+            return 0;
+        RenderRectOut(r, out);
+        return 1;
+    };
+    s.region_clear = [](void *p, int kind) {
+        static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind])->SetRc(nullptr);
+    };
+    s.region_union = [](void *p, int dst, int src) {
+        auto &b = RenderWorld(p)->_buffers;
+        static_cast<PRegion>(b.owners[dst])->FUnion(static_cast<PRegion>(b.owners[src]));
+    };
+    s.region_add = [](void *p, int kind, const ThreeMMI32 rect[4]) {
+        auto r = RenderRect(rect);
+        static_cast<PRegion>(RenderWorld(p)->_buffers.owners[kind])->FUnionRc(&r);
+    };
+    s.depth_clean = [](void *p, const ThreeMMI32 rect[4]) {
+        auto w = RenderWorld(p);
+        auto r = RenderRect(rect);
+        w->_pzbmpBackground->Draw(static_cast<byte *>(w->_bpmpZ.pixels), w->_bpmpZ.row_bytes, w->_bpmpZ.height, 0, 0,
+                                  &r, w->_pregnDirtyWorking);
+    };
+    s.lock = [](void *p, int kind, ThreeMMWorldPixels *out) -> int {
+        auto port = static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind]);
+        RC r;
+        out->pixels = port->PrgbLockPixels(&r);
+        out->row = port->CbRow();
+        out->bytes = size_t(out->row) * r.Dyp();
+        return out->pixels != nullptr;
+    };
+    s.unlock = [](void *p, int kind) { static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind])->Unlock(); };
+    s.scan_init = [](void *p, const ThreeMMI32 rect[4]) {
+        auto c = static_cast<WorldRenderContext *>(p);
+        auto r = RenderRect(rect);
+        c->scanner.Init(c->world->_pregnDirtyWorking, &r);
+    };
+    s.scan_span = [](void *p, ThreeMMI32 *left, ThreeMMI32 *right) -> int {
+        auto &scan = static_cast<WorldRenderContext *>(p)->scanner;
+        if (scan.XpCur() >= klwMax)
+            return 0;
+        *left = scan.XpCur();
+        *right = scan.XpFetch();
+        scan.XpFetch();
+        return 1;
+    };
+    s.scan_next = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.ScanNext(1); };
+    s.scan_end = [](void *p) { static_cast<WorldRenderContext *>(p)->scanner.Free(); };
+    s.render = [](void *p) {
+        auto w = RenderWorld(p);
+        BrZbSceneRender(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, &w->_bpmpZ);
+    };
+    s.publish = [](void *p, const ThreeMMWorldRender *r) { RenderWorld(p)->_fWorldChanged = r->changed != 0; };
+    s.snapshot_depth = [](void *p) {
+        auto w = RenderWorld(p);
+        w->_pzbmpWorking->Draw(w->_pzbmpBackground->Prgb(), w->_pzbmpBackground->CbRow(), w->_rcBuffer.Dyp(), 0, 0,
+                               &w->_rcBuffer, nullptr);
+    };
+    s.detach_depth = [](void *p) { RenderWorld(p)->_pzbmpBackground->Detach(); };
+    s.snapshot_rgb = [](void *p) {
+        auto w = RenderWorld(p);
+        GraphicsEnvironment dst(w->_pgptBackground), src(w->_pgptWorking);
+        dst.CopyPixels(&src, &w->_rcBuffer, &w->_rcBuffer);
+    };
+    s.flush = [](void *) { GraphicsPort::Flush(); };
+    s.restore_background = [](void *p) {
+        auto w = RenderWorld(p);
+        w->FSetBackground(w->_pcrf, w->_ctgRGB, w->_cnoRGB, w->_ctgZ, w->_cnoZ);
+    };
+    s.screen_scale = [](void *p, ThreeMMI32 nx, ThreeMMI32 dx, ThreeMMI32 ny, ThreeMMI32 dy) {
+        RenderWorld(p)->_pregnDirtyScreen->Scale(nx, dx, ny, dy);
+    };
+    s.screen_offset = [](void *p, ThreeMMI32 x, ThreeMMI32 y) { RenderWorld(p)->_pregnDirtyScreen->Offset(x, y); };
+    s.screen_mark = [](void *p) {
+        auto c = static_cast<WorldRenderContext *>(p);
+        vpappb->MarkRegn(c->world->_pregnDirtyScreen, c->gob);
+    };
+    s.draw = [](void *p, const ThreeMMI32 source[4], const ThreeMMI32 destination[4]) {
+        auto c = static_cast<WorldRenderContext *>(p);
+        auto src = RenderRect(source), dst = RenderRect(destination);
+        GraphicsEnvironment temp(c->world->_pgptWorking);
+        c->destination->CopyPixels(&temp, &src, &dst);
+    };
+    s.materials = WorldMaterialServices();
+    return s;
+}
 
 void World::SetNoTexture(bool fOn)
 {
@@ -199,7 +342,7 @@ ThreeMMWorldBufferServices World::_BufferServices()
         if (screen)
             w->_pregnDirtyScreen->SetRc(&w->_rcBuffer);
         if (changed)
-            w->_fWorldChanged = true;
+            w->MarkDirty();
     };
     s.fetch = [](void *, void *p, int kind, ThreeMMU32 type, ThreeMMU32 number) -> void * {
         return static_cast<PChunkyResourceFile>(p)->PbacoFetch(
@@ -230,23 +373,6 @@ ThreeMMWorldBufferServices World::_BufferServices()
     sufficient because body parts assign their own non-default render_style
     (BR_RSTYLE_FACES), which BRender treats as overriding the inherited one.
 ***************************************************************************/
-static void _SetModelRenderStyleRec(BACT *pbact, br_uint_8 style)
-{
-    BACT *pchild;
-    for (pchild = pbact->children; pvNil != pchild; pchild = pchild->next)
-    {
-        // Don't touch hilite (selection) actors which use BR_RSTYLE_BOUNDING_EDGES
-        // to draw a wireframe bounding box around selected bodies, or any other
-        // bounding-style actor.
-        if (pchild->type == BR_ACTOR_MODEL && pchild->render_style != BR_RSTYLE_BOUNDING_POINTS &&
-            pchild->render_style != BR_RSTYLE_BOUNDING_EDGES && pchild->render_style != BR_RSTYLE_BOUNDING_FACES)
-        {
-            pchild->render_style = style;
-        }
-        _SetModelRenderStyleRec(pchild, style);
-    }
-}
-
 /***************************************************************************
     Allocate a new BRender world
 ***************************************************************************/
@@ -295,6 +421,7 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
     if (dxp <= 0 || dyp <= 0 || dxp > 4096 || dyp > 4096)
         return false;
     three_mm_world_camera_init(&_camera);
+    three_mm_world_render_init(&_render);
     auto s = _BufferServices();
     if (!three_mm_world_buffers_init(&_buffers, dxp, dyp, _renderScale, fHalfX, fHalfY, &s))
         return false;
@@ -435,67 +562,9 @@ void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
 void World::Render(void)
 {
     AssertThis(0);
-
-    PBACT pbact;
-    RC rc;
-
-    if (!_fWorldChanged)
-        return;
-
-    // Note that we only call pfnbeginrend on immediate children of
-    // the world, because that will hit all the Bodys in Socrates.
-    if (pvNil != _pfnbeginrend)
-    {
-        for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
-        {
-            // Body roots are BR_ACTOR_NONE
-            if (pbact->type == BR_ACTOR_NONE)
-                _pfnbeginrend(pbact);
-        }
-    }
-
-    _CleanWorkingBuffers();
-
-    // Now the working buffer is clean, but we should mark everything that
-    // we just cleaned in _CleanWorkingBuffers as dirty in the screen buffer
-    // so that the background shows through where actors used to be.
-    // In most cases, _pregnDirtyScreen is empty now, so it's tempting to
-    // just SwapVars the two regions.  But if Render() was called but Draw()
-    // never was (as when you press play then stop playing before the end of
-    // the movie), _pregnDirtyScreen may have some stuff still to copy.  So
-    // we have to merge (union) _pregnDirtyWorking into _pregnDirtyScreen,
-    // then clear _pregnDirtyWorking.
-    _pregnDirtyScreen->FUnion(_pregnDirtyWorking);
-    _pregnDirtyWorking->SetRc(pvNil);
-
-    // Apply user-selected render style override (wireframe).  Each BR_ACTOR_MODEL
-    // body part has its own non-default render_style (BR_RSTYLE_FACES) which
-    // overrides any inherited setting, so we walk the tree and force every model
-    // actor to the desired style.
-    _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
-
-    // Render the scene.  This will add stuff to _pregnDirtyWorking
-    {
-        RenderMaterialScope materials;
-        BrZbSceneRender(&_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
-    }
-
-    for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
-    {
-        // Body roots are BR_ACTOR_NONE
-        if (pbact->type == BR_ACTOR_NONE && pvNil != _pfngetrect)
-        {
-            _pfngetrect(pbact, &rc);
-            if (_renderScale > 1)
-                rc.Map(&_rcView, &_rcBuffer);
-            _pregnDirtyWorking->FUnionRc(&rc);
-        }
-    }
-
-    // Everything dirty in working buffer is dirty on screen too
-    _pregnDirtyScreen->FUnion(_pregnDirtyWorking);
-
-    _fWorldChanged = fFalse;
+    WorldRenderContext context = {this};
+    auto services = _RenderServices(&context);
+    three_mm_world_render(&_render, &_buffers, &services);
 }
 
 /***************************************************************************
@@ -505,24 +574,9 @@ void World::Render(void)
 void World::Prerender(void)
 {
     AssertThis(0);
-
-    GraphicsEnvironment gnvBackground(_pgptBackground);
-    GraphicsEnvironment gnvWorking(_pgptWorking);
-
-    Render();
-
-    _pzbmpWorking->Draw((byte *)_pzbmpBackground->Prgb(), _pzbmpBackground->CbRow(), _rcBuffer.Dyp(), 0, 0, &_rcBuffer,
-                        pvNil);
-
-    // Need to detach _pzbmpBackground from the ChunkyResourceFile so when we unprerender,
-    // a fresh copy of the ZBMP is fetched
-    _pzbmpBackground->Detach();
-
-    gnvBackground.CopyPixels(&gnvWorking, &_rcBuffer, &_rcBuffer);
-
-    // Need to ensure that the current contents of _pgptWorking (just the
-    // prerenderable actors) go into _pgptBackground
-    GraphicsPort::Flush();
+    WorldRenderContext context = {this};
+    auto services = _RenderServices(&context);
+    three_mm_world_prerender(&_render, &_buffers, &services);
 }
 
 /***************************************************************************
@@ -532,10 +586,9 @@ void World::Prerender(void)
 void World::Unprerender(void)
 {
     AssertThis(0);
-
-    // Ignore error...you'll just get weird visual effects and an error
-    // will be reported elsewhere
-    FSetBackground(_pcrf, _ctgRGB, _cnoRGB, _ctgZ, _cnoZ);
+    WorldRenderContext context = {this};
+    auto services = _RenderServices(&context);
+    three_mm_world_unprerender(&services);
 }
 
 /***************************************************************************
@@ -545,49 +598,9 @@ void World::Unprerender(void)
 void World::_CleanWorkingBuffers(void)
 {
     AssertThis(0);
-
-    RegionScanner regsc;
-    long yp;
-    long xpLeft;
-    RC rcRegnBounds;
-    RC rcClippedRegnBounds;
-    byte *pbSrc;
-    byte *pbDst;
-    long cbRowCopy;
-    RC rc;
-    long cbRowSrc, cbRowDst;
-
-    if (_pregnDirtyWorking->FEmpty(&rcRegnBounds))
-        return;
-    if (!rcClippedRegnBounds.FIntersect(&rcRegnBounds, &_rcBuffer))
-        return;
-
-    // Clean the Z buffer
-    _pzbmpBackground->Draw((byte *)_bpmpZ.pixels, _bpmpZ.row_bytes, _bpmpZ.height, 0, 0, &rcClippedRegnBounds,
-                           _pregnDirtyWorking);
-
-    // Clean the RGB buffer
-    regsc.Init(_pregnDirtyWorking, &rcClippedRegnBounds);
-    yp = rcClippedRegnBounds.ypTop;
-    cbRowSrc = _pgptBackground->CbRow();
-    pbSrc = _pgptBackground->PrgbLockPixels() + LwMul(yp, cbRowSrc) + rcClippedRegnBounds.xpLeft;
-    cbRowDst = _pgptWorking->CbRow();
-    pbDst = _pgptWorking->PrgbLockPixels() + LwMul(yp, cbRowDst) + rcClippedRegnBounds.xpLeft;
-    for (; yp < rcClippedRegnBounds.ypBottom; yp++)
-    {
-        while (regsc.XpCur() < klwMax)
-        {
-            xpLeft = regsc.XpCur();
-            cbRowCopy = regsc.XpFetch() - xpLeft;
-            regsc.XpFetch();
-            CopyPb(pbSrc + xpLeft, pbDst + xpLeft, cbRowCopy);
-        }
-        pbSrc += cbRowSrc;
-        pbDst += cbRowDst;
-        regsc.ScanNext(1);
-    }
-    _pgptWorking->Unlock();
-    _pgptBackground->Unlock();
+    WorldRenderContext context = {this};
+    auto services = _RenderServices(&context);
+    three_mm_world_render_clean(&_buffers, &services);
 }
 
 /***************************************************************************
@@ -619,14 +632,12 @@ void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
-
-    if (_renderScale > 1)
-        _pregnDirtyScreen->Scale(1, _renderScale, 1, _renderScale);
-    else
-        _pregnDirtyScreen->Scale((_fHalfX ? 2 : 1), 1, (_fHalfY ? 2 : 1), 1);
-    _pregnDirtyScreen->Offset(dxp, dyp);
-    vpappb->MarkRegn(_pregnDirtyScreen, pgob);
-    _pregnDirtyScreen->SetRc(pvNil); // screen is clean
+    if (dxp < INT32_MIN || dxp > INT32_MAX || dyp < INT32_MIN || dyp > INT32_MAX)
+        return;
+    WorldRenderContext context = {this};
+    context.gob = pgob;
+    auto services = _RenderServices(&context);
+    three_mm_world_render_mark(&_buffers, dxp, dyp, &services);
 }
 
 /***************************************************************************
@@ -639,12 +650,12 @@ void World::Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-
-    RC rc;
-    GraphicsEnvironment gnvTemp(_pgptWorking);
-
-    rc.OffsetCopy(&_rcView, -dxp, -dyp);
-    pgnv->CopyPixels(&gnvTemp, &_rcBuffer, &rc);
+    if (dxp < INT32_MIN || dxp > INT32_MAX || dyp < INT32_MIN || dyp > INT32_MAX)
+        return;
+    WorldRenderContext context = {this};
+    context.destination = pgnv;
+    auto services = _RenderServices(&context);
+    three_mm_world_render_draw(&_buffers, dxp, dyp, &services);
 }
 
 /***************************************************************************
@@ -896,6 +907,7 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     // texture-size specialization, not the maximum output resolution.
     const long kdxpRenderMax = 4096;
 
+    bool rendered = false;
     long scaleRender = scale;
     while (scaleRender > 1 &&
            (LwMul(_rcView.Dxp(), scaleRender) > kdxpRenderMax || LwMul(_rcView.Dyp(), scaleRender) > kdxpRenderMax))
@@ -926,7 +938,11 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
         goto LFail;
 
     // Match Render()'s wireframe override.
-    _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
+    {
+        WorldRenderContext context = {this};
+        auto services = _RenderServices(&context);
+        three_mm_world_render_styles(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES, &services);
+    }
 
     bpmpRGB.type = BR_PMT_INDEX_8;
     bpmpRGB.row_bytes = (short)LwMul(dxpRender, kcbPixelRGB);
@@ -947,11 +963,15 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     BrZbSetRenderBoundsCallback(nullptr);
     {
         RenderMaterialScope materials;
-        BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
+        rendered = materials.Ready();
+        if (rendered)
+            BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
     }
     BrZbSetRenderBoundsCallback(_ActorRendered);
     GraphicsPort::Flush();
     pgptRender->Unlock();
+    if (!rendered)
+        goto LFail;
 
     {
         // PglclrGetPalette() allocates a fresh palette copy that the caller
@@ -964,8 +984,8 @@ bool World::FWriteBmpScaled(PFilename pfni, long scale)
     }
 
 LFail:
-    // Lock/Unlock pairs are balanced on every success path. The only goto
-    // LFail jumps happen before any Lock, so we just release here.
+    // Locks and the render-bounds callback are restored before reaching here,
+    // including a failed temporary material allocation.
     ReleasePpo(&pgptRender);
     ReleasePpo(&pzbmpRender);
     return fRet;

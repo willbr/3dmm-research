@@ -81,6 +81,7 @@ cmake --build build/engine-c89 --target engine-depth-bitmap-test
 cmake --build build/engine-c89 --target engine-masked-bitmap-test
 cmake --build build/engine-c89 --target engine-world-buffers-test
 cmake --build build/engine-c89 --target engine-world-camera-test
+cmake --build build/engine-c89 --target engine-world-render-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1963,7 +1964,7 @@ retained background cache, mode dimensions, renderer-view descriptions,
 construction/disposal ordering, mode rollback and background loading/control.
 Native World fields and BRender pixelmaps borrow this state. Typed host services
 provide allocation, locks, region creation, SDK scene setup and graphics blits;
-camera/picking policy is described next; render/export policy and final
+camera/picking and render policy are described next; export policy and final
 representation removal remain work.
 
 Scale values stay 1/2/4, with a 4,096-pixel limit per rendered axis. Half flags
@@ -1997,9 +1998,8 @@ state, camera publication/working-region dirty ordering, pick reset/dispatch,
 coordinate conversion, actor-root owner traversal and rendered-bound conversion.
 The native camera is an SDK mirror. Typed adapters retain SDK field access,
 the actual SDK intersection query, region mutation and client callback dispatch.
-Temporary native pick fields mirror the C result. Render sequencing, material
-overrides, dirty-region copy loops, prerendering, drawing/export control and
-final SDK/object representation removal remain migration work.
+Temporary native pick fields mirror the C result. Render policy is described
+below; export control and final SDK/object representation removal remain work.
 
 Camera changes dirty the working region without setting the changed latch,
 matching the original behavior. Half-resolution picking truncates negative
@@ -2017,6 +2017,50 @@ camera outputs, actual SDK hits, selection ties, origin offsets, full/half/scale
 modes and negative rendered bounds. C-only tests cover publication order,
 integer limits, output preservation on failure, pick reset and actor-root routing.
 Full validation and capture limits are in `docs/tools/playback-regression.md`.
+
+### World rendering, material scopes and dirty-region copies
+
+`world_render.c` owns the persistent changed latch, render sequencing, model-style
+traversal, temporary material snapshots/overrides/restoration, clipped dirty RGB
+copy loops and depth-clean dispatch, prerender snapshots, background restoration
+dispatch and screen/draw control. Native World fields borrow the C latch; typed
+services supply actor fields, SDK rasterization, material-registry access,
+graphics-port locks/blits, region/scanner primitives and application marking.
+SDK/object/region representations and bitmap export construction/background
+scaling/palette lifetime/transaction policy remain native dependencies.
+
+Immediate NONE roots receive begin callbacks before cleaning. Working dirt is
+unioned into screen dirt before clearing; after render and material restoration,
+root bounds populate working dirt and screen dirt is unioned again. The changed
+latch clears last, including when callbacks mark it during rendering. Bounds
+callback availability is checked for each root. Style traversal leaves the root
+and bounded models unchanged while still visiting their descendants.
+
+Material scope storage belongs to C and restores forward enumeration order.
+Flattening preserves textured materials unless textures are also removed;
+texture removal uses the retail solid grey ramp (base/range 15). Allocation or
+snapshot-capacity failure restores the applied prefix and skips the SDK render,
+leaving the world dirty for retry. Prerendering commits no snapshot after render
+failure. The debug supersampled exporter uses the same C scope and restores its
+callback/lock before returning failure. Its outer export policy is still native.
+
+RGB cleanup clips against buffer dimensions, validates actual pitches/spans and
+copies only scanned spans, unlocking working then background even on failure.
+It then releases scanner references/locks before any dirty-region mutation.
+Successful earlier copies remain on malformed later spans. Drawing preserves
+the original negative offset and ignores the supplied clip rectangle as before;
+host blits perform clipping. Unrepresentable scaled actor rectangles/draw offsets
+fail before publication/blitting. Screen region arithmetic remains a host service.
+
+Two original native runs, the original SDL run and converted native/SDL runs match
+528,048 bytes, SHA-256
+`3C1559759C1D70B0ED937F918C3E6773805AB615640CE2CED9CE3A1B759D5EEC`.
+Little-endian fixtures enforce FNV-1a `4FC7CD7D`. They record actual colour/depth
+buffers, callback order, dirty regions, material state during/after rendering,
+all eight style-option combinations, full/half/scaled modes, prerendering and
+offset drawing. C-only tests cover rollback, locks, spans, style exclusions,
+callback changes, output policy and snapshot failure. Full validation and capture
+limits are in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 
