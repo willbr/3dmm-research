@@ -53,7 +53,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
 
 ## Shared C89 engine migration
 
-### Current status (13 November 2026)
+### Current status (14 November 2026)
 
 - The shared content VFS core, `libraries/content/src/content_vfs.c`, is C89;
   `content_vfs.cpp` remains a C++ adapter. Reuse the existing core.
@@ -464,8 +464,10 @@ SceneSoundEvent packet allocation/construction, duplication/group copying,
 append ownership, wire conversion and per-tag playback now use C89 too. Native
 tag representations and resource/queue primitives remain adapters. Scene sound
 editing/query, preview/background playback, indicators and sound-undo payload
-state/swap control now also use C89. Common movie/undo services, remaining
-loading/editing policy and caption/background callbacks still depend on native
+state/swap control now also use C89. Scene load orchestration, wire/runtime event
+construction, tag-open ownership transfer and actor/frame sound-resolution
+traversal now also use C89. Common movie/undo services, remaining tag collection,
+save/editing policy and caption/background callbacks still depend on native
 engine implementations.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
@@ -475,15 +477,16 @@ runtime policy (`a17d107d`, `66dc67c1`, and the preceding resource/dispatch
 slice). A fresh sound closeout audit is recorded in
 `docs/tools/playback-regression.md`; device/codec/thread adapters and final
 C-only host integration retain the limits described above.
-Scene-specific sound packets and sound editing/undo now also use C89; Scene
-persistence and final native facade integration remain conversion work.
+Scene-specific sound packets, sound editing/undo and Scene load/resolution control
+now also use C89; Scene tag collection/save and final native facade integration
+remain conversion work.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
 export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch,
-sound-packet and sound-editing/undo slices are complete. Continue with Scene
-loading/tag-resolution/tag-collection/save transactions in `src/engine/scene.cpp`,
+sound-packet, sound-editing/undo and loading/resolution slices are complete.
+Continue with Scene tag-collection/save transactions in `src/engine/scene.cpp`,
 then remaining scene/movie editing, undo and caption/transition operations.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using

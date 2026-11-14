@@ -209,6 +209,7 @@ static void init(Fixture *f)
         f->input[i].tag.number = (ThreeMMU32)i + 1;
     }
 }
+#ifndef SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
 static ThreeMMSceneSound *make(Fixture *f, int count)
 {
     ThreeMMSceneSound *p = three_mm_scene_sound_make(80, 4, 1, count, f->input, &f->s);
@@ -232,6 +233,7 @@ static void drop(Fixture *f, ThreeMMSceneSound *p)
     }
     raw_free(f, p);
 }
+#endif
 static void clean(Fixture *f)
 {
     int i;

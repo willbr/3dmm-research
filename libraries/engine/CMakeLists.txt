@@ -18,6 +18,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/scene_runtime.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_events.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_sound.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_sound_edit.c)
+target_sources(three-mm-engine-c89 PRIVATE src/scene_load.c)
 get_filename_component(engine_scene_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_runtime_test.c" ABSOLUTE)
 add_executable(engine-scene-runtime-test EXCLUDE_FROM_ALL "${engine_scene_runtime_test_source}")
 target_link_libraries(engine-scene-runtime-test PRIVATE three-mm-engine-c89)
@@ -498,6 +499,11 @@ add_executable(engine-scene-sound-edit-test EXCLUDE_FROM_ALL "${engine_scene_sou
 target_link_libraries(engine-scene-sound-edit-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-scene-sound-edit-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-scene-sound-edit COMMAND engine-scene-sound-edit-test)
+get_filename_component(engine_scene_load_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_load_test.c" ABSOLUTE)
+add_executable(engine-scene-load-test EXCLUDE_FROM_ALL "${engine_scene_load_test_source}")
+target_link_libraries(engine-scene-load-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-scene-load-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-scene-load COMMAND engine-scene-load-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -534,6 +540,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_events.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_sound.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_sound_edit.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_load.c"
+    "${engine_scene_load_test_source}"
     "${engine_scene_sound_edit_test_source}"
     "${engine_scene_sound_test_source}"
     "${engine_scene_events_test_source}"

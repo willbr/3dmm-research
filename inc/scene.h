@@ -22,6 +22,7 @@
 #include "three_mm/scene_runtime.h"
 #include "three_mm/scene_events.h"
 #include "three_mm/scene_sound_edit.h"
+#include "three_mm/scene_load.h"
 
 //
 // Undo object for actor operations

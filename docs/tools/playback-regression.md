@@ -6962,3 +6962,105 @@ Evidence: `tmp/c89-scene-sound-edit-before*.bin`,
 `tmp/c89-scene-sound-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
 `tmp/c89-scene-sound-edit-capture-hashes-*.json` and four
 `tmp/c89-scene-sound-edit-capture-*.log` files.
+
+### Scene loading and sound resolution C89 closeout (14 November 2026)
+
+Baseline: `ac5cc806`. `scene_load.c` now owns the Scene load transaction formerly
+in `Scene::PscenRead` and actor/frame sound-resolution traversal formerly in
+`Scene::FResolveAllSndTags`. It shares the existing C owner cleanup, packet codec
+and Movie sound resolver. File/group lookup, native representation conversion,
+actor/caption decoding and tag opening remain host primitives. Scene tag
+collection/save, other editing, caption/background policy and final C-only host
+integration remain conversion work.
+
+The native fixture makes 966 load attempts across both group byte orders, seven
+scene variants and three allocation fault families (base objects, HQ and Pv).
+Variants cover valid frame/start events, absent frame/start groups, missing actor
+and caption children, truncated sound data and a real rich-text caption. It
+records initialized metadata/name, cursor, event layouts/fields, raw camera/pause
+bytes and cache reference presence/counts, excluding pointers and native padding.
+Every attempt returns the real cache to its original reference count. Expected
+injected allocation/read diagnostics are cleared after each attempt. This fixture
+does not freeze native actor construction or thumbnail decoding; C callbacks and
+the existing host/capture gates cover those integration boundaries.
+
+Original native/repeat/final and final SDL debug traces match all 56,000 bytes,
+FNV-1a `662528E5`, SHA-256
+`3F80835A9F23163AC278E65240A6BBAF454A22EFC9352B9D903A4E874D1B3DA0`.
+Original/final SDL release traces match 66,240 bytes, FNV-1a `8940A7C9`, SHA-256
+`788936A6207DDDBA702EEBD58D9149F32B366A3B0E32DFEB050B65EF7F408FEA`.
+Release omits allocation injection; hash guards apply to the little-endian x64
+record layout. C-only checks use their own representation without that hash.
+
+The load transaction retains metadata-before-construction, optional thumbnail
+failure, ordered frame/start construction and final name reload. Fixed headers,
+child IDs and background tags decode into local values. Camera/pause variable
+bytes still pass through unchanged even for opposite-order groups. Each sound's
+tags open before insertion transfers their references. Failed opening/insertion
+closes only the opened prefix, in reverse order, then frees the packet and
+releases the wire group before unwinding completed start/frame prefixes. Existing
+C owner cleanup supplies the final destruction order.
+
+Resolution still visits actors before locking frame storage, captures actor and
+event counts once, skips non-sound events/positive-source tags and preserves
+resolved prefixes on failure. The native failure path previously left its frame
+group locked. It now releases every acquired lock, including failed resolution.
+A native supplemental check outside the frozen load trace verifies that failure
+returns with zero storage locks. C-only checks exercise actor and tag failures,
+mutation prefixes, all fallible load callbacks, exact current-packet cleanup
+order, embedded-reference transfer, optional thumbnails and both byte orders.
+They pass Clang strict C89 with warnings as errors and MSVC AddressSanitizer.
+
+All 91 standalone C checks (including C89 syntax), 124 selected native, 20 SDL
+debug and 32 SDL release checks pass. Native/SDL suites ran serially. Both hosts
+and `core-checks` build; directly invoked native test executables and save/load
+targets outside `core-checks` were explicitly rebuilt. All 51 freshly linked CLI
+baselines match. Marcus was stopped before rebuilding and relaunched afterward.
+No Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`71DCBA7E584347791C0AD31F751974CB0A043280DE70F105C4E6E91F8442195F`
+(SDL release) and
+`C4C5E5908729115C23D377C905E620B3872F285D334FEDB97C9F95665D287303`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T104305Z-42302f89` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T104421Z-f2272398` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T104727Z-5d5ca322` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T104842Z-4ffeb94d` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures complete, retaining movie identity and suite integrity. Authored
+frames, all 540 seek images and ordered playback image changes match each
+player's preceding Scene sound-editing suites: `20261114T101927Z-f1c88b9f`
+(actor-events), `20261114T102043Z-b84a1b4e` (scrolling-text),
+`20261114T102346Z-842decc8` (actor-audio) and `20261114T102501Z-fcf6e6de`
+(sampled-audio). Playback comparison collapses only adjacent identical
+position/image observations. The actor-audio first-scene-only tone contract
+passes for every player. PCM16 peaks are 3,192, 4,081 and 4,081 for actor-audio
+and 2,380, 2,176 and 2,176 for sampled-audio (retail, SDL, Marcus respectively).
+SDL's actor-audio peak is one count above its preceding capture; all tone and
+nonzero-output checks pass. These checks do not establish full PCM/MIDI or retail
+timing parity. Existing cross-player differences and single-repeat inconclusive
+comparisons remain. Captures use a shared warm SDL package cache with private
+processes/settings/movies and uncontrolled OS caching. No builds or tests ran
+concurrently with capture. Marcus was verified running after the final captures.
+
+The native load fixture's fingerprint guard is limited to the captured
+little-endian x64, one-byte-text layout; other host layouts still run its checks.
+After that test-only guard was narrowed, all three fixture executables were
+rebuilt and rerun with identical final traces. Capture executable hashes remain
+unchanged.
+
+Evidence: `tmp/c89-scene-load-before*.bin`, `tmp/c89-scene-load-after.bin`,
+`tmp/c89-scene-load-final-*.bin`,
+`tmp/c89-scene-load-selected-native-build.log`,
+`tmp/c89-scene-load-native-tests.log`, `tmp/c89-scene-load-sdl-debug-tests.log`,
+`tmp/c89-scene-load-sdl-release-tests.log`, `tmp/c89-scene-load-standalone.log`,
+`tmp/c89-scene-load-strict.log`, `tmp/c89-scene-load-asan.log`,
+`tmp/c89-scene-load-final-*-test-build.log`,
+`tmp/c89-scene-load-output-comparison.json`,
+`tmp/c89-scene-load-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+`tmp/c89-scene-load-capture-hashes-*.json` and four
+`tmp/c89-scene-load-capture-*.log` files.

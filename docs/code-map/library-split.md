@@ -726,7 +726,8 @@ The native Scene adapters supply typed payload access, collection/reference
 primitives, actor/caption calls, background resources and movie/client effects.
 The published weak background TAG remains native Scene state. SceneSoundEvent
 packet helpers and sound editing/undo now use the C implementations below.
-Loading, caption/background implementations and final facade removal remain. This is
+Loading now uses the C transaction below. Caption/background implementations and
+final facade removal remain. This is
 not a C-only Scene implementation. Native debug and release traces freeze the
 real pause/sound dispatch path and MIDI allocation failures; C-only tests cover
 all event kinds, callback failure phases, ownership/publication order, start
@@ -763,7 +764,7 @@ captured on entry; the other header fields remain live. Typed adapters provide
 allocation, tag copy/reference/resolve/fetch, group access, priority and queue
 primitives. `Movie::FResolveSndTag` already delegates resolution policy to
 `three_mm_movie_sound_resolve`; its native facade remains an integration dependency.
-Local read/open/tag-collection/save
+Read/open transactions now use the C loading layer below. Tag-collection/save
 transactions, weak background tag state, native tag representation and final
 facade removal remain conversion work.
 
@@ -812,6 +813,42 @@ undo swaps; C-only tests cover callback ordering, relocation, ownership failures
 query publication, clock boundaries and object destruction during undo clear.
 Strict C89, sanitizer, host and retail capture evidence is recorded in
 `docs/tools/playback-regression.md`.
+
+### Scene loading and sound resolution
+
+`scene_load.c` owns the load transaction formerly in `Scene::PscenRead`: metadata
+read before construction, actor/text list allocation, metadata publication,
+optional thumbnail loading, frame/start group construction and the final name
+reload. It uses the C scene owner and sound packet policies. Typed file lookup,
+validated group reads, actor/caption decoding, tag opens and representation
+conversion remain synchronous host primitives.
+
+Fixed headers, actor/caption child IDs and background tags decode into local
+values. Background tags start with a NULL cache. Camera and pause variable bytes
+pass through unchanged even in opposite-order groups, matching the native loader.
+Sound wire decoding normalizes its private payload before allocation. Each tag
+opens before insertion transfers the packet's references into the runtime group.
+Failed opening/insertion closes the newly opened prefix in reverse order and
+frees the packet before releasing the wire group. Failure then unwinds completed
+start/frame prefixes using the existing C owner cleanup and destroys the scene.
+Thumbnail lookup/decode failures remain optional; final name loading has no
+failure result. Validated input groups and metadata remain required by this
+internal service contract.
+
+`three_mm_scene_resolve_sounds` captures the actor count, resolves actors first,
+then locks frame storage, captures its event count and resolves sid-zero sound
+tags in order. Failure retains previously resolved tags. The former native
+frame-resolution failure left its group locked; every acquired lock now releases
+on success or failure. Native supplemental checks and C callback tests cover
+that correction separately from the frozen load trace.
+
+The native load trace covers both byte orders, real caption decoding, absent
+groups/children, malformed sound data and allocation faults. C-only checks cover
+every fallible transaction callback, ownership transfer, reverse cleanup,
+optional thumbnails, actor/text loads, preserved raw payloads and resolution
+prefix/lock behavior. Full host gates and retail capture limits are recorded in
+`docs/tools/playback-regression.md`. Scene tag collection/save, other editing,
+caption/background policy and final C-only integration remain conversion work.
 
 ### Actor header, route and event persistence
 
