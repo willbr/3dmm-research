@@ -45,7 +45,7 @@ static Uint64 last_navigation, previous_draw;
 static int total, ready[5], candidate, columns = 6, fit = 1, closing;
 static int backend_count = 5;
 static int *visible, visible_count, visible_dirty = 1, uncompared;
-static int hide_matches;
+static int hide_matches = 1;
 static float match_threshold = 100;
 static int sheet_width, sheet_height;
 static unsigned long generation;

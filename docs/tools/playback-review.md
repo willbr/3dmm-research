@@ -43,7 +43,7 @@ Startup and dependency preparation are excluded from these lane timings.
   release it to restore them. This shortcut is inactive in text inputs.
 - **Fit width**, **Fit all**, **1:1**, the zoom slider and **Columns** control the
   contact-sheet view. Double-click a pane to return to fit width.
-- **Hide matching frames** compacts all three panes to the same remaining
+- **Hide matching frames** is enabled by default at 100 percent and compacts all three panes to the same remaining
   frames, retaining their original scene/frame labels. **Match at least** is
   adjustable from 90 to 100 percent in 0.5 percent steps: 100 hides only perfect matches, while 99
   hides frames where at least 99 percent of native pixels have identical RGB.
