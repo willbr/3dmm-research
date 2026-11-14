@@ -49,6 +49,7 @@
 #include "body_world.h"
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
+#include "scene_edit_undo.h"
 #include <cstring>
 
 ASSERTNAME
@@ -177,44 +178,7 @@ class SceneUndoChop : public SceneUndoChop_PAR
 //
 // Undo object for background operations
 //
-typedef class SceneUndoBackground *PSceneUndoBackground;
 
-#define SceneUndoBackground_PAR MovieUndo
-#define kclsSceneUndoBackground 'SUNK'
-class SceneUndoBackground : public SceneUndoBackground_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    TAG _tag;
-    long _icam;
-    bool _fSetBkgd;
-    SceneUndoBackground(void)
-    {
-    }
-
-  public:
-    static PSceneUndoBackground PsunkNew(void);
-    ~SceneUndoBackground(void);
-
-    void SetTag(PTAG ptag)
-    {
-        _tag = *ptag;
-    }
-    void SetIcam(long icam)
-    {
-        _icam = icam;
-    }
-    void SetFBkgd(bool fSetBkgd)
-    {
-        _fSetBkgd = fSetBkgd;
-    }
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
 
 //
 // Undo object for transition operations
@@ -251,44 +215,7 @@ class SceneUndoTransition : public SceneUndoTransition_PAR
 //
 // Undo object for pause operations
 //
-typedef class SceneUndoPause *PSceneUndoPause;
 
-#define SceneUndoPause_PAR MovieUndo
-#define kclsSceneUndoPause 'SUNP'
-class SceneUndoPause : public SceneUndoPause_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    WaitReason _wit;
-    long _dts;
-    bool _fAdd;
-    SceneUndoPause(void)
-    {
-    }
-
-  public:
-    static PSceneUndoPause PsunpNew(void);
-    ~SceneUndoPause(void);
-
-    void SetWit(WaitReason wit)
-    {
-        _wit = wit;
-    }
-    void SetDts(long dts)
-    {
-        _dts = dts;
-    }
-    void SetAdd(bool fAdd)
-    {
-        _fAdd = fAdd;
-    }
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
 
 //
 // Undo object for text box operations
@@ -2872,77 +2799,102 @@ TextBox *Scene::PtboxFromItbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
+static ThreeMMTag SceneEditTag(const TAG &t)
+{
+    return {t.sid, t.pcrf, t.ctg, t.cno};
+}
+static void SceneEditPublishTag(void *p, const ThreeMMTag *tag, int first)
+{
+    auto out = static_cast<PTAG>(p);
+    TagFromCore(out, *tag);
+    if (first)
+        TrashVar(out);
+}
+ThreeMMSceneEditServices Scene::_EditServices()
+{
+    ThreeMMSceneEditServices s = {};
+    s.context = this;
+    s.sound = _SoundEditServices();
+    s.put = [](void *, void *g, ThreeMMI32 i, const void *p) {
+        static_cast<PGeneralGroup>(g)->Put(i, const_cast<void *>(p));
+    };
+    s.erase = [](void *, void *g, ThreeMMI32 i) { static_cast<PGeneralGroup>(g)->Delete(i); };
+    s.put_background = [](void *p, ThreeMMI32 i, const ThreeMMTag *value) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        return static_cast<PScene>(p)->_pggsevStart->FPut(i, sizeof(tag), &tag);
+    };
+    s.insert_background = [](void *p, ThreeMMI32 frame, const ThreeMMTag *value) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        SceneEvent event = {frame, sevtSetBkgd};
+        return static_cast<PScene>(p)->_pggsevStart->FInsert(0, sizeof(tag), &tag, &event);
+    };
+    s.play_background = [](void *p, ThreeMMI32 frame, const ThreeMMTag *value, ThreeMMU32 mask) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        SceneEvent event = {frame, sevtSetBkgd};
+        return static_cast<PScene>(p)->_FPlaySev(&event, &tag, mask);
+    };
+    s.background_name = [](void *p) {
+        auto scene = static_cast<PScene>(p);
+        String name;
+        scene->_pbkgd->GetName(&name);
+        scene->_data.SetName(&name);
+    };
+    s.scene_change = [](void *p) { static_cast<PScene>(p)->_pmvie->Pmcc()->SceneChange(); };
+    s.can_notify = [](void *) -> int { return vpcex != nullptr; };
+    s.loaded = [](void *) { vpcex->EnqueueCid(cidSceneLoaded); };
+    s.current_camera = [](void *p) -> ThreeMMI32 { return static_cast<PScene>(p)->_pbkgd->Icam(); };
+    s.new_undo = [](void *, int kind) -> void * {
+        return kind == THREE_MM_SCENE_UNDO_PAUSE ? static_cast<void *>(SceneUndoPause::PsunpNew())
+                                                 : static_cast<void *>(SceneUndoBackground::PsunkNew());
+    };
+    s.pause_state = [](void *, void *u) { return static_cast<PSceneUndoPause>(u)->CoreState(); };
+    s.background_state = [](void *, void *u) { return static_cast<PSceneUndoBackground>(u)->CoreState(); };
+    s.commit_undo = [](void *p, void *u) -> int {
+        return static_cast<PScene>(p)->_pmvie->FAddUndo(static_cast<PMovieUndo>(u));
+    };
+    s.release_undo = [](void *, void *u) { static_cast<PMovieUndo>(u)->Release(); };
+    s.clear_undo = [](void *p) { static_cast<PScene>(p)->_pmvie->ClearUndo(); };
+    s.not_undoable = [](void *) { PushErc(ercSocNotUndoable); };
+    s.camera_tag = [](void *p, ThreeMMI32 camera, ThreeMMTag *out) -> int {
+        TAG tag = {};
+        bool ok = vptagm->FBuildChildTag(&static_cast<PScene>(p)->_tagBkgd, camera, kctgCam, &tag);
+        if (ok)
+            *out = SceneEditTag(tag);
+        return ok;
+    };
+    s.cache_tag = [](void *, const ThreeMMTag *value) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        return vptagm->FCacheTagToHD(&tag);
+    };
+    s.close_tag = [](void *, ThreeMMTag *value) {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        TagManager::CloseTag(&tag);
+        *value = SceneEditTag(tag);
+    };
+    s.diagnostic = [](void *, int issue) {
+        if (issue == THREE_MM_SCENE_EDIT_FIRST_BACKGROUND)
+            Bug("Use CORE function to set first background");
+        else
+            Bug("No background event found");
+    };
+    return s;
+}
 bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
 {
     AssertThis(0);
     AssertIn(*pwit, witNil, witLim);
     AssertIn(*pdts, 0, klwMax);
-
-    SceneEvent sev;
-    long isev;
-    PSEV qsev;
-    SceneEventPause sevp;
-    WaitReason witOld;
-    long dtsOld;
-
-    //
-    // Start at the first event of this frame.
-    //
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-        if (qsev->nfrm != _data.currentFrame)
-        {
-            break;
-        }
-
-        //
-        // Find a pause
-        //
-        if (qsev->sevt == sevtPause)
-        {
-
-            //
-            // Replace the event
-            //
-            _pggsevFrm->Get(isev, &sevp);
-            witOld = sevp.wit;
-            dtsOld = sevp.dts;
-
-            if (*pwit == witNil)
-            {
-                _pggsevFrm->Delete(isev);
-                _runtime.next_event--;
-            }
-            else
-            {
-                sevp.wit = *pwit;
-                sevp.dts = *pdts;
-                _pggsevFrm->Put(isev, &sevp);
-            }
-
-            *pwit = witOld;
-            *pdts = dtsOld;
-            return (fTrue);
-        }
-    }
-
-    //
-    // Add pause to event list.
-    //
-    sev.nfrm = _data.currentFrame;
-    sev.sevt = sevtPause;
-    sevp.wit = *pwit;
-    sevp.dts = *pdts;
-    if (!_FAddSev(&sev, size(SceneEventPause), &sevp))
-    {
-        return (fFalse);
-    }
-
-    *pwit = witNil;
-    *pdts = 0;
-    return (fTrue);
+    ThreeMMI32 reason = *pwit, delay = *pdts;
+    auto s = _EditServices();
+    bool ok = three_mm_scene_pause_edit(&reason, &delay, &s) != 0;
+    *pwit = static_cast<WaitReason>(reason);
+    *pdts = delay;
+    return ok;
 }
 
 /****************************************************
@@ -2961,34 +2913,8 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
  ****************************************************/
 bool Scene::FPause(WaitReason wit, long dts)
 {
-    PSceneUndoPause psunp;
-
-    psunp = SceneUndoPause::PsunpNew();
-
-    if (psunp == pvNil)
-    {
-        return (fFalse);
-    }
-
-    if (!FPauseCore(&wit, &dts))
-    {
-        ReleasePpo(&psunp);
-        return (fFalse);
-    }
-
-    psunp->SetWit(wit);
-    psunp->SetDts(dts);
-    psunp->SetAdd(fTrue);
-
-    if (!_pmvie->FAddUndo(psunp))
-    {
-        FPauseCore(&wit, &dts);
-        ReleasePpo(&psunp);
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunp);
-    return (fTrue);
+    auto s = _EditServices();
+    return three_mm_scene_pause_undo_edit(wit, dts, &s) != 0;
 }
 
 /****************************************************
@@ -3008,119 +2934,12 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
     AssertThis(0);
     AssertVarMem(ptag);
     AssertVarMem(ptagOld);
-
-    SceneEvent sev;
-    long isev;
-    TAG tag;
-    long vlm;
-    bool fLoop;
-    PMovieSoundMSND pmsnd;
-    long sty;
-
-    if (_pbkgd != pvNil)
-    {
-        //
-        // Replace background
-        //
-
-        for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-        {
-            _pggsevStart->GetFixed(isev, &sev);
-
-            if (sev.sevt == sevtSetBkgd)
-            {
-                _pggsevStart->Get(isev, ptagOld);
-                if (!_pggsevStart->FPut(isev, size(TAG), ptag))
-                {
-                    return (fFalse);
-                }
-
-                _pbkgd->TurnOffLights();
-                _DropOwner(THREE_MM_SCENE_BACKGROUND);
-
-                _MarkMovieDirty();
-                if (!_FPlaySev(&sev, ptag, _runtime.disabled))
-                {
-                    _pggsevStart->FPut(isev, size(TAG), ptagOld);
-                    _FPlaySev(&sev, ptagOld, _runtime.disabled);
-                    return (fFalse);
-                }
-
-                AssertPo(_pbkgd, 0);
-                String name; _pbkgd->GetName(&name); _data.SetName(&name);
-                goto LSuccess;
-            }
-        }
-
-        Bug("No background event found");
-        return (fFalse);
-    }
-
-    TrashVar(ptagOld);
-
-    //
-    // Add set background event and play it.
-    //
-    sev.sevt = sevtSetBkgd;
-
-    if (!_pggsevStart->FInsert(0, size(TAG), ptag, &sev))
-    {
-        return (fFalse);
-    }
-
-    if (!_FPlaySev(&sev, ptag, _runtime.disabled))
-    {
-        _pggsevStart->Delete(0);
-        return (fFalse);
-    }
-
-    AssertPo(_pbkgd, 0);
-    { String name; _pbkgd->GetName(&name); _data.SetName(&name); }
-    _MarkMovieDirty();
-
-LSuccess:
-
-    while (_pggsevFrm->IvMac() != 0)
-    {
-        //
-        // Remove stale scene events
-        //
-        _pggsevFrm->Delete(_pggsevFrm->IvMac() - 1);
-    }
-
-    _runtime.next_event = 0;
-
-    // Add the default sound for the new background, if any
-    // _pbkgd->GetDefaultSound(&tag, &vlm, &fLoop);
-    // if (tag.sid != ksidInvalid) // new background sound
-    // {
-    //     // Note: since FSetBkgdCore is only called at edit time,
-    //     // it's okay to call FCacheTag.  The background default
-    //     // sound is not an intrinsic part of the Background...it's more
-    //     // of a "serving suggestion" that the user can remove
-    //     // once the background is added.
-    //     Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
-    //     if (vptagm->FCacheTagToHD(&tag))
-    //     {
-    //         pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
-    //         if (pvNil != pmsnd)
-    //         {
-    //             sty = pmsnd->Sty();
-    //             ReleasePpo(&pmsnd);
-    //             // non-destructive if we fail
-    //             FAddSndCore(fLoop, fFalse, vlm, sty, 1, &tag);
-    //         }
-    //     }
-    // }
-
-    _pmvie->Pmcc()->SceneChange();
-
-    if (vpcex != pvNil)
-    {
-        vpcex->EnqueueCid(cidSceneLoaded);
-    }
-
-    return (fTrue);
+    auto value = SceneEditTag(*ptag);
+    ThreeMMTag old;
+    auto s = _EditServices();
+    s.output_context = ptagOld;
+    s.publish_tag = SceneEditPublishTag;
+    return three_mm_scene_background_edit(&value, &old, &s) != 0;
 }
 
 /****************************************************
@@ -3139,59 +2958,11 @@ bool Scene::FSetBkgd(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
-
-    TAG tagOld;
-    PSceneUndoBackground psunk;
-    long icam;
-
-    if (_pbkgd != pvNil)
-    {
-        icam = _pbkgd->Icam();
-    }
-
-    if (!FSetBkgdCore(ptag, &tagOld))
-    {
-        return (fFalse);
-    }
-
-#ifdef DEBUG
-    long lw;
-
-    TrashVar(&lw);
-    Assert(tagOld.sid != lw, "Use CORE function to set first background");
-#endif
-
-    psunk = SceneUndoBackground::PsunkNew();
-
-    if (psunk == pvNil)
-    {
-        if (!FSetBkgdCore(&tagOld, ptag))
-        {
-            _pmvie->ClearUndo();
-            PushErc(ercSocNotUndoable);
-        }
-        return (fFalse);
-    }
-
-    psunk->SetTag(&tagOld);
-    psunk->SetIcam(icam);
-    psunk->SetFBkgd(fTrue);
-
-    if (!_pmvie->FAddUndo(psunk))
-    {
-        ReleasePpo(&psunk);
-
-        if (!FSetBkgdCore(&tagOld, ptag))
-        {
-            _pmvie->ClearUndo();
-            PushErc(ercSocNotUndoable);
-        }
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunk);
-
-    return (fTrue);
+    auto value = SceneEditTag(*ptag);
+    auto s = _EditServices();
+    s.output_context = ptag;
+    s.publish_tag = SceneEditPublishTag;
+    return three_mm_scene_background_undo_edit(&value, &s) != 0;
 }
 
 /****************************************************
@@ -3209,26 +2980,8 @@ bool Scene::FSetBkgd(PTAG ptag)
 bool Scene::FIsEmpty(void)
 {
     AssertThis(0);
-
-    long isev;
-    SceneEvent sev;
-
-    if ((_pggsevStart->IvMac() != 1) || ((_data.lastFrame - _data.firstFrame) > 0))
-    {
-        return (fFalse);
-    }
-
-    for (isev = 0; isev < _pggsevFrm->IvMac(); isev++)
-    {
-
-        _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.sevt != sevtChngCamera && sev.sevt != sevtPlaySnd)
-        {
-            return (fFalse);
-        }
-    }
-
-    return (fTrue);
+    auto s = _EditServices();
+    return three_mm_scene_is_empty(&s) != 0;
 }
 
 /****************************************************
@@ -3248,137 +3001,11 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
     AssertThis(0);
     AssertIn(icam, 0, 500);
     AssertVarMem(picamOld);
-
-    PSEV qsev, qsevOld;
-    SceneEvent sev;
-    long isev, isevCam;
-    int32_t icam32 = (int32_t)icam; // on-disk slot is 4 bytes
-
-    //
-    // Check for a current camera change.
-    //
-    *picamOld = 0;
-
-    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
-    {
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-
-        if (qsev->sevt == sevtChngCamera)
-        {
-
-            if (qsev->nfrm == _data.currentFrame)
-            {
-
-                //
-                // Check if this new camera matches the previous
-                // camera
-                //
-                for (isevCam = isev - 1; isevCam >= 0; isevCam--)
-                {
-
-                    qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isevCam);
-                    if (qsevOld->sevt == sevtChngCamera)
-                    {
-                        int32_t icamScratch;
-                        _pggsevFrm->Get(isevCam, &icamScratch);
-                        *picamOld = icamScratch;
-                        break;
-                    }
-                }
-
-                //
-                // If they are equal, then change camera to
-                // previous camera and remove this change event.
-                //
-                if (*picamOld == icam)
-                {
-                    int32_t icamScratch;
-                    qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isev);
-                    _pggsevFrm->Get(isev, &icamScratch);
-                    *picamOld = icamScratch;
-                    if (_FPlaySev(qsevOld, &icam32, _runtime.disabled))
-                    {
-                        _pggsevFrm->Delete(isev);
-                        _runtime.next_event--;
-                        _MarkMovieDirty();
-                        goto LSuccess;
-                    }
-                    return (fFalse);
-                }
-
-                //
-                // Change it
-                //
-                {
-                    int32_t icamScratch;
-                    _pggsevFrm->Get(isev, &icamScratch);
-                    *picamOld = icamScratch;
-                    _pggsevFrm->Put(isev, &icam32);
-                }
-                _MarkMovieDirty();
-                if (_FPlaySev(qsev, &icam32, _runtime.disabled))
-                {
-                    goto LSuccess;
-                }
-                return (fFalse);
-            }
-            else
-            {
-                int32_t icamScratch;
-                _pggsevFrm->Get(isev, &icamScratch);
-                *picamOld = icamScratch;
-                break;
-            }
-        }
-    }
-
-    if (*picamOld == icam)
-    {
-        goto LSuccess;
-    }
-
-    //
-    // Add camera change to event list.
-    //
-    sev.nfrm = _data.currentFrame;
-    sev.sevt = sevtChngCamera;
-
-    if (_FAddSev(&sev, size(int32_t), &icam32))
-    {
-        if (_FPlaySev(&sev, &icam32, _runtime.disabled))
-        {
-            goto LSuccess;
-        }
-        else
-        {
-            _pggsevFrm->Delete(--_runtime.next_event);
-        }
-    }
-
-    return (fFalse);
-
-LSuccess:
-
-    //
-    // Check for later camera change
-    //
-    for (isev = _runtime.next_event; isev < _pggsevFrm->IvMac(); isev++)
-    {
-        int32_t icamNext;
-        qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-        if (qsev->sevt == sevtChngCamera)
-        {
-            _pggsevFrm->Get(isev, &icamNext);
-            if (icamNext == icam)
-            {
-                _pggsevFrm->Delete(isev);
-                _runtime.next_event;
-            }
-            break;
-        }
-    }
-
-    return (fTrue);
+    ThreeMMI32 old;
+    auto s = _EditServices();
+    s.output_context = picamOld;
+    s.publish_camera = [](void *p, ThreeMMI32 value) { *static_cast<long *>(p) = value; };
+    return three_mm_scene_camera_edit(icam, &old, &s) != 0;
 }
 
 /****************************************************
@@ -3396,54 +3023,8 @@ LSuccess:
  ****************************************************/
 bool Scene::FChangeCam(long icam)
 {
-    long icamOld;
-    PSceneUndoBackground psunk;
-    TAG tagCam;
-
-    if (!vptagm->FBuildChildTag(&_tagBkgd, icam, kctgCam, &tagCam))
-    {
-        return fFalse;
-    }
-
-    if (!vptagm->FCacheTagToHD(&tagCam))
-    {
-        return fFalse;
-    }
-
-    if (!FChangeCamCore(icam, &icamOld))
-    {
-        return (fFalse);
-    }
-
-    psunk = SceneUndoBackground::PsunkNew();
-
-    if (psunk == pvNil)
-    {
-        if (!FChangeCamCore(icam, &icamOld))
-        {
-            _pmvie->ClearUndo();
-            PushErc(ercSocNotUndoable);
-        }
-        return (fFalse);
-    }
-
-    psunk->SetIcam(icamOld);
-    psunk->SetFBkgd(fFalse);
-
-    if (!_pmvie->FAddUndo(psunk))
-    {
-        ReleasePpo(&psunk);
-
-        if (!FChangeCamCore(icam, &icamOld))
-        {
-            _pmvie->ClearUndo();
-            PushErc(ercSocNotUndoable);
-        }
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunk);
-    return (fTrue);
+    auto s = _EditServices();
+    return three_mm_scene_camera_undo_edit(icam, &s) != 0;
 }
 
 /****************************************************
@@ -5578,36 +5159,61 @@ SceneUndoPause::~SceneUndoPause(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
+struct SceneEditUndoHost {PMovie movie;long scene,frame;};
+static ThreeMMSceneEditUndoServices SceneEditUndoServices(SceneEditUndoHost *host)
+{
+    ThreeMMSceneEditUndoServices s = {};
+    s.context = host;
+    s.switch_scene = [](void *p) -> int {
+        auto h = static_cast<SceneEditUndoHost *>(p);
+        return h->movie->FSwitchScen(h->scene);
+    };
+    s.seek_frame = [](void *p) -> int {
+        auto h = static_cast<SceneEditUndoHost *>(p);
+        return h->movie->Pscen()->FGotoFrm(h->frame);
+    };
+    s.pause = [](void *p, ThreeMMI32 *reason, ThreeMMI32 *delay) -> int {
+        auto h = static_cast<SceneEditUndoHost *>(p);
+        WaitReason r = static_cast<WaitReason>(*reason);
+        long d = *delay;
+        bool ok = h->movie->Pscen()->FPauseCore(&r, &d);
+        *reason = r;
+        *delay = d;
+        return ok;
+    };
+    s.background_present = [](void *p) -> int {
+        return static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->Pbkgd() != nullptr;
+    };
+    s.current_camera = [](void *p) -> ThreeMMI32 {
+        return static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->Pbkgd()->Icam();
+    };
+    s.background = [](void *p, const ThreeMMTag *value, ThreeMMTag *old) -> int {
+        TAG tag, previous;
+        TagFromCore(&tag, *value);
+        bool ok = static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->FSetBkgdCore(&tag, &previous);
+        if (ok)
+            *old = SceneEditTag(previous);
+        return ok;
+    };
+    s.camera = [](void *p, ThreeMMI32 camera, ThreeMMI32 *old) -> int {
+        long previous;
+        bool ok = static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->FChangeCamCore(camera, &previous);
+        *old = previous;
+        return ok;
+    };
+    s.pause_type = [](void *p, ThreeMMI32 reason) {
+        static_cast<SceneEditUndoHost *>(p)->movie->Pmcc()->PauseType(static_cast<WaitReason>(reason));
+    };
+    s.flush = [](void *p) { static_cast<SceneEditUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.clear = [](void *p) { static_cast<SceneEditUndoHost *>(p)->movie->ClearUndo(); };
+    return s;
+}
 bool SceneUndoPause::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    WaitReason wit = _wit;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FPauseCore(&_wit, &_dts))
-    {
-        goto LFail;
-    }
-
-    _pmvie->Pmcc()->PauseType(wit);
-    _pmvie->Pmsq()->FlushMsq();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    SceneEditUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = SceneEditUndoServices(&host);
+    return three_mm_scene_pause_undo(&_edit, &s) != 0;
 }
 
 /****************************************************
@@ -5694,60 +5300,9 @@ SceneUndoBackground::~SceneUndoBackground(void)
 bool SceneUndoBackground::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    TAG tagOld;
-    long icamOld, icam;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (_fSetBkgd)
-    {
-
-        if (_pmvie->Pscen()->Pbkgd() != pvNil)
-        {
-            icam = _pmvie->Pscen()->Pbkgd()->Icam();
-        }
-
-        if (!_pmvie->Pscen()->FSetBkgdCore(&_tag, &tagOld))
-        {
-            goto LFail;
-        }
-
-        if (!_pmvie->Pscen()->FChangeCamCore(_icam, &icamOld))
-        {
-            goto LFail;
-        }
-
-        _tag = tagOld;
-        _icam = icam;
-    }
-    else
-    {
-
-        if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-        {
-            goto LFail;
-        }
-
-        if (!_pmvie->Pscen()->FChangeCamCore(_icam, &icamOld))
-        {
-            goto LFail;
-        }
-
-        _icam = icamOld;
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    SceneEditUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = SceneEditUndoServices(&host);
+    return three_mm_scene_background_undo(&_edit, &s) != 0;
 }
 
 /****************************************************

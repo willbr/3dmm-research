@@ -889,6 +889,52 @@ publication, partial collection, null/error actor lists and malformed spans.
 Strict C89, sanitizer, host and retail evidence is in
 `docs/tools/playback-regression.md`.
 
+### Scene pause, camera and background editing/undo
+
+`scene_edit.c` owns pause swaps, current/future camera coalescing, background
+replacement, the empty-scene predicate, public edit/undo transactions and
+persistent pause/background undo payload/swap control. `inc/scene_edit_undo.h`
+holds the temporary native undo facades; common MovieUndo targets/navigation,
+undo-list/object lifetime, typed groups and background resource operations remain
+host services. Background play and camera effects reuse the C event dispatcher.
+
+Pause replacement/removal preserves the native dirty behavior. Nil without an
+existing pause still inserts an event. Camera edits publish the old value before
+put/play callbacks, retain destructive prefixes after failed replacement/play,
+remove redundant future cameras without changing the current cursor, and keep
+the legacy public undo-failure retry of the requested camera. The empty-scene
+predicate uses defined signed-word frame subtraction and accepts only camera/
+sound frame events with one start event.
+
+Background replacement publishes the old tag before group mutation, turns off
+lights and drops the old owner before fetching its replacement. Failed play
+attempts to restore the event and background, retaining dirty state and any
+failed-restoration prefix. Name assignment, stale frame removal, cursor reset,
+client scene-change and optional loaded notification preserve their order.
+First-background output is invalid/unowned; native debug poisoning is retained,
+while release initializes that formerly unused output. Its unused start frame is
+now zero. Public background edits require an existing background, matching the
+native debug restriction; core creates the first background. Background undo
+without a current background fails instead of consuming an uninitialized camera.
+
+Successful background changes now close frame-owned sound tags before deleting
+stale events; the cached background-sound owner remains intact. Camera preflight
+tags now close after caching and before editing. Native supplemental reference
+checks and C-only ownership tests cover both corrections outside the frozen
+behavior trace. Undo flushes before clearing on failure, and no state is accessed
+after clear, which may destroy the undo object. Background undo switches scenes
+without seeking; camera/pause undo seek their saved frame. Saved tags remain
+borrowed, as in the original undo objects.
+
+The native trace uses real background/light/camera/RGB/depth resources, pause and
+camera edits, public background edits, repeated undo swaps and allocation faults.
+C-only checks cover failed play/restoration, callback publication, masks,
+notification suppression, transaction failure phases, partial state and immediate
+undo destruction. Host/retail evidence and limits are in
+`docs/tools/playback-regression.md`. Actor/caption/selection editing, other Scene/
+Movie operations, background resource policy, thumbnail generation and final
+C-only integration remain conversion work.
+
 ### Actor header, route and event persistence
 
 `actor_data.c` replaces the actor persistence policy formerly in native ActorData.

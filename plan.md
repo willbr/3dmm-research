@@ -468,8 +468,10 @@ state/swap control now also use C89. Scene load orchestration, wire/runtime even
 construction, tag-open ownership transfer and actor/frame sound-resolution
 traversal now also use C89. Scene tag-collection traversal and save transactions
 now also use C89, including sound adoption, wire-group construction and ordered
-thumbnail/metadata publication. Common movie/undo services, remaining editing
-policy and caption/background callbacks still depend on native implementations.
+thumbnail/metadata publication. Pause/camera/background editing, their public undo
+transactions and persistent undo payload/swap control now also use C89. Common
+movie/undo services, actor/caption/selection and other editing policy, thumbnail
+generation and background resource implementations remain native dependencies.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -479,16 +481,16 @@ slice). A fresh sound closeout audit is recorded in
 `docs/tools/playback-regression.md`; device/codec/thread adapters and final
 C-only host integration retain the limits described above.
 Scene-specific sound packets, sound editing/undo and Scene load/resolution control
-now also use C89, as do Scene tag collection/save transactions. Final native
-facade integration remains conversion work.
+now also use C89, as do Scene tag collection/save and pause/camera/background
+editing/undo. Final native facade integration remains conversion work.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
 export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch,
-sound-packet, sound-editing/undo, loading/resolution and tag-collection/save slices
-are complete. Continue with remaining Scene editing/undo, beginning with pause,
-camera/background operations in `src/engine/scene.cpp`, then actor/caption and
+sound-packet, sound-editing/undo, loading/resolution, tag-collection/save and
+pause/camera/background-editing/undo slices are complete. Continue with Scene
+actor/caption editing and undo in `src/engine/scene.cpp`, then remaining selection,
 scene/movie editing, undo and transition operations.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using

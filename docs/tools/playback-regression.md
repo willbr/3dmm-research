@@ -7173,3 +7173,113 @@ Evidence: `tmp/c89-scene-store-before*.bin`, `tmp/c89-scene-store-after.bin`,
 `tmp/c89-scene-store-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
 `tmp/c89-scene-store-capture-hashes-*.json` and four
 `tmp/c89-scene-store-capture-*.log` files.
+
+### Scene pause/camera/background editing C89 closeout (14 November 2026)
+
+Baseline: `783c0720`, with the private pause/background undo declarations moved
+to `inc/scene_edit_undo.h` before recording. `scene_edit.c` now owns pause swaps,
+camera coalescing, background replacement, the empty-scene predicate, public
+edit/undo transactions and persistent pause/background undo payload/swap control.
+Native facades supply typed groups, background resources/names, client effects
+and common MovieUndo navigation/list/object lifetime. Event effects reuse the C
+dispatcher. Actor/caption/selection editing, other Scene/Movie operations,
+background resource policy, thumbnail generation and final C-only integration
+remain conversion work.
+
+The native fixture builds real background/light/camera/RGB/depth resources. It
+records pause swaps, camera edits, public background replacements, four cycles
+each of pause/camera/background undo and 57 background replacement allocation
+settings (three fault families, 19 settings). Initialized metadata/name, cursor,
+event fields/payloads, background camera/tag state, cache reference counts, client
+pause/scene-change publications and loaded-command presence are recorded. Pointer
+values, native padding and the unused background start-frame field are excluded.
+The fixture includes direct current-frame changes; full seek/navigation behavior
+is gated separately by the existing host/capture suites. Injected resource/read
+and allocation diagnostics are expected and cleared between attempts.
+
+Native original/repeat/final and final SDL debug traces match 9,896 bytes,
+FNV-1a `D6637959`, SHA-256
+`76F37792046289F2226D6050A18314FF67758E697914355EBF5FB3491A12C67D`.
+Original/final SDL release traces match 9,928 bytes, FNV-1a `1DF02C29`, SHA-256
+`D6E0DA7519039910DC942F7A8C0C3234D489F07BFA65FD773FD8D4D0A79C767E`.
+Release omits fault injection. Hash guards apply only to the captured
+little-endian x64, one-byte-text layout; other layouts still run the fixture.
+
+Pause nil-without-an-existing-pause still inserts an event; replacement/removal
+retains native dirty behavior. Camera edits publish the old value before put/play,
+preserve destructive replacement/play failure prefixes, and delete a redundant
+future camera without changing the current cursor. Public camera undo failure
+still retries the requested camera, retaining the legacy behavior. The empty-scene
+predicate uses defined signed-word frame subtraction and filters frame kinds.
+
+Background edits publish old tags before mutation, turn off lights/drop the old
+owner before fetching the new one, and attempt event/background restoration after
+play failure. Dirty state and failed-restoration prefixes remain. Name changes,
+stale frame removal, cursor reset, scene-change and optional loaded notifications
+keep their order. The first background's unused start frame is now zero; its old
+tag output is invalid/unowned, retaining native debug poisoning while defining
+release's previously unused value. Public background edits without an existing
+background now reject the unsupported native path before mutation; Movie callers
+already use core for the first background. Background undo without a current
+background also fails rather than consuming an uninitialized camera.
+
+Two reference corrections are outside the frozen trace. Background changes now
+close frame-owned sound tags before deleting stale events; cached background
+sound ownership stays intact. Camera preflight tags now close after caching,
+before editing. Native supplemental checks exercise real cache references for
+both paths. The frame-sound check uses a dummy MSND tag solely for ownership and
+does not decode/play it. C-only checks verify these corrections, output publication
+timing, failed play/restoration, disabled camera masks, notification suppression,
+transaction failure phases, retained prefixes, cached packet ownership and
+immediate undo destruction during failure clear. Background undo switches without
+seeking; camera/pause undo seek. Failure flushes before clear and accesses no undo
+state afterward. Saved background tags remain borrowed, as in the original.
+The C-only fixture passes Clang strict C89 with warnings as errors and MSVC
+AddressSanitizer.
+
+All 93 standalone C checks (including C89 syntax), 128 selected native, 24 SDL
+debug and 36 SDL release checks pass. Native/SDL suites and final traces ran
+serially. Both hosts and `core-checks` build; directly invoked native test
+executables and save/load targets outside `core-checks` were explicitly rebuilt.
+All 51 freshly linked CLI baselines match. Marcus was stopped before rebuilding
+and relaunched afterward. No Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`F3D236ABC08723A2264B1D1A59DE62D47C3877E60FA9CD82A1E930045EFB9334`
+(SDL release) and
+`A419414D8AA4C9668CA1FBD65A22750E5B12201E122801821669769E26CF36DD`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T114014Z-dde4b028` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T114132Z-8342b37b` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T114440Z-2b342fd0` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T114554Z-a7e99894` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures complete, retaining movie identity and suite integrity. Authored
+frames, all 540 seek images and ordered playback image changes match each
+player's preceding Scene persistence suites: `20261114T110802Z-10a5b45a`
+(actor-events), `20261114T110917Z-e8a2bb7f` (scrolling-text),
+`20261114T111235Z-694c2aa9` (actor-audio) and `20261114T111349Z-485fb718`
+(sampled-audio). Playback comparison collapses only adjacent identical
+position/image observations. The actor-audio first-scene-only tone contract
+passes for every player. PCM16 peaks remain 3,192, 4,080 and 4,081 for actor-audio
+and 2,380, 2,176 and 2,176 for sampled-audio (retail, SDL, Marcus respectively).
+All tone and nonzero-output checks pass. These checks do not establish full
+PCM/MIDI or retail timing parity. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. Captures use a shared warm SDL
+package cache with private processes/settings/movies and uncontrolled OS caching.
+No builds or tests ran concurrently with capture. Marcus was verified running
+after the final captures.
+
+Evidence: `tmp/c89-scene-edit-before*.bin`, `tmp/c89-scene-edit-after.bin`,
+`tmp/c89-scene-edit-final-*.bin`,
+`tmp/c89-scene-edit-selected-native-build.log`,
+`tmp/c89-scene-edit-native-tests.log`, `tmp/c89-scene-edit-sdl-debug-tests.log`,
+`tmp/c89-scene-edit-sdl-release-tests.log`, `tmp/c89-scene-edit-standalone.log`,
+`tmp/c89-scene-edit-strict.log`, `tmp/c89-scene-edit-asan.log`,
+`tmp/c89-scene-edit-output-comparison.json`,
+`tmp/c89-scene-edit-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+`tmp/c89-scene-edit-capture-hashes-*.json` and four
+`tmp/c89-scene-edit-capture-*.log` files.

@@ -24,6 +24,7 @@
 #include "three_mm/scene_sound_edit.h"
 #include "three_mm/scene_load.h"
 #include "three_mm/scene_store.h"
+#include "three_mm/scene_edit.h"
 
 //
 // Undo object for actor operations
@@ -137,6 +138,7 @@ class Scene : public Scene_PAR
     ThreeMMSceneRuntimeServices _RuntimeServices();
     ThreeMMSceneEventServices _EventServices();
     ThreeMMSceneSoundEditServices _SoundEditServices();
+    ThreeMMSceneEditServices _EditServices();
 
     //
     // Global information
