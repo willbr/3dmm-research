@@ -42,7 +42,7 @@ Startup and dependency preparation are excluded from these lane timings.
 - Hold **D** to highlight changed RGB pixels in magenta on both original images;
   release it to restore them. This shortcut is inactive in text inputs.
 - **Fit width**, **Fit all**, **1:1**, the zoom slider and **Columns** control the
-  contact-sheet view. Double-click a pane to return to fit width.
+  contact-sheet view. The default is 12 columns. Double-click a pane to return to fit width.
 - **Hide matching frames** is enabled by default at 100 percent and compacts all three panes to the same remaining
   frames, retaining their original scene/frame labels. **Match at least** is
   adjustable from 90 to 100 percent in 0.5 percent steps: 100 hides only perfect matches, while 99
@@ -72,6 +72,25 @@ view. Retail launches with no activation and capture-only window hooks keep it
 behind other windows and prevent its own show/focus calls from taking foreground
 focus. It still uses its original
 renderer and an interactive desktop; no minimized-window rendering is assumed.
+
+Images, D highlights and labels are submitted in separate passes. This keeps
+each atlas page's image quads in one batch instead of switching to the font
+texture between every thumbnail. Labels remain separate from the captured
+pixels and diff. VSync provides normal frame pacing; an extra sleep is used
+only when VSync is unavailable. In a 952-frame, 12-column fit-width benchmark
+with all frames shown, warmed frame time dropped from 266.9 ms to 4.2 ms and
+Dear ImGui draw commands from 2,021 to 23. Highlighting measured 6.7 ms and 35
+commands. These are uncapped local measurements, excluding initial decoding.
+A large single atlas could reduce commands further; the existing page batches
+already avoid per-frame draw calls while retaining bounded cache pages.
+
+The hidden overview benchmark disables filtering and VSync, warms the atlas
+cache, samples 60 frames and writes JSON without recapturing the movie:
+
+```powershell
+build/playback-review/image-compare.exe --session tmp/movie-compare/run-EXAMPLE --benchmark timing.json
+build/playback-review/image-compare.exe --session tmp/movie-compare/run-EXAMPLE --benchmark timing-highlight.json --benchmark-highlight
+```
 
 **Cancel capture** requests cooperative cancellation. Closing the viewer also
 requests cancellation and waits for the worker to close its owned processes.

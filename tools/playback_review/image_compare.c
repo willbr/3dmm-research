@@ -42,11 +42,12 @@ static Frame *frames, *atlases;
 static int atlas_count;
 static double zoom_target = 1, zoom_anchor_x, zoom_anchor_y;
 static Uint64 last_navigation, previous_draw;
-static int total, ready[5], candidate, columns = 6, fit = 1, closing;
+static int total, ready[5], candidate, columns = 12, fit = 1, closing;
 static int backend_count = 5;
 static int *visible, visible_count, visible_dirty = 1, uncompared;
 static int hide_matches = 1;
 static float match_threshold = 100;
+static int benchmark_highlight;
 static int sheet_width, sheet_height;
 static unsigned long generation;
 static size_t cache_bytes;
@@ -491,33 +492,33 @@ static void controls(void)
     if (image_error[0])
         igTextWrapped("%s", image_error);
 }
-static void draw_frame(Pane *pane, Frame *frame, Frame *picture, int index, int is_atlas, int slot, float x, float y, int highlight)
+static void draw_frame(Pane *pane, Frame *frame, Frame *picture, int index, int is_atlas, int slot, float x, float y, int pass)
 {
     ImTextureRef texture;
     char label[80];
     ImVec2 min, max, uv_min, uv_max;
     int available;
+    min = vec(x, y);
+    max = vec(x + (float)(FRAME_WIDTH * view.zoom), y + (float)(FRAME_HEIGHT * view.zoom));
+    if (pass == 2)
+    {
+        SDL_snprintf(label, sizeof(label), "Scene %02d / Frame %03ld", frame->scene, frame->number);
+        ImDrawList_AddText_FontPtr(pane->draw, NULL, (float)(16 * view.zoom),
+            vec(x, max.y + (float)(3 * view.zoom)), 0xffe9ded7UL, label, NULL, 0, NULL);
+        return;
+    }
+    if (pass == 1 && slot == 2) return;
     uv_min = is_atlas ? vec((index % 8) / 8.0f, ((index % 64) / 8) / 8.0f) : vec(0, 0);
     uv_max = is_atlas ? vec(uv_min.x + 0.125f, uv_min.y + 0.125f) : vec(1, 1);
     available = picture && (!is_atlas || (index < picture->retail_count && (slot == 0 || index < picture->ours_count)));
-    min = vec(x, y);
-    max = vec(x + (float)(FRAME_WIDTH * view.zoom), y + (float)(FRAME_HEIGHT * view.zoom));
     memset(&texture, 0, sizeof(texture));
-    if (available && picture->texture[slot])
+    if (available && picture->texture[pass == 1 ? 3 : slot])
     {
-        texture._TexID = (ImTextureID)(size_t)picture->texture[slot];
+        texture._TexID = (ImTextureID)(size_t)picture->texture[pass == 1 ? 3 : slot];
         ImDrawList_AddImage(pane->draw, texture, min, max, uv_min, uv_max, 0xffffffffUL);
-        if (slot < 2 && highlight && picture->texture[3])
-        {
-            texture._TexID = (ImTextureID)(size_t)picture->texture[3];
-            ImDrawList_AddImage(pane->draw, texture, min, max, uv_min, uv_max, 0xffffffffUL);
-        }
     }
-    else
+    else if (!pass)
         ImDrawList_AddRectFilled(pane->draw, min, max, 0xff282420UL, 0, 0);
-    SDL_snprintf(label, sizeof(label), "Scene %02d / Frame %03ld", frame->scene, frame->number);
-    ImDrawList_AddText_FontPtr(pane->draw, NULL, (float)(16 * view.zoom),
-        vec(x, max.y + (float)(3 * view.zoom)), 0xffe9ded7UL, label, NULL, 0, NULL);
 }
 static void panes(void)
 {
@@ -525,7 +526,7 @@ static void panes(void)
     ImGuiIO *io;
     Frame *frame, *overview, *picture;
     const char *titles[3] = {"Retail", "Ours", "Diff"};
-    int i, index, cell, row, first, last, count_rows, tier, highlight, hovered;
+    int i, index, cell, row, first, last, count_rows, tier, highlight, hovered, pass;
     double scale, top, bottom, elapsed, next_zoom, cursor_x, cursor_y;
     int is_atlas;
     Uint64 now;
@@ -597,7 +598,7 @@ static void panes(void)
     if (fabs(next_zoom - zoom_target) < zoom_target * 0.0001) next_zoom = zoom_target;
     review_image_zoom(&view, next_zoom, zoom_anchor_x, zoom_anchor_y);
     tier = 0;
-    highlight = !io->WantTextInput && igIsKeyDown_Nil(ImGuiKey_D);
+    highlight = benchmark_highlight || (!io->WantTextInput && igIsKeyDown_Nil(ImGuiKey_D));
     for (i = 0; i < 3; ++i)
     {
         ImDrawList_PushClipRect(pane[i].draw, pane[i].origin,
@@ -610,25 +611,35 @@ static void panes(void)
     last = bottom <= 0 ? -1 : (int)(bottom / CELL_HEIGHT);
     if (last >= count_rows)
         last = count_rows - 1;
-    for (row = first; row <= last; ++row)
-        for (cell = row * columns; cell < (row + 1) * columns && cell < visible_count; ++cell)
-        {
-            index = visible[cell];
-            x = (float)((8 + cell % columns * CELL_WIDTH - view.x) * view.zoom);
-            if (x + FRAME_WIDTH * view.zoom < -pane[0].size.x / 2 || x > pane[0].size.x / 2)
-                continue;
-            frame = &frames[index];
-            overview = load_atlas(index / 64);
-            if (view.zoom >= 0.5 && now - last_navigation >= 150)
-                frame = load_frame(index, tier);
-            is_atlas = !(view.zoom >= 0.5 && frame->texture[0] && frame->backend == candidate);
-            picture = is_atlas ? overview : frame;
-            for (i = 0; i < 3; ++i)
+    /* Keep image pages, highlight pages and font glyphs contiguous in each
+     * pane. Interleaving labels forced two texture switches per thumbnail. */
+    for (pass = 0; pass < 3; ++pass)
+    {
+        if (pass == 1 && !highlight) continue;
+        for (row = first; row <= last; ++row)
+            for (cell = row * columns; cell < (row + 1) * columns && cell < visible_count; ++cell)
             {
-                y = pane[i].origin.y + pane[i].size.y / 2 + (float)((8 + row * CELL_HEIGHT - view.y) * view.zoom);
-                draw_frame(&pane[i], frame, picture, index, is_atlas, i, pane[i].origin.x + pane[i].size.x / 2 + x, y, highlight);
+                index = visible[cell];
+                x = (float)((8 + cell % columns * CELL_WIDTH - view.x) * view.zoom);
+                if (x + FRAME_WIDTH * view.zoom < -pane[0].size.x / 2 || x > pane[0].size.x / 2)
+                    continue;
+                frame = &frames[index];
+                overview = atlas_count ? &atlases[index / 64] : NULL;
+                if (!pass)
+                {
+                    overview = load_atlas(index / 64);
+                    if (view.zoom >= 0.5 && now - last_navigation >= 150)
+                        frame = load_frame(index, tier);
+                }
+                is_atlas = !(view.zoom >= 0.5 && frame->texture[0] && frame->backend == candidate);
+                picture = is_atlas ? overview : frame;
+                for (i = 0; i < 3; ++i)
+                {
+                    y = pane[i].origin.y + pane[i].size.y / 2 + (float)((8 + row * CELL_HEIGHT - view.y) * view.zoom);
+                    draw_frame(&pane[i], frame, picture, index, is_atlas, i, pane[i].origin.x + pane[i].size.x / 2 + x, y, pass);
+                }
             }
-        }
+    }
     /* Warm nearby sheet tiles while idle so zooming out reveals cached images,
      * rather than initiating a decode for each newly visible frame. */
     for (i = 0; i < atlas_count && i < 24 && cache_bytes < CACHE_BUDGET * 3 / 4; ++i)
@@ -665,33 +676,50 @@ int main(int argc, char **argv)
     SDL_Window *window;
     SDL_Event event;
     SDL_Surface *screenshot;
-    const char *smoke_path;
-    int i, smoke, running, width, height, status;
-    Uint64 next_poll;
+    const char *smoke_path, *benchmark_path;
+    int i, j, smoke, running, width, height, status, benchmark_count, warmed, draw_commands, vsync;
+    double benchmark_ms, benchmark_draws, frame_ms;
+    Uint64 next_poll, frame_start, benchmark_deadline;
+    ImDrawData *draw_data;
+    ImDrawList *draw_list;
+    FILE *benchmark_file;
     smoke_path = NULL;
+    benchmark_path = NULL;
+    benchmark_count = 0;
+    benchmark_ms = benchmark_draws = 0;
     for (i = 1; i < argc; ++i)
     {
         if (!strcmp(argv[i], "--session") && i + 1 < argc)
             SDL_strlcpy(session, argv[++i], sizeof(session));
         else if (!strcmp(argv[i], "--smoke") && i + 1 < argc)
             smoke_path = argv[++i];
+        else if (!strcmp(argv[i], "--benchmark") && i + 1 < argc)
+            benchmark_path = argv[++i];
+        else if (!strcmp(argv[i], "--benchmark-highlight"))
+            benchmark_highlight = 1;
         else if (argv[i][0] != '-' && !movie[0])
             SDL_strlcpy(movie, argv[i], sizeof(movie));
         else
         {
-            fprintf(stderr, "Usage: image-compare [movie.3mm|movie.zip] [--session capture-directory] [--smoke screenshot.png]\n");
+            fprintf(stderr, "Usage: image-compare [movie.3mm|movie.zip] [--session capture-directory] [--smoke screenshot.png] [--benchmark timing.json] [--benchmark-highlight]\n");
             return 2;
         }
     }
+    if (benchmark_path && (!session[0] || smoke_path))
+    {
+        fprintf(stderr, "The overview benchmark requires --session and cannot be combined with --smoke.\n");
+        return 2;
+    }
     smoke = smoke_path ? 3 : 0;
+    if (benchmark_path) { fit = 1; hide_matches = 0; }
     if (!SDL_Init(SDL_INIT_VIDEO) || !SDL_CreateWindowAndRenderer("3DMM Movie Compare", 1740, 1000,
-            review_window_flags(smoke), &window, &renderer))
+            review_window_flags(smoke || benchmark_path != NULL), &window, &renderer))
     {
         fprintf(stderr, "%s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
-    SDL_SetRenderVSync(renderer, 1);
+    vsync = SDL_SetRenderVSync(renderer, benchmark_path ? 0 : 1);
     igCreateContext(NULL);
     igGetIO_Nil()->IniFilename = NULL;
     igStyleColorsDark(NULL);
@@ -710,8 +738,10 @@ int main(int argc, char **argv)
     status = 0;
     running = 1;
     next_poll = 0;
+    benchmark_deadline = SDL_GetTicks() + 120000;
     while (running)
     {
+        frame_start = SDL_GetPerformanceCounter();
         ++generation;
         while (SDL_PollEvent(&event))
         {
@@ -756,12 +786,55 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(renderer);
         trim_cache();
+        if (benchmark_path)
+        {
+            warmed = total > 0 && generation > 60;
+            for (i = 0; i < atlas_count; ++i)
+                if (atlases[i].loaded <= 0) warmed = 0;
+            if (warmed)
+            {
+                draw_commands = 0;
+                draw_data = igGetDrawData();
+                for (i = 0; i < draw_data->CmdLists.Size; ++i)
+                {
+                    draw_list = draw_data->CmdLists.Data[i];
+                    for (j = 0; j < draw_list->CmdBuffer.Size; ++j)
+                        if (!draw_list->CmdBuffer.Data[j].UserCallback && draw_list->CmdBuffer.Data[j].ElemCount)
+                            ++draw_commands;
+                }
+                benchmark_ms += (SDL_GetPerformanceCounter() - frame_start) * 1000.0 / SDL_GetPerformanceFrequency();
+                benchmark_draws += draw_commands;
+                if (++benchmark_count == 60)
+                {
+                    benchmark_file = fopen(benchmark_path, "wb");
+                    if (!benchmark_file) status = 1;
+                    else
+                    {
+                        fprintf(benchmark_file, "{\"frames\":%d,\"columns\":%d,\"highlight\":%d,\"samples\":%d,\"mean_frame_ms\":%.3f,\"mean_imgui_draw_commands\":%.1f}\n",
+                            total, columns, benchmark_highlight, benchmark_count, benchmark_ms / benchmark_count, benchmark_draws / benchmark_count);
+                        fclose(benchmark_file);
+                    }
+                    running = 0;
+                }
+            }
+            if (SDL_GetTicks() >= benchmark_deadline)
+            {
+                fprintf(stderr, "Overview benchmark timed out waiting for cached frame pages.\n");
+                running = 0;
+                status = 1;
+            }
+        }
         if (smoke && generation > (unsigned long)((atlas_count < 120 ? atlas_count : 120) + 20) && --smoke == 0)
         {
             closing = 1;
             cancel_capture();
         }
-        SDL_Delay(10);
+        if (!benchmark_path && !vsync)
+        {
+            frame_ms = (SDL_GetPerformanceCounter() - frame_start) * 1000.0 / SDL_GetPerformanceFrequency();
+            if (frame_ms < 1000.0 / 60)
+                SDL_DelayPrecise((Uint64)((1000.0 / 60 - frame_ms) * 1000000));
+        }
     }
     review_decoder_destroy(decoder);
     clear_frames();
