@@ -587,7 +587,7 @@ ThreeMMSceneOwnerServices Scene::_OwnerServices()
     };
     s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
     s.publish = [](void *, void *p, const ThreeMMSceneOwner *) { static_cast<PScene>(p)->_PublishOwners(); };
-    s.reset_cursor = [](void *, void *p) { static_cast<PScene>(p)->_isevFrmLim = 0; };
+    s.reset_cursor = [](void *, void *p) { static_cast<PScene>(p)->_runtime.next_event = 0; };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
     s.loaded = [](void *, void *) { vpcex->EnqueueCid(cidSceneLoaded); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
@@ -665,7 +665,7 @@ Scene::Scene(PMovie pmvie)
     AssertNilOrPo(pmvie, 0);
     three_mm_scene_owner_init(&_owner, pmvie);
     _PublishOwners();
-    _grfscen = THREE_MM_SCENE_DEFAULT_DISABLED;
+    three_mm_scene_runtime_init(&_runtime);
 }
 
 /****************************************************
@@ -917,6 +917,133 @@ bool Scene::FSetName(PString pstn)
     return (fTrue);
 }
 
+ThreeMMSceneRuntimeServices Scene::_RuntimeServices()
+{
+    static_assert(fscenSounds == THREE_MM_SCENE_EFFECT_SOUNDS && fscenPauses == THREE_MM_SCENE_EFFECT_PAUSES &&
+                      fscenActrs == THREE_MM_SCENE_EFFECT_ACTORS && fscenTboxes == THREE_MM_SCENE_EFFECT_TEXTS &&
+                      fscenCams == THREE_MM_SCENE_EFFECT_CAMERAS,
+                  "Scene effect flags");
+    ThreeMMSceneRuntimeServices s = {};
+    s.context = this;
+    s.event_count = [](void *p) -> ThreeMMI32 { return static_cast<PScene>(p)->_pggsevFrm->IvMac(); };
+    s.event = [](void *p, ThreeMMI32 i, ThreeMMI32 *frame, int *kind) {
+        SceneEvent event;
+        static_cast<PScene>(p)->_pggsevFrm->GetFixed(i, &event);
+        *frame = event.nfrm;
+        *kind = event.sevt;
+    };
+    s.play = [](void *p, ThreeMMI32 i, ThreeMMU32 disabled) -> int {
+        auto scene = static_cast<PScene>(p);
+        SceneEvent event;
+        scene->_pggsevFrm->GetFixed(i, &event);
+        return scene->_FPlaySev(&event, scene->_pggsevFrm->QvGet(i), disabled);
+    };
+    s.unplay = [](void *p, ThreeMMI32 i) -> int {
+        auto scene = static_cast<PScene>(p);
+        SceneEvent event;
+        scene->_pggsevFrm->GetFixed(i, &event);
+        return scene->_FUnPlaySev(&event, scene->_pggsevFrm->QvGet(i));
+    };
+    s.move_camera = [](void *p, ThreeMMI32 i, ThreeMMI32 frame) {
+        auto group = static_cast<PScene>(p)->_pggsevFrm;
+        SceneEvent event;
+        group->GetFixed(i, &event);
+        event.nfrm = frame;
+        group->PutFixed(i, &event);
+        group->Move(i, 0);
+    };
+    s.object_count = [](void *p, int text) -> ThreeMMI32 {
+        auto scene = static_cast<PScene>(p);
+        return (text ? scene->_pglptbox : scene->_pglpactr)->IvMac();
+    };
+    s.object = [](void *p, int text, ThreeMMI32 i) -> void * {
+        auto scene = static_cast<PScene>(p);
+        if (text)
+        {
+            PTBOX box;
+            scene->_pglptbox->Get(i, &box);
+            return box;
+        }
+        PActor actor;
+        scene->_pglpactr->Get(i, &actor);
+        return actor;
+    };
+    s.seek = [](void *, int text, void *object, ThreeMMI32 frame, int *sound) -> int {
+        if (text)
+            return static_cast<PTBOX>(object)->FGotoFrame(frame);
+        bool value = sound ? *sound != 0 : false;
+        bool result = static_cast<PActor>(object)->FGotoFrame(frame, sound ? &value : nullptr);
+        if (sound)
+            *sound = value;
+        return result;
+    };
+    s.lifetime = [](void *, int text, void *object, ThreeMMI32 *first, ThreeMMI32 *last) -> int {
+        long begin, end;
+        bool result = text ? static_cast<PTBOX>(object)->FGetLifetime(&begin, &end)
+                           : static_cast<PActor>(object)->FGetLifetime(&begin, &end);
+        if (result)
+        {
+            *first = begin;
+            *last = end;
+        }
+        return result;
+    };
+    s.replay_actor = [](void *, void *actor, ThreeMMU32 enabled) -> int {
+        return static_cast<PActor>(actor)->FReplayFrame(enabled);
+    };
+    s.playing = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->FPlaying(); };
+    s.recording = [](void *p) -> int {
+        auto view = static_cast<PMovieView>(static_cast<PScene>(p)->Pmvie()->PddgGet(0));
+        return view && view->Tool() == toolRecordSameAction;
+    };
+    s.must_render = [](void *, void *actor, ThreeMMI32 until) -> int {
+        return static_cast<PActor>(actor)->FMustRender(until);
+    };
+    s.prerendered = [](void *, void *actor) -> int { return static_cast<PActor>(actor)->FPrerendered(); };
+    s.show = [](void *, void *actor, int visible) {
+        if (visible)
+            static_cast<PActor>(actor)->Show();
+        else
+            static_cast<PActor>(actor)->Hide();
+    };
+    s.set_prerendered = [](void *, void *actor, int value) { static_cast<PActor>(actor)->SetPrerendered(value != 0); };
+    s.snapshot = [](void *p, int begin) {
+        auto world = static_cast<PScene>(p)->Pmvie()->Pbwld();
+        if (begin)
+            world->Prerender();
+        else
+            world->Unprerender();
+    };
+    s.notice = [](void *p, int notice, int value) {
+        auto scene = static_cast<PScene>(p);
+        switch (notice)
+        {
+        case THREE_MM_SCENE_RESET_PAUSE:
+            scene->Pmvie()->Pmcc()->PauseType(witNil);
+            break;
+        case THREE_MM_SCENE_RECORD_SOUND:
+            scene->Pmvie()->Pmcc()->PlayUISound(toolRecordSameAction);
+            break;
+        case THREE_MM_SCENE_DIRTY:
+            scene->_MarkMovieDirty();
+            break;
+        case THREE_MM_SCENE_INVALIDATE:
+            scene->Pmvie()->InvalViews();
+            break;
+        case THREE_MM_SCENE_SOUND_INDICATOR:
+            scene->Pmvie()->Pmcc()->SetSndFrame(value != 0);
+            break;
+        case THREE_MM_SCENE_GOTO_FAILURE:
+            PushErc(ercSocGotoFrameFailure);
+            break;
+        case THREE_MM_SCENE_PRERENDER_ASSERT:
+            Assert(false, "no actor should be marked prerendered here");
+            break;
+        }
+    };
+    return s;
+}
+
 /****************************************************
  *
  * This routine jumps to an arbitrary frame, updating actors, and adding
@@ -930,148 +1057,12 @@ bool Scene::FSetName(PString pstn)
  *
  ****************************************************/
 
+
 bool Scene::FGotoFrm(long nfrm)
 {
     AssertThis(0);
-
-    bool fSoundInFrame = fFalse, fUpdateSndFrame = nfrm != _data.currentFrame;
-    SceneEvent sev;
-    PMovieView pmvu;
-    void *qvVar;
-    long isev;
-    long nfrmOld = _data.currentFrame;
-
-    if (nfrm < _data.currentFrame)
-    {
-
-        //
-        // Assume no pause type
-        //
-        Pmvie()->Pmcc()->PauseType(witNil);
-
-        //
-        // Go backwards
-        //
-        if (nfrm < _data.firstFrame)
-        {
-            //
-            // Move first frame back in time
-            //
-            _MoveBackFirstFrame(nfrm);
-            _MarkMovieDirty();
-        }
-
-        _data.currentFrame = nfrm;
-
-        //
-        // Unplay all events to dest frame.
-        //
-        for (; _isevFrmLim > 0; _isevFrmLim--)
-        {
-            _pggsevFrm->GetFixed(_isevFrmLim - 1, &sev);
-            if (sev.nfrm <= _data.currentFrame)
-            {
-                break;
-            }
-
-            qvVar = _pggsevFrm->QvGet(_isevFrmLim - 1);
-            if (!_FUnPlaySev(&sev, qvVar))
-            {
-                PushErc(ercSocGotoFrameFailure);
-                return (fFalse);
-            }
-        }
-
-        //
-        // Play events in this frame
-        //
-        for (isev = _isevFrmLim - 1; isev >= 0; isev--)
-        {
-            _pggsevFrm->GetFixed(isev, &sev);
-            if (sev.nfrm < _data.currentFrame)
-            {
-                break;
-            }
-            qvVar = _pggsevFrm->QvGet(isev);
-            if (!_FPlaySev(&sev, qvVar, _grfscen))
-            {
-                PushErc(ercSocGotoFrameFailure);
-                return (fFalse);
-            }
-            if (sev.sevt == sevtPlaySnd && sev.nfrm == _data.currentFrame)
-                fSoundInFrame = fTrue;
-        }
-    }
-    else if (nfrm > _data.currentFrame)
-    {
-
-        pmvu = (PMovieView)Pmvie()->PddgGet(0);
-        AssertNilOrPo(pmvu, 0);
-
-        if ((pmvu != pvNil) && (pmvu->Tool() == toolRecordSameAction))
-        {
-            Pmvie()->Pmcc()->PlayUISound(toolRecordSameAction);
-        }
-
-        _data.currentFrame = nfrm;
-
-        //
-        // Assume no pause type
-        //
-        Pmvie()->Pmcc()->PauseType(witNil);
-
-        //
-        // Go forwards
-        //
-        if (_data.currentFrame > _data.lastFrame)
-        {
-            _data.lastFrame = _data.currentFrame;
-            _MarkMovieDirty();
-        }
-
-        //
-        // Play all events to dest frame.
-        //
-        for (; _isevFrmLim < _pggsevFrm->IvMac(); _isevFrmLim++)
-        {
-            _pggsevFrm->GetFixed(_isevFrmLim, &sev);
-            if (sev.nfrm > _data.currentFrame)
-            {
-                break;
-            }
-            qvVar = _pggsevFrm->QvGet(_isevFrmLim);
-            if (!_FPlaySev(&sev, qvVar,
-                           (sev.nfrm == _data.currentFrame ? _grfscen : (_grfscen | fscenSounds | fscenPauses))))
-            {
-                PushErc(ercSocGotoFrameFailure);
-                return (fFalse);
-            }
-            if (sev.sevt == sevtPlaySnd && sev.nfrm == _data.currentFrame)
-                fSoundInFrame = fTrue;
-        }
-    }
-
-    if (!(_grfscen & fscenActrs) && !_FForceActorsToFrm(nfrm, &fSoundInFrame))
-    {
-        return (fFalse);
-    }
-
-    if (!(_grfscen & fscenTboxes) && !_FForceTboxesToFrm(nfrm))
-    {
-        return (fFalse);
-    }
-
-    if (!(_grfscen & fscenActrs))
-    {
-        _DoPrerenderingWork(fFalse);
-    }
-
-    Pmvie()->InvalViews();
-
-    if (fUpdateSndFrame)
-        Pmvie()->Pmcc()->SetSndFrame(fSoundInFrame);
-
-    return (fTrue);
+    auto services = _RuntimeServices();
+    return three_mm_scene_goto(&_runtime, &_data, nfrm, &services) != 0;
 }
 
 /****************************************************
@@ -1102,109 +1093,8 @@ bool Scene::FGotoFrm(long nfrm)
 void Scene::_DoPrerenderingWork(bool fStartNow)
 {
     AssertThis(0);
-
-    long isev;
-    SceneEvent sev;
-    long nfrmNextChange;
-    long ipactr;
-    PActor pactr;
-    long cactrPrerendered;
-
-    //
-    // If the movie was playing and there was a camera view change
-    // in this frame, prerender any actors that don't change from
-    // here to the next camera view change or the end of the scene.
-    //
-    if (!Pmvie()->FPlaying())
-    {
-        return; // only prerender if the movie is playing
-    }
-
-    // Do prerender if this is the first frame of the scene
-    // (even though there's no sevtChngCamera), or if fStartNow
-    // is fTrue, or if there is a sevtChngCamera in this
-    // frame.  Otherwise, just return.
-    if (_data.currentFrame != _data.firstFrame && !fStartNow)
-    {
-        for (isev = _isevFrmLim - 1; isev >= 0; isev--)
-        {
-            _pggsevFrm->GetFixed(isev, &sev);
-            if (sev.nfrm != _data.currentFrame)
-            {
-                return; // no camera view change in this frame
-            }
-            if (sev.sevt == sevtChngCamera)
-            {
-                break; // found one!
-            }
-        }
-        if (isev < 0)
-        {
-            return; // no camera view in this frame
-        }
-    }
-
-    // Find when the next view change is
-    nfrmNextChange = _data.lastFrame; // if no more view changes, go til end of scene
-    for (isev = _isevFrmLim; isev < _pggsevFrm->IvMac(); isev++)
-    {
-        _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.sevt == sevtChngCamera)
-        {
-            nfrmNextChange = sev.nfrm;
-            break;
-        }
-    }
-
-    // Hide all actors that can't be prerendered this time, and count how many
-    // can be prerendered this time
-    cactrPrerendered = 0;
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        if (pactr->FMustRender(nfrmNextChange))
-        {
-            pactr->Hide();
-        }
-        else
-        {
-            cactrPrerendered++;
-            if (pactr->FPrerendered())
-            {
-                // Actor was prerendered in last view and in this
-                // view.  Temporarily show the actor so it shows
-                // up in the prerendered background
-                pactr->Show();
-                pactr->SetPrerendered(fFalse);
-            }
-        }
-    }
-    if (cactrPrerendered > 0)
-    {
-        Pmvie()->Pbwld()->Prerender();
-    }
-    // Show all the actors that were hidden (and show them again if they were
-    // prerendered last time and can't be now), and hide the newly prerendered
-    // actors.
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        if (pactr->FMustRender(nfrmNextChange))
-        {
-            pactr->Show();
-            if (pactr->FPrerendered())
-            {
-                pactr->Show();
-                pactr->SetPrerendered(fFalse);
-            }
-        }
-        else
-        {
-            Assert(!pactr->FPrerendered(), "no actor should be marked prerendered here");
-            pactr->Hide();
-            pactr->SetPrerendered(fTrue);
-        }
-    }
+    auto services = _RuntimeServices();
+    three_mm_scene_prerender(&_runtime, &_data, fStartNow, &services);
 }
 
 /****************************************************
@@ -1223,21 +1113,8 @@ void Scene::_DoPrerenderingWork(bool fStartNow)
 void Scene::_EndPrerendering(void)
 {
     AssertThis(0);
-
-    long ipactr;
-    PActor pactr;
-
-    // Show all the actors that were being prerendered
-    Pmvie()->Pbwld()->Unprerender();
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        if (pactr->FPrerendered())
-        {
-            pactr->Show();
-            pactr->SetPrerendered(fFalse);
-        }
-    }
+    auto services = _RuntimeServices();
+    three_mm_scene_end_prerender(&services);
 }
 
 /****************************************************
@@ -1255,48 +1132,8 @@ void Scene::_EndPrerendering(void)
 bool Scene::FReplayFrm(ulong grfscen)
 {
     AssertThis(0);
-
-    SceneEvent sev;
-    void *qvVar;
-    long isev, iactr;
-    long nfrmOld = _data.currentFrame;
-    PActor pactr;
-
-    //
-    // Play events in this frame
-    //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
-    {
-        _pggsevFrm->GetFixed(isev, &sev);
-        if (sev.nfrm < _data.currentFrame)
-        {
-            break;
-        }
-        qvVar = _pggsevFrm->QvGet(isev);
-        // Note: FReplayFrm always suppresses camera changes
-        if (!_FPlaySev(&sev, qvVar, (~grfscen) | fscenCams))
-        {
-            PushErc(ercSocGotoFrameFailure);
-            return (fFalse);
-        }
-    }
-
-    if (grfscen & fscenActrs)
-    {
-
-        for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
-        {
-            _pglpactr->Get(iactr, &pactr);
-            AssertPo(pactr, 0);
-
-            if (!pactr->FReplayFrame(grfscen))
-            {
-                return (fFalse);
-            }
-        }
-    }
-
-    return (fTrue);
+    auto services = _RuntimeServices();
+    return three_mm_scene_replay(&_runtime, &_data, grfscen, &services) != 0;
 }
 
 /****************************************************
@@ -1313,49 +1150,8 @@ bool Scene::FReplayFrm(ulong grfscen)
 void Scene::InvalFrmRange(void)
 {
     AssertThis(0);
-
-    PActor pactr;
-    PTBOX ptbox;
-    long ipo;
-    long nfrmStart, nfrmLast;
-
-    for (ipo = 0; ipo < _pglpactr->IvMac(); ipo++)
-    {
-        _pglpactr->Get(ipo, &pactr);
-
-        if (pactr->FGetLifetime(&nfrmStart, &nfrmLast))
-        {
-
-            if (nfrmStart < _data.firstFrame)
-            {
-                _MoveBackFirstFrame(nfrmStart);
-            }
-
-            if (nfrmLast > _data.lastFrame)
-            {
-                _data.lastFrame = nfrmLast;
-            }
-        }
-    }
-
-    for (ipo = 0; ipo < _pglptbox->IvMac(); ipo++)
-    {
-        _pglptbox->Get(ipo, &ptbox);
-
-        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast))
-        {
-
-            if (nfrmStart < _data.firstFrame)
-            {
-                _MoveBackFirstFrame(nfrmStart);
-            }
-
-            if (nfrmLast > _data.lastFrame)
-            {
-                _data.lastFrame = nfrmLast;
-            }
-        }
-    }
+    auto services = _RuntimeServices();
+    three_mm_scene_extend_range(&_data, &services);
 }
 
 /****************************************************
@@ -1401,7 +1197,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
                 return fFalse;
             _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
             _SetOwner(THREE_MM_SCENE_BACKGROUND_SOUND, psseDup);
-            _nfrmSseBkgd = psev->nfrm;
+            _runtime.background_frame = psev->nfrm;
         }
         if (grfscen & fscenSounds)
         {
@@ -1554,14 +1350,14 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         //
         // Go backwards and find previous background sound.
         //
-        for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+        for (isev = _runtime.next_event - 1; isev >= 0; isev--)
         {
             qsevTmp = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
             if ((qsevTmp->sevt == sevtPlaySnd) && (qsevTmp->nfrm < _data.currentFrame))
             {
                 sev = *qsevTmp;
-                _FPlaySev(&sev, _pggsevFrm->QvGet(isev), _grfscen | fscenSounds); // Ignore failure.
+                _FPlaySev(&sev, _pggsevFrm->QvGet(isev), _runtime.disabled | fscenSounds); // Ignore failure.
                 return (fTrue);
             }
         }
@@ -1584,14 +1380,14 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         //
         // Go backwards and find previous camera position.
         //
-        for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+        for (isev = _runtime.next_event - 1; isev >= 0; isev--)
         {
             qsevTmp = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
             if ((qsevTmp->sevt == sevtChngCamera) && (qsevTmp->nfrm < _data.currentFrame))
             {
                 sev = *qsevTmp;
-                AssertDo(_FPlaySev(&sev, _pggsevFrm->QvGet(isev), _grfscen), "Should not fail.");
+                AssertDo(_FPlaySev(&sev, _pggsevFrm->QvGet(isev), _runtime.disabled), "Should not fail.");
                 return (fTrue);
             }
         }
@@ -1602,7 +1398,7 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         sev.sevt = sevtChngCamera;
         int32_t firstCamera = 0;
 
-        if (!_FPlaySev(&sev, &firstCamera, _grfscen))
+        if (!_FPlaySev(&sev, &firstCamera, _runtime.disabled))
         {
             Assert(0, "Should never happen");
             return (fFalse);
@@ -1629,40 +1425,9 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
 void Scene::_MoveBackFirstFrame(long nfrm)
 {
     AssertThis(0);
+    auto services = _RuntimeServices();
     Assert(nfrm < _data.firstFrame, "Can only be called to extend scene back.");
-
-    long isev;
-    SceneEvent sev;
-
-    //
-    // Move back all events that must persist in the
-    // first frame.
-    //
-    for (isev = 0; isev < _pggsevFrm->IvMac(); isev++)
-    {
-        _pggsevFrm->GetFixed(isev, &sev);
-
-        if (sev.nfrm != _data.firstFrame)
-        {
-            break;
-        }
-
-        if (sev.sevt == sevtChngCamera)
-        {
-
-            //
-            // Move this back
-            //
-            sev.nfrm = nfrm;
-            _pggsevFrm->PutFixed(isev, &sev);
-            _pggsevFrm->Move(isev, 0);
-        }
-    }
-
-    //
-    // Set new first frame
-    //
-    _data.firstFrame = nfrm;
+    three_mm_scene_move_first(&_data, nfrm, &services);
 }
 
 /****************************************************
@@ -1703,7 +1468,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     //
     // Find any other sevtPlaySnd events in this frame with the same sty
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         _pggsevFrm->GetFixed(isev, &sev);
         if (sev.nfrm != _data.currentFrame)
@@ -1776,7 +1541,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
                 TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isevSnd);
-            _isevFrmLim--;
+            _runtime.next_event--;
         }
     }
     else // we're queueing
@@ -1838,7 +1603,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
         ReleasePpo(&pmsnd);
     }
 
-    if (!_FPlaySev(&sev, psseNew, _grfscen | fscenSounds))
+    if (!_FPlaySev(&sev, psseNew, _runtime.disabled | fscenSounds))
     {
         // non-fatal error...ignore it
     }
@@ -1884,7 +1649,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
     //
     // Find any other sevtPlaySnd events in this frame with the same sty
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         _pggsevFrm->GetFixed(isev, &sev);
         if (sev.nfrm != _data.currentFrame)
@@ -1931,7 +1696,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
                 TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isevSnd);
-            _isevFrmLim--;
+            _runtime.next_event--;
         }
     }
     else // we're queueing
@@ -1939,7 +1704,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
         Bug("Should never queue when undoing");
     }
 
-    if (!_FPlaySev(&sev, psseNew, _grfscen))
+    if (!_FPlaySev(&sev, psseNew, _runtime.disabled))
     {
         // non-fatal error...ignore it
     }
@@ -2043,7 +1808,7 @@ void Scene::RemSndCore(long sty)
     //
     // Find the sound
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
@@ -2066,7 +1831,7 @@ void Scene::RemSndCore(long sty)
                 TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isev);
-            _isevFrmLim--;
+            _runtime.next_event--;
 
             if (sty == styMidi)
             {
@@ -2116,7 +1881,7 @@ bool Scene::FRemSnd(long sty)
     //
     // Find the sound
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
@@ -2181,7 +1946,7 @@ bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
     //
     // Check event list.
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
@@ -2234,7 +1999,7 @@ void Scene::PlayBkgdSnd(void)
 
     if (pvNil != _psseBkgd)
     {
-        dfrm = Nfrm() - _nfrmSseBkgd;
+        dfrm = Nfrm() - _runtime.background_frame;
         Assert(dfrm >= 0, "this sound is in the future!");
         dtsStart = LwMulDiv(dfrm, kdtsSecond, kfps);
         _psseBkgd->PlayAllSounds(Pmvie(), dtsStart);
@@ -2318,7 +2083,7 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
     //
     // Check event list.
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
@@ -2356,7 +2121,7 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
 void Scene::UpdateSndFrame(void)
 {
     bool fSoundInFrame = fFalse;
-    long iv = _isevFrmLim;
+    long iv = _runtime.next_event;
 
     while (iv-- > 0)
     {
@@ -2419,11 +2184,11 @@ bool Scene::_FAddSev(PSEV psev, long cbVar, void *pvVar)
     //
     _MarkMovieDirty();
 
-    fRetValue = _pggsevFrm->FInsert(_isevFrmLim++, cbVar, pvVar, psev);
+    fRetValue = _pggsevFrm->FInsert(_runtime.next_event++, cbVar, pvVar, psev);
 
     if (!fRetValue)
     {
-        _isevFrmLim--;
+        _runtime.next_event--;
     }
 
     return (fRetValue);
@@ -3094,7 +2859,7 @@ bool Scene::FAddActrCore(Actor *pactr)
             return (fFalse);
         }
 
-        fRetValue = _FPlaySev(&sev, &pactr, _grfscen);
+        fRetValue = _FPlaySev(&sev, &pactr, _runtime.disabled);
 
         if (!fRetValue)
         {
@@ -3413,7 +3178,7 @@ bool Scene::FAddTboxCore(PTBOX ptbox)
     if (fRetValue)
     {
         ptbox->AddRef();
-        fRetValue = _FPlaySev(&sev, &ptbox, _grfscen);
+        fRetValue = _FPlaySev(&sev, &ptbox, _runtime.disabled);
 
         if (!fRetValue)
         {
@@ -3698,7 +3463,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
     //
     // Start at the first event of this frame.
     //
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
@@ -3723,7 +3488,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
             if (*pwit == witNil)
             {
                 _pggsevFrm->Delete(isev);
-                _isevFrmLim--;
+                _runtime.next_event--;
             }
             else
             {
@@ -3849,10 +3614,10 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
                 _DropOwner(THREE_MM_SCENE_BACKGROUND);
 
                 _MarkMovieDirty();
-                if (!_FPlaySev(&sev, ptag, _grfscen))
+                if (!_FPlaySev(&sev, ptag, _runtime.disabled))
                 {
                     _pggsevStart->FPut(isev, size(TAG), ptagOld);
-                    _FPlaySev(&sev, ptagOld, _grfscen);
+                    _FPlaySev(&sev, ptagOld, _runtime.disabled);
                     return (fFalse);
                 }
 
@@ -3878,7 +3643,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
         return (fFalse);
     }
 
-    if (!_FPlaySev(&sev, ptag, _grfscen))
+    if (!_FPlaySev(&sev, ptag, _runtime.disabled))
     {
         _pggsevStart->Delete(0);
         return (fFalse);
@@ -3898,7 +3663,7 @@ LSuccess:
         _pggsevFrm->Delete(_pggsevFrm->IvMac() - 1);
     }
 
-    _isevFrmLim = 0;
+    _runtime.next_event = 0;
 
     // Add the default sound for the new background, if any
     // _pbkgd->GetDefaultSound(&tag, &vlm, &fLoop);
@@ -4069,7 +3834,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
     //
     *picamOld = 0;
 
-    for (isev = _isevFrmLim - 1; isev >= 0; isev--)
+    for (isev = _runtime.next_event - 1; isev >= 0; isev--)
     {
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
 
@@ -4106,10 +3871,10 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                     qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isev);
                     _pggsevFrm->Get(isev, &icamScratch);
                     *picamOld = icamScratch;
-                    if (_FPlaySev(qsevOld, &icam32, _grfscen))
+                    if (_FPlaySev(qsevOld, &icam32, _runtime.disabled))
                     {
                         _pggsevFrm->Delete(isev);
-                        _isevFrmLim--;
+                        _runtime.next_event--;
                         _MarkMovieDirty();
                         goto LSuccess;
                     }
@@ -4126,7 +3891,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                     _pggsevFrm->Put(isev, &icam32);
                 }
                 _MarkMovieDirty();
-                if (_FPlaySev(qsev, &icam32, _grfscen))
+                if (_FPlaySev(qsev, &icam32, _runtime.disabled))
                 {
                     goto LSuccess;
                 }
@@ -4155,13 +3920,13 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
 
     if (_FAddSev(&sev, size(int32_t), &icam32))
     {
-        if (_FPlaySev(&sev, &icam32, _grfscen))
+        if (_FPlaySev(&sev, &icam32, _runtime.disabled))
         {
             goto LSuccess;
         }
         else
         {
-            _pggsevFrm->Delete(--_isevFrmLim);
+            _pggsevFrm->Delete(--_runtime.next_event);
         }
     }
 
@@ -4172,7 +3937,7 @@ LSuccess:
     //
     // Check for later camera change
     //
-    for (isev = _isevFrmLim; isev < _pggsevFrm->IvMac(); isev++)
+    for (isev = _runtime.next_event; isev < _pggsevFrm->IvMac(); isev++)
     {
         int32_t icamNext;
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
@@ -4182,7 +3947,7 @@ LSuccess:
             if (icamNext == icam)
             {
                 _pggsevFrm->Delete(isev);
-                _isevFrmLim;
+                _runtime.next_event;
             }
             break;
         }
@@ -4305,7 +4070,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         goto LFail0;
     }
 
-    pscen->_isevFrmLim = 0;
+    pscen->_runtime.next_event = 0;
 
     //
     // Initialize roll call	for actors
@@ -4595,7 +4360,7 @@ bool Scene::FPlayStartEvents(bool fActorsOnly)
         if (fActorsOnly && sev.sevt != sevtAddActr)
             continue;
 
-        if (!_FPlaySev(&sev, _pggsevStart->QvGet(isev), _grfscen))
+        if (!_FPlaySev(&sev, _pggsevStart->QvGet(isev), _runtime.disabled))
         {
             return (fFalse);
         }
@@ -5125,7 +4890,7 @@ void Scene::_UpdateThumbnail(void)
 
     pgptThumb->SetOffscreenColors(Pmvie()->PglclrThumbPalette());
 
-    grfscenSave = _grfscen;
+    grfscenSave = _runtime.disabled;
     Disable(fscenPauses | fscenSounds);
 
     nfrmCur = _data.currentFrame;
@@ -5133,7 +4898,7 @@ void Scene::_UpdateThumbnail(void)
     {
         ReleasePpo(&pgpt);
         ReleasePpo(&pgptThumb);
-        _grfscen = grfscenSave;
+        _runtime.disabled = grfscenSave;
         goto LEnd;
     }
 
@@ -5174,7 +4939,7 @@ void Scene::_UpdateThumbnail(void)
             FGotoFrm(nfrmCur);
         }
 
-        _grfscen = grfscenSave;
+        _runtime.disabled = grfscenSave;
     }
 
 LEnd:
@@ -5292,23 +5057,11 @@ bool Scene::FPasteActr(PActor pactr)
 bool Scene::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
-    AssertIn(nfrm, klwMin, klwMax);
-
-    PActor pactr;
-    long iactr;
-
-    for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
-    {
-        _pglpactr->Get(iactr, &pactr);
-        AssertPo(pactr, 0);
-
-        if (!pactr->FGotoFrame(nfrm, pfSoundInFrame))
-        {
-            return (fFalse);
-        }
-    }
-
-    return (fTrue);
+    auto services = _RuntimeServices();
+    int sound = pfSoundInFrame ? *pfSoundInFrame : 0;
+    bool result = three_mm_scene_force(nfrm, 0, pfSoundInFrame ? &sound : nullptr, &services) != 0;
+    if (pfSoundInFrame) *pfSoundInFrame = sound != 0;
+    return result;
 }
 
 /****************************************************
@@ -5325,23 +5078,8 @@ bool Scene::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
 bool Scene::_FForceTboxesToFrm(long nfrm)
 {
     AssertThis(0);
-    AssertIn(nfrm, klwMin, klwMax);
-
-    PTBOX ptbox;
-    long itbox;
-
-    for (itbox = 0; itbox < _pglptbox->IvMac(); itbox++)
-    {
-        _pglptbox->Get(itbox, &ptbox);
-        AssertPo(ptbox, 0);
-
-        if (!ptbox->FGotoFrame(nfrm))
-        {
-            return (fFalse);
-        }
-    }
-
-    return (fTrue);
+    auto services = _RuntimeServices();
+    return three_mm_scene_force(nfrm, 1, nullptr, &services) != 0;
 }
 
 /****************************************************
@@ -5810,9 +5548,9 @@ bool Scene::FChopCore()
     //
     // Remove all scene events from here forward
     //
-    for (; _isevFrmLim < _pggsevFrm->IvMac();)
+    for (; _runtime.next_event < _pggsevFrm->IvMac();)
     {
-        _pggsevFrm->Delete(_isevFrmLim);
+        _pggsevFrm->Delete(_runtime.next_event);
     }
 
     //
@@ -5955,18 +5693,18 @@ bool Scene::FChopBackCore()
     // changes, keep the most recent camera change.
     //
     fCopyCam = fTrue;
-    for (; _isevFrmLim > 0;)
+    for (; _runtime.next_event > 0;)
     {
-        _isevFrmLim--;
+        _runtime.next_event--;
 
-        _pggsevFrm->GetFixed(_isevFrmLim, &sev);
+        _pggsevFrm->GetFixed(_runtime.next_event, &sev);
 
         if ((sev.sevt == sevtChngCamera) && (fCopyCam))
         {
 
             fCopyCam = fFalse;
             sev.nfrm = _data.currentFrame;
-            _pggsevFrm->PutFixed(_isevFrmLim, &sev);
+            _pggsevFrm->PutFixed(_runtime.next_event, &sev);
         }
         else
         {
@@ -5976,15 +5714,15 @@ bool Scene::FChopBackCore()
                 continue;
             }
 
-            _pggsevFrm->Delete(_isevFrmLim);
+            _pggsevFrm->Delete(_runtime.next_event);
         }
     }
 
-    _isevFrmLim = 0;
-    for (; _isevFrmLim < _pggsevFrm->IvMac(); _isevFrmLim++)
+    _runtime.next_event = 0;
+    for (; _runtime.next_event < _pggsevFrm->IvMac(); _runtime.next_event++)
     {
 
-        _pggsevFrm->GetFixed(_isevFrmLim, &sev);
+        _pggsevFrm->GetFixed(_runtime.next_event, &sev);
         if (sev.nfrm != _data.currentFrame)
         {
             break;
@@ -6003,10 +5741,10 @@ bool Scene::FChopBackCore()
     //
     // If _psseBkgd got chopped, get rid of it
     //
-    if (_psseBkgd != pvNil && _nfrmSseBkgd < _data.firstFrame)
+    if (_psseBkgd != pvNil && _runtime.background_frame < _data.firstFrame)
     {
         _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
-        TrashVar(&_nfrmSseBkgd);
+        TrashVar(&_runtime.background_frame);
     }
 
     return (fTrue);

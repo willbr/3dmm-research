@@ -624,8 +624,8 @@ new scene/name/header/event snapshot is 526 bytes. No Marcus UI tests were added
 roll-call containers, selection extras, background, thumbnail and background
 sound. The parent movie remains borrowed. Native pointer fields are published
 borrowed views; creation, loading and edit replacement sites transfer/release
-through the C owner. SceneData's existing C metadata record is separate, and the
-event cursor/disabled flags remain part of the unconverted runtime facade.
+through the C owner. SceneData's existing C metadata record is separate; the
+event cursor/disabled flags now belong to the C runtime described below.
 
 C controls construction order, cursor-reset timing, optional loaded notification,
 partial factory teardown, forward start-object release, frame sound-tag cleanup,
@@ -637,8 +637,8 @@ background/undo sound packets close only opened tags, while embedded frame packe
 close every tag and never free the group's payload separately.
 
 Typed adapters still provide C-backed collection/reference primitives and native
-actor, text and background APIs. Caption/background implementation, scene frame/
-event runtime, loading/marshalling/editing transactions and final native facade
+actor, text and background APIs. Caption/background implementation, single-event
+play/unplay dispatch, loading/marshalling/editing transactions and final native facade
 removal remain engine dependencies; this is not a C-only Scene implementation.
 The loader's uncommitted local objects still follow its native read transaction.
 
@@ -661,6 +661,41 @@ around their teardown. Actual actor/text/light behavior is additionally covered
 by C callback tests, existing integration tests and playback gates. Supplemental
 native tests exercise completed frame-packet cleanup through the real service
 bridge. Full validation and coverage limits are in `docs/tools/playback-regression.md`.
+
+### Scene frame movement, replay and prerendering
+
+`scene_runtime.c` owns persistent event-cursor/effect-mask/background-sound-frame
+state, forward/backward frame sequencing, same-frame replay, actor/text forcing,
+range extension and two-pass actor prerender decisions. The native Scene stores
+this C record directly, and remaining native editing/dispatch code accesses it
+without a shadow cursor or effect mask. SceneData supplies the live C metadata.
+
+Backward seeks unplay a completed prefix before replaying destination events in
+reverse order. Forward seeks suppress sounds and pauses for intervening frames;
+replay always suppresses camera changes. Failed play/unplay callbacks leave the
+cursor at the failed event and report the existing goto error. Actor/text seek
+and replay failures return without that extra error or view invalidation.
+Callbacks observe metadata and completed cursor changes immediately. Object
+counts remain dynamic; event groups must not be mutated/reentered during event
+dispatch. Optional actor sound outputs preserve incoming values and changes on
+failure across the native bool/C int bridge.
+
+Prerendering retains both render-need queries per actor, previous-prerender flag
+handling and repeated show operations. Changing actors are hidden around the
+snapshot, then shown; static actors become hidden/prerendered. End-prerender
+always restores the World background before showing previously hidden actors.
+Native services provide collection access, typed actor/caption calls, World
+snapshot operations and movie/client notifications. Single-event play/unplay
+policy remains in `_FPlaySev`/`_FUnPlaySev`; this slice does not make Scene C-only.
+
+Original/repeated native and original/converted SDL release traces match 5,664
+bytes, SHA-256 `1F686B330EB64C1D2A56290EF99AFDD9E170DA322507951C268ECCD353B58F7C`,
+FNV-1a `3434DECD`. The real Scene fixture covers frame/replay notifications and
+background MIDI cache state with empty actor/text lists. C-only tests cover
+nonempty lists, callback failures, signed frame extremes, dynamic counts,
+camera-event range movement and two-pass prerender ordering. Existing integration
+tests and retail/host captures cover actual actors/captions. Full validation and
+comparison limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

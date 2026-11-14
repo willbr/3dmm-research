@@ -19,6 +19,7 @@
 #ifndef SCEN_H
 #define SCEN_H
 #include "three_mm/scene_owner.h"
+#include "three_mm/scene_runtime.h"
 
 //
 // Undo object for actor operations
@@ -125,10 +126,11 @@ class Scene : public Scene_PAR
 
     //
     // Frames with events in them.  This stuff works as follows.
-    //   _isevFrmLim is the index into the GeneralGroup of a sev with nfrm > nCurFrm.
+    //   _runtime.next_event is the index into the GeneralGroup of a sev with nfrm > nCurFrm.
     //
     PGeneralGroup _pggsevFrm;   // List of events that occur in frames.
-    long _isevFrmLim; // Next event to process.
+    ThreeMMSceneRuntime _runtime; // C-owned cursor, effect mask and background-sound frame.
+    ThreeMMSceneRuntimeServices _RuntimeServices();
 
     //
     // Global information
@@ -138,7 +140,6 @@ class Scene : public Scene_PAR
     PGeneralGroup _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
-    ulong _grfscen;       // Disabled functionality.
     PActor _pactrSelected; // Primary selected actor (still authoritative single-select pointer)
     PDynamicArray _pglpactrSelExtra; // Additional selected actors (excluding primary). pvNil when no extras.
     PTBOX _ptboxSelected;            // Currently selected tbox, if any
@@ -146,7 +147,6 @@ class Scene : public Scene_PAR
     PSceneSoundEvent _psseBkgd;       // Background scene sound (starts playing
                           // at start time even if snd event is
                           // earlier)
-    long _nfrmSseBkgd;    // Frame at which _psseBkgd starts
     TAG _tagBkgd;         // Tag to current Background
 
   protected:
@@ -262,15 +262,15 @@ class Scene : public Scene_PAR
     //
     void Disable(ulong grfscen) // Disables functionality.
     {
-        _grfscen |= grfscen;
+        _runtime.disabled |= grfscen;
     }
     void Enable(ulong grfscen) // Enables functionality.
     {
-        _grfscen &= ~grfscen;
+        _runtime.disabled &= ~grfscen;
     }
     long GrfScen(void) // Currently disabled functionality.
     {
-        return _grfscen;
+        return _runtime.disabled;
     }
     bool FIsEmpty(void); // Is the scene empty?
 

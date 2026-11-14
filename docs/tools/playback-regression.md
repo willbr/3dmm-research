@@ -6574,3 +6574,82 @@ Evidence: `tmp/c89-scene-owner-before*.bin`, `tmp/c89-scene-owner-after.bin`,
 `tmp/c89-scene-owner-playback-actor-events-scrolling-text.json`,
 `tmp/c89-scene-owner-capture-hashes-*.json` and the two
 `tmp/c89-scene-owner-capture-*.log` files.
+
+### C89 Scene frame movement, replay and prerendering (14 November 2026)
+
+`scene_runtime.c` now owns frame movement/replay, actor/text force loops,
+frame-range extension and two-pass prerender policy. Its persistent runtime
+record holds the event cursor, disabled-effects mask and background-sound frame;
+all native editing/dispatch references use that record directly. SceneData's C
+metadata remains live throughout callbacks. Native adapters supply collection
+access, actor/caption operations, World snapshots and movie/client notifications.
+Single-event play/unplay policy, background/caption implementation and remaining
+Scene loading/editing remain native dependencies, as does final facade removal.
+
+The original native trace, its repeat, the original SDL release trace and the
+converted native trace match all 5,664 bytes, SHA-256
+`1F686B330EB64C1D2A56290EF99AFDD9E170DA322507951C268ECCD353B58F7C`.
+Converted native/SDL debug/SDL release fixtures enforce FNV-1a `3434DECD` and the
+same length. The fixture uses a real Scene with empty actor/text lists and six
+pause/sound events, including MIDI background-cache replacements. It records ten
+forward/backward/same-frame seeks and four replay masks per seek under two
+disabled-effects masks, including client pause/sound notifications, metadata,
+cursor, flags and background-sound state. It does not freeze actual actor/caption
+rendering or device audio; those use the other gates described below.
+
+Backward seeks retain reverse same-frame event order. Forward seeks suppress
+sound/pause effects for intervening events, and replay always suppresses cameras.
+A failed event leaves the cursor at that event and reports the existing goto
+error; actor/text force and actor replay failures return without another goto
+error. The optional sound output is carried through every actor, including on
+failure. Range extension moves first-frame cameras and extends metadata without
+dirtying the movie. Prerendering retains its two render-need queries and repeated
+show operations, with no snapshot when all actors must render; end-prerender
+restores the World background even with no prerendered actors.
+
+All 87 standalone C checks pass, including strict C89 syntax. The new fixture
+also builds/runs directly with Clang `-std=c89 -pedantic-errors -Wall -Wextra
+-Werror` and passes MSVC AddressSanitizer. C-only checks cover partial play/unplay
+failures, live cursor observations, replay-mask complement, actor/text/replay
+failures, dynamic actor counts, optional sound outputs, signed frame extremes,
+camera range movement, lifetime failure and both prerender passes with changing
+render-need answers. Both hosts and `core-checks` build; all 116 focused native,
+12 SDL debug and 24 SDL release checks pass. All 51 CLI output baselines match.
+Final adapter formatting was followed by host rebuilds and focused native/SDL
+runtime reruns; SDL debug's full selected gate uses the final build. Marcus was
+stopped before its rebuilds and relaunched afterward. No Marcus UI tests were
+added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`1EA710D7BD2348A8BDAA6C0BCFE77C8EA6A9B86781E5603C0D7C6C465419EF52`
+(SDL release) and
+`9DA2C3CB89DAF3ED1500681ECC7F848F4A47466CE3C665C235DAAA6343F21F99`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T074843Z-1e6cf808` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T074956Z-622e38ae` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries, retaining movie identity and suite
+integrity. Authored frames, all 360 seek images and ordered playback image changes
+match each player's preceding Scene-owner suites `20261114T071925Z-a255b901`
+and `20261114T072040Z-d84dedda`. Playback comparison collapses only adjacent
+identical position/image observations. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. This establishes no observed
+regression within this coverage, not full retail timing or PCM parity. Captures
+use a shared warm SDL package cache with private processes, settings and movies
+and uncontrolled OS caching. No builds or tests ran concurrently with capture.
+
+Evidence: `tmp/c89-scene-runtime-before*.bin`,
+`tmp/c89-scene-runtime-after.bin`, `tmp/c89-scene-runtime-final-*.bin`,
+`tmp/c89-scene-runtime-standalone.log`, `tmp/c89-scene-runtime-asan.log`,
+`tmp/c89-scene-runtime-native-tests.log`,
+`tmp/c89-scene-runtime-sdl-debug-tests.log`,
+`tmp/c89-scene-runtime-sdl-release-tests.log`,
+`tmp/c89-scene-runtime-final-focus.log`,
+`tmp/c89-scene-runtime-final-sdl-focus.log`,
+`tmp/c89-scene-runtime-output-comparison.json`,
+`tmp/c89-scene-runtime-playback-actor-events-scrolling-text.json`,
+`tmp/c89-scene-runtime-capture-hashes-*.json` and the two
+`tmp/c89-scene-runtime-capture-*.log` files.

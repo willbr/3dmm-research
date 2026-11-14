@@ -455,9 +455,11 @@ representations still remain for final integration.
 Scene-owned event groups, actor/text roll-call containers, selection extras,
 background, thumbnail and background-sound references now use a persistent C
 owner record. Construction/disposal, completed-prefix read cleanup, hide/show/
-close sequencing and owned scene-sound tag disposal now use C89. Frame/event
-sequencing, remaining loading/editing policy and caption/background callbacks
-still depend on native engine implementations.
+close sequencing and owned scene-sound tag disposal now use C89. Scene frame
+movement/replay, actor/text force loops, frame-range extension and two-pass
+prerender decisions now use C89 with persistent cursor/effect-mask state.
+Single-event play/unplay dispatch, remaining loading/editing policy and
+caption/background callbacks still depend on native engine implementations.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -470,8 +472,8 @@ C-only host integration retain the limits described above.
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
-export and Scene ownership/lifecycle slices are complete. Continue with Scene
-frame movement/replay, event dispatch and prerender decisions in
+export and Scene ownership/lifecycle and frame/replay/prerender slices are
+complete. Continue with Scene single-event play/unplay dispatch in
 `src/engine/scene.cpp`, then remaining scene/movie loading/editing,
 undo/save and caption/transition operations. Final native representation and
 facade removal remains required.

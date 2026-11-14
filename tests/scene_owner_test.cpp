@@ -112,8 +112,8 @@ struct Access : Scene
 #endif
     static void State(PScene s)
     {
-        Value(s->*&Access::_grfscen);
-        Value(s->*&Access::_isevFrmLim);
+        Value((s->*&Access::_runtime).disabled);
+        Value((s->*&Access::_runtime).next_event);
         auto &data = s->*&Access::_data;
         Value(data.currentFrame);
         Value(data.firstFrame);

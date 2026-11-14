@@ -14,6 +14,12 @@ target_sources(three-mm-engine-c89 PRIVATE src/world_camera.c)
 target_sources(three-mm-engine-c89 PRIVATE src/world_render.c)
 target_sources(three-mm-engine-c89 PRIVATE src/world_export.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_owner.c)
+target_sources(three-mm-engine-c89 PRIVATE src/scene_runtime.c)
+get_filename_component(engine_scene_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_runtime_test.c" ABSOLUTE)
+add_executable(engine-scene-runtime-test EXCLUDE_FROM_ALL "${engine_scene_runtime_test_source}")
+target_link_libraries(engine-scene-runtime-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-scene-runtime-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-scene-runtime COMMAND engine-scene-runtime-test)
 target_sources(three-mm-engine-c89 PRIVATE src/texture_resource.c src/texture_import.c)
 target_sources(three-mm-engine-c89 PRIVATE src/material_resource.c src/custom_material.c)
 target_sources(three-mm-engine-c89 PRIVATE src/audio_clock.c src/audio_mixer.c src/midi_render.c src/sound_queue.c src/sound_manager.c src/midi_mix.c)
@@ -506,6 +512,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/world_export.c"
     "${engine_world_export_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_owner.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_runtime.c"
+    "${engine_scene_runtime_test_source}"
     "${engine_scene_owner_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/texture_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/texture_import.c"

@@ -227,7 +227,7 @@ class StageTestScene : public Scene
     StageTestScene(PMovie movie) : Scene(movie) {}
     bool TrackActor(PActor actor,long frame)
     {
-        _data.currentFrame=frame; _data.firstFrame=1; _data.lastFrame=100; _isevFrmLim=0;
+        _data.currentFrame=frame; _data.firstFrame=1; _data.lastFrame=100; _runtime.next_event=0;
         return _pglpactr->FSetIvMac(0) && _pglpactr->FAdd(&actor);
     }
     bool Init()
