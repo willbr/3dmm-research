@@ -7580,3 +7580,92 @@ Evidence: `tmp/c89-chop-{strict,asan,standalone,native-tests,sdl-debug-tests,sdl
 `tmp/c89-chop-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-chop-capture-hashes-{before,after}.json` and
 `tmp/c89-chop-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+### Scene property/playback lifecycle C89 closeout (14 November 2026)
+
+Baseline: `80f4deb4`, with private property undo declarations extracted to
+`inc/scene_control_undo.h` before recording. `scene_control.c` owns Scene name/
+transition edit transactions, persistent C property undo payloads/swaps and
+playback startup/shutdown traversal. `scene_data.c` now also owns transition-file
+read/modify/write. Typed String/enum/file/group/object/view primitives and common
+Movie undo/navigation effects remain adapters.
+
+The Scene-content native fixture extends the preceding actor/caption/selection/
+chop/undo and fault checks with four explicit name swaps and four transition
+swaps, public edits, transition-file edits/readback (including invalid transition
+and missing chunk), and startup/shutdown on a background Scene with real actors.
+Original/repeat native traces match 6,748 bytes, FNV-1a `129FEB8A`, SHA-256
+`1ADB16AEABA0D06DBF53F8D2E65446746158CFF805E915DD8F43D69B2F2E9FFB`.
+The guard retains the little-endian x64, one-byte-text restriction. Visible caption
+scroll/cleanup branches are not frozen in this headless fixture; C-only protocol
+checks and the full playback captures provide that integration evidence.
+
+Failure corrections are outside the frozen trace: failed name/transition commit
+releases its local undo record, and public transition edit now captures the old
+transition before commit. Supplemental native undo/redo verifies the transition
+correction. The frozen explicit-payload transition undo cycles retain the original
+seek/swap behavior. Missing caption startup views now diagnose/skip rather than
+dereference null.
+
+Name edits retain counted native text and introduce no additional dirty/menu/
+client effects. Name undo switches without seeking; transition undo switches then
+seeks. Both obtain current Scene data after navigation and swap persistent C
+payloads. Failures flush before clear, which may destroy the record; no state
+access follows clear. Playback startup refreshes actor lifetimes before caption
+work, stops at first failure, scrolls visible stories/nonstories starting now and
+forces prerendering. Stop ends prerendering before cleaning captions. Transition
+file helpers retain full metadata/name read/write order and committed header
+prefixes when name publication fails.
+
+C-only tests cover undo allocation/commit failure, release-before-publication,
+Scene identity after navigation, both undo failure paths with immediate record
+destruction, empty/full byte/UTF-16 payloads, actor failure short-circuiting,
+caption story/visibility/lifetime branches, missing views, prerender/cleanup
+order, both file byte orders/text units and partial header/name write failures.
+No Marcus UI tests were added. Scene thumbnails/dirty propagation, other Movie
+operations and final C-only integration remain conversion work.
+
+Final native, SDL debug and SDL release traces match the original/repeat trace
+above byte for byte. All 97 standalone C checks (including C89 syntax), 133
+selected native, 29 SDL debug and 41 SDL release checks pass. Builds and file-heavy
+suites ran serially; both hosts, `core-checks`, directly invoked native/save-load
+executables and CLI targets were rebuilt. Marcus was stopped before rebuilding
+and relaunched afterward. The C fixture passes Clang strict C89 with warnings as
+errors and MSVC AddressSanitizer. All 51 freshly linked CLI baselines match.
+
+The final binaries stayed fixed through all 21 fresh-process captures (one
+repeat, no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `C50B4BB27F6EAEFA240CDC3D819334114332C616BBE0196E0A479E3E9714140E`.
+- Marcus regression: `9433A602620AC6DC74559A8B75F4CBA7C328BEDDBEBDC56CA05F9D64FD7BD202`.
+
+| Final suite | Case | Completion |
+| --- | --- | --- |
+| `20261114T134541Z-c5e78336` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T134700Z-488328cb` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T135017Z-62e77d64` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T135136Z-72c2d768` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+Movie identity and suite integrity pass. All authored frame sequences, all 540
+seek images and ordered playback image changes match each player's preceding
+Scene-chop capture: `20261114T131923Z-e57148d7` (actor-events),
+`20261114T132041Z-33e71421` (scrolling-text), `20261114T132404Z-020f3eb7`
+(actor-audio) and `20261114T132523Z-1cbe0905` (sampled-audio). Playback comparison
+collapses only adjacent identical scene/frame/image samples.
+
+Actor-audio PCM16 peaks are 3192/4080/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass for every player. The SDL actor peak differs by
+one PCM16 unit from the preceding capture; this is not a full PCM equality test.
+These playback regression checks do not exercise retail editing commands or
+prove full PCM/MIDI or retail timing parity. Existing cross-player differences
+and single-repeat inconclusive comparisons remain. Captures use a shared warm
+SDL package cache with private processes, settings and working movies; OS caching
+is uncontrolled.
+
+Evidence: `tmp/c89-control-{strict-build,strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-control-{native,native-repeat,final-native,final-sdl-debug,final-sdl-release}.bin`,
+`tmp/c89-control-output-comparison.json`,
+`tmp/c89-control-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-control-capture-hashes-{before,after}.json` and
+`tmp/c89-control-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.

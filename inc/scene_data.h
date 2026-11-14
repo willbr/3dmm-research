@@ -80,6 +80,8 @@ struct SceneData : ThreeMMSceneState
     bool FRead(PChunkyFile file, ChunkNumber number);
     bool FWrite(PChunkyFile file, ChunkNumber number);
     bool FCreate(PChunkyFile file, ChunkNumber *number);
+    static bool FReadTransition(PChunkyFile, ChunkNumber, ThreeMMI32 *);
+    static bool FWriteTransition(PChunkyFile, ChunkNumber, ThreeMMI32);
     // Wire groups contain chunk IDs and fixed-width TAGs, never object pointers.
     static PGeneralGroup PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents);
     static bool FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts);

@@ -122,6 +122,18 @@ bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
     const auto io = SceneIO(&host);
     return three_mm_scene_write(this, number, koskCur, NativeBig(), &io) != 0;
 }
+bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, ThreeMMI32 *out)
+{
+    Host host = {file};
+    const auto io = SceneIO(&host);
+    return three_mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
+}
+bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, ThreeMMI32 transition)
+{
+    Host host = {file};
+    const auto io = SceneIO(&host);
+    return three_mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
+}
 PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)
 {
     short bo;

@@ -1052,9 +1052,43 @@ repeated actual empty-Scene snapshot save/swap. The synthetic embedded-backgroun
 replay and visible-caption paths need more than the headless fixture; C-only
 tests cover snapshot failure phases and caption protocol/effect order. Native
 supplemental checks verify sound-tag resource-reference balance in both chop
-directions. No Marcus UI tests were added. Remaining Scene name/transition,
-playback startup/shutdown, other Movie operations and final C-only integration
-remain conversion work.
+directions. No Marcus UI tests were added. Scene property/playback control is
+covered below. Scene thumbnails/dirty propagation, other Movie operations and
+final C-only integration remain conversion work.
+
+### Scene property editing and playback lifecycle
+
+`scene_control.c` owns Scene name/transition undo transactions and persistent C
+title/transition undo payloads. The old value is captured before committing undo;
+the local undo reference releases before publishing new metadata. Both name and
+transition commit failures now release that reference. Transition editing now
+stores the old transition instead of leaving the undo payload at its allocation
+default. Core setters retain their existing absence of extra dirty/menu/client
+effects. Name copies preserve counted native byte/UTF-16 units without rewriting
+text.
+
+Name undo switches Scene without seeking; transition undo switches and seeks the
+saved frame. Both resolve current Scene state after navigation, swap C payloads
+and flush. Failure flushes before clearing undo, which may destroy the payload;
+no state access follows clear. `scene_data.c` now also controls transition-file
+read/modify/write, preserving full metadata/name loading and header-before-name
+publication, including partial write failures. Native adapters supply typed
+String/enum/file conversions and common undo/navigation/list effects.
+
+Playback startup refreshes actor lifetimes in list order and stops at the first
+failure. Captions scroll when they are visible story text or nonstory text whose
+lifetime starts at the current frame, then startup forces prerendering. Missing
+caption views diagnose/skip instead of dereferencing null. Shutdown ends
+prerendering before cleaning caption views. Typed services retain actor/caption
+internals, view scrolling/cleanup and the existing C prerender entry points.
+
+The native trace covers explicit name/transition payload swaps, public edits,
+transition-file round trips and playback lifecycle calls with real actors.
+Supplemental native checks verify corrected public transition undo/redo. C-only
+tests cover commit ownership, destructive failure cleanup, counted names, caption
+startup branches, missing views, shutdown ordering and endian/partial file writes.
+Remaining Scene thumbnails/dirty propagation, other Movie operations and final
+C-only integration remain conversion work. No Marcus UI tests were added.
 
 ### Actor header, route and event persistence
 

@@ -77,6 +77,23 @@ int three_mm_scene_write(const ThreeMMSceneState *s, ThreeMMU32 number, int syst
         return 0;
     return io->put_header(io->context, number, bytes) && io->set_name(io->context, number, &s->name);
 }
+int three_mm_scene_transition_read(ThreeMMU32 number, unsigned unit, ThreeMMI32 *out, const ThreeMMSceneIO *io)
+{
+    ThreeMMSceneState data;
+    if (!three_mm_scene_init(&data, unit) || !three_mm_scene_read(&data, number, io))
+        return 0;
+    *out = data.transition;
+    return 1;
+}
+int three_mm_scene_transition_write(ThreeMMU32 number, unsigned unit, ThreeMMI32 transition, int system, int big,
+                                    const ThreeMMSceneIO *io)
+{
+    ThreeMMSceneState data;
+    if (!three_mm_scene_init(&data, unit) || !three_mm_scene_read(&data, number, io))
+        return 0;
+    data.transition = transition;
+    return three_mm_scene_write(&data, number, system, big, io);
+}
 int three_mm_scene_valid_events(void *group, int big, int start, const ThreeMMSceneGroupServices *s)
 {
     ThreeMMU32 i;

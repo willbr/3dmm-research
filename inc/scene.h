@@ -28,6 +28,7 @@
 #include "three_mm/scene_content.h"
 #include "three_mm/scene_selection.h"
 #include "three_mm/scene_chop.h"
+#include "three_mm/scene_control.h"
 
 //
 // Undo object for actor operations
@@ -120,6 +121,8 @@ class Scene : public Scene_PAR
 {
     friend class SceneActorUndo;
     friend class SceneUndoText;
+    friend class SceneUndoTitle;
+    friend class SceneUndoTransition;
     RTCLASS_DEC
     MARKMEM
     ASSERT
@@ -150,6 +153,8 @@ class Scene : public Scene_PAR
     ThreeMMSceneContentServices _ContentServices();
     ThreeMMSceneSelectionServices _SelectionServices();
     ThreeMMSceneChopServices _ChopServices();
+    ThreeMMScenePropertyServices _PropertyServices();
+    ThreeMMScenePlaybackServices _PlaybackServices();
 
     //
     // Global information

@@ -45,6 +45,11 @@ extern "C"
     int three_mm_scene_read(ThreeMMSceneState *, ThreeMMU32 number, const ThreeMMSceneIO *);
     int three_mm_scene_write(const ThreeMMSceneState *, ThreeMMU32 number, int system, int big_endian,
                              const ThreeMMSceneIO *);
+    /* Transition file helpers retain full metadata/name read/write ordering.
+     * Failed reads preserve output; failed name write may follow committed header. */
+    int three_mm_scene_transition_read(ThreeMMU32, unsigned unit, ThreeMMI32 *, const ThreeMMSceneIO *);
+    int three_mm_scene_transition_write(ThreeMMU32, unsigned unit, ThreeMMI32 transition, int system, int big_endian,
+                                       const ThreeMMSceneIO *);
     typedef struct ThreeMMSceneGroupServices
     {
         ThreeMMU32 (*fixed_width)(void *group);

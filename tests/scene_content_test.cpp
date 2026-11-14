@@ -6,6 +6,7 @@
 #include "scene_sound.h"
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
+#include "scene_control_undo.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -295,6 +296,14 @@ struct MovieAccess : Movie
 };
 struct Access : Scene
 {
+    static void ControlState(PScene p)
+    {
+        auto &d = p->*&Access::_data;
+        Value(d.currentFrame);
+        Value(d.transition);
+        Value(d.name.count);
+        Record(three_mm_movie_title_text(&d.name), d.name.count * d.name.unit);
+    }
     static void ChopSound(PScene p, PChunkyResourceFile cache, bool back)
     {
         TagChildPair tag = {0, {ksidUseCrf, cache, kctgMsnd, 123}};
@@ -570,6 +579,63 @@ int main()
     BackgroundFixture(file, &background, 0);
     TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
+    {
+        String name;
+        name.SetSzs(PszLit("Original #scene"));
+        scene->SetNameCore(&name);
+        auto title = SceneUndoTitle::PsuntNew();
+        CHECK(title);
+        title->SetPmvie(movie);
+        title->SetIscen(0);
+        title->SetNfrm(1);
+        name.SetSzs(PszLit("Saved title"));
+        title->SetName(&name);
+        for (int i = 0; i < 4; ++i)
+        {
+            Value(i % 2 ? title->FUndo(movie) : title->FDo(movie));
+            Access::ControlState(scene);
+        }
+        ReleasePpo(&title);
+        auto transition = SceneUndoTransition::PsunrNew();
+        CHECK(transition);
+        transition->SetPmvie(movie);
+        transition->SetIscen(0);
+        transition->SetNfrm(1);
+        transition->SetTrans(transBlack);
+        scene->SetTransitionCore(transFadeToWhite);
+        for (int i = 0; i < 4; ++i)
+        {
+            Value(i % 2 ? transition->FUndo(movie) : transition->FDo(movie));
+            Access::ControlState(scene);
+        }
+        ReleasePpo(&transition);
+        name.SetSzs(PszLit("Public title"));
+        Value(scene->FSetName(&name));
+        Access::ControlState(scene);
+        movie->ClearUndo();
+        Value(scene->FSetTransition(transDissolve));
+        Access::ControlState(scene);
+        movie->ClearUndo();
+        SceneData metadata;
+        metadata.firstFrame = 3;
+        metadata.lastFrame = 9;
+        metadata.SetName(&name);
+        ChunkNumber number;
+        CHECK(metadata.FCreate(file, &number));
+        for (int i = -1; i <= transLim; ++i)
+        {
+            Value(Scene::FSetTransOnFile(observed, number, static_cast<TRANS>(i)));
+            TRANS out = transNil;
+            Value(Scene::FTransOnFile(observed, number, &out));
+            Value(out);
+        }
+        TRANS out = transBlack;
+        Value(Scene::FTransOnFile(observed, cnoNil, &out));
+        Value(out);
+        file->Delete(kctgScen, number);
+        Value(scene->FStartPlaying());
+        scene->StopPlaying();
+    }
     Access::ChopSetup(scene);
     Value(scene->FChopBack());
     Access::ChopState(scene);
@@ -594,6 +660,8 @@ int main()
             scene->SetNfrmCur(35);
         auto testActor = makeActor();
         CHECK(scene->FAddActrCore(testActor));
+        Value(scene->FStartPlaying());
+        scene->StopPlaying();
         Value(back ? scene->FChopBackCore() : scene->FChopCore());
         Access::ChopState(scene);
         if (scene->PactrFromArid(testActor->Arid()))
@@ -744,6 +812,15 @@ int main()
     }
 #ifdef THREE_MM_ENGINE_SCENE_CONTENT_H
     recording = false;
+    {
+        const auto old = scene->Trans();
+        scene->SetTransitionCore(transFadeToWhite);
+        CHECK(scene->FSetTransition(transBlack));
+        CHECK(movie->FUndo() && scene->Trans() == transFadeToWhite);
+        CHECK(movie->FRedo() && scene->Trans() == transBlack);
+        movie->ClearUndo();
+        scene->SetTransitionCore(old);
+    }
     for (int back = 0; back < 2; ++back)
     {
         Access::ChopSetup(scene);
@@ -812,5 +889,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 6340 && hash == 0x6FDCBF8BU);
+        CHECK(recorded == 6748 && hash == 0x129FEB8AU);
 }

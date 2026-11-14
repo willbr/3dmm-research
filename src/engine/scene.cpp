@@ -52,6 +52,7 @@
 #include "scene_edit_undo.h"
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
+#include "scene_control_undo.h"
 #include <cstring>
 
 ASSERTNAME
@@ -158,35 +159,6 @@ void *SceneSoundToWire(PSceneSoundEvent sound, long *bytes)
 //
 // Undo object for transition operations
 //
-typedef class SceneUndoTransition *PSceneUndoTransition;
-
-#define SceneUndoTransition_PAR MovieUndo
-#define kclsSceneUndoTransition 'SUNR'
-class SceneUndoTransition : public SceneUndoTransition_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    TRANS _trans;
-    SceneUndoTransition(void)
-    {
-    }
-
-  public:
-    static PSceneUndoTransition PsunrNew(void);
-    ~SceneUndoTransition(void);
-
-    void SetTrans(TRANS trans)
-    {
-        _trans = trans;
-    }
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
-
 //
 // Undo object for pause operations
 //
@@ -203,36 +175,6 @@ class SceneUndoTransition : public SceneUndoTransition_PAR
 //
 // Undo object for title operations
 //
-typedef class SceneUndoTitle *PSceneUndoTitle;
-
-#define SceneUndoTitle_PAR MovieUndo
-#define kclsSceneUndoTitle 'SUNT'
-class SceneUndoTitle : public SceneUndoTitle_PAR
-{
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    String _stn;
-    SceneUndoTitle(void)
-    {
-    }
-
-  public:
-    static PSceneUndoTitle PsuntNew(void);
-    ~SceneUndoTitle(void);
-
-    void SetName(PString pstn)
-    {
-        AssertPo(pstn, 0);
-        _stn = *pstn;
-    }
-
-    virtual bool FDo(PDocumentBase pdocb);
-    virtual bool FUndo(PDocumentBase pdocb);
-};
-
 RTCLASS(Scene)
 RTCLASS(SceneUndoTitle)
 RTCLASS(SceneUndoSound)
@@ -582,29 +524,29 @@ void Scene::AssertValid(LegacyUlong grf)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
+ThreeMMScenePropertyServices Scene::_PropertyServices()
+{
+    ThreeMMScenePropertyServices s = {};
+    s.context = this;
+    s.data = &_data;
+    s.new_undo = [](void *, int kind) -> void * {
+        return kind == THREE_MM_SCENE_CONTROL_NAME ? static_cast<void *>(SceneUndoTitle::PsuntNew())
+                                                   : static_cast<void *>(SceneUndoTransition::PsunrNew());
+    };
+    s.title = [](void *, void *undo) { return static_cast<PSceneUndoTitle>(undo)->CoreState(); };
+    s.transition = [](void *, void *undo) { return static_cast<PSceneUndoTransition>(undo)->CoreState(); };
+    s.commit = [](void *p, void *undo) {
+        return int(static_cast<Scene *>(p)->Pmvie()->FAddUndo(static_cast<MovieUndo *>(undo)));
+    };
+    s.release = [](void *, void *undo) { static_cast<BASE *>(undo)->Release(); };
+    return s;
+}
+
 bool Scene::FSetTransition(TRANS trans)
 {
     AssertThis(0);
-
-    PSceneUndoTransition psunr;
-
-    psunr = SceneUndoTransition::PsunrNew();
-
-    if (psunr == pvNil)
-    {
-        return (fFalse);
-    }
-
-    if (!_pmvie->FAddUndo(psunr))
-    {
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunr);
-
-    SetTransitionCore(trans);
-
-    return (fTrue);
+    auto s = _PropertyServices();
+    return three_mm_scene_transition_edit(trans, &s) != 0;
 }
 
 /****************************************************
@@ -618,35 +560,21 @@ bool Scene::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
+void SceneUndoTitle::SetName(PString pstn)
+{
+    AssertPo(pstn, 0);
+    AssertDo(three_mm_movie_title_set(&_title.name, pstn->Prgch(), pstn->Cch()), "bad Scene undo name");
+}
+
 bool Scene::FSetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-
-    PSceneUndoTitle psunt;
-
-    psunt = SceneUndoTitle::PsuntNew();
-
-    if (psunt != pvNil)
-    {
-        String oldName; _data.GetName(&oldName); psunt->SetName(&oldName);
-    }
-
-    if (psunt == pvNil)
-    {
-        return (fFalse);
-    }
-
-    if (!_pmvie->FAddUndo(psunt))
-    {
-        return (fFalse);
-    }
-
-    ReleasePpo(&psunt);
-
-    SetNameCore(pstn);
-
-    return (fTrue);
+    ThreeMMMovieTitle name;
+    three_mm_movie_title_init(&name, sizeof(achar));
+    AssertDo(three_mm_movie_title_set(&name, pstn->Prgch(), pstn->Cch()), "bad Scene name");
+    auto s = _PropertyServices();
+    return three_mm_scene_name_edit(&name, &s) != 0;
 }
 
 ThreeMMSceneRuntimeServices Scene::_RuntimeServices()
@@ -3212,45 +3140,52 @@ bool Scene::FChopBack()
  *   None.
  *
  ****************************************************/
+ThreeMMScenePlaybackServices Scene::_PlaybackServices()
+{
+    ThreeMMScenePlaybackServices s = {};
+    s.context = this;
+    s.data = &_data;
+    s.count = [](void *p, int text) -> ThreeMMI32 {
+        auto scene = static_cast<Scene *>(p);
+        return (text ? scene->_pglptbox : scene->_pglpactr)->IvMac();
+    };
+    s.object = [](void *p, int text, ThreeMMI32 index) -> void * {
+        auto scene = static_cast<Scene *>(p);
+        void *object;
+        (text ? scene->_pglptbox : scene->_pglpactr)->Get(index, &object);
+        return object;
+    };
+    s.lifetime = [](void *, int text, void *object, ThreeMMI32 *first, ThreeMMI32 *last) {
+        long a, b;
+        bool ok =
+            text ? static_cast<PTBOX>(object)->FGetLifetime(&a, &b) : static_cast<PActor>(object)->FGetLifetime(&a, &b);
+        if (!ok)
+            return 0;
+        *first = a;
+        *last = b;
+        return 1;
+    };
+    s.story = [](void *, void *object) { return int(static_cast<PTBOX>(object)->FStory()); };
+    s.visible = [](void *, void *object) { return int(static_cast<PTBOX>(object)->FIsVisible()); };
+    s.view = [](void *, void *object) -> void * { return static_cast<PTBOX>(object)->PddgGet(0); };
+    s.scroll = [](void *, void *view) { static_cast<PTextBoxGobject>(view)->Scroll(scaNil); };
+    s.missing_view = [](void *) { Bug("Missing caption view at Scene playback startup"); };
+    s.prerender = [](void *p, int start) {
+        auto scene = static_cast<Scene *>(p);
+        if (start)
+            scene->_DoPrerenderingWork(fTrue);
+        else
+            scene->_EndPrerendering();
+    };
+    s.clean_text = [](void *, void *object) { static_cast<PTBOX>(object)->CleanDdg(); };
+    return s;
+}
+
 bool Scene::FStartPlaying()
 {
     AssertThis(0);
-
-    long ipactr, iptbox;
-    PActor pactr;
-    PTBOX ptbox;
-    PTextBoxGobject ptbxg;
-    long nfrmFirst, nfrmLast;
-
-    //
-    // Make sure all actors have state variables updated
-    // (they might not be in the theater right after
-    // loading the movie)
-    //
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        if (!pactr->FGetLifetime(&nfrmFirst, &nfrmLast))
-            return fFalse;
-    }
-
-    for (iptbox = 0; iptbox < _pglptbox->IvMac(); iptbox++)
-    {
-        _pglptbox->Get(iptbox, &ptbox);
-        if ((ptbox->FStory() && ptbox->FIsVisible()) ||
-            (!ptbox->FStory() && ptbox->FGetLifetime(&nfrmFirst, &nfrmLast) && (nfrmFirst == _data.currentFrame)))
-        {
-            ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
-            ptbxg->Scroll(scaNil);
-        }
-    }
-
-    //
-    // Start prerendering at this frame, even if there's
-    // no camera view change.
-    //
-    _DoPrerenderingWork(fTrue);
-    return fTrue;
+    auto s = _PlaybackServices();
+    return three_mm_scene_start_playing(&s) != 0;
 }
 
 /****************************************************
@@ -3267,18 +3202,8 @@ bool Scene::FStartPlaying()
 void Scene::StopPlaying()
 {
     AssertThis(0);
-
-    long itbox;
-    PTBOX ptbox;
-
-    _EndPrerendering(); // Stop prerendering
-
-    for (itbox = 0; itbox < _pglptbox->IvMac(); itbox++)
-    {
-        _pglptbox->Get(itbox, &ptbox);
-        AssertPo(ptbox, 0);
-        ptbox->CleanDdg();
-    }
+    auto s = _PlaybackServices();
+    three_mm_scene_stop_playing(&s);
 }
 
 /******************************************************************************
@@ -3296,10 +3221,10 @@ void Scene::StopPlaying()
 ************************************************************ PETED ***********/
 bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
-    SceneData metadata;
-    if (!metadata.FRead(pcrf->Pcfl(), cno))
+    ThreeMMI32 value;
+    if (!SceneData::FReadTransition(pcrf->Pcfl(), cno, &value))
         return fFalse;
-    *ptrans = static_cast<TRANS>(metadata.transition);
+    *ptrans = static_cast<TRANS>(value);
     return fTrue;
 }
 
@@ -3319,11 +3244,7 @@ bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptran
 ************************************************************ PETED ***********/
 bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
-    SceneData metadata;
-    if (!metadata.FRead(pcrf->Pcfl(), cno))
-        return fFalse;
-    metadata.transition = trans;
-    return metadata.FWrite(pcrf->Pcfl(), cno);
+    return SceneData::FWriteTransition(pcrf->Pcfl(), cno, trans);
 }
 
 //
@@ -3374,26 +3295,35 @@ SceneUndoTitle::~SceneUndoTitle(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
+namespace {
+struct ScenePropertyUndoHost { PMovie movie; long index, frame; };
+ThreeMMScenePropertyUndoServices ScenePropertyUndoServices(ScenePropertyUndoHost *host)
+{
+    ThreeMMScenePropertyUndoServices s = {};
+    s.context = host;
+    s.switch_scene = [](void *p) {
+        auto h = static_cast<ScenePropertyUndoHost *>(p);
+        return int(h->movie->FSwitchScen(h->index));
+    };
+    s.seek = [](void *p) {
+        auto h = static_cast<ScenePropertyUndoHost *>(p);
+        return int(h->movie->Pscen()->FGotoFrm(h->frame));
+    };
+    s.flush = [](void *p) { static_cast<ScenePropertyUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.clear = [](void *p) { static_cast<ScenePropertyUndoHost *>(p)->movie->ClearUndo(); };
+    return s;
+}
+}
+
 bool SceneUndoTitle::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    String stn;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        _pmvie->Pmsq()->FlushMsq();
-        _pmvie->ClearUndo();
-        return (fFalse);
-    }
-
-    _pmvie->Pscen()->GetName(&stn);
-    _pmvie->Pscen()->SetNameCore(&_stn);
-    _stn = stn;
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    return (fTrue);
+    ScenePropertyUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = ScenePropertyUndoServices(&host);
+    s.scene = [](void *p) -> ThreeMMSceneState * {
+        return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_data;
+    };
+    return three_mm_scene_title_swap(&_title, &s) != 0;
 }
 
 /****************************************************
@@ -3808,31 +3738,12 @@ SceneUndoTransition::~SceneUndoTransition(void)
 bool SceneUndoTransition::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    TRANS trans;
-
-    if (!_pmvie->FSwitchScen(_iscen))
-    {
-        goto LFail;
-    }
-
-    if (!_pmvie->Pscen()->FGotoFrm(_nfrm))
-    {
-        goto LFail;
-    }
-
-    trans = _pmvie->Pscen()->Trans();
-    _pmvie->Pscen()->SetTransitionCore(_trans);
-    _trans = trans;
-
-    _pmvie->Pmsq()->FlushMsq();
-
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo();
-    return (fFalse);
+    ScenePropertyUndoHost host = {_pmvie, _iscen, _nfrm};
+    auto s = ScenePropertyUndoServices(&host);
+    s.scene = [](void *p) -> ThreeMMSceneState * {
+        return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_data;
+    };
+    return three_mm_scene_transition_swap(&_transition, &s) != 0;
 }
 
 /****************************************************
