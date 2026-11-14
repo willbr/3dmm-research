@@ -764,8 +764,8 @@ captured on entry; the other header fields remain live. Typed adapters provide
 allocation, tag copy/reference/resolve/fetch, group access, priority and queue
 primitives. `Movie::FResolveSndTag` already delegates resolution policy to
 `three_mm_movie_sound_resolve`; its native facade remains an integration dependency.
-Read/open transactions now use the C loading layer below. Tag-collection/save
-transactions, weak background tag state, native tag representation and final
+Read/open and tag-collection/save transactions now use the C layers below.
+Weak background tag state, native tag representation and final
 facade removal remain conversion work.
 
 Native traces freeze field values, reference counts, wire bytes and allocation
@@ -847,8 +847,47 @@ groups/children, malformed sound data and allocation faults. C-only checks cover
 every fallible transaction callback, ownership transfer, reverse cleanup,
 optional thumbnails, actor/text loads, preserved raw payloads and resolution
 prefix/lock behavior. Full host gates and retail capture limits are recorded in
-`docs/tools/playback-regression.md`. Scene tag collection/save, other editing,
-caption/background policy and final C-only integration remain conversion work.
+`docs/tools/playback-regression.md`. Tag collection/save now uses the C layer
+below. Other editing, caption/background policy and final C-only integration
+remain conversion work.
+
+### Scene tag collection and save transactions
+
+`scene_store.c` owns the traversal formerly in `Scene::FAddTagsToTagl` and the
+save transaction formerly in `Scene::FWrite`. Collection reads starts before
+frames, gathers actor tag lists, invokes background tag collection, remembers
+the last successful background for camera children and decodes sound packets
+without opening their tags. Caption starts and pauses are ignored. Unexpected
+kinds diagnose/skip. Failure preserves the destination tag-list prefix, releasing
+the current actor list or sound allocation before the source wire group. Invalid
+fixed-entry widths and wrong fixed-size child/background/camera payloads now
+fail safely instead of reaching the native unchecked copy paths. Sound decoding
+retains its established trailing-byte policy.
+
+Saving publishes nil before allocating the new scene, preserving the allocator's
+output even on failure. Each sound is independently duplicated with references;
+user sounds are adopted only when their child is absent and their chunk number
+exists in the destination. Existing child bindings and absent sound chunks remain
+accepted. Packet bytes are encoded/inserted before releasing the duplicate.
+Actor/caption child counters are independent, incrementing after insertion.
+Background tags save in place and their wire cache words are zero. Such tag
+changes survive later failure. Event groups write before thumbnail generation;
+the thumbnail is reread from C owner state after that callback. A failed thumbnail
+write/adoption deletes its unadopted chunk before deleting the partial scene.
+Success releases frame/start temporary groups; failure deletes the scene then
+releases start/frame groups. Existing C SceneData policy supplies event-child and
+header/name persistence.
+
+Native adapters supply typed groups, chunk operations, actor tag discovery and
+serialization, caption serialization, background tag collection and thumbnail
+generation. These remain explicit native integration dependencies; this is not a
+C-only Scene implementation. Native traces freeze both wire byte orders, partial
+tag lists and child entries, sound adoption, real captions and allocation faults.
+C-only tests cover callback failure phases, retained references, independent
+child counters, mutable backgrounds, thumbnail replacement/cleanup, output
+publication, partial collection, null/error actor lists and malformed spans.
+Strict C89, sanitizer, host and retail evidence is in
+`docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

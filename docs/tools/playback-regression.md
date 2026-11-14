@@ -7064,3 +7064,112 @@ Evidence: `tmp/c89-scene-load-before*.bin`, `tmp/c89-scene-load-after.bin`,
 `tmp/c89-scene-load-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
 `tmp/c89-scene-load-capture-hashes-*.json` and four
 `tmp/c89-scene-load-capture-*.log` files.
+
+### Scene tag collection and save C89 closeout (14 November 2026)
+
+Baseline: `50d9738b`. `scene_store.c` now owns Scene-level tag traversal formerly
+in `Scene::FAddTagsToTagl` and save control formerly in `Scene::FWrite`. It shares
+the C sound codec/reference helpers and SceneData event/header persistence.
+Native adapters still supply actor tag discovery/serialization, caption
+serialization, background tag collection, thumbnail generation and typed file/
+group operations. These remain final integration dependencies; other Scene/Movie
+editing/undo and caption/background policy also remain conversion work.
+
+The native fixture makes 966 collection attempts (two group byte orders, seven
+variants, three allocation fault families, 23 settings) and 324 save attempts
+(two byte orders, two valid scenes, three fault families, 27 settings). It freezes
+sorted tag values/cache presence/child-cache flags and explicit camera child
+entries, including partial results after failed collection. Actor tag discovery
+reads a real actor header with a positive-source template and an empty event
+group. Saved scenes include repeated sound events, camera/pause data and a real
+rich-text caption. A zero-byte destination MSND exercises sound adoption and
+existing-child reuse; this fixture does not decode/play that dummy sound. The
+trace records save status/output chunk number, scene presence, real resource
+reference counts, saved metadata/name length, child count and wire event bytes.
+It excludes pointer values, padding, full actor/caption bytes and thumbnail
+rendering. Source cache references balance after every attempt. Injected native
+allocation/read diagnostics are expected and cleared between attempts.
+
+Native original/repeat/final and final SDL debug traces match 161,376 bytes,
+FNV-1a `81894299`, SHA-256
+`3E09F2C3C588F602B3027BE264AA5370C543E2C4E65C657B92BE6498F4FA18B6`.
+Original/final SDL release traces match 171,264 bytes, FNV-1a `2F550AE5`, SHA-256
+`63D9B35412E8423A5D2018EFCC5AAD12B7E67F918521C5566AC18649C87AACF2`.
+Release omits allocation injection. Guards apply only to the captured
+little-endian x64, one-byte-text layout; other host layouts still run the fixture.
+
+Collection keeps start-before-frame order and the last successful background for
+camera children. Actor tag lists and decoded sound allocations release before
+their wire groups. Collected tags borrow cache references; decoded sounds never
+open theirs. Failure retains the collected prefix. Null actor lists are valid
+when no error is reported; error-plus-list releases both list and group. Unknown
+kinds diagnose/skip; captions and pauses are ignored. Wrong fixed-entry widths
+and wrong child/background/camera payload sizes now reject the former unsafe
+native copy paths. C-only tests cover these bounded failures separately; sound
+decode retains its established trailing-byte acceptance.
+
+Saving publishes nil before scene allocation and retains an allocator-modified
+output on failure. Each sound duplicates references, skips adoption for existing
+child bindings or absent chunk numbers, encodes/inserts and then releases its
+temporary. Actor and caption child counters are independent. Background saving
+may mutate the original tag before a later failure; that mutation is retained.
+Events write before thumbnail update; the thumbnail is reread from C owner state
+after the callback. Failed thumbnail write/adoption deletes that chunk before
+the partial scene. Success releases frame/start groups; failure deletes the
+scene and releases start/frame groups.
+
+C-only tests fail every fallible callback, verify temporary reference balance,
+sound adoption/reuse/absence, independent actor/caption numbering, zero wire cache
+words, retained background mutations, changed/unchanged allocation outputs,
+thumbnail replacement/absence/cleanup, partial collection, callback ordering,
+both byte orders, null/error actor lists, missing backgrounds and malformed
+payloads. They pass Clang strict C89 with warnings as errors and MSVC
+AddressSanitizer.
+
+All 92 standalone C checks (including C89 syntax), 126 selected native, 22 SDL
+debug and 34 SDL release checks pass. Native/SDL suites ran serially. Both hosts
+and `core-checks` build; directly invoked native test executables and save/load
+targets outside `core-checks` were explicitly rebuilt. Final traces were recorded
+after the SDL debug suite completed. All 51 freshly linked CLI baselines match.
+Marcus was stopped before rebuilding and relaunched afterward. No Marcus UI
+tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`ACE61323FE4C2EAB83148356F0B50D5D94413BF619DA6FD0506D92D31B64CA55`
+(SDL release) and
+`808C66F751B4BD4FD8FF34B453839E4C3FB3515B98DF4E4162810B8D55D3A5DD`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T110802Z-10a5b45a` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T110917Z-e8a2bb7f` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T111235Z-694c2aa9` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T111349Z-485fb718` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+All 21 captures complete, retaining movie identity and suite integrity. Authored
+frames, all 540 seek images and ordered playback image changes match each
+player's preceding Scene loading suites: `20261114T104305Z-42302f89`
+(actor-events), `20261114T104421Z-f2272398` (scrolling-text),
+`20261114T104727Z-5d5ca322` (actor-audio) and `20261114T104842Z-4ffeb94d`
+(sampled-audio). Playback comparison collapses only adjacent identical
+position/image observations. The actor-audio first-scene-only tone contract
+passes for every player. PCM16 peaks are 3,192, 4,080 and 4,081 for actor-audio
+and 2,380, 2,176 and 2,176 for sampled-audio (retail, SDL, Marcus respectively).
+SDL's actor-audio peak is one count below its preceding capture; all tone and
+nonzero-output checks pass. These checks do not establish full PCM/MIDI or retail
+timing parity. Existing cross-player differences and single-repeat inconclusive
+comparisons remain. Captures use a shared warm SDL package cache with private
+processes/settings/movies and uncontrolled OS caching. No builds or tests ran
+concurrently with capture. Marcus was verified running after the final captures.
+
+Evidence: `tmp/c89-scene-store-before*.bin`, `tmp/c89-scene-store-after.bin`,
+`tmp/c89-scene-store-final-*.bin`,
+`tmp/c89-scene-store-selected-native-build.log`,
+`tmp/c89-scene-store-native-tests.log`, `tmp/c89-scene-store-sdl-debug-tests.log`,
+`tmp/c89-scene-store-sdl-release-tests.log`, `tmp/c89-scene-store-standalone.log`,
+`tmp/c89-scene-store-strict.log`, `tmp/c89-scene-store-asan.log`,
+`tmp/c89-scene-store-output-comparison.json`,
+`tmp/c89-scene-store-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`,
+`tmp/c89-scene-store-capture-hashes-*.json` and four
+`tmp/c89-scene-store-capture-*.log` files.

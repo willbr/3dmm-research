@@ -3589,278 +3589,100 @@ bool Scene::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
+static ThreeMMSceneStoreGroups SceneStoreGroups()
+{
+    ThreeMMSceneStoreGroups g = {};
+    g.count = [](void *, void *p) -> ThreeMMI32 { return static_cast<GroupBase *>(p)->IvMac(); };
+    g.fixed = [](void *, void *p, ThreeMMI32 i, unsigned char *bytes) {
+        static_cast<PGeneralGroup>(p)->GetFixed(i, bytes);
+    };
+    g.data = [](void *, void *p, ThreeMMI32 i, ThreeMMI32 *bytes) -> void * {
+        LegacyLong cb;
+        auto data = static_cast<PGeneralGroup>(p)->QvGet(i, &cb);
+        *bytes = cb;
+        return data;
+    };
+    g.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    g.free_raw = [](void *, void *p) { FreePpv(&p); };
+    return g;
+}
 bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
-
-    PGeneralGroup pggFrmTemp = pvNil;
-    PGeneralGroup pggStartTemp = pvNil;
-    SceneEvent sev;
-    ChildChunkID chidActr, chidTbox;
-    ChunkNumber cnoChild;
-    long isevFrm = -1;
-    long isevStart = -1;
-    long cb;
-    DataBlock blck;
-    PChunkyFile pcfl;
-
-    chidActr = chidTbox = 0;
-
-    pcfl = pcrf->Pcfl();
-
-    *pcno = cnoNil;
-
-    //
-    // Get a new ChunkNumber for this chunk
-    //
-    if (!pcfl->FAdd(0, kctgScen, pcno))
+    struct Host
     {
-        goto LFail;
-    }
-
-    //
-    // Copy frame event GeneralGroup to temporary GeneralGroup
-    //
-    pggFrmTemp = GeneralGroup::PggNew(size(SceneEvent));
-
-    if (pggFrmTemp == pvNil)
-    {
-        goto LFail;
-    }
-
-    for (isevFrm = 0; isevFrm < _pggsevFrm->IvMac(); isevFrm++)
-    {
-        sev = *(PSEV)_pggsevFrm->QvFixedGet(isevFrm);
-
-        //
-        // Convert pointers in the GeneralGroup to CHIDs
-        //
-        switch (sev.sevt)
-        {
-        case sevtPlaySnd: {
-            bool fSuccess = fFalse;
-            PSceneSoundEvent psse;
-            long itag;
-            ChildChunkIdentification kid;
-
-            psse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isevFrm);
-            if (pvNil == psse)
-            {
-                goto LFail;
-            }
-            for (itag = 0; itag < psse->ctagc; itag++)
-            {
-                // For user sounds, the tag's cno must already be correct.
-                // Note: FResolveSndTag can't succeed if the msnd chunk is
-                // not yet a child of the scene.
-                if (psse->Ptagc(itag)->tag.sid != ksidUseCrf)
-                    continue; // tag will be closed by ReleasePpsse
-
-                // If the msnd chunk already exists as this chid of this scene, continue
-                if (pcfl->FGetKidChidCtg(kctgScen, *pcno, *psse->Pchid(itag), kctgMsnd, &kid))
-                    continue; // tag will be closed by ReleasePpsse
-
-                // If the msnd does not exist in this file, it exists in the main movie
-                if (!pcfl->FFind(kctgMsnd, psse->Ptag(itag)->cno))
-                    continue; // tag will be closed by ReleasePpsse
-
-                // The msnd chunk has not been adopted into the scene as the specified chid
-                if (!pcfl->FAdoptChild(kctgScen, *pcno, kctgMsnd, psse->Ptag(itag)->cno, *psse->Pchid(itag)))
-                {
-                    goto LEndPlaySnd;
-                }
-            }
-
-            // Marshal runtime SSE -> on-disk bytes (TagChildPair -> TagChildPairOnFile).
-            {
-                long cbOnFile;
-                void *pvOnFile = SceneSoundToWire(psse, &cbOnFile);
-                if (pvNil != pvOnFile)
-                {
-                    if (pggFrmTemp->FInsert(isevFrm, cbOnFile, pvOnFile, &sev))
-                        fSuccess = fTrue;
-                    FreePpv(&pvOnFile);
-                }
-            }
-        LEndPlaySnd:
-            ReleasePpsse(&psse);
-            if (!fSuccess)
-            {
-                goto LFail;
-            }
-            break;
-        }
-
-        case sevtChngCamera:
-            if (!pggFrmTemp->FInsert(isevFrm, size(int32_t), _pggsevFrm->QvGet(isevFrm), &sev))
-            {
-                goto LFail;
-            }
-            break;
-
-        case sevtPause:
-            if (!pggFrmTemp->FInsert(isevFrm, size(SceneEventPause), _pggsevFrm->QvGet(isevFrm), &sev))
-            {
-                goto LFail;
-            }
-
-            break;
-
-        case sevtAddActr:
-        case sevtSetBkgd:
-        case sevtAddTbox:
-            Assert(0, "Bad event in frame event list");
-            break;
-        }
-    }
-
-    //
-    // Copy start event GeneralGroup to temporary GeneralGroup
-    //
-    pggStartTemp = GeneralGroup::PggNew(size(SceneEvent));
-
-    if (pggStartTemp == pvNil)
-    {
-        goto LFail;
-    }
-
-    for (isevStart = 0; isevStart < _pggsevStart->IvMac(); isevStart++)
-    {
-        sev = *(PSEV)_pggsevStart->QvFixedGet(isevStart);
-        //
-        // Convert pointers in the GeneralGroup to CHIDs
-        //
-        switch (sev.sevt)
-        {
-        case sevtAddActr:
-
-            if (!pcfl->FAddChild(kctgScen, *pcno, chidActr, 0, kctgActr, &cnoChild))
-            {
-                goto LFail;
-            }
-
-            if (!(*(PActor *)_pggsevStart->QvGet(isevStart))->FWrite(pcfl, cnoChild, *pcno))
-            {
-                goto LFail;
-            }
-
-            if (!pggStartTemp->FInsert(isevStart, size(ChildChunkID), &chidActr, &sev))
-            {
-                goto LFail;
-            }
-
-            chidActr++;
-            break;
-
-        case sevtSetBkgd: {
-            // Variable holds runtime TAG; marshal to TAGOnFile for the wire form.
-            PTAG ptagRuntime = (PTAG)_pggsevStart->QvGet(isevStart);
-            TAGOnFile tagOnFile;
-            if (!TagManager::FSaveTag(ptagRuntime, pcrf, fFalse))
-            {
-                goto LFail;
-            }
-            tagOnFile.From(*ptagRuntime);
-            if (!pggStartTemp->FInsert(isevStart, size(TAGOnFile), &tagOnFile, &sev))
-            {
-                goto LFail;
-            }
-            break;
-        }
-
-        case sevtChngCamera:
-            if (!pggStartTemp->FInsert(isevStart, size(int32_t), _pggsevStart->QvGet(isevStart), &sev))
-            {
-                goto LFail;
-            }
-            break;
-
-        case sevtAddTbox:
-            if (!pcfl->FAddChild(kctgScen, *pcno, chidTbox, 0, kctgTbox, &cnoChild))
-            {
-                goto LFail;
-            }
-
-            if (!(*(PTBOX *)_pggsevStart->QvGet(isevStart))->FWrite(pcfl, cnoChild))
-            {
-                goto LFail;
-            }
-
-            if (!pggStartTemp->FInsert(isevStart, size(ChildChunkID), &chidTbox, &sev))
-            {
-                goto LFail;
-            }
-
-            chidTbox++;
-            break;
-
-        case sevtPause:
-        case sevtPlaySnd:
-        default:
-            Assert(0, "Bad event in frame event list");
-            break;
-        }
-    }
-
-    //
-    // Save info into scene chunk
-    //
-    if (!SceneData::FWriteEvents(pcfl, *pcno, pggFrmTemp, pggStartTemp))
-        goto LFail;
-
-    //
-    // Save thumbnail, if there is one.
-    //
-    _UpdateThumbnail();
-
-    if (_pmbmp != pvNil)
-    {
-        cb = _pmbmp->CbOnFile();
-        if (!pcfl->FAdd(cb, kctgThumbMbmp, &cnoChild, &blck))
-        {
-            goto LFail;
-        }
-
-        if (!_pmbmp->FWrite(&blck))
-        {
-            pcfl->Delete(kctgThumbMbmp, cnoChild);
-            goto LFail;
-        }
-
-        if (!pcfl->FAdoptChild(kctgScen, *pcno, kctgThumbMbmp, cnoChild, 0))
-        {
-            pcfl->Delete(kctgThumbMbmp, cnoChild);
-            goto LFail;
-        }
-        pcfl->SetLoner(kctgThumbMbmp, cnoChild, fFalse);
-    }
-
-    //
-    // Create header buffer for scene chunk
-    //
-    if (!_data.FWrite(pcfl, *pcno))
-        goto LFail;
-
-    ReleasePpo(&pggFrmTemp);
-    ReleasePpo(&pggStartTemp);
-
-    return (fTrue);
-
-LFail:
-
-    //
-    // Delete chunks createdk.
-    //
-    if (*pcno != cnoNil)
-    {
-        pcfl->Delete(kctgScen, *pcno);
-    }
-
-    ReleasePpo(&pggStartTemp);
-    ReleasePpo(&pggFrmTemp);
-
-    return (fFalse);
+        PScene scene;
+        PChunkyResourceFile resources;
+        PChunkyFile file;
+        DataBlock block;
+    } host = {this, pcrf, pcrf->Pcfl()};
+    ThreeMMSceneStoreServices s = {};
+    s.context = &host;
+    s.owner = &_owner;
+    s.groups = SceneStoreGroups();
+    s.values = SceneSoundValues();
+    s.add_scene = [](void *p, ThreeMMU32 *n) -> int { return static_cast<Host *>(p)->file->FAdd(0, kctgScen, n); };
+    s.delete_scene = [](void *p, ThreeMMU32 n) { static_cast<Host *>(p)->file->Delete(kctgScen, n); };
+    s.new_group = [](void *) -> void * { return GeneralGroup::PggNew(sizeof(SceneEvent)); };
+    s.insert = [](void *, void *p, ThreeMMI32 i, ThreeMMI32 frame, int kind, ThreeMMI32 bytes,
+                  const void *data) -> int {
+        SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
+        return static_cast<PGeneralGroup>(p)->FInsert(i, bytes, const_cast<void *>(data), &event);
+    };
+    s.sound_child = [](void *p, ThreeMMU32 scene, ThreeMMU32 child) -> int {
+        ChildChunkIdentification kid;
+        return static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, kctgMsnd, &kid);
+    };
+    s.sound_exists = [](void *p, ThreeMMU32 n) -> int { return static_cast<Host *>(p)->file->FFind(kctgMsnd, n); };
+    s.adopt_sound = [](void *p, ThreeMMU32 scene, ThreeMMU32 n, ThreeMMU32 child) -> int {
+        return static_cast<Host *>(p)->file->FAdoptChild(kctgScen, scene, kctgMsnd, n, child);
+    };
+    s.add_child = [](void *p, ThreeMMU32 scene, int kind, ThreeMMU32 child, ThreeMMU32 *n) -> int {
+        return static_cast<Host *>(p)->file->FAddChild(kctgScen, scene, child, 0,
+                                                       kind == THREE_MM_SCENE_ADD_ACTOR ? kctgActr : kctgTbox, n);
+    };
+    s.object = [](void *, void *p, ThreeMMI32 i) -> void * {
+        void *object;
+        static_cast<PGeneralGroup>(p)->Get(i, &object);
+        return object;
+    };
+    s.write_object = [](void *p, void *object, int kind, ThreeMMU32 n, ThreeMMU32 scene) -> int {
+        auto file = static_cast<Host *>(p)->file;
+        return kind == THREE_MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(file, n, scene)
+                                                : static_cast<PTBOX>(object)->FWrite(file, n);
+    };
+    s.save_background = [](void *p, void *g, ThreeMMI32 i, ThreeMMTag *out) -> int {
+        auto tag = static_cast<PTAG>(static_cast<PGeneralGroup>(g)->QvGet(i));
+        if (!TagManager::FSaveTag(tag, static_cast<Host *>(p)->resources, false))
+            return 0;
+        *out = TagToCore(*tag);
+        return 1;
+    };
+    s.write_events = [](void *p, ThreeMMU32 scene, void *frames, void *starts) -> int {
+        return SceneData::FWriteEvents(static_cast<Host *>(p)->file, scene, static_cast<PGeneralGroup>(frames),
+                                       static_cast<PGeneralGroup>(starts));
+    };
+    s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
+    s.thumbnail_size = [](void *, void *p) -> ThreeMMI32 { return static_cast<PMaskedBitmapMBMP>(p)->CbOnFile(); };
+    s.add_thumbnail = [](void *p, ThreeMMI32 bytes, ThreeMMU32 *n) -> int {
+        auto h = static_cast<Host *>(p);
+        return h->file->FAdd(bytes, kctgThumbMbmp, n, &h->block);
+    };
+    s.write_thumbnail = [](void *p, void *thumbnail) -> int {
+        return static_cast<PMaskedBitmapMBMP>(thumbnail)->FWrite(&static_cast<Host *>(p)->block);
+    };
+    s.adopt_thumbnail = [](void *p, ThreeMMU32 scene, ThreeMMU32 n) -> int {
+        return static_cast<Host *>(p)->file->FAdoptChild(kctgScen, scene, kctgThumbMbmp, n, 0);
+    };
+    s.delete_thumbnail = [](void *p, ThreeMMU32 n) { static_cast<Host *>(p)->file->Delete(kctgThumbMbmp, n); };
+    s.clear_loner = [](void *p, ThreeMMU32 n) { static_cast<Host *>(p)->file->SetLoner(kctgThumbMbmp, n, false); };
+    s.write_metadata = [](void *p, ThreeMMU32 n) -> int {
+        auto h = static_cast<Host *>(p);
+        return h->scene->_data.FWrite(h->file, n);
+    };
+    s.diagnostic = [](void *, int) { Bug("Bad event in frame event list"); };
+    return three_mm_scene_store(pcno, &s) != 0;
 }
 
 /****************************************************
@@ -4353,240 +4175,78 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
-
-    DataBlock blck;
-    ChildChunkIdentification kid;
-    long isev;
-    PSEV qsev;
-    short bo;
-    PGeneralGroup pggsev;
-    TAG tag;
-    TAG tagBkgd;
-    PDynamicArray pgltagSrc;
-    TAG tagSrc;
-    long itagSrc;
-    ChildChunkID chid;
-
-    tagBkgd.sid = ksidInvalid;
-
-    //
-    // Read starting events
-    //
-    if (!pcfl->FGetKidChidCtg(kctgScen, cno, 1, kctgStartGg, &kid))
+    struct Host
     {
-        return fFalse;
-    }
-
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-    {
-        return fFalse;
-    }
-
-    pggsev = GeneralGroup::PggRead(&blck, &bo);
-
-    if (pggsev == pvNil)
-    {
-        return fFalse;
-    }
-
-    Assert(pggsev->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
-
-    //
-    // Find all tags in starting events
-    //
-    for (isev = 0; isev < pggsev->IvMac(); isev++)
-    {
-        qsev = (PSEV)pggsev->QvFixedGet(isev);
-
-        //
-        // Swap byte ordering of entry
-        //
-        if (bo == kboOther)
+        PChunkyFile file;
+        PTagList tags;
+    } host = {pcfl, ptagl};
+    ThreeMMSceneCollectServices s = {};
+    s.context = &host;
+    s.groups = SceneStoreGroups();
+    s.packets = ScenePacketServices();
+    s.camera_type = kctgCam;
+    s.read_group = [](void *p, ThreeMMU32 scene, int start, int *swap) -> void * {
+        auto file = static_cast<Host *>(p)->file;
+        ChildChunkIdentification kid;
+        DataBlock block;
+        short bo;
+        if (!file->FGetKidChidCtg(kctgScen, scene, start ? 1 : 0, start ? kctgStartGg : kctgFrmGg, &kid) ||
+            !file->FFind(kid.cki.ctg, kid.cki.cno, &block))
+            return nullptr;
+        auto group = GeneralGroup::PggRead(&block, &bo);
+        if (group && group->CbFixed() != sizeof(SceneEvent))
         {
-            SwapBytesBom((void *)qsev, kbomSev);
+            ReleasePpo(&group);
+            return nullptr;
         }
-
-        //
-        // Find appropriate event types
-        //
-        switch (qsev->sevt)
-        {
-        case sevtAddActr:
-
-            pggsev->Get(isev, &chid);
-            if (bo == kboOther)
-            {
-                SwapBytesBom((void *)&chid, kbomSceneLong);
-            }
-
-            if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
-            {
-                ReleasePpo(&pggsev);
-                return fFalse;
-            }
-            else
-            {
-                bool fError;
-                pgltagSrc = Actor::PgltagFetch(pcfl, kid.cki.cno, &fError);
-
-                if (fError)
-                {
-                    ReleasePpo(&pgltagSrc);
-                    ReleasePpo(&pggsev);
-                    return fFalse;
-                }
-
-                if (pgltagSrc != pvNil)
-                {
-
-                    for (itagSrc = 0; itagSrc < pgltagSrc->IvMac(); itagSrc++)
-                    {
-                        pgltagSrc->Get(itagSrc, &tagSrc);
-                        if (!ptagl->FInsertTag(&tagSrc))
-                        {
-                            ReleasePpo(&pgltagSrc);
-                            ReleasePpo(&pggsev);
-                            return fFalse;
-                        }
-                    }
-
-                    ReleasePpo(&pgltagSrc);
-                }
-            }
-            break;
-
-        case sevtSetBkgd: {
-            // Variable on disk is TAGOnFile (16 bytes); marshal to runtime TAG.
-            TAGOnFile tagOnFile;
-            Assert(pggsev->Cb(isev) == size(TAGOnFile), "bad sevtSetBkgd size");
-            pggsev->Get(isev, &tagOnFile);
-            if (bo == kboOther)
-                SwapBytesBom(&tagOnFile, kbomTag);
-            TagFromOnFile(&tag, tagOnFile);
-            if (!Background::FAddTagsToTagl(&tag, ptagl))
-            {
-                ReleasePpo(&pggsev);
-                return fFalse;
-            }
-            tagBkgd = tag;
-            break;
-        }
-
-        case sevtAddTbox:
-            break;
-
-        case sevtPlaySnd:
-        case sevtChngCamera:
-        case sevtPause:
-        default:
+        if (group)
+            *swap = bo == kboOther;
+        return group;
+    };
+    s.actor_child = [](void *p, ThreeMMU32 scene, ThreeMMU32 child, ThreeMMU32 *n) -> int {
+        ChildChunkIdentification kid;
+        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, kctgActr, &kid))
+            return 0;
+        *n = kid.cki.cno;
+        return 1;
+    };
+    s.actor_tags = [](void *p, ThreeMMU32 n, int *error) -> void * {
+        bool failed;
+        auto tags = Actor::PgltagFetch(static_cast<Host *>(p)->file, n, &failed);
+        *error = failed;
+        return tags;
+    };
+    s.list_tag = [](void *, void *p, ThreeMMI32 i, ThreeMMTag *out) {
+        TAG tag;
+        static_cast<PDynamicArray>(p)->Get(i, &tag);
+        *out = TagToCore(tag);
+    };
+    s.insert_tag = [](void *p, const ThreeMMTag *value) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        return static_cast<Host *>(p)->tags->FInsertTag(&tag);
+    };
+    s.background = [](void *p, ThreeMMTag *value) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        bool ok = Background::FAddTagsToTagl(&tag, static_cast<Host *>(p)->tags);
+        *value = TagToCore(tag);
+        return ok;
+    };
+    s.insert_child = [](void *p, const ThreeMMTag *value, ThreeMMU32 child, ThreeMMU32 type) -> int {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        return static_cast<Host *>(p)->tags->FInsertChild(&tag, child, type);
+    };
+    s.diagnostic = [](void *, int start, int missing) {
+        if (missing)
+            Bug("no background event!?");
+        else if (start)
             Bug("Bad event in start event list");
-            break;
-        }
-    }
-
-    ReleasePpo(&pggsev);
-
-    //
-    // Read in GeneralGroup of Frame events
-    //
-    if (!pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgFrmGg, &kid))
-    {
-        return fFalse;
-    }
-
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-    {
-        return fFalse;
-    }
-
-    pggsev = GeneralGroup::PggRead(&blck, &bo);
-
-    if (pggsev == pvNil)
-    {
-        return fFalse;
-    }
-
-    Assert(pggsev->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
-
-    //
-    // Look in all events for tags
-    //
-    for (isev = 0; isev < pggsev->IvMac(); isev++)
-    {
-        qsev = (PSEV)pggsev->QvFixedGet(isev);
-
-        //
-        // Swap byte ordering of entry
-        //
-        if (bo == kboOther)
-        {
-            SwapBytesBom((void *)qsev, kbomSev);
-        }
-
-        //
-        // Find appropriate event types
-        //
-        switch (qsev->sevt)
-        {
-        case sevtChngCamera:
-            pggsev->Get(isev, &chid);
-            if (bo == kboOther)
-            {
-                SwapBytesBom((void *)&chid, kbomSceneLong);
-            }
-            if (tagBkgd.sid == ksidInvalid)
-            {
-                Bug("no background event!?");
-                ReleasePpo(&pggsev);
-                return fFalse;
-            }
-            if (!ptagl->FInsertChild(&tagBkgd, chid, kctgCam))
-            {
-                ReleasePpo(&pggsev);
-                return fFalse;
-            }
-            break;
-
-        case sevtPause:
-            break;
-
-        case sevtPlaySnd: {
-            PSceneSoundEvent psse;
-            long itag;
-
-            // pggsev came directly from PggRead — variable parts are on-disk
-            // bytes (TagChildPairOnFile stride). Marshal to runtime form.
-            psse = SceneSoundFromWire(pggsev->QvGet(isev), pggsev->Cb(isev), bo == kboOther);
-            if (pvNil == psse)
-            {
-                ReleasePpo(&pggsev);
-                return fFalse;
-            }
-            for (itag = 0; itag < psse->ctagc; itag++)
-            {
-                if (!ptagl->FInsertTag(psse->Ptag(itag)))
-                {
-                    FreePpv((void **)&psse); // tags' pcrf is pvNil; no CloseTag needed
-                    ReleasePpo(&pggsev);
-                    return fFalse;
-                }
-            }
-            FreePpv((void **)&psse); // pcrf was never set; no CloseTag needed
-            break;
-        }
-
-        case sevtAddActr:
-        case sevtSetBkgd:
-        case sevtAddTbox:
-        default:
+        else
             Bug("Bad event in frame event list");
-            break;
-        }
-    }
-
-    ReleasePpo(&pggsev);
-
-    return fTrue;
+    };
+    return three_mm_scene_collect_tags(cno, &s) != 0;
 }
 
 /****************************************************
