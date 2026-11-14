@@ -29,6 +29,7 @@
 #include "three_mm/scene_selection.h"
 #include "three_mm/scene_chop.h"
 #include "three_mm/scene_control.h"
+#include "three_mm/scene_thumbnail.h"
 
 //
 // Undo object for actor operations
@@ -155,6 +156,7 @@ class Scene : public Scene_PAR
     ThreeMMSceneChopServices _ChopServices();
     ThreeMMScenePropertyServices _PropertyServices();
     ThreeMMScenePlaybackServices _PlaybackServices();
+    ThreeMMSceneThumbnailServices _ThumbnailServices(void *graphics);
 
     //
     // Global information

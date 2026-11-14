@@ -7669,3 +7669,90 @@ Evidence: `tmp/c89-control-{strict-build,strict,asan,standalone,native-tests,sdl
 `tmp/c89-control-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-control-capture-hashes-{before,after}.json` and
 `tmp/c89-control-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.
+
+### Scene thumbnail/dirty C89 closeout (14 November 2026)
+
+Baseline: `b9ef2139`. `scene_thumbnail.c` now owns thumbnail generation/cache
+access and dirty propagation. Typed indexed-port creation, palette/view drawing,
+pixel scaling/locking, bitmap construction and Movie dirty effects remain
+adapters. Thumbnail ownership remains in the existing C Scene owner.
+
+The native Scene-content fixture adds an actual offscreen MovieView, grayscale
+palette and two rendered thumbnail images (144 by 81 pixels). It records decoded
+pixels, bitmap wire sizes, old-owner reference counts across replacement,
+clean-cache reuse, missing-view access, current frame/effect-mask restoration and
+dirty false/true behavior. The preceding content/selection/chop/property/playback
+and allocation checks remain. Original native/repeat and original SDL debug/
+release traces all match 30,192 bytes, FNV-1a `21EF5458`, SHA-256
+`355429DDD4C885DF9DC63AF3C0C2668AF9A9A79C22934D55B2242DF0E78559F7`.
+The guard retains the little-endian x64, one-byte-text restriction. The view is an
+engine offscreen fixture; no Marcus UI tests were added. Actual view integration
+covers the actor-mode/null-primary path; remaining selection/error branches are
+covered directly through the C services.
+
+Thumbnail generation preserves saved-time/mute/view/gate/port/palette/mask/seek/
+deselect/draw/restore/copy/drop/construct/publish/unlock/release/seek/mask/end-copy/
+resume ordering. Graphics environments construct in stack placement storage,
+retain/lock their ports across local releases and frame/mask restoration, then
+destroy in reverse order before sound resumes. The bridge introduces no heap
+allocation for those environments. The old thumbnail releases before constructing
+its replacement, including on failure; empty ownership publishes before unlock.
+Initial-seek failure keeps its partial frame change and restores masks/ports;
+later frame restoration is nonfatal and only occurs for a saved frame in
+`(first,last]`. Deselect/restore query mode separately and retain existing primary-
+only/extra-selection behavior. Every exit resumes sound at the saved time. The
+thumbnail accessor returns a borrowed C-owner pointer after updating. Dirty false
+and detached owners are no-ops; attached owners use the existing SetDirty effect.
+
+C-only tests cover background/view/clean gates, both port allocation failures,
+initial/restoration seek failures, bitmap failure, actor/text/mode-changing
+selection, masks/time restoration, old-owner release and publish-before-unlock,
+port references across graphics-environment lifetime, saved-frame boundary cases
+and detached/false/attached dirty propagation. Remaining Scene background-tag
+query/glue audit, background resource policy, other Movie operations and final
+C-only integration remain conversion work.
+
+Final native, SDL debug and SDL release traces match all four original traces
+above byte for byte. All 98 standalone C checks (including C89 syntax), 134
+selected native, 30 SDL debug and 42 SDL release checks pass. Builds and file-heavy
+suites ran serially; both hosts, `core-checks`, directly invoked native/save-load
+executables and CLI targets were rebuilt. Marcus was stopped before rebuilding
+and relaunched afterward. The C fixture passes Clang strict C89 with warnings as
+errors and MSVC AddressSanitizer. All 51 freshly linked CLI baselines match.
+
+The final binaries stayed fixed through all 21 fresh-process captures (one
+repeat, no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `E85E7CEC07885CA724FE73CBC646CCFB26270004E8C4A2E0D26351000F1DDA04`.
+- Marcus regression: `C16A0D1CEB6D99DDDE6B30AD65D93E11AF6BD36482123580BC8A45E8CAA70DE8`.
+
+| Final suite | Case | Completion |
+| --- | --- | --- |
+| `20261114T141441Z-84e297e2` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T141559Z-e36e5bce` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+| `20261114T141915Z-96939dcb` | actor-audio | six retail/SDL/Marcus seek/playback complete |
+| `20261114T142032Z-128eb9ec` | sampled-audio | three retail/SDL/Marcus playback complete |
+
+Movie identity and suite integrity pass. All authored frame sequences, all 540
+seek images and ordered playback image changes match each player's preceding
+Scene-control capture: `20261114T134541Z-c5e78336` (actor-events),
+`20261114T134700Z-488328cb` (scrolling-text), `20261114T135017Z-62e77d64`
+(actor-audio) and `20261114T135136Z-72c2d768` (sampled-audio). Playback comparison
+collapses only adjacent identical scene/frame/image samples.
+
+Actor-audio PCM16 peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus). All exceed 50; actor tone detection and the
+first-scene-only contract pass for every player. The SDL actor peak differs by
+one PCM16 unit from the preceding capture; this is not a full PCM equality test.
+These playback checks do not exercise retail thumbnail editing or prove full
+PCM/MIDI or retail timing parity. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. Captures use a shared warm SDL
+package cache with private processes, settings and working movies; OS caching is
+uncontrolled.
+
+Evidence: `tmp/c89-thumbnail-{strict-build,strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-thumbnail-{native,native-repeat,original-sdl-debug,original-sdl-release,final-native,final-sdl-debug,final-sdl-release}.bin`,
+`tmp/c89-thumbnail-output-comparison.json`,
+`tmp/c89-thumbnail-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
+`tmp/c89-thumbnail-capture-hashes-{before,after}.json` and
+`tmp/c89-thumbnail-playback-actor-audio-actor-events-scrolling-text-sampled-audio.json`.

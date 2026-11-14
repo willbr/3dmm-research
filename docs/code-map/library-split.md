@@ -1087,8 +1087,42 @@ transition-file round trips and playback lifecycle calls with real actors.
 Supplemental native checks verify corrected public transition undo/redo. C-only
 tests cover commit ownership, destructive failure cleanup, counted names, caption
 startup branches, missing views, shutdown ordering and endian/partial file writes.
-Remaining Scene thumbnails/dirty propagation, other Movie operations and final
-C-only integration remain conversion work. No Marcus UI tests were added.
+Scene thumbnails/dirty propagation are covered below. Other Movie operations and
+final C-only integration remain conversion work. No Marcus UI tests were added.
+
+### Scene thumbnail generation and dirty propagation
+
+`scene_thumbnail.c` owns thumbnail update/cache access and dirty propagation.
+It captures selected primary objects and sound time, mutes sound, checks for
+background/view/dirty state, creates indexed source/thumbnail ports, sets the
+thumbnail palette and disables sound/pause effects. It seeks to the first frame,
+deselects through the existing C selection policy, draws, restores the primary
+selection and scales the image to 144 by 81 pixels. The old owner releases before
+bitmap construction; even a failed construction publishes the empty owner before
+unlock. The accessor returns a borrowed thumbnail after attempting the update.
+
+Typed services retain offscreen-port creation, MovieView drawing, palette setup,
+scaling, bitmap construction and pixel locking. GraphicsEnvironment objects use
+stack placement storage in the native bridge, retaining/locking ports through
+local port release, frame/mask restoration and reverse-order environment cleanup.
+The C policy explicitly delimits that lifetime without introducing heap
+allocations for graphics environments.
+
+All exits restore sound at the saved time. Initial-seek failure releases ports
+and restores masks while retaining the failed seek's partial frame change. After
+rendering, a saved frame restores only in `(first,last]`; restoration failure is
+nonfatal. Selection mode is queried separately for deselect and restore, keeping
+native primary-only restoration and existing extra-selection effects. Dirty
+propagation ignores false and detached Movie owners; attached Movies use the
+existing SetDirty primitive.
+
+Native/SDL traces include two actual rendered/decoded thumbnail images, reference
+counts across replacement, clean-cache reuse, frame/effect-mask restoration and
+dirty marking through an offscreen engine MovieView. C-only tests cover every
+gate/allocation/seek/bitmap failure branch, selection mode changes, publication/
+unlock order, graphics-environment references and sound restoration. No Marcus UI
+tests were added. Remaining Scene background-tag query/glue audit, background
+resource policy, other Movie operations and final C-only integration remain.
 
 ### Actor header, route and event persistence
 

@@ -871,6 +871,56 @@ int main()
     ReleasePpo(&other);
     recording = true;
 #endif
+    {
+        movie->DocumentBase::SetDirty(false);
+        movie->SetDirty(false);
+        scene->MarkDirty(false);
+        Value(movie->FDirty());
+        scene->MarkDirty();
+        Value(movie->FDirty());
+        Value(scene->PmbmpThumbnail() != nullptr);
+        auto colors = DynamicArray::PglNew(sizeof(Color));
+        CHECK(colors);
+        for (int i = 0; i < 256; ++i)
+        {
+            Color c = {byte(i), byte(i), byte(i), 0};
+            CHECK(colors->FAdd(&c));
+        }
+        movie->SetThumbPalette(colors);
+        ReleasePpo(&colors);
+        RC bounds(0, 0, 32, 24);
+        GraphicsObjectBlock block(7201, nullptr, fgobNil, ginNil, &bounds);
+        auto view = MovieView::PmvuNew(movie, &block, 32, 24);
+        CHECK(view);
+        movie->SetDirty();
+        auto thumbnail = scene->PmbmpThumbnail();
+        Value(thumbnail != nullptr);
+        CHECK(thumbnail);
+        std::vector<byte> pixels(144 * 81, 0);
+        thumbnail->Draw(pixels.data(), 144, 81, 0, 0);
+        Record(pixels.data(), pixels.size());
+        Value(thumbnail->CbOnFile());
+        Access::ControlState(scene);
+        Value(scene->GrfScen());
+        thumbnail->AddRef();
+        Value(thumbnail->CactRef());
+        movie->DocumentBase::SetDirty(false);
+        movie->SetDirty(false);
+        Value(scene->PmbmpThumbnail() == thumbnail);
+        CHECK(scene->FGotoFrm(5));
+        movie->SetDirty();
+        auto replacement = scene->PmbmpThumbnail();
+        CHECK(replacement);
+        Value(thumbnail->CactRef());
+        ReleasePpo(&thumbnail);
+        std::fill(pixels.begin(), pixels.end(), 0);
+        replacement->Draw(pixels.data(), 144, 81, 0, 0);
+        Record(pixels.data(), pixels.size());
+        Value(replacement->CbOnFile());
+        Access::ControlState(scene);
+        Value(scene->GrfScen());
+        ReleasePpo(&view);
+    }
     movie->ClearUndo();
     ReleasePpo(&movie);
     ReleasePpo(&observed);
@@ -889,5 +939,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 6748 && hash == 0x129FEB8AU);
+        CHECK(recorded == 30192 && hash == 0x21EF5458U);
 }

@@ -53,6 +53,7 @@
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
 #include "scene_control_undo.h"
+#include <new>
 #include <cstring>
 
 ASSERTNAME
@@ -63,9 +64,9 @@ ASSERTNAME
 //
 // Scene thumbnails
 //
-const auto kdxpThumbnail = 144;
-const auto kdypThumbnail = 81;
-const auto kbTransparent = 250;
+
+
+
 
 //
 // Scene event
@@ -2560,12 +2561,100 @@ bool Scene::FAddActrsToRollCall(void)
  *  None
  *
  ****************************************************/
+namespace
+{
+struct SceneThumbnailGraphics
+{
+    alignas(GraphicsEnvironment) unsigned char source[sizeof(GraphicsEnvironment)];
+    alignas(GraphicsEnvironment) unsigned char target[sizeof(GraphicsEnvironment)];
+    GraphicsEnvironment *source_env, *target_env;
+};
+RC ThumbnailRect(const ThreeMMMaskedRect &r)
+{
+    return RC(r.left, r.top, r.right, r.bottom);
+}
+ThreeMMSceneDirtyServices SceneDirtyServices()
+{
+    return {nullptr, [](void *, void *movie) { static_cast<PMovie>(movie)->SetDirty(); }};
+}
+} // namespace
+ThreeMMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
+{
+    ThreeMMSceneThumbnailServices s = {};
+    s.context = this;
+    s.data = &_data;
+    s.runtime = &_runtime;
+    s.owner = &_owner;
+    s.owners = _OwnerServices();
+    s.scene = this;
+    s.selected = [](void *p, int text) -> void * {
+        auto scene = static_cast<Scene *>(p);
+        return text ? scene->_selection.text : scene->_selection.actor;
+    };
+    s.sound_time = [](void *p) -> ThreeMMI32 { return static_cast<Scene *>(p)->Pmvie()->Pmsq()->DtimSnd(); };
+    s.mute = [](void *p) { static_cast<Scene *>(p)->Pmvie()->Pmsq()->SndOff(); };
+    s.resume = [](void *p, ThreeMMI32 time) { static_cast<Scene *>(p)->Pmvie()->Pmsq()->SndOnDtim(time); };
+    s.view = [](void *p) -> void * { return static_cast<Scene *>(p)->Pmvie()->PddgGet(0); };
+    s.dirty = [](void *p) { return int(static_cast<Scene *>(p)->Pmvie()->FDirty()); };
+    s.dimensions = [](void *p, ThreeMMI32 *width, ThreeMMI32 *height) {
+        auto client = static_cast<Scene *>(p)->Pmvie()->Pmcc();
+        *width = client->Dxp();
+        *height = client->Dyp();
+    };
+    s.new_port = [](void *, const ThreeMMMaskedRect *r) -> void * {
+        auto bounds = ThumbnailRect(*r);
+        return GraphicsPort::PgptNewOffscreen(&bounds, 8);
+    };
+    s.palette = [](void *p, void *port) {
+        static_cast<PGraphicsPort>(port)->SetOffscreenColors(static_cast<Scene *>(p)->Pmvie()->PglclrThumbPalette());
+    };
+    s.release_port = [](void *, void *port) { static_cast<PGraphicsPort>(port)->Release(); };
+    s.seek = [](void *p, ThreeMMI32 frame) { return int(static_cast<Scene *>(p)->FGotoFrm(frame)); };
+    s.text_mode = [](void *, void *view) { return int(static_cast<PMovieView>(view)->FTextMode()); };
+    s.select = [](void *p, int text, void *object) {
+        auto scene = static_cast<Scene *>(p);
+        if (text)
+            scene->SelectTbox(static_cast<PTBOX>(object));
+        else
+            scene->SelectActr(static_cast<PActor>(object));
+    };
+    s.draw = [](void *, void *view, void *port, const ThreeMMMaskedRect *r) {
+        auto bounds = ThumbnailRect(*r);
+        static_cast<PMovieView>(view)->DrawTree(static_cast<PGraphicsPort>(port), nullptr, &bounds, fgobNoVis);
+    };
+    s.copy_context = graphics;
+    s.copy = [](void *p, void *source, void *target, const ThreeMMMaskedRect *from, const ThreeMMMaskedRect *to) {
+        auto graphics = static_cast<SceneThumbnailGraphics *>(p);
+        auto a = graphics->source_env =
+            ::new (graphics->source) GraphicsEnvironment(static_cast<PGraphicsPort>(source));
+        auto b = graphics->target_env =
+            ::new (graphics->target) GraphicsEnvironment(static_cast<PGraphicsPort>(target));
+        auto src = ThumbnailRect(*from), dst = ThumbnailRect(*to);
+        b->CopyPixels(a, &src, &dst);
+    };
+    s.end_copy = [](void *p) {
+        auto graphics = static_cast<SceneThumbnailGraphics *>(p);
+        graphics->target_env->~GraphicsEnvironment();
+        graphics->source_env->~GraphicsEnvironment();
+    };
+    s.row_bytes = [](void *, void *port) -> ThreeMMI32 { return static_cast<PGraphicsPort>(port)->CbRow(); };
+    s.lock = [](void *, void *port) -> void * { return static_cast<PGraphicsPort>(port)->PrgbLockPixels(); };
+    s.bitmap = [](void *, const void *pixels, ThreeMMI32 stride, const ThreeMMMaskedRect *r,
+                  int transparent) -> void * {
+        auto bounds = ThumbnailRect(*r);
+        return MaskedBitmapMBMP::PmbmpNew(const_cast<byte *>(static_cast<const byte *>(pixels)), stride, r->bottom,
+                                          &bounds, 0, 0, transparent);
+    };
+    s.unlock = [](void *, void *port) { static_cast<PGraphicsPort>(port)->Unlock(); };
+    return s;
+}
+
 PMaskedBitmapMBMP Scene::PmbmpThumbnail(void)
 {
     AssertThis(0);
-
-    _UpdateThumbnail();
-    return (_pmbmp);
+    SceneThumbnailGraphics graphics;
+    auto s = _ThumbnailServices(&graphics);
+    return static_cast<PMaskedBitmapMBMP>(three_mm_scene_thumbnail(&s));
 }
 
 /****************************************************
@@ -2583,110 +2672,9 @@ PMaskedBitmapMBMP Scene::PmbmpThumbnail(void)
 void Scene::_UpdateThumbnail(void)
 {
     AssertThis(0);
-
-    long nfrmCur;
-    PGraphicsPort pgpt, pgptThumb;
-    PMovieView pmvu;
-    PTBOX ptbox = PtboxSelected();
-    PActor pactr = PactrSelected();
-    RC rc, rcThumb;
-    long grfscenSave;
-    long dtimSnd;
-
-    dtimSnd = Pmvie()->Pmsq()->DtimSnd();
-    Pmvie()->Pmsq()->SndOff();
-
-    pmvu = (PMovieView)Pmvie()->PddgGet(0);
-    if ((_pbkgd == pvNil) || (pmvu == pvNil))
-    {
-        goto LEnd;
-    }
-    AssertPo(pmvu, 0);
-
-    if (!Pmvie()->FDirty())
-    {
-        goto LEnd;
-    }
-
-    rc.Set(0, 0, Pmvie()->Pmcc()->Dxp(), Pmvie()->Pmcc()->Dyp());
-    pgpt = GraphicsPort::PgptNewOffscreen(&rc, 8);
-
-    if (pgpt == pvNil)
-    {
-        goto LEnd;
-    }
-
-    AssertPo(pgpt, 0);
-
-    rcThumb.Set(0, 0, kdxpThumbnail, kdypThumbnail);
-    pgptThumb = GraphicsPort::PgptNewOffscreen(&rcThumb, 8);
-
-    if (pgptThumb == pvNil)
-    {
-        ReleasePpo(&pgpt);
-        goto LEnd;
-    }
-
-    AssertPo(pgptThumb, 0);
-
-    pgptThumb->SetOffscreenColors(Pmvie()->PglclrThumbPalette());
-
-    grfscenSave = _runtime.disabled;
-    Disable(fscenPauses | fscenSounds);
-
-    nfrmCur = _data.currentFrame;
-    if ((_data.currentFrame != _data.firstFrame) && !FGotoFrm(_data.firstFrame))
-    {
-        ReleasePpo(&pgpt);
-        ReleasePpo(&pgptThumb);
-        _runtime.disabled = grfscenSave;
-        goto LEnd;
-    }
-
-    if (pmvu->FTextMode())
-    {
-        SelectTbox(pvNil);
-    }
-    else
-    {
-        SelectActr(pvNil);
-    }
-    pmvu->DrawTree(pgpt, pvNil, &rc, fgobNoVis);
-    if (pmvu->FTextMode())
-    {
-        SelectTbox(ptbox);
-    }
-    else
-    {
-        SelectActr(pactr);
-    }
-
-    BLOCK
-    {
-        GraphicsEnvironment gnv(pgpt);
-        GraphicsEnvironment gnvThumb(pgptThumb);
-        gnvThumb.CopyPixels(&gnv, &rc, &rcThumb);
-
-        _DropOwner(THREE_MM_SCENE_THUMBNAIL);
-
-        _SetOwner(THREE_MM_SCENE_THUMBNAIL, MaskedBitmapMBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
-                                kbTransparent));
-        pgptThumb->Unlock();
-
-        ReleasePpo(&pgpt);
-        ReleasePpo(&pgptThumb);
-        if ((nfrmCur > _data.firstFrame) && (nfrmCur <= _data.lastFrame))
-        {
-            FGotoFrm(nfrmCur);
-        }
-
-        _runtime.disabled = grfscenSave;
-    }
-
-LEnd:
-
-    Pmvie()->Pmsq()->SndOnDtim(dtimSnd);
-    return;
+    SceneThumbnailGraphics graphics;
+    auto s = _ThumbnailServices(&graphics);
+    three_mm_scene_update_thumbnail(&s);
 }
 
 /****************************************************
@@ -2703,10 +2691,8 @@ LEnd:
 void Scene::MarkDirty(bool fDirty)
 {
     AssertThis(0);
-    if (fDirty)
-    {
-        _MarkMovieDirty();
-    }
+    auto s = SceneDirtyServices();
+    three_mm_scene_mark_dirty(&_owner, fDirty, &s);
 }
 
 /****************************************************
@@ -2861,11 +2847,8 @@ void Scene::ShowActors(void)
 void Scene::_MarkMovieDirty()
 {
     AssertThis(0);
-
-    if (_pmvie != pvNil)
-    {
-        _pmvie->SetDirty();
-    }
+    auto s = SceneDirtyServices();
+    three_mm_scene_mark_dirty(&_owner, 1, &s);
 }
 
 /****************************************************

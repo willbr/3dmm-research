@@ -25,6 +25,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/scene_content.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_selection.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_chop.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_control.c)
+target_sources(three-mm-engine-c89 PRIVATE src/scene_thumbnail.c)
 get_filename_component(engine_scene_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_runtime_test.c" ABSOLUTE)
 add_executable(engine-scene-runtime-test EXCLUDE_FROM_ALL "${engine_scene_runtime_test_source}")
 target_link_libraries(engine-scene-runtime-test PRIVATE three-mm-engine-c89)
@@ -540,6 +541,11 @@ add_executable(engine-scene-control-test EXCLUDE_FROM_ALL "${engine_scene_contro
 target_link_libraries(engine-scene-control-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-scene-control-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-scene-control COMMAND engine-scene-control-test)
+get_filename_component(engine_scene_thumbnail_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_thumbnail_test.c" ABSOLUTE)
+add_executable(engine-scene-thumbnail-test EXCLUDE_FROM_ALL "${engine_scene_thumbnail_test_source}")
+target_link_libraries(engine-scene-thumbnail-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-scene-thumbnail-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-scene-thumbnail COMMAND engine-scene-thumbnail-test)
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
 get_property(engine_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -583,6 +589,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_selection.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_chop.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_control.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_thumbnail.c"
+    "${engine_scene_thumbnail_test_source}"
     "${engine_scene_control_test_source}"
     "${engine_scene_chop_test_source}"
     "${engine_scene_selection_test_source}"
