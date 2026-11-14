@@ -472,7 +472,7 @@ static void controls(void)
     igSameLine(0, -1);
     igBeginDisabled(!hide_matches);
     igSetNextItemWidth(220);
-    if (igSliderFloat("Match at least", &match_threshold, 0, 100, "%.2f%%", ImGuiSliderFlags_AlwaysClamp))
+    if (igSliderFloat("Match at least", &match_threshold, 90, 100, "%.2f%%", ImGuiSliderFlags_AlwaysClamp))
         visible_dirty = 1;
     igEndDisabled();
     rebuild_visible();
