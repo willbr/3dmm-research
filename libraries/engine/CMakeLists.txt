@@ -27,7 +27,7 @@ target_sources(three-mm-engine-c89 PRIVATE src/actor_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_sound.c)
 target_sources(three-mm-engine-c89 PRIVATE src/body_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/body_edit.c)
-target_sources(three-mm-engine-c89 PRIVATE src/body_runtime.c src/body_geometry.c)
+target_sources(three-mm-engine-c89 PRIVATE src/body_runtime.c src/body_geometry.c src/model_resource.c src/model_lighting.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_create.c)
 target_sources(three-mm-engine-c89 PRIVATE src/template_runtime.c)
 target_sources(three-mm-engine-c89 PRIVATE src/action_definition.c)
@@ -404,6 +404,11 @@ add_executable(engine-body-geometry-test EXCLUDE_FROM_ALL "${engine_body_geometr
 target_link_libraries(engine-body-geometry-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-body-geometry-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-body-geometry COMMAND engine-body-geometry-test)
+get_filename_component(engine_model_resource_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_model_resource_test.c" ABSOLUTE)
+add_executable(engine-model-resource-test EXCLUDE_FROM_ALL "${engine_model_resource_test_source}")
+target_link_libraries(engine-model-resource-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-model-resource-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-model-resource COMMAND engine-model-resource-test)
 get_filename_component(engine_audio_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_audio_runtime_test.c" ABSOLUTE)
 add_executable(engine-audio-runtime-test EXCLUDE_FROM_ALL "${engine_audio_runtime_test_source}")
 target_link_libraries(engine-audio-runtime-test PRIVATE three-mm-engine-c89)
@@ -476,6 +481,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_edit.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/body_geometry.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/model_resource.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/model_lighting.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_create.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/action_definition.c"
@@ -549,6 +556,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_body_edit_test_source}"
     "${engine_body_runtime_test_source}"
     "${engine_body_geometry_test_source}"
+    "${engine_model_resource_test_source}"
     "${engine_template_create_test_source}"
     "${engine_template_runtime_test_source}"
     "${engine_action_definition_test_source}"

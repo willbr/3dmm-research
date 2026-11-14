@@ -5464,3 +5464,108 @@ Evidence: `tmp/c89-sound-runtime-standalone.log`,
 `tmp/c89-midi-stream-before.log`, `tmp/c89-midi-stream-after.log`,
 `tmp/c89-sound-runtime-playback-actor-audio-sampled-audio.json` and the two
 `tmp/c89-sound-runtime-capture-*.log` files.
+
+
+### C89 model resources and prelighting (14 November 2026)
+
+`model_resource.c` now owns model creation, cache factories/estimates,
+prepared/unprepared loading, header/face codecs, partial ownership, disposal,
+wire writing, DAT import orchestration, glyph adjustment and extent queries.
+`model_lighting.c` owns prelighting specification, sequencing and temporary
+resource cleanup. The native Model class supplies object/block/file and typed
+BRender field/allocation services. Material/texture resources and final native
+facade removal remain conversion work.
+
+The native comparison matches all 277,360 bytes, SHA-256
+`29157E1B47FE4DA9E1B36DF511026715326661B816075D887F4EECAD986F51D3`.
+The original capture, repeat and converted trace have the same digest. There
+are 504 debug load attempts, 404 successful, over two geometry patterns, nine
+wire variants, factory/direct initialization and native BASE/Pv fault injection.
+The trace records partial ownership/flags, successful geometry/wire data,
+repeated glyph adjustments and one real prelight. The native debug
+little-endian test enforces FNV-1a `78C575E5` without masking successful bytes.
+DAT import and a second prelight additionally check real SDK behavior and
+balanced temporary allocations outside the frozen trace.
+
+Wire headers remain 48 bytes, faces 32 bytes and opaque vertices 32 bytes.
+Runtime faces are 36 bytes on x64 because their material pointer is wider;
+they are never dumped directly to disk. The material slot and implicit face
+padding serialize as zero; explicit face padding remains preserved. Radius
+still selects the prepared path. Opposite-order headers normalize as before,
+including the legacy consequence that the vertex/face payloads are not swapped.
+Trailing data remains accepted. Negative signed wire counts and truncated
+ranges now fail before native allocator/read assertions. Glyph math preserves
+negative floor halves, wrapped arithmetic and the exact spacing threshold.
+
+The native allocator now passes a nonempty pointer-sized identifier string to
+BRender: clearing a larger local buffer still made BrResStrDup allocate only
+one byte. Owner pointer storage/readback uses typed copies. Prelighting now
+disables all enabled lights and frees its world, material, colour and depth
+pixelmaps on every returning path, fixing the original temporary leaks while
+retaining the frozen model result. C tests cover lights 1 through 9 and every
+creation failure; native debug still diagnoses counts other than one. The
+former direction input remains ignored.
+
+The real DAT roundtrip exposed BRender's uninitialized non-count chunk-handler
+argument under MSVC runtime checks. `DfChunksInterpret` now initializes it to
+zero before conditionally reading counted chunks. Non-count handlers ignore
+or overwrite that argument; counted handlers retain their original value.
+This same dispatcher fix was applied to both native and converted baselines.
+
+All 76 standalone C checks, including strict syntax, pass in the current tree.
+The model C test's MSVC AddressSanitizer run passes. It covers both byte orders,
+all truncation lengths, callback/allocation failures, publication order, writer
+failures, partial owners, glyph boundaries and lighting cleanup. The existing
+94-check focused native gate includes both model tests; after restoring the
+converted source from the original-model control build, those two model tests
+pass again with the frozen trace. Three SDL release model/save-load/link checks
+and all 51 CLI baselines also passed during this model slice. The later sound
+runtime checks/captures are recorded separately above. No Marcus UI tests were
+added.
+
+The final capture binaries were frozen at SHA-256
+`3E8D8AFCFD21AAC99778C17BAB1179111B51A68E0C021A517EBDE88256D69DC9`
+(SDL release) and
+`6A7DF8F0BC870D5FD5A14A0A924F7CFDF93A661EADE72BCFC4C3D4F76CC6D323`
+(Marcus regression). The original-model Marcus control is
+`4D14938BA61100702567B0329D8A9D29AA445249AADD65FBAEB3A75800866E60`.
+It was built by temporarily restoring HEAD's original `modl.cpp`/`modl.h`,
+retaining the current captions, sound runtime and dispatcher fix. Converted
+sources were restored byte-for-byte and rebuilt before capture. All three
+executable hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T014230Z-182704ae` | original-model scrolling-text control | two Marcus seek/playback complete |
+| `20261114T014331Z-3c06dc64` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T014446Z-76bc208b` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All fourteen captures complete without retries. Actor-events frame observations,
+all seek images and ordered playback image changes match each player's
+`20261114T000009Z-ca2a61d8` baseline. Retail and SDL scrolling-text retain their
+`20261113T164741Z-85298c8e` results. Marcus's older scrolling baseline predates
+caption fixes `e81d9238` and `4c39e529` (21:34 and 21:44 UTC on 13 November).
+The current original-model control itself reproduces the image difference from
+that older baseline while retaining the same authored frames. Converted Marcus
+matches the current control in all 60 seek images and all 321 ordered playback
+image changes. Thus that existing image difference is not introduced by the
+model conversion; the older evidence is retained rather than silently accepted
+as a new matching baseline. Only adjacent identical position/image observations
+are collapsed for playback comparison.
+
+The final reports retain existing cross-player differences and single-repeat
+inconclusive comparisons. The Marcus-only control has no cross-player reference;
+its images are compared directly with the converted capture. These checks show
+no observed model conversion regression, not full retail timing/PCM parity.
+Captures use the shared warm SDL package cache and private processes/settings/
+working movies, with uncontrolled OS caching and no concurrent builds or tests.
+
+Evidence: `tmp/c89-model-resource-before.bin`,
+`tmp/c89-model-resource-before-repeat.bin`, `tmp/c89-model-resource-after.bin`,
+`tmp/c89-model-resource-asan.log`, `tmp/c89-model-resource-native-tests.log`,
+`tmp/c89-model-resource-final-focused.log`, `tmp/c89-model-resource-sdl-tests.log`,
+`tmp/c89-model-resource-output-comparison.json`,
+`tmp/c89-model-resource-playback-actor-events-scrolling-text.json`,
+`tmp/c89-model-resource-native-control-capture.log` and the final capture logs.
+The current 76/94-check gates are in `tmp/c89-sound-runtime-standalone.log` and
+`tmp/c89-sound-runtime-native-tests.log`.

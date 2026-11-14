@@ -73,6 +73,7 @@ cmake --build build/engine-c89 --target engine-actor-clipboard-test
 cmake --build build/engine-c89 --target engine-actor-create-test
 cmake --build build/engine-c89 --target engine-movie-sound-test
 cmake --build build/engine-c89 --target engine-body-geometry-test
+cmake --build build/engine-c89 --target engine-model-resource-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1718,6 +1719,51 @@ body-edit and 427,368-byte body-runtime traces remain exact. Standalone C and
 AddressSanitizer checks, both hosts, 88 focused native checks, 51 CLI baselines
 and retail/SDL/Marcus actor-events/actor-audio comparisons are recorded with
 coverage limits in `docs/tools/playback-regression.md`.
+
+### Model resource ownership, wire I/O and prelighting
+
+`model_resource.c` owns the persistent `ThreeMMModelResource` renderer handle,
+construction/factories, packed/unpacked estimates, prepared/unprepared loading,
+partial ownership, disposal, writing, DAT import control, extent queries and
+glyph adjustment. `modl.cpp` supplies typed BRender field/allocation, block/file
+and object-reference services. Header and face codecs operate on explicit
+48-byte headers and 32-byte faces; 32-byte vertex records retain their native
+opaque representation. Runtime faces may be larger because their material
+field is a pointer. Serialized material slots and implicit face padding are
+zero; explicit `_pad0` bytes remain preserved.
+
+Loading preserves radius-based preparation selection and the original ordering
+of group publication, allocation, binding and renderer registration. Failure
+retains partial ownership until disposal. Factories release failed objects
+before invalidating outputs. Legacy code normalized its header order marker
+before testing it again, so foreign vertex and face payloads remain unswapped.
+Malformed negative signed wire counts fail before native allocator/read
+assertions; bounded reads reject truncations. Trailing bytes remain accepted.
+Glyph arithmetic preserves floor halves for negative fixed-point differences,
+wrapped sums/subtractions, the -655 spacing threshold and repeat adjustments.
+
+`model_lighting.c` owns the original camera/light/material specification and
+prelight sequencing. The former direction input remains ignored. Every enabled
+light is disabled, the world frees its attached camera/lights, and material and
+both pixelmaps are freed on every returning path. This fixes the old temporary
+resource leaks without changing the frozen prepared geometry. Native debug
+still diagnoses more than one light; C mocks cover counts 1 through 9 and every
+creation failure. The native model allocator now supplies a nonempty pointer-
+sized identifier string so BRender reserves room for the owner pointer. Owner
+encoding/decoding uses typed copies. DAT testing also exposed an uninitialized
+non-count chunk-handler argument in BRender; initializing it to zero removes
+the runtime-check failure. Count-bearing chunks retain their read argument.
+
+`engine-model-resource-test` links with C alone and covers wire byte orders,
+truncations, callback failures/publication, partial ownership, writer failures,
+glyph boundaries and lighting cleanup. `model-resource-test` exercises real
+BRender factories, DAT import and temporary allocation balance. Its frozen
+277,360-byte native trace matches across 504 debug load attempts, 404 successful,
+SHA-256 `29157E1B47FE4DA9E1B36DF511026715326661B816075D887F4EECAD986F51D3`;
+the test enforces FNV-1a `78C575E5` on native debug little-endian hosts. Real
+retail/SDL/Marcus captures and the native-model caption control are recorded
+with coverage limits in `docs/tools/playback-regression.md`. Material/texture
+resources and final native facade removal remain migration work.
 
 ### Template construction, headers and default costumes
 

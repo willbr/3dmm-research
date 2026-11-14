@@ -1648,6 +1648,8 @@ int DfChunksInterpret(br_datafile *df, br_chunks_table *table)
 #if CHUNK_LOG
 			BrLogPrintf("calling\n");
 #endif
+			/* Non-count chunks still pass the argument to their handler. */
+			count = 0;
 			if(table->entries[i].has_count)
 				count = df->prims->count_read(df);
 

@@ -14,6 +14,8 @@
 #ifndef MODL_H
 #define MODL_H
 
+#include "three_mm/model_resource.h"
+
 using namespace BRender;
 
 // Model on file:
@@ -52,7 +54,7 @@ struct BrFaceOnFile
     uint8_t _pad0;          // br_uint_8
     int16_t n[3];           // br_fvector3 = 3 * br_fraction (short)
     // 2 bytes implicit pad here (align d to 4)
-    int32_t d;              // br_scalar (long)
+    int32_t d; // br_scalar (long)
 };
 #pragma pack(pop)
 static_assert(sizeof(BrFaceOnFile) == 32, "BrFaceOnFile on-disk layout drift");
@@ -70,38 +72,44 @@ class Model : public Model_PAR
     MARKMEM
 
   protected:
-    BMDL *_pbmdl; // BRender model data
+    ThreeMMModelResource _model; // C-owned renderer handle
   protected:
     Model(void)
     {
+        three_mm_model_init(&_model);
     }
+    static ThreeMMModelServices _Services(void *context = nullptr);
     bool _FInit(PDataBlock pblck);
     bool _FPrelight(LegacyLong cblit, BVEC3 *prgbvec3Light);
 
   public:
     static PModel PmodlNew(LegacyLong cbrv, BRV *prgbrv, LegacyLong cbrf, BRF *prgbrf);
-    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
     static PModel PmodlReadFromDat(Filename *pfni);
     static PModel PmodlFromBmdl(PBMDL pbmdl);
     ~Model(void);
     PBMDL Pbmdl(void)
     {
-        return _pbmdl;
+        return static_cast<PBMDL>(_model.handle);
     }
     void AdjustTdfCharacter(void);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
     BRS Dxr(void)
     {
-        return _pbmdl->bounds.max.v[0] - _pbmdl->bounds.min.v[0];
+        auto services = _Services();
+        return three_mm_model_extent(&_model, 0, &services);
     }
     BRS Dyr(void)
     {
-        return _pbmdl->bounds.max.v[1] - _pbmdl->bounds.min.v[1];
+        auto services = _Services();
+        return three_mm_model_extent(&_model, 1, &services);
     }
     BRS Dzr(void)
     {
-        return _pbmdl->bounds.max.v[2] - _pbmdl->bounds.min.v[2];
+        auto services = _Services();
+        return three_mm_model_extent(&_model, 2, &services);
     }
 };
 
