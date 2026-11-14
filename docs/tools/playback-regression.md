@@ -5504,6 +5504,14 @@ Evidence: `tmp/c89-sound-finish-native-build.log`,
 `tmp/c89-sound-finish-sdl-build.log` and
 `tmp/c89-sound-finish-sdl-tests.log`.
 
+The sound closeout was reconfirmed on `679f6520`, after the World buffer
+conversion: freshly rebuilt native and SDL selections pass all 16 and 24 checks,
+respectively, run serially. The standalone audio runtime fixture also passes a
+fresh Clang strict C89 build with warnings treated as errors. Evidence:
+`tmp/c89-sound-current-native-tests.log` and
+`tmp/c89-sound-current-sdl-tests.log`. No production changes or new retail
+captures were needed; the host-integration and comparison limits above remain.
+
 ### C89 model resources and prelighting (14 November 2026)
 
 `model_resource.c` now owns model creation, cache factories/estimates,
