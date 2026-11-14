@@ -124,6 +124,104 @@ void World::SetNoTexture(bool fOn)
     _fNoTexture = fOn;
 }
 
+ThreeMMWorldBufferServices World::_BufferServices()
+{
+    ThreeMMWorldBufferServices s = {};
+    s.context = this;
+    s.rgb_type = BR_PMT_INDEX_8;
+    s.depth_type = BR_PMT_DEPTH_16;
+    s.create = [](void *, int kind, ThreeMMI32 width, ThreeMMI32 height) -> void * {
+        RC r(0, 0, width, height);
+        if (kind == THREE_MM_WORLD_DEPTH_BACKGROUND || kind == THREE_MM_WORLD_DEPTH_WORKING)
+            return ZBMP::PzbmpNew(width, height);
+        if (kind == THREE_MM_WORLD_DIRTY_WORKING || kind == THREE_MM_WORLD_DIRTY_SCREEN)
+            return Region::PregnNew(kind == THREE_MM_WORLD_DIRTY_SCREEN ? nullptr : &r);
+        return GraphicsPort::PgptNewOffscreen(&r, kcbitPixelRGB);
+    };
+    s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
+    s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.lock = [](void *, void *p) -> void * { return static_cast<PGraphicsPort>(p)->PrgbLockPixels(); };
+    s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
+    s.depth_span = [](void *, void *p, ThreeMMWorldDepthSpan *out) {
+        auto d = static_cast<PZBMP>(p);
+        *out = {static_cast<byte *>(d->_depth.pixels), d->_depth.row_bytes, d->_depth.bytes};
+    };
+    s.publish = [](void *p, const ThreeMMWorldBuffers *b) {
+        auto w = static_cast<PWorld>(p);
+        w->_rcView.Set(0, 0, b->width, b->height);
+        w->_rcBuffer.Set(0, 0, b->buffer_width, b->buffer_height);
+        w->_fHalfX = b->half_x != 0;
+        w->_fHalfY = b->half_y != 0;
+        w->_renderScale = b->scale;
+        w->_pzbmpBackground = static_cast<PZBMP>(b->owners[THREE_MM_WORLD_DEPTH_BACKGROUND]);
+        w->_pzbmpWorking = static_cast<PZBMP>(b->owners[THREE_MM_WORLD_DEPTH_WORKING]);
+        w->_pgptBackground = static_cast<PGraphicsPort>(b->owners[THREE_MM_WORLD_RGB_BACKGROUND]);
+        w->_pgptWorking = static_cast<PGraphicsPort>(b->owners[THREE_MM_WORLD_RGB_WORKING]);
+        w->_pgptStretch = static_cast<PGraphicsPort>(b->owners[THREE_MM_WORLD_RGB_STRETCH]);
+        w->_pregnDirtyWorking = static_cast<PRegion>(b->owners[THREE_MM_WORLD_DIRTY_WORKING]);
+        w->_pregnDirtyScreen = static_cast<PRegion>(b->owners[THREE_MM_WORLD_DIRTY_SCREEN]);
+        w->_pcrf = static_cast<PChunkyResourceFile>(b->owners[THREE_MM_WORLD_CACHE]);
+        w->_ctgRGB = b->rgb_type;
+        w->_cnoRGB = b->rgb_number;
+        w->_ctgZ = b->z_type;
+        w->_cnoZ = b->z_number;
+        auto view = [](BPMP &p, const ThreeMMWorldPixelView &v) {
+            p.type = static_cast<br_uint_8>(v.type);
+            p.row_bytes = static_cast<short>(v.row);
+            p.width = static_cast<ushort>(v.width);
+            p.height = static_cast<ushort>(v.height);
+            p.origin_x = static_cast<short>(v.x);
+            p.origin_y = static_cast<short>(v.y);
+            p.pixels = v.pixels;
+        };
+        view(w->_bpmpRGB, b->rgb);
+        view(w->_bpmpZ, b->z);
+    };
+    s.setup_scene = [](void *p) {
+        auto w = static_cast<PWorld>(p);
+        w->_bactWorld.type = BR_ACTOR_NONE;
+        w->_bactWorld.t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Identity(&w->_bactWorld.t.t.mat);
+        w->_bactWorld.identifier = reinterpret_cast<char *>(w);
+        w->_bactCamera.type = BR_ACTOR_CAMERA;
+        w->_bactCamera.t.type = BR_TRANSFORM_MATRIX34;
+        w->_bactCamera.type_data = &w->_bcam;
+        w->_bcam.type = BR_CAMERA_PERSPECTIVE;
+        w->_bcam.aspect = BR_SCALAR(double(w->_rcView.Dxp()) / double(w->_rcView.Dyp()));
+        BrActorAdd(&w->_bactWorld, &w->_bactCamera);
+    };
+    s.dirty = [](void *p, int working, int screen, int changed) {
+        auto w = static_cast<PWorld>(p);
+        if (working)
+            w->_pregnDirtyWorking->SetRc(&w->_rcBuffer);
+        if (screen)
+            w->_pregnDirtyScreen->SetRc(&w->_rcBuffer);
+        if (changed)
+            w->_fWorldChanged = true;
+    };
+    s.fetch = [](void *, void *p, int kind, ThreeMMU32 type, ThreeMMU32 number) -> void * {
+        return static_cast<PChunkyResourceFile>(p)->PbacoFetch(
+            type, number, kind == THREE_MM_WORLD_DEPTH_BACKGROUND ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
+    };
+    s.priority = [](void *, void *p) { static_cast<PBaseCacheableObject>(p)->SetCrep(crepTossFirst); };
+    s.draw_bitmap = [](void *, void *port, void *bitmap) {
+        GraphicsEnvironment gnv(static_cast<PGraphicsPort>(port));
+        gnv.DrawMbmp(static_cast<PMaskedBitmapMBMP>(bitmap), 0, 0);
+    };
+    s.copy_rgb = [](void *, void *source, void *destination, ThreeMMI32 sw, ThreeMMI32 sh, ThreeMMI32 dw,
+                    ThreeMMI32 dh) {
+        GraphicsEnvironment src(static_cast<PGraphicsPort>(source)), dst(static_cast<PGraphicsPort>(destination));
+        RC sr(0, 0, sw, sh), dr(0, 0, dw, dh);
+        dst.CopyPixels(&src, &sr, &dr);
+    };
+    s.draw_depth = [](void *, void *source, void *destination, ThreeMMI32 width, ThreeMMI32 height) {
+        auto dst = static_cast<PZBMP>(destination);
+        RC r(0, 0, width, height);
+        static_cast<PZBMP>(source)->Draw(dst->Prgb(), dst->CbRow(), height, 0, 0, &r);
+    };
+    return s;
+}
+
 /***************************************************************************
     Recursively force a render style on every BR_ACTOR_MODEL descendant.
     Used by the wireframe override: setting only the world root is not
@@ -192,243 +290,49 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
         _fBRenderInited = fTrue;
     }
 
-    _rcView.Set(0, 0, dxp, dyp);
-
-    if (!_FInitBuffers(dxp, dyp, fHalfX, fHalfY))
-        return fFalse;
-
-    // Create the world and initial camera
-    _bactWorld.type = BR_ACTOR_NONE;
-    _bactWorld.t.type = BR_TRANSFORM_MATRIX34;
-    BrMatrix34Identity(&_bactWorld.t.t.mat);
-    _bactWorld.identifier = (char *)this;
-    _bactCamera.type = BR_ACTOR_CAMERA;
-    _bactCamera.t.type = BR_TRANSFORM_MATRIX34;
-    _bactCamera.type_data = &_bcam;
-    _bcam.type = BR_CAMERA_PERSPECTIVE;
-    // Note that the aspect ratio of the view is specified rather than the
-    // ratio of the buffer so that even when rendering into a reduced
-    // buffer, the actors come out right when stretched to _rcView in Draw().
-    _bcam.aspect = BR_SCALAR((double)_rcView.Dxp() / (double)_rcView.Dyp());
-    BrActorAdd(&_bactWorld, &_bactCamera);
-
-    // Set up dirty region stuff
-    _pregnDirtyWorking = Region::PregnNew(&_rcBuffer);
-    if (pvNil == _pregnDirtyWorking)
-        return fFalse;
-    _pregnDirtyScreen = Region::PregnNew(pvNil);
-    if (pvNil == _pregnDirtyScreen)
-        return fFalse;
-
-    BrZbSetRenderBoundsCallback(_ActorRendered);
-
-    return fTrue;
-}
-
-/***************************************************************************
-    Initialize or reinitialize members that depend on the values of _fHalfX
-    and _fHalfY.  This function gets called by _FInit, and again every time
-    FSetHalfMode is called.
-***************************************************************************/
-bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
-{
-    AssertBaseThis(0);
-    AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
-    AssertIn(dyp, 1, ksuMax);
-    if (dxp > 4096 / _renderScale || dyp > 4096 / _renderScale)
+    if (dxp <= 0 || dyp <= 0 || dxp > 4096 || dyp > 4096)
         return false;
-
-    _fHalfX = fHalfX;
-    _fHalfY = fHalfY;
-    dxp *= _renderScale;
-    dyp *= _renderScale;
-    if (_renderScale == 1 && _fHalfX)
-        dxp /= 2;
-    if (_renderScale == 1 && _fHalfY)
-        dyp /= 2;
-
-    _rcBuffer.Set(0, 0, dxp, dyp);
-
-    ReleasePpo(&_pzbmpBackground);
-    _pzbmpBackground = ZBMP::PzbmpNew(dxp, dyp);
-    if (pvNil == _pzbmpBackground)
-        return fFalse;
-
-    // Set up the working Z-buffer
-    ReleasePpo(&_pzbmpWorking);
-    _pzbmpWorking = ZBMP::PzbmpNew(dxp, dyp);
-    if (pvNil == _pzbmpWorking)
-        return fFalse;
-    Assert(kcbitPixelZ == 16, "change _bpmpZ.type");
-    _bpmpZ.type = BR_PMT_DEPTH_16;
-    _bpmpZ.row_bytes = (short)LwMul(dxp, kcbPixelZ);
-    _bpmpZ.width = (ushort)dxp;
-    _bpmpZ.height = (ushort)dyp;
-    _bpmpZ.origin_x = dxp / 2;
-    _bpmpZ.origin_y = dyp / 2;
-    _bpmpZ.pixels = _pzbmpWorking->Prgb();
-
-    // Set up background RGB buffer
-    ReleasePpo(&_pgptBackground);
-    _pgptBackground = GraphicsPort::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
-    if (pvNil == _pgptBackground)
-        return fFalse;
-
-    // Set up the working RGB buffer
-    if (pvNil != _pgptWorking)
-    {
-        _pgptWorking->Unlock();
-        ReleasePpo(&_pgptWorking);
-    }
-    _pgptWorking = GraphicsPort::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
-    if (pvNil == _pgptWorking)
-        return fFalse;
-    Assert(kcbitPixelRGB == 8, "change _bpmpRGB.type");
-    _bpmpRGB.type = BR_PMT_INDEX_8;
-    _bpmpRGB.row_bytes = (short)LwMul(dxp, kcbPixelRGB);
-    _bpmpRGB.width = (ushort)dxp;
-    _bpmpRGB.height = (ushort)dyp;
-    _bpmpRGB.origin_x = dxp / 2;
-    _bpmpRGB.origin_y = dyp / 2;
-    _bpmpRGB.pixels = _pgptWorking->PrgbLockPixels();
-
-    // If in _fHalfY and not _fHalfX, allocated a _rcView-sized buffer
-    // for faster blitting -- see Draw()
-    ReleasePpo(&_pgptStretch);
-    if (_renderScale == 1 && !_fHalfX && _fHalfY)
-    {
-        _pgptStretch = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
-        if (pvNil == _pgptStretch)
-            return fFalse;
-    }
-
-    return fTrue;
+    auto s = _BufferServices();
+    if (!three_mm_world_buffers_init(&_buffers, dxp, dyp, _renderScale, fHalfX, fHalfY, &s))
+        return false;
+    BrZbSetRenderBoundsCallback(_ActorRendered);
+    return true;
 }
 
 /***************************************************************************
     Destructor for World
 ***************************************************************************/
-World::~World(void)
+World::~World()
 {
     AssertBaseThis(0);
-
-    if (pvNil != _pgptWorking)
-    {
-        _pgptWorking->Unlock();
-        ReleasePpo(&_pgptWorking);
-    }
-    ReleasePpo(&_pgptStretch);
-    ReleasePpo(&_pgptBackground);
-    ReleasePpo(&_pzbmpWorking);
-    ReleasePpo(&_pzbmpBackground);
-    ReleasePpo(&_pregnDirtyWorking);
-    ReleasePpo(&_pregnDirtyScreen);
-    ReleasePpo(&_pcrf);
+    auto s = _BufferServices();
+    three_mm_world_buffers_dispose(&_buffers, &s);
 }
-
-/***************************************************************************
-    Change reduced rendering mode
-***************************************************************************/
-bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
+bool World::FSetHalfMode(bool x, bool y)
 {
-    return _FSetBufferMode(fHalfX, fHalfY, _renderScale);
+    return _FSetBufferMode(x, y, _renderScale);
 }
-
 bool World::FSetRenderScale(long scale)
 {
-    if (scale != 1 && scale != 2 && scale != 4)
-        return false;
     return _FSetBufferMode(_fHalfX, _fHalfY, scale);
 }
-
 bool World::FSetRenderResolution(long scale, bool reduced)
 {
-    if ((scale != 1 && scale != 2 && scale != 4) || (reduced && scale != 1))
+    AssertThis(0);
+    if (scale != 1 && scale != 2 && scale != 4)
         return false;
-    return _FSetBufferMode(reduced, reduced, scale);
+    auto s = _BufferServices();
+    return three_mm_world_buffers_resolution(&_buffers, scale, reduced, &s) != 0;
 }
-
-bool World::_FSetBufferMode(bool fHalfX, bool fHalfY, long scale)
+bool World::_FSetBufferMode(bool x, bool y, long scale)
 {
     AssertThis(0);
-
-    if (FPure(_fHalfX) == FPure(fHalfX) && FPure(_fHalfY) == FPure(fHalfY) && scale == _renderScale)
-        return fTrue;
-
-    bool fHalfXSave = _fHalfX;
-    bool fHalfYSave = _fHalfY;
-    const long scaleSave = _renderScale;
-    RC rcBufferSave = _rcBuffer;
-    PGraphicsPort pgptWorkingSave = _pgptWorking;
-    PGraphicsPort pgptStretchSave = _pgptStretch;
-    PGraphicsPort pgptBackgroundSave = _pgptBackground;
-    BPMP bpmpRGBSave = _bpmpRGB;
-    PZBMP pzbmpWorkingSave = _pzbmpWorking;
-    PZBMP pzbmpBackgroundSave = _pzbmpBackground;
-    BPMP bpmpZSave = _bpmpZ;
-
-    _pgptWorking = pvNil;
-    _pgptStretch = pvNil;
-    _pgptBackground = pvNil;
-    _pzbmpWorking = pvNil;
-    _pzbmpBackground = pvNil;
-
-    _renderScale = scale;
-    if (!_FInitBuffers(_rcView.Dxp(), _rcView.Dyp(), fHalfX, fHalfY))
-        goto LFail;
-
-    if (pvNil != _pcrf)
-    {
-        // Reload the background at the new resolution
-        if (!FSetBackground(_pcrf, _ctgRGB, _cnoRGB, _ctgZ, _cnoZ))
-            goto LFail;
-    }
-
-    if (pvNil != pgptWorkingSave)
-    {
-        pgptWorkingSave->Unlock();
-        ReleasePpo(&pgptWorkingSave);
-    }
-    ReleasePpo(&pgptStretchSave);
-    ReleasePpo(&pgptBackgroundSave);
-    ReleasePpo(&pzbmpWorkingSave);
-    ReleasePpo(&pzbmpBackgroundSave);
-
-    _pregnDirtyWorking->SetRc(&_rcBuffer);
-    _pregnDirtyScreen->SetRc(&_rcBuffer);
-    _fWorldChanged = true;
-
+    if (scale != 1 && scale != 2 && scale != 4)
+        return false;
+    auto s = _BufferServices();
+    bool ok = three_mm_world_buffers_mode(&_buffers, x, y, scale, &s) != 0;
     AssertThis(0);
-
-    return fTrue;
-LFail:
-    // Get rid of newly allocated buffers
-    if (pvNil != _pgptWorking)
-    {
-        _pgptWorking->Unlock();
-        ReleasePpo(&_pgptWorking);
-    }
-    ReleasePpo(&_pgptStretch);
-    ReleasePpo(&_pgptBackground);
-    ReleasePpo(&_pzbmpWorking);
-    ReleasePpo(&_pzbmpBackground);
-
-    // restore everything
-    _fHalfX = fHalfXSave;
-    _fHalfY = fHalfYSave;
-    _renderScale = scaleSave;
-    _rcBuffer = rcBufferSave;
-    _bpmpZ = bpmpZSave;
-    _bpmpRGB = bpmpRGBSave;
-
-    _pgptWorking = pgptWorkingSave;
-    _pgptStretch = pgptStretchSave;
-    _pgptBackground = pgptBackgroundSave;
-    _pzbmpWorking = pzbmpWorkingSave;
-    _pzbmpBackground = pzbmpBackgroundSave;
-
-    AssertThis(0);
-    return fFalse;
+    return ok;
 }
 
 /***************************************************************************
@@ -448,169 +352,13 @@ void World::CloseBRender(void)
     }
 }
 
-/***************************************************************************
-    Copy pvSrc into pvDst, skipping every other short.  This is called by
-    FSetBackground for each row in a ZBMP when _fHalfX is fTrue.
-***************************************************************************/
-inline void SqueezePb(void *pvSrc, void *pvDst, long cbSrc)
-{
-    AssertIn(cbSrc, 0, kcbMax);
-    Assert(cbSrc % (LwMul(2, kcbPixelZ)) == 0, "cbSrc is not aligned");
-    AssertPvCb(pvSrc, cbSrc);
-    AssertPvCb(pvDst, cbSrc / 2);
-
-    Assert(size(short) == kcbPixelZ, 0);
-    short *pswSrc = (short *)pvSrc;
-    short *pswDst = (short *)pvDst;
-
-    while (cbSrc != 0)
-    {
-        *pswDst++ = *pswSrc++;
-        pswSrc++;
-        cbSrc -= LwMul(2, kcbPixelZ);
-    }
-}
-
-/***************************************************************************
-    Load bitmaps from the given chunks into _pgptBackground and
-    _pzbmpBackground.
-***************************************************************************/
-bool World::_FScaleBackground(PMaskedBitmapMBMP bitmap, PZBMP depth, long scale)
-{
-    auto full = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
-    if (!full)
-        return false;
-    {
-        GraphicsEnvironment source(full), destination(_pgptBackground);
-        source.DrawMbmp(bitmap, 0, 0);
-        destination.CopyPixels(&source, &_rcView, &_rcBuffer);
-    }
-    ReleasePpo(&full);
-
-    // Preserve exact scene depths at background silhouettes: interpolate no Z.
-    const auto width = _rcView.Dxp(), height = _rcView.Dyp();
-    auto nativeDepth = ZBMP::PzbmpNew(width, height);
-    if (!nativeDepth)
-        return false;
-    depth->Draw(nativeDepth->Prgb(), nativeDepth->CbRow(), height, 0, 0, &_rcView);
-    const auto sourcePitch = nativeDepth->CbRow(), destinationPitch = _pzbmpBackground->CbRow();
-    const auto source = static_cast<const byte *>(nativeDepth->Prgb());
-    auto destination = static_cast<byte *>(_pzbmpBackground->Prgb());
-    for (long y = 0; y < height * scale; ++y)
-    {
-        const auto input = reinterpret_cast<const ushort *>(source + (y / scale) * sourcePitch);
-        auto output = reinterpret_cast<ushort *>(destination + y * destinationPitch);
-        for (long x = 0; x < width * scale; ++x)
-            output[x] = input[x / scale];
-    }
-    ReleasePpo(&nativeDepth);
-    return true;
-}
-
-bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTagOrType ctgRGB, ChunkNumber cnoRGB, ChunkTagOrType ctgZ, ChunkNumber cnoZ)
+bool World::FSetBackground(PChunkyResourceFile cache, ChunkTagOrType rgbType, ChunkNumber rgb, ChunkTagOrType zType,
+                           ChunkNumber z)
 {
     AssertThis(0);
-    AssertPo(pcrf, 0);
-
-    PMaskedBitmapMBMP pmbmpNew;
-    PZBMP pzbmpNew;
-
-    pmbmpNew = (PMaskedBitmapMBMP)pcrf->PbacoFetch(ctgRGB, cnoRGB, MaskedBitmapMBMP::FReadMbmp);
-    if (pvNil == pmbmpNew)
-        return fFalse;
-
-    pzbmpNew = (PZBMP)pcrf->PbacoFetch(ctgZ, cnoZ, ZBMP::FReadZbmp);
-    if (pvNil == pzbmpNew)
-    {
-        ReleasePpo(&pmbmpNew);
-        return fFalse;
-    }
-
-    // It's nice to cache these bitmaps if we can, but they should be
-    // tossed first when memory gets tight because they take up a lot
-    // of space, they're pretty fast to reload, and they are reloaded
-    // at a time when it's okay for a pause (between scenes/views).
-    pmbmpNew->SetCrep(crepTossFirst);
-    pzbmpNew->SetCrep(crepTossFirst);
-
-    if (_renderScale > 1)
-    {
-        const bool filled = _FScaleBackground(pmbmpNew, pzbmpNew, _renderScale);
-        ReleasePpo(&pmbmpNew);
-        ReleasePpo(&pzbmpNew);
-        if (!filled)
-            return false;
-    }
-    else if (_fHalfX || _fHalfY)
-    {
-        // Need to squeeze pmbmpNew and pzbmpNew into _pgptBackground
-        // and _pzbmpBackground.  For pmbmpNew, it is drawn into a
-        // full-size buffer, then reduced with CopyPixels.  For the
-        // ZBMP, it is necessary to reduce it in code here.
-        PGraphicsPort pgptFull;
-        long yp;
-        byte *pbSrc;
-        byte *pbDst;
-        long cbRowSrc;
-        long cbRowDst;
-        pgptFull = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
-        if (pvNil == _pgptBackground)
-        {
-            ReleasePpo(&pmbmpNew);
-            ReleasePpo(&pzbmpNew);
-            return fFalse;
-        }
-        GraphicsEnvironment gnvFull(pgptFull);
-        GraphicsEnvironment gnvHalf(_pgptBackground);
-
-        gnvFull.DrawMbmp(pmbmpNew, 0, 0);
-        ReleasePpo(&pmbmpNew);
-        gnvHalf.CopyPixels(&gnvFull, &_rcView, &_rcBuffer);
-        ReleasePpo(&pgptFull);
-
-        pbSrc = pzbmpNew->Prgb();
-        pbDst = _pzbmpBackground->Prgb();
-        cbRowSrc = pzbmpNew->CbRow();
-        cbRowDst = _pzbmpBackground->CbRow();
-        Assert(cbRowSrc - cbRowDst == (_fHalfX ? cbRowDst : 0), "bad src/dest width ratio");
-        for (yp = 0; yp < _rcBuffer.Dyp(); yp++)
-        {
-            if (_fHalfX)
-                SqueezePb(pbSrc, pbDst, cbRowSrc);
-            else
-                CopyPb(pbSrc, pbDst, cbRowSrc);
-            pbSrc += cbRowSrc;
-            if (_fHalfY)
-                pbSrc += cbRowSrc; // skip rows in source
-            pbDst += cbRowDst;
-        }
-        ReleasePpo(&pzbmpNew);
-    }
-    else // not in half mode
-    {
-        GraphicsEnvironment gnv(_pgptBackground);
-        gnv.DrawMbmp(pmbmpNew, 0, 0);
-        ReleasePpo(&pmbmpNew);
-
-        ReleasePpo(&_pzbmpBackground);
-        _pzbmpBackground = pzbmpNew;
-    }
-
-    // entire working buffer is dirty because of background change
-    _pregnDirtyWorking->SetRc(&_rcBuffer);
-    _fWorldChanged = fTrue;
-
-    // Keep a reference to the background, in case we change to/from
-    // halfmode and need to reload it.
-    pcrf->AddRef();
-    ReleasePpo(&_pcrf);
-    _pcrf = pcrf;
-    _ctgRGB = ctgRGB;
-    _cnoRGB = cnoRGB;
-    _ctgZ = ctgZ;
-    _cnoZ = cnoZ;
-
-    return fTrue;
+    AssertPo(cache, 0);
+    auto s = _BufferServices();
+    return three_mm_world_buffers_background(&_buffers, cache, rgbType, rgb, zType, z, &s) != 0;
 }
 
 /***************************************************************************

@@ -79,6 +79,7 @@ cmake --build build/engine-c89 --target engine-texture-resource-test
 cmake --build build/engine-c89 --target engine-bitmap-file-test
 cmake --build build/engine-c89 --target engine-depth-bitmap-test
 cmake --build build/engine-c89 --target engine-masked-bitmap-test
+cmake --build build/engine-c89 --target engine-world-buffers-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1953,6 +1954,39 @@ debug little-endian builds enforce FNV-1a `65C24F63`. Supplemental native failur
 checks require balanced BASE/HQ/Pv allocations. The C-only fixture covers both
 host orders, long runs, malformed rows, transaction failures, exact-size writes
 and import/source ownership. Full gates are in `docs/tools/playback-regression.md`.
+
+### World buffer ownership and background transactions
+
+`world_buffers.c` owns World colour/depth/stretch buffers, dirty regions and the
+retained background cache, mode dimensions, renderer-view descriptions,
+construction/disposal ordering, mode rollback and background loading/control.
+Native World fields and BRender pixelmaps borrow this state. Typed host services
+provide allocation, locks, region creation, SDK scene setup and graphics blits;
+camera/render/picking/export policy and final representation removal remain work.
+
+Scale values stay 1/2/4, with a 4,096-pixel limit per rendered axis. Half flags
+reduce dimensions only at scale 1; the extra stretch port remains exclusive to
+half-Y/full-X at scale 1. Working RGB retains exactly one renderer lock until
+replacement/disposal. Mode changes hold old buffers until allocation and
+background reload succeed, then release old owners in native order. Failure
+restores resources, descriptions, dimensions and flags without invalidating the
+old buffers. No-op/invalid modes allocate nothing.
+
+Background loading preserves fetch/priority/release order, dirty notification,
+retain-before-release of the cache, full-mode depth transfer and nearest depth
+sample selection in reduced/scaled modes. Partial colour writes remain if later
+depth work fails. The reduced-mode temporary-colour allocation now checks the
+new port rather than the existing destination, avoiding a null-port crash.
+Depth span arithmetic is bounded before copies; no depth interpolation occurs.
+
+Two original native traces, the original SDL trace and the converted trace match
+71,376 bytes, SHA-256
+`507B79FD5C425A459A0D16D15E87996AF4557EE82E491179EEC1DACC46D0FC19`.
+Little-endian fixtures enforce FNV-1a `35BEFB80`. Real GDI/SDL port tests cover
+buffer descriptions, modes, dirty bounds and background colour/depth bytes.
+The C-only fixture covers initialization failures, mode rollback, cache and lock
+lifetime, temporary-port failure and partial background writes. Full gates and
+capture limits are in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

@@ -439,6 +439,10 @@ Masked-bitmap construction/cropping, RLE encoding, wire validation/normalization
 hit testing, cache factories, BMP import control and pixel lifetime now also use
 C89. C-owned contiguous buffers replace persistent HQ owners. Native drawing
 adapters borrow the host-order header/row-table/RLE view.
+World buffer/depth/region/background-cache ownership, construction order, mode
+transactions, background loading and depth resampling now also use C89. Native
+World fields and SDK pixelmaps are borrowed views; graphics operations and SDK
+scene setup remain host primitives. Camera/render/picking control is still work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -450,8 +454,9 @@ C-only host integration retain the limits described above.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
-masked-bitmap ownership/codec slices are complete. Continue with world/camera
-control in `bren/bwld.cpp` and remaining BRender representation
+masked-bitmap ownership/codec and World buffer/background slices are complete.
+Continue with camera, render sequencing, picking and export control in
+`bren/bwld.cpp` and remaining BRender representation
 adapters.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

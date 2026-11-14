@@ -10,6 +10,7 @@
 ***************************************************************************/
 #ifndef BWLD_H
 #define BWLD_H
+#include "three_mm/world_buffers.h"
 
 namespace BRender {
 
@@ -39,6 +40,8 @@ class World : public World_PAR
 
   protected:
     static bool _fBRenderInited; // Whether BrBegin() has been called
+    ThreeMMWorldBuffers _buffers; // owns resources; native fields below are borrowed views
+    ThreeMMWorldBufferServices _BufferServices();
     RC _rcBuffer;                // Bounds of the rendering space
     RC _rcView;                  // Bounds of view
     BACT _bactWorld;             // The world root actor
@@ -75,9 +78,7 @@ class World : public World_PAR
     {
     }
     bool _FInit(long dxp, long dyp, bool fHalfX, bool fHalfY);
-    bool _FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY);
     bool _FSetBufferMode(bool fHalfX, bool fHalfY, long scale);
-    bool _FScaleBackground(PMaskedBitmapMBMP bitmap, PZBMP depth, long scale);
     void _CleanWorkingBuffers(void);
 #ifdef DEBUG
     bool _FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale);

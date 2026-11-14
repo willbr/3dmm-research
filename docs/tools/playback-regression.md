@@ -6079,3 +6079,90 @@ Evidence: `tmp/c89-masked-bitmap-pixel-scroll-diagnostic.log`,
 `tmp/c89-scroll-check-final-sdl-tests.log`,
 `tmp/c89-scroll-check-final-native-build.log` and
 `tmp/c89-scroll-check-final-native-tests.log`.
+
+### C89 World buffer ownership and background transactions (14 November 2026)
+
+`world_buffers.c` owns persistent World colour/depth/stretch buffers, dirty
+regions, background-cache references, mode dimensions and renderer descriptions.
+It controls construction/disposal order, replacement transactions, background
+fetch/priority/lifetime, colour-copy orchestration and depth resampling. Native
+World fields and SDK pixelmaps are borrowed views published by typed services.
+Graphics-port/region primitives and SDK scene setup remain host services.
+Camera, render sequencing, picking, export policy and final native representation
+removal remain work; this completes the World resource foundation, not the full
+World conversion or whole C89 backend.
+
+Two original native traces, an original SDL trace and the final native/SDL
+traces match all 71,376 bytes without masking, SHA-256
+`507B79FD5C425A459A0D16D15E87996AF4557EE82E491179EEC1DACC46D0FC19`.
+Little-endian fixtures enforce FNV-1a `35BEFB80` in both debug and release.
+Forty-eight snapshots cover four initial half-mode combinations, loaded
+backgrounds, half-mode changes, scales 1/2/4, invalid/no-op requests and combined
+resolution settings. They freeze dimensions, owner presence, SDK pixelmap fields,
+dirty bounds and defined background colour/depth bytes through real GDI and SDL
+graphics ports. Initial undefined colour-buffer contents are not recorded.
+
+Working RGB keeps one renderer lock until replacement/disposal. Replacement
+holds old buffers while new buffers and background reload are attempted;
+failure restores owners, mode and renderer descriptions, while success releases
+old buffers in native order and dirties working/screen regions. Dirty-region
+and cache owners survive the buffer transaction. Cache replacement retains
+before releasing, including replacement with the same cache. Invalid modes
+allocate nothing; scale is 1/2/4 and rendered dimensions remain capped at 4,096.
+Half flags reduce dimensions only at scale 1. The half-Y/full-X stretch port
+allocation remains preserved even though the old drawing path does not use it.
+
+Background loading retains priority/fetch/release order, full-mode depth
+adoption and partial colour writes if later depth work fails. Reduced depth
+samples every other column/row, while scaled depth is drawn into a native-size
+intermediate and replicated without interpolation. Size/span checks stop before
+an invalid copy and preserve the completed prefix. The reduced-mode temporary
+colour-port failure now checks the newly allocated port; the original code
+checked the existing destination and could construct an environment with a null
+port. Failure returns cleanly and releases fetched resources.
+
+All 82 standalone C checks pass with assertions enabled, including strict C89
+syntax. The C-only World fixture and MSVC AddressSanitizer run cover 108
+initialization attempts and 60 mode-change attempts with failure injection,
+owner/lock balance, rollback, cache reuse, exact depth samples, no-op/invalid
+modes and partial background writes. A final supplemental case uses a valid
+depth resource shorter than the viewport: only available rows are copied,
+the final row and guards remain intact, and the failed request publishes no
+cache/dirty state. After capture, the supplemented C fixture was rerun standalone,
+under AddressSanitizer and through both host build links. Player hashes did not
+change. Both hosts and `core-checks` build; all 106 focused native checks,
+fifteen focused SDL release checks and 51 freshly linked CLI baselines pass.
+No Marcus UI tests were added.
+
+The final capture executables were frozen at SHA-256
+`2E8A469DDD15106409501E0336D49C293D1CBC9E21F93E507A1D7E0C588E5EC8`
+(SDL release) and
+`2DC7E42A6B0025818DE94450F25B69B0DE4DF18D8F239B6F94149C348F2A48D3`
+(Marcus regression). Both hashes remain unchanged after capture and the final
+supplemental C checks.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T045551Z-b3e51c55` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T045703Z-490c8fac` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie identity and
+suite integrity. Authored frames, all 360 seek images and ordered playback image
+changes match each player's masked-bitmap suites
+`20261114T042014Z-c750368b` and `20261114T042128Z-9aed56b4`. Only adjacent
+identical position/image observations are collapsed for playback comparison.
+Both reports retain existing cross-player differences and single-repeat
+inconclusive comparisons. These gates show no observed World buffer conversion
+regression; they do not establish full retail timing or PCM parity. Captures
+use the shared warm SDL package cache with private processes/settings/movies
+and uncontrolled OS caching; no builds or tests run concurrently with capture.
+
+Evidence: `tmp/c89-world-buffers-before*.bin`, `tmp/c89-world-buffers-after*.bin`,
+`tmp/c89-world-buffers-standalone.log`, `tmp/c89-world-buffers-final-standalone.log`,
+`tmp/c89-world-buffers-final-asan.log`, `tmp/c89-world-buffers-native-tests.log`,
+`tmp/c89-world-buffers-sdl-tests.log`,
+`tmp/c89-world-buffers-final-focused-native-tests.log`,
+`tmp/c89-world-buffers-final-focused-sdl-tests.log`,
+`tmp/c89-world-buffers-output-comparison.json`,
+`tmp/c89-world-buffers-playback-actor-events-scrolling-text.json` and the two
+`tmp/c89-world-buffers-capture-*.log` files.

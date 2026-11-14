@@ -37,6 +37,7 @@ typedef class ZBMP *PZBMP;
 #define kclsZBMP 'ZBMP'
 class ZBMP : public ZBMP_PAR
 {
+    friend class World;
     RTCLASS_DEC
     ASSERT
     MARKMEM
