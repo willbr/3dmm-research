@@ -14,6 +14,7 @@
 #include "region.h"
 #include "mbmp.h"
 #include "bitmap_format.h"
+#include "three_mm/bitmap_file.h"
 ASSERTNAME
 
 RTCLASS(MaskedBitmapMBMP)
@@ -531,239 +532,108 @@ bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
             pfUpsideDown	--	fTrue if the bitmap is upside down
         returns fTrue if it succeeds
 ***************************************************************************/
-bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, LegacyLong *pdxp, LegacyLong *pdyp, bool *pfUpsideDown, byte bTransparent)
+namespace
 {
-    AssertPo(pfni, ffniFile);
-    AssertNilOrVarMem(pprgb);
-    AssertNilOrVarMem(ppglclr);
-    AssertNilOrVarMem(pdxp);
-    AssertNilOrVarMem(pdyp);
-    AssertNilOrVarMem(pfUpsideDown);
-
-#ifndef MAC
-#pragma pack(2) // the stupid bmfh is an odd number of shorts
-    struct BMH
-    {
-        BitmapFileHeader bmfh;
-        BitmapInfoHeader bmih;
+struct BitmapContext
+{
+    byte **pixels = nullptr;
+    PDynamicArray *palette = nullptr;
+    LegacyLong *width = nullptr, *height = nullptr;
+    bool *upside = nullptr;
+};
+ThreeMMBitmapServices BitmapServices(BitmapContext *context)
+{
+    ThreeMMBitmapServices s = {};
+    s.context = context;
+    s.open = [](void *, void *p) -> void * { return FileObject::PfilOpen(static_cast<PFilename>(p)); };
+    s.create = [](void *, void *p) -> void * { return FileObject::PfilCreate(static_cast<PFilename>(p)); };
+    s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.size = [](void *, void *p) -> ThreeMMI32 { return static_cast<PFileObject>(p)->FpMac(); };
+    s.read = [](void *, void *p, void *out, ThreeMMI32 n, ThreeMMI32 at) -> int {
+        return static_cast<PFileObject>(p)->FReadRgb(out, n, at);
     };
-#pragma pack()
-
-    PFileObject pfil;
-    RC rc;
-    LegacyLong fpMac, cbBitmap, cbSrc;
-    BMH bmh;
-    bool fRet, fRle;
-    FilePosition fpCur = 0;
-
-    if (pvNil != pprgb)
-        *pprgb = pvNil;
-    if (pvNil != ppglclr)
-        *ppglclr = pvNil;
-
-    if (pvNil == (pfil = FileObject::PfilOpen(pfni)))
-        return fFalse;
-    fpMac = pfil->FpMac();
-    if (size(BMH) >= fpMac || !pfil->FReadRgbSeq(&bmh, size(BMH), &fpCur))
-        goto LFail;
-
-    fRle = (bmh.bmih.biCompression == BitmapCompressionRle8);
-    cbSrc = bmh.bmih.biSizeImage;
-    if (((LegacyLong)bmh.bmfh.bfSize != fpMac) || bmh.bmfh.bfType != 'MB' || !FIn(bmh.bmfh.bfOffBits, size(BMH), fpMac) ||
-        bmh.bmfh.bfReserved1 != 0 || bmh.bmfh.bfReserved2 != 0 || bmh.bmih.biSize != size(bmh.bmih) ||
-        bmh.bmih.biPlanes != 1)
-    {
-        Warn("bad bitmap file");
-        goto LFail;
-    }
-    if (bmh.bmih.biBitCount != 8)
-    {
-        Warn("not an 8-bit bitmap");
-        goto LFail;
-    }
-    if (bmh.bmih.biCompression != BitmapCompressionRgb && !fRle || cbSrc != fpMac - (LegacyLong)bmh.bmfh.bfOffBits && (cbSrc != 0 || fRle))
-    {
-        Warn("bad compression type or bitmap file is wrong length");
-        goto LFail;
-    }
-
-    rc.Set(0, 0, bmh.bmih.biWidth, LwAbs(bmh.bmih.biHeight));
-    cbBitmap = CbRoundToLong(rc.xpRight) * rc.ypBottom;
-    if (rc.FEmpty())
-    {
-        Warn("Empty bitmap rectangle");
-        goto LFail;
-    }
-    if (!fRle)
-    {
-        if (cbSrc == 0)
-            cbSrc = cbBitmap;
-        else if (cbSrc != cbBitmap)
+    s.write = [](void *, void *p, const void *data, ThreeMMI32 n, ThreeMMI32 at) -> int {
+        return static_cast<PFileObject>(p)->FWriteRgb(const_cast<void *>(data), n, at);
+    };
+    s.allocate = [](void *, ThreeMMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
+    s.free_memory = [](void *, void **p) { FreePpv(p); };
+    s.palette_create = [](void *) -> void * {
+        auto palette = DynamicArray::PglNew(sizeof(Color), 256);
+        if (palette)
+            AssertDo(palette->FSetIvMac(256), "Ensured by creation");
+        return palette;
+    };
+    s.palette_lock = [](void *, void *p) -> void * { return static_cast<PDynamicArray>(p)->PvLock(0); };
+    s.palette_unlock = [](void *, void *p) { static_cast<PDynamicArray>(p)->Unlock(); };
+    s.publish = [](void *p, int kind, void *object) {
+        auto c = static_cast<BitmapContext *>(p);
+        if (kind == THREE_MM_BITMAP_PIXELS)
+            *c->pixels = static_cast<byte *>(object);
+        else
+            *c->palette = static_cast<PDynamicArray>(object);
+    };
+    s.dimensions = [](void *p, int valid, ThreeMMI32 w, ThreeMMI32 h, int up) {
+        auto c = static_cast<BitmapContext *>(p);
+        if (valid)
         {
-            Warn("Bitmap data wrong size");
-            goto LFail;
+            if (c->width)
+                *c->width = w;
+            if (c->height)
+                *c->height = h;
+            if (c->upside)
+                *c->upside = up != 0;
         }
-    }
-
-    if (pvNil != ppglclr)
-    {
-        // get the palette
-        if (bmh.bmih.biClrUsed != 0 && bmh.bmih.biClrUsed != 256)
+        else
         {
-            Warn("palette is wrong size");
-            goto LFail;
+            TrashVar(c->width);
+            TrashVar(c->height);
+            TrashVar(c->upside);
         }
-
-        if (pvNil == (*ppglclr = DynamicArray::PglNew(size(Color), 256)))
-            goto LFail;
-
-        AssertDo((*ppglclr)->FSetIvMac(256), 0);
-        fRet = pfil->FReadRgbSeq((*ppglclr)->PvLock(0), LwMul(size(Color), 256), &fpCur);
-        (*ppglclr)->Unlock();
-        if (!fRet)
-            goto LFail;
-    }
-
-    if (pvNil == pprgb)
-        goto LDone;
-
-    if (fRle)
-    {
-        byte *pbSrc, *pbDst, *prgbSrc, *pbLimSrc, *pbLimDst;
-        byte bT;
-        LegacyLong xp, cbT;
-        LegacyLong cbRowDst = CbRoundToLong(rc.xpRight);
-
-        // get the source
-        if (!FAllocPv((void **)&prgbSrc, cbSrc, fmemNil, mprNormal))
-            goto LFail;
-
-        if (!pfil->FReadRgb(prgbSrc, cbSrc, bmh.bmfh.bfOffBits) ||
-            !FAllocPv((void **)pprgb, cbBitmap, fmemNil, mprNormal))
-        {
-            goto LBad;
-        }
-        pbDst = *pprgb;
-        pbSrc = prgbSrc;
-
-        pbLimSrc = pbSrc + cbSrc;
-        pbLimDst = pbDst + cbBitmap;
-        xp = 0;
-        for (;;)
-        {
-            if (2 > pbLimSrc - pbSrc)
-                goto LBad;
-
-            bT = *pbSrc++;
-            if (bT != 0)
-            {
-                if (bT > pbLimDst - pbDst || bT > cbRowDst - xp)
-                    goto LBad;
-                FillPb(pbDst, bT, *pbSrc++);
-                pbDst += bT;
-                xp += bT;
-                continue;
-            }
-
-            // escaped
-            bT = *pbSrc++;
-            switch (bT)
-            {
-            case 0:
-                // end of line
-                if (cbRowDst > xp)
-                    FillPb(pbDst, cbRowDst - xp, bTransparent);
-                pbDst += cbRowDst - xp;
-                xp = 0;
-                break;
-
-            case 1:
-                // end of bitmap
-                if (pbLimDst > pbDst)
-                    FillPb(pbDst, pbLimDst - pbDst, bTransparent);
-                goto LRleDone;
-
-            case 2:
-                // delta
-                if (2 > pbLimSrc - pbSrc)
-                    goto LBad;
-                cbT = pbSrc[0] + cbRowDst * pbSrc[1];
-                if (cbT > pbLimDst - pbDst || pbSrc[0] > cbRowDst - xp)
-                    goto LBad;
-                FillPb(pbDst, cbT, bTransparent);
-                pbDst += cbT;
-                xp += pbSrc[0];
-                pbSrc += 2;
-                break;
-
-            default:
-                // literal run
-                cbT = LwRoundAway(bT, 2);
-                if (cbT > pbLimSrc - pbSrc || bT > pbLimDst - pbDst || bT > cbRowDst - xp)
-                {
-                    goto LBad;
-                }
-                CopyPb(pbSrc, pbDst, bT);
-                pbDst += bT;
-                pbSrc += cbT;
-                xp += bT;
-                break;
-            }
-        }
-    LBad:
-        // rle encoding is bad
-        FreePpv((void **)&prgbSrc);
-        Warn("compressed bitmap is bad");
-        goto LFail;
-
-    LRleDone:
-        FreePpv((void **)&prgbSrc);
-    }
-    else
-    {
-        // non-rle: get the bits
-        if (!FAllocPv((void **)pprgb, cbBitmap, fmemNil, mprNormal))
-            goto LFail;
-
-        if (!pfil->FReadRgb(*pprgb, cbBitmap, bmh.bmfh.bfOffBits))
-        {
-            FreePpv((void **)pprgb);
-        LFail:
-            PushErc(ercMbmpCantOpenBitmap);
-            if (pvNil != pprgb)
-                *pprgb = pvNil;
-            if (pvNil != ppglclr)
-                ReleasePpo(ppglclr);
-            TrashVar(pdxp);
-            TrashVar(pdyp);
-            TrashVar(pfUpsideDown);
-            ReleasePpo(&pfil);
-            return fFalse;
-        }
-    }
-
-LDone:
-    if (pvNil != pdxp)
-        *pdxp = bmh.bmih.biWidth;
-    if (pvNil != pdyp)
-        *pdyp = LwAbs(bmh.bmih.biHeight);
-    if (pvNil != pfUpsideDown)
-        *pfUpsideDown = bmh.bmih.biHeight < 0;
-    ReleasePpo(&pfil);
-    return fTrue;
-#endif // WIN
-#ifdef MAC
-    if (pvNil != pprgb)
-        *pprgb = pvNil;
-    if (pvNil != ppglclr)
-        *ppglclr = pvNil;
-
-    TrashVar(pdxp);
-    TrashVar(pdyp);
-    TrashVar(pfUpsideDown);
-    RawRtn(); // REVIEW peted: Mac FReadBitmap NYI
-    return fFalse;
-#endif // MAC
+    };
+    s.warning = [](void *, int reason) {
+        PZString messages[] = {PszLit("bad bitmap file"),
+                               PszLit("not an 8-bit bitmap"),
+                               PszLit("bad compression type or bitmap file is wrong length"),
+                               PszLit("Empty bitmap rectangle"),
+                               PszLit("Bitmap data wrong size"),
+                               PszLit("palette is wrong size"),
+                               PszLit("compressed bitmap is bad")};
+        Warn(messages[reason]);
+    };
+    s.bad_bitmap = [](void *) { PushErc(ercMbmpCantOpenBitmap); };
+    s.make_temporary = [](void *, void *p) { static_cast<PFileObject>(p)->SetTemp(); };
+    return s;
+}
+} // namespace
+bool FReadBitmap(Filename *filename, byte **pixels, PDynamicArray *palette, LegacyLong *width, LegacyLong *height,
+                 bool *upside, byte transparent)
+{
+    AssertPo(filename, ffniFile);
+    AssertNilOrVarMem(pixels);
+    AssertNilOrVarMem(palette);
+    AssertNilOrVarMem(width);
+    AssertNilOrVarMem(height);
+    AssertNilOrVarMem(upside);
+#ifndef MAC
+    BitmapContext context;
+    context.pixels = pixels;
+    context.palette = palette;
+    context.width = width;
+    context.height = height;
+    context.upside = upside;
+    auto s = BitmapServices(&context);
+    return three_mm_bitmap_read(filename, pixels != nullptr, palette != nullptr, transparent, &s) != 0;
+#else
+    if (pixels)
+        *pixels = nullptr;
+    if (palette)
+        *palette = nullptr;
+    TrashVar(width);
+    TrashVar(height);
+    TrashVar(upside);
+    RawRtn();
+    return false;
+#endif
 }
 
 /***************************************************************************
@@ -779,95 +649,23 @@ LDone:
 
     Returns: fTrue if it could write the file
 ***************************************************************************/
-bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, LegacyLong dxp, LegacyLong dyp, bool fUpsideDown)
+bool FWriteBitmap(Filename *filename, byte *pixels, PDynamicArray palette, LegacyLong width, LegacyLong height,
+                  bool upside)
 {
-    AssertPo(pfni, ffniFile);
-    AssertVarMem(prgb);
-    AssertPo(pglclr, 0);
-    Assert(pglclr->IvMac() == 256, "Invalid color palette");
-    Assert(dxp >= 0, "Invalid width");
-    Assert(dyp >= 0, "Invalid height");
-
+    AssertPo(filename, ffniFile);
+    AssertVarMem(pixels);
+    AssertPo(palette, 0);
+    Assert(palette->IvMac() == 256, "Invalid color palette");
+    Assert(width >= 0, "Invalid width");
+    Assert(height >= 0, "Invalid height");
 #ifndef MAC
-    Assert(pglclr->CbEntry() == size(Color), "Palette has different format from Windows");
-
-#pragma pack(2) // the stupid bmfh is an odd number of shorts
-    struct BMH
-    {
-        BitmapFileHeader bmfh;
-        BitmapInfoHeader bmih;
-    };
-#pragma pack()
-
-    bool fRet = fFalse;
-    LegacyLong cbSrc;
-    PFileObject pfil = pvNil;
-    FilePosition fpCur = 0;
-    BMH bmh;
-
-    cbSrc = CbRoundToLong(dxp) * dyp;
-
-    /* Fill in the header */
-    bmh.bmfh.bfType = 'MB';
-    bmh.bmfh.bfSize = size(bmh) + LwMul(size(Color), 256) + cbSrc;
-    bmh.bmfh.bfOffBits = size(bmh) + LwMul(size(Color), 256);
-    bmh.bmfh.bfReserved1 = bmh.bmfh.bfReserved2 = 0;
-
-    bmh.bmih.biSize = size(bmh.bmih);
-    bmh.bmih.biWidth = dxp;
-    bmh.bmih.biHeight = dyp;
-    bmh.bmih.biPlanes = 1;
-    bmh.bmih.biBitCount = 8;
-    bmh.bmih.biCompression = BitmapCompressionRgb;
-    bmh.bmih.biSizeImage = 0;
-    bmh.bmih.biXPelsPerMeter = 0;
-    bmh.bmih.biYPelsPerMeter = 0;
-    bmh.bmih.biClrUsed = 256;
-    bmh.bmih.biClrImportant = 256;
-
-    /* Write the header */
-    if (pvNil == (pfil = FileObject::PfilCreate(pfni)))
-        goto LFail;
-    if (!pfil->FWriteRgbSeq(&bmh, size(BMH), &fpCur))
-        goto LFail;
-
-    /* Write the palette */
-    if (!pfil->FWriteRgbSeq(pglclr->PvLock(0), LwMul(size(Color), 256), &fpCur))
-    {
-        pglclr->Unlock();
-        goto LFail;
-    }
-    pglclr->Unlock();
-
-    /* Write the bits */
-    Assert((LegacyUlong)fpCur == bmh.bmfh.bfOffBits, "Current file pos is wrong");
-    if (fUpsideDown)
-    {
-        byte *pbCur;
-        LegacyLong cbRow = CbRoundToLong(dxp);
-
-        pbCur = prgb + dyp * cbRow;
-        fRet = fTrue;
-        while (pbCur > prgb && fRet)
-        {
-            pbCur -= cbRow;
-            fRet = pfil->FWriteRgbSeq(pbCur, cbRow, &fpCur);
-        }
-    }
-    else
-        fRet = pfil->FWriteRgbSeq(prgb, cbSrc, &fpCur);
-
-LFail:
-    if (pfil != pvNil)
-    {
-        if (!fRet)
-            pfil->SetTemp();
-        ReleasePpo(&pfil);
-    }
-    return fRet;
-#endif // WIN
-#ifdef MAC
-    RawRtn(); // REVIEW peted: Mac FWriteBitmap NYI
-    return fFalse;
-#endif // MAC
+    static_assert(sizeof(Color) == 4, "BMP palette layout");
+    Assert(palette->CbEntry() == sizeof(Color), "Palette has different format from Windows");
+    BitmapContext context;
+    auto s = BitmapServices(&context);
+    return three_mm_bitmap_write(filename, pixels, palette, width, height, upside, &s) != 0;
+#else
+    RawRtn();
+    return false;
+#endif
 }

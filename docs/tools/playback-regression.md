@@ -5787,3 +5787,77 @@ Evidence: `tmp/c89-texture-resource-before.bin`,
 `tmp/c89-texture-resource-output-comparison.json`,
 `tmp/c89-texture-resource-playback-actor-events-scrolling-text.json` and the two
 `tmp/c89-texture-resource-capture-*.log` files.
+
+### C89 indexed BMP files and RLE8 (14 November 2026)
+
+`bitmap_file.c` owns shared eight-bit BMP validation, layout, conditional palette
+reads, RGB and RLE8 pixel reads, canonical BMP writing and transactional cleanup.
+The native `FReadBitmap`/`FWriteBitmap` facade retains typed file, allocation and
+palette-object services. Masked-bitmap ownership/codecs, depth buffers, World
+and camera control and final native facade removal remain migration work.
+
+Two original native traces and the final converted trace match all 633,064
+bytes without masking, SHA-256
+`231FC86D957EBF2AE588106203BF1A150D3D914CE1F5BA84F9B1E062FCB663AC`.
+The debug little-endian executable enforces FNV-1a `C71364BE`. The trace covers
+1,728 native read attempts: twelve source variants, eight output masks, BASE/Pv
+allocation injection and nine failure positions. Sources include padded RGB,
+negative height, image-size zero, encoded/literal RLE runs, deltas, early EOB,
+wrong bit depth/size, conditional palette admission, overlapping offsets and
+trailing bytes. Thirty emitted files cover five widths, three heights and both
+row orders, retaining all palette bytes including the reserved byte.
+
+Palette admission/read remains conditional on the requested palette output;
+metadata-only queries need not read pixels or palette. Reads retain on-disk
+padded rows and report orientation separately. RGB image-size zero uses the
+computed layout and permits trailing bytes. RLE runs/deltas operate against
+padded widths; EOL/EOB fill with the caller's transparent index, odd literals
+consume their padding and EOB ignores trailing encoded bytes. Writes retain
+positive height, image-size zero, the 1,078-byte header/palette prefix and
+optional padded-row reversal, including the zero-width flipped no-write case.
+
+The C implementation rejects signed layout/height overflow and out-of-file
+reads before native range assertions. Malformed RLE now releases its destination
+buffer instead of losing the allocation on failure; EOL beyond the output
+buffer now fails before writing. These malformed-input safety changes are
+explicitly outside the safe original-native trace. The C-only fixture checks
+every truncated header, missing pixel bytes, signed layout limits, malformed
+run/literal/EOL canaries, output invalidation, balanced allocation/file/palette
+ownership and locks, failed write deletion and initial-open semantics.
+
+All 79 standalone C checks pass with assertions enabled, including strict C89
+syntax. The C-only bitmap check also passes MSVC AddressSanitizer. Both hosts
+and `core-checks` build; all 100 focused native checks, seven focused SDL release
+checks and 51 freshly linked CLI baselines pass. No Marcus UI tests were added.
+
+The final capture executables were frozen at SHA-256
+`1B5C7AB48BBAD4E715BDDEDE0E2F3E0CD7977421B24DBB33632D918F2AC57BA2`
+(SDL release) and
+`B7EF38D4C19C062C7D6C6D8334A8B492800B95E013E5C4CC35CBC15EA12682DC`
+(Marcus regression). Both hashes remain unchanged after capture.
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T033915Z-68c30f75` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T034028Z-dcc46a83` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries and retain movie identity and
+suite integrity. Authored frames, all 360 seek images and ordered playback image
+changes match each player's texture-resource suites
+`20261114T025840Z-f721df5a` and `20261114T025953Z-1d8e0c51`. Only adjacent
+identical position/image observations are collapsed for playback comparison.
+Both reports retain existing cross-player differences and single-repeat
+inconclusive comparisons. These gates show no observed BMP conversion
+regression; they do not establish full retail timing or PCM parity. Captures
+use the shared warm SDL package cache with private processes/settings/movies
+and uncontrolled OS caching; no builds or tests run concurrently with capture.
+
+Evidence: `tmp/c89-bitmap-file-before.bin`,
+`tmp/c89-bitmap-file-before-repeat.bin`, `tmp/c89-bitmap-file-after.bin`,
+`tmp/c89-bitmap-file-standalone.log`, `tmp/c89-bitmap-file-asan.log`,
+`tmp/c89-bitmap-file-native-tests.log`, `tmp/c89-bitmap-file-sdl-tests.log`,
+`tmp/c89-bitmap-file-output-comparison.json`,
+`tmp/c89-bitmap-file-playback-actor-events-scrolling-text.json`,
+`tmp/c89-bitmap-file-capture-hashes-before.json`,
+`tmp/c89-bitmap-file-capture-hashes-after.json` and the two
+`tmp/c89-bitmap-file-capture-*.log` files.

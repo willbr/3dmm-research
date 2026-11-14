@@ -76,6 +76,7 @@ cmake --build build/engine-c89 --target engine-body-geometry-test
 cmake --build build/engine-c89 --target engine-model-resource-test
 cmake --build build/engine-c89 --target engine-material-resource-test
 cmake --build build/engine-c89 --target engine-texture-resource-test
+cmake --build build/engine-c89 --target engine-bitmap-file-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -1838,8 +1839,9 @@ Pixel constructors take buffers only on success. Imported PIX wrapping takes
 the original renderer allocation only on success and frees that owner through
 `BrPixelmapFree`, preserving its resource tree rather than freeing an interior
 pixel pointer. Failed bitmap construction now releases decoded pixels instead
-of leaking them. The native bitmap reader/encoder (`FReadBitmap`/`FWriteBitmap`)
-and physical file services remain host dependencies; the uncompiled
+of leaking them. The bitmap reader/encoder (`FReadBitmap`/`FWriteBitmap`) now
+delegates to the C implementation below. Physical file services remain host
+dependencies; the uncompiled
 `NOT_YET_REVIEWED` inverse-table code remains unchanged.
 
 `engine-texture-resource-test` links with C alone and covers headers/orders,
@@ -1854,6 +1856,33 @@ balanced BRender allocations after imported-owner disposal, caller ownership
 after failed wrapping, and a real packed-file decode with mutable-view metadata.
 The material trace remains exact without manual imported-pixelmap cleanup.
 Full checks and retail comparisons are in `docs/tools/playback-regression.md`.
+
+### Indexed bitmap files and RLE8
+
+`bitmap_file.c` owns eight-bit BMP header/layout validation, conditional palette
+admission, RGB pixel reads, RLE8 decoding, canonical BMP writing, row reversal
+and partial-owner/output cleanup. `FReadBitmap` and `FWriteBitmap` in
+`kauai/src/mbmp.cpp` retain native file, allocator and palette-object callbacks.
+The masked-bitmap codec in the rest of that file remains migration work.
+
+The reader preserves on-disk padded rows and reports orientation separately.
+Palette validation and its 1,024-byte read occur only when requested. Metadata
+queries can succeed without pixel/palette data; pixel reads still enforce their
+own bounds. RGB image-size zero uses the computed padded layout and permits
+trailing bytes. RLE runs use padded widths, including transparent EOL/delta/EOB
+fills and odd-literal padding. Malformed RLE now frees the destination allocation,
+and an EOL past the destination fails before writing. Unrepresentable dimensions
+are rejected before signed arithmetic overflows. Successful writer bytes retain
+all palette bytes, positive height, image-size zero and optional row reversal.
+
+The native fixture freezes 633,064 bytes over 1,728 read attempts and 30 emitted
+files, including output combinations, allocation failures, negative height,
+RLE runs/deltas, overlapping palette/pixel offsets and conditional palette rules.
+SHA-256 is `231FC86D957EBF2AE588106203BF1A150D3D914CE1F5BA84F9B1E062FCB663AC`;
+debug little-endian builds enforce FNV-1a `C71364BE`. The C-only fixture adds
+truncated headers/pixels, malformed RLE canaries, layout limits, balanced
+allocations/locks and write-failure deletion checks. Full build and playback
+evidence is in `docs/tools/playback-regression.md`.
 
 ### Template construction, headers and default costumes
 

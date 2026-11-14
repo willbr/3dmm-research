@@ -429,7 +429,9 @@ TextureMap now uses C89 persistent pixel/descriptor/import-owner state, header
 I/O, cache factories, bitmap palette matching and standalone-file control.
 The native pixelmap is a renderer view. Imported PIX resources are released
 through their original BRender owner; bitmap import failures release decoded
-pixels. Shared indexed-BMP decoding/writing remains a native dependency.
+pixels. Shared indexed-BMP header validation, padded pixel I/O, RLE8 decoding,
+palette admission, writing and failure cleanup now also use C89. The native
+bitmap facade supplies file/allocation and palette-object services.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -440,9 +442,11 @@ slice). A fresh sound closeout audit is recorded in
 C-only host integration retain the limits described above.
 
 The sound resource/payload/import/runtime, body geometry/render-control and
-model/material/custom-material/texture-resource slices are complete. Continue
-with shared indexed-BMP decoding/RLE and writing in `kauai/src/mbmp.cpp`, then
-remaining world/camera/depth-buffer and BRender representation adapters.
+model/material/custom-material/texture-resource and indexed-BMP slices are
+complete. Continue with depth-buffer storage, wire I/O and drawing in
+`bren/zbmp.cpp` and masked-bitmap ownership/codecs in `kauai/src/mbmp.cpp`,
+then world/camera control in `bren/bwld.cpp` and remaining BRender representation
+adapters.
 Temporary native resource/object/HQ and
 Body facades still need removal during final host integration; these slices do
 not complete the whole backend. Validation and coverage limits are recorded in
