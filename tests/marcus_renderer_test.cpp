@@ -337,7 +337,7 @@ int main(int argc, char **argv)
         renderer->Triangle(textured);
         CHECK(renderer->End(colour.data(), stride, depth.data(), stride * 2, error));
         CHECK(colour[20 * stride + 20] == 22);
-        // Equal-depth triangles retain submission order.
+        // Untextured BRender faces reject equal depth; the first face wins.
         reset();
         CHECK(renderer->Begin(size, size, error));
         renderer->Triangle(triangle);
@@ -346,7 +346,7 @@ int main(int argc, char **argv)
             v.intensity = 73;
         renderer->Triangle(equal);
         CHECK(renderer->End(colour.data(), stride, depth.data(), stride * 2, error));
-        CHECK(colour[20 * stride + 20] == 73 && zAt(20, 20) == 10000);
+        CHECK(colour[20 * stride + 20] == 37 && zAt(20, 20) == 10000);
         // Analytic perspective UV: at this sample affine U=1.43 (texel 1)
         // while interpolating U/W and 1/W gives U=2.35 (wrapped texel 0).
         textured = triangle;

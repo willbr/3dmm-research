@@ -26,6 +26,11 @@ extern "C"
         BrRasterMap texture, shade;
         unsigned int flags;
         int index_base, index_range;
+        /* Exact scan-converter inputs; float depth cannot retain all 32 bits.
+         * Mode 0 is a caller-supplied float triangle, 1 integer Gouraud,
+         * 2 affine texture, 3 another (e.g. perspective) converter. */
+        int raster_mode;
+        struct { int x, y, z, u, v, intensity, w; } fixed_vertices[3];
     } BrRasterTriangle;
 #pragma pack(pop)
     typedef void (*BrTriangleSink)(void *context, const BrRasterTriangle *triangle);

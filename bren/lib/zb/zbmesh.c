@@ -49,8 +49,18 @@ static void BR_ASM_CALL DispatchTriangle(struct temp_vertex_fixed *a, struct tem
     triangle.flags = zb.material->flags;
     triangle.index_base = zb.material->index_base;
     triangle.index_range = zb.material->index_range;
+    triangle.raster_mode = zb.triangle_render == TriangleRenderPIZ2I ? 1 :
+        (zb.triangle_render == TriangleRenderPIZ2TIA || zb.triangle_render == TriangleRenderPIZ2TIANT) ? 2 : 3;
     for (i = 0; i < 3; ++i) {
         BrRasterVertex *out = &triangle.vertices[i];
+        triangle.fixed_vertices[i].x = vertices[i]->v[0];
+        triangle.fixed_vertices[i].y = vertices[i]->v[1];
+        triangle.fixed_vertices[i].z = vertices[i]->v[2];
+        triangle.fixed_vertices[i].u = triangle.texture.pixels ? vertices[i]->comp[C_U] : 0;
+        triangle.fixed_vertices[i].v = triangle.texture.pixels ? vertices[i]->comp[C_V] : 0;
+        triangle.fixed_vertices[i].intensity = !triangle.texture.pixels || (triangle.flags & (BR_MATF_LIGHT | BR_MATF_PRELIT))
+            ? vertices[i]->comp[C_I] : 0;
+        triangle.fixed_vertices[i].w = (triangle.flags & BR_MATF_PERSPECTIVE) ? vertices[i]->comp[C_W] : BR_SCALAR(1);
         out->x = vertices[i]->v[0] / 65536.0f;
         out->y = vertices[i]->v[1] / 65536.0f;
         out->z = (br_uint_32)vertices[i]->v[2] / 65536.0f;

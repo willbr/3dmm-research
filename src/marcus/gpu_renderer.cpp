@@ -1,6 +1,7 @@
 #include "gpu_renderer.h"
 #include "zb_capture.h"
 #include "gpu_shaders.h"
+#include "legacy_scan.h"
 #include "three_mm/preview.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -27,8 +28,9 @@ struct RasterTriangle
 {
     Vertex position[3], varying[3];
     Uint32 texture[4], shade[4];
+    MarcusLegacyScan scan;
 };
-static_assert(sizeof(RasterTriangle) == 128, "HLSL triangle layout");
+static_assert(sizeof(RasterTriangle) == 240, "HLSL triangle layout");
 struct Parameters
 {
     Uint32 width, height, tilesX, background;
@@ -36,7 +38,9 @@ struct Parameters
     float nearClip, farClip, tangentX, tangentY;
     Uint32 orthographic, opaqueBackground;
     float orthoHeight, wireWidth;
+    Uint32 firstTriangle, padding[3];
 };
+static_assert(sizeof(Parameters) == 80, "HLSL uniform layout");
 struct Resources
 {
     SDL_GPUDevice *device;
@@ -82,6 +86,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
     SDL_GPUDevice *device = nullptr;
     SDL_GPUComputePipeline *computePipeline = nullptr;
     SDL_GPUGraphicsPipeline *graphicsPipeline = nullptr;
+    SDL_GPUGraphicsPipeline *strictPipeline = nullptr;
     bool compute, video = false, failed = false;
     unsigned width = 0, height = 0;
     std::vector<RasterTriangle> triangles;
@@ -163,6 +168,8 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             SDL_ReleaseGPUComputePipeline(device, computePipeline);
         if (graphicsPipeline)
             SDL_ReleaseGPUGraphicsPipeline(device, graphicsPipeline);
+        if (strictPipeline)
+            SDL_ReleaseGPUGraphicsPipeline(device, strictPipeline);
         if (device)
             SDL_DestroyGPUDevice(device);
         if (video)
@@ -248,9 +255,11 @@ class Renderer final : public ThreeMM::PreviewRasterizer
         info.target_info.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
         info.target_info.has_depth_stencil_target = true;
         graphicsPipeline = SDL_CreateGPUGraphicsPipeline(device, &info);
+        info.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_LESS;
+        strictPipeline = SDL_CreateGPUGraphicsPipeline(device, &info);
         SDL_ReleaseGPUShader(device, vertex);
         SDL_ReleaseGPUShader(device, fragment);
-        return graphicsPipeline || Fail(error, "Cannot create SDL GPU graphics pipeline");
+        return (graphicsPipeline && strictPipeline) || Fail(error, "Cannot create SDL GPU graphics pipeline");
     }
     bool Begin(unsigned w, unsigned h, ThreeMM::Error &) override
     {
@@ -272,6 +281,7 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             if (triangles.size() >= 1024 * 1024)
                 throw std::runtime_error("GPU triangle budget exceeded");
             RasterTriangle out = {};
+            out.scan = MarcusPrepareScan(input);
             out.texture[0] = Map(input.texture);
             out.texture[1] = input.texture.pixels ? input.texture.width : 0;
             out.texture[2] = input.texture.height;
@@ -443,8 +453,24 @@ class Renderer final : public ThreeMM::PreviewRasterizer
             parameters.background = 0;
             SDL_PushGPUVertexUniformData(commands, 0, &parameters, sizeof(parameters));
             SDL_PushGPUFragmentUniformData(commands, 0, &parameters, sizeof(parameters));
-            if (!triangles.empty())
-                SDL_DrawGPUPrimitives(pass, static_cast<Uint32>(triangles.size() * 3), 1, 0, 0);
+            // Preserve submission order while applying BRender's strict test
+            // for untextured triangles and inclusive test for texture maps.
+            for (Uint32 first = 0; first < triangles.size();)
+            {
+                const bool strict = triangles[first].texture[1] == 0;
+                Uint32 end = first + 1;
+                while (end < triangles.size() && (triangles[end].texture[1] == 0) == strict) ++end;
+                parameters.firstTriangle = first;
+                SDL_BindGPUGraphicsPipeline(pass, strict ? strictPipeline : graphicsPipeline);
+                SDL_BindGPUVertexStorageBuffers(pass, 0, storage, 1);
+                SDL_BindGPUFragmentStorageBuffers(pass, 0, storage, 3);
+                SDL_PushGPUVertexUniformData(commands, 0, &parameters, sizeof(parameters));
+                SDL_PushGPUFragmentUniformData(commands, 0, &parameters, sizeof(parameters));
+                // An explicit storage-buffer base keeps vertex IDs local to
+                // each run on both shader formats and GPU drivers.
+                SDL_DrawGPUPrimitives(pass, (end - first) * 6, 1, 0, 0);
+                first = end;
+            }
             SDL_EndGPURenderPass(pass);
         }
         copy = SDL_BeginGPUCopyPass(commands);

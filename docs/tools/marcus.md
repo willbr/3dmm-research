@@ -655,21 +655,6 @@ CPU fallback policy. The helper verifies a versioned 32-bit handshake, retains
 the loaded scene between frames, and closes when its player closes or opens a
 different movie. The original x86 assembly backend is Windows-only.
 
-The earlier Ringworld Paybox logo capture (scene 4/frame 1, stored frame 20)
-demonstrated the GPU compatibility gap: CPU C differed from retail at 187 native pixels and
-CPU ASM at 192, versus 10,923 for compute and 10,920 for SDL GPU. Only 988 of
-compute's differing pixels change object/background coverage; the other 9,935
-are inside covered regions. This points to interpolation/texture lookup as well
-as edges. CPU textured scan conversion floors projected vertices to integer
-coordinates and computes fixed-point scanline gradients; the shader interpolates
-from fractional vertices at pixel centres. The compute depth test also currently
-accepts equal depth for all triangles, whereas BRender's untextured intensity
-scanner uses a strict less-than test (textured scanners accept ties). These are
-specific rasterizer policy differences, not a reason to dismiss the error as
-floating-point noise. Their individual contributions have not been isolated;
-matching the legacy scan converters requires further work. This comparison does
-not establish the cause of the separate CPU/retail near-coplanar surface differences.
-
 CPU parity repairs preserve each Body's actor hierarchy, local transform types,
 inherited materials/styles and sibling order instead of flattening parts into
 world space. Actor attachment order follows the shared evaluator's actual Show
@@ -713,13 +698,60 @@ Local metrics and decoded frames are under `tmp/cpu-project-parity-*-full/`;
 retail matrix/order probes and the disassembly evidence are in
 `tmp/cpu-retail-order/` and `tmp/cpu-retail-*.txt`.
 
-These are initial GPU implementations: floating-point interpolation and triangle
-edge coverage can differ from the CPU renderer. Completed frames are downloaded
-for the existing caption compositor and RGBA player API; performance improvements
-have not been established. Metal shader binaries are not supplied. Unsupported
-GPU initialization keeps the previous renderer when switching in Settings. A
-saved GPU choice that cannot initialize at startup falls back to CPU with a
-message in Settings; an explicitly requested `--renderer` fails with a diagnostic.
+The compute and graphics renderers now follow the integer Gouraud and affine
+texture scan converters for the default movie view. The triangle sink supplies
+original fixed-point coordinates and varying values alongside float values;
+float conversion alone loses low depth bits. CPU triangle setup prepares the
+native edge reciprocals, gradients, winding/tie order and half-X bias. The GPU
+shaders derive each scanline's span and parameter values with 32-bit integer
+carry/wrap arithmetic, then perform texture lookup, shading and depth tests.
+Untextured faces reject equal depth; texture maps accept it. Negative UV wrap
+uses unsigned magnitudes to give matching DXIL and SPIR-V results.
+
+Compute visits the ordered triangle lists for each tile. Graphics draws each
+triangle's bounding rectangle and discards fragments outside its integer span;
+this avoids hardware triangle coverage clipping away legacy pixels. Contiguous
+runs use strict or inclusive depth pipelines in original submission order, with
+an explicit triangle-buffer base per run. Palette filtering, AA, wireframe,
+depth and normals options remain available. Perspective-specific converters
+retain floating-point interpolation; parity of those work-camera/scenery paths
+and enhanced settings is not established by the default movie captures.
+
+Paired captures using the corrected CPU renderer before and after the GPU
+changes, at 544x306 with nearest sampling, gave these exact RGB differing-pixel
+totals against the same retail images:
+
+| Movie | Frames | Compute before | Graphics before | After, each GPU backend |
+| --- | ---: | ---: | ---: | ---: |
+| Rebirth of 3DMM | 952 | 11,804,130 | 11,805,096 | 10,363 |
+| Ringworld Act One Teaser Trailer | 153 | 1,591,371 | 1,591,355 | 260 |
+| The Amazingly Pointless Adventures of Gustave! | 404 | 4,573,930 | 4,574,800 | 3,856 |
+
+Both GPU backends match the CPU C output exactly in all 1,509 frames. CPU pixels
+are unchanged, and no GPU frame has increased RGB error against retail. The
+remaining retail differences are the CPU residuals described above. All seven
+selected movie samples also match CPU on Vulkan, including the now-exact
+Paybox logo. Full metrics and decoded frames are in `tmp/gpu-parity-*-full/`;
+Vulkan samples are in `tmp/gpu-parity-vulkan-samples/`.
+
+`marcus-raster-parity-test` compares indexed colour and depth directly with
+BRender's scan converters across 120 synthetic frames per graphics API. Cases
+cover fractional coordinates, flat tops/bottoms, both windings, viewport edges,
+negative/pitched/non-power-of-two textures, transparency and interleaved equal-
+depth triangles. The Windows Vulkan test selects `SDL_GPU_DRIVER=vulkan` to
+exercise the SPIR-V binaries separately from the default Direct3D 12 path.
+Both API tests also pass in the x86 build against the native assembly scan
+converters, as well as the x64 build against their portable C counterparts.
+Renderer content integration also exercises work cameras, orthographic views,
+picking and display modes. These are headless checks; no Marcus UI tests were
+added. SPIR-V modules validate against Vulkan 1.0 with `spirv-val`.
+
+Completed GPU frames are downloaded for the shared caption compositor and RGBA
+player API. These captures establish image parity, not a rendering speedup.
+Metal shader binaries are not supplied. Unsupported GPU initialization keeps
+the previous renderer when switching in Settings. A saved GPU choice that
+cannot initialize at startup falls back to CPU with a message in Settings;
+an explicitly requested `--renderer` fails with a diagnostic.
 
 Shader sources live in `src/marcus/shaders/raster.hlsl`. Regenerate their bundled
 binaries after shader changes with `python tools/compile_marcus_shaders.py`
