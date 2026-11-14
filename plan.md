@@ -452,6 +452,12 @@ Current/scaled bitmap export sizing, background fill, resource/lock/material/
 callback cleanup and palette ownership now also use C89. Both live and export
 depth copying use the shared C nearest-neighbor resampler. SDK/native object
 representations still remain for final integration.
+Scene-owned event groups, actor/text roll-call containers, selection extras,
+background, thumbnail and background-sound references now use a persistent C
+owner record. Construction/disposal, completed-prefix read cleanup, hide/show/
+close sequencing and owned scene-sound tag disposal now use C89. Frame/event
+sequencing, remaining loading/editing policy and caption/background callbacks
+still depend on native engine implementations.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -464,8 +470,9 @@ C-only host integration retain the limits described above.
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource, indexed-BMP, depth-buffer and
 masked-bitmap ownership/codec, and World buffer/background/camera/picking/render/
-export slices are complete. Continue with Scene construction/disposal and frame/
-event runtime in `src/engine/scene.cpp`, then the remaining scene/movie editing,
+export and Scene ownership/lifecycle slices are complete. Continue with Scene
+frame movement/replay, event dispatch and prerender decisions in
+`src/engine/scene.cpp`, then remaining scene/movie loading/editing,
 undo/save and caption/transition operations. Final native representation and
 facade removal remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using

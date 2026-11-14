@@ -83,6 +83,7 @@ cmake --build build/engine-c89 --target engine-world-buffers-test
 cmake --build build/engine-c89 --target engine-world-camera-test
 cmake --build build/engine-c89 --target engine-world-render-test
 cmake --build build/engine-c89 --target engine-world-export-test
+cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
 ctest --test-dir build/engine-c89 --output-on-failure
@@ -606,7 +607,8 @@ created root on later failure.
 Live Scene, Archive and Preview continue through the native adapters to the same
 C state/validation/persistence. Native group objects still wrap C collection
 storage, and physical file/group operations remain host callbacks. Runtime scene
-objects, event marshalling/playback/editing and final facade removal remain work.
+ownership is described next; event marshalling/playback/editing and final facade
+removal remain work.
 
 `engine-scene-data-test` covers both byte orders, signed frame limits, event-size
 and sound-count rules, metadata read/write failures, six replacement failure stages,
@@ -615,6 +617,50 @@ still exercises actual archive allocation failures and retained old child links.
 Thirty-four standalone C checks, forty-seven focused native checks, MSVC
 AddressSanitizer, seventeen binary snapshots and all 51 CLI baselines pass. The
 new scene/name/header/event snapshot is 526 bytes. No Marcus UI tests were added.
+
+### Scene ownership and lifecycle
+
+`scene_owner.c` owns persistent references to frame/start event groups, actor/text
+roll-call containers, selection extras, background, thumbnail and background
+sound. The parent movie remains borrowed. Native pointer fields are published
+borrowed views; creation, loading and edit replacement sites transfer/release
+through the C owner. SceneData's existing C metadata record is separate, and the
+event cursor/disabled flags remain part of the unconverted runtime facade.
+
+C controls construction order, cursor-reset timing, optional loaded notification,
+partial factory teardown, forward start-object release, frame sound-tag cleanup,
+container/background/thumbnail/sound release order, reverse completed-prefix read
+cleanup and light/actor/text hiding before close. Closing a retained scene clears
+the caller's handle without destroying its resources. Actor/text roll calls and
+selection entries are borrowed; their objects belong to start events. Owned
+background/undo sound packets close only opened tags, while embedded frame packets
+close every tag and never free the group's payload separately.
+
+Typed adapters still provide C-backed collection/reference primitives and native
+actor, text and background APIs. Caption/background implementation, scene frame/
+event runtime, loading/marshalling/editing transactions and final native facade
+removal remain engine dependencies; this is not a C-only Scene implementation.
+The loader's uncommitted local objects still follow its native read transaction.
+
+Reverse read cleanup now compares sound size with variable payload bytes, fixing
+the original extra fixed-header-byte comparison that rejected valid packets and
+skipped closing their tags. Malformed payloads are diagnosed before unsafe tag/
+object reads; a text lifetime beginning at signed MIN diagnoses failure instead
+of subtracting one with overflow. Other valid lifecycle/release behavior remains
+frozen. Services cannot reenter lifecycle or replace the same scene's owners.
+
+Original/repeated native and original/converted SDL debug traces match 7,888 bytes,
+SHA-256 `820411D4385C1BE0A624D4A76AD2384887E0A974C4F29786B354F39057D8F2C8`,
+FNV-1a `0EE1BC65`. The SDL release before/after trace matches 8,688 bytes,
+SHA-256 `12CCD982D3A4E714550999609A5CD9AC97A167FB692DCD8BD3D6E1A59450B6E2`,
+FNV-1a `2A12D054`; release omits allocation injection. Fixtures freeze construction
+failure/notification behavior, defaults, group layouts, retained closes, owned
+actor destruction order and tag-cache reference balance. Actor destruction probes
+are deliberately unstaged partial actors, with validity assertions suspended only
+around their teardown. Actual actor/text/light behavior is additionally covered
+by C callback tests, existing integration tests and playback gates. Supplemental
+native tests exercise completed frame-packet cleanup through the real service
+bridge. Full validation and coverage limits are in `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

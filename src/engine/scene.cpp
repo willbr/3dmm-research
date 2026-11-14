@@ -511,6 +511,143 @@ RTCLASS(SceneUndoText)
 RTCLASS(SceneUndoChop)
 RTCLASS(SceneUndoTransition)
 
+static void SceneOwnerDiagnostic(void *, int issue)
+{
+    switch (issue)
+    {
+    case THREE_MM_SCENE_BAD_FRAME:
+        Assert(false, "Invalid event in event stream.");
+        break;
+    case THREE_MM_SCENE_BAD_START:
+        Bug("Invalid event in event stream.");
+        break;
+    case THREE_MM_SCENE_UNKNOWN_EVENT:
+        Bug("Unknown event type");
+        break;
+    case THREE_MM_SCENE_BAD_SOUND:
+        Assert(false, "Invalid SceneSoundEvent");
+        break;
+    case THREE_MM_SCENE_BAD_PAYLOAD:
+        Bug("Wrong size for scene event payload");
+        break;
+    case THREE_MM_SCENE_TEXT_HIDE_FAILED:
+        Assert(false, "Could not remove a text box");
+        break;
+    }
+}
+static ThreeMMSceneSoundServices SceneSoundServices()
+{
+    static_assert(int(styNil) == 0 && int(styLim) == 5, "Scene sound style bounds");
+    ThreeMMSceneSoundServices s = {};
+    s.count = [](void *, void *p) -> ThreeMMI32 { return static_cast<PSceneSoundEvent>(p)->ctagc; };
+    s.style = [](void *, void *p) -> ThreeMMI32 { return static_cast<PSceneSoundEvent>(p)->sty; };
+    s.open = [](void *, void *p, ThreeMMI32 i) -> int {
+        return static_cast<PSceneSoundEvent>(p)->Ptag(i)->pcrf != nullptr;
+    };
+    s.close = [](void *, void *p, ThreeMMI32 i) { TagManager::CloseTag(static_cast<PSceneSoundEvent>(p)->Ptag(i)); };
+    s.free = [](void *, void *p) { FreePpv(&p); };
+    s.diagnostic = SceneOwnerDiagnostic;
+    return s;
+}
+void Scene::_PublishOwners()
+{
+    _pmvie = static_cast<PMovie>(_owner.movie);
+    _pggsevFrm = static_cast<PGeneralGroup>(_owner.owned[THREE_MM_SCENE_FRAMES]);
+    _pggsevStart = static_cast<PGeneralGroup>(_owner.owned[THREE_MM_SCENE_STARTS]);
+    _pglpactr = static_cast<PDynamicArray>(_owner.owned[THREE_MM_SCENE_ACTORS]);
+    _pglptbox = static_cast<PDynamicArray>(_owner.owned[THREE_MM_SCENE_TEXTS]);
+    _pglpactrSelExtra = static_cast<PDynamicArray>(_owner.owned[THREE_MM_SCENE_SELECTION]);
+    _pbkgd = static_cast<PBackground>(_owner.owned[THREE_MM_SCENE_BACKGROUND]);
+    _pmbmp = static_cast<PMaskedBitmapMBMP>(_owner.owned[THREE_MM_SCENE_THUMBNAIL]);
+    _psseBkgd = static_cast<PSceneSoundEvent>(_owner.owned[THREE_MM_SCENE_BACKGROUND_SOUND]);
+}
+void Scene::_SetOwner(int slot, void *object)
+{
+    Assert(_owner.owned[slot] == nullptr, "Scene owner slot must be empty");
+    auto services = _OwnerServices();
+    three_mm_scene_owner_set(&_owner, this, slot, object, &services);
+}
+void Scene::_DropOwner(int slot)
+{
+    auto services = _OwnerServices();
+    three_mm_scene_owner_drop(&_owner, this, slot, &services);
+}
+ThreeMMSceneOwnerServices Scene::_OwnerServices()
+{
+    static_assert(int(fscenPauses) == THREE_MM_SCENE_DEFAULT_DISABLED, "Scene defaults");
+    ThreeMMSceneOwnerServices s = {};
+    s.pointer_bytes = sizeof(void *);
+    s.sound_header_bytes = sizeof(SceneSoundEvent);
+    s.sound_tag_bytes = sizeof(TagChildPair);
+    s.create_scene = [](void *, void *movie) -> void * { return NewObj Scene(static_cast<PMovie>(movie)); };
+    s.create_slot = [](void *, int kind) -> void * {
+        if (kind == THREE_MM_SCENE_FRAMES || kind == THREE_MM_SCENE_STARTS)
+            return GeneralGroup::PggNew(sizeof(SceneEvent));
+        return DynamicArray::PglNew(sizeof(void *), 0);
+    };
+    s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
+    s.publish = [](void *, void *p, const ThreeMMSceneOwner *) { static_cast<PScene>(p)->_PublishOwners(); };
+    s.reset_cursor = [](void *, void *p) { static_cast<PScene>(p)->_isevFrmLim = 0; };
+    s.can_notify = [](void *) -> int { return vpcex != nullptr; };
+    s.loaded = [](void *, void *) { vpcex->EnqueueCid(cidSceneLoaded); };
+    s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.count = [](void *, void *p) -> ThreeMMI32 { return static_cast<GroupBase *>(p)->IvMac(); };
+    s.kind = [](void *, void *p, ThreeMMI32 i) -> ThreeMMI32 {
+        SceneEvent event;
+        static_cast<PGeneralGroup>(p)->GetFixed(i, &event);
+        return event.sevt;
+    };
+    s.data = [](void *, void *p, ThreeMMI32 i, ThreeMMI32 *bytes) -> void * {
+        LegacyLong length;
+        auto value = static_cast<PGeneralGroup>(p)->QvGet(i, &length);
+        *bytes = length;
+        return value;
+    };
+    s.object = [](void *, void *p, ThreeMMI32 i) -> void * {
+        auto group = static_cast<PGeneralGroup>(p);
+        SceneEvent event;
+        group->GetFixed(i, &event);
+        if (event.sevt == sevtAddActr)
+        {
+            PActor actor;
+            group->Get(i, &actor);
+            AssertPo(actor, 0);
+            return actor;
+        }
+        PTBOX text;
+        group->Get(i, &text);
+        AssertPo(text, 0);
+        return text;
+    };
+    s.list_at = [](void *, void *p, ThreeMMI32 i) -> void * {
+        void *value;
+        static_cast<PDynamicArray>(p)->Get(i, &value);
+        return value;
+    };
+    s.actor_visibility = [](void *, void *p, int show) {
+        auto actor = static_cast<PActor>(p);
+        AssertPo(actor, 0);
+        if (show)
+            actor->Show();
+        else
+            actor->Hide();
+    };
+    s.lights_off = [](void *, void *p) { static_cast<PBackground>(p)->TurnOffLights(); };
+    s.text_lifetime = [](void *, void *p, ThreeMMI32 *first) -> int {
+        auto text = static_cast<PTBOX>(p);
+        AssertPo(text, 0);
+        long start, last;
+        bool ok = text->FGetLifetime(&start, &last);
+        if (ok)
+            *first = start;
+        return ok;
+    };
+    s.text_seek = [](void *, void *p, ThreeMMI32 frame) -> int { return static_cast<PTBOX>(p)->FGotoFrame(frame); };
+    s.diagnostic = SceneOwnerDiagnostic;
+    s.sound = SceneSoundServices();
+    return s;
+}
+
 /****************************************************
  *
  * Constructor for scenes.  This function is private, use PscenNew()
@@ -526,14 +663,9 @@ RTCLASS(SceneUndoTransition)
 Scene::Scene(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
-
-    _pmvie = pmvie;
-    _pglpactrSelExtra = pvNil;
-
-    //
-    // By default we disable pauses in the studio
-    //
-    _grfscen = fscenPauses;
+    three_mm_scene_owner_init(&_owner, pmvie);
+    _PublishOwners();
+    _grfscen = THREE_MM_SCENE_DEFAULT_DISABLED;
 }
 
 /****************************************************
@@ -551,58 +683,10 @@ Scene::Scene(PMovie pmvie)
 PScene Scene::PscenNew(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
-
-    PScene pscen;
-
-    //
-    // Create the object
-    //
-    pscen = NewObj Scene(pmvie);
-    if (pscen == pvNil)
-    {
-        goto LFail;
-    }
-
-    //
-    // Initialize event list
-    //
-    pscen->_pggsevFrm = GeneralGroup::PggNew(size(SceneEvent));
-    if (pscen->_pggsevFrm == pvNil)
-    {
-        goto LFail;
-    }
-    pscen->_isevFrmLim = 0;
-
-    pscen->_pggsevStart = GeneralGroup::PggNew(size(SceneEvent));
-    if (pscen->_pggsevStart == pvNil)
-    {
-        goto LFail;
-    }
-
-    pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
-    if (pscen->_pglpactr == pvNil)
-    {
-        goto LFail;
-    }
-
-    pscen->_pglptbox = DynamicArray::PglNew(size(PTBOX), 0);
-    if (pscen->_pglptbox == pvNil)
-    {
-        goto LFail;
-    }
-
-    if (vpcex != pvNil)
-    {
-        vpcex->EnqueueCid(cidSceneLoaded);
-    }
-
-    AssertPo(pscen, 0);
-    return (pscen);
-
-LFail:
-
-    ReleasePpo(&pscen);
-    return (pvNil);
+    auto services = _OwnerServices();
+    auto scene = static_cast<PScene>(three_mm_scene_owner_new(pmvie, &services));
+    AssertNilOrPo(scene, 0);
+    return scene;
 }
 
 /****************************************************
@@ -619,132 +703,8 @@ LFail:
 Scene::~Scene(void)
 {
     AssertBaseThis(0);
-
-    long isev;
-    PSEV qsev;
-    PTBOX ptbox;
-    PActor pactr;
-
-    //
-    // Remove starting events
-    //
-
-    if (_pggsevStart != pvNil)
-    {
-        for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
-        {
-            qsev = (PSEV)_pggsevStart->QvFixedGet(isev);
-            switch (qsev->sevt)
-            {
-            case sevtAddActr:
-                _pggsevStart->Get(isev, &pactr);
-                AssertPo(pactr, 0);
-                ReleasePpo(&pactr);
-                break;
-
-            case sevtAddTbox:
-                _pggsevStart->Get(isev, &ptbox);
-                AssertPo(ptbox, 0);
-                ReleasePpo(&ptbox);
-                break;
-
-            case sevtChngCamera:
-            case sevtSetBkgd:
-                break;
-
-            case sevtPause:
-            case sevtPlaySnd:
-                Bug("Invalid event in event stream.");
-                break;
-            default:
-                Bug("Unknown event type");
-                break;
-            }
-        }
-    }
-
-    ReleasePpo(&_pggsevStart);
-
-    //
-    // Walk and delete all frame events.
-    //
-    if (_pggsevFrm != pvNil)
-    {
-        for (isev = 0; isev < _pggsevFrm->IvMac(); isev++)
-        {
-
-            //
-            // For each event, release any child objects.
-            //
-            qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
-            switch (qsev->sevt)
-            {
-
-            case sevtAddTbox:
-            case sevtAddActr:
-            case sevtSetBkgd:
-                Assert(0, "Invalid event in event stream.");
-                break;
-
-            case sevtPlaySnd: {
-                PSceneSoundEvent psse;
-                long itagc;
-                psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
-                for (itagc = 0; itagc < psse->ctagc; itagc++)
-                {
-                    TagManager::CloseTag(psse->Ptag(itagc));
-                }
-                break;
-            }
-            case sevtPause:
-            case sevtChngCamera:
-                break;
-
-            default:
-                Bug("Unknown event type");
-                break;
-            }
-        }
-    }
-
-    //
-    // Delete frame event list.
-    //
-    ReleasePpo(&_pggsevFrm);
-
-    //
-    // Remove the DynamicArray of actors.  We do not Release the actors
-    // themselves as our reference was released above in the
-    // the _pggsevStart.
-    //
-    ReleasePpo(&_pglpactr);
-
-    //
-    // Remove the DynamicArray of tboxes.  We do not Release the tboxes
-    // themselves as our reference was released above in the
-    // the _pggsevStart.
-    //
-    ReleasePpo(&_pglptbox);
-
-    //
-    // Release the multi-selection extras list (the actors are owned elsewhere).
-    //
-    ReleasePpo(&_pglpactrSelExtra);
-
-    //
-    // Release the background
-    //
-    ReleasePpo(&_pbkgd);
-
-    //
-    // Release the thumbnail
-    //
-    ReleasePpo(&_pmbmp);
-
-    //
-    // Free the background sound
-    //
-    ReleasePpsse(&_psseBkgd);
+    auto services = _OwnerServices();
+    three_mm_scene_owner_dispose(&_owner, this, &services);
 }
 
 /****************************************************
@@ -766,14 +726,10 @@ Scene::~Scene(void)
 void Scene::Close(PScene *ppscen)
 {
     AssertPo(*ppscen, 0);
-
-    if (pvNil != (*ppscen)->_pbkgd)
-    {
-        (*ppscen)->_pbkgd->TurnOffLights();
-    }
-    (*ppscen)->HideActors();
-    (*ppscen)->HideTboxes();
-    ReleasePpo(ppscen);
+    void *scene = *ppscen;
+    auto services = _OwnerServices();
+    three_mm_scene_owner_close(&scene, &services);
+    *ppscen = static_cast<PScene>(scene);
 }
 
 #ifdef DEBUG
@@ -1443,8 +1399,8 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
             psseDup = psse->PsseDup();
             if (psseDup == pvNil)
                 return fFalse;
-            ReleasePpsse(&_psseBkgd);
-            _psseBkgd = psseDup;
+            _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
+            _SetOwner(THREE_MM_SCENE_BACKGROUND_SOUND, psseDup);
             _nfrmSseBkgd = psev->nfrm;
         }
         if (grfscen & fscenSounds)
@@ -1474,7 +1430,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
             Pmvie()->SetTrans(transCut); // so we do palette change at next draw
         }
 
-        _pbkgd = pbkgd;
+        _SetOwner(THREE_MM_SCENE_BACKGROUND, pbkgd);
         _tagBkgd = tag;
         break;
 
@@ -1613,7 +1569,7 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
         //
         // Not found -- clear variables.
         //
-        ReleasePpsse(&_psseBkgd);
+        _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
         break;
 
     case sevtAddActr:
@@ -2114,7 +2070,7 @@ void Scene::RemSndCore(long sty)
 
             if (sty == styMidi)
             {
-                ReleasePpsse(&_psseBkgd);
+                _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
             }
 
             UpdateSndFrame();
@@ -2946,7 +2902,7 @@ bool Scene::FToggleActrSelected(PActor pactr)
     // Add as extra. Lazily allocate the list.
     if (_pglpactrSelExtra == pvNil)
     {
-        _pglpactrSelExtra = DynamicArray::PglNew(size(PActor));
+        _SetOwner(THREE_MM_SCENE_SELECTION, DynamicArray::PglNew(size(PActor)));
         if (_pglpactrSelExtra == pvNil)
         {
             return fFalse;
@@ -3890,7 +3846,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
                 }
 
                 _pbkgd->TurnOffLights();
-                ReleasePpo(&_pbkgd);
+                _DropOwner(THREE_MM_SCENE_BACKGROUND);
 
                 _MarkMovieDirty();
                 if (!_FPlaySev(&sev, ptag, _grfscen))
@@ -4354,7 +4310,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Initialize roll call	for actors
     //
-    pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
+    pscen->_SetOwner(THREE_MM_SCENE_ACTORS, DynamicArray::PglNew(size(PActor), 0));
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail0;
@@ -4363,7 +4319,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Initialize roll call	for text boxes
     //
-    pscen->_pglptbox = DynamicArray::PglNew(size(PTBOX), 0);
+    pscen->_SetOwner(THREE_MM_SCENE_TEXTS, DynamicArray::PglNew(size(PTBOX), 0));
     if (pscen->_pglptbox == pvNil)
     {
         goto LFail0;
@@ -4380,7 +4336,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     if (pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgThumbMbmp, &kid) && pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
-        pscen->_pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
+        pscen->_SetOwner(THREE_MM_SCENE_THUMBNAIL, MaskedBitmapMBMP::PmbmpRead(&blck));
     }
 
     //
@@ -4401,7 +4357,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         if (pvNil == pggOnFile)
             goto LFail0;
         Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
-        pscen->_pggsevFrm = GeneralGroup::PggNew(size(SceneEvent));
+        pscen->_SetOwner(THREE_MM_SCENE_FRAMES, GeneralGroup::PggNew(size(SceneEvent)));
         if (pvNil == pscen->_pggsevFrm)
         {
             ReleasePpo(&pggOnFile);
@@ -4473,7 +4429,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Read starting events
     //
-    ReleasePpo(&pscen->_pggsevStart);
+    pscen->_DropOwner(THREE_MM_SCENE_STARTS);
 
     if (!pcfl->FGetKidChidCtg(kctgScen, cno, 1, kctgStartGg, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
@@ -4491,7 +4447,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         if (pvNil == pggOnFile)
             goto LFail1;
         Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
-        pscen->_pggsevStart = GeneralGroup::PggNew(size(SceneEvent));
+        pscen->_SetOwner(THREE_MM_SCENE_STARTS, GeneralGroup::PggNew(size(SceneEvent)));
         if (pvNil == pscen->_pggsevStart)
         {
             ReleasePpo(&pggOnFile);
@@ -4601,74 +4557,10 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     return (pscen);
 
 LFail1:
-
-    //
-    // Destroy all created objects
-    //
-    while (isevStart--)
     {
-        pscen->_pggsevStart->GetFixed(isevStart, &sev);
-        switch (sev.sevt)
-        {
-        case sevtAddActr:
-            pscen->_pggsevStart->Get(isevStart, &pactr);
-            ReleasePpo(&pactr);
-            break;
-        case sevtAddTbox:
-            pscen->_pggsevStart->Get(isevStart, &ptbox);
-            ReleasePpo(&ptbox);
-            break;
-
-        case sevtChngCamera:
-        case sevtSetBkgd:
-        case sevtPause:
-            break;
-        }
+        auto services = _OwnerServices();
+        three_mm_scene_owner_unwind(&pscen->_owner, pscen, isevStart, isevFrm, &services);
     }
-    ReleasePpo(&pscen->_pggsevStart);
-
-    //
-    // Destroy all created objects
-    //
-    while (isevFrm--)
-    {
-        pscen->_pggsevFrm->GetFixed(isevFrm, &sev);
-        switch (sev.sevt)
-        {
-        case sevtAddActr:
-        case sevtAddTbox:
-            Bug("Bad event in frame list");
-            break;
-
-        case sevtPlaySnd:
-            PSceneSoundEvent qsse;
-            long itag;
-
-            qsse = (PSceneSoundEvent)pscen->_pggsevFrm->QvGet(isevFrm);
-            if (qsse->Cb() != (pscen->_pggsevFrm->CbFixed() + pscen->_pggsevFrm->Cb(isevFrm)))
-            {
-                Bug("Wrong size for SceneSoundEvent in GeneralGroup");
-                continue;
-            }
-
-            /* Close all tags; retrieve qsse each time...in theory, nothing
-                that happens during CloseTag should cause mem to move, but this
-                is a failure case, so it's okay to be slow, especially when we
-                can be safe-not-sorry.  */
-            for (itag = 0; itag < qsse->ctagc; itag++)
-            {
-                qsse = (PSceneSoundEvent)pscen->_pggsevFrm->QvGet(isevFrm);
-                TagManager::CloseTag(qsse->Ptag(itag));
-            }
-            break;
-
-        case sevtSetBkgd:
-        case sevtChngCamera:
-        case sevtPause:
-            break;
-        }
-    }
-    ReleasePpo(&pscen->_pggsevFrm);
 
 LFail0:
     ReleasePpo(&pscen);
@@ -5269,10 +5161,10 @@ void Scene::_UpdateThumbnail(void)
         GraphicsEnvironment gnvThumb(pgptThumb);
         gnvThumb.CopyPixels(&gnv, &rc, &rcThumb);
 
-        ReleasePpo(&_pmbmp);
+        _DropOwner(THREE_MM_SCENE_THUMBNAIL);
 
-        _pmbmp = MaskedBitmapMBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
-                                kbTransparent);
+        _SetOwner(THREE_MM_SCENE_THUMBNAIL, MaskedBitmapMBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
+                                kbTransparent));
         pgptThumb->Unlock();
 
         ReleasePpo(&pgpt);
@@ -5466,20 +5358,8 @@ bool Scene::_FForceTboxesToFrm(long nfrm)
 void Scene::HideTboxes(void)
 {
     AssertThis(0);
-
-    PTBOX ptbox;
-    long iptbox;
-    long nfrmStart, nfrmLast;
-
-    for (iptbox = 0; iptbox < _pglptbox->IvMac(); iptbox++)
-    {
-        _pglptbox->Get(iptbox, &ptbox);
-        AssertPo(ptbox, 0);
-        if (ptbox->FGetLifetime(&nfrmStart, &nfrmLast))
-        {
-            AssertDo(ptbox->FGotoFrame(nfrmStart - 1), "Could not remove a text box");
-        }
-    }
+    auto services = _OwnerServices();
+    three_mm_scene_owner_hide_texts(&_owner, &services);
 }
 
 /****************************************************
@@ -5495,16 +5375,8 @@ void Scene::HideTboxes(void)
 void Scene::HideActors(void)
 {
     AssertThis(0);
-
-    PActor pactr;
-    long ipactr;
-
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        AssertPo(pactr, 0);
-        pactr->Hide();
-    }
+    auto services = _OwnerServices();
+    three_mm_scene_owner_actors(&_owner, 0, &services);
 }
 
 /****************************************************
@@ -5520,16 +5392,8 @@ void Scene::HideActors(void)
 void Scene::ShowActors(void)
 {
     AssertThis(0);
-
-    PActor pactr;
-    long ipactr;
-
-    for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
-    {
-        _pglpactr->Get(ipactr, &pactr);
-        AssertPo(pactr, 0);
-        pactr->Show();
-    }
+    auto services = _OwnerServices();
+    three_mm_scene_owner_actors(&_owner, 1, &services);
 }
 
 /****************************************************
@@ -6141,7 +6005,7 @@ bool Scene::FChopBackCore()
     //
     if (_psseBkgd != pvNil && _nfrmSseBkgd < _data.firstFrame)
     {
-        ReleasePpsse(&_psseBkgd);
+        _DropOwner(THREE_MM_SCENE_BACKGROUND_SOUND);
         TrashVar(&_nfrmSseBkgd);
     }
 
@@ -7685,23 +7549,10 @@ PSceneSoundEvent SceneSoundEvent::PsseNew(long vlm, long sty, bool fLoop, long c
 void ReleasePpsse(PSceneSoundEvent *ppsse)
 {
     AssertVarMem(ppsse);
-
-    if (*ppsse == pvNil)
-        return;
-
-    PSceneSoundEvent psse = *ppsse;
-    long itagc;
-
-    AssertIn(psse->ctagc, 0, 1000); // sanity check on ctagc
-    AssertIn(psse->sty, styNil, styLim);
-
-    for (itagc = 0; itagc < psse->ctagc; itagc++)
-    {
-        if (psse->Ptag(itagc)->pcrf != pvNil)
-            TagManager::CloseTag(psse->Ptag(itagc));
-    }
-
-    FreePpv((void **)ppsse);
+    void *sound = *ppsse;
+    auto services = SceneSoundServices();
+    three_mm_scene_sound_release(&sound, &services);
+    *ppsse = static_cast<PSceneSoundEvent>(sound);
 }
 
 /***************************************************************************

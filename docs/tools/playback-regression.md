@@ -6461,3 +6461,103 @@ Evidence: `tmp/c89-world-export-native-before*.bin`,
 `tmp/c89-world-export-playback-actor-events-scrolling-text.json`,
 `tmp/c89-world-export-capture-hashes-*.json` and the two
 `tmp/c89-world-export-capture-*.log` files.
+
+### C89 Scene ownership and lifecycle (14 November 2026)
+
+`scene_owner.c` now owns persistent references to frame/start event groups,
+actor/text roll-call containers, selection extras, background, thumbnail and
+background sound. The parent movie remains borrowed. Native pointer fields are
+published views; every creation/load/replacement/release assignment for these
+owners now routes through the C record. Construction order, event-cursor reset
+timing, optional loaded notification, partial construction cleanup, destruction
+and completed-prefix read cleanup, hide/show/close ordering and owned scene-sound
+tag disposal now execute in C89. SceneData metadata remains its existing C record;
+frame/event runtime, loading/marshalling/editing transactions, caption/background
+implementations and final native facades remain unfinished dependencies. This
+slice does not make the whole Scene implementation or backend C-only.
+
+Two original native runs, an original SDL debug run and converted native/SDL
+debug runs match 7,888 bytes without masking, SHA-256
+`820411D4385C1BE0A624D4A76AD2384887E0A974C4F29786B354F39057D8F2C8`.
+The SDL release before/after trace matches 8,688 bytes, SHA-256
+`12CCD982D3A4E714550999609A5CD9AC97A167FB692DCD8BD3D6E1A59450B6E2`.
+Little-endian fixtures enforce FNV-1a `0EE1BC65` (debug) and `2A12D054` (release).
+Release omits allocation injection, so its successful-state trace differs from
+debug. Seventy-eight factory cases cover notification availability, BASE/HQ/Pv
+allocation positions, defaults, event/list layouts, error cleanup and balanced
+owner counts. Twelve populated cases cover retained and final close, start-owned
+actor destruction order relative to tag references, thumbnail/selection ownership
+and frame/background sound cache-reference balance.
+
+The native actor probes are deliberately unstaged partial actors used only for
+destruction/reference order. Validity assertions are suspended around those
+populated scenes' teardown; the probes never exercise body hiding/rendering.
+Actual actor/text/light behavior is additionally covered by C callback tests,
+the existing save/load integration suite and playback gates. Six supplemental
+cases use real runtime sound packets and the native read-failure service bridge,
+require tag-cache counts to return to one and do not alter the frozen trace.
+
+Normal disposal walks start events forward, releasing their actor/text objects,
+then releases the start group. It closes all frame-event sound tags before
+releasing the frame group, then actor/text/selection containers, background,
+thumbnail and background sound. Roll-call/selection entries are borrowed and do
+not receive another release. Owned background/undo sound packets close only tags
+with an open cache, free the allocation and publish NULL. Release callbacks see
+the old owner until release completes, preserving native publication timing.
+Close turns off lights, hides actors, seeks each text box with a valid lifetime
+to its first frame minus one, releases the scene and clears the caller's handle.
+A retained scene keeps its resources until the last reference is released.
+
+Read-failure cleanup walks completed start and frame prefixes in reverse order,
+reacquiring sound payloads before each tag close. The original code compared a
+sound packet's variable byte count against fixed event bytes plus variable bytes;
+the extra fixed-header size rejected valid packets and could skip their tag
+cleanup. The C path validates the actual variable payload size, correcting that
+error. Short/oversized event payloads and invalid owned-sound headers diagnose
+before unsafe reads. A text lifetime beginning at signed MIN diagnoses failure
+instead of overflowing on subtraction. These bounded malformed-input changes and
+the prefix-size fix are separate from the frozen valid lifecycle behavior.
+
+All 86 standalone C checks pass with assertions enabled, including strict C89
+syntax. The new fixture also builds/runs directly with Clang
+`-std=c89 -pedantic-errors -Wall -Wextra -Werror` and passes MSVC AddressSanitizer.
+C-only checks cover each factory failure phase, notification after publication,
+forward disposal and reverse unwind order, borrowed lists, retained close,
+sound-tag policy, visibility/close effects, failed text seeks, signed bounds and
+malformed event payloads. Both hosts and `core-checks` build. All 114 focused
+native checks, ten SDL debug checks, twenty-two SDL release checks and 51 freshly
+linked CLI baselines pass. Marcus was stopped before rebuilding and relaunched
+afterward. No Marcus UI tests were added.
+
+Final capture executables were frozen before/after capture at SHA-256
+`937B8F0964615AB27AE3ECC561CCB7DC95D56B0CD56429F0A0C3AE17BEEEB7D9`
+(SDL release) and
+`3E65F3629BABB9603B42D7B15BFE41A6CCBBEEA1956ECCC303CD039D1F1381A0`
+(Marcus regression).
+
+| Suite | Case | Captures |
+| --- | --- | --- |
+| `20261114T071925Z-a255b901` | actor-events | six retail/SDL/Marcus seek/playback complete |
+| `20261114T072040Z-d84dedda` | scrolling-text | six retail/SDL/Marcus seek/playback complete |
+
+All twelve captures complete without retries, retaining movie identity and suite
+integrity. Authored frames, all 360 seek images and ordered playback image changes
+match each player's preceding World-export suites `20261114T063118Z-b337a43e`
+and `20261114T063235Z-d38a8d14`. Playback comparison collapses only adjacent
+identical position/image observations. Existing cross-player differences and
+single-repeat inconclusive comparisons remain. These gates show no observed
+Scene lifecycle regression; they do not establish full retail timing or PCM
+parity. Captures use a shared warm SDL package cache with private processes,
+settings and movies and uncontrolled OS caching. No builds or tests run
+concurrently with capture.
+
+Evidence: `tmp/c89-scene-owner-before*.bin`, `tmp/c89-scene-owner-after.bin`,
+`tmp/c89-scene-owner-sdl-*-before.bin`, `tmp/c89-scene-owner-sdl-*-after.bin`,
+`tmp/c89-scene-owner-supplemental.log`, `tmp/c89-scene-owner-early-integration.log`,
+`tmp/c89-scene-owner-standalone.log`, `tmp/c89-scene-owner-asan.log`,
+`tmp/c89-scene-owner-native-tests.log`, `tmp/c89-scene-owner-sdl-debug-tests.log`,
+`tmp/c89-scene-owner-sdl-release-tests.log`,
+`tmp/c89-scene-owner-output-comparison.json`,
+`tmp/c89-scene-owner-playback-actor-events-scrolling-text.json`,
+`tmp/c89-scene-owner-capture-hashes-*.json` and the two
+`tmp/c89-scene-owner-capture-*.log` files.

@@ -18,6 +18,7 @@
 
 #ifndef SCEN_H
 #define SCEN_H
+#include "three_mm/scene_owner.h"
 
 //
 // Undo object for actor operations
@@ -111,6 +112,11 @@ class Scene : public Scene_PAR
 
   protected:
     typedef struct SceneEvent *PSEV;
+    ThreeMMSceneOwner _owner; // Owns references; native pointer fields are borrowed views.
+    static ThreeMMSceneOwnerServices _OwnerServices();
+    void _PublishOwners();
+    void _SetOwner(int slot, void *object);
+    void _DropOwner(int slot);
 
     //
     // These variables keep track of the internal frame numbers.
