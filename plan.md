@@ -433,6 +433,12 @@ pixels. Shared indexed-BMP decoding/writing remains a native dependency.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
+The sound conversion is complete for shared resource, payload, import and
+runtime policy (`a17d107d`, `66dc67c1`, and the preceding resource/dispatch
+slice). A fresh sound closeout audit is recorded in
+`docs/tools/playback-regression.md`; device/codec/thread adapters and final
+C-only host integration retain the limits described above.
+
 The sound resource/payload/import/runtime, body geometry/render-control and
 model/material/custom-material/texture-resource slices are complete. Continue
 with shared indexed-BMP decoding/RLE and writing in `kauai/src/mbmp.cpp`, then

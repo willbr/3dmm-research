@@ -5466,6 +5466,44 @@ Evidence: `tmp/c89-sound-runtime-standalone.log`,
 `tmp/c89-sound-runtime-capture-*.log` files.
 
 
+### Sound conversion closeout audit (14 November 2026)
+
+The sound resource/dispatch, payload/import and shared runtime conversions are
+complete at `66dc67c1`. A fresh source audit found no further shared sound-policy
+implementation to convert in this slice. This closeout changes documentation
+only. Native object/collection facades, device and codec services, mutexes and
+worker threads remain the final host-integration dependencies described above;
+the whole C89 backend is still unfinished.
+
+Fresh builds and runs pass all 16 selected native checks and all 24 selected SDL
+release checks. Selection uses the CTest expression
+`sound|audio|midi|wave|recording|movie-save-load`, covering the frozen mixer/MIDI
+traces, real synth/device adapters, payloads, imports, recording, sound-resource
+dispatch and save/reopen integration as available in each configuration. The
+C-only audio runtime fixture also builds and passes directly with Clang
+`-std=c89 -pedantic-errors -Wall -Wextra -Werror`.
+
+The initial concurrent native/SDL runs produced one native save/load access
+violation after the font-resource fixture. An isolated rerun, an isolated
+debugger run and the subsequent full native selection all pass. Legacy
+`Filename::FGetUnique` checks unreserved names in the shared temporary directory,
+so concurrent suites can collide; this is a possible cause, not a confirmed
+diagnosis. The initial failure is retained in the evidence rather than omitted.
+
+No new retail captures were taken for this documentation closeout. The sound
+conversion captures and waveform/timing/MIDI coverage limits above still apply.
+The separate in-progress BMP changes were preserved and were present in the
+fresh builds. Marcus itself was neither rebuilt nor stopped. No Marcus UI tests
+were added.
+
+Evidence: `tmp/c89-sound-finish-native-build.log`,
+`tmp/c89-sound-finish-native-tests.log` (initial failure),
+`tmp/c89-sound-finish-save-load-recheck.log`,
+`tmp/c89-sound-finish-debug.log`,
+`tmp/c89-sound-finish-native-serial-tests.log`,
+`tmp/c89-sound-finish-sdl-build.log` and
+`tmp/c89-sound-finish-sdl-tests.log`.
+
 ### C89 model resources and prelighting (14 November 2026)
 
 `model_resource.c` now owns model creation, cache factories/estimates,
