@@ -9,8 +9,10 @@ Vendored subset: `src/ImGuizmo.cpp`, `src/ImGuizmo.h`,
 upstream `README.md` and `LICENSE`. Other independent widgets, examples,
 and sample dependencies are omitted. License: MIT; see `LICENSE`.
 
-Local patch: `SetKeepTranslationAxesVisible(true)` opts into attached depth arrows
-for translation axes hidden by foreshortening. Drawing and picking use the same
-arrow geometry. End-on drags use a captured screen direction and world scale,
-so parallel ray/plane intersections cannot produce jumps or NaNs. Normal axes,
-plane handles, snapping and the upstream default behavior remain unchanged.
+Local patch: `SetTranslationAxisMinimumSize(pixels)` keeps the original
+translation arrows pickable by enlarging short projections along their actual
+projected direction. Exactly end-on axes use a circular end cap at the original
+projected origin. These handles use captured screen-space translation, while
+ordinary handles retain the upstream ray/plane solver. Both solvers assign the
+same translation delta; neither branch shadows it. Zero keeps upstream behavior.
+Marcus also disables axis flipping so arrow directions represent positive axes.

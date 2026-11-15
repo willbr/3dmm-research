@@ -172,7 +172,8 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     ImGuizmo::SetDrawlist(draw);
     ImGuizmo::SetRect(rect.x, rect.y, rect.w, rect.h);
     ImGuizmo::SetOrthographic(image->projection.orthographic != 0);
-    ImGuizmo::SetKeepTranslationAxesVisible(true);
+    ImGuizmo::AllowAxisFlip(false);
+    ImGuizmo::SetTranslationAxisMinimumSize(24.f);
     const float snap[3] = {1, 1, 1};
     const bool moved = ImGuizmo::Manipulate(view, projection, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, matrix,
                                            nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);
@@ -219,6 +220,11 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
     int result = gizmo->changed;
     if (gizmo->editing)
     {
+        // A rejected mouse sample must not reach the fixed-point player or
+        // discard the valid part of a drag. Releasing commits the last good pose.
+        if (!std::all_of(gizmo->value, gizmo->value + 3,
+                [](float value) { return std::isfinite(value) && std::abs(value) <= 32700.f; }))
+            std::copy(gizmo->applied, gizmo->applied + 3, gizmo->value);
         if (gizmo->cancel)
         {
             result = gizmo->Restore();

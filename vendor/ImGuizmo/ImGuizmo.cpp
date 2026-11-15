@@ -724,10 +724,10 @@ namespace IMGUIZMO_NAMESPACE
       vec_t mTranslationPlanOrigin;
       vec_t mMatrixOrigin;
       vec_t mTranslationLastDelta;
-      bool mKeepTranslationAxesVisible = false;
-      bool mScreenAxisTranslation = false;
-      ImVec2 mScreenAxisMouseOrigin, mScreenAxisDirection;
-      float mScreenAxisWorldPerPixel = 0.f;
+      float mTranslationAxisMinimumSize = 0.f;
+      bool mTranslationScreenDrag = false;
+      ImVec2 mTranslationMouseOrigin, mTranslationScreenDirection;
+      float mTranslationWorldPerPixel = 0.f;
 
       // rotation
       vec_t mRotationVectorSource;
@@ -1341,55 +1341,25 @@ namespace IMGUIZMO_NAMESPACE
       }
    }
 
-   // A view-parallel axis has no usable projected length or ray/plane
-   // intersection. Give that same axis a short attached depth arrow instead.
-   static bool TranslationDepthArrow(int axis, ImVec2& start, ImVec2& end)
+   // Enlarge the original projected handle without changing its axis direction.
+   // An exactly end-on arrow is its circular end cap, not an invented direction.
+   static bool TranslationAxisHandle(int axis, ImVec2& start, ImVec2& end, bool& endOn)
    {
-      if (!gContext.mKeepTranslationAxesVisible || (gContext.mAxisMask & (1 << axis)))
-         return false;
+      endOn = false;
+      if (gContext.mTranslationAxisMinimumSize <= 0.f || (gContext.mAxisMask & (1 << axis))) return false;
       vec_t direction, planeX, planeY;
       bool visibleAxis, visiblePlane;
       ComputeTripodAxisAndVisibility(axis, direction, planeX, planeY, visibleAxis, visiblePlane);
       const ImVec2 origin = worldToPos(makeVect(0.f, 0.f, 0.f), gContext.mMVP);
-      if (gContext.mbUsing && gContext.GetCurrentID() == gContext.mEditingID &&
-          gContext.mScreenAxisTranslation && gContext.mCurrentHandleType == MT_MOVE_X + axis)
-      {
-         start = origin + gContext.mScreenAxisDirection * 18.f;
-         end = origin + gContext.mScreenAxisDirection * 56.f;
-         return true;
-      }
       const ImVec2 tip = worldToPos(direction * gContext.mScreenFactor, gContext.mMVP);
-      const ImVec2 right = worldToPos(gContext.mModel.v.position + gContext.mCameraRight * gContext.mScreenFactor,
-                                      gContext.mViewProjection);
-      const float referencePixels = sqrtf(ImLengthSqr(right - origin));
-      const float minimumPixels = ImMin(28.f, ImMax(8.f, referencePixels * 0.5f));
-      if (visibleAxis && ImLengthSqr(tip - origin) >= minimumPixels * minimumPixels)
-         return false;
-      ImVec2 away(0.f, 0.f), first(1.f, 0.f);
-      for (int other = 0; other < 3; ++other)
-      {
-         if (other == axis) continue;
-         ComputeTripodAxisAndVisibility(other, direction, planeX, planeY, visibleAxis, visiblePlane);
-         const ImVec2 tip = worldToPos(direction * gContext.mScreenFactor, gContext.mMVP);
-         ImVec2 projected = tip - origin;
-         const float length = sqrtf(ImLengthSqr(projected));
-         if (length > 1.f)
-         {
-            projected /= length;
-            away -= projected;
-            first = projected;
-         }
-      }
-      float length = sqrtf(ImLengthSqr(away));
-      if (length < 0.1f) { away = ImVec2(-first.y, first.x); length = 1.f; }
-      away /= length;
-      // Keep the arrow inside the viewport if the object's origin is near an edge.
-      if (origin.x + away.x * 56.f < gContext.mX + 10.f) away.x = fabsf(away.x);
-      if (origin.x + away.x * 56.f > gContext.mXMax - 10.f) away.x = -fabsf(away.x);
-      if (origin.y + away.y * 56.f < gContext.mY + 10.f) away.y = fabsf(away.y);
-      if (origin.y + away.y * 56.f > gContext.mYMax - 10.f) away.y = -fabsf(away.y);
-      start = origin + away * 18.f;
-      end = origin + away * 56.f;
+      ImVec2 projected = tip - origin;
+      const float length = sqrtf(ImLengthSqr(projected));
+      if (visibleAxis && length >= gContext.mTranslationAxisMinimumSize) return false;
+      endOn = length < 0.001f;
+      if (endOn) { start = end = origin; return true; }
+      projected /= length;
+      start = origin + projected * (gContext.mTranslationAxisMinimumSize * 0.1f);
+      end = origin + projected * gContext.mTranslationAxisMinimumSize;
       return true;
    }
 
@@ -1765,10 +1735,17 @@ namespace IMGUIZMO_NAMESPACE
          {
             // draw axis
             ImVec2 baseSSpace, worldDirSSpace;
-            const bool depthArrow = TranslationDepthArrow(i, baseSSpace, worldDirSSpace);
-            if ((belowAxisLimit || depthArrow) && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
+            bool endOn;
+            const bool enlarged = TranslationAxisHandle(i, baseSSpace, worldDirSSpace, endOn);
+            if (enlarged && endOn && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
             {
-               if (!depthArrow)
+               drawList->AddCircle(origin, 14.f, colors[i + 1], 32, 2.f);
+               const char* names[] = { "X", "Y", "Z" };
+               drawList->AddText(origin + ImVec2(17.f, -17.f), colors[i + 1], names[i]);
+            }
+            else if ((belowAxisLimit || enlarged) && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
+            {
+               if (!enlarged)
                {
                   baseSSpace = worldToPos(dirAxis * 0.1f * gContext.mScreenFactor, gContext.mMVP);
                   worldDirSSpace = worldToPos(dirAxis * gContext.mScreenFactor, gContext.mMVP);
@@ -1788,12 +1765,7 @@ namespace IMGUIZMO_NAMESPACE
                drawList->AddTriangleFilled(worldDirSSpace - dir, a + ortogonalDir, a - ortogonalDir, colors[i + 1]);
                // Arrow head end
 
-               if (depthArrow)
-               {
-                  const char* names[] = { "X", "Y", "Z" };
-                  drawList->AddText(worldDirSSpace + ImVec2(8.f, -8.f), colors[i + 1], names[i]);
-               }
-               else if (gContext.GetTripodState().mAxisFactor[i] < 0.f)
+               if (gContext.GetTripodState().mAxisFactor[i] < 0.f)
                {
                   DrawHatchedAxis(dirAxis);
                }
@@ -2179,16 +2151,6 @@ namespace IMGUIZMO_NAMESPACE
       ImGuiIO& io = ImGui::GetIO();
       MOVETYPE type = MT_NONE;
 
-      for (int axis = 0; axis < 3; ++axis)
-      {
-         ImVec2 start, end;
-         if (!Intersects(op, static_cast<OPERATION>(TRANSLATE_X << axis)) || !TranslationDepthArrow(axis, start, end))
-            continue;
-         const vec_t closest = PointOnSegment(makeVect(io.MousePos), makeVect(start), makeVect(end));
-         if ((closest - makeVect(io.MousePos)).Length() < 12.f)
-            return static_cast<MOVETYPE>(MT_MOVE_X + axis);
-      }
-
       // screen
       if (io.MousePos.x >= gContext.mScreenSquareMin.x && io.MousePos.x <= gContext.mScreenSquareMax.x &&
          io.MousePos.y >= gContext.mScreenSquareMin.y && io.MousePos.y <= gContext.mScreenSquareMax.y &&
@@ -2350,6 +2312,18 @@ namespace IMGUIZMO_NAMESPACE
       ImGuiIO& io = ImGui::GetIO();
       MOVETYPE type = MT_NONE;
 
+      // Pick the circular end cap at the true projected origin. Leave its
+      // middle available for the existing screen-plane translation handle.
+      for (int axis = 0; axis < 3; ++axis)
+      {
+         ImVec2 start, end;
+         bool endOn;
+         if (!Intersects(op, static_cast<OPERATION>(TRANSLATE_X << axis)) ||
+             !TranslationAxisHandle(axis, start, end, endOn) || !endOn) continue;
+         const float distance = sqrtf(ImLengthSqr(io.MousePos - end));
+         if (distance >= 10.f && distance <= 18.f) return static_cast<MOVETYPE>(MT_MOVE_X + axis);
+      }
+
       // screen
       if (io.MousePos.x >= gContext.mScreenSquareMin.x && io.MousePos.x <= gContext.mScreenSquareMax.x &&
          io.MousePos.y >= gContext.mScreenSquareMin.y && io.MousePos.y <= gContext.mScreenSquareMax.y &&
@@ -2374,14 +2348,19 @@ namespace IMGUIZMO_NAMESPACE
          const float len = IntersectRayPlane(gContext.mRayOrigin, gContext.mRayVector, BuildPlan(gContext.mModel.v.position, dirAxis));
          vec_t posOnPlan = gContext.mRayOrigin + gContext.mRayVector * len;
 
-         const ImVec2 axisStartOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor * 0.1f, gContext.mViewProjection) - ImVec2(gContext.mX, gContext.mY);
-         const ImVec2 axisEndOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor, gContext.mViewProjection) - ImVec2(gContext.mX, gContext.mY);
+         ImVec2 axisStartOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor * 0.1f, gContext.mViewProjection) - ImVec2(gContext.mX, gContext.mY);
+         ImVec2 axisEndOnScreen = worldToPos(gContext.mModel.v.position + dirAxis * gContext.mScreenFactor, gContext.mViewProjection) - ImVec2(gContext.mX, gContext.mY);
 
+         ImVec2 handleStart, handleEnd;
+         bool endOn;
+         const bool enlarged = TranslationAxisHandle(i, handleStart, handleEnd, endOn);
+         if (enlarged)
+         {
+            axisStartOnScreen = handleStart - ImVec2(gContext.mX, gContext.mY);
+            axisEndOnScreen = handleEnd - ImVec2(gContext.mX, gContext.mY);
+         }
          vec_t closestPointOnAxis = PointOnSegment(screenCoord, makeVect(axisStartOnScreen), makeVect(axisEndOnScreen));
-         ImVec2 depthStart, depthEnd;
-         const bool depthArrow = TranslationDepthArrow(i, depthStart, depthEnd);
-         if ((closestPointOnAxis - screenCoord).Length() < 12.f && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)) &&
-             !depthArrow && (belowAxisLimit || !gContext.mKeepTranslationAxesVisible)) // pixel size
+         if (!(enlarged && endOn) && (closestPointOnAxis - screenCoord).Length() < 12.f && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i))) // pixel size
          {
             if (isAxisMasked)
                break;
@@ -2424,14 +2403,13 @@ namespace IMGUIZMO_NAMESPACE
          ImGui::CaptureMouseFromApp();
 #endif
          vec_t delta;
-         if (gContext.mScreenAxisTranslation)
+         if (gContext.mTranslationScreenDrag)
          {
-            const ImVec2 mouse = io.MousePos - gContext.mScreenAxisMouseOrigin;
-            const float distance = (mouse.x * gContext.mScreenAxisDirection.x + mouse.y * gContext.mScreenAxisDirection.y) *
-                                   gContext.mScreenAxisWorldPerPixel;
-            const int axisIndex = gContext.mCurrentHandleType - MT_MOVE_X;
-            const vec_t& axisValue = *(vec_t*)&gContext.mModel.m[axisIndex];
-            delta = gContext.mMatrixOrigin + axisValue * distance - gContext.mModel.v.position;
+            const ImVec2 mouse = io.MousePos - gContext.mTranslationMouseOrigin;
+            const float distance = (mouse.x * gContext.mTranslationScreenDirection.x + mouse.y * gContext.mTranslationScreenDirection.y) *
+                                   gContext.mTranslationWorldPerPixel;
+            const vec_t& axis = *(vec_t*)&gContext.mModel.m[gContext.mCurrentHandleType - MT_MOVE_X];
+            delta = gContext.mMatrixOrigin + axis * distance - gContext.mModel.v.position;
          }
          else
          {
@@ -2441,7 +2419,7 @@ namespace IMGUIZMO_NAMESPACE
 
             // compute delta
             const vec_t newOrigin = newPos - gContext.mRelativeOrigin * gContext.mScreenFactor;
-            vec_t delta = newOrigin - gContext.mModel.v.position;
+            delta = newOrigin - gContext.mModel.v.position;
 
             // 1 axis constraint
             if (gContext.mCurrentHandleType >= MT_MOVE_X && gContext.mCurrentHandleType <= MT_MOVE_Z)
@@ -2516,24 +2494,28 @@ namespace IMGUIZMO_NAMESPACE
          if (CanActivate() && type != MT_NONE)
          {
             gContext.mActiveTripodState = gContext.mTripodState;
-            gContext.mScreenAxisTranslation = false;
             gContext.mbUsing = true;
             gContext.mEditingID = gContext.GetCurrentID();
             gContext.mCurrentHandleType = type;
             ImVec2 start, end;
-            gContext.mScreenAxisTranslation = type >= MT_MOVE_X && type <= MT_MOVE_Z &&
-               TranslationDepthArrow(type - MT_MOVE_X, start, end);
+            bool endOn;
+            gContext.mTranslationScreenDrag = type >= MT_MOVE_X && type <= MT_MOVE_Z &&
+               TranslationAxisHandle(type - MT_MOVE_X, start, end, endOn);
             gContext.mMatrixOrigin = gContext.mModel.v.position;
-            if (gContext.mScreenAxisTranslation)
+            if (gContext.mTranslationScreenDrag)
             {
-               gContext.mScreenAxisMouseOrigin = io.MousePos;
-               gContext.mScreenAxisDirection = end - start;
-               gContext.mScreenAxisDirection /= sqrtf(ImLengthSqr(gContext.mScreenAxisDirection));
-               const ImVec2 origin = worldToPos(gContext.mModel.v.position, gContext.mViewProjection);
-               const ImVec2 right = worldToPos(gContext.mModel.v.position + gContext.mCameraRight * gContext.mScreenFactor,
-                                               gContext.mViewProjection);
-               const float pixels = sqrtf(ImLengthSqr(right - origin));
-               gContext.mScreenAxisWorldPerPixel = gContext.mScreenFactor / ((pixels > 1.f) ? pixels : 1.f);
+               gContext.mTranslationMouseOrigin = io.MousePos;
+               if (endOn)
+               {
+                  const vec_t& axis = *(vec_t*)&gContext.mModel.m[type - MT_MOVE_X];
+                  gContext.mTranslationScreenDirection = ImVec2(0.f, Dot(axis, gContext.mCameraDir) >= 0.f ? -1.f : 1.f);
+               }
+               else
+               {
+                  gContext.mTranslationScreenDirection = end - start;
+                  gContext.mTranslationScreenDirection /= sqrtf(ImLengthSqr(gContext.mTranslationScreenDirection));
+               }
+               gContext.mTranslationWorldPerPixel = gContext.mScreenFactor / gContext.mTranslationAxisMinimumSize;
                gContext.mTranslationLastDelta = makeVect(0.f, 0.f, 0.f);
             }
             else
@@ -2929,9 +2911,9 @@ namespace IMGUIZMO_NAMESPACE
      gContext.mAxisLimit=value;
    }
 
-   void SetKeepTranslationAxesVisible(bool value)
+   void SetTranslationAxisMinimumSize(float pixels)
    {
-      gContext.mKeepTranslationAxesVisible = value;
+      gContext.mTranslationAxisMinimumSize = ImMax(0.f, pixels);
    }
 
    void SetAxisMask(bool x, bool y, bool z)

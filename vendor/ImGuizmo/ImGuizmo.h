@@ -300,9 +300,9 @@ namespace IMGUIZMO_NAMESPACE
    IMGUI_API void SetAxisMask(bool x, bool y, bool z);
    // Configure the limit where planes are hiden
    IMGUI_API void SetPlaneLimit(float value);
-   // Keep translation axes selectable when viewed end-on. Collapsed axes get
-   // a short screen-space depth arrow attached to the gizmo (off by default).
-   IMGUI_API void SetKeepTranslationAxesVisible(bool value);
+   // Minimum size for the original projected translation arrows (pixels).
+   // Zero preserves upstream behavior. Exactly end-on axes use a circular end cap.
+   IMGUI_API void SetTranslationAxisMinimumSize(float pixels);
    // from a x,y,z point in space and using Manipulation view/projection matrix, check if mouse is in pixel radius distance of that projected point
    IMGUI_API bool IsOver(float* position, float pixelRadius);
 
