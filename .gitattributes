@@ -2,3 +2,7 @@
 *.bmp binary
 *.ico binary
 *.chk binary
+
+# Preserve original bytes in vendored release sources.
+vendor/SDL3/** -text
+vendor/ImGuizmo/** -text

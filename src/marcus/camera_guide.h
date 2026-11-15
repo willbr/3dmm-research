@@ -2,6 +2,10 @@
 #define MARCUS_CAMERA_GUIDE_H
 #include "player.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MARCUS_GUIDE_MAX_LINES 24
 typedef struct MarcusGuideLine
 {
@@ -25,4 +29,9 @@ void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *
 /* Project all twelve selection-box edges into the rendered image, preserving
  * authored letterboxing. The box uses the actor's current world-space corners. */
 void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide);
+/* Column-major view/projection matrices matching the engine camera exactly. */
+int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16]);
+#ifdef __cplusplus
+}
+#endif
 #endif

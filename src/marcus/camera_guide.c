@@ -267,3 +267,39 @@ void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, M
         line->y2 = (float)((top + line->y2 * height) / image->height);
     }
 }
+
+int camera_projection_matrices(const MarcusProjection *projection, float view[16], float clip[16])
+{
+    GuideView camera;
+    double near_z, far_z;
+    int row, axis;
+    if (!valid_projection(projection) || !make_view(projection, &camera)) return 0;
+    memset(view, 0, 16 * sizeof(float));
+    memset(clip, 0, 16 * sizeof(float));
+    for (row = 0; row < 3; ++row)
+    {
+        for (axis = 0; axis < 3; ++axis)
+        {
+            view[axis * 4 + row] = (float)camera.inverse[row][axis];
+            view[12 + row] -= (float)(camera.inverse[row][axis] * camera.origin[axis]);
+        }
+    }
+    view[15] = 1;
+    near_z = projection->near_clip;
+    far_z = projection->far_clip;
+    clip[0] = (float)(1 / camera.tangent_x);
+    clip[5] = (float)(1 / camera.tangent_y);
+    if (projection->orthographic)
+    {
+        clip[10] = (float)(-2 / (far_z - near_z));
+        clip[14] = (float)(-(far_z + near_z) / (far_z - near_z));
+        clip[15] = 1;
+    }
+    else
+    {
+        clip[10] = (float)(-(far_z + near_z) / (far_z - near_z));
+        clip[11] = -1;
+        clip[14] = (float)(-2 * far_z * near_z / (far_z - near_z));
+    }
+    return 1;
+}

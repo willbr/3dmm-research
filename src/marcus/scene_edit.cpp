@@ -2,6 +2,7 @@
 #include "mm/content_vfs.hpp"
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <limits>
 #include <stdexcept>
 #include "soc_core.h"
@@ -332,5 +333,45 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &s
         file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
     Require(file->FSave(kctgSoc), "Cannot save the prop working copy.");
     actorId = header.arid;
+    return result;
+}
+
+std::shared_ptr<MarcusMovieFile> MarcusMoveProp(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, unsigned long scene, unsigned long actor, const float delta[3])
+{
+    auto result = WorkingCopy(source, std::move(origin));
+    String path;
+    Filename filename;
+    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
+    Require(filename.FBuildFromPath(&path), "The prop working path is not supported.");
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    Require(bool(file), "Cannot open the movie working file.");
+    ChildChunkIdentification link, child;
+    bool found = false;
+    for (LegacyLong index = 0; file->FGetKid(kctgScen, scene, index, &link); ++index)
+        if (link.cki.ctg == kctgActr && link.cki.cno == actor) { found = true; break; }
+    Require(found, "The selected prop does not belong to this scene.");
+    DataBlock block;
+    ActorChunkOnFile header;
+    Require(file->FFind(kctgActr, actor, &block) && ActorData::FReadHeader(&block, &header), "Cannot read the prop placement.");
+    BRS *position[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        const double value = double(BrScalarToFloat(*position[axis])) + delta[axis];
+        Require(std::isfinite(value) && std::abs(value) <= 32700, "The prop placement is out of range.");
+        *position[axis] = BrFloatToScalar(static_cast<float>(value));
+    }
+    // Scene instances can share an ACTR. Copy its root while retaining immutable
+    // route, event, template and costume children and the original scene slot.
+    ChunkNumber number;
+    Require(file->FAdd(sizeof(header), kctgActr, &number) && ActorData::FWriteHeader(file.get(), number, &header),
+            "Cannot write the prop placement.");
+    for (LegacyLong index = 0; file->FGetKid(kctgActr, actor, index, &child); ++index)
+        Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the prop animation.");
+    file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
+    Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved prop.");
+    if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
+        file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+    Require(file->FSave(kctgSoc), "Cannot save the prop working copy.");
     return result;
 }

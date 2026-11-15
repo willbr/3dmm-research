@@ -41,6 +41,7 @@ class PreviewActor
               std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
               std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
     bool Seek(LegacyLong frame);
+    bool Translate(const float delta[3]);
     PreviewObject Snapshot() const;
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const

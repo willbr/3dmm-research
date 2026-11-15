@@ -7,6 +7,7 @@ extern "C" {
 #endif
 typedef struct MarcusCameraPicker MarcusCameraPicker;
 MarcusCameraPicker *camera_picker_create(void);
+int camera_picker_visible(const MarcusCameraPicker *picker);
 void camera_picker_destroy(MarcusCameraPicker *picker);
 int camera_picker_show(MarcusCameraPicker *picker, MarcusPlayer *player);
 int camera_picker_event(MarcusCameraPicker *picker, const SDL_Event *event, int width, int height);

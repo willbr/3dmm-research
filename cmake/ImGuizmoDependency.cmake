@@ -1,0 +1,6 @@
+include_guard(GLOBAL)
+include(ImGuiDependency)
+add_library(imguizmo STATIC "${PROJECT_SOURCE_DIR}/vendor/ImGuizmo/ImGuizmo.cpp")
+target_include_directories(imguizmo PUBLIC "${PROJECT_SOURCE_DIR}/vendor/ImGuizmo")
+target_link_libraries(imguizmo PUBLIC imgui-sdl3)
+install(FILES "${PROJECT_SOURCE_DIR}/vendor/ImGuizmo/LICENSE" DESTINATION licenses RENAME ImGuizmo-LICENSE.txt)

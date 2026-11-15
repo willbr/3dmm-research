@@ -87,12 +87,13 @@ the core's existing ANSI file API; unsupported paths report an error instead
 of opening a substituted filename. The existing 255-byte core path limit
 still applies. Names use the core's legacy text conversion policies.
 
-`BUILD_INSPECTOR` defaults to `OFF`. Enabling it downloads SHA256-pinned SDL
-3.4.8 and Dear ImGui 1.92.5 source archives through CMake FetchContent; SDL is
-linked statically. Core-only builds do not download or link either dependency.
+`BUILD_INSPECTOR` defaults to `OFF`. Enabling it builds the checked-in SDL
+3.4.8 sources from `vendor/SDL3` and downloads the SHA256-pinned Dear ImGui 1.92.5
+archive through CMake FetchContent. SDL is linked statically. Core-only builds
+do not download or link either dependency.
 The upstream [SDL renderer example](https://github.com/ocornut/imgui/tree/v1.92.5/examples/example_sdl3_sdlrenderer3)
-documents the backend pairing used here. Dependency licenses remain in their
-downloaded source directories (`SDL/LICENSE.txt`, `imgui/LICENSE.txt`);
+documents the backend pairing used here. Dependency licenses remain in
+`vendor/SDL3/LICENSE.txt` and the downloaded `imgui/LICENSE.txt`;
 redistributed binaries must include these notices.
 
 `inspector-data` is a presentation adapter over the shared

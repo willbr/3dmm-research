@@ -197,3 +197,5 @@ int camera_picker_take(MarcusCameraPicker *picker, unsigned long *camera)
     return 1;
 }
 }
+
+int camera_picker_visible(const MarcusCameraPicker *value) { return value && value->open; }

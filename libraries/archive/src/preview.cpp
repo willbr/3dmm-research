@@ -449,6 +449,14 @@ catch (const std::bad_alloc &)
     timeline = {};
     return Fail(error, ErrorCode::out_of_memory, "Cannot allocate animation events.");
 }
+bool Preview::TranslateObject(int object, const float delta[3], Error &error)
+{
+    error = {};
+    if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+        !delta || !_impl->actors[object]->Translate(delta))
+        return Fail(error, ErrorCode::invalid_argument, "Select a visible prop and a position within +/-32700 world units.");
+    return true;
+}
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
     bounds = {};
@@ -713,7 +721,7 @@ bool Preview::Open(const std::string &archivePath, const std::string &resourcesP
         return false;
     return Open(std::move(archive), resourcesPath, error);
 }
-bool Preview::Open(Archive &&archive, const std::string &resourcesPath, Error &error)
+bool Preview::Open(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming)
 try
 {
     error = {};
@@ -765,6 +773,7 @@ try
     // models/materials are destroyed immediately, without rendering them again.
     _impl->running = false;
     opened->running = true;
+    if (preserveFraming) opened->orbit = _impl->orbit;
     _impl.swap(opened);
     return true;
 }

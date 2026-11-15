@@ -245,6 +245,13 @@ extern "C"
     /* Insert an original prop at this frame and the background's default
      * placement point. Returns its object index, or -1 on failure. */
     int marcus_add_prop(MarcusPlayer *player, unsigned long chunk);
+    /* Silent live preview; restore the original position to cancel. No file write.
+     * Seeking, playback or scene replacement also cancels the preview.
+     * Only visible props are movable. Position is limited to +/-32700. */
+    int marcus_preview_prop_position(MarcusPlayer *player, int object, float x, float y, float z);
+    /* Reposition the whole prop track in this scene in a private working copy.
+     * Call after cancelling any live preview; retains the current frame and view. */
+    int marcus_move_prop(MarcusPlayer *player, int object, float x, float y, float z);
     /* Author a camera change at the current scene frame in a private copy.
      * Later authored camera changes are retained. Camera indices are zero-based. */
     int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera);
@@ -286,6 +293,7 @@ extern "C"
     /* Playback scene changes keep Orbit framing and Fly's clipping reference. */
     int marcus_select_scene_keep_view(MarcusPlayer *player, int index);
     int marcus_info(const MarcusPlayer *player, MarcusInfo *info);
+    unsigned long marcus_document(const MarcusPlayer *player);
     /* Movie-wide presentation time, including scrolling, timed/sound waits and
      * transitions between scenes. Click waits assume immediate acknowledgement.
      * The first call silently analyzes and caches timing for all scenes. */

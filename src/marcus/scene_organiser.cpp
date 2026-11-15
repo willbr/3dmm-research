@@ -622,3 +622,5 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
                      s->frames ? "Open selected frame / Enter" : "Open selected scene / Enter");
 }
 }
+
+int scene_organiser_visible(const MarcusSceneOrganiser *value) { return value && value->open; }

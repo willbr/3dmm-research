@@ -188,7 +188,7 @@ class Preview
     // Failed Open retains the previous session.
     bool Open(const std::string &archivePath, const std::string &resourcesPath, Error &error);
     // Consume an already indexed movie archive instead of scanning it again.
-    bool Open(Archive &&archive, const std::string &resourcesPath, Error &error);
+    bool Open(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming = false);
     // Register an external source archive. Source IDs are preserved from TAGs;
     // 0 refers to the opened document and positive IDs identify content packs.
     bool AddContent(std::int32_t sourceId, const std::string &archivePath, Error &error);
@@ -201,6 +201,8 @@ class Preview
     std::vector<PreviewObject> Objects() const;
     // Current posed bounds in actor-local axes, transformed with the actor.
     // An off-stage actor succeeds with invalid bounds.
+    // Temporary, silent whole-track translation of a visible prop.
+    bool TranslateObject(int object, const float delta[3], Error &error);
     bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
     // Evaluate a private track copy; leaves live frame, pose and sounds unchanged.
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);

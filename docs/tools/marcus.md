@@ -84,6 +84,14 @@ cmake --build build/marcus --target marcus
 
 The executable is `build/marcus/src/marcus/marcus` (`marcus.exe` on Windows).
 The current development build in this workspace uses `build/marcus-x64`.
+
+SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
+for Studio and the inspector. Marcus's translation controls use the vendored
+ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
+Both vendor directories record their upstream revision, archive checksum and
+license. Their original source/license notices are preserved; runtime licenses
+are copied beside Marcus in `licenses/`.
+
 Keep `marcus-preview` (`marcus-preview.exe` on Windows) beside the executable;
 the Marcus build target builds this headless preview helper automatically.
 
@@ -1110,9 +1118,26 @@ world XYZ, actor ID, current action/cel indices, lifetime and template source/ch
 Original coordinates are retained. Selection uses viewport picking, the list or
 the timeline.
 
+Select a visible prop while paused to show its world-axis translation handles.
+Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap. The
+World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
+coordinate. Escape cancels the current move, and losing window focus cancels it.
+The prop updates live; releasing the handle or finishing a field commits one
+move to the session's private movie copy. The current frame and inspection
+framing are retained. In the x86 ASM renderer, live moves temporarily render
+through the local portable CPU preview; committed positions use the selected
+renderer again.
+
+A move offsets the prop's entire track in this scene, preserving its animation,
+costumes, route shape and lifetime. Other scenes that share its actor chunk keep
+their original placement. Actors, 3D text and off-stage props are read-only.
+Coordinates are limited to +/-32700 world units. Original movies, ZIPs and content
+archives remain unchanged. These session edits still have no Save/Export command.
+
 ## Current limits
 
-- Read-only playback: no editing or movie save commands.
+- Scene creation, camera changes, prop insertion and prop translation are session
+  edits in a private working copy. Movie save/export commands are not implemented.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.
 - Caption glyphs use bundled ZIP fonts or available host fonts, and MIDI uses a software instrument

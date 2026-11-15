@@ -7,6 +7,7 @@ extern "C" {
 #endif
 typedef struct MarcusSceneOrganiser MarcusSceneOrganiser;
 MarcusSceneOrganiser *scene_organiser_create(void);
+int scene_organiser_visible(const MarcusSceneOrganiser *organiser);
 void scene_organiser_destroy(MarcusSceneOrganiser *organiser);
 void scene_organiser_close(MarcusSceneOrganiser *organiser);
 void scene_organiser_show(MarcusSceneOrganiser *organiser, MarcusPlayer *player);

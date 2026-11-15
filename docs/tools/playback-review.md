@@ -164,9 +164,9 @@ build/playback-review/playback-review.exe tmp/textbox-acid-fonts-results/playbac
 ```
 
 Launching without arguments opens a Windows file picker. The initial build
-downloads pinned SDL3, cimgui (including its matching Dear ImGui submodule), and
-SQLite sources. Dependency licenses are copied to the build's `licenses` folder;
-SQLite is public domain. No Marcus rebuild is required.
+builds SDL3 from the repository's `vendor/SDL3` directory and downloads pinned
+cimgui (including its matching Dear ImGui submodule) and SQLite sources.
+Dependency licenses are copied to the build's `licenses` folder; SQLite is public domain. No Marcus rebuild is required.
 
 Use **Open Database...** to switch results files without restarting, or
 **Refresh** to reload the current database after new captures/comparisons arrive.

@@ -1,4 +1,5 @@
 #include "player.h"
+#include "camera_guide.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +35,45 @@ static int orbit_centred(const MarcusProjection *projection, const MarcusBounds 
     }
     return bounds->valid;
 }
+/* Camera math only: projection used by world-space controls must agree with
+ * the renderer for rotated cameras and both perspective/orthographic lenses. */
+static int matrices_match(const MarcusProjection *projection)
+{
+    float view[16], clip[16];
+    double local[4], world[4], camera[4], screen[4], depth, span;
+    int sample, row, axis;
+    if (!camera_projection_matrices(projection, view, clip)) return 0;
+    for (sample = 0; sample < 3; ++sample)
+    {
+        depth = sample == 0 ? projection->near_clip : sample == 1 ? projection->far_clip :
+            (projection->near_clip + projection->far_clip) / 2;
+        span = projection->orthographic ? projection->ortho_height / 2 :
+            depth * tan(projection->vertical_fov * .008726646259971648);
+        local[0] = span * projection->aspect / 2;
+        local[1] = span / 4;
+        local[2] = -depth;
+        local[3] = world[3] = 1;
+        for (axis = 0; axis < 3; ++axis)
+        {
+            world[axis] = projection->transform[9 + axis];
+            for (row = 0; row < 3; ++row) world[axis] += projection->transform[row * 3 + axis] * local[row];
+        }
+        for (row = 0; row < 4; ++row)
+        {
+            camera[row] = 0;
+            for (axis = 0; axis < 4; ++axis) camera[row] += view[axis * 4 + row] * world[axis];
+            if (fabs(camera[row] - local[row]) > .002 * (1 + fabs(local[row]))) return 0;
+        }
+        for (row = 0; row < 4; ++row)
+        {
+            screen[row] = 0;
+            for (axis = 0; axis < 4; ++axis) screen[row] += clip[axis * 4 + row] * camera[axis];
+        }
+        if (fabs(screen[0] / screen[3] - .5) > .002 || fabs(screen[1] / screen[3] - .25) > .002) return 0;
+        if (sample < 2 && fabs(screen[2] / screen[3] - (sample ? 1 : -1)) > .002) return 0;
+    }
+    return 1;
+}
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -44,6 +84,8 @@ int main(int argc, char **argv)
     MarcusBackground background;
     MarcusProp prop_asset;
     MarcusObject added_prop, second_prop;
+    MarcusObject move_before, move_first, move_later, move_other;
+    unsigned long move_document;
     MarcusObject first, later, prop, inactive;
     MarcusBounds first_bounds, bounds;
     MarcusAnimationInfo animation;
@@ -107,6 +149,7 @@ int main(int argc, char **argv)
     CHECK(image.width == 480 && image.height == 360 && image.pitch == 480 * 4 && image.rgba);
     CHECK(image.projection.valid && image.scene_camera.valid && image.scene_camera.vertical_fov > 0);
     CHECK(image.scene_camera.far_clip > image.scene_camera.near_clip && image.scene_camera.display_depth > 0);
+    CHECK(matrices_match(&image.projection));
     authored = image.scene_camera;
     guide_depth[0] = authored.display_depth;
     bytes = (size_t)image.pitch * image.height;
@@ -467,6 +510,63 @@ int main(int argc, char **argv)
     CHECK(marcus_info(player, &info) && info.scene_count == 1 && info.frame == 1 && info.object_count == 0);
     CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image) && image.rgba);
     CHECK(marcus_movie_time(player, &movie_time) && fabs(movie_time.duration_seconds - 1.0 / 6) < 1e-6);
+    /* Whole-track prop translation, transient cancellation, bounds, persistence,
+     * view retention and copy-on-write isolation of a shared ACTR between scenes. */
+    CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 1));
+    CHECK(marcus_object(player, 1, &move_first));
+    CHECK(marcus_seek(player, 20) && marcus_object(player, 1, &move_later));
+    CHECK(marcus_select_scene(player, 1) && marcus_seek(player, 10) && marcus_object(player, 1, &move_other));
+    CHECK(marcus_select_scene(player, 0) && marcus_seek(player, 10) && marcus_object(player, 1, &move_before));
+    move_document = marcus_document(player);
+    CHECK(!marcus_preview_prop_position(player, 0, 0, 0, 0)); /* Actors. */
+    CHECK(!marcus_preview_prop_position(player, 3, 0, 0, 0)); /* 3D text. */
+    CHECK(!marcus_move_prop(player, -1, 0, 0, 0));
+    CHECK(!marcus_move_prop(player, 1, 1e30f, 0, 0));
+    CHECK(!marcus_preview_prop_position(player, 1, (float)HUGE_VAL, 0, 0));
+    CHECK(marcus_object_bounds(player, 1, &first_bounds));
+    CHECK(marcus_preview_prop_position(player, 1, move_before.x + 3.5f, move_before.y - 2.25f, move_before.z + 5.125f));
+    CHECK(marcus_object(player, 1, &later) && fabs(later.x - move_before.x - 3.5) < .0001 &&
+          fabs(later.y - move_before.y + 2.25) < .0001 && fabs(later.z - move_before.z - 5.125) < .0001);
+    CHECK(marcus_document(player) == move_document && marcus_object_bounds(player, 1, &bounds));
+    for (index = 0; index < 8; ++index)
+        CHECK(fabs(bounds.corners[index * 3] - first_bounds.corners[index * 3] - 3.5) < .001 &&
+              fabs(bounds.corners[index * 3 + 1] - first_bounds.corners[index * 3 + 1] + 2.25) < .001 &&
+              fabs(bounds.corners[index * 3 + 2] - first_bounds.corners[index * 3 + 2] - 5.125) < .001);
+    CHECK(marcus_preview_prop_position(player, 1, move_before.x, move_before.y, move_before.z));
+    CHECK(marcus_object(player, 1, &later) && fabs(later.x - move_before.x) < .0001);
+    CHECK(marcus_preview_prop_position(player, 1, move_before.x + 7, move_before.y, move_before.z));
+    CHECK(marcus_seek(player, 10) && marcus_object(player, 1, &later) && fabs(later.x - move_before.x) < .0001);
+    CHECK(marcus_match_camera(player, 480, 270, &camera));
+    CHECK(marcus_render(player, 480, 270, 0, 25, -10, 1.2f, &image));
+    CHECK(marcus_pan_orbit(player, .1f, -.2f, 25, -10, 1.2f));
+    CHECK(marcus_render(player, 480, 270, 0, 25, -10, 1.2f, &image));
+    panned = image.projection;
+    CHECK(matrices_match(&panned));
+    manual = panned;
+    manual.orthographic = 1;
+    manual.ortho_height = 25;
+    CHECK(matrices_match(&manual));
+    manual.transform[0] = manual.transform[1] = manual.transform[2] = 0;
+    CHECK(!matrices_match(&manual));
+    CHECK(marcus_move_prop(player, 1, move_before.x + 3.5f, move_before.y - 2.25f, move_before.z + 5.125f));
+    CHECK(marcus_document(player) != move_document && marcus_info(player, &info) && info.scene == 0 && info.frame == 10);
+    CHECK(marcus_object(player, 1, &later) && later.actor_id == move_before.actor_id && later.chunk != move_before.chunk &&
+          later.action == move_before.action && later.cel == move_before.cel && later.first_frame == move_before.first_frame &&
+          later.last_frame == move_before.last_frame);
+    CHECK(marcus_render(player, 480, 270, 0, 25, -10, 1.2f, &image));
+    for (index = 0; index < 12; ++index) CHECK(fabs(image.projection.transform[index] - panned.transform[index]) < .001);
+    CHECK(image.projection.vertical_fov == panned.vertical_fov);
+    CHECK(marcus_scene_thumbnail(player, 0, &thumbnail) && !thumbnail.rgba);
+    CHECK(marcus_seek(player, 1) && marcus_object(player, 1, &later) &&
+          fabs(later.x - move_first.x - 3.5) < .0001 && fabs(later.y - move_first.y + 2.25) < .0001 &&
+          fabs(later.z - move_first.z - 5.125) < .0001 && later.action == move_first.action && later.cel == move_first.cel);
+    CHECK(marcus_seek(player, 20) && marcus_object(player, 1, &later) &&
+          fabs(later.x - move_later.x - 3.5) < .0001 && fabs(later.y - move_later.y + 2.25) < .0001 &&
+          fabs(later.z - move_later.z - 5.125) < .0001 && later.action == move_later.action && later.cel == move_later.cel);
+    CHECK(marcus_select_scene(player, 1) && marcus_seek(player, 10) && marcus_object(player, 1, &later) &&
+          later.chunk == move_other.chunk && later.x == move_other.x && later.y == move_other.y && later.z == move_other.z);
+    CHECK(marcus_select_scene(player, 0) && marcus_reload(player, argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(marcus_object(player, 1, &later) && fabs(later.x - move_before.x - 3.5) < .0001);
     /* Camera thumbnails are isolated from the live render. Authored camera
      * changes replace same-frame choices and preserve later cuts. */
     CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
@@ -527,6 +627,7 @@ int main(int argc, char **argv)
           added_prop.first_frame == 10 && added_prop.last_frame == 30 && !strcmp(added_prop.name, prop_asset.name));
     CHECK(marcus_object_bounds(player, added_index, &bounds) && bounds.valid);
     CHECK(marcus_seek(player, 9) && marcus_object(player, added_index, &later) && !later.visible);
+    CHECK(!marcus_move_prop(player, added_index, 0, 0, 0));
     CHECK(marcus_seek(player, 20) && marcus_object(player, added_index, &later) && later.visible &&
           fabs(later.x - added_prop.x) < 1e-4 && fabs(later.y - added_prop.y) < 1e-4 && fabs(later.z - added_prop.z) < 1e-4);
     second_index = marcus_add_prop(player, prop_asset.chunk);

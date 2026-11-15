@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "platform_text.h"
 #include <codecvt>
+#include <cmath>
 #include <locale>
 #include <map>
 #include <sstream>
@@ -427,6 +428,27 @@ PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
     cue.motion = sound.celn != ivNil;
     cue.motionCel = sound.celn;
     return cue;
+}
+bool PreviewActor::Translate(const float delta[3])
+{
+    if (!body || !tmpl || !tmpl->FIsProp() || tmpl->FIsTdt() || !state.onStage) return false;
+    BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
+    BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
+    BRS nextOrigin[3], nextTranslation[3];
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        const double a = double(BrScalarToFloat(*origin[axis])) + delta[axis];
+        const double b = double(BrScalarToFloat(*translation[axis])) + delta[axis];
+        if (!std::isfinite(a) || !std::isfinite(b) || std::abs(a) > 32700 || std::abs(b) > 32700) return false;
+        nextOrigin[axis] = BrFloatToScalar(static_cast<float>(a));
+        nextTranslation[axis] = BrFloatToScalar(static_cast<float>(b));
+    }
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        *origin[axis] = nextOrigin[axis];
+        *translation[axis] = nextTranslation[axis];
+    }
+    return Position(false);
 }
 bool PreviewActor::Position(bool selectCel)
 {
