@@ -1,11 +1,12 @@
 #ifndef MARCUS_ASM_RENDERER_H
 #define MARCUS_ASM_RENDERER_H
-#include "mm/preview.h"
+#include "asm_protocol.h"
 #include <memory>
 #include <string>
 struct MarcusPlayer;
 // Geometry only: captions, scrolling, audio and transitions stay in the host.
 bool MarcusRenderLocalWorld(MarcusPlayer *, const MM::PreviewView &, MM::PreviewImage &, MM::Error &);
+bool MarcusApplyPropOffsets(MarcusPlayer *, const std::vector<MarcusASM::PropOffset> &, MM::Error &);
 class MarcusASMRenderer
 {
     struct Impl;
@@ -15,6 +16,7 @@ class MarcusASMRenderer
     static bool Available(MM::Error &);
     MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content);
     ~MarcusASMRenderer();
-    bool Render(int scene, int frame, const MM::PreviewView &, MM::PreviewImage &, MM::Error &);
+    bool Render(int scene, int frame, const MM::PreviewView &, MM::PreviewImage &, MM::Error &,
+                const std::vector<MarcusASM::PropOffset> &offsets = {});
 };
 #endif

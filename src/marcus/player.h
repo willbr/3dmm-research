@@ -255,8 +255,8 @@ extern "C"
      * Seeking, playback or scene replacement also cancels the preview.
      * Only visible props are movable. Position is limited to +/-32700. */
     int marcus_preview_prop_position(MarcusPlayer *player, int object, float x, float y, float z);
-    /* Reposition the whole prop track in this scene in a private working copy.
-     * Call after cancelling any live preview; retains the current frame and view. */
+    /* Commit the whole-track placement, including an active live preview.
+     * Retains frame, view and timing caches; no archive write or reload. */
     int marcus_move_prop(MarcusPlayer *player, int object, float x, float y, float z);
     /* Author a camera change at the current scene frame in a private copy.
      * Later authored camera changes are retained. Camera indices are zero-based. */

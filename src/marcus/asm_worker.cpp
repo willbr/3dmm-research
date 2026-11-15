@@ -24,7 +24,10 @@ int main(int argc, char **argv)
     while (std::cin.read(reinterpret_cast<char *>(&request), sizeof(request)))
     {
         if (request.magic != MarcusASM::Magic || request.width < 64 || request.height < 64 || request.width > 4096 ||
-            request.height > 4096)
+            request.height > 4096 || request.propCount > 100000)
+            return 2;
+        std::vector<MarcusASM::PropOffset> offsets(request.propCount);
+        if (!offsets.empty() && !std::cin.read(reinterpret_cast<char *>(offsets.data()), offsets.size() * sizeof(offsets[0])))
             return 2;
         MM::PreviewImage image;
         MM::Error error;
@@ -33,6 +36,7 @@ int main(int argc, char **argv)
         bool ok =
             (info.scene == request.scene || marcus_select_scene(player.get(), request.scene)) &&
             (info.scene == request.scene && info.frame == request.frame || marcus_seek(player.get(), request.frame));
+        if (ok) ok = MarcusApplyPropOffsets(player.get(), offsets, error);
         if (ok)
             ok = MarcusRenderLocalWorld(player.get(), MarcusASM::Decode(request), image, error);
         if (!ok && error.message.empty())

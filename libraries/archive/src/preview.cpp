@@ -457,6 +457,14 @@ bool Preview::TranslateObject(int object, const float delta[3], Error &error)
         return Fail(error, ErrorCode::invalid_argument, "Select a visible prop and a position within +/-32700 world units.");
     return true;
 }
+bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
+{
+    error = {};
+    if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+        !offset || !_impl->actors[object]->SetOffset(offset))
+        return Fail(error, ErrorCode::invalid_argument, "The prop placement is out of range.");
+    return true;
+}
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
     bounds = {};

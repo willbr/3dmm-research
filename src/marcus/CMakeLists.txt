@@ -140,6 +140,10 @@ if(BUILD_TESTING)
       "-DFREETYPE_INCLUDES=$<TARGET_PROPERTY:freetype,INTERFACE_INCLUDE_DIRECTORIES>"
       -DSOURCE=${PROJECT_SOURCE_DIR} -P ${PROJECT_SOURCE_DIR}/tests/check_marcus_c89.cmake)
   endif()
+  # Headless release latency/cache checks; no application window or UI input.
+  add_executable(marcus-prop-move-test EXCLUDE_FROM_ALL ../../tests/marcus_prop_move_test.cpp)
+  target_compile_features(marcus-prop-move-test PRIVATE cxx_std_17)
+  target_link_libraries(marcus-prop-move-test PRIVATE marcus-player MM::Preview SDL3::SDL3-static)
   add_executable(marcus-player-test EXCLUDE_FROM_ALL ../../tests/marcus_player_test.c)
   set_target_properties(marcus-player-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_link_libraries(marcus-player-test PRIVATE marcus-player)
@@ -148,7 +152,7 @@ if(BUILD_TESTING)
   target_compile_features(marcus-frame-previews-test PRIVATE cxx_std_17)
   target_link_libraries(marcus-frame-previews-test PRIVATE marcus-player SDL3::SDL3-static)
   add_dependencies(marcus-frame-previews-test marcus-preview)
-  add_dependencies(marcus-player-test marcus-frame-previews-test)
+  add_dependencies(marcus-player-test marcus-frame-previews-test marcus-prop-move-test)
   if(EXISTS "${PROJECT_SOURCE_DIR}/content-files/bkgds.3cn")
     set(marcus_resources "${PROJECT_SOURCE_DIR}/build/studio-portable-x64/3dmovie/utest.chk"
       CACHE FILEPATH "3dmovie.chk or built utest.chk for Marcus integration tests")
@@ -160,6 +164,7 @@ if(BUILD_TESTING)
       set_tests_properties(marcus-playback PROPERTIES TIMEOUT 60 ENVIRONMENT "SDL_AUDIODRIVER=dummy")
       add_test(NAME marcus-player COMMAND ${CMAKE_COMMAND}
         -DAPI_EXE=$<TARGET_FILE:marcus-player-test>
+        -DPROP_MOVE_EXE=$<TARGET_FILE:marcus-prop-move-test>
         -DFRAME_PREVIEW_EXE=$<TARGET_FILE:marcus-frame-previews-test>
         -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>
         -DRESOURCES=${marcus_resources} -DCONTENT=${PROJECT_SOURCE_DIR}/content-files

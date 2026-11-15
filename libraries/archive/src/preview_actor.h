@@ -14,6 +14,7 @@ namespace Internal
 class PreviewActor
 {
     ActorChunkOnFile header = {};
+    BRS originalPlacement[3] = {};
     ActorTrack track;
     ActorFrameState state;
     bool inactive = false;
@@ -42,6 +43,7 @@ class PreviewActor
               std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
     bool Seek(LegacyLong frame);
     bool Translate(const float delta[3]);
+    bool SetOffset(const float offset[3]);
     PreviewObject Snapshot() const;
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const

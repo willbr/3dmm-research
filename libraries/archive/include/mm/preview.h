@@ -203,6 +203,8 @@ class Preview
     // An off-stage actor succeeds with invalid bounds.
     // Temporary, silent whole-track translation of a visible prop.
     bool TranslateObject(int object, const float delta[3], Error &error);
+    // Idempotent placement relative to the loaded actor header, including off-stage props.
+    bool SetObjectOffset(int object, const float offset[3], Error &error);
     bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
     // Evaluate a private track copy; leaves live frame, pose and sounds unchanged.
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);

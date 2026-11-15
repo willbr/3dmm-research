@@ -94,16 +94,18 @@ MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string
     std::uint32_t hello[2] = {};
     Transfer(impl->output, hello, sizeof(hello), false);
     if (hello[0] != MarcusASM::Magic || hello[1] != 32)
-        throw std::runtime_error("ASM renderer handshake failed: expected original 32-bit assembly backend.");
+        throw std::runtime_error("ASM renderer protocol mismatch. Rebuild the 32-bit marcus-asm-worker.exe.");
 }
 MarcusASMRenderer::~MarcusASMRenderer() = default;
 bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view, MM::PreviewImage &image,
-                               MM::Error &error)
+                               MM::Error &error, const std::vector<MarcusASM::PropOffset> &offsets)
 {
     try
     {
         auto request = MarcusASM::Encode(scene, frame, view);
+        request.propCount = static_cast<std::uint32_t>(offsets.size());
         Transfer(impl->input, &request, sizeof(request), true);
+        if (!offsets.empty()) Transfer(impl->input, const_cast<MarcusASM::PropOffset *>(offsets.data()), offsets.size() * sizeof(offsets[0]), true);
         SDL_FlushIO(impl->input);
         MarcusASM::Reply reply;
         Transfer(impl->output, &reply, sizeof(reply), false);

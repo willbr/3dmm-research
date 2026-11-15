@@ -1123,10 +1123,20 @@ Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap. The
 World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.
 The prop updates live; releasing the handle or finishing a field commits one
-move to the session's private movie copy. The current frame and inspection
-framing are retained. In the x86 ASM renderer, live moves temporarily render
+move to the session. The placement commits in the live scene without copying
+or reopening the movie, seeking, restarting a timing helper, or clearing the
+duration, animation, caption and waveform caches. Undoing a placement on the same
+base movie also keeps those caches. The current frame and inspection framing
+are retained. Native private snapshots are materialized lazily for frame/camera
+thumbnail helpers and structural edits. In the x86 ASM renderer, live moves temporarily render
 through the local portable CPU preview; committed positions use the selected
-renderer again.
+renderer again. Completed placements are sent to the existing ASM worker over
+IPC; moving a prop does not restart that worker.
+
+A headless Debug-build check on 15 November 2026 measured 100 release commits at
+0.008 ms median and 0.100 ms maximum on the synthetic two-scene fixture. These
+measure commit work, excluding scene rendering. It also verifies that duration
+is immediately available after every commit and undo, rather than reanalyzed.
 
 A move offsets the prop's entire track in this scene, preserving its animation,
 costumes, route shape and lifetime. Other scenes that share its actor chunk keep

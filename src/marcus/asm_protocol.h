@@ -4,7 +4,12 @@
 #include <cstdint>
 namespace MarcusASM
 {
-constexpr std::uint32_t Magic = 0x314d5341; // ASM1, little endian x86/x64 only.
+constexpr std::uint32_t Magic = 0x324d5341; // ASM2, little endian x86/x64 only.
+struct PropOffset
+{
+    std::int32_t object = 0;
+    float offset[3] = {};
+};
 struct Request
 {
     std::uint32_t magic = Magic;
@@ -13,6 +18,7 @@ struct Request
     float yaw = 0, pitch = 0, zoom = 1, roll = 0, fov = 45, nearClip = 0;
     float x = 0, y = 0, z = 0;
     std::int32_t orbitObject = -1, displayMode = 0, axisView = 0;
+    std::uint32_t propCount = 0;
 };
 inline Request Encode(int scene, int frame, const MM::PreviewView &v)
 {
@@ -71,6 +77,6 @@ struct Reply
     MM::PreviewCamera camera;
     MM::PreviewProjection projection, sceneCamera;
 };
-static_assert(sizeof(Request) == 72 && sizeof(Reply) == 216, "ASM wire layout changed");
+static_assert(sizeof(Request) == 76 && sizeof(Reply) == 216 && sizeof(PropOffset) == 16, "ASM wire layout changed");
 } // namespace MarcusASM
 #endif

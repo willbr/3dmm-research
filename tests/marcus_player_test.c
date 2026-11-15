@@ -550,7 +550,7 @@ int main(int argc, char **argv)
     CHECK(!matrices_match(&manual));
     CHECK(marcus_move_prop(player, 1, move_before.x + 3.5f, move_before.y - 2.25f, move_before.z + 5.125f));
     CHECK(marcus_document(player) != move_document && marcus_info(player, &info) && info.scene == 0 && info.frame == 10);
-    CHECK(marcus_object(player, 1, &later) && later.actor_id == move_before.actor_id && later.chunk != move_before.chunk &&
+    CHECK(marcus_object(player, 1, &later) && later.actor_id == move_before.actor_id && later.chunk == move_before.chunk &&
           later.action == move_before.action && later.cel == move_before.cel && later.first_frame == move_before.first_frame &&
           later.last_frame == move_before.last_frame);
     CHECK(marcus_render(player, 480, 270, 0, 25, -10, 1.2f, &image));

@@ -228,9 +228,12 @@ int prop_gizmo_end(MarcusPropGizmo *gizmo)
             const bool moved = std::abs(gizmo->value[0] - gizmo->original[0]) > .00002f ||
                 std::abs(gizmo->value[1] - gizmo->original[1]) > .00002f ||
                 std::abs(gizmo->value[2] - gizmo->original[2]) > .00002f;
-            result = gizmo->Restore();
-            if (result >= 0 && moved)
-                result = marcus_move_prop(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2]) ? 2 : -1;
+            if (moved)
+            {
+                if (marcus_move_prop(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2])) result = 2;
+                else { gizmo->StoreError(); gizmo->Restore(); result = -1; }
+            }
+            else result = gizmo->Restore();
             gizmo->editing = 0;
         }
         else

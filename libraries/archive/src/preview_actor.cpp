@@ -46,6 +46,9 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
         !chunky->FGetKidChidCtg(kctgActr, number, 0, kctgGgae, &child) ||
         !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !track.AdoptEvents(ActorData::PggReadEvents(&block)))
         return false;
+    originalPlacement[0] = header.dxyzFullRte.dxr;
+    originalPlacement[1] = header.dxyzFullRte.dyr;
+    originalPlacement[2] = header.dxyzFullRte.dzr;
     if (header.nfrmFirst == knfrmInvalid)
     {
         inactive = true; // Roll-call actors with no entrance are valid and invisible.
@@ -431,7 +434,7 @@ PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
 }
 bool PreviewActor::Translate(const float delta[3])
 {
-    if (!body || !tmpl || !tmpl->FIsProp() || tmpl->FIsTdt() || !state.onStage) return false;
+    if (!body || !tmpl || !tmpl->FIsProp() || tmpl->FIsTdt()) return false;
     BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
     BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
     BRS nextOrigin[3], nextTranslation[3];
@@ -448,7 +451,37 @@ bool PreviewActor::Translate(const float delta[3])
         *origin[axis] = nextOrigin[axis];
         *translation[axis] = nextTranslation[axis];
     }
-    return Position(false);
+    return !state.onStage || Position(false);
+}
+bool PreviewActor::SetOffset(const float offset[3])
+{
+    if (!body || !tmpl || !tmpl->FIsProp() || tmpl->FIsTdt()) return false;
+    BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
+    BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
+    // Unedited retail placements must not be re-quantized or subjected to
+    // the editor's coordinate limits merely because a scene was selected.
+    if (offset[0] == 0 && offset[1] == 0 && offset[2] == 0 &&
+        *origin[0] == originalPlacement[0] && *origin[1] == originalPlacement[1] && *origin[2] == originalPlacement[2])
+        return true;
+    BRS nextOrigin[3], nextTranslation[3];
+    bool changed = false;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        const double a = double(BrScalarToFloat(originalPlacement[axis])) + offset[axis];
+        const double b = double(BrScalarToFloat(*translation[axis])) + a - BrScalarToFloat(*origin[axis]);
+        if (!std::isfinite(a) || !std::isfinite(b) || std::abs(a) > 32700 || std::abs(b) > 32700) return false;
+        nextOrigin[axis] = offset[axis] == 0 ? originalPlacement[axis] : BrFloatToScalar(static_cast<float>(a));
+        nextTranslation[axis] = BrFloatToScalar(static_cast<float>(b));
+    }
+    for (int axis = 0; axis < 3; ++axis)
+        changed = changed || *origin[axis] != nextOrigin[axis] || *translation[axis] != nextTranslation[axis];
+    if (!changed) return true;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        *origin[axis] = nextOrigin[axis];
+        *translation[axis] = nextTranslation[axis];
+    }
+    return !state.onStage || Position(false);
 }
 bool PreviewActor::Position(bool selectCel)
 {
