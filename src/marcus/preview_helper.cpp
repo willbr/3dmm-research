@@ -1,6 +1,7 @@
 #include "preview_worker.h"
 #include "player.h"
 #include "timing_job.h"
+#include "mm/preview.h"
 #include <fstream>
 #include <filesystem>
 #include <iostream>
@@ -109,7 +110,8 @@ int main(int argc, char **argv)
     const bool cameras = (argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--cameras");
     const bool frames = cameras || ((argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--frames"));
     const bool background = argc == 5 && !std::strcmp(argv[3], "--background");
-    if (argc != 3 && !duration && !timeline && !frames && !background) return 2;
+    const bool prop = argc == 5 && !std::strcmp(argv[3], "--prop");
+    if (argc != 3 && !duration && !timeline && !frames && !background && !prop) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
     if (frames) _setmode(_fileno(stdin), _O_BINARY);
@@ -118,7 +120,29 @@ int main(int argc, char **argv)
     BrowserPreview preview;
     try
     {
-        if (background)
+        if (prop)
+        {
+            std::size_t end;
+            const auto chunk = std::stoul(argv[1], &end);
+            MM::Preview renderer;
+            MM::Error error;
+            MM::PreviewView view;
+            MM::PreviewImage image;
+            view.width = 480; view.height = 270;
+            view.authoredCamera = false;
+            view.yaw = 25; view.pitch = -10;
+            if (argv[1][end] || chunk > 0xffffffffUL ||
+                !renderer.Open((std::filesystem::u8path(argv[4]) / "tmpls.3cn").u8string(), argv[2], error) ||
+                !renderer.Select({0x544d504c, static_cast<std::uint32_t>(chunk)}, error) || !renderer.Info().prop ||
+                !renderer.Render(view, image, error))
+                preview.error = error.message.empty() ? "Cannot preview the selected prop." : error.message;
+            else
+            {
+                preview.width = image.width; preview.height = image.height;
+                preview.rgba = std::move(image.rgba);
+            }
+        }
+        else if (background)
         {
             std::size_t end;
             const auto chunk = std::stoul(argv[1], &end);

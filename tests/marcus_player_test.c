@@ -42,6 +42,8 @@ int main(int argc, char **argv)
     MarcusMovieTime movie_time;
     MarcusScene scene;
     MarcusBackground background;
+    MarcusProp prop_asset;
+    MarcusObject added_prop, second_prop;
     MarcusObject first, later, prop, inactive;
     MarcusBounds first_bounds, bounds;
     MarcusAnimationInfo animation;
@@ -56,7 +58,7 @@ int main(int argc, char **argv)
     unsigned char *pixels;
     size_t bytes;
     int index, scene_count, picked, pick_x, pick_y, x, y, hits, renderer, expected_pick, span_index, event_index,
-        active;
+        active, prop_count, object_count, added_index, second_index;
     if (argc != 9)
         return 2;
     player = marcus_create();
@@ -506,6 +508,43 @@ int main(int argc, char **argv)
     CHECK(marcus_info(player, &info) && info.camera == 1);
     CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
     CHECK(marcus_info(player, &info) && info.camera == 0);
+    prop_count = marcus_prop_count(player, argv[3]);
+    CHECK(prop_count > 0 && marcus_prop(player, 0, &prop_asset));
+    CHECK(!marcus_prop(player, -1, &prop_asset));
+    for (index = 0; index < prop_count; ++index)
+    {
+        CHECK(marcus_prop(player, index, &prop_asset));
+        if (prop_asset.chunk == 0x1020) break;
+    }
+    CHECK(index < prop_count);
+    CHECK(marcus_info(player, &info));
+    object_count = info.object_count;
+    CHECK(marcus_add_prop(player, 0xffffffffUL) < 0);
+    CHECK(marcus_info(player, &info) && info.object_count == object_count && info.frame == 10);
+    added_index = marcus_add_prop(player, prop_asset.chunk);
+    CHECK(added_index >= 0 && marcus_info(player, &info) && info.object_count == object_count + 1 && info.frame == 10);
+    CHECK(marcus_object(player, added_index, &added_prop) && added_prop.prop && !added_prop.text && added_prop.visible &&
+          added_prop.first_frame == 10 && added_prop.last_frame == 30 && !strcmp(added_prop.name, prop_asset.name));
+    CHECK(marcus_object_bounds(player, added_index, &bounds) && bounds.valid);
+    CHECK(marcus_seek(player, 9) && marcus_object(player, added_index, &later) && !later.visible);
+    CHECK(marcus_seek(player, 20) && marcus_object(player, added_index, &later) && later.visible &&
+          fabs(later.x - added_prop.x) < 1e-4 && fabs(later.y - added_prop.y) < 1e-4 && fabs(later.z - added_prop.z) < 1e-4);
+    second_index = marcus_add_prop(player, prop_asset.chunk);
+    CHECK(second_index >= 0 && marcus_object(player, second_index, &second_prop) && second_prop.actor_id != added_prop.actor_id &&
+          second_prop.first_frame == 20 && second_prop.visible);
+    CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image));
+    CHECK(marcus_reload(player, argv[2], argv[3]) && marcus_seek(player, 20));
+    CHECK(marcus_object(player, added_index, &later) && later.actor_id == added_prop.actor_id && later.visible);
+    CHECK(marcus_select_scene(player, 1) && marcus_info(player, &info) && info.object_count == object_count);
+    CHECK(marcus_open(player, argv[5], argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(marcus_add_prop(player, prop_asset.chunk) >= 0 && marcus_render(player, 480, 270, 1, 0, 0, 1, &image));
+    CHECK(marcus_open(player, argv[5], argv[2], argv[3]) && marcus_info(player, &info) && info.object_count == object_count);
+    marcus_destroy(player);
+    player = marcus_create();
+    CHECK(player && marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    added_index = marcus_add_prop(player, prop_asset.chunk);
+    CHECK(added_index == 0 && marcus_object(player, added_index, &later) && later.prop && later.visible);
+    CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image));
     marcus_destroy(player);
     free(pixels);
     puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "

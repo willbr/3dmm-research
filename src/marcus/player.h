@@ -235,6 +235,16 @@ extern "C"
      * movie is overwritten. Also creates the first scene of an empty player. */
     int marcus_add_scene(MarcusPlayer *player, unsigned long background, const char *resources, const char *content_directory);
     int marcus_reload(MarcusPlayer *player, const char *resources, const char *content_directory);
+    typedef struct MarcusProp
+    {
+        char name[192];
+        unsigned long chunk;
+    } MarcusProp;
+    int marcus_prop_count(MarcusPlayer *player, const char *content_directory);
+    int marcus_prop(const MarcusPlayer *player, int index, MarcusProp *prop);
+    /* Insert an original prop at this frame and the background's default
+     * placement point. Returns its object index, or -1 on failure. */
+    int marcus_add_prop(MarcusPlayer *player, unsigned long chunk);
     /* Author a camera change at the current scene frame in a private copy.
      * Later authored camera changes are retained. Camera indices are zero-based. */
     int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera);

@@ -15,6 +15,7 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_PREVIOUS, 2, "Previous", "Go to the previous scene", 0xaeb6c0},
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
+    {RIBBON_NEW_PROP, 10, "New prop", "Choose a prop to add at the current frame", 0x78cbc4},
     {RIBBON_OBJECTS, 4, "Objects", "Show object tracks", 0x78cbc4},
     {RIBBON_ACTOR, 4, "Next actor", "Select the next actor in this scene", 0xe9bc75},
     {RIBBON_PROP, 5, "Next prop", "Select the next prop in this scene", 0xb3a4d6},
@@ -74,7 +75,7 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
         ui_fill(ui, x + 11, y + 24, 5, 8, colour);
         ui_fill(ui, x + 22, y + 24, 5, 8, colour);
     }
-    else if (kind == 5)
+    else if (kind == 5 || kind == 10)
     {
         ui_line(ui, x + 3, y + 9, x + 18, y + 2, colour);
         ui_line(ui, x + 18, y + 2, x + 33, y + 9, colour);
@@ -85,6 +86,11 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
         ui_line(ui, x + 3, y + 25, x + 18, y + 32, colour);
         ui_line(ui, x + 33, y + 25, x + 18, y + 32, colour);
         ui_line(ui, x + 18, y + 16, x + 18, y + 32, colour);
+        if (kind == 10)
+        {
+            ui_fill(ui, x + 30, y + 20, 4, 18, colour);
+            ui_fill(ui, x + 23, y + 27, 18, 4, colour);
+        }
     }
     else if (kind == 6)
     {

@@ -226,6 +226,8 @@ class Preview
     // Read an authored background camera without selecting it, rendering, or
     // changing frame/pose state. Metadata is cached for the loaded background.
     bool CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error);
+    // Default authored object placement for the current background camera.
+    bool PlacementPoint(float point[3]) const;
     void ResetOrbitFraming();
     // Seed inspection position, orientation, lens and orbit pivot from the shot.
     bool MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error);

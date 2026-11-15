@@ -1112,6 +1112,15 @@ catch (const std::bad_alloc &)
     _impl->ready = false;
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to evaluate scene frame.");
 }
+bool Preview::PlacementPoint(float point[3]) const
+{
+    if (!point || !_impl->ready || !_impl->background) return false;
+    const auto &place = _impl->background->camera.apos;
+    point[0] = BrScalarToFloat(place.xrPlace);
+    point[1] = BrScalarToFloat(place.yrPlace);
+    point[2] = BrScalarToFloat(place.zrPlace);
+    return true;
+}
 bool Preview::CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error)
 try
 {

@@ -928,6 +928,17 @@ static void choose_background(App *app)
     if (!background_browser_show(app->background_browser, app->player, app->resources, app->content))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No backgrounds found. Choose your original 3DMM Content folder.");
 }
+static void choose_prop(App *app)
+{
+    if (!app->loaded) return;
+    finish_movie_scrub(app);
+    app->playing = 0;
+    release_camera(app);
+    app->sheet_menu = app->orbit_menu = 0;
+    scene_organiser_close(app->scene_organiser);
+    if (!background_browser_show_props(app->background_browser, app->player, app->resources, app->content))
+        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No props found. Choose your original 3DMM Content folder.");
+}
 static void choose_camera_angle(App *app)
 {
     if (!app->loaded || !app->info.camera_count) return;
@@ -1556,6 +1567,7 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_CONTENT) choose_file(app, 2);
     else if (action == RIBBON_SETTINGS) open_settings(app);
     else if (action == RIBBON_NEW_SCENE) choose_background(app);
+    else if (action == RIBBON_NEW_PROP) choose_prop(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_CAMERA_GUIDES)
     {
@@ -4237,6 +4249,30 @@ int main(int argc, char **argv)
                     fit_timeline(&app);
                     SDL_SetWindowTitle(app.window, app.movie[0] ? "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
                 }
+            }
+        }
+        {
+            unsigned long prop;
+            int object;
+            if (background_browser_take_prop(app.background_browser, &prop))
+            {
+                object = marcus_add_prop(app.player, prop);
+                if (object < 0) fail(&app, marcus_error(app.player));
+                refresh(&app);
+                if (object >= 0)
+                {
+                    app.modified = 1;
+                    app.selected = object;
+                    app.selected_sound = app.selected_sound_track = -1;
+                    app.properties_scroll = 0;
+                    show_object_tracks(&app);
+                    scroll_objects(&app, object);
+                    *sheet_scroll(&app) = object;
+                    view_mode(&app, 1);
+                    reset_view(&app);
+                    SDL_SetWindowTitle(app.window, app.movie[0] ? "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
+                }
+                app.dirty = app.movie_dirty = 1;
             }
         }
         {

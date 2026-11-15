@@ -46,6 +46,54 @@ static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path 
     }
     return result;
 }
+static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
+{
+    ChildChunkIdentification child;
+    DataBlock block;
+    short order = kboCur;
+    const bool hadSources = file->FGetKidChidCtg(kctgMvie, movie, 1, kctgGst, &child);
+    std::unique_ptr<StringTable_GST, Release> sources;
+    if (hadSources)
+    {
+        Require(file->FFind(kctgGst, child.cki.cno, &block), "Cannot read movie content sources.");
+        sources.reset(StringTable_GST::PgstRead(&block, &order));
+    }
+    else sources.reset(StringTable_GST::PgstNew(sizeof(LegacyLong)));
+    Require(sources && sources->CbExtra() == sizeof(LegacyLong), "The movie content source table is invalid.");
+    LegacyLong sourceId = -1, maxSource = 2;
+    for (LegacyLong index = 0; index < sources->IvMac(); ++index)
+    {
+        LegacyLong id;
+        sources->GetExtra(index, &id);
+        if (order == kboOther) { SwapBytesRglw(&id, 1); sources->PutExtra(index, &id); }
+        maxSource = std::max(maxSource, id);
+        String title;
+        schar text[1024];
+        sources->GetStn(index, &title);
+        title.GetSzs(text);
+        if (id > 0 && MM::Content::SourceKey(text) == "3dmovie") sourceId = id;
+    }
+    String sourceName;
+    sourceName.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));
+    if (!hadSources)
+    {
+        LegacyLong fallback = fallbackSource;
+        Require(sources->FAddStn(&sourceName, &fallback), "Cannot retain original content source.");
+        sourceId = fallback;
+    }
+    if (sourceId < 0)
+    {
+        Require(maxSource < std::numeric_limits<LegacyLong>::max(), "This movie has no available content source IDs.");
+        sourceId = maxSource + 1;
+        Require(sources->FAddStn(&sourceName, &sourceId), "Cannot register the scene background's content source.");
+    }
+    ChunkNumber sourceChunk;
+    Require(file->FAdd(sources->CbOnFile(), kctgGst, &sourceChunk, &block) &&
+            sources->FWrite(&block), "Cannot write movie content sources.");
+    if (hadSources) file->DeleteChild(kctgMvie, movie, kctgGst, child.cki.cno, 1);
+    Require(file->FAdoptChild(kctgMvie, movie, kctgGst, sourceChunk, 1), "Cannot link movie content sources.");
+    return sourceId;
+}
 std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, unsigned long background, int ordinal)
 {
@@ -76,49 +124,7 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &
             Require(child.chid < 0x7fffffffUL, "This movie has no available scene slots.");
             slot = std::max(slot, child.chid + 1);
         }
-    DataBlock block;
-    short order = kboCur;
-    const bool hadSources = file->FGetKidChidCtg(kctgMvie, root.cno, 1, kctgGst, &child);
-    std::unique_ptr<StringTable_GST, Release> sources;
-    if (hadSources)
-    {
-        Require(file->FFind(kctgGst, child.cki.cno, &block), "Cannot read movie content sources.");
-        sources.reset(StringTable_GST::PgstRead(&block, &order));
-    }
-    else sources.reset(StringTable_GST::PgstNew(sizeof(LegacyLong)));
-    Require(sources && sources->CbExtra() == sizeof(LegacyLong), "The movie content source table is invalid.");
-    LegacyLong sourceId = -1, maxSource = 2;
-    for (LegacyLong index = 0; index < sources->IvMac(); ++index)
-    {
-        LegacyLong id;
-        sources->GetExtra(index, &id);
-        if (order == kboOther) { SwapBytesRglw(&id, 1); sources->PutExtra(index, &id); }
-        maxSource = std::max(maxSource, id);
-        String title;
-        schar text[1024];
-        sources->GetStn(index, &title);
-        title.GetSzs(text);
-        if (id > 0 && MM::Content::SourceKey(text) == "3dmovie") sourceId = id;
-    }
-    String sourceName;
-    sourceName.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));
-    if (!hadSources)
-    {
-        LegacyLong fallback = hadRoot || source.empty() ? 2 : 1;
-        Require(sources->FAddStn(&sourceName, &fallback), "Cannot retain original content source.");
-        sourceId = fallback;
-    }
-    if (sourceId < 0)
-    {
-        Require(maxSource < std::numeric_limits<LegacyLong>::max(), "This movie has no available content source IDs.");
-        sourceId = maxSource + 1;
-        Require(sources->FAddStn(&sourceName, &sourceId), "Cannot register the scene background's content source.");
-    }
-    ChunkNumber sourceChunk;
-    Require(file->FAdd(sources->CbOnFile(), kctgGst, &sourceChunk, &block) &&
-            sources->FWrite(&block), "Cannot write movie content sources.");
-    if (hadSources) file->DeleteChild(kctgMvie, root.cno, kctgGst, child.cki.cno, 1);
-    Require(file->FAdoptChild(kctgMvie, root.cno, kctgGst, sourceChunk, 1), "Cannot link movie content sources.");
+    const auto sourceId = RetailSource(file.get(), root.cno, hadRoot || source.empty() ? 2 : 1);
     SceneData scene;
     scene.firstFrame = scene.lastFrame = scene.currentFrame = 1;
     scene.transition = transCut;
@@ -185,5 +191,146 @@ std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::pat
     if (frame == metadata.firstFrame && file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
         file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
     Require(file->FSave(kctgSoc), "Cannot save the scene camera working copy.");
+    return result;
+}
+std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, const std::filesystem::path &templates,
+    unsigned long sceneNumber, long frame, unsigned long prop, const char *name, const float point[3], long &actorId)
+{
+    auto result = WorkingCopy(source, std::move(origin));
+    const auto open = [](const std::filesystem::path &value, bool write) {
+        String path;
+        Filename filename;
+        path.SetSzs(const_cast<char *>(value.u8string().c_str()));
+        Require(filename.FBuildFromPath(&path), "The prop working path is not supported.");
+        return std::unique_ptr<ChunkyFile, Release>(ChunkyFile::PcflOpen(&filename, write ? fcflWriteEnable : fcflNil));
+    };
+    auto file = open(result->path, true), library = open(templates, false);
+    Require(file && library, "Cannot open the prop library or movie working file.");
+    DataBlock block;
+    TemplateOnFile tmpl;
+    Require(library->FFind(kctgTmpl, prop, &block) && block.FUnpackData() && block.FReadRgb(&tmpl, sizeof(tmpl), 0),
+            "Cannot read the selected prop template.");
+    if (tmpl.bo == kboOther) SwapBytesBom(&tmpl, kbomTmplf);
+    Require(tmpl.bo == kboCur && (tmpl.grftmpl & ftmplProp) && !(tmpl.grftmpl & ftmplTdt),
+            "The selected template is not a prop.");
+    SceneData scene;
+    Require(scene.FRead(file.get(), sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
+            "The prop insertion frame is outside this scene.");
+    ChunkIdentification root;
+    const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
+    if (!hadRoot)
+    {
+        root.ctg = kctgMvie;
+        Require(MovieData::FCreateRoot(file.get(), &root.cno), "Cannot create the movie header.");
+        ChunkIdentification existing;
+        for (LegacyLong index = 0; file->FGetCkiCtg(kctgScen, index, &existing); ++index)
+            Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, index), "Cannot retain an existing scene.");
+    }
+    const auto sourceId = RetailSource(file.get(), root.cno, hadRoot ? 2 : 1);
+    ChildChunkIdentification rollChild;
+    const bool hadRoll = file->FGetKidChidCtg(kctgMvie, root.cno, 0, kctgGst, &rollChild);
+    std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
+    Require(bool(roll), "Cannot create the movie roll call.");
+    if (hadRoll)
+    {
+        int big;
+        Require(file->FFind(kctgGst, rollChild.cki.cno, &block), "Cannot read the movie's object names.");
+        std::unique_ptr<RollCallTable, Release> wireRoll(RollCallTable::Read(&block, &big));
+        Require(wireRoll && wireRoll->CbExtra() == MM_MOVIE_ACTOR_BYTES, "The movie roll call is invalid.");
+        for (LegacyLong index = 0; index < wireRoll->IvMac(); ++index)
+        {
+            unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
+            MMMemoryStream memory;
+            MMMovieActor actor;
+            Require(mm_rollcall_table_extra(&wireRoll->storage, index, bytes) &&
+                    mm_memory_stream_init(&memory, bytes, sizeof(bytes)) &&
+                    mm_movie_read_actor(&memory.stream, big, &actor, nullptr) == MM_MOVIE_OK,
+                    "Cannot decode an existing object name.");
+            RollCallActorEntry entry = {};
+            entry.arid = actor.actor_id; entry.cactRef = actor.reference_count; entry.grfbrws = actor.browser_flags;
+            entry.tagTmpl = {actor.source_id, nullptr, actor.template_type, actor.template_number};
+            String existingName;
+            wireRoll->GetStn(index, &existingName);
+            Require(roll->FAddStn(&existingName, &entry), "Cannot retain an existing object name.");
+        }
+    }
+    LegacyLong maximumId = -1;
+    for (LegacyLong index = 0; index < roll->IvMac(); ++index)
+    {
+        RollCallActorEntry entry;
+        roll->GetExtra(index, &entry);
+        maximumId = std::max<LegacyLong>(maximumId, entry.arid);
+    }
+    ChunkIdentification existing;
+    for (LegacyLong index = 0; file->FGetCkiCtg(kctgActr, index, &existing); ++index)
+    {
+        ActorChunkOnFile header;
+        Require(file->FFind(kctgActr, existing.cno, &block) && ActorData::FReadHeader(&block, &header),
+                "Cannot retain existing actor IDs.");
+        maximumId = std::max<LegacyLong>(maximumId, header.arid);
+    }
+    Require(maximumId < std::numeric_limits<LegacyLong>::max(), "No object IDs are available.");
+    ChildChunkID slot = 0;
+    ChildChunkIdentification child;
+    for (LegacyLong index = 0; file->FGetKid(kctgScen, sceneNumber, index, &child); ++index)
+        if (child.cki.ctg == kctgActr)
+        {
+            Require(child.chid < 0x7fffffffUL, "No scene object slots are available.");
+            slot = std::max(slot, child.chid + 1);
+        }
+    ActorChunkOnFile header = {};
+    header.bo = kboCur; header.osk = koskCur;
+    header.arid = maximumId + 1;
+    header.nfrmFirst = static_cast<int32_t>(frame); header.nfrmLast = scene.lastFrame;
+    header.tagTmpl = {sourceId, 0, kctgTmpl, static_cast<ChunkNumber>(prop)};
+    header.dxyzFullRte = {BrFloatToScalar(point[0]), BrFloatToScalar(point[1]), BrFloatToScalar(point[2])};
+    ChunkNumber actorNumber, childNumber;
+    Require(file->FAdd(sizeof(header), kctgActr, &actorNumber) && ActorData::FWriteHeader(file.get(), actorNumber, &header),
+            "Cannot create the prop instance.");
+    ActorTrack track;
+    Require(track.FCreate(), "Cannot create the prop's stationary track.");
+    RouteDistancePoint route = {};
+    ActorEvent::Base event = {ActorEvent::aetAdd, static_cast<int32_t>(frame), {0, rZero, 0}};
+    ActorEvent::Add addition = {};
+    addition.xa = tmpl.xaRest; addition.ya = tmpl.yaRest; addition.za = tmpl.zaRest;
+    Require(track.Route()->FInsert(0, &route) && track.Events()->FInsert(0, sizeof(addition), &addition, &event),
+            "Cannot place the prop in the scene.");
+    ActorEvent::Action action = {0, 0};
+    event.aet = ActorEvent::aetActn;
+    Require(track.Events()->FInsert(1, sizeof(action), &action, &event), "Cannot set the prop's default pose.");
+    event.aet = ActorEvent::aetStep;
+    BRS step = rZero;
+    Require(track.Events()->FInsert(2, sizeof(step), &step, &event), "Cannot keep the prop stationary.");
+    std::unique_ptr<GeneralGroup, Release> wire(ActorData::PggWriteEvents(track.Events()));
+    Require(wire && file->FAddChild(kctgActr, actorNumber, 0, track.Route()->CbOnFile(), kctgPath, &childNumber, &block) &&
+            track.Route()->FWrite(&block) && file->FAddChild(kctgActr, actorNumber, 0, wire->CbOnFile(), kctgGgae, &childNumber, &block) &&
+            wire->FWrite(&block) && file->FAdoptChild(kctgScen, sceneNumber, kctgActr, actorNumber, slot),
+            "Cannot write the prop track.");
+    Require(file->FGetKidChidCtg(kctgScen, sceneNumber, 1, kctgStartGg, &child) &&
+            file->FFind(kctgStartGg, child.cki.cno, &block), "Cannot read the scene's object list.");
+    short order;
+    std::unique_ptr<GeneralGroup, Release> starts(SceneData::PggReadEvents(&block, &order, true));
+    Require(bool(starts), "The scene start events are invalid.");
+    SceneEvent start = {scene.firstFrame, sevtAddActr};
+    std::uint32_t value = slot;
+    if (order == kboOther) { SwapBytesBom(&start, kbomSev); SwapBytesRglw(&value, 1); }
+    Require(starts->FInsert(starts->IvMac(), sizeof(value), &value, &start) &&
+            file->FAdd(starts->CbOnFile(), kctgStartGg, &childNumber, &block) && starts->FWrite(&block, order),
+            "Cannot register the prop in this scene.");
+    file->DeleteChild(kctgScen, sceneNumber, kctgStartGg, child.cki.cno, 1);
+    Require(file->FAdoptChild(kctgScen, sceneNumber, kctgStartGg, childNumber, 1), "Cannot link the prop to this scene.");
+    String propName;
+    propName.SetSzs(const_cast<char *>(name));
+    RollCallActorEntry entry = {};
+    entry.arid = header.arid; entry.cactRef = 1;
+    entry.tagTmpl = {sourceId, nullptr, kctgTmpl, static_cast<ChunkNumber>(prop)};
+    Require(roll->FAddStn(&propName, &entry), "Cannot name the new prop.");
+    if (hadRoll) file->DeleteChild(kctgMvie, root.cno, kctgGst, rollChild.cki.cno, 0);
+    Require(MovieData::FWriteRollCall(file.get(), root.cno, roll.get(), &childNumber), "Cannot write the movie's object names.");
+    if (frame == scene.firstFrame && file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
+        file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
+    Require(file->FSave(kctgSoc), "Cannot save the prop working copy.");
+    actorId = header.arid;
     return result;
 }

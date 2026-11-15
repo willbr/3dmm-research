@@ -1,7 +1,7 @@
 # Marcus
 
 Marcus is the first step toward a new Studio interface. It is currently a
-movie player with initial scene creation tools for original 3D Movie Maker `.3MM` files, including
+movie player with initial scene and prop authoring tools for original 3D Movie Maker `.3MM` files, including
 sampled sound, MIDI music, 2D captions, transitions and authored pauses.
 It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
 The dark layout has a camera viewport, object and sound dope sheets, scene object list
@@ -150,6 +150,20 @@ uses that angle's actual position, orientation and lens, and is labelled
 **Camera 01**, **Camera 02**, etc. The active angle is gold; other angles are blue.
 Guides are clipped to the visible viewport and never drawn over movie playback.
 All cameras are shown by default; the choice is saved across movies/restarts.
+
+**Actors & props > New prop** opens the original prop catalogue with a rendered
+preview. Browse with the list, arrows, Page Up/Down or wheel, then choose
+**Add prop**, Enter or double-click. Cancel/Escape leaves the movie unchanged.
+The chooser requires `tmpls.3cn` in the Content folder and previews run in the
+isolated helper process.
+
+The prop appears at the current frame, at the active background camera's default
+object placement point, and remains through the scene's last frame. It uses its
+default pose/action on a stationary track. The new prop is selected in the object
+list and its bounds are highlighted in the movie view. Each insertion has a
+unique movie-wide object ID and roll-call name. Other scenes and existing tracks
+are retained. Props share the private **UNSAVED** working copy with scene and
+camera edits; saving/export and moving placed props are not implemented yet.
 
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape

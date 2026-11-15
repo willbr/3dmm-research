@@ -7,4 +7,7 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &
     std::shared_ptr<MarcusMovieFile> origin, unsigned long background, int ordinal);
 std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, unsigned long scene, long frame, unsigned long camera);
+std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, const std::filesystem::path &templates,
+    unsigned long scene, long frame, unsigned long prop, const char *name, const float point[3], long &actorId);
 #endif
