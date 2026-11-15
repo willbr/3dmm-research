@@ -1,6 +1,7 @@
 #include "movie_input.h"
 #include "content.h"
 #include "mm/v3dmm.h"
+#include "font_catalog.h"
 #include <miniz.h>
 #include <chrono>
 #include <cstdlib>
@@ -70,6 +71,8 @@ void Rejected(const fs::path &path)
     {
         rejected = true;
     }
+    if (!rejected || Read(path) != before || TemporaryMovies() != directories)
+        std::cerr << "Rejected ZIP invariant failed: " << path.u8string() << ", rejected=" << rejected << '\n';
     CHECK(rejected && Read(path) == before && TemporaryMovies() == directories);
 }
 void Environment(const char *name, const std::string &value)
@@ -80,7 +83,7 @@ void Environment(const char *name, const std::string &value)
     CHECK(setenv(name, value.c_str(), 1) == 0);
 #endif
 }
-void Tests(const fs::path &root)
+void Tests(const fs::path &root, const fs::path &font)
 {
     const auto originalDirectories = TemporaryMovies();
     Zip(root / "one.zip",
@@ -101,6 +104,34 @@ void Tests(const fs::path &root)
     CHECK(fs::exists(held->path)); // Input/list lifetime is independent of the selected movie lease.
     held.reset();
     CHECK(!fs::exists(directory) && Read(root / "one.zip") == original);
+    Zip(root / "bad-font.zip", {{"movie.3mm", "CHN2"}, {"fonts/broken.ttf", "not a font"}});
+    Rejected(root / "bad-font.zip");
+    Zip(root / "unsafe-font.zip", {{"movie.3mm", "CHN2"}, {"../font.ttf", "not a font"}});
+    Rejected(root / "unsafe-font.zip");
+    Zip(root / "large-font.zip", {{"movie.3mm", "CHN2"}, {"font.ttf", std::string(16 * 1024 * 1024 + 1, 'x')}});
+    Rejected(root / "large-font.zip");
+    if (!font.empty())
+    {
+        const auto fontBytes = Read(font);
+        Zip(root / "fonts.zip", {{"nested/movie.3mm", "CHN2"}, {"fonts/unrelated-filename.TTF", fontBytes}});
+        const auto before = Read(root / "fonts.zip");
+        {
+            MarcusMovieInput input;
+            input.Open((root / "fonts.zip").u8string());
+            held = input.Materialize(0);
+            directory = held->directory;
+            CHECK(held->fonts && held->fonts->Families().size() > 0);
+            CHECK(held->fontFiles && held->fontFiles->Mounted("movie-fonts"));
+            const auto families = held->fonts->Families().size();
+            CHECK(!held->fonts->AddMemory({0, 1, 2}) && held->fonts->Families().size() == families);
+            KauaiFonts::FreeTypeOptions options;
+            CHECK(bool(held->fonts->Open(held->fonts->Families()[0].name, options)));
+            CHECK(Read(held->ownedFonts.at(0)) == fontBytes);
+        }
+        CHECK(fs::exists(held->fontDirectory)); // Font cache shares the selected movie lease.
+        held.reset();
+        CHECK(!fs::exists(directory) && Read(root / "fonts.zip") == before);
+    }
     // Background preparation can be cancelled partway through decompression.
     // Partial files disappear, the source stays intact, and retry still works.
     Zip(root / "cancel.zip", {{"large.3mm", std::string(2 * 1024 * 1024, 'x')}});
@@ -261,7 +292,7 @@ int main(int argc, char **argv)
 #else
         Environment("TMPDIR", temporary.u8string());
 #endif
-        Tests(root);
+        Tests(root, argc > 2 ? fs::u8path(argv[2]) : fs::path{});
         return 0;
     }
     catch (const std::exception &error)

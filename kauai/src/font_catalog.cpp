@@ -88,6 +88,27 @@ bool FontCatalog::AddFile(const FontPath &path)
         return false;
     }
 }
+bool FontCatalog::AddMemory(std::vector<std::uint8_t> bytes)
+{
+    try
+    {
+        std::vector<FontInfo> faces;
+        if (!InspectFreeTypeFont(bytes, faces))
+            return false;
+        auto data = std::make_shared<const std::vector<std::uint8_t>>(std::move(bytes));
+        std::vector<FontSource> additions;
+        for (const auto &face : faces)
+            additions.push_back({{}, face, data});
+        sources.reserve(sources.size() + additions.size());
+        for (auto &source : additions)
+            sources.push_back(std::move(source));
+        return true;
+    }
+    catch (const std::bad_alloc &)
+    {
+        return false;
+    }
+}
 bool FontCatalog::AddDirectory(const FontPath &path)
 {
     return AddDirectoryDepth(path, 0);
@@ -195,7 +216,11 @@ std::unique_ptr<Face> FontCatalog::Open(const std::string &family, FreeTypeOptio
     {
         const auto source = Find(family, options);
         std::vector<std::uint8_t> bytes;
-        if (!source || !Read(source->path, bytes))
+        if (!source)
+            return nullptr;
+        if (source->bytes)
+            bytes = *source->bytes;
+        else if (!Read(source->path, bytes))
             return nullptr;
         options.faceIndex = source->info.faceIndex;
         // Legacy bitmap fonts select a real strike. They do not

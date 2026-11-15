@@ -13,6 +13,7 @@
 #include "timing_job.h"
 #include "retail_scroll.h"
 #include "mm/playback.h"
+#include <miniz.h>
 #include "soc_core.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -905,6 +906,71 @@ void SoundMixControls(const char *path, const char *resources, const char *conte
     marcus_destroy(player);
     player = nullptr;
 }
+void BundledFonts(const char *path, const char *resources, const char *content, const char *fontPath)
+{
+    if (!fontPath || !*fontPath) return; // Uses a local Arial fixture, never a redistributed font binary.
+    auto font = Bytes(fontPath);
+    auto u16 = [&](std::size_t at) { CHECK(at + 2 <= font.size()); return unsigned(font[at]) * 256 + font[at + 1]; };
+    auto u32 = [&](std::size_t at) { return (std::uint32_t(u16(at)) << 16) | u16(at + 2); };
+    std::size_t hmtx = 0, hhea = 0;
+    for (unsigned table = 0; table < u16(4); ++table)
+    {
+        const std::size_t at = 12 + table * 16;
+        if (u32(at) == 0x686d7478) hmtx = u32(at + 8);
+        if (u32(at) == 0x68686561) hhea = u32(at + 8);
+    }
+    CHECK(hmtx && hhea);
+    // Widen the local test font's advances to make accidental host-font fallback
+    // observable in both caption pixels and scrolling duration.
+    for (unsigned metric = 0; metric < u16(hhea + 34); ++metric)
+    {
+        const auto at = hmtx + metric * 4;
+        const auto advance = std::min(65535u, u16(at) * 8);
+        font[at] = byte(advance >> 8); font[at + 1] = byte(advance);
+    }
+    const auto zipPath = std::string(path) + ".fonts.zip";
+    const auto movie = Bytes(path);
+    mz_zip_archive zip = {};
+    CHECK(mz_zip_writer_init_heap(&zip, 0, 0));
+    CHECK(mz_zip_writer_add_mem(&zip, "nested/movie.3mm", movie.data(), movie.size(), 6));
+    CHECK(mz_zip_writer_add_mem(&zip, "fonts/renamed.TTF", font.data(), font.size(), 6));
+    void *zipBytes = nullptr; std::size_t zipLength = 0;
+    CHECK(mz_zip_writer_finalize_heap_archive(&zip, &zipBytes, &zipLength));
+    { std::ofstream out(zipPath, std::ios::binary); out.write(static_cast<const char *>(zipBytes), zipLength); CHECK(bool(out)); }
+    mz_free(zipBytes); mz_zip_writer_end(&zip);
+    const auto originalZip = Bytes(zipPath.c_str());
+    player = marcus_create();
+    CHECK(player && marcus_open(player, path, resources, content));
+    const auto installed = Image();
+    const auto installedTime = MovieTime().duration_seconds;
+    CHECK(marcus_open(player, zipPath.c_str(), resources, content));
+    const auto bundled = Image();
+    CHECK(bundled != installed);
+    BackgroundTiming();
+    const auto bundledTime = MovieTime().duration_seconds;
+    CHECK(bundledTime > installedTime); // Background helper uses the wider ZIP font too.
+    MarcusImage native;
+    CHECK(marcus_render(player, 160, 120, 1, 0, 0, 1, &native));
+    const std::vector<byte> expected(native.rgba, native.rgba + native.pitch * native.height);
+    auto previews = marcus_frame_previews_create(player);
+    CHECK(previews);
+    const long first = Info().frame;
+    marcus_frame_previews_request(previews, &first, 1);
+    int status = 0; char error[256] = {};
+    const auto deadline = SDL_GetTicks() + 15000;
+    while (!status && SDL_GetTicks() < deadline)
+    {
+        status = marcus_frame_previews_take(previews, &native, error, sizeof(error));
+        if (!status) SDL_Delay(5);
+    }
+    CHECK(status == 1 && native.width == 160 && native.height == 120);
+    CHECK(std::vector<byte>(native.rgba, native.rgba + native.pitch * native.height) == expected);
+    marcus_frame_previews_destroy(previews);
+    CHECK(marcus_open(player, path, resources, content) && Image() == installed);
+    CHECK(std::abs(MovieTime().duration_seconds - installedTime) < 1e-6); // No font scope leaks into the next movie.
+    marcus_destroy(player); player = nullptr;
+    CHECK(Bytes(zipPath.c_str()) == originalZip);
+}
 } // namespace
 int main(int argc, char **argv)
 {
@@ -932,7 +998,7 @@ int main(int argc, char **argv)
         marcus_destroy(player);
         return 0;
     }
-    if (argc != 4)
+    if (argc != 4 && argc != 5)
         return 2;
     WaveformPeaks();
     FailedTiming();
@@ -945,6 +1011,7 @@ int main(int argc, char **argv)
     PlaybackRates(argv[1], argv[2], argv[3]);
     PlaybackCadence(argv[1], argv[2], argv[3]);
     SoundMixControls(argv[1], argv[2], argv[3]);
+    BundledFonts(argv[1], argv[2], argv[3], argc == 5 ? argv[4] : nullptr);
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
     // Reopening cancels and joins a pending job before releasing its leases.

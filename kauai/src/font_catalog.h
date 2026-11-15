@@ -11,6 +11,7 @@ struct FontSource
 {
     FontPath path;
     FontInfo info;
+    std::shared_ptr<const std::vector<std::uint8_t>> bytes;
 };
 class FontCatalog
 {
@@ -21,6 +22,8 @@ class FontCatalog
     // Reads metadata only. Faces own fresh font bytes when opened, so catalog
     // lifetime is independent of live faces. Invalid files leave it unchanged.
     bool AddFile(const FontPath &path);
+    // VFS/stream callers can supply owned bytes without native path encoding.
+    bool AddMemory(std::vector<std::uint8_t> bytes);
     // Nonrecursive; ignores links/directories and non-font files. The host
     // supplies search roots and their precedence. No SDK types or registry.
     bool AddDirectory(const FontPath &path);

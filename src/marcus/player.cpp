@@ -129,7 +129,7 @@ bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
         MM::PreviewPresentation presentation;
         MarcusSoundTiming timing;
         if (!player->preview.ReadTimingPresentation(player->scenes[next], presentation, error) ||
-            !MarcusPlayback::ReadTiming(presentation, timing, error))
+            !MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput->fonts))
             return false;
         player->soundTimeline.Append(player->sceneInfo[next], presentation.sounds, [&](const MM::PreviewSoundCue &cue) {
             return player->waveforms.Length(player->preview, cue);
@@ -603,6 +603,7 @@ extern "C"
                 return false;
             player->timingJob.reset();
             player->timingInput = std::move(materialized);
+            player->playback.SetFonts(player->timingInput->fonts);
             player->timingResources = resources;
             player->timingContent = directory;
             player->timingStarted = player->timingFailed = false;

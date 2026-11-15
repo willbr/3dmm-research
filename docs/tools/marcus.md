@@ -158,7 +158,7 @@ engine's six frames per second, rounded to the nearest second and labelled
 scrolling captions and transitions. It uses metadata from the preview helper
 and does not load playback or add UI-thread file reads. A missing
 thumbnail displays a placeholder; first-frame rendering,
-dependency availability badges and bundled-font discovery are not implemented
+dependency availability badges and bundled-font lists are not implemented
 in the browser. Dependencies are resolved through the normal opening path.
 
 **Calculate duration** runs the same movie-wide timing analysis used by the
@@ -320,7 +320,7 @@ provides a separate listing/selection interface; ordinary `marcus_open` opens
 single-movie ZIPs and reports that an explicit selection is needed for multiples.
 
 Listing extracts nothing; the visual browser can extract members to read saved
-previews as described above. Opening extracts only the selected movie into a private
+previews as described above. Opening extracts the selected movie and bundled fonts into a private
 directory, verifies its declared size and CRC, and retains it while the player
 needs it. Reloading an already selected entry reuses that extraction. Closing or
 replacing the movie removes its private file, after renderer/content teardown.
@@ -328,6 +328,25 @@ Zipped `.vmm` files then follow the existing bundle/package loading path. Origin
 ZIPs remain unchanged, and extraction failures remove partial output. Entries with
 unsafe names, encryption, or movie sizes above 512 MiB are rejected. A ZIP may
 contain at most 100,000 members and 10,000 movie candidates.
+
+Fonts anywhere in the selected ZIP are loaded automatically for its movie's
+2D captions. Supported extensions are `.ttf`, `.otf`, `.ttc`, `.otc`, `.fon`,
+`.fnt` and `.dfont`, matched by internal family and style rather than filename.
+The private cache mounts in the content VFS's `movie-fonts` namespace; FreeType's
+catalog reads its bytes through the VFS. Matching bundled faces take precedence
+over installed fonts without installing anything or changing Marcus's interface
+font. Plain movies retain normal installed-font lookup. All movies selected from
+the same ZIP can use its bundled fonts.
+
+Font scope follows the selected movie lease through playback, scrolling-layout
+analysis, Calculate duration and frame previews. The private cache is removed
+when the last player/helper lease closes. Replacing the movie clears its caption
+face/raster caches, so bundled fonts cannot affect the next movie. Font files
+receive the same declared-size/CRC checks as the movie; invalid or encrypted
+fonts fail explicitly. Limits are 128 font files, 16 MiB per file and 64 MiB in
+total. Files are cached under generated names, never ZIP-provided filesystem
+paths. This uses the existing file-backed VFS; it does not add a ZIP streaming
+provider or change three-dimensional TDF font assets.
 
 Stored/deflated entries use the existing miniz dependency. Legacy compression
 uses an installed `7z`/`7zz` executable, with standard Windows 7-Zip locations as
@@ -893,7 +912,8 @@ internally.
 Movie playback presents 2D captions in the authored Camera view, using their
 stored lifetime, bounds, font sizes/styles, colours and paragraph formatting.
 Text is decoded from the stored Windows, Mac or UTF-16 encoding. Missing font
-families fall back to the system font. Enlarged views rasterize font outlines at
+families try the selected ZIP's private font catalog before installed fonts and
+the System fallback. Enlarged views rasterize font outlines at
 the render resolution with supersampled edge coverage, instead of enlarging the
 original glyph pixels. Layout, line breaks, baselines and scrolling still use
 the original 544x306 workspace metrics; native-size movie rendering retains its retail
@@ -1032,7 +1052,7 @@ the timeline.
 - Read-only playback: no editing or movie save commands.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.
-- Caption glyphs use available host fonts, and MIDI uses a software instrument
+- Caption glyphs use bundled ZIP fonts or available host fonts, and MIDI uses a software instrument
   bank. Font substitution, rasterization and synthesis can differ from the
   original machine. Full audiovisual/image parity has not been established.
 - Captions are limited to 65,536 UTF-16 units and 4,096-pixel bounds per box;
@@ -1218,6 +1238,13 @@ extraction leases, CRC and size rejection, cleanup, zipped VMM content and uncha
 inputs. The C API player regression also opens generated single/multi-movie ZIPs,
 renders after the input-list object is destroyed, and verifies original ZIP hashes.
 These checks are headless; they do not drive the chooser or other UI controls.
+
+Bundled-font checks use a local font with deliberately widened advances to
+verify precedence through changed caption pixels and scrolling duration,
+matching frame-helper pixels, consistent background timing and restored host
+fonts after reopening a plain movie. ZIP checks cover nested/renamed font files,
+VFS mounting, invalid font/size/path rejection, cache cleanup and unchanged ZIP
+bytes. No font binaries or Marcus UI tests are added to the repository.
 
 On 9 November 2026 the native ZIP input extracted all 103 movie entries from the
 87 ZIPs containing native movies in `movies`, including the Shrink-compressed

@@ -6,12 +6,20 @@
 #include <string>
 #include <vector>
 #include <functional>
+namespace KauaiFonts { class FontCatalog; }
+namespace MM { namespace Content { class Vfs; } }
 
 // A selected ZIP member has a private, flat staging path. A shared lease keeps
 // it alive through renderer/content teardown and resource reloads.
 struct MarcusMovieFile
 {
     std::filesystem::path path, directory;
+    std::filesystem::path fontDirectory;
+    std::vector<std::filesystem::path> ownedFonts;
+    std::shared_ptr<KauaiFonts::FontCatalog> fonts;
+    std::shared_ptr<MM::Content::Vfs> fontFiles;
+    // Helpers borrow the same private font cache; they never install fonts.
+    void LoadFonts(const std::filesystem::path &directory);
     explicit MarcusMovieFile(std::filesystem::path path) : path(std::move(path))
     {
     }

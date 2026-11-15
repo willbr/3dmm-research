@@ -4,6 +4,7 @@
 #include "sdl_audio.h"
 #include "midi_synth.h"
 #include "font_host.h"
+#include "font_catalog.h"
 #include "rich_text_layout.h"
 #include <SDL3/SDL.h>
 #include <algorithm>
@@ -467,6 +468,7 @@ struct MarcusPlayback::Impl
         }
     }
     std::map<FaceKey, std::unique_ptr<KauaiFonts::Face>> faces;
+    std::shared_ptr<KauaiFonts::FontCatalog> fonts;
     std::size_t captionBytes = 0;
     std::map<std::tuple<std::string, int, int, std::u16string>, CaptionRaster> captionRasters;
     std::size_t rasterBytes = 0;
@@ -504,8 +506,25 @@ struct MarcusPlayback::Impl
             faces.clear();
         std::vector<std::uint16_t> family;
         auto text = FontText(style.font.empty() ? "Arial" : style.font, family);
-        auto face = KauaiFonts::CreateStudioFace(text, style.pixels, (style.flags & 1) != 0, (style.flags & 2) != 0,
-                                                 (style.flags & 4) != 0);
+        std::unique_ptr<KauaiFonts::Face> face;
+        if (fonts)
+        {
+            KauaiFonts::FreeTypeOptions options;
+            options.pixels = style.pixels;
+            options.bold = (style.flags & 1) != 0;
+            options.italic = (style.flags & 2) != 0;
+            options.underline = (style.flags & 4) != 0;
+            options.legacyCellMetrics = true;
+            const auto familyName = style.font.empty() ? "Arial" : style.font;
+            if (fonts->Find(familyName, options))
+            {
+                face = fonts->Open(familyName, options);
+                if (!face) return nullptr; // A bundled face must not silently become an installed substitute.
+            }
+        }
+        if (!face)
+            face = KauaiFonts::CreateStudioFace(text, style.pixels, (style.flags & 1) != 0, (style.flags & 2) != 0,
+                                               (style.flags & 4) != 0);
         if (!face)
             face = KauaiFonts::CreateStudioFace({"System", 6}, style.pixels, (style.flags & 1) != 0,
                                                 (style.flags & 2) != 0, (style.flags & 4) != 0);
@@ -819,7 +838,15 @@ MarcusPlayback::MarcusPlayback() : impl(new Impl)
 {
 }
 MarcusPlayback::~MarcusPlayback() = default;
-bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusSoundTiming &timing, Error &error)
+void MarcusPlayback::SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts)
+{
+    impl->faces.clear();
+    impl->captionRasters.clear();
+    impl->rasterBytes = 0;
+    impl->fonts = std::move(fonts);
+}
+bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusSoundTiming &timing, Error &error,
+                                const std::shared_ptr<KauaiFonts::FontCatalog> &fonts)
 {
     timing = {};
     timing.transition = TransitionSeconds(presentation.transition);
@@ -827,6 +854,7 @@ bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusS
     // Use the playback layout itself, including font metrics and rich-text
     // wrapping, so restart offsets use the same scrolling distance and speed.
     Impl calculator;
+    calculator.fonts = fonts;
     for (const auto &data : presentation.captions)
         if (!data.story)
         {

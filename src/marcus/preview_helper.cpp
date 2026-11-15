@@ -19,6 +19,14 @@
 
 namespace
 {
+bool OpenPlayer(MarcusPlayer *player, char **argv, const char *fonts)
+{
+    MarcusMovieInput input;
+    input.Open(argv[1]);
+    auto file = input.Materialize(0);
+    if (fonts && *fonts) file->LoadFonts(std::filesystem::u8path(fonts));
+    return marcus_open_input(player, &input, 0, argv[2], argv[4]) != 0;
+}
 bool FrameResponse(const BrowserPreview &preview)
 {
     std::ostringstream payload(std::ios::binary);
@@ -29,7 +37,7 @@ bool FrameResponse(const BrowserPreview &preview)
     std::cout.flush();
     return bool(std::cout);
 }
-int FramePreviews(char **argv)
+int FramePreviews(char **argv, const char *fonts)
 {
     try
     {
@@ -39,7 +47,7 @@ int FramePreviews(char **argv)
         std::size_t consumed;
         const auto scene = std::stoi(argv[5], &consumed);
         if (argv[5][consumed] || scene < 0) throw std::runtime_error("Invalid frame thumbnail scene.");
-        if (!marcus_open(player.get(), argv[1], argv[2], argv[4]) ||
+        if (!OpenPlayer(player.get(), argv, fonts) ||
             !marcus_select_scene(player.get(), scene)) throw std::runtime_error(marcus_error(player.get()));
         int requestedScene, selectedScene = scene;
         long long frame;
@@ -94,15 +102,15 @@ int FramePreviews(char **argv)
 }
 int main(int argc, char **argv)
 {
-    const bool duration = argc == 5 && !std::strcmp(argv[3], "--duration");
-    const bool timeline = (argc == 6 || argc == 8) && !std::strcmp(argv[3], "--timing");
-    const bool frames = argc == 6 && !std::strcmp(argv[3], "--frames");
+    const bool duration = (argc == 5 || argc == 6) && !std::strcmp(argv[3], "--duration");
+    const bool timeline = (argc == 6 || argc == 8 || argc == 9) && !std::strcmp(argv[3], "--timing");
+    const bool frames = (argc == 6 || argc == 7) && !std::strcmp(argv[3], "--frames");
     if (argc != 3 && !duration && !timeline && !frames) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
     if (frames) _setmode(_fileno(stdin), _O_BINARY);
 #endif
-    if (frames) return FramePreviews(argv);
+    if (frames) return FramePreviews(argv, argc == 7 ? argv[6] : nullptr);
     BrowserPreview preview;
     try
     {
@@ -115,7 +123,7 @@ int main(int argc, char **argv)
             {
                 marcus_set_muted(player, 1);
                 MarcusMovieTime timing = {};
-                if (timeline && argc == 8)
+                if (timeline && argc >= 8)
                 {
                     std::size_t rateEnd, modifierEnd;
                     const int rate = std::stoi(argv[6], &rateEnd), modifier = std::stoi(argv[7], &modifierEnd);
@@ -125,7 +133,8 @@ int main(int argc, char **argv)
                         return 2;
                     }
                 }
-                if (!marcus_open(player, argv[1], argv[2], argv[4]) || !marcus_movie_time(player, &timing))
+                const char *fonts = timeline && argc == 9 ? argv[8] : duration && argc == 6 ? argv[5] : nullptr;
+                if (!OpenPlayer(player, argv, fonts) || !marcus_movie_time(player, &timing))
                     preview.error = marcus_error(player);
                 else
                 {

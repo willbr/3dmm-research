@@ -267,7 +267,8 @@ struct MarcusBrowser
                             ready->movie = ready->inner->path.u8string();
                         }
                     }
-                    if (!forOpen && !cancelled()) ready->preview = RunPreviewWorker(ready->movie, resourcePath, cancelled, contentPath, forCalculation);
+                    if (!forOpen && !cancelled()) ready->preview = RunPreviewWorker(ready->movie, resourcePath, cancelled,
+                        contentPath, forCalculation, ready->file->fontDirectory.u8string());
                 }
                 catch (const std::exception &e) { ready->error = e.what(); }
                 if (!forOpen)

@@ -1,4 +1,6 @@
 #include "movie_input.h"
+#include "mm/content_vfs.hpp"
+#include "font_catalog.h"
 #include <SDL3/SDL.h>
 #include <miniz.h>
 #include <algorithm>
@@ -13,6 +15,12 @@ namespace fs = std::filesystem;
 namespace
 {
 constexpr std::uint64_t movieBudget = 512ull * 1024 * 1024;
+constexpr std::uint64_t fontBudget = 64ull * 1024 * 1024, fontFileBudget = 16ull * 1024 * 1024;
+bool FontExtension(const std::string &extension)
+{
+    return extension == ".ttf" || extension == ".otf" || extension == ".ttc" || extension == ".otc" ||
+           extension == ".fon" || extension == ".fnt" || extension == ".dfont";
+}
 void Require(bool value, const std::string &message)
 {
     if (!value)
@@ -155,6 +163,7 @@ struct MarcusMovieInput::Impl
     mz_zip_archive zip = {};
     bool zipped = false;
     std::vector<Member> members;
+    std::vector<Member> fontMembers;
     ~Impl()
     {
         mz_zip_reader_end(&zip);
@@ -165,6 +174,10 @@ MarcusMovieFile::~MarcusMovieFile()
     if (!directory.empty())
     {
         std::error_code ignored;
+        fonts.reset();
+        for (const auto &font : ownedFonts)
+            fs::remove(font, ignored);
+        if (!fontDirectory.empty() && fontDirectory.parent_path() == directory) fs::remove(fontDirectory, ignored);
         fs::remove(path, ignored);
         fs::remove(directory, ignored);
     }
@@ -173,6 +186,31 @@ MarcusMovieInput::MarcusMovieInput() : impl(new Impl)
 {
 }
 MarcusMovieInput::~MarcusMovieInput() = default;
+void MarcusMovieFile::LoadFonts(const fs::path &directory)
+{
+    auto files = std::make_shared<MM::Content::Vfs>();
+    std::vector<MM::Content::File> mounts;
+    for (const auto &entry : fs::directory_iterator(directory))
+        if (!entry.is_symlink() && entry.is_regular_file() && FontExtension(Extension(entry.path().u8string())))
+            mounts.push_back({entry.path().filename().u8string(), entry.path()});
+    files->Mount("movie-fonts", mounts);
+    auto catalog = std::make_shared<KauaiFonts::FontCatalog>();
+    for (const auto &entry : files->Entries("movie-fonts"))
+    {
+        if (!FontExtension(Extension(entry.name))) continue;
+        auto stream = files->Open("movie-fonts", entry.name);
+        stream.seekg(0, std::ios::end);
+        const auto size = stream.tellg();
+        Require(size > 0 && std::uint64_t(size) <= fontFileBudget, "Invalid bundled font size: " + entry.name);
+        std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+        stream.seekg(0);
+        stream.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+        Require(bool(stream) && catalog->AddMemory(std::move(bytes)), "Cannot decode bundled font: " + entry.name);
+    }
+    fontDirectory = directory;
+    fontFiles = std::move(files);
+    fonts = std::move(catalog);
+}
 void MarcusMovieInput::Open(const std::string &path, const std::function<bool()> &cancelled)
 {
     auto opened = std::make_unique<Impl>();
@@ -222,10 +260,12 @@ void MarcusMovieInput::Open(const std::string &path, const std::function<bool()>
                     "Cannot read a ZIP member name.");
             name.pop_back();
             const auto extension = Extension(name);
-            if (extension != ".3mm" && extension != ".vmm")
+            const bool font = FontExtension(extension);
+            if (extension != ".3mm" && extension != ".vmm" && !font)
                 continue;
-            Require(SafeName(name) && name.size() < sizeof(MarcusMovieEntry::name),
-                    "Unsafe or overlong movie name in ZIP.");
+            Require(SafeName(name) && (font || name.size() < sizeof(MarcusMovieEntry::name)),
+                    "Unsafe or overlong movie/font name in ZIP.");
+            Require(!font || opened->fontMembers.size() < 128, "A ZIP may contain at most 128 bundled font files.");
             Require(opened->members.size() < 10000, "A ZIP may contain at most 10,000 movie entries.");
             Member member;
             member.name = std::move(name);
@@ -235,7 +275,7 @@ void MarcusMovieInput::Open(const std::string &path, const std::function<bool()>
             member.method = stat.m_method;
             member.encrypted = stat.m_is_encrypted != 0;
             member.supported = stat.m_is_supported != 0;
-            opened->members.push_back(std::move(member));
+            (font ? opened->fontMembers : opened->members).push_back(std::move(member));
         }
         Require(!opened->members.empty(), "This ZIP contains no .3MM or .VMM movies.");
     }
@@ -295,6 +335,39 @@ std::shared_ptr<MarcusMovieFile> MarcusMovieInput::Materialize(int index, const 
             LegacyExtract(impl->path, member, sink);
         }
         Require(sink.Complete(member.crc), "The extracted movie does not match its ZIP size or CRC.");
+        std::uint64_t fontBytes = 0;
+        for (const auto &font : impl->fontMembers)
+        {
+            Require(!font.encrypted && font.bytes && font.bytes <= fontFileBudget &&
+                    font.bytes <= fontBudget - fontBytes,
+                    "Bundled fonts must be unencrypted, at most 16 MiB each and 64 MiB in total.");
+            fontBytes += font.bytes;
+        }
+        if (!impl->fontMembers.empty())
+        {
+            selected->fontDirectory = selected->directory / "fonts";
+            Require(fs::create_directory(selected->fontDirectory), "Cannot create the private font cache.");
+            for (const auto &font : impl->fontMembers)
+            {
+                const auto target = selected->fontDirectory / ("font-" + std::to_string(font.index) + Extension(font.name));
+                selected->ownedFonts.push_back(target);
+                Sink fontSink(target, font.bytes, cancelled);
+                if (font.supported)
+                    Require(mz_zip_reader_extract_to_callback(&impl->zip, font.index,
+                        [](void *context, mz_uint64 offset, const void *bytes, std::size_t size) -> std::size_t {
+                            return static_cast<Sink *>(context)->Write(offset, bytes, size);
+                        }, &fontSink, 0) != 0, "Cannot extract bundled font (data or CRC error): " + font.name);
+                else
+                {
+                    Require(std::count_if(impl->fontMembers.begin(), impl->fontMembers.end(),
+                        [&](const Member &other) { return other.name == font.name; }) == 1,
+                        "Legacy-compressed duplicate font names cannot be selected unambiguously.");
+                    LegacyExtract(impl->path, font, fontSink);
+                }
+                Require(fontSink.Complete(font.crc), "Bundled font does not match its ZIP size or CRC: " + font.name);
+            }
+            selected->LoadFonts(selected->fontDirectory);
+        }
     }
     member.extracted = selected;
     return selected;

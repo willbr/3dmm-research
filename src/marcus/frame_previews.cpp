@@ -47,8 +47,9 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
         {
             if (executable.empty()) throw std::runtime_error("Cannot locate the frame preview helper.");
             const auto path = movie->path.u8string(), sceneText = std::to_string(scene);
+            const auto fonts = movie->fontDirectory.u8string();
             const char *args[] = {executable.c_str(), path.c_str(), resources.c_str(), "--frames", content.c_str(),
-                                  sceneText.c_str(), nullptr};
+                                  sceneText.c_str(), fonts.c_str(), nullptr};
             const auto properties = SDL_CreateProperties();
             SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
             SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
