@@ -1293,6 +1293,45 @@ these paths. C-only tests inject storage/SDK/actor/image/cache failures and chec
 ownership, rollback, retained prefixes, bounds and LRU behavior. Coverage and
 retail comparison limits are recorded in `docs/tools/playback-regression.md`.
 
+### Movie scene-container control and undo
+
+`movie_scene.c` owns the current scene reference/index and the control flow for
+close, switch, new/insert, remove, undoable remove and scene undo/redo. Native
+Movie methods validate typed inputs and supply Scene, file, reference, sound,
+client, undo-list and memory-pressure services. Scene storage and native undo
+objects remain temporary representations; the callback operations use the C
+Scene and collection modules described above.
+Composition still publishes its reordered index directly into this state through
+the temporary native facade; its broader transaction has not been converted.
+
+Switching autosaves before closing, stops looping wave sounds, and retries the
+previous scene after read/start/first-frame failure. Scene publication precedes
+the scene-change callback; the index publishes afterward. Read/start exhaustion
+notifies with an empty owner, whereas first-frame exhaustion has already notified
+with the scene. Child IDs move backward for insertion and forward for removal.
+Successful insertion ignores archive-save and roll-call-add failures, updates
+dirty/client state, then plays or flushes preview sound.
+
+Failure prefixes deliberately retain the original behavior: failed adoption
+keeps the incremented scene count; failure opening the inserted child decrements
+it, removes the child, saves and attempts another scene. Removing the final scene
+returns before marking dirty. A failed undo allocation returns success without
+removing the scene; read/start/hide work for an unopened scene has already occurred.
+Undo-list commit failure releases both owners, and failed
+core removal clears the committed undo. Scene redo creates a new scene and sets
+its saved background, while undo of removal inserts its retained snapshot.
+Failure flushes sound before clearing the undo list, which may destroy the record.
+
+The existing headless Movie save/load fixture checks insertion/deletion at scene
+boundaries, content identity as child IDs shift, nil/same-scene switching,
+undo/redo and callback publication order against its original native and SDL
+debug/release trace. C-only tests exercise transaction failures, old-scene retry,
+partial publication, reference balance and undo failure/notification order.
+No Marcus UI tests were added. Background-driven scene creation, common Movie
+editing/control/undo, autosave/save orchestration, composition and final facade
+integration remain work. Verification and retail coverage limits are recorded in
+`docs/tools/playback-regression.md`.
+
 ### Actor header, route and event persistence
 
 `actor_data.c` replaces the actor persistence policy formerly in native ActorData.

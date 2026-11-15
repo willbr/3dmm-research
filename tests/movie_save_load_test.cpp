@@ -102,6 +102,8 @@ class TestApp : public ApplicationBase
 #endif
 };
 
+#include "movie_scene_fixture.h"
+
 #define LOG(msg) do { fprintf(stderr, "[step] %s\n", msg); fflush(stderr); } while (0)
 #define BAIL(msg) do { fprintf(stderr, "[FAIL] %s\n", msg); fflush(stderr); rc = 1; goto LDone; } while (0)
 
@@ -2440,6 +2442,8 @@ int __cdecl main(int argc, char **argv)
     }
 
     LOG("FNewScenInsCore(0) -- give the movie one empty scene");
+    if (!TestMovieScenes())
+        BAIL("movie scene container control failed");
     if (!pmvie->FNewScenInsCore(0))
         BAIL("FNewScenInsCore(0) failed");
 

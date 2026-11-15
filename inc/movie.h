@@ -26,6 +26,7 @@
 #include "movie_playback.h"
 #include "movie_container.h"
 #include "three_mm/movie_sound.h"
+#include "three_mm/movie_scene.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -612,8 +613,7 @@ class Movie : public Movie_PAR
     bool _containerNamed = false;
     bool _FNeedsContainer();
 
-    PScene _pscenOpen;           // Index of current open scene.
-    long _iscen;                 // Number of scene open in the movie.
+    ThreeMMMovieScenes _scenes; // Current scene reference and index owned by C control.
     bool _fAutosaveDirty : 1;    // Is the movie in memory different than disk
     bool _fFniSaveValid : 1;     // Does _fniSave contain a file name.
     bool _fDocClosing : 1;       // Flags doc is to be closed
@@ -645,6 +645,7 @@ class Movie : public Movie_PAR
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
     bool _FDoMtrlTmplGC(PChunkyFile pcfl);               // Material and template garbage collection
     ThreeMMMovieSoundServices _SoundServices();
+    ThreeMMMovieSceneServices _SceneServices();
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
     bool _FSetPfilSave(PFilename pfni);
 
@@ -731,7 +732,7 @@ class Movie : public Movie_PAR
     }
     long Iscen(void) // Returns the current scene number
     {
-        return _iscen;
+        return _scenes.index;
     }
     bool FSwitchScen(long iscen);                                // Loads and returns pointer to scene iscen,
                                                                  //   saving any current scene.
@@ -898,7 +899,7 @@ class Movie : public Movie_PAR
     //
     PScene Pscen(void)
     {
-        return _pscenOpen;
+        return static_cast<PScene>(_scenes.open);
     }                                           // The currently open scene.
     bool FInsScenCore(long iscen, Scene *pscen); // Insert this scene as scene number.
     bool FNewScenInsCore(long iscen);           // Inserts a blank scene before iscen

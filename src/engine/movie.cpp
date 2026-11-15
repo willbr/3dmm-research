@@ -84,6 +84,7 @@ class MovieSceneUndo : public MovieSceneUndo_PAR
     TAG _tag;
     PScene _pscen;
     MUNST _munst;
+    ThreeMMMovieSceneUndoServices _Services();
     MovieSceneUndo(void)
     {
     }
@@ -140,7 +141,7 @@ END_CMD_MAP_NIL()
  ****************************************************/
 Movie::Movie(void) : _clok(khidMvieClock)
 {
-    _iscen = ivNil;
+    three_mm_movie_scenes_init(&_scenes);
     _playback.wait = witNil;
     _playback.transition = transNil;
     _playback.fadeOriginalVolume = 0;
@@ -504,7 +505,8 @@ Movie::~Movie(void)
         //
         // Release open scene.
         //
-        Scene::Close(&_pscenOpen);
+        auto services = _SceneServices();
+        three_mm_movie_scene_close_open(&services);
     }
 
     //
@@ -1090,119 +1092,110 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
  *  same scene is still open (if possible).
  *
  ****************************************************/
+ThreeMMMovieSceneServices Movie::_SceneServices()
+{
+    static_assert(munstInsScen == THREE_MM_MOVIE_INSERT_SCENE && munstRemScen == THREE_MM_MOVIE_REMOVE_SCENE &&
+        ivNil == -1, "Movie scene ABI");
+    ThreeMMMovieSceneServices s = {};
+    s.context = this;
+    s.state = &_scenes;
+    s.count = &_data.sceneCount;
+    s.autosave = [](void *p) -> int { return static_cast<PMovie>(p)->FAutoSave(pvNil, fFalse); };
+    s.make_resources = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
+    s.use_temporary = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
+    s.stop_loops = [](void *) { vpsndm->StopAll(sqnNil, sclLoopWav); };
+    s.memory_cleanup = [](void *) {
+#ifdef WIN
+        MEMORYSTATUS ms;
+        ms.dwLength = size(MEMORYSTATUS);
+        GlobalMemoryStatus(&ms);
+        if (ms.dwMemoryLoad == 100)
+        {
+            vpappb->BeginLongOp();
+            vptagm->ClearCache(sidNil, ftagmMemory);
+            vpappb->EndLongOp();
+        }
+#endif
+    };
+    s.read = [](void *p, ThreeMMI32 index) -> void * {
+        auto movie = static_cast<PMovie>(p);
+        ChildChunkIdentification kid;
+        AssertDo(movie->_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, movie->_data.movieNumber,
+            index, kctgScen, &kid), "Should never fail");
+        return Scene::PscenRead(movie, movie->_data.Resources(), kid.cki.cno);
+    };
+    s.create = [](void *p) -> void * { return Scene::PscenNew(static_cast<PMovie>(p)); };
+    s.start = [](void *p) -> int { return static_cast<PScene>(p)->FPlayStartEvents(); };
+    s.seek_first = [](void *p) -> int {
+        auto scene = static_cast<PScene>(p);
+        return scene->FGotoFrm(scene->NfrmFirst());
+    };
+    s.close = [](void *p) { auto scene = static_cast<PScene>(p); Scene::Close(&scene); };
+    s.retain = [](void *p) { static_cast<PScene>(p)->AddRef(); };
+    s.release = [](void *p) { auto scene = static_cast<PScene>(p); ReleasePpo(&scene); };
+    s.sound_frame = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
+    s.hide = [](void *p) {
+        auto scene = static_cast<PScene>(p);
+        scene->HideActors();
+        scene->HideTboxes();
+    };
+    s.scene_change = [](void *p) { static_cast<PMovie>(p)->_pmcc->SceneChange(); };
+    s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
+    s.file = [](void *p) -> void * { return static_cast<PMovie>(p)->_data.Resources()->Pcfl(); };
+    s.write = [](void *p, void *scene, ThreeMMU32 *number) -> int {
+        return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
+    };
+    s.scene_number = [](void *p, void *file, ThreeMMI32 index) -> ThreeMMU32 {
+        ChildChunkIdentification kid;
+        AssertDo(static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
+            index, kctgScen, &kid), "Should never fail");
+        return kid.cki.cno;
+    };
+    s.move_child = [](void *p, void *file, ThreeMMI32 from, ThreeMMI32 to) {
+        auto movie = static_cast<PMovie>(p);
+        auto archive = static_cast<PChunkyFile>(file);
+        ChildChunkIdentification kid;
+        AssertDo(archive->FGetKidChidCtg(kctgMvie, movie->_data.movieNumber, from, kctgScen, &kid), "Should never fail");
+        archive->ChangeChid(kctgMvie, movie->_data.movieNumber, kctgScen, kid.cki.cno, from, to);
+    };
+    s.adopt = [](void *p, void *file, ThreeMMU32 number, ThreeMMI32 index) -> int {
+        return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
+            kctgScen, number, index);
+    };
+    s.delete_child = [](void *p, void *file, ThreeMMU32 number, ThreeMMI32 index) {
+        static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
+            kctgScen, number, index);
+    };
+    s.delete_chunk = [](void *, void *file, ThreeMMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgScen, number); };
+    s.save = [](void *file) { static_cast<PChunkyFile>(file)->FSave(kctgSoc); };
+    s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
+    s.add_actors = [](void *scene) { static_cast<PScene>(scene)->FAddActrsToRollCall(); };
+    s.dirty = [](void *p) { static_cast<PMovie>(p)->SetDirty(); };
+    s.rollcall_changed = [](void *p) { static_cast<PMovie>(p)->_pmcc->UpdateRollCall(); };
+    s.switch_error = [](void *) { PushErc(ercSocSceneSwitch); };
+    s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
+    s.play_sound = [](void *p) { static_cast<PMovie>(p)->_pmsq->PlayMsq(); };
+    s.flush_sound = [](void *p) { static_cast<PMovie>(p)->_pmsq->FlushMsq(); };
+    s.new_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
+    s.configure_undo = [](void *, void *p, ThreeMMI32 index, void *scene) {
+        auto undo = static_cast<PMovieSceneUndo>(p);
+        undo->SetIscen(index);
+        undo->SetPscen(static_cast<PScene>(scene));
+        undo->SetMunst(munstRemScen);
+    };
+    s.add_undo = [](void *p, void *undo) -> int { return static_cast<PMovie>(p)->FAddUndo(static_cast<PMovieSceneUndo>(undo)); };
+    s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
+    s.clear_undo = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
+    return s;
+}
+
 bool Movie::FSwitchScen(long iscen)
 {
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
-    Assert((iscen == ivNil) || (_data.Resources() != pvNil), "Invalid save file");
-
-    PScene pscen;
-    ChildChunkIdentification kid;
-    long iscenOld;
-    bool fRet = fTrue;
-
-    if (iscen == _iscen)
-    {
-        return (fTrue);
-    }
-
-    //
-    // Close the current scene.
-    //
-    iscenOld = _iscen;
-    if (!_FCloseCurrentScene())
-    {
-        return (fFalse);
-    }
-
-    //
-    // Stop all looping non-midi sounds
-    //
-    vpsndm->StopAll(sqnNil, sclLoopWav);
-
-    //
-    // If memory is low, release unreferenced content BACOs to reduce thrashing.
-    // Note that Application::MemStat() is unavailable from the movie engine
-    //
-#ifdef WIN
-    MEMORYSTATUS ms;
-    ms.dwLength = size(MEMORYSTATUS);
-    GlobalMemoryStatus(&ms);
-    if (ms.dwMemoryLoad == 100)
-    {
-        // No physical RAM to spare, so free some stuff
-        vpappb->BeginLongOp();
-        vptagm->ClearCache(sidNil, ftagmMemory);
-        vpappb->EndLongOp();
-    }
-
-#endif // WIN
-
-    if (iscen == ivNil)
-    {
-        Assert(_pscenOpen == pvNil, "_FCloseCurrentScene didn't clear this");
-        Assert(_iscen == ivNil, "_FCloseCurrentScene didn't clear this");
-        return (fTrue);
-    }
-
-LRetry:
-
-    //
-    // Get info for next scene and read it in.
-    //
-    AssertDo(_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
-             "Should never fail");
-
-    pscen = Scene::PscenRead(this, _data.Resources(), kid.cki.cno);
-
-    if ((pscen == pvNil) || !pscen->FPlayStartEvents())
-    {
-        _pscenOpen = pvNil;
-        _iscen = ivNil;
-
-        if (pscen != pvNil)
-        {
-            Scene::Close(&pscen);
-        }
-
-        if (iscenOld != ivNil)
-        {
-            iscen = iscenOld;
-            iscenOld = ivNil;
-            fRet = fFalse;
-            goto LRetry;
-        }
-
-        _pmcc->SceneChange();
-        return (fFalse);
-    }
-
-    _pscenOpen = pscen;
-    _pmcc->SceneChange();
-    _iscen = iscen;
-
-    if (!pscen->FGotoFrm(pscen->NfrmFirst()))
-    {
-
-        _pscenOpen = pvNil;
-        _iscen = ivNil;
-        Scene::Close(&pscen);
-
-        if (iscenOld != ivNil)
-        {
-            iscen = iscenOld;
-            iscenOld = ivNil;
-            fRet = fFalse;
-            goto LRetry;
-        }
-
-        return (fFalse);
-    }
-
-    pscen->UpdateSndFrame();
-    InvalViewsAndScb();
-
-    return (fRet);
+    Assert(iscen == ivNil || _data.Resources(), "Invalid save file");
+    auto services = _SceneServices();
+    return three_mm_movie_scene_switch(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1220,26 +1213,8 @@ bool Movie::FNewScenInsCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
-
-    PScene pscen;
-
-    //
-    // Create the new scene.
-    //
-    pscen = Scene::PscenNew(this);
-    if (pscen == pvNil)
-    {
-        return (fFalse);
-    }
-
-    if (!FInsScenCore(iscen, pscen))
-    {
-        Scene::Close(&pscen);
-        return (fFalse);
-    }
-
-    Scene::Close(&pscen);
-    return (fTrue);
+    auto services = _SceneServices();
+    return three_mm_movie_scene_new(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1257,37 +1232,8 @@ bool Movie::FNewScenInsCore(long iscen)
 void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
-
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-    ChildChunkIdentification kid;
-    ChildChunkID chidTmp;
-
-    if (fDown)
-    {
-        //
-        // Move down chids of all old scenes (increase by one)
-        //
-        for (chidTmp = _data.sceneCount; chidTmp > chid;)
-        {
-            chidTmp--;
-            AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, chidTmp, kctgScen, &kid), "Should never fail");
-
-            pcfl->ChangeChid(kctgMvie, _data.movieNumber, kctgScen, kid.cki.cno, chidTmp, chidTmp + 1);
-        }
-    }
-    else
-    {
-        //
-        // Move up chids of all old scenes (decrease by one)
-        //
-        for (chidTmp = chid; chidTmp < (ChildChunkID)_data.sceneCount; chidTmp++)
-        {
-            AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, chidTmp + 1, kctgScen, &kid),
-                     "Should never fail");
-
-            pcfl->ChangeChid(kctgMvie, _data.movieNumber, kctgScen, kid.cki.cno, chidTmp + 1, chidTmp);
-        }
-    }
+    auto services = _SceneServices();
+    three_mm_movie_scene_move(chid, fDown, _data.Resources()->Pcfl(), &services);
 }
 
 /******************************************************************************
@@ -1302,7 +1248,7 @@ ThreeMMMovieSoundServices Movie::_SoundServices()
         sizeof(ChildChunkID)==sizeof(ThreeMMU32),"Movie sound record ABI");
     ThreeMMMovieSoundServices s{}; s.context=this;
     s.read=[](void *p,ThreeMMMovieSoundState *state) {
-        auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_iscen;
+        auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
     s.file=[](void *p)->void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
     s.count=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMI32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
@@ -1507,102 +1453,9 @@ bool Movie::FRemScenCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
-    Assert(_data.Resources() != pvNil, "Bad working file.");
-
-    ChildChunkIdentification kid;
-    PChunkyFile pcfl;
-    PScene pscen;
-    long iscenOld;
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // Ensure we are using the temp file
-    //
-    if (!_FUseTempFile())
-    {
-        return (fFalse);
-    }
-
-    //
-    // Close this scene if it is open and different.
-    //
-    iscenOld = _iscen;
-    if (_iscen != iscen)
-    {
-
-        //
-        // Get the scen to remove.
-        //
-        if (!FSwitchScen(iscen))
-        {
-            FSwitchScen(iscenOld);
-            return (fFalse);
-        }
-    }
-
-    //
-    // Keep the scene in memory for a second.
-    //
-    pscen = Pscen();
-    pscen->AddRef();
-
-    //
-    // Close the current scene
-    //
-    Scene::Close(&_pscenOpen);
-    _iscen = ivNil;
-
-    //
-    // Remove its actors from the roll call
-    //
-    pscen->RemActrsFromRollCall();
-    ReleasePpo(&pscen);
-
-    //
-    // Remove the scene chunk.
-    //
-    AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid), "Should never fail");
-    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, kid.cki.cno, iscen);
-
-    //
-    // Move up chids of all old scenes.
-    //
-    _data.sceneCount--;
-    _MoveChids((ChildChunkID)iscen, fFalse);
-
-    //
-    // Save changes, if this fails, we don't care.  It only
-    // matters when the user tries to truly save.
-    //
-    pcfl->FSave(kctgSoc);
-
-    //
-    // Switch to a different scene
-    //
-    if (Cscen() == 0)
-    {
-        return (fTrue);
-    }
-
-    if (iscen < Cscen())
-    {
-        FSwitchScen(iscen);
-    }
-    else
-    {
-        FSwitchScen(iscen - 1);
-    }
-
-    SetDirty();
-
-    if (Pscen() == pvNil)
-    {
-        PushErc(ercSocSceneSwitch);
-        return (fTrue);
-    }
-
-    return (fTrue);
+    Assert(_data.Resources(), "Bad working file.");
+    auto services = _SceneServices();
+    return three_mm_movie_scene_remove(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1623,63 +1476,8 @@ bool Movie::FRemScen(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
-
-    ChildChunkIdentification kid;
-    PMovieSceneUndo pmuns;
-    PScene pscen;
-
-    if (_iscen == iscen)
-    {
-        pscen = Pscen();
-        pscen->AddRef();
-    }
-    else
-    {
-
-        AssertDo(_data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
-                 "Should never fail");
-
-        pscen = Scene::PscenRead(this, _data.Resources(), kid.cki.cno);
-
-        if ((pscen == pvNil) || !pscen->FPlayStartEvents())
-        {
-            Scene::Close(&pscen);
-            return (fFalse);
-        }
-
-        pscen->HideActors();
-        pscen->HideTboxes();
-    }
-
-    pmuns = MovieSceneUndo::PmunsNew();
-
-    if (pmuns == pvNil)
-    {
-        ReleasePpo(&pscen);
-        return (fTrue);
-    }
-
-    pmuns->SetIscen(iscen);
-    pmuns->SetPscen(pscen);
-    pmuns->SetMunst(munstRemScen);
-
-    if (!FAddUndo(pmuns))
-    {
-        ReleasePpo(&pmuns);
-        ReleasePpo(&pscen);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pmuns);
-    ReleasePpo(&pscen);
-
-    if (!FRemScenCore(iscen))
-    {
-        ClearUndo();
-        return (fFalse);
-    }
-
-    return (fTrue);
+    auto services = _SceneServices();
+    return three_mm_movie_scene_remove_undoable(iscen, &services) != 0;
 }
 
 /****************************************************
@@ -1963,19 +1761,8 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 bool Movie::_FCloseCurrentScene(void)
 {
     AssertThis(0);
-
-    if (Pscen() != pvNil)
-    {
-
-        if (!FAutoSave(pvNil, fFalse)) // could not save...keep scene open
-        {
-            return fFalse;
-        }
-
-        Scene::Close(&_pscenOpen);
-        _iscen = ivNil;
-    }
-    return fTrue;
+    auto services = _SceneServices();
+    return three_mm_movie_scene_close(&services) != 0;
 }
 
 /****************************************************
@@ -2175,12 +1962,12 @@ LRetry:
         //
         // Delete old chunk with this scene
         //
-        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _iscen, kctgScen, &kidScen), "Should never fail");
+        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _scenes.index, kctgScen, &kidScen), "Should never fail");
 
         //
         // Update chid for movie
         //
-        if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _iscen))
+        if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _scenes.index))
         {
             pcfl->Delete(kctgScen, cnoScen);
             goto LFail0;
@@ -2257,7 +2044,7 @@ LRetry:
     //
     if (Pscen() != pvNil)
     {
-        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, kidScen.cki.cno, _iscen);
+        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, kidScen.cki.cno, _scenes.index);
     }
 
     //
@@ -2347,7 +2134,7 @@ LFail2:
 LFail1:
     if (Pscen() != pvNil)
     {
-        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _iscen);
+        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _scenes.index);
     }
 
 LFail0:
@@ -3451,119 +3238,8 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
     AssertIn(iscen, 0, Cscen() + 1);
     AssertPo(pscen, 0);
     Assert(pscen->Pmvie() == this, "Cannot insert a scene from another movie");
-
-    ChunkNumber cnoScen;
-    PChunkyFile pcfl;
-
-    //
-    // Make sure we have a file to switch to
-    //
-    if (!_FMakeCrfValid())
-    {
-        goto LFail0;
-    }
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // Ensure we are using the temp file
-    //
-    if (!_FUseTempFile())
-    {
-        goto LFail0;
-    }
-
-    //
-    // Save old scene.
-    //
-    if (!_FCloseCurrentScene())
-    {
-        goto LFail0;
-    }
-
-    //
-    // Write it.
-    //
-    if (!pscen->FWrite(_data.Resources(), &cnoScen))
-    {
-        goto LFail0;
-    }
-
-    //
-    // Hide all bodies, textboxes, etc, created when the write updated the thumbnail.
-    //
-    pscen->AddRef();
-    Scene::Close(&pscen);
-
-    _MoveChids((ChildChunkID)iscen, fTrue);
-
-    _data.sceneCount++;
-
-    //
-    // Insert new scene as chid.
-    //
-    if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, iscen))
-    {
-        goto LFail2;
-    }
-
-    //
-    // Save changes, if this fails, we don't care.  It only
-    // matters when the user tries to truly save.
-    //
-    pcfl->FSave(kctgSoc);
-
-    if (!FSwitchScen(iscen))
-    {
-        goto LFail3;
-    }
-
-    //
-    // Fix up roll call, don't care about failure -- roll-call will just be messed up.
-    //
-    Pscen()->FAddActrsToRollCall();
-
-    SetDirty();
-    _pmcc->UpdateRollCall();
-
-    if (FSoundsEnabled())
-    {
-        _pmsq->PlayMsq();
-    }
-    else
-    {
-        _pmsq->FlushMsq();
-    }
-
-    return (fTrue);
-
-LFail3:
-    _data.sceneCount--;
-    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, iscen);
-    _MoveChids((ChildChunkID)iscen, fFalse);
-    pcfl->FSave(kctgSoc);
-
-    if (_data.sceneCount > 0)
-    {
-
-        if (iscen < _data.sceneCount)
-        {
-            FSwitchScen(iscen);
-        }
-        else
-        {
-            FSwitchScen(_data.sceneCount - 1);
-        }
-    }
-
-    return (fFalse);
-
-LFail2:
-    _MoveChids((ChildChunkID)iscen, fFalse);
-    pcfl->Delete(kctgScen, cnoScen);
-
-LFail0:
-    return (fFalse);
+    auto services = _SceneServices();
+    return three_mm_movie_scene_insert(iscen, pscen, &services) != 0;
 }
 
 /***************************************************************************
@@ -3934,7 +3610,7 @@ void Movie::_StopRenderPlayback(PMovieView view)
         Pscen()->Disable(fscenPauses);
     }
     else
-        Assert(_iscen == ivNil, "Bogus scene state");
+        Assert(_scenes.index == ivNil, "Bogus scene state");
 
     //
     // Update views and scroll bars
@@ -4585,7 +4261,7 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
                 }
                 else
                 {
-                    pscen = _pscenOpen;
+                    pscen = Pscen();
                     pscen->AddRef();
                 }
 
@@ -4620,15 +4296,15 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
             if (scend.fNuked)
             {
                 /* Basically, do an _FCloseCurrentScene w/out the autosave */
-                Scene::Close(&_pscenOpen);
-                _iscen = ivNil;
+                auto services = _SceneServices();
+                three_mm_movie_scene_close_open(&services);
             }
             else
             {
                 /* If this is the scene that *used* to be Iscen(), change the
                     transition in memory rather than on file */
                 Pscen()->SetTransitionCore(scend.trans);
-                _iscen = iscend;
+                _scenes.index = iscend;
             }
         }
     }
@@ -4638,7 +4314,7 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
     SetDirty();
     if (_data.sceneCount == 0)
     {
-        Assert(_iscen == ivNil, 0);
+        Assert(_scenes.index == ivNil, 0);
         _pmcc->SceneNuked();
     }
     InvalViewsAndScb();
@@ -5192,9 +4868,9 @@ void Movie::BuildActionMenu()
     AssertThis(0);
     long arid = aridNil;
 
-    if (pvNil != _pscenOpen && pvNil != _pscenOpen->PactrSelected())
+    if (pvNil != _scenes.open && pvNil != Pscen()->PactrSelected())
     {
-        arid = _pscenOpen->PactrSelected()->Arid();
+        arid = Pscen()->PactrSelected()->Arid();
     }
     _pmcc->ActorSelected(arid);
     _pmcc->UpdateAction();
@@ -9082,48 +8758,38 @@ MovieSceneUndo::~MovieSceneUndo(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
+ThreeMMMovieSceneUndoServices MovieSceneUndo::_Services()
+{
+    ThreeMMMovieSceneUndoServices s = {};
+    s.context = _pmvie;
+    s.create = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
+    s.remove = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
+    s.insert = [](void *p, ThreeMMI32 index, void *scene) -> int {
+        return static_cast<PMovie>(p)->FInsScenCore(index, static_cast<PScene>(scene));
+    };
+    s.background = [](void *p, const ThreeMMTag *value) -> int {
+        TAG tag, old;
+        TagFromCore(&tag, *value);
+        return static_cast<PMovie>(p)->Pscen()->FSetBkgdCore(&tag, &old);
+    };
+    s.notify = [](void *p, int removed) {
+        auto client = static_cast<PMovie>(p)->Pmcc();
+        if (removed) client->SceneNuked();
+        else client->SceneUnnuked();
+    };
+    s.flush = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
+    s.clear = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
+    s.unknown = [](void *) { Bug("Unknown munst"); };
+    return s;
+}
+
 bool MovieSceneUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    TAG tagOld;
-
-    switch (_munst)
-    {
-    case munstInsScen:
-        if (!_pmvie->FNewScenInsCore(_iscen))
-        {
-            goto LFail;
-        }
-        if (!_pmvie->Pscen()->FSetBkgdCore(&_tag, &tagOld))
-        {
-            _pmvie->FRemScenCore(_iscen);
-            goto LFail;
-        }
-
-        _pmvie->Pmcc()->SceneUnnuked();
-        break;
-
-    case munstRemScen:
-        if (!_pmvie->FRemScenCore(_iscen))
-        {
-            goto LFail;
-        }
-        _pmvie->Pmcc()->SceneNuked();
-        break;
-
-    default:
-        Bug("Unknown munst");
-        goto LFail;
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo(); //  After this, _pmvie is invalid
-    return (fFalse);
+    auto services = _Services();
+    ThreeMMTag tag = {};
+    if (_munst == munstInsScen) tag = TagToCore(_tag);
+    return three_mm_movie_scene_undo(_munst, _iscen, _pscen, &tag, 1, &services) != 0;
 }
 
 /****************************************************
@@ -9140,38 +8806,8 @@ LFail:
 bool MovieSceneUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
-
-    switch (_munst)
-    {
-    case munstInsScen:
-        if (!_pmvie->FRemScenCore(_iscen))
-        {
-            goto LFail;
-        }
-        _pmvie->Pmcc()->SceneNuked();
-        break;
-
-    case munstRemScen:
-        if (!_pmvie->FInsScenCore(_iscen, _pscen))
-        {
-            goto LFail;
-        }
-        _pmvie->Pmcc()->SceneUnnuked();
-
-        break;
-
-    default:
-        Bug("Unknown munst");
-        goto LFail;
-    }
-
-    _pmvie->Pmsq()->FlushMsq();
-    return (fTrue);
-
-LFail:
-    _pmvie->Pmsq()->FlushMsq();
-    _pmvie->ClearUndo(); //  After this, _pmvie is invalid
-    return (fFalse);
+    auto services = _Services();
+    return three_mm_movie_scene_undo(_munst, _iscen, _pscen, nullptr, 0, &services) != 0;
 }
 
 #ifdef DEBUG

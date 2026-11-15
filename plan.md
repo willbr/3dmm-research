@@ -517,8 +517,12 @@ export and Scene ownership/lifecycle, frame/replay/prerender, event-dispatch,
 sound-packet, sound-editing/undo, loading/resolution, tag-collection/save,
 pause/camera/background-editing/undo, actor/caption Scene-editing/undo,
 selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
-slices and Scene query/group-loading policy are complete. Continue with
-remaining Movie control/editing/undo operations. Background resource loading/cache/
+slices and Scene query/group-loading policy are complete. Movie scene switching,
+close/new/insert/remove transactions, undoable removal and scene undo/redo dispatch
+now also use C89, including current-scene reference/index control and failure
+retry/rollback order. Movie background-driven scene creation, general control/
+editing/undo, autosave/save orchestration and composition still need conversion.
+Background resource loading/cache/
 light policy and Preview background image/mesh control are now C89; broader
 Preview rendering and final host integration still need conversion.
 Final removal of native representations and facades remains required.

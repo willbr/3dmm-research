@@ -8115,3 +8115,77 @@ Evidence: `tmp/c89-background-{mesh,preview}-asan.log`,
 `tmp/c89-background-preview-original-capture-hashes.json`,
 `tmp/c89-background-preview-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-background-preview-capture-hashes-{before,after}.json`.
+
+### Movie scene-container control and undo (15 November 2026)
+
+`movie_scene.c` now controls the current scene reference/index, close/switch,
+new/insert/remove, undoable removal and scene undo/redo. Native Movie and undo
+objects supply typed Scene, archive, reference, sound, client and undo-list
+operations. The C controller preserves previous-scene retry, callback/index
+publication, child-ID traversal, rollback and dirty/notification prefixes. Failed
+adoption retains the native count increment; removing the final scene returns
+before marking dirty; undo allocation failure returns success without removal.
+Failed removal reads retain the original null-close/debug-diagnostic path.
+No wire versions or writer normalization changed. Background-driven scene
+creation, common Movie editing/control/undo, autosave/save orchestration,
+composition and final native representation/facade integration remain work.
+
+The existing headless Movie save/load fixture now probes distinct scene content
+through child-ID shifts, insertion/removal boundaries, nil/same-scene switching,
+removal undo/redo and callback publication order. Its trace was captured from the
+original native and SDL debug/release controller before conversion: 1,064 bytes,
+FNV-1a `E62AAC8F`, SHA-256
+`9249BE235D4B088EEF89FDC8D3EC0EC3F40E9ACD23945482F9A40D0309DF0712`.
+All three final traces match that original digest exactly. The Windows x64 probe
+checks the frozen trace by default. Existing Scene-content traces also retain
+their 31,048-byte SHA-256
+`0BF35E79808D6A50ED79B1B8138AF4ED5138C1D94DB7A291FD1EE5160BFB2A89`.
+
+The standalone C fixture exercises autosave/resource/temp/write/adoption/read/
+start/first-frame failures, retry exhaustion, destructive insertion prefixes,
+scene/undo reference balance, sound enable/flush decisions, removal failures,
+snapshot commit/cleanup and undo/redo failure/notification order. These fault
+tests use deterministic C services; the native fixture checks successful
+operations and persistence, not retail failure behavior. No Marcus UI tests were
+added. All 103 standalone C checks, 140 selected native, 48 SDL release and 36 SDL
+debug checks pass. The new fixture passes Clang strict C89 with warnings as errors
+and MSVC AddressSanitizer. All 51 CLI format baselines match. Both hosts and their
+test helpers were rebuilt; Marcus was stopped before rebuilding and relaunched.
+Builds and file-heavy suites ran serially. Validation covers Windows x64 native
+and SDL debug/release, not complete C-only host integration or other platforms.
+
+The source SDL/Marcus binaries were verified identical to the preceding
+Background-preview captures before rebuilding. Final binaries remained fixed
+through all 21 fresh-process captures (one repeat; no concurrent builds/tests).
+Final before/after SHA-256:
+
+- SDL release: `AC9795B9DDB5CD6F71688467EAC474B0260BB9E839C33A5C1E6945FECBE3C0FC`.
+- Marcus regression: `A45B2B21412591C02749D1F1A50906F1F4CBC1C6A5E1EF2F79CEC36CBCC6C583`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T024948Z-38e6f099` | `20261115T031754Z-ac920e7b` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T025106Z-25459966` | `20261115T031912Z-33ce1649` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T025427Z-dd4e7830` | `20261115T032225Z-4ca95050` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T025546Z-639fde6b` | `20261115T032343Z-d4bd4cf8` | three retail/SDL/Marcus playback |
+
+All original/final movie identities and suite integrity checks pass. Every
+authored frame sequence, all 540 seek images and ordered playback image changes
+match each player's original suite. Playback comparison collapses only adjacent
+identical scene/frame/image samples. Actor-audio peaks are 3192/4080/4081 and
+sampled-audio peaks are 2380/2176/2176 (retail/SDL/Marcus); tone detection and
+first-scene-only contracts pass. This is preserved playback behavior, not a proof
+of PCM identity, full cross-player audio/timing parity or retail editing/undo/
+failure behavior. Existing cross-player differences, single-repeat timing
+inconclusiveness and presentation-marker limitations remain. Captures share a
+warm SDL package cache with private processes, settings and working movies; OS
+caching is uncontrolled. Normal retention may move source summaries to retained
+metadata; image/frame hashes remain in the database.
+
+Evidence: `tmp/c89-movie-scenes-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
+`tmp/c89-movie-scenes-{final,scene-final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-scenes-trace-comparison.json`,
+`tmp/c89-movie-scenes-{output-comparison,playback-comparison}.json`,
+`tmp/c89-movie-scenes-original-capture-hashes.json`,
+`tmp/c89-movie-scenes-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-movie-scenes-capture-hashes-{before,after}.json`.
