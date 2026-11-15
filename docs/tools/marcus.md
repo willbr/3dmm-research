@@ -144,8 +144,8 @@ retained. The movie is marked **UNSAVED**; saving/export is still unavailable.
 
 **Scenes > All cameras / Active only** toggles the other authored camera guides
 in the work view (Orbit/Fly, including the work pane in a split view). The active
-camera guide always remains enabled, including when the work view is matched
-to it. Each guide
+camera stays enabled regardless of the toggle, but its guide is hidden while
+the work view is matched to that camera, so it does not cover its own shot. Each guide
 uses that angle's actual position, orientation and lens, and is labelled
 **Camera 01**, **Camera 02**, etc. The active angle is gold; other angles are blue.
 Guides are clipped to the visible viewport and never drawn over movie playback.

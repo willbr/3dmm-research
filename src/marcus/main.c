@@ -2569,7 +2569,10 @@ static void draw_camera_guides(App *app, const SDL_FRect *destination)
         for (index = 0; index < app->info.camera_count; ++index)
         {
             active = index == app->info.camera;
-            if (active != pass || (!active && !app->shortcuts.show_cameras)) continue;
+            /* Looking through the active camera must not draw its own guide
+             * over the shot. The visibility toggle only affects other cameras. */
+            if (active != pass || (active && app->work_matched) ||
+                (!active && !app->shortcuts.show_cameras)) continue;
             if (active) camera = app->scene_camera;
             else if (!marcus_camera_projection(app->player, index, &camera)) continue;
             camera_guide_build_image(&app->work_image, &camera, &guide);
