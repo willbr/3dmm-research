@@ -89,7 +89,7 @@ cmake --build build/engine-c89 --target engine-background-mesh-test engine-backg
 cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
-cmake --build build/engine-c89 --target engine-preview-render-test engine-preview-pick-test
+cmake --build build/engine-c89 --target engine-preview-render-test engine-preview-pick-test engine-preview-camera-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1309,8 +1309,9 @@ exit and publishes no hit after an allocation or SDK failure.
 Native adapters supply typed BRender camera/inverse/projection and pick calls,
 face copying and pivot-plane repair using SDK fixed arithmetic, material/texture
 field views and the SDK UV transform. Source geometry and textures stay borrowed.
-No native picking evaluator or picking owner map remains. Camera interaction,
-asset/scene admission, presentation and final facade integration remain work.
+No native picking evaluator or picking owner map remains. Camera interaction is
+covered below. Asset/scene admission, presentation and final facade integration
+remain work.
 
 The headless Scene Preview fixture records per-build original/converted hit,
 distance and error traces across authored/output, orbit, free, axis and
@@ -1324,6 +1325,35 @@ singular models/cameras/bounds, orthographic determinant underflow and recovery.
 Original and converted controllers agree with that same guard; raw unguarded
 traces remain recorded separately. Evidence and coverage
 limits are recorded in `docs/tools/playback-regression.md`.
+
+### Preview camera interaction and guide metadata
+
+`preview_camera.c` owns shot-to-inspection camera matching, letterboxed FOV and
+focus/movement-speed fitting, orbit panning and world-limit clipping, reset and
+placement/shape anchor updates. It also owns posed bounds corner accumulation,
+camera index admission, same-camera I/O suppression and camera selection's
+failure/publication order. Native adapters supply typed body bounds, camera and
+bitmap views, reference operations and math primitives. Host math callbacks
+preserve float rounding; bounds accumulate in double before conversion to float.
+
+The guide projection cache now uses a persistent C owner for descriptors and
+read statuses. It reads camera headers and colour bitmap bounds without selecting
+a camera or decoding depth/scenery. Both successful and failed reads are cached.
+Reset invalidates entries while retaining capacity. Allocation failure retains
+storage but publishes no new count, so a second-buffer allocation failure can be
+retried safely. The previous two native vectors could leave the status vector
+shorter than the descriptor vector and access it out of bounds on retry.
+Fetched bitmap references release before bounds validation. Malformed bounds
+reject before signed subtraction can overflow.
+
+The headless Scene fixture records matching, perspective/orthographic panning,
+roll/zoom/aspect changes, clamping, invalid inputs, guide queries, bounds and
+placement/shape edits with subsequent render output. C-only tests cover atomic
+pan rejection, metadata failure caching, reset, partial allocation recovery,
+bitmap reference balance and camera selection failures. Preview asset/scene
+admission, live scene definitions/timeline edits, presentation and final facade
+removal remain work. Evidence and limits are recorded in
+`docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

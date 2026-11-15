@@ -15,6 +15,7 @@
 #include "soc_core.h"
 #include "mm/scene_runtime.h"
 #include "mm/preview_pick.h"
+#include "mm/preview_camera.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -123,11 +124,10 @@ struct Preview::Impl
     // Advance the tracked anchor by the edit only, retaining animation follow.
     void PreserveOrbitForPlacement(int object, const PreviewObject &before)
     {
-        if (!orbit.framed || orbit.object != object) return;
+        if (!mm_preview_orbit_follows(&orbit, object, 1)) return;
         const auto after = actors[object]->Snapshot();
-        orbit.anchor[0] += after.x - before.x;
-        orbit.anchor[1] += after.y - before.y;
-        orbit.anchor[2] += after.z - before.z;
+        const float oldPosition[] = {before.x, before.y, before.z}, newPosition[] = {after.x, after.y, after.z};
+        mm_preview_orbit_move(&orbit, object, oldPosition, newPosition);
     }
     std::uint64_t visibilityClock = 0;
     std::string resolveError;
@@ -173,16 +173,6 @@ struct Preview::Impl
                        ". Add the content archive for this source.";
         return nullptr;
     }
-    std::vector<PBody> Bodies() const
-    {
-        std::vector<PBody> bodies;
-        if (body)
-            bodies.push_back(body);
-        for (const auto &actor : actors)
-            if (actor->Visible())
-                bodies.push_back(actor->body);
-        return bodies;
-    }
     void RefreshStats()
     {
         info.parts = info.triangles = 0;
@@ -215,7 +205,7 @@ struct Preview::Impl
         background.reset();
         cameraChanges.clear();
         if (!preserveFraming)
-            orbit.framed = false;
+            mm_preview_orbit_reset(&orbit);
         initialCamera = 0;
         resolveError.clear();
         ReleasePpo(&body);
@@ -255,114 +245,38 @@ const PreviewInfo &Preview::Info() const
 }
 void Preview::ResetOrbitFraming()
 {
-    _impl->orbit.framed = false;
+    mm_preview_orbit_reset(&_impl->orbit);
 }
 bool Preview::MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error)
 {
     error = {};
+    Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
+    auto services = host.Services();
+    MMPreviewCameraPose pose;
+    auto result = mm_preview_camera_match(outputAspect, &_impl->orbit, &pose, &services,
+                                          [](float v) { return std::atan(v); });
     camera = {};
-    if (!_impl->ready || !_impl->info.scene || !std::isfinite(outputAspect) || outputAspect <= 0)
+    camera.x = pose.position[0]; camera.y = pose.position[1]; camera.z = pose.position[2];
+    camera.yaw = pose.yaw; camera.pitch = pose.pitch; camera.roll = pose.roll;
+    camera.moveSpeed = pose.move_speed; camera.verticalFov = pose.vertical_fov;
+    if (result != MM_PREVIEW_CAMERA_OK)
         return Fail(error, ErrorCode::invalid_argument, "Select a scene before matching its camera.");
-    float right[3] = {1, 0, 0}, backward[3] = {0, 0, 1};
-    camera.z = 10;
-    if (_impl->background)
-    {
-        const auto &source = *_impl->background;
-        camera.x = BrScalarToFloat(source.camera.bmat34Cam.m[3][0]);
-        camera.y = BrScalarToFloat(source.camera.bmat34Cam.m[3][1]);
-        camera.z = BrScalarToFloat(source.camera.bmat34Cam.m[3][2]);
-        for (int axis = 0; axis < 3; ++axis)
-        {
-            right[axis] = BrScalarToFloat(source.camera.bmat34Cam.m[0][axis]);
-            backward[axis] = BrScalarToFloat(source.camera.bmat34Cam.m[2][axis]);
-        }
-        const float fov = float(source.camera.aFov) * (360.f / 65536.f);
-        // Preserve the shot's framing inside its letterboxed image when the
-        // inspection renderer uses a different output aspect ratio.
-        const float scale = std::max(1.f, (float(source.width) / source.height) / outputAspect);
-        camera.verticalFov = 2 * std::atan(std::tan(fov * .00872664626f) * scale) * 57.2957795f;
-    }
-    camera.yaw = std::atan2(backward[0], backward[2]) * 57.2957795f;
-    camera.pitch = std::asin(std::max(-1.f, std::min(1.f, backward[1]))) * 57.2957795f;
-    const float yaw = camera.yaw * .01745329252f, pitch = camera.pitch * .01745329252f;
-    const float baseRight[3] = {std::cos(yaw), 0, -std::sin(yaw)};
-    const float baseUp[3] = {-std::sin(yaw) * std::sin(pitch), std::cos(pitch), -std::cos(yaw) * std::sin(pitch)};
-    float cosine = 0, sine = 0;
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        cosine += right[axis] * baseRight[axis];
-        sine += right[axis] * baseUp[axis];
-    }
-    camera.roll = std::atan2(sine, cosine) * 57.2957795f;
-    float focus = 10, low[3] = {}, high[3] = {};
-    bool first = true;
-    for (const auto body : _impl->Bodies())
-    {
-        BCB bounds;
-        body->GetBcbBounds(&bounds, fTrue);
-        const float min[3] = {BrScalarToFloat(bounds.xrMin), BrScalarToFloat(bounds.yrMin), BrScalarToFloat(bounds.zrMin)};
-        const float max[3] = {BrScalarToFloat(bounds.xrMax), BrScalarToFloat(bounds.yrMax), BrScalarToFloat(bounds.zrMax)};
-        for (int axis = 0; axis < 3; ++axis)
-        {
-            low[axis] = first ? min[axis] : std::min(low[axis], min[axis]);
-            high[axis] = first ? max[axis] : std::max(high[axis], max[axis]);
-        }
-        first = false;
-    }
-    if (!first)
-    {
-        const float position[3] = {camera.x, camera.y, camera.z};
-        focus = 0;
-        for (int axis = 0; axis < 3; ++axis)
-            focus += (position[axis] - (low[axis] + high[axis]) * .5f) * backward[axis];
-        focus = std::max(1.f, std::min(10000.f, focus));
-    }
-    const float position[3] = {camera.x, camera.y, camera.z};
-    for (int axis = 0; axis < 3; ++axis)
-        _impl->orbit.center[axis] = position[axis] - backward[axis] * focus;
-    _impl->orbit.radius = focus * std::min(1.f, outputAspect) / 2.8f;
-    _impl->orbit.framed = _impl->orbit.includes_camera = true;
-    _impl->orbit.object = -1;
-    camera.moveSpeed = std::max(.1f, std::min(1000.f, focus * .25f));
     return true;
 }
 bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->orbit.framed || view.width < 64 || view.height < 64 ||
-        view.width > PreviewMaxDimension || view.height > PreviewMaxDimension ||
-        !std::isfinite(right) || !std::isfinite(up) || !std::isfinite(view.yaw) ||
-        !std::isfinite(view.pitch) || !std::isfinite(view.roll) || !std::isfinite(view.verticalFov) ||
-        view.verticalFov <= 0 || view.verticalFov >= 179 || !std::isfinite(view.zoom) || view.pitch < -90 || view.pitch > 90 ||
-        view.zoom < .1f || view.zoom > 10)
+    Impl::RenderHost host = {this, _impl.get(), &view, &error};
+    const auto services = host.Services();
+    MMPreviewView v = {};
+    v.width = view.width; v.height = view.height; v.yaw = view.yaw; v.pitch = view.pitch;
+    v.roll = view.roll; v.vertical_fov = view.verticalFov; v.zoom = view.zoom; v.orthographic = view.orthographic;
+    const auto result = mm_preview_orbit_pan(&v, right, up, &_impl->orbit, _impl->ready, &services.math);
+    if (result == MM_PREVIEW_CAMERA_PAN_RANGE)
+        return Fail(error, ErrorCode::invalid_argument, "Orbit pan exceeds the camera range.");
+    if (result != MM_PREVIEW_CAMERA_OK)
         return Fail(error, ErrorCode::invalid_argument,
                     "Render an orbit view with valid camera values before panning.");
-    const float aspect = float(view.width) / view.height;
-    const float distance = _impl->orbit.radius * 2.8f / std::min(1.f, aspect) / view.zoom;
-    const float height = view.orthographic ? 2 * _impl->orbit.radius * 1.15f / view.zoom :
-                         2 * distance * std::tan(view.verticalFov * .00872664626f);
-    const float yaw = std::fmod(view.yaw, 360.f) * .01745329252f, pitch = view.pitch * .01745329252f;
-    const float sy = std::sin(yaw), cy = std::cos(yaw), sp = std::sin(pitch), cp = std::cos(pitch);
-    const float backward[3] = {sy * cp, sp, cy * cp};
-    const float cr = std::cos(view.roll * .01745329252f), sr = std::sin(view.roll * .01745329252f);
-    const float cameraRight[3] = {cy * cr - sy * sp * sr, cp * sr, -sy * cr - cy * sp * sr};
-    const float cameraUp[3] = {-sy * sp * cr - cy * sr, cp * cr, -cy * sp * cr + sy * sr};
-    float delta[3];
-    for (int axis = 0; axis < 3; ++axis)
-        delta[axis] = height * (right * aspect * cameraRight[axis] + up * cameraUp[axis]);
-    float fraction = 1;
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        if (!std::isfinite(delta[axis]))
-            return Fail(error, ErrorCode::invalid_argument, "Orbit pan exceeds the camera range.");
-        const float position = _impl->orbit.center[axis] + backward[axis] * distance;
-        if (delta[axis] > 0)
-            fraction = std::min(fraction, (32700 - position) / delta[axis]);
-        else if (delta[axis] < 0)
-            fraction = std::min(fraction, (-32700 - position) / delta[axis]);
-    }
-    for (int axis = 0; axis < 3; ++axis)
-        _impl->orbit.center[axis] += delta[axis] * std::max(0.f, fraction);
     return true;
 }
 std::vector<PreviewObject> Preview::Objects() const
@@ -445,16 +359,17 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
     }
     BCB before, after;
     auto &actor = *_impl->actors[object];
-    const bool hold = _impl->orbit.framed && _impl->orbit.object == object && actor.Visible();
+    const bool hold = mm_preview_orbit_follows(&_impl->orbit, object, actor.Visible()) != 0;
     if (hold) actor.body->GetBcbBounds(&before, fTrue);
     if (!actor.SetShape(shape)) return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
     if (hold)
     {
         actor.body->GetBcbBounds(&after, fTrue);
-        const BRS a[6] = {before.xrMin,before.yrMin,before.zrMin,before.xrMax,before.yrMax,before.zrMax};
-        const BRS b[6] = {after.xrMin,after.yrMin,after.zrMin,after.xrMax,after.yrMax,after.zrMax};
-        for (int i = 0; i < 3; ++i)
-            _impl->orbit.anchor[i] += (BrScalarToFloat(b[i])-BrScalarToFloat(a[i]) + BrScalarToFloat(b[i+3])-BrScalarToFloat(a[i+3])) * .5f;
+        const MMI32 a[6] = {before.xrMin,before.yrMin,before.zrMin,before.xrMax,before.yrMax,before.zrMax};
+        const MMI32 b[6] = {after.xrMin,after.yrMin,after.zrMin,after.xrMax,after.yrMax,after.zrMax};
+        Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
+        const auto services = host.Services();
+        mm_preview_orbit_resize(&_impl->orbit, a, b, &services.math);
     }
     return true;
 }
@@ -469,20 +384,14 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
         return true;
     BCB box;
     actor.body->GetBcbBounds(&box);
-    const BRS low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
-    for (int axis = 0; axis < 3; ++axis)
-        if (low[axis] > high[axis])
-            return true;
+    const MMI32 low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
     const auto &transform = actor.body->PbactRoot()->t.t.mat;
-    for (int corner = 0; corner < 8; ++corner)
-        for (int axis = 0; axis < 3; ++axis)
-        {
-            double position = BrScalarToFloat(transform.m[3][axis]);
-            for (int local = 0; local < 3; ++local)
-                position += BrScalarToFloat((corner & (1 << local)) ? high[local] : low[local]) *
-                            double(BrScalarToFloat(transform.m[local][axis]));
-            bounds.corners[corner * 3 + axis] = static_cast<float>(position);
-        }
+    MMI32 matrix[12];
+    static_assert(sizeof(matrix) == sizeof(transform), "Object bounds matrix layout");
+    std::memcpy(matrix, &transform, sizeof(matrix));
+    Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
+    const auto services = host.Services();
+    if (!mm_preview_camera_bounds(low, high, matrix, bounds.corners, &services.math)) return true;
     // Palette entry 108 is kiclrNormalHilite in the original actor UI.
     const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[108];
     bounds.colour = (std::uint32_t(colour.bRed) << 16) | (std::uint32_t(colour.bGreen) << 8) | colour.bBlue;
@@ -1167,12 +1076,15 @@ catch (const std::bad_alloc &)
 }
 bool Preview::PlacementPoint(float point[3]) const
 {
-    if (!point || !_impl->ready || !_impl->background) return false;
-    const auto &place = _impl->background->camera.apos;
-    point[0] = BrScalarToFloat(place.xrPlace);
-    point[1] = BrScalarToFloat(place.yrPlace);
-    point[2] = BrScalarToFloat(place.zrPlace);
-    return true;
+    MMI32 place[3] = {};
+    if (_impl->background)
+    {
+        const auto &p = _impl->background->camera.apos;
+        place[0] = p.xrPlace; place[1] = p.yrPlace; place[2] = p.zrPlace;
+    }
+    MMPreviewMath math = {};
+    math.scalar_float = [](MMI32 v) { return BrScalarToFloat(v); };
+    return mm_preview_camera_placement(_impl->ready, _impl->background ? place : nullptr, point, &math) != 0;
 }
 bool Preview::CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error)
 try
@@ -1180,7 +1092,7 @@ try
     projection = {};
     error = {};
     Internal::ClearDiagnostic();
-    if (!_impl->ready || !_impl->background || camera >= _impl->info.cameraCount)
+    if (!mm_preview_camera_admit(_impl->ready, bool(_impl->background), _impl->info.cameraCount, camera))
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
     if (!_impl->background->CameraProjection(camera, projection))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the background camera projection.");
@@ -1196,16 +1108,22 @@ try
 {
     error = {};
     Internal::ClearDiagnostic();
-    if (!_impl->ready || !_impl->background || camera >= _impl->info.cameraCount)
+    struct Host { Impl *impl; std::exception_ptr exception; } host = {_impl.get(), {}};
+    int ready = _impl->ready;
+    MMU32 current = _impl->info.currentCamera;
+    const auto result = mm_preview_camera_select(&ready, &current, bool(_impl->background), _impl->info.cameraCount,
+        camera, &host, [](void *v, MMU32 index) -> int {
+            auto &h = *static_cast<Host *>(v);
+            try { return h.impl->background->SetCamera(index) && !Internal::AssertionFailed(); }
+            catch (...) { h.exception = std::current_exception(); return -1; }
+        });
+    _impl->ready = ready != 0;
+    _impl->info.currentCamera = current;
+    if (host.exception) std::rethrow_exception(host.exception);
+    if (result == MM_PREVIEW_CAMERA_INVALID)
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
-    if (camera == _impl->info.currentCamera)
-        return true;
-    if (!_impl->background->SetCamera(camera) || Internal::AssertionFailed())
-    {
-        _impl->ready = false;
+    if (result != MM_PREVIEW_CAMERA_OK)
         return Fail(error, ErrorCode::decode_failed, "Cannot load the background camera and depth image.");
-    }
-    _impl->info.currentCamera = camera;
     return true;
 }
 catch (const std::bad_alloc &)

@@ -7,6 +7,7 @@
 #include "soc_core.h"
 #include "mm/background_resource.h"
 #include "mm/background_preview.h"
+#include "mm/preview_camera.h"
 namespace MM
 {
 struct PreviewProjection;
@@ -23,8 +24,7 @@ class PreviewBackground
     void Publish(const MMBackgroundPreview &);
     MMBackgroundResource resource = {};
     MMBackgroundCameraState cameraState = {};
-    std::vector<PreviewProjection> cameraProjections;
-    std::vector<unsigned char> projectionRead;
+    MMPreviewProjectionCache cameraProjections = {};
 
   public:
     CameraPosition camera = {};

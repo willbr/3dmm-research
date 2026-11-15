@@ -504,8 +504,10 @@ BRender and host rasterizer/image services remain adapters. Preview picking now
 also uses C89 for validation, coordinates, camera/temporary ownership, stable
 body copying, nearest-hit/texture policy and
 authored-background occlusion. Native adapters supply typed SDK primitives.
-Asset/scene admission, camera interaction/presentation and final facade removal
-remain work.
+Camera matching/panning, orbit reset and placement/shape anchor updates, posed
+bounds conversion, camera selection/publication and guide metadata cache ownership
+now also use C89. Asset/scene admission, live definition/timeline edits,
+presentation and final facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -542,8 +544,9 @@ actor-ID remapping now also use C89. Native descriptor/list representations and
 final host/facade integration still need conversion.
 Background resource loading/cache/
 light policy and Preview background image/mesh/frame rendering control are now
-C89; Preview picking policy is now C89 too. Preview admission, camera
-interaction/presentation and final host integration still need conversion.
+C89; Preview picking, camera interaction and guide metadata caching are now C89
+too. Preview admission, live definition/timeline edits, presentation and final
+host integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

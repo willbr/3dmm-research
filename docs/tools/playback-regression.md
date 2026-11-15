@@ -8774,3 +8774,56 @@ Evidence: `tmp/c89-preview-pick-{baseline,final}-{native,sdl-release,sdl-debug}.
 `tmp/c89-preview-pick-world-{native,sdl-release,sdl-debug}-tests.log`,
 `tmp/c89-preview-pick-asan.log`, `tmp/c89-preview-pick-trace-comparison.json`
 and input/final-binary hashes in `tmp/c89-preview-pick-identities.json`.
+
+### Preview camera interaction and guide metadata (15 November 2026)
+
+`preview_camera.c` now owns shot matching and letterboxed FOV/focus fitting,
+orbit panning and world-limit clipping, reset, placement/shape anchor updates,
+posed bounds corner accumulation, camera index admission and selection's
+same-camera/failure/publication control. Native adapters provide typed bounds,
+camera/bitmap fields, references and math callbacks. Float rounding and double
+corner accumulation retain the original arithmetic order.
+
+Camera guides now use a persistent C descriptor/status cache. Metadata queries
+read camera headers and colour bitmap bounds without selecting a camera,
+decoding depth or rebuilding scenery. Successful and failed reads are cached;
+reset retains allocation capacity. The count publishes only after both buffers
+are available. This fixes the native two-vector allocation failure case: a
+descriptor resize followed by status-allocation failure could leave a short
+status vector that the next query indexed out of bounds. C fault checks verify
+safe retry, cache invalidation, cached read failures, bitmap reference balance,
+and malformed bounds rejection before signed subtraction overflow. Allocation
+ordinals differ; retail allocation-failure equivalence is not claimed.
+
+The original native, SDL release and SDL debug headless Scene fixtures all
+recorded the same 5,728,850-byte camera trace, FNV-1a `5A0D32E5`, SHA-256
+`2A0227370CD0291C422080AC1891CE5E1B019E7AC445EE2C41D7D54367C1F4F2`.
+It covers two scene frames, guide reads/repeats/invalid indexes, placement and
+posed bounds, four output aspects, four perspective/orthographic/zoom/roll
+configurations, three pan steps including world-limit clamping, invalid camera
+inputs, and placement/shape edits followed by rendering. Queries verify that
+the selected camera and evaluated frame remain unchanged. The Windows x64
+fixture freezes the original fingerprint.
+
+All nine original/converted camera, picking and rendering traces match across
+the three builds. The existing picking trace remains 74,816 bytes/FNV-1a
+`8F6FCC06`, and rendering remains 18,029,304 bytes/FNV-1a `A31B99A6`.
+All 111 standalone C checks including strict C89 syntax, nine selected native,
+five SDL release and five SDL debug checks pass. The C fixture passes MSVC
+AddressSanitizer. The existing background checks retain 301,996,032 bytes/FNV-1a
+`E1A71005` across 12 backgrounds and 188 cameras in each build. Both Studio
+binaries and Marcus were rebuilt; Marcus was stopped before rebuilding and
+relaunched afterward. Input movie/content/runtime-resource hashes are unchanged.
+
+No Marcus UI tests were added. These are Windows x64 preservation checks, not
+new retail playback/editing equivalence claims. Existing retail captures remain
+the reference; no redundant capture campaign was launched. Preview asset/scene
+admission, live definition/timeline editing, presentation and final C-only
+host/facade integration remain work. Other platforms remain unverified here.
+
+Evidence: `tmp/c89-preview-camera-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+`tmp/c89-preview-camera-{pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-camera-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-camera-background-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-camera-asan.log`, `tmp/c89-preview-camera-trace-comparison.json`
+and `tmp/c89-preview-camera-identities.json`.

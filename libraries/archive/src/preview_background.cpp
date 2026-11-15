@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include <algorithm>
 #include "mm/preview.h"
 #include "preview_background.h"
 #include "zbmp.h"
@@ -21,8 +22,7 @@ void ResolveDisplayPalette(Color *palette)
 }
 bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette)
 {
-    cameraProjections.clear();
-    projectionRead.clear();
+    mm_preview_projection_cache_reset(&cameraProjections);
     source = file;
     number = background;
     std::memcpy(palette, basePalette, sizeof(palette));
@@ -98,11 +98,13 @@ struct BackgroundImageHost
 } // namespace
 PreviewBackground::PreviewBackground()
 {
-    if (!mm_background_preview_init(&preview, nullptr))
+    if (!mm_preview_projection_cache_init(&cameraProjections, nullptr) ||
+        !mm_background_preview_init(&preview, nullptr))
         throw std::bad_alloc();
 }
 PreviewBackground::~PreviewBackground()
 {
+    mm_preview_projection_cache_dispose(&cameraProjections);
     auto s = Services(nullptr);
     mm_background_preview_dispose(&preview, &s);
 }
@@ -127,45 +129,19 @@ void PreviewBackground::Publish(const MMBackgroundPreview &p)
 bool PreviewBackground::CameraProjection(std::uint32_t slot, PreviewProjection &projection)
 {
     projection = {};
-    if (slot >= cameras.size()) return false;
-    if (cameraProjections.size() != cameras.size())
-    {
-        cameraProjections.resize(cameras.size());
-        projectionRead.resize(cameras.size());
-    }
-    if (!projectionRead[slot])
-    {
-        projectionRead[slot] = 2; // Cache failed metadata reads as well.
-        DataBlock block;
-        MMBackgroundCameraData data = {};
-        if (!source->Pcfl()->FFind(kctgCam, cameras[slot], &block) || !block.FUnpackData()) return false;
-        const auto stream = EngineReadStream::FromBlock(block);
-        if (!mm_background_camera_decode(&stream, &data)) return false;
-        ChildChunkIdentification child;
-        if (!source->Pcfl()->FGetKidChidCtg(kctgCam, cameras[slot], 0, kctgMbmp, &child)) return false;
-        // Fetch only this camera's colour bitmap bounds. Do not select its
-        // background, decode its depth image, or rebuild the active scenery.
-        auto bitmap = static_cast<PMaskedBitmapMBMP>(source->PbacoFetch(kctgMbmp, child.cki.cno, MaskedBitmapMBMP::FReadMbmp));
-        if (!bitmap) return false;
-        RC bounds;
-        bitmap->GetRc(&bounds);
-        ReleasePpo(&bitmap);
-        if (bounds.Dxp() <= 0 || bounds.Dyp() <= 0) return false;
-        auto &result = cameraProjections[slot];
-        for (int row = 0; row < 4; ++row)
-            for (int axis = 0; axis < 3; ++axis)
-                result.transform[row * 3 + axis] = BrScalarToFloat(data.matrix.m[row][axis]);
-        result.verticalFov = data.fov * (360.f / 65536.f);
-        result.nearClip = BrScalarToFloat(data.near_z);
-        result.farClip = BrScalarToFloat(data.far_z);
-        result.aspect = float(bounds.Dxp()) / bounds.Dyp();
-        result.displayDepth = 10.f; // Same compact marker size as the active camera.
-        result.valid = result.verticalFov > 0 && result.verticalFov < 179 &&
-                       result.nearClip > 0 && result.farClip > result.nearClip;
-        projectionRead[slot] = result.valid ? 1 : 2;
-    }
-    projection = cameraProjections[slot];
-    return projectionRead[slot] == 1;
+    BackgroundImageHost host = {this, source};
+    auto services = Services(&host);
+    MMPreviewProjection p;
+    const auto result = mm_preview_projection_cache_get(&cameraProjections,
+        reinterpret_cast<const MMU32 *>(cameras.data()), static_cast<MMU32>(cameras.size()), slot, &p, &services);
+    if (result == MM_PREVIEW_CAMERA_MEMORY) throw std::bad_alloc();
+    projection.valid = p.valid != 0;
+    projection.orthographic = p.orthographic != 0;
+    std::copy(p.transform, p.transform + 12, projection.transform);
+    projection.verticalFov = p.vertical_fov; projection.aspect = p.aspect;
+    projection.nearClip = p.near_clip; projection.farClip = p.far_clip;
+    projection.displayDepth = p.display_depth; projection.orthoHeight = p.ortho_height;
+    return result == MM_PREVIEW_CAMERA_OK;
 }
 MMBackgroundPreviewServices PreviewBackground::Services(void *host)
 {
