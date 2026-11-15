@@ -142,13 +142,14 @@ scenes. A choice replaces any camera changes at that exact frame and lasts until
 the next authored camera change. Other frame events and later camera cuts are
 retained. The movie is marked **UNSAVED**; saving/export is still unavailable.
 
-**Scenes > Cameras: On/Off** shows or hides all authored camera guides together
-in the work view (Orbit/Fly, including the work pane in a split view). Each guide
+**Scenes > All cameras / Active only** toggles the other authored camera guides
+in the work view (Orbit/Fly, including the work pane in a split view). The active
+camera guide always remains enabled, including when the work view is matched
+to it. Each guide
 uses that angle's actual position, orientation and lens, and is labelled
 **Camera 01**, **Camera 02**, etc. The active angle is gold; other angles are blue.
 Guides are clipped to the visible viewport and never drawn over movie playback.
-Visibility is on by default and saved as a preference across movies/restarts.
-The camera coincident with a matched work view is omitted until you navigate away.
+All cameras are shown by default; the choice is saved across movies/restarts.
 
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape

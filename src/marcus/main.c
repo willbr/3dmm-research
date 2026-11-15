@@ -2557,7 +2557,7 @@ static void draw_camera_guides(App *app, const SDL_FRect *destination)
     float x, y;
     char label[64];
     const MarcusGuideLine *segment;
-    if (!app->shortcuts.show_cameras || !app->loaded || app->authored == 1 || !app->picture) return;
+    if (!app->loaded || app->authored == 1 || !app->picture) return;
     clip.x = (int)destination->x;
     clip.y = (int)destination->y;
     clip.w = (int)destination->w;
@@ -2569,7 +2569,7 @@ static void draw_camera_guides(App *app, const SDL_FRect *destination)
         for (index = 0; index < app->info.camera_count; ++index)
         {
             active = index == app->info.camera;
-            if (active != pass || (active && app->work_matched)) continue;
+            if (active != pass || (!active && !app->shortcuts.show_cameras)) continue;
             if (active) camera = app->scene_camera;
             else if (!marcus_camera_projection(app->player, index, &camera)) continue;
             camera_guide_build_image(&app->work_image, &camera, &guide);
