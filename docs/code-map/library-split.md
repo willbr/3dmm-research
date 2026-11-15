@@ -1327,9 +1327,9 @@ boundaries, content identity as child IDs shift, nil/same-scene switching,
 undo/redo and callback publication order against its original native and SDL
 debug/release trace. C-only tests exercise transaction failures, old-scene retry,
 partial publication, reference balance and undo failure/notification order.
-No Marcus UI tests were added. Background-driven scene creation, common Movie
-editing/control/undo, composition and final facade integration remain work.
-Autosave/save orchestration is covered below. Verification and retail coverage
+No Marcus UI tests were added. Background-driven creation, common Movie edits/
+undo, autosave/save and composition are covered below. Final facade integration
+remains work. Verification and retail coverage
 limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Movie autosave, save publication and garbage collection
@@ -1380,8 +1380,8 @@ it verifies control/publication, not ZIP contents. C-only checks exercise each
 replacement failure, irreversible prefixes, output/reference publication, retry
 limits, conservative format selection, deferred asset deletion, cache scope and
 sound purge decisions. No Marcus UI tests were added. Common Movie editing/undo,
-background-driven creation and further edits are covered below. Composition and
-final C-only host/facade integration remain work. Evidence and coverage limits are
+background-driven creation, further edits and composition are covered below.
+Final C-only host/facade integration remains work. Evidence and coverage limits are
 recorded in
 `docs/tools/playback-regression.md`.
 
@@ -1434,8 +1434,8 @@ roll-call rows/names/cache references, dirty flags and client/undo notifications
 across sixteen scenarios. C-only tests cover failure sequencing, snapshot/ref
 transfer, roll-call append cleanup, selection changes during path paste, sound
 defaults and scene creation rollback. No Marcus UI tests were added. Movie
-caption/text/template/material transactions are covered below. Composition and
-final facade/host integration remain work. Verification and retail coverage limits
+caption/text/template/material transactions and composition are covered below.
+Final facade/host integration remains work. Verification and retail coverage limits
 are recorded in
 `docs/tools/playback-regression.md`.
 
@@ -1477,9 +1477,63 @@ The existing headless Movie save/load fixture freezes material/3-D-text and capt
 hide/remove results across eight scenarios using a synthetic positive-source font
 and placement background. It constructs the caption insertion prefix without mouse
 attachment; C tests cover full insertion, failures and visible-index selection.
-No Marcus UI tests were added. Movie composition and final C-only host/facade
-integration remain. Verification and coverage limits are in
+No Marcus UI tests were added. Movie composition is covered below; final C-only
+host/facade integration remains. Verification and coverage limits are in
 `docs/tools/playback-regression.md`.
+
+### Movie composition and imported actor remapping
+
+`movie_compose.c` owns descriptor collection and insertion rollback, thumbnail/
+cache reference transfer, reverse composite disposal, storyboard application,
+temporary imported Movie cleanup, roll-call row ownership transfer and actor-ID
+remapping. C descriptors contain scalar fields and opaque handles. Native services
+marshal the existing SceneDescriptor/MovieDescriptor arrays and provide file,
+thumbnail, Scene, client and list primitives; those representations remain
+temporary adapters. Two unused native descriptor-control helpers were removed.
+
+Descriptor collection retains the BUG1929 temporary-file-before-autosave order
+when enabled. Working resources are a precondition for that legacy branch.
+Collection captures the original scene count, reads unopened transitions and
+thumbnails from file, borrows/retains the current thumbnail, and transfers one
+reference into each inserted descriptor. Failed insertion removes only its
+completed descriptor prefix, restores the caller's insertion position, releases
+the Movie descriptor and disposes empty lists, retaining autosave's effects.
+
+Application duplicates Movie descriptors without retaining their borrowed rows,
+clones external Movie graphs, merges roll calls, then adopts/renumbers/deletes
+scenes and writes transitions. Imported actor-start/registration errors remain
+diagnostic and non-fatal; tool notifications and Scene release still occur.
+Current-scene removal uses the C Movie scene-owner helper. Final count/ID-limit,
+dirty, SceneNuked, view and roll-call publication retain their original order.
+Completed scene/file/actor prefixes are not implicitly rolled back on failure.
+Copied Movie roots and their retained caches release in reverse order.
+
+Failed roll-call merge now deletes its uncommitted cloned Movie root, fixing the
+original path's omission from its cleanup prefix. Kept current scenes now follow
+their live child slot, excluding deleted descriptors, rather than their raw
+descriptor index. This fixes the documented case of deleted descriptors appearing
+before a kept current scene; the old host could publish an invalid current index.
+A headless native/SDL check exercises that case. These fixes do not claim retail
+editor/failure equivalence.
+
+Roll-call merging transfers each loaded tag owner into its appended row, offsets
+IDs with explicit 32-bit wrapping and clears imported reference counts. Failure
+closes all loaded owners exactly once and removes its appended rows; actor-file
+edits already completed are retained for the caller to discard with the clone.
+The C chunk walker and C-owned visited-ID storage replace the native enumerator
+and temporary DynamicArray. Shared actors adjust once, including nested actor
+chunks: the native loop computed a skip flag but never passed it to its walker.
+Traversal error flags remain non-fatal as before; visited-set or actor-write
+failure aborts. Removing a C++ temporary allocation changes allocator-attempt
+ordinals, not the successful traversal contract.
+
+The headless Movie save/load fixture freezes eight composition scenarios plus
+four native/foreign-order shared/nested actor-remap scenarios before conversion.
+C tests cover collection/apply failure prefixes, cleanup, reference transfer,
+non-fatal imports, wrapped limits, traversal allocation errors and reverse disposal.
+No Marcus UI tests were added. Final native descriptor/list/resource/object facade
+removal and C-only host integration remain. Verification and coverage limits are
+in `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

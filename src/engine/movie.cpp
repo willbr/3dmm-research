@@ -2917,6 +2917,142 @@ bool Movie::FPause(WaitReason wit, long dts)
     return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_PAUSE, &q, &services) != 0;
 }
 
+static SceneDescriptor NativeComposeScene(const ThreeMMComposeScene &value)
+{
+    SceneDescriptor scene = {};
+    scene.imvied=value.movie; scene.cno=value.number; scene.chid=value.child;
+    scene.pmbmp=static_cast<PMaskedBitmapMBMP>(value.thumbnail);
+    scene.trans=TRANS(value.transition); scene.fNuked=value.deleted!=0;
+    return scene;
+}
+static MovieDescriptor NativeComposeMovie(const ThreeMMComposeMovie &value)
+{
+    return {static_cast<PChunkyResourceFile>(value.resources),value.number,value.actor_limit};
+}
+static ThreeMMMovieComposeServices ComposeListServices()
+{
+    ThreeMMMovieComposeServices s = {};
+    s.new_list=[](int movies)->void* { return DynamicArray::PglNew(movies?sizeof(MovieDescriptor):sizeof(SceneDescriptor)); };
+    s.duplicate_movies=[](void *p)->void* { return static_cast<PDynamicArray>(p)->PglDup(); };
+    s.count=[](void *p)->ThreeMMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.scene=[](void *p,ThreeMMI32 index,ThreeMMComposeScene *out) {
+        SceneDescriptor scene; static_cast<PDynamicArray>(p)->Get(index,&scene);
+        *out={static_cast<ThreeMMI32>(scene.imvied),scene.cno,scene.chid,scene.pmbmp,scene.trans,scene.fNuked};
+    };
+    s.movie=[](void *p,ThreeMMI32 index,ThreeMMComposeMovie *out) {
+        MovieDescriptor movie; static_cast<PDynamicArray>(p)->Get(index,&movie);
+        *out={movie.pcrf,movie.cno,static_cast<ThreeMMI32>(movie.aridLim)};
+    };
+    s.insert_scene=[](void *p,ThreeMMI32 index,const ThreeMMComposeScene *value)->int {
+        auto scene=NativeComposeScene(*value); return static_cast<PDynamicArray>(p)->FInsert(index,&scene);
+    };
+    s.append_movie=[](void *p,const ThreeMMComposeMovie *value,ThreeMMI32 *out)->int {
+        auto movie=NativeComposeMovie(*value); LegacyLong index;
+        bool ok=static_cast<PDynamicArray>(p)->FAdd(&movie,&index); if(ok) *out=index; return ok;
+    };
+    s.put_movie=[](void *p,ThreeMMI32 index,const ThreeMMComposeMovie *value) {
+        auto movie=NativeComposeMovie(*value); static_cast<PDynamicArray>(p)->Put(index,&movie);
+    };
+    s.erase=[](void *p,ThreeMMI32 index) { static_cast<PDynamicArray>(p)->Delete(index); };
+    s.retain=[](void *p) { static_cast<BASE *>(p)->AddRef(); };
+    s.release=[](void *p) { static_cast<BASE *>(p)->Release(); };
+    return s;
+}
+ThreeMMMovieComposeServices Movie::_ComposeServices()
+{
+    static_assert(kctgMvie==0x4d564945U && kctgActr==0x41435452U && cnoNil==0xffffffffU, "Movie composition ABI");
+    auto s=ComposeListServices(); s.context=this; s.data=&_data; s.scenes=&_scenes;
+    s.scene_control=_SceneServices(); s.allocator=CollectionAllocator();
+#ifdef BUG1929
+    s.temporary_before_save=1;
+#endif
+    s.use_temporary=[](void *p)->int { return static_cast<PMovie>(p)->_FUseTempFile(); };
+    s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
+    s.file=[](void *p)->void* { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.scene_child=[](void *p,ThreeMMU32 movie,ThreeMMU32 child,ThreeMMU32 *out)->int {
+        ChildChunkIdentification kid; bool ok=static_cast<PChunkyFile>(p)->FGetKidChidCtg(kctgMvie,movie,child,kctgScen,&kid);
+        if(ok) *out=kid.cki.cno; return ok;
+    };
+    s.read_transition=[](void *p,ThreeMMU32 number,ThreeMMI32 *out)->int {
+        TRANS value; bool ok=Scene::FTransOnFile(static_cast<PChunkyResourceFile>(p),number,&value);
+        if(ok) *out=value; return ok;
+    };
+    s.transition=[](void *p)->ThreeMMI32 { return static_cast<PScene>(p)->Trans(); };
+    s.read_thumbnail=[](void *p,ThreeMMU32 number)->void* {
+        auto file=static_cast<PChunkyFile>(p); ChildChunkIdentification child; DataBlock block;
+        if(!file->FGetKidChidCtg(kctgScen,number,0,kctgThumbMbmp,&child)) { Bug("Scene doesn't have a thumbnail"); return nullptr; }
+        if(!file->FFind(child.cki.ctg,child.cki.cno,&block)) return nullptr;
+        return MaskedBitmapMBMP::PmbmpRead(&block);
+    };
+    s.thumbnail=[](void *p)->void* { return static_cast<PScene>(p)->PmbmpThumbnail(); };
+    s.clone_movie=[](void *p,ThreeMMU32 number,void *out,ThreeMMU32 *copied)->int {
+        ChunkNumber value; bool ok=static_cast<PChunkyFile>(p)->FClone(kctgMvie,number,static_cast<PChunkyFile>(out),&value);
+        if(ok) *copied=value; return ok;
+    };
+    s.delete_movie=[](void *p,ThreeMMU32 number) { static_cast<PChunkyFile>(p)->Delete(kctgMvie,number); };
+    s.adopt_scene=[](void *p,ThreeMMU32 movie,ThreeMMU32 scene,ThreeMMU32 child)->int {
+        return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie,movie,kctgScen,scene,child);
+    };
+    s.adopt_sounds=[](void *p,void *file,ThreeMMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
+    s.read_scene=[](void *p,void *resources,ThreeMMU32 scene)->void* {
+        return Scene::PscenRead(static_cast<PMovie>(p),static_cast<PChunkyResourceFile>(resources),scene);
+    };
+    s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
+    s.add_actors=[](void *p)->int { return static_cast<PScene>(p)->FAddActrsToRollCall(); };
+    s.remove_actors=[](void *p) { static_cast<PScene>(p)->RemActrsFromRollCall(true); };
+    s.actor_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableActorTools(); };
+    s.text_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableTboxTools(); };
+    s.delete_scene_child=[](void *p,ThreeMMU32 movie,ThreeMMU32 scene,ThreeMMU32 child) { static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie,movie,kctgScen,scene,child); };
+    s.change_child=[](void *p,ThreeMMU32 movie,ThreeMMU32 scene,ThreeMMU32 before,ThreeMMU32 after) { static_cast<PChunkyFile>(p)->ChangeChid(kctgMvie,movie,kctgScen,scene,before,after); };
+    s.write_transition=[](void *p,ThreeMMU32 number,ThreeMMI32 transition)->int { return Scene::FSetTransOnFile(static_cast<PChunkyResourceFile>(p),number,TRANS(transition)); };
+    s.set_transition=[](void *p,ThreeMMI32 transition) { static_cast<PScene>(p)->SetTransitionCore(TRANS(transition)); };
+    s.dirty=[](void *p) { static_cast<PMovie>(p)->SetDirty(); };
+    s.scene_nuked=[](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneNuked(); };
+    s.invalidate=[](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
+    s.rollcall_changed=[](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
+    s.diagnostic=[](void *,int issue) {
+        switch(issue) {
+        case THREE_MM_COMPOSE_MISSING_SCENE: AssertDo(false,"Not enough scene chunks for movie"); break;
+        case THREE_MM_COMPOSE_BAD_BASE: Assert(false,"Invalid DynamicArray of MVIEDs"); break;
+        case THREE_MM_COMPOSE_IMPORT_ACTORS: PushErc(ercSocNoImportRollCall); break;
+        case THREE_MM_COMPOSE_REMOVE_ACTORS: PushErc(ercSocNoNukeRollCall); break;
+        }
+    };
+#ifdef DEBUG
+    s.validate_children=[](void *p) {
+        auto movie=static_cast<PMovie>(p); auto file=movie->_data.Resources()->Pcfl(); ChildChunkID last=chidNil;
+        for(long i=0;i<file->Ckid(kctgMvie,movie->_data.movieNumber);++i) {
+            ChildChunkIdentification child;
+            if(!file->FGetKid(kctgMvie,movie->_data.movieNumber,i,&child)) { Bug("Can't guarantee validity of Movie's Scene children"); break; }
+            if(child.cki.ctg==kctgScen) { Assert(last==chidNil || child.chid>last,"Found duplicate ChildChunkID in scene children"); last=child.chid; }
+        }
+    };
+#endif
+    s.read_rollcall=[](void *p,ThreeMMU32 number)->void* {
+        PRollCallTable table=nullptr; return Movie::FReadRollCall(static_cast<PChunkyResourceFile>(p),number,&table)?table:nullptr;
+    };
+    s.actor_count=[](void *p)->ThreeMMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
+    s.actor=[](void *p,ThreeMMI32 index,ThreeMMRollCallActor *out) { AssertDo(three_mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage,index,out),"Bad roll-call row"); };
+    s.append_actor=[](void *p,void *source,ThreeMMI32 index,const ThreeMMRollCallActor *row)->int {
+        auto from=&static_cast<PRollCallTable>(source)->storage; auto to=&static_cast<PRollCallTable>(p)->storage;
+        const void *name; ThreeMMU32 characters;
+        if(!three_mm_rollcall_table_name(from,index,&name,&characters)) return 0;
+        Assert(from->unit==to->unit && from->encoding==to->encoding,"Roll-call name domain changed");
+        return three_mm_rollcall_table_add(to,name,characters,row);
+    };
+    s.erase_actor=[](void *p,ThreeMMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    s.close_tag=[](ThreeMMTag *value) { TAG tag; TagFromCore(&tag,*value); TagManager::CloseTag(&tag); *value=TagToCore(tag); };
+    s.adjust_actor=[](void *p,ThreeMMU32 number,ThreeMMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
+    s.graph.context=_data.Resources()?_data.Resources()->Pcfl():nullptr;
+    s.graph.children=[](void *p,ThreeMMU32 type,ThreeMMU32 number)->ThreeMMU32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
+    s.graph.child=[](void *p,ThreeMMU32 type,ThreeMMU32 number,ThreeMMU32 i,ThreeMMChunkChild *out)->int {
+        ChildChunkIdentification child; if(!static_cast<PChunkyFile>(p)->FGetKid(type,number,i,&child)) return 0;
+        *out={child.cki.ctg,child.cki.cno,child.chid}; return 1;
+    };
+    return s;
+}
+
+
 #ifdef DEBUG
 /******************************************************************************
     MarkMem
@@ -2964,104 +3100,12 @@ void CompositeMovie::MarkMem(void)
 ************************************************************ PETED ***********/
 bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 {
-    AssertThis(0);
-    AssertVarMem(pcmvi);
-    AssertNilOrPo(pcmvi->pglscend, 0);
-
-    long iscen = 0, iscenMac = Cscen();
-    LegacyLong imvied;
-    SceneDescriptor scend;
-    MovieDescriptor mvied;
-    PChunkyFile pcfl;
-
-    scend.imvied = ivNil;
-
-#ifdef BUG1929
-    /* Ensure that _data.Resources() points to the temp file, not the original movie file */
-    if (!_FUseTempFile())
-        goto LFail;
-#endif // BUG1929
-
-    if (!FAutoSave(pvNil, fFalse))
-        goto LFail;
-
-    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = DynamicArray::PglNew(size(SceneDescriptor))) == pvNil)
-    {
-        goto LFail;
-    }
-
-    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = DynamicArray::PglNew(size(MovieDescriptor))) == pvNil)
-    {
-        goto LFail;
-    }
-
-    mvied.pcrf = _data.Resources();
-    mvied.cno = _data.movieNumber;
-    mvied.aridLim = _data.actorIdLimit;
-    if (!pcmvi->pglmvied->FAdd(&mvied, &imvied))
-        goto LFail;
-    scend.imvied = imvied;
-    mvied.pcrf->AddRef();
-
-    pcfl = mvied.pcrf->Pcfl();
-    scend.fNuked = fFalse;
-
-    for (iscen = 0; iscen < iscenMac; iscen++, (*piscendIns)++)
-    {
-        bool fSuccess;
-        ChildChunkIdentification kid;
-
-        /* Get ChunkNumber */
-        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, iscen, kctgScen, &kid),
-                 "Not enough scene chunks for movie");
-        scend.cno = kid.cki.cno;
-        scend.chid = iscen;
-        scend.pmbmp = pvNil;
-
-        /* Get PMaskedBitmapMBMP and TRANS from the scene */
-        if (iscen != Iscen())
-        {
-            DataBlock blck;
-
-            if (!Scene::FTransOnFile(mvied.pcrf, scend.cno, &scend.trans))
-                goto LFail;
-
-            AssertDo(pcfl->FGetKidChidCtg(kctgScen, scend.cno, 0, kctgThumbMbmp, &kid),
-                     "Scene doesn't have a thumbnail");
-            if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-                goto LFail;
-            if ((scend.pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck)) == pvNil)
-                goto LFail;
-        }
-        else
-        {
-            scend.trans = Pscen()->Trans();
-            if ((scend.pmbmp = Pscen()->PmbmpThumbnail()) == pvNil)
-                goto LFail;
-            scend.pmbmp->AddRef();
-        }
-
-        /* Add to the list */
-        fSuccess = _FInsertScend(pcmvi->pglscend, *piscendIns, &scend);
-        ReleasePpo(&scend.pmbmp);
-        if (!fSuccess)
-            goto LFail;
-    }
-
-    return fTrue;
-LFail:
-    while (iscen--)
-        _DeleteScend(pcmvi->pglscend, --(*piscendIns));
-    if (pcmvi->pglscend != pvNil && pcmvi->pglscend->IvMac() == 0)
-        ReleasePpo(&pcmvi->pglscend);
-    if (scend.imvied != ivNil)
-    {
-        ReleasePpo(&mvied.pcrf);
-        pcmvi->pglmvied->Delete(scend.imvied);
-    }
-    if (pcmvi->pglmvied != pvNil && pcmvi->pglmvied->IvMac() == 0)
-        ReleasePpo(&pcmvi->pglmvied);
-    return fFalse;
+    AssertThis(0); AssertVarMem(pcmvi); AssertVarMem(piscendIns);
+    ThreeMMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied};
+    ThreeMMI32 insertion=*piscendIns; const auto services=_ComposeServices();
+    bool ok=three_mm_movie_compose_add(&state,&insertion,&services)!=0;
+    pcmvi->pglscend=static_cast<PDynamicArray>(state.scenes); pcmvi->pglmvied=static_cast<PDynamicArray>(state.movies);
+    *piscendIns=insertion; return ok;
 }
 
 /******************************************************************************
@@ -3085,205 +3129,9 @@ LFail:
 ************************************************************ PETED ***********/
 bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 {
-    AssertThis(0);
-    AssertVarMem(pcmvi);
-    AssertPo(pcmvi->pglmvied, 0);
-    AssertPo(pcmvi->pglscend, 0);
-
-    bool fRet = fFalse;
-    long iscend, iscendMac = pcmvi->pglscend->IvMac();
-    long iscenOld = Iscen();
-    long imvied, imviedMac = pcmvi->pglmvied->IvMac();
-    long aridMin = 0;
-    ChildChunkID chidScen = 0;
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-    PChunkyResourceFile pcrf = _data.Resources();
-    PDynamicArray pglmviedNew;
-
-    pglmviedNew = pcmvi->pglmvied->PglDup();
-    if (pglmviedNew == pvNil)
-        goto LFail;
-
-    /* Copy all the external movie chunks into this movie */
-    for (imvied = 0; imvied < imviedMac; imvied++)
-    {
-        MovieDescriptor mvied;
-
-        pglmviedNew->Get(imvied, &mvied);
-
-        if (imvied > 0)
-        {
-            if (!mvied.pcrf->Pcfl()->FClone(kctgMvie, mvied.cno, pcfl, &mvied.cno))
-                goto LFail;
-            if (!_FAddMvieToRollCall(mvied.cno, aridMin))
-                goto LFail;
-            mvied.pcrf = pcrf;
-            mvied.pcrf->AddRef();
-            pglmviedNew->Put(imvied, &mvied);
-        }
-        else
-        {
-            Assert(mvied.pcrf == pcrf, "Invalid DynamicArray of MVIEDs");
-            Assert(mvied.cno == _data.movieNumber, "Invalid DynamicArray of MVIEDs");
-        }
-        aridMin += mvied.aridLim;
-    }
-
-    for (iscend = 0; iscend < iscendMac; iscend++)
-    {
-        ChunkNumber cnoScen = cnoNil;
-        SceneDescriptor scend;
-        MovieDescriptor mvied;
-
-        pcmvi->pglscend->Get(iscend, &scend);
-        pglmviedNew->Get(scend.imvied, &mvied);
-
-        /* Was this scene imported? */
-        if (scend.imvied > 0)
-        {
-            ChildChunkIdentification kid;
-
-            if (!pcfl->FGetKidChidCtg(kctgMvie, mvied.cno, scend.chid, kctgScen, &kid))
-            {
-                goto LFail;
-            }
-            cnoScen = kid.cki.cno;
-
-            /* If so, only bother keeping it if the user didn't delete it */
-            if (!scend.fNuked)
-            {
-                PScene pscen;
-
-                if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, chidScen++))
-                    goto LFail;
-                if (!_FAdoptMsndInMvie(pcfl, cnoScen))
-                    goto LFail;
-                if ((pscen = Scene::PscenRead(this, pcrf, cnoScen)) == pvNil || !pscen->FPlayStartEvents(fTrue) ||
-                    !pscen->FAddActrsToRollCall())
-                {
-                    PushErc(ercSocNoImportRollCall);
-                }
-
-                Pmcc()->EnableActorTools();
-                Pmcc()->EnableTboxTools();
-                ReleasePpo(&pscen);
-            }
-        }
-        else
-        {
-            if (scend.fNuked)
-            {
-                PScene pscen;
-
-                if (scend.chid != (ChildChunkID)iscenOld)
-                {
-                    pscen = Scene::PscenRead(this, pcrf, scend.cno);
-                    if (pscen == pvNil || !pscen->FPlayStartEvents(fTrue))
-                        PushErc(ercSocNoNukeRollCall);
-                }
-                else
-                {
-                    pscen = Pscen();
-                    pscen->AddRef();
-                }
-
-                if (pscen != pvNil)
-                {
-                    pscen->RemActrsFromRollCall(fTrue);
-                    ReleasePpo(&pscen);
-                }
-                pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, scend.cno, scend.chid);
-            }
-            else
-            {
-                /* Set the ChildChunkID to be the current scene number */
-                cnoScen = scend.cno;
-                pcfl->ChangeChid(kctgMvie, _data.movieNumber, kctgScen, scend.cno, scend.chid, chidScen++);
-            }
-        }
-
-        /* If we didn't delete the scene, go ahead and update its transition */
-        if (scend.chid != (ChildChunkID)iscenOld || scend.imvied != 0)
-        {
-            if (!scend.fNuked)
-            {
-                Assert(mvied.pcrf == pcrf, "Scene's Movie didn't get copied");
-                Assert(cnoScen != cnoNil, "Didn't set the cnoScen");
-                if (!Scene::FSetTransOnFile(pcrf, cnoScen, scend.trans))
-                    goto LFail;
-            }
-        }
-        else
-        {
-            if (scend.fNuked)
-            {
-                /* Basically, do an _FCloseCurrentScene w/out the autosave */
-                auto services = _SceneServices();
-                three_mm_movie_scene_close_open(&services);
-            }
-            else
-            {
-                /* If this is the scene that *used* to be Iscen(), change the
-                    transition in memory rather than on file */
-                Pscen()->SetTransitionCore(scend.trans);
-                _scenes.index = iscend;
-            }
-        }
-    }
-
-    _data.sceneCount = chidScen;
-    _data.actorIdLimit = aridMin;
-    SetDirty();
-    if (_data.sceneCount == 0)
-    {
-        Assert(_scenes.index == ivNil, 0);
-        _pmcc->SceneNuked();
-    }
-    InvalViewsAndScb();
-    Pmcc()->UpdateRollCall();
-
-#ifdef DEBUG
-    {
-        long ckid = pcfl->Ckid(kctgMvie, _data.movieNumber);
-        ChildChunkIdentification kid;
-        ChildChunkID chidLast = chidNil;
-
-        for (long ikid = 0; ikid < ckid; ikid++)
-        {
-            if (pcfl->FGetKid(kctgMvie, _data.movieNumber, ikid, &kid))
-            {
-                if (kid.cki.ctg == kctgScen)
-                {
-                    Assert(chidLast == chidNil || kid.chid > chidLast, "Found duplicate ChildChunkID in scene children");
-                    chidLast = kid.chid;
-                }
-            }
-            else
-            {
-                Bug("Can't guarantee validity of Movie's Scene children");
-                break;
-            }
-        }
-    }
-#endif /* DEBUG */
-
-    fRet = fTrue;
-LFail:
-    if (pglmviedNew != pvNil)
-    {
-        /* Remove any copied movies; leave the first MovieDescriptor alone */
-        while (imvied-- > 1)
-        {
-            MovieDescriptor mvied;
-
-            pglmviedNew->Get(imvied, &mvied);
-            Assert(mvied.pcrf == pcrf, "Invalid MovieDescriptor during cleanup");
-            pcfl->Delete(kctgMvie, mvied.cno);
-            ReleasePpo(&mvied.pcrf);
-        }
-        ReleasePpo(&pglmviedNew);
-    }
-    return fRet;
+    AssertThis(0); AssertVarMem(pcmvi); AssertPo(pcmvi->pglmvied,0); AssertPo(pcmvi->pglscend,0);
+    const ThreeMMCompositeMovie state={pcmvi->pglscend,pcmvi->pglmvied}; const auto services=_ComposeServices();
+    return three_mm_movie_compose_apply(&state,&services)!=0;
 }
 
 /******************************************************************************
@@ -3301,127 +3149,8 @@ LFail:
 ************************************************************ PETED ***********/
 bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 {
-    AssertThis(0);
-
-    long imactr, imactrMac, icnoMac = 0;
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-    PRollCallTable pgstmactr = pvNil;
-
-    /* Update the roll call StringTable_GST */
-    if (!FReadRollCall(_data.Resources(), cno, &pgstmactr))
-    {
-        pgstmactr = pvNil;
-        goto LFail;
-    }
-    imactrMac = pgstmactr->IvMac();
-    for (imactr = 0; imactr < imactrMac; imactr++)
-    {
-        String stn;
-        RollCallActorEntry mactr;
-
-        pgstmactr->GetStn(imactr, &stn);
-        pgstmactr->GetExtra(imactr, &mactr);
-
-        mactr.arid += aridMin;
-        mactr.cactRef = 0;
-        if (!_data.Actors()->FAddStn(&stn, &mactr))
-            goto LFail;
-    }
-
-    /* Remap all the arids on the file */
-    if (aridMin > 0)
-    {
-        LegacyUlong grfcge, grfcgeIn = fcgeNil;
-        PDynamicArray pglcno;
-        ChunkIdentification ckiParLast = {ctgNil, cnoNil}, ckiPar;
-        ChildChunkIdentification kid;
-        ChunkGraphEnumerator cge;
-
-        if ((pglcno = DynamicArray::PglNew(size(ChunkNumber))) == pvNil)
-            goto LFail;
-        cge.Init(pcfl, kctgMvie, cno);
-        while (cge.FNextKid(&kid, &ckiPar, &grfcge, fcgeNil))
-        {
-            if (grfcge & fcgePre)
-            {
-
-                /* If we've found an Actor chunk, remap its arid */
-                if (kid.cki.ctg == kctgActr)
-                {
-                    long icno;
-                    ChunkNumber cnoActr;
-
-                    /* Only do a given chunk once */
-                    Assert(icnoMac == pglcno->IvMac(), "icnoMac isn't up-to-date");
-                    for (icno = 0; icno < icnoMac; icno++)
-                    {
-                        pglcno->Get(icno, &cnoActr);
-                        if (kid.cki.cno == cnoActr)
-                            break;
-                    }
-                    if (icno < icnoMac)
-                        continue;
-                    if (!pglcno->FAdd(&kid.cki.cno))
-                        goto LFail1;
-
-                    /* Change the arid */
-                    if (!Actor::FAdjustAridOnFile(pcfl, kid.cki.cno, aridMin))
-                    {
-                        /* Don't bother trying to fix the arids on file; the caller
-                            should be deleting the copied Movie chunk anyway */
-                    LFail1:
-                        ReleasePpo(&pglcno);
-                        goto LFail;
-                    }
-                    icnoMac++;
-
-                    /* Once we're at an Actor chunk, set up so that we don't
-                        enumerate down again until returning to our parent's
-                        next sibling */
-                    ckiParLast = ckiPar;
-                    grfcgeIn = fcgeSkipToSib;
-                }
-            }
-            else if (grfcge & fcgePost && grfcgeIn & fcgeSkipToSib)
-            {
-                if (ckiParLast.ctg != ckiPar.ctg || ckiParLast.cno != ckiPar.cno)
-                    grfcgeIn = fcgeNil;
-            }
-        }
-        ReleasePpo(&pglcno);
-    }
-
-    ReleasePpo(&pgstmactr);
-
-    return fTrue;
-LFail:
-    /* NOTE: I could use more variables and make the loops below faster,
-        but this is a failure case so I'm not very concerned about
-        performance here */
-    if (pgstmactr != pvNil)
-    {
-        RollCallActorEntry mactr;
-
-        /* Remove added entries to the movie's roll call */
-        imactrMac = _data.Actors()->IvMac();
-        while (imactr--)
-        {
-            _data.Actors()->GetExtra(--imactrMac, &mactr);
-            vptagm->CloseTag(&mactr.tagTmpl);
-            _data.Actors()->Delete(imactrMac);
-            pgstmactr->Delete(imactr);
-        }
-
-        /* Close any other uncopied tags */
-        imactrMac = pgstmactr->IvMac();
-        while (imactrMac--)
-        {
-            pgstmactr->GetExtra(imactrMac, &mactr);
-            vptagm->CloseTag(&mactr.tagTmpl);
-        }
-        ReleasePpo(&pgstmactr);
-    }
-    return fFalse;
+    AssertThis(0); const auto services=_ComposeServices();
+    return three_mm_movie_compose_merge(cno,aridMin,&services)!=0;
 }
 
 /******************************************************************************
@@ -3438,87 +3167,10 @@ LFail:
 ************************************************************ PETED ***********/
 void CompositeMovie::Empty(void)
 {
-    AssertPo(pglscend, 0);
-    AssertPo(pglmvied, 0);
-
-    PDynamicArray pgl;
-
-    if ((pgl = pglscend) != pvNil)
-    {
-        long iscend = pgl->IvMac();
-
-        while (iscend-- > 0)
-        {
-            SceneDescriptor scend;
-
-            pgl->Get(iscend, &scend);
-            ReleasePpo(&scend.pmbmp);
-        }
-        ReleasePpo(&pgl);
-        pglscend = pvNil;
-    }
-
-    if ((pgl = pglmvied) != pvNil)
-    {
-        long imvied = pgl->IvMac();
-
-        while (imvied-- > 0)
-        {
-            MovieDescriptor mvied;
-
-            pgl->Get(imvied, &mvied);
-            ReleasePpo(&mvied.pcrf);
-        }
-        ReleasePpo(&pgl);
-        pglmvied = pvNil;
-    }
-}
-
-/******************************************************************************
-    _FInsertScend
-        Inserts the given SceneDescriptor into a DynamicArray of SCENDs that was created by this
-        movie.
-
-    Arguments:
-        PDynamicArray pglscend  -- the DynamicArray of SCENDs to insert into
-        long iscend   -- the position at which to insert this SceneDescriptor
-        PSceneDescriptor pscend -- the SceneDescriptor to insert
-
-    Returns: fTrue if successful, fFalse otherwise
-
-************************************************************ PETED ***********/
-bool Movie::_FInsertScend(PDynamicArray pglscend, long iscend, PSceneDescriptor pscend)
-{
-    AssertPo(pglscend, 0);
-    AssertPo(pscend->pmbmp, 0);
-
-    if (!pglscend->FInsert(iscend, pscend))
-        return fFalse;
-    pscend->pmbmp->AddRef();
-    return fTrue;
-}
-
-/******************************************************************************
-    _DeleteScend
-        Deletes the given SceneDescriptor from a DynamicArray of SCENDs that was created by this
-        movie.
-
-    Arguments:
-        PDynamicArray pglscend -- the DynamicArray of SCENDs to delete from
-        long iscend  -- which SceneDescriptor to delete
-
-************************************************************ PETED ***********/
-void Movie::_DeleteScend(PDynamicArray pglscend, long iscend)
-{
-    AssertPo(pglscend, 0);
-    AssertIn(iscend, 0, pglscend->IvMac());
-
-    SceneDescriptor scend;
-
-    pglscend->Get(iscend, &scend);
-    AssertPo(scend.pmbmp, 0);
-    pglscend->Delete(iscend);
-    ReleasePpo(&scend.pmbmp);
+    AssertNilOrPo(pglscend,0); AssertNilOrPo(pglmvied,0);
+    ThreeMMCompositeMovie state={pglscend,pglmvied}; const auto services=ComposeListServices();
+    three_mm_composite_empty(&state,&services);
+    pglscend=static_cast<PDynamicArray>(state.scenes); pglmvied=static_cast<PDynamicArray>(state.movies);
 }
 
 /***************************************************************************

@@ -30,6 +30,7 @@
 #include "three_mm/movie_save.h"
 #include "three_mm/movie_edit.h"
 #include "three_mm/movie_content.h"
+#include "three_mm/movie_compose.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -646,6 +647,7 @@ class Movie : public Movie_PAR
     ThreeMMMovieUndoServices _UndoServices();
     ThreeMMMovieEditServices _EditServices();
     ThreeMMMovieContentServices _ContentServices();
+    ThreeMMMovieComposeServices _ComposeServices();
     struct SaveHost;
     ThreeMMMovieSaveServices _SaveServices(SaveHost *);
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
@@ -768,9 +770,6 @@ class Movie : public Movie_PAR
     bool FSetCmvi(PCompositeMovie pcmvi); // Re-build the movie from the CompositeMovie
     bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
-    bool _FInsertScend(PDynamicArray pglscend, long iscend, PSceneDescriptor pscend);
-    // Insert an imported scene
-    void _DeleteScend(PDynamicArray pglscend, long iscend);   // Delete an imported scene
     bool _FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
 
     bool FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm = vlmNil,

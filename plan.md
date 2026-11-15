@@ -528,7 +528,9 @@ actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
 common undo registration/notification now also use C89. Movie material insertion,
 3-D text creation/template replacement and caption insertion/removal/hiding/
-visible-index selection transactions now also use C89. Movie composition and
+visible-index selection transactions now also use C89. Movie composition,
+descriptor lifetime/rollback, imported roll-call ownership and shared/nested
+actor-ID remapping now also use C89. Native descriptor/list representations and
 final host/facade integration still need conversion.
 Background resource loading/cache/
 light policy and Preview background image/mesh control are now C89; broader

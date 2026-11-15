@@ -1954,6 +1954,7 @@ static bool TestActorUndoRuntime(PMovie parent)
 #include "engine_movie_sound_fixture.h"
 #include "movie_edit_fixture.h"
 #include "movie_content_fixture.h"
+#include "movie_compose_fixture.h"
 static bool TestActorOwner(PMovie movie)
 {
     FILE *snapshot=nullptr;
@@ -2449,6 +2450,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("movie actor/roll-call edit control failed");
     if (!TestMovieContent())
         BAIL("movie material/text/caption control failed");
+    if (!TestMovieCompose())
+        BAIL("movie composition control failed");
     if (!TestMovieSave(pmvie))
         BAIL("movie save control failed");
     if (!TestMovieScenes())

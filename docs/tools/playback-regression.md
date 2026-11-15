@@ -8475,3 +8475,105 @@ Evidence: `tmp/c89-movie-content-{standalone,native-tests,sdl-release-tests,sdl-
 `tmp/c89-movie-content-original-capture-hashes.json`,
 `tmp/c89-movie-content-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-movie-content-capture-hashes-{before,after}.json`.
+
+### Movie composition and imported actor remapping (15 November 2026)
+
+`movie_compose.c` now owns descriptor collection/insertion rollback, thumbnail/
+cache reference transfer, composite disposal, storyboard application, temporary
+import cleanup, roll-call ownership transfer and shared/nested actor-ID remapping.
+It reuses the C Movie scene-owner close helper, C chunk walker and C collection
+storage; its visited-ID set no longer needs a native DynamicArray object.
+Native descriptor/list/bitmap/resource representations and physical file/Scene/
+client primitives remain adapters. Final C-only host/facade integration remains.
+
+Application retains completed scene/file/roll-call prefixes on failure and keeps
+actor-start/registration import errors non-fatal. It now deletes an uncommitted
+cloned Movie after failed roll-call merge, fixing the original cleanup omission.
+The current-scene index now follows its live child slot, excluding deleted
+descriptors, fixing invalid indexes when deleted descriptors precede a kept current
+scene. A headless native/SDL check covers that documented ordering. Partial/empty
+composite disposal is safe. These fixes do not establish retail editor/failure
+equivalence. BUG1929's enabled temporary-file-before-autosave branch still requires
+working resources; the empty-movie fixture prepares them explicitly.
+
+The existing headless Movie save/load fixture captured the original native and
+SDL debug/release controllers before conversion. Eight scenarios record imports,
+interleaving/reordering, transition changes, current/other/all-scene deletion,
+empty composition, descriptor thumbnail/cache ownership, client notifications,
+file graphs and disposal. Four more cover native/foreign actor headers, shared
+actors and nested actor chunks. All originals and converted host probes match
+19,044 bytes, FNV-1a `8EECD466`, SHA-256
+`A9811C569BF09619E616B26BACBF0233840122249E28876C6F44779D34AA65FE`.
+The fixture freezes that fingerprint on Windows x64. Its imported scenes are
+empty; separate actor-file/roll-call probes and C ownership tests do not prove
+complete retail asset-import equivalence. No wire versions or writers changed.
+No Marcus UI tests were added.
+
+C fault checks cover collection allocation/read/insert rollback, retained autosave
+effects, reverse disposal, cloned-root/cache cleanup after first/later merge
+failure, retained adoption/transition prefixes, import diagnostics/tool ordering,
+live current-scene indexes and wrapped actor-ID limits. Merge checks cover loaded
+tag transfer/rollback, shared/nested deduplication, partial actor writes, visited-
+set allocation failure and the native non-fatal traversal-error policy. The old
+native loop calculated a skip flag but never passed it to traversal; C preserves
+its descendant visits. Removing native temporary allocations changes allocator
+attempt ordinals. The fault fixture's graph callback initially failed to report
+end-of-children and hung; correcting the test double restores termination without
+changing production traversal or assertions.
+
+All eighteen final native/SDL debug/release trace comparisons pass: the new
+19,044-byte composition trace, 91,484-byte content trace, 61,552-byte Movie-edit
+trace, 29,440-byte Movie-save trace, 1,064-byte Movie-scene-control trace and
+31,048-byte Scene-content trace retain their original bytes. All 108 standalone C,
+145 selected native, 53 SDL release and 41 SDL debug checks pass. The C fixture
+passes Clang strict C89 with warnings as errors and MSVC AddressSanitizer; all 51
+CLI format baselines match. Builds and file-heavy checks ran serially. Marcus was
+stopped before rebuilding and relaunched afterward.
+
+The unchanged Studio VMM workflow passes all eight checks with the original blank
+VMM and local prop VXP, private settings/package stores and fresh processes. It
+verifies authoring/save/reopen state and pixels, ordinary 3MM output, per-movie
+applied sets, package management and install/apply/remove/save across restarts.
+Reference inputs retain their hashes. Its report is
+`tmp/c89-movie-compose-vmm-workflow/run-7m29txog/report.json`. This remains Windows
+x64 evidence; other platforms, full retail/original-v3dmm edit parity and final
+C-only host integration remain unverified.
+
+Final captures compare against the preceding `cbb93b5c` Movie-content revision.
+Binaries remained fixed through all 21 fresh-process retail/SDL/Marcus captures
+(one repeat, no concurrent builds/tests). Final before/after SHA-256:
+
+- SDL release: `03464FF0BC1384354D45BEEEB428DC3A6229FAE9D3DAC725066B50878CB2AD92`.
+- Marcus regression: `350CDD262461A4508C2B64056B9DA4C3D61260651FAB94F0347C1F17D0FB1FA3`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T061006Z-15e26c47` | `20261115T065056Z-5582d832` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T061124Z-59ca83cf` | `20261115T065214Z-850f3efb` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T061440Z-d2646ff5` | `20261115T065527Z-b054e9e8` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T061600Z-551a4dd7` | `20261115T065645Z-cb107d0a` | three retail/SDL/Marcus playback |
+
+Original/final movie identities, suite integrity, all authored frame sequences,
+540 seek images and ordered playback image changes match each player's original
+suite. Playback comparison collapses only adjacent identical scene/frame/image
+samples. Actor-audio peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus); tone detection and first-scene-only contracts
+pass. Existing cross-player differences, single-repeat timing inconclusiveness
+and presentation-marker limits remain. This does not establish PCM identity or
+full audio/timing parity. Captures use a shared warm SDL package cache with private
+processes, settings and working movies; OS caching is uncontrolled.
+
+The existing retention tool keeps one complete media suite per comparison group
+and prunes superseded media after completion. Source metadata and immutable
+database hashes remain available. Comparison assertions and integrity checks
+are unchanged.
+
+Evidence: `tmp/c89-movie-compose-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
+`tmp/c89-movie-compose-{baseline,probe,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-compose-{content-final,edit-final,save-final,scene-control-final,scene-final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-compose-trace-comparison.json`,
+`tmp/c89-movie-compose-{output-comparison,playback-comparison}.json`,
+`tmp/c89-movie-compose-vmm-workflow.log`,
+`tmp/c89-movie-compose-original-capture-hashes.json`,
+`tmp/c89-movie-compose-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-movie-compose-capture-hashes-{before,after}.json`.
