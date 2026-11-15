@@ -18,6 +18,7 @@
 #include "mm/preview_camera.h"
 #include "mm/preview_live.h"
 #include "mm/preview_admission.h"
+#include "mm/preview_session.h"
 #include "mm/scene_data.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
@@ -30,7 +31,6 @@ namespace MM
 {
 namespace
 {
-bool runtimeOwned = false;
 bool Fail(Error &error, ErrorCode code, const char *message)
 {
     error.code = code;
@@ -74,9 +74,9 @@ struct Preview::Impl
     struct PickHost;
     struct LiveHost;
     struct AdmissionHost;
+    struct SessionHost;
     struct Source
     {
-        std::int32_t id = 0;
         Archive archive;
         PChunkyResourceFile cache = nullptr;
         ~Source()
@@ -91,9 +91,9 @@ struct Preview::Impl
     PModel model = nullptr;
     PreviewInfo info;
     Color palette[256] = {};
-    bool running = false, ready = false;
-    MMPreviewOrbit orbit = {0, 0, -1, {0, 0, 0}, 1, {0, 0, 0}};
-    std::vector<std::unique_ptr<Source>> sources;
+    bool ready = false;
+    MMPreviewSession session = {};
+    MMPreviewOrbit &orbit = session.orbit;
     MMPreviewLive live = {};
     struct ActorView
     {
@@ -112,7 +112,7 @@ struct Preview::Impl
         Iterator begin() const { return {this, 0}; }
         Iterator end() const { return {this, size()}; }
     } actors = {&live};
-    Impl() { if (!mm_preview_live_init(&live, nullptr)) throw std::bad_alloc(); }
+    Impl() { if (!mm_preview_live_init(&live, nullptr) || !mm_preview_session_init(&session, nullptr)) throw std::bad_alloc(); }
     bool IsVirtualScene(Id scene) const
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
@@ -163,17 +163,7 @@ struct Preview::Impl
         background.swap(loaded);
         return true;
     }
-    PChunkyResourceFile Resolve(const TAGOnFile &tag)
-    {
-        if (tag.sid == 0 && cache && cache->Pcfl()->FFind(tag.ctg, tag.cno))
-            return cache;
-        for (const auto &source : sources)
-            if (source->id == tag.sid && source->cache->Pcfl()->FFind(tag.ctg, tag.cno))
-                return source->cache;
-        resolveError = "Missing source " + std::to_string(tag.sid) + ": " + Identity({tag.ctg, tag.cno}) +
-                       ". Add the content archive for this source.";
-        return nullptr;
-    }
+    PChunkyResourceFile Resolve(const TAGOnFile &tag);
     void RefreshStats()
     {
         MMPreviewStatsServices s = {};
@@ -202,28 +192,13 @@ struct Preview::Impl
         info = {};
         ready = false;
     }
-    ~Impl()
-    {
-        ClearAsset();
-        MMPreviewLiveServices services = {};
-        services.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
-        mm_preview_live_dispose(&live, &services);
-        sources.clear();
-        ReleasePpo(&cache);
-        if (running)
-        {
-            Body::ReleaseSharedMaterial();
-            Material_MTRL::ReleaseShadeTable();
-            BrZbEnd();
-            BrEnd();
-            runtimeOwned = false;
-        }
-    }
+    ~Impl();
 };
 #include "preview_render_host.h"
 #include "preview_pick_host.h"
 #include "preview_live_host.h"
 #include "preview_admission_host.h"
+#include "preview_session_host.h"
 Preview::Preview() : _impl(new Impl)
 {
 }
@@ -576,69 +551,20 @@ bool Preview::Open(const std::string &archivePath, const std::string &resourcesP
 }
 bool Preview::Open(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming)
 {
-    if (!archive.NativeFile()) return Fail(error, ErrorCode::invalid_argument, "Open the movie archive before transferring it to preview.");
-    return OpenCore(std::move(archive), resourcesPath, error, preserveFraming);
+    return OpenCore(std::move(archive), resourcesPath, error, preserveFraming, true);
 }
 bool Preview::OpenEmpty(const std::string &resourcesPath, Error &error)
 {
     Archive empty;
-    return OpenCore(std::move(empty), resourcesPath, error, false);
+    return OpenCore(std::move(empty), resourcesPath, error, false, false);
 }
 void Preview::ClearScene() { _impl->ClearAsset(); }
-bool Preview::OpenCore(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming)
+bool Preview::OpenCore(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming, bool requireAsset)
 try
 {
-    error = {};
-    Internal::ClearDiagnostic();
-    // Validate both paths before touching the live renderer or session.
-    std::unique_ptr<Impl> opened(new Impl);
-    opened->assets._impl.swap(archive._impl);
-    if (!opened->resources.Open(resourcesPath, error))
-        return false;
-    if ((opened->assets.NativeFile() && !WithinBudget(opened->assets, static_cast<PChunkyFile>(opened->assets.NativeFile()), error)) ||
-        !WithinBudget(opened->resources, static_cast<PChunkyFile>(opened->resources.NativeFile()), error))
-        return false;
-    DataBlock block;
-    auto file = static_cast<PChunkyFile>(opened->resources.NativeFile());
-    if (!file->FFind(kctgColorTable, 0, &block))
-        return Fail(error, ErrorCode::unsupported_format,
-                    "Resources must contain the GLCR/0 palette from 3dmovie.chk.");
-    short order;
-    PDynamicArray colours = DynamicArray::PglRead(&block, &order);
-    const bool paletteOk = colours && colours->CbEntry() == sizeof(Color) && colours->IvMac() == 256;
-    if (paletteOk)
-    {
-        if (order == kboOther)
-            SwapBytesRglw(colours->QvGet(0), colours->IvMac());
-        std::memcpy(opened->palette, colours->QvGet(0), sizeof(opened->palette));
-    }
-    ReleasePpo(&colours);
-    if (paletteOk)
-        Internal::ResolveDisplayPalette(opened->palette);
-    if (!paletteOk || !file->FFind(kctgTmap, 0))
-        return Fail(error, ErrorCode::unsupported_format,
-                    "Resources require a 256-colour GLCR/0 palette and TMAP/0 shade table.");
-    if (runtimeOwned && !_impl->running)
-        return Fail(error, ErrorCode::invalid_argument, "Another preview owns the BRender runtime. Close it first.");
-    if (!_impl->running)
-    {
-        BrBegin();
-        BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
-        opened->running = runtimeOwned = true;
-    }
-    if (opened->assets.NativeFile())
-        opened->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(opened->assets.NativeFile()), 32L << 20);
-    if ((opened->assets.NativeFile() && !opened->cache) || Internal::AssertionFailed())
-        return Fail(error, ErrorCode::decode_failed, "Cannot initialize the asset resource reader.");
-    if (!Material_MTRL::FSetShadeTable(file, kctgTmap, 0))
-        return Fail(error, ErrorCode::decode_failed, "Cannot load the resource shade table.");
-    // Transfer the runtime only after replacement resources are ready. Old
-    // models/materials are destroyed immediately, without rendering them again.
-    _impl->running = false;
-    opened->running = true;
-    if (preserveFraming) opened->orbit = _impl->orbit;
-    _impl.swap(opened);
-    return true;
+    Impl::SessionHost host = {this, _impl.get(), &archive, &error};
+    auto services = host.Services();
+    return host.Result(mm_preview_session_open(&_impl->session, &resourcesPath, requireAsset, preserveFraming, &services));
 }
 catch (const std::bad_alloc &)
 {
@@ -709,25 +635,9 @@ catch (const std::bad_alloc &)
 bool Preview::AddContent(std::int32_t sourceId, const std::string &path, Error &error)
 try
 {
-    error = {};
-    Internal::ClearDiagnostic();
-    if (!_impl->running || sourceId <= 0)
-        return Fail(error, ErrorCode::invalid_argument,
-                    "Open preview resources and specify a positive content source ID.");
-    for (const auto &source : _impl->sources)
-        if (source->id == sourceId && source->archive.Path() == path)
-            return true;
-    std::unique_ptr<Impl::Source> source(new Impl::Source);
-    source->id = sourceId;
-    if (!source->archive.Open(path, error))
-        return false;
-    if (!WithinBudget(source->archive, static_cast<PChunkyFile>(source->archive.NativeFile()), error))
-        return false;
-    source->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(source->archive.NativeFile()), 32L << 20);
-    if (!source->cache || Internal::AssertionFailed())
-        return Fail(error, ErrorCode::decode_failed, "Cannot initialize the content resource reader.");
-    _impl->sources.push_back(std::move(source));
-    return true;
+    Impl::SessionHost host = {this, _impl.get(), nullptr, &error};
+    auto services = host.Services();
+    return host.Result(mm_preview_session_add(&_impl->session, sourceId, &path, &services), true);
 }
 catch (const std::bad_alloc &)
 {

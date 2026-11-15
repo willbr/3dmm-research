@@ -1310,8 +1310,8 @@ Native adapters supply typed BRender camera/inverse/projection and pick calls,
 face copying and pivot-plane repair using SDK fixed arithmetic, material/texture
 field views and the SDK UV transform. Source geometry and textures stay borrowed.
 No native picking evaluator or picking owner map remains. Camera interaction is
-covered below, together with asset/scene admission. Source/session setup,
-presentation and final facade integration remain work.
+covered below, together with asset/scene admission and source/session setup.
+Presentation and final facade integration remain work.
 
 The headless Scene Preview fixture records per-build original/converted hit,
 distance and error traces across authored/output, orbit, free, axis and
@@ -1351,7 +1351,7 @@ roll/zoom/aspect changes, clamping, invalid inputs, guide queries, bounds and
 placement/shape edits with subsequent render output. C-only tests cover atomic
 pan rejection, metadata failure caching, reset, partial allocation recovery,
 bitmap reference balance and camera selection failures. Admission control is
-covered below. Source/session setup, presentation and final facade
+covered below, together with source/session setup. Presentation and final facade
 removal remain work. Evidence and limits are recorded in
 `docs/tools/playback-regression.md`.
 
@@ -1391,8 +1391,8 @@ output against all three original builds. C-only fault checks cover ownership,
 retained prefixes, assignment/snapshot failures, retry, stable-sort fallback and
 read/allocation/foreign-exception publication ordering. PreviewActor control and
 ownership are covered below; resource/track representations remain typed provider
-dependencies. Admission control is described below; source registration/session
-setup, presentation and final C-only facade integration remain work. Evidence is
+dependencies. Admission and source/session control are described below;
+presentation and final C-only facade integration remain work. Evidence is
 in `docs/tools/playback-regression.md`.
 
 ### Preview asset and scene admission
@@ -1431,7 +1431,8 @@ original builds. Existing scene/live/camera/pick/render/background fixtures cove
 timeline and render integration. C fault checks cover effect exceptions, C-storage
 failures, group cleanup, adoption, partial loads, virtual scenes and pose readiness.
 PreviewActor playback control is covered below. Resource representations,
-source/session setup, presentation and final facade removal remain native dependencies. Evidence and
+presentation and final facade removal remain native dependencies. Source/session
+control is covered below. Evidence and
 platform limits are in `docs/tools/playback-regression.md`.
 
 ### Preview actor loading, replay and placement
@@ -1468,7 +1469,45 @@ order, corrupt routes, old lifetimes and resolver exceptions, replay/backup/hide
 provider failures, orientation resets and placement/shape behavior. Existing headless
 and Marcus integration fixtures retain their original outputs. Native effect/resource
 primitives, track representations, visibility clock/cue containers, timeline extraction/
-display, source/session setup and final host/facade removal remain dependencies.
+display and final host/facade removal remain dependencies. Source/session control
+is covered below.
+Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Preview sessions, runtime lease and content registry
+
+`preview_session.c` owns the process-wide Preview runtime lease, each session's
+running state/root cache, orbit state and ordered opaque content-source handles.
+Native code supplies archive/path/palette representations, cache/SDK primitives,
+typed borrowed views and error text. The former native source vector, source IDs,
+runtime flag and replacement/registration/lookup loops are removed.
+
+Opening first validates transfer input, then prepares a candidate, consumes the
+input archive and checks resources/budgets before touching the active runtime.
+Palette admission retains 256 four-byte entries, foreign-order word swapping,
+display resolution and shade-table validation. Only a candidate for an idle owner
+starts BRender/depth rendering; another owner's live lease rejects the attempt.
+Root cache/shade setup precedes lease transfer, optional orbit copying, owner
+publication and immediate disposal of the previous session. Failed candidates
+release their resources without clearing a different owner's lease. Completed
+global SDK effects are not rolled back.
+
+Source registration validates running/positive ID, suppresses exact ID/path
+duplicates, opens/checks/caches a new source and appends ownership only after C
+storage succeeds. Failure releases the temporary source while retaining the
+registered prefix. Lookup gives root-cache sid zero priority, then searches matching
+registered IDs in insertion order until a requested chunk is found. File/path
+operations and missing-source formatting remain typed services.
+
+Disposal clears live assets and tables, releases sources forward, root cache,
+shared material/shade resources, the depth backend and BRender in order. Error
+formatting for ordinary failures precedes candidate disposal; allocation/foreign
+exceptions cross the typed boundary afterward. The headless session fixture freezes
+replacement isolation, source duplicates/order, ownership handoff, empty sessions,
+framing preservation, errors and rendered output against all three original hosts.
+C fault checks cover every fallible open/add stage, palette byte order/admission,
+lease transfer/rejection, release order, registry storage exhaustion and retry.
+Native resource/track/archive/path representations, asset-cleanup primitives,
+cue/timeline presentation and final C-only host/facade removal remain dependencies.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo

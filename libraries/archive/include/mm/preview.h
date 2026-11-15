@@ -198,7 +198,7 @@ struct PreviewAudio
 // from Studio's renderer. The public boundary contains no native/UI types.
 class Preview
 {
-    bool OpenCore(Archive &&, const std::string &, Error &, bool);
+    bool OpenCore(Archive &&, const std::string &, Error &, bool, bool);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 

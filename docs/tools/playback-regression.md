@@ -9018,3 +9018,72 @@ Evidence: `tmp/c89-preview-actor-{final,live-final,camera-final,pick-final,rende
 `tmp/c89-preview-actor-asan.log`, `tmp/c89-preview-actor-trace-comparison.json`
 and `tmp/c89-preview-actor-identities.json`. Original traces are retained under
 the admission/live/camera evidence paths recorded above.
+
+### Preview session replacement, runtime lease and sources (15 November 2026)
+
+`preview_session.c` now owns the Preview runtime lease, session running/root-cache
+state, orbit state and ordered opaque source registry. It controls transferred/
+empty session opening, resource/budget/palette admission, runtime initialization,
+cache/shade setup, replacement publication, source registration/resolution and
+ordered teardown. The native source vector/IDs and runtime/replacement/lookup
+controllers are removed. Typed adapters retain archive/path/palette representations,
+resource-cache and SDK primitives, asset-cleanup services and error text.
+
+Input-transfer validation precedes diagnostic reset and candidate construction.
+Candidates consume input archives before resource validation, while retaining the
+active session. Palette admission preserves 256 four-byte entries, foreign-order
+swapping, display-palette resolution and shade lookup. Resources/budgets/palette
+validation precedes runtime-lease admission. Only a non-running owner starts the
+runtime/depth backend; a different owner's lease rejects the candidate. Root cache
+and shade setup precede ownership transfer, optional orbit copying, publication
+and immediate disposal of the old owner. Failed replacements retain the active
+owner and lease without rolling back completed global SDK effects.
+
+Source registration requires a running session and positive ID, suppresses exact
+ID/path duplicates, and transfers ownership to C storage only after open/budget/
+cache checks. Failure releases the temporary source and retains the registered
+prefix. Resolution checks root sid zero first, then matching registered IDs in
+insertion order, continuing when an earlier archive lacks the requested chunk.
+Disposal clears live assets/tables, releases sources forward and root cache, then
+shared material/shade state, depth rendering and BRender. Ordinary errors are
+formatted before candidate disposal; allocation/foreign exceptions are transported
+after cleanup. C storage changes allocation attempt ordinals.
+
+Before conversion, native Debug, SDL Release and SDL Debug recorded identical
+89,578-byte session traces, FNV-1a `34267E40`, SHA-256
+`C0D6B5FD6DCF426F3D19E16F93E2D8FAD1797E47AEC1778DB189F7BD623313F4`.
+The new headless fixture freezes empty sessions, invalid transfers/source IDs,
+missing archives/resources, failed replacement isolation, source ordering and
+duplicates, successful replacement with orbit preservation, registry reset,
+runtime ownership/handoff/restart, exact errors/metadata and rendered output.
+All eighteen original/converted session/admission/live/camera/picking/rendering
+trace pairs match across the three hosts. Earlier trace hashes remain unchanged.
+Each background check retains 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras.
+
+All 115 standalone C checks including strict C89 syntax, thirteen selected native
+checks, nine SDL release and nine SDL debug checks pass. MSVC AddressSanitizer
+passes. C fault checks cover all fallible open/add stages, fresh versus replacement
+lease ownership, error-before-disposal order, malformed/missing/foreign palettes,
+framing preservation, source lookup/duplicates, release order, registry exhaustion
+and retry. Input identities are unchanged. Studio and Marcus were rebuilt; Marcus
+was stopped before rebuilding and relaunched afterward. No Marcus UI tests were
+added. The regular `asset-previews` harness now runs the session fixture; its
+headless native invocation passes with a freshly generated scene and unchanged
+input hashes.
+
+This is Windows x64 evidence within these fixtures, not complete retail allocator
+or editing equivalence. Retained retail captures remain the playback reference;
+no redundant capture campaign was launched. Typed resource/track/archive/path and
+palette representations, asset-cleanup primitives, cue/timeline presentation and
+final C-only host/facade integration remain dependencies. Other platforms remain
+unverified here.
+
+Evidence: `tmp/c89-preview-session-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+`tmp/c89-preview-session-{admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-session-{api,background}-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-session-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-session-asan.log`, `tmp/c89-preview-session-trace-comparison.json`,
+`tmp/c89-preview-session-regular-tests.log` and `tmp/c89-preview-session-identities.json`.
+Prior traces remain at the evidence
+paths recorded above.

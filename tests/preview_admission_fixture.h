@@ -5,9 +5,9 @@ struct AdmissionTrace
 {
     FILE *file = nullptr;
     unsigned bytes = 0, fingerprint = 2166136261U;
-    AdmissionTrace()
+    AdmissionTrace(const char *variable = "MM_PREVIEW_ADMISSION_SNAPSHOT")
     {
-        auto path = std::getenv("MM_PREVIEW_ADMISSION_SNAPSHOT");
+        auto path = std::getenv(variable);
         file = path ? std::fopen(path, "wb") : std::tmpfile();
     }
     bool Record(const void *value, std::size_t size)
@@ -57,14 +57,15 @@ struct AdmissionTrace
         const unsigned fields[] = {i.width, i.height, i.coveredPixels};
         return Record(fields, sizeof(fields)) && Record(i.rgba.data(), i.rgba.size());
     }
-    bool Finish()
+    bool Finish(const char *label = "admission", unsigned expectedBytes = 17862716,
+                unsigned expectedFingerprint = 0xD363793CU)
     {
         bool ok = file && std::fclose(file) == 0;
         file = nullptr;
 #ifdef _WIN64
-        ok = ok && bytes == 17862716 && fingerprint == 0xD363793CU;
+        ok = ok && (!expectedBytes || (bytes == expectedBytes && fingerprint == expectedFingerprint));
 #endif
-        std::printf("Preview admission trace: bytes=%u fingerprint=%08X\n", bytes, fingerprint);
+        std::printf("Preview %s trace: bytes=%u fingerprint=%08X\n", label, bytes, fingerprint);
         return ok;
     }
     ~AdmissionTrace()

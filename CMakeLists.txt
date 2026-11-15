@@ -1174,6 +1174,8 @@ add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixtur
 target_link_libraries(preview-scene-fixture PRIVATE engine-core)
 add_executable(preview-scene-test EXCLUDE_FROM_ALL tests/preview_scene_test.cpp)
 target_link_libraries(preview-scene-test PRIVATE MM::Preview)
+add_executable(preview-session-test EXCLUDE_FROM_ALL tests/preview_session_test.cpp)
+target_link_libraries(preview-session-test PRIVATE MM::Preview)
 add_executable(preview-background-test EXCLUDE_FROM_ALL tests/preview_background_test.cpp)
 target_link_libraries(preview-background-test PRIVATE MM::Preview)
 add_executable(preview-background-mesh-test EXCLUDE_FROM_ALL tests/preview_background_mesh_test.cpp)
@@ -1183,7 +1185,7 @@ target_link_libraries(preview-background-mesh-test PRIVATE MM::Preview engine-co
 add_executable(preview-actor-tree-test EXCLUDE_FROM_ALL tests/preview_actor_tree_test.cpp)
 target_include_directories(preview-actor-tree-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src")
 target_link_libraries(preview-actor-tree-test PRIVATE MM::Preview engine-core)
-add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-background-test
+add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-session-test preview-background-test
   preview-background-mesh-test preview-actor-tree-test preview-scene-fixture)
 add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)
 add_executable(portfolio-data-test EXCLUDE_FROM_ALL tests/portfolio_data_test.cpp)
@@ -1535,7 +1537,7 @@ add_dependencies(core-checks engine-movie-scene-test)
 add_dependencies(core-checks engine-movie-save-test)
 add_dependencies(core-checks engine-movie-rollcall-test engine-movie-edit-test)
 add_dependencies(core-checks engine-movie-content-test)
-add_dependencies(core-checks engine-movie-compose-test engine-preview-render-test engine-preview-pick-test engine-preview-camera-test engine-preview-live-test engine-preview-admission-test engine-preview-actor-test)
+add_dependencies(core-checks engine-movie-compose-test engine-preview-render-test engine-preview-pick-test engine-preview-camera-test engine-preview-live-test engine-preview-admission-test engine-preview-actor-test engine-preview-session-test)
 add_dependencies(core-checks debug-checks-test)
 add_dependencies(core-checks kidspace-descriptor-test)
 add_dependencies(core-checks mcp-io-test)
@@ -1943,6 +1945,7 @@ if(BUILD_TESTING)
     add_test(NAME asset-previews COMMAND ${CMAKE_COMMAND}
       -DAPI_EXE=$<TARGET_FILE:preview-api-test>
       -DSCENE_EXE=$<TARGET_FILE:preview-scene-test>
+      -DSESSION_EXE=$<TARGET_FILE:preview-session-test>
       -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>
       -DBACKGROUND_EXE=$<TARGET_FILE:preview-background-test>
       -DMAIN_CHK=${TEST_MAIN_CHK} -DCONTENT_DIR=${TEST_CONTENT_DIR}
