@@ -440,6 +440,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Home / End | First / last frame of the current scene |
 | Page Up / Page Down, or scene arrows | Previous / next scene |
 | Four buttons in the Frame row | First / previous / next / last frame |
+| Ctrl+click Previous Frame at the first frame | Prepend one frame and select it |
+| Ctrl+click Next Frame at the last frame | Append one frame and select it |
 | Four buttons in the Scene row | First / previous / next / last scene |
 | Click or drag the timeline | Scrub the current scene |
 | Click or drag the scrubber beside the scene name | Scrub across the entire movie; ticks mark scene boundaries |
@@ -1167,8 +1169,17 @@ their original placement. Off-stage objects are read-only.
 Coordinates are limited to +/-32700 world units. Original movies, ZIPs and content
 archives remain unchanged. These session edits still have no Save/Export command.
 
+Ctrl+click Previous Frame at the beginning or Next Frame at the end extends the
+scene by one frame and selects the new frame. Ctrl+click inside the existing
+range steps normally. The shortcut is available while paused; on macOS, Cmd
+also works. Prepended frames use earlier absolute frame numbers, including zero
+and negative numbers, while the scene counter still starts at 1. Existing actor
+entrances, animation, captions and sound cues retain their authored frame numbers.
+The opening camera cue follows the new beginning using retail's shared scene
+policy; later camera cuts retain their timing. Each added frame is one undo step.
+
 Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, prop insertion,
-camera change or new scene. Each drag or completed position-field edit is one
+frame addition, camera change or new scene. Each drag or completed position-field edit is one
 step. Up to 64 steps are retained in the current session, including after a
 resource reload. Undo restores the movie and the pre-edit scene/frame, retaining
 the inspection view. Undoing the first scene returns an untitled movie to its
@@ -1179,7 +1190,7 @@ field's local text undo. Original movie and content files remain unchanged.
 
 ## Current limits
 
-- Scene creation, camera changes, prop insertion and object translation are session
+- Scene creation, frame additions, camera changes, prop insertion and object translation are session
   edits in a private working copy. Movie save/export commands are not implemented.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.

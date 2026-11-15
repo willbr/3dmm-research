@@ -593,6 +593,22 @@ static int seek(App *app, long frame)
     app->dirty = 1;
     return 1;
 }
+static void add_frame(App *app, int direction)
+{
+    char title[2200];
+    release_camera(app);
+    scene_organiser_close(app->scene_organiser);
+    if (!marcus_add_frame(app->player, direction))
+    {
+        fail(app, marcus_error(app->player));
+        return;
+    }
+    refresh(app);
+    app->modified = 1;
+    app->dirty = app->movie_dirty = 1;
+    SDL_snprintf(title, sizeof(title), "Marcus - %s (unsaved changes)", app->movie[0] ? app->movie : "Untitled movie");
+    SDL_SetWindowTitle(app->window, title);
+}
 static SDL_FRect movie_settings_rect(const App *app)
 {
     SDL_FRect rect;
@@ -1866,7 +1882,12 @@ static void mouse_down(App *app, float x, float y, int button)
         action = (int)((x - FRAME_NAV_X) / NAV_STEP);
         if (x - FRAME_NAV_X - action * NAV_STEP >= 28)
             return;
-        perform_action(app, MARCUS_FIRST_FRAME + action);
+        if (app->loaded && !app->playing && (SDL_GetModState() & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) &&
+            ((action == 1 && app->info.frame == app->info.first_frame) ||
+             (action == 2 && app->info.frame == app->info.last_frame)))
+            add_frame(app, action == 1 ? -1 : 1);
+        else
+            perform_action(app, MARCUS_FIRST_FRAME + action);
     }
     else if (ui_inside(x, y, PLAY_X, app->timeline_y + PLAY_Y, UI_PLAY_WIDTH, UI_PLAY_HEIGHT))
     {
@@ -3219,7 +3240,7 @@ static void draw_timeline(App *app)
     SDL_Rect clip;
     char label[320];
     char position[48], duration[48];
-    int row, index, rows, selected_row, lane, kind, scroll, active, movie_available;
+    int row, index, rows, selected_row, lane, kind, scroll, active, movie_available, extending;
     float x, y, left;
     double frame, tick, end;
     unsigned long tint;
@@ -3235,12 +3256,17 @@ static void draw_timeline(App *app)
         ui->hint = "Drag up or down to resize the dope sheets";
     ui_fill(ui, 0, y, app->sidebar, (float)app->height - y - 24, PANEL);
     ui_line(ui, 0, y, app->sidebar, y, LINE);
+    extending = app->loaded && !app->playing && (SDL_GetModState() & (SDL_KMOD_CTRL | SDL_KMOD_GUI));
     ui_frame_button(ui, FRAME_NAV_X, y + FRAME_NAV_Y, 0, app->loaded && app->info.frame > app->info.first_frame,
                          "First frame");
     ui_frame_button(ui, FRAME_NAV_X + NAV_STEP, y + FRAME_NAV_Y, 1,
-                         app->loaded && app->info.frame > app->info.first_frame, "Previous frame");
+                         app->loaded && (app->info.frame > app->info.first_frame || extending),
+                         app->loaded && app->info.frame == app->info.first_frame
+                             ? "Ctrl+click to add a frame at the beginning" : "Previous frame");
     ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 2, y + FRAME_NAV_Y, 2,
-                         app->loaded && app->info.frame < app->info.last_frame, "Next frame");
+                         app->loaded && (app->info.frame < app->info.last_frame || extending),
+                         app->loaded && app->info.frame == app->info.last_frame
+                             ? "Ctrl+click to add a frame at the end" : "Next frame");
     ui_frame_button(ui, FRAME_NAV_X + NAV_STEP * 3, y + FRAME_NAV_Y, 3,
                          app->loaded && app->info.frame < app->info.last_frame, "Last frame");
     ui_play_button(ui, PLAY_X, y + PLAY_Y, app->playing, app->playback.wait == 1, app->loaded);

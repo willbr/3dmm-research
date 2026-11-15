@@ -264,6 +264,9 @@ extern "C"
     /* Author a camera change at the current scene frame in a private copy.
      * Later authored camera changes are retained. Camera indices are zero-based. */
     int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera);
+    /* At the first/last scene frame, prepend (-1) or append (+1) one frame.
+     * Selects the new frame, preserves existing event times and records one undo. */
+    int marcus_add_frame(MarcusPlayer *player, int direction);
     /* Camera thumbnails leave the live scene/frame/camera and rendered view intact. */
     int marcus_camera_thumbnail(MarcusPlayer *player, unsigned long camera, MarcusImage *image);
     /* Read-only, cached background camera metadata; no rendering or selection. */

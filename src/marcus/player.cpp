@@ -925,6 +925,35 @@ extern "C"
             return true;
         });
     }
+    int marcus_add_frame(MarcusPlayer *player, int direction)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (player->selected < 0 || (direction != -1 && direction != 1))
+            { error.message = "Choose the beginning or end of a scene to add a frame."; return false; }
+            const auto info = player->preview.Info();
+            const auto edge = direction < 0 ? info.firstFrame : info.lastFrame;
+            const auto frame = std::int64_t(edge) + direction;
+            if (info.currentFrame != edge || frame <= std::numeric_limits<std::int32_t>::min() ||
+                frame > std::numeric_limits<std::int32_t>::max())
+            { error.message = "A frame can only be added at a valid scene boundary."; return false; }
+            const auto scene = player->selected;
+            auto working = MaterializedMovie(*player);
+            auto file = MarcusExtendScene(player->placements->empty() ? player->content->movie : working->path, working,
+                player->scenes[scene].number, static_cast<long>(frame));
+            EditHistory history(*player);
+            struct Restore { bool &flag; bool value; ~Restore() { flag = value; } } restore{
+                player->preserveEditFraming, player->preserveEditFraming};
+            player->preserveEditFraming = true;
+            MarcusMovieInput input;
+            PrepareInput(input, file);
+            const auto resources = player->timingResources, directory = player->timingContent;
+            if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
+                !marcus_select_scene_keep_view(player, scene) || !marcus_seek(player, static_cast<long>(frame)))
+            { error.message = player->error; return false; }
+            history.Commit();
+            return true;
+        });
+    }
     int marcus_camera_projection(MarcusPlayer *player, unsigned long camera, MarcusProjection *projection)
     {
         if (projection) *projection = {};

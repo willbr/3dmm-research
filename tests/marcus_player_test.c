@@ -703,6 +703,66 @@ int main(int argc, char **argv)
     CHECK(marcus_undo(player) && marcus_info(player, &info) && info.object_count == 4 && info.frame == 10);
     CHECK(marcus_render(player, 160, 90, 1, 0, 0, 1, &image) && !memcmp(pixels, image.rgba, bytes));
     CHECK(!marcus_can_undo(player) && !marcus_modified(player));
+    /* Edge extension uses the retail rule: no retiming, and the opening
+     * camera moves with a prepended boundary. Each click is one undo step. */
+    {
+        MarcusInfo original_range, extended;
+        MarcusScene other_scene, unchanged_scene;
+        MarcusObject original_actor, placed_actor;
+        MarcusMovieTime original_time, extended_time;
+        unsigned long opening_camera;
+        CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
+        CHECK(!marcus_add_frame(player, -1) && !marcus_add_frame(player, 1));
+        CHECK(!marcus_add_frame(player, 0) && !marcus_add_frame(player, 2));
+        CHECK(!marcus_can_undo(player) && !marcus_modified(player));
+        CHECK(marcus_select_scene(player, 1) && marcus_seek(player, 1) && marcus_info(player, &original_range));
+        CHECK(marcus_scene(player, 0, &other_scene) && marcus_movie_time(player, &original_time));
+        opening_camera = original_range.camera;
+        CHECK(marcus_object(player, 0, &original_actor) && original_actor.visible);
+        CHECK(marcus_move_object(player, 0, original_actor.x + 2, original_actor.y, original_actor.z));
+        CHECK(marcus_add_frame(player, -1) && marcus_info(player, &extended));
+        CHECK(extended.first_frame == original_range.first_frame - 1 &&
+              extended.last_frame == original_range.last_frame && extended.frame == extended.first_frame &&
+              extended.camera == opening_camera && marcus_modified(player));
+        CHECK(marcus_object(player, 0, &placed_actor) && !placed_actor.visible);
+        CHECK(marcus_add_frame(player, -1) && marcus_info(player, &extended) && extended.first_frame == -1 &&
+              extended.frame == -1 && extended.camera == opening_camera);
+        CHECK(marcus_undo(player) && marcus_info(player, &extended) && extended.first_frame == 0 && extended.frame == 0);
+        CHECK(marcus_seek(player, 1) && marcus_object(player, 0, &placed_actor));
+        CHECK(placed_actor.visible && fabs(placed_actor.x - original_actor.x - 2) < .001 &&
+              placed_actor.y == original_actor.y && placed_actor.z == original_actor.z &&
+              placed_actor.first_frame == original_actor.first_frame && placed_actor.action == original_actor.action &&
+              placed_actor.cel == original_actor.cel);
+        CHECK(marcus_seek(player, 14) && marcus_info(player, &extended) && extended.camera == opening_camera);
+        CHECK(marcus_seek(player, 15) && marcus_info(player, &extended) && extended.camera == 0);
+        CHECK(marcus_seek(player, original_range.last_frame) && marcus_add_frame(player, 1));
+        CHECK(marcus_info(player, &extended) && extended.last_frame == original_range.last_frame + 1 &&
+              extended.frame == extended.last_frame && extended.first_frame == original_range.first_frame - 1);
+        CHECK(marcus_add_frame(player, 1) && marcus_info(player, &extended) &&
+              extended.last_frame == original_range.last_frame + 2 && extended.frame == extended.last_frame);
+        CHECK(marcus_scene(player, 0, &unchanged_scene) && unchanged_scene.first_frame == other_scene.first_frame &&
+              unchanged_scene.last_frame == other_scene.last_frame);
+        CHECK(marcus_movie_time(player, &extended_time) && extended_time.duration_seconds > original_time.duration_seconds);
+        CHECK(marcus_reload(player, argv[2], argv[3]) && marcus_info(player, &extended) &&
+              extended.first_frame == original_range.first_frame - 1 && extended.last_frame == original_range.last_frame + 2);
+        CHECK(marcus_undo(player) && marcus_info(player, &extended) &&
+              extended.last_frame == original_range.last_frame + 1 && extended.frame == original_range.last_frame + 1);
+        CHECK(marcus_undo(player) && marcus_info(player, &extended) &&
+              extended.first_frame == original_range.first_frame - 1 && extended.last_frame == original_range.last_frame &&
+              extended.frame == original_range.last_frame);
+        CHECK(marcus_undo(player) && marcus_info(player, &extended) && extended.first_frame == original_range.first_frame &&
+              extended.last_frame == original_range.last_frame && extended.frame == original_range.first_frame);
+        CHECK(marcus_object(player, 0, &placed_actor) && fabs(placed_actor.x - original_actor.x - 2) < .001);
+        CHECK(marcus_undo(player) && marcus_object(player, 0, &placed_actor) && placed_actor.x == original_actor.x &&
+              !marcus_can_undo(player) && !marcus_modified(player));
+        /* A new one-frame scene supports either edge independently. */
+        CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]) && marcus_info(player, &extended) &&
+              extended.first_frame == extended.last_frame);
+        CHECK(marcus_add_frame(player, 1) && marcus_info(player, &extended) && extended.first_frame == 1 && extended.last_frame == 2);
+        CHECK(marcus_undo(player) && marcus_add_frame(player, -1) && marcus_info(player, &extended) &&
+              extended.first_frame == 0 && extended.last_frame == 1 && extended.frame == 0);
+        CHECK(marcus_undo(player) && marcus_undo(player) && !marcus_modified(player));
+    }
     marcus_destroy(player);
     free(pixels);
     puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "

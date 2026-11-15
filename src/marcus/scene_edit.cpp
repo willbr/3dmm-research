@@ -6,6 +6,7 @@
 #include <limits>
 #include <stdexcept>
 #include "soc_core.h"
+#include "mm/scene_runtime.h"
 ASSERTNAME
 
 namespace
@@ -192,6 +193,66 @@ std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::pat
     if (frame == metadata.firstFrame && file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
         file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
     Require(file->FSave(kctgSoc), "Cannot save the scene camera working copy.");
+    return result;
+}
+std::shared_ptr<MarcusMovieFile> MarcusExtendScene(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, unsigned long sceneNumber, long frame)
+{
+    auto result = WorkingCopy(source, std::move(origin));
+    String path;
+    Filename filename;
+    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
+    Require(filename.FBuildFromPath(&path), "The movie working path is not supported.");
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    Require(bool(file), "Cannot open the movie working file.");
+    SceneData scene;
+    Require(scene.FRead(file.get(), sceneNumber), "Cannot read the scene frame range.");
+    Require(frame > std::numeric_limits<std::int32_t>::min() && frame <= std::numeric_limits<std::int32_t>::max() &&
+            (std::int64_t(frame) == std::int64_t(scene.firstFrame) - 1 ||
+             std::int64_t(frame) == std::int64_t(scene.lastFrame) + 1), "Add a frame only at a scene edge.");
+    if (frame < scene.firstFrame)
+    {
+        ChildChunkIdentification child;
+        DataBlock block;
+        short order = kboCur;
+        Require(file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgFrmGg, &child) &&
+                file->FFind(kctgFrmGg, child.cki.cno, &block), "Cannot read scene frame events.");
+        std::unique_ptr<GeneralGroup, Release> frames(SceneData::PggReadEvents(&block, &order, false));
+        Require(bool(frames), "Cannot decode scene frame events.");
+        struct Host { PGeneralGroup frames; short order; } host{frames.get(), order};
+        MMSceneRuntimeServices services = {};
+        services.context = &host;
+        services.event_count = [](void *p) -> MMI32 { return static_cast<Host *>(p)->frames->IvMac(); };
+        services.event = [](void *p, MMI32 index, MMI32 *at, int *kind) {
+            auto &host = *static_cast<Host *>(p);
+            SceneEvent event;
+            host.frames->GetFixed(index, &event);
+            if (host.order == kboOther) SwapBytesBom(&event, kbomSev);
+            *at = event.nfrm;
+            *kind = event.sevt;
+        };
+        services.move_camera = [](void *p, MMI32 index, MMI32 at) {
+            auto &host = *static_cast<Host *>(p);
+            SceneEvent event;
+            host.frames->GetFixed(index, &event);
+            if (host.order == kboOther) SwapBytesBom(&event, kbomSev);
+            event.nfrm = at;
+            if (host.order == kboOther) SwapBytesBom(&event, kbomSev);
+            host.frames->PutFixed(index, &event);
+            host.frames->Move(index, 0);
+        };
+        // Share retail's opening-camera policy, including event ordering.
+        mm_scene_move_first(&scene, static_cast<MMI32>(frame), &services);
+        ChunkNumber number;
+        Require(file->FAdd(frames->CbOnFile(), kctgFrmGg, &number, &block) && frames->FWrite(&block, order),
+                "Cannot write the extended scene frame events.");
+        file->DeleteChild(kctgScen, sceneNumber, kctgFrmGg, child.cki.cno, 0);
+        Require(file->FAdoptChild(kctgScen, sceneNumber, kctgFrmGg, number, 0), "Cannot link extended scene frame events.");
+        if (file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
+            file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
+    }
+    else scene.lastFrame = static_cast<MMI32>(frame);
+    Require(scene.FWrite(file.get(), sceneNumber) && file->FSave(kctgSoc), "Cannot save the extended scene.");
     return result;
 }
 std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &source,
