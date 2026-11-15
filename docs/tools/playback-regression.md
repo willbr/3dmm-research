@@ -7939,3 +7939,90 @@ Evidence: `tmp/c89-background-camera-{strict-build,strict,asan,standalone,native
 `tmp/c89-background-camera-{before,final}-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log`,
 `tmp/c89-background-camera-{before,final}-capture-hashes-{before,after}.json` and
 `tmp/c89-background-camera-playback-comparison.json`.
+
+### Background resource C89 conversion (15 November 2026)
+
+Source baseline: `4de43177`. `background_resource.c` owns Studio Background
+construction/factory control, header/default-sound/light decoding, contiguous
+camera enumeration, palette ownership/duplication, light lifetime and tag-list/
+cache order. Marcus PreviewBackground uses the same loader and wire conversion
+with its existing stricter visual admission profile. SDK/file/list primitives,
+native object/string representations and Preview vector storage remain adapters;
+Preview image-loading/mesh control and final native facade removal remain work.
+
+The Scene-content fixture extends the camera trace with a foreign-order default
+sound (including a nonzero wire pointer slot), foreign-order custom palette,
+independent returned palette copies, a second light and on/off/repeated/leave-on
+calls. Original native/repeat and original SDL debug/release traces match 31,048
+bytes, FNV-1a `5E56C170`, SHA-256
+`0BF35E79808D6A50ED79B1B8138AF4ED5138C1D94DB7A291FD1EE5160BFB2A89`.
+Final native and both SDL traces match all four originals byte for byte. The
+exact guard retains the little-endian x64, one-byte-text restriction.
+
+Studio still tolerates optional palette decode failure and retains its stored
+base, but fails an absent/unreadable required light list. It counts cameras
+before metadata loading and retains partial palette/array owners for factory
+teardown. Preview skips name/default-sound loading, normalizes fitting palettes,
+admits at most sixteen lights, publishes entries/cameras in order and selects
+camera zero last. Both profiles retain completed prefixes on failure. Preview
+vector/camera allocation exceptions now become C failure results inside callbacks.
+No Marcus UI tests were added.
+
+Invalid byte-order markers, malformed palette/light strides and SDK-array size
+overflow now reject before unsafe access. Default-sound loop decoding reads its
+stored 32-bit flag explicitly; wire cache pointers stay ignored and tags unopened.
+No valid wire versions or resource normalization are changed. Cache orchestration
+preserves the original no-close lifetime of child tags acquired by the existing
+tag-manager service, rather than silently changing reference behavior.
+Read failures also preserve the native warning-before-temporary-list-release
+prefix; the C-only fixture checks that order explicitly.
+
+The C-only fixture covers both stream/host byte orders, signed values, stored
+pointer exclusion, partial failed reads and unchanged decoder outputs, load and
+factory failures, allocation overflow, owner cleanup and output publication order,
+palette-read tolerance/profile admission, camera gaps/absence, light flags and
+on/off/disposal ordering, and every tag insertion/child-build/cache failure step.
+All 100 standalone C checks, 136 selected native, 44 SDL release and 32 SDL debug
+checks pass on the final warning-order correction and exception guards. Both
+hosts and core/CLI/test targets were rebuilt, including the indirect Marcus test
+executables. The freshly linked existing background-preview sweep covers
+12 shipped backgrounds and 188 cameras, including 184 with finite depth/meshes
+and 68 with static backdrops. Native and SDL save/load checks pass, as do Clang
+strict C89 with warnings as errors, MSVC AddressSanitizer and all 51 CLI baselines.
+Builds and file-heavy suites ran serially. Marcus was stopped before its rebuilds
+and relaunched afterward.
+
+Final playback uses the preceding camera conversion's captures as its original
+baseline. The original SDL/Marcus binaries were verified byte-identical to those
+captures before rebuilding (`tmp/c89-background-resource-original-capture-hashes.json`).
+Final binaries stayed fixed throughout all 21 fresh-process runs (one repeat,
+no concurrent builds/tests). SHA-256 before/after:
+
+- SDL release: `1DF6F30F260C5CB3419FA814B5B56B236295BD317B392DA685F0644DFFD0CC9D`.
+- Marcus regression: `079259A10E397A1CBE2BD0D32B16F7E020BFAFB12CCB73329EB3926B01EDE139`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T011324Z-b7264e54` | `20261115T015813Z-5d50bff8` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T011438Z-aeac96c6` | `20261115T015926Z-3ba53e35` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T011740Z-578c3f97` | `20261115T020227Z-63212132` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T011854Z-d11fe065` | `20261115T020340Z-5bc34309` | three retail/SDL/Marcus playback |
+
+Movie identity and both original/final suite integrity pass. All authored frame
+sequences, 540 seek images and ordered playback image changes match each player's
+original suite. Playback comparison collapses only adjacent identical scene/frame/
+image samples. Actor-audio peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus); actor tone detection and the first-scene-only
+contract pass for every player. Original summaries moved by normal capture
+retention were read from `retained-metadata`; immutable frame/image observations
+remain in SQLite. Existing cross-player differences, inconclusive single-repeat
+timing and presentation-marker limitations remain. Captures do not prove retail
+editing/failure behavior or full PCM/MIDI parity. They use a shared warm SDL
+package cache with private processes, settings and working movies; OS caching is
+uncontrolled.
+
+Evidence: `tmp/c89-background-resource-{strict-build,strict,asan,standalone,native-tests,sdl-debug-tests,sdl-release-tests,preview-backgrounds}.log`,
+`tmp/c89-background-resource-*.bin`,
+`tmp/c89-background-resource-{trace-comparison,output-comparison,playback-comparison}.json`,
+`tmp/c89-background-resource-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-background-resource-capture-hashes-{before,after}.json`.

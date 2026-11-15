@@ -22,56 +22,86 @@ bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, c
     source = file;
     number = background;
     std::memcpy(palette, basePalette, sizeof(palette));
-    auto chunky = source->Pcfl();
-    DataBlock block;
-    BackgroundFile header;
-    if (!chunky->FFind(kctgBkgd, background, &block) || !block.FUnpackData() || block.Cb() != sizeof(header) ||
-        !block.FReadRgb(&header, sizeof(header), 0))
-        return false;
-    if (header.bo == kboOther)
-        SwapBytesBom(&header, kbomBkgdf);
-    if (header.bo != kboCur)
-        return false;
-    ChildChunkIdentification child;
-    short order;
-    if (chunky->FGetKidChidCtg(kctgBkgd, background, 0, kctgColorTable, &child))
+    struct Host
     {
-        if (!chunky->FFind(child.cki.ctg, child.cki.cno, &block))
-            return false;
-        auto colours = DynamicArray::PglRead(&block, &order);
-        const bool valid =
-            colours && colours->CbEntry() == sizeof(Color) && colours->IvMac() <= 256 - header.bIndexBase;
-        if (valid)
+        PreviewBackground *background;
+        PChunkyFile file;
+        DataBlock block;
+    } host = {this, source->Pcfl()};
+    ThreeMMBackgroundServices s = {};
+    s.context = &host;
+    const unsigned short one = 1;
+    s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
+    s.child = [](void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMU32 *out) {
+        ChildChunkIdentification child;
+        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(type, number, id, childType, &child))
+            return 0;
+        *out = child.cki.cno;
+        return 1;
+    };
+    s.find = [](void *p, ThreeMMU32 type, ThreeMMU32 number, int unpack) {
+        auto h = static_cast<Host *>(p);
+        return int(h->file->FFind(type, number, &h->block) && (!unpack || h->block.FUnpackData()));
+    };
+    s.stream = [](void *p) { return EngineReadStream::FromBlock(static_cast<Host *>(p)->block); };
+    s.read_list = [](void *p, int *big) -> void * {
+        short order = kboCur;
+        auto list = DynamicArray::PglRead(&static_cast<Host *>(p)->block, &order);
+        const unsigned short one = 1;
+        *big = (*reinterpret_cast<const byte *>(&one) == 0) ^ (order == kboOther);
+        return list;
+    };
+    s.count = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->IvMac(); };
+    s.stride = [](void *, void *list) -> ThreeMMI32 { return static_cast<PDynamicArray>(list)->CbEntry(); };
+    s.get = [](void *, void *list, ThreeMMI32 i, void *out, size_t bytes) {
+        std::memcpy(out, static_cast<PDynamicArray>(list)->QvGet(i), bytes);
+    };
+    s.release = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
+    s.palette_color = [](void *p, ThreeMMI32 index, const unsigned char *bytes) {
+        std::memcpy(&static_cast<Host *>(p)->background->palette[index], bytes, 4);
+    };
+    s.resolve_palette = [](void *p) { ResolveDisplayPalette(static_cast<Host *>(p)->background->palette); };
+    s.configure_light = [](void *p, ThreeMMBackgroundResource *, ThreeMMI32, const ThreeMMBackgroundLight *light) {
+        LightPosition value;
+        static_assert(sizeof(value.bmat34) == sizeof(light->matrix), "Light matrix layout");
+        std::memcpy(&value.bmat34, &light->matrix, sizeof(value.bmat34));
+        value.rIntensity = light->intensity;
+        value.lt = light->type;
+        try
         {
-            if (order == kboOther)
-                SwapBytesRglw(colours->QvGet(0), colours->IvMac());
-            std::memcpy(palette + header.bIndexBase, colours->QvGet(0), colours->IvMac() * sizeof(Color));
+            static_cast<Host *>(p)->background->lights.push_back(value);
+            return 1;
         }
-        ReleasePpo(&colours);
-        if (!valid)
-            return false;
-    }
-    ResolveDisplayPalette(palette);
-    if (!chunky->FGetKidChidCtg(kctgBkgd, background, 0, kctgGllt, &child) ||
-        !chunky->FFind(child.cki.ctg, child.cki.cno, &block))
-        return false;
-    auto list = DynamicArray::PglRead(&block, &order);
-    const bool valid = list && list->CbEntry() == sizeof(LightPosition) && list->IvMac() <= 16;
-    if (valid)
-        for (LegacyLong i = 0; i < list->IvMac(); ++i)
+        catch (...)
         {
-            LightPosition light;
-            list->Get(i, &light);
-            if (order == kboOther)
-                SwapBytesBom(&light, kbomLite);
-            lights.push_back(light);
+            return 0;
         }
-    ReleasePpo(&list);
-    if (!valid)
-        return false;
-    for (std::uint32_t slot = 0; chunky->FGetKidChidCtg(kctgBkgd, background, slot, kctgCam, &child); ++slot)
-        cameras.push_back(child.cki.cno);
-    return !cameras.empty() && SetCamera(0);
+    };
+    s.append_camera = [](void *p, ThreeMMU32 number) {
+        try
+        {
+            static_cast<Host *>(p)->background->cameras.push_back(number);
+            return 1;
+        }
+        catch (...)
+        {
+            return 0;
+        }
+    };
+    s.select_camera = [](void *p, ThreeMMI32 index) {
+        try
+        {
+            return int(static_cast<Host *>(p)->background->SetCamera(index));
+        }
+        catch (...)
+        {
+            return 0;
+        }
+    };
+    three_mm_background_resource_init(&resource);
+    three_mm_background_camera_init(&cameraState);
+    return three_mm_background_read(&resource, &cameraState, kctgBkgd, background, THREE_MM_BACKGROUND_PREVIEW, &s) !=
+           0;
 }
 bool PreviewBackground::SetCamera(std::uint32_t slot)
 {
@@ -132,6 +162,7 @@ bool PreviewBackground::SetCamera(std::uint32_t slot)
     depth->Draw(reinterpret_cast<byte *>(depths.data()), width * 2, height, 0, 0, &depthClip);
     ReleasePpo(&depth);
     activeCamera = slot;
+    cameraState.current = slot;
     return true;
 }
 PreviewBackgroundMesh &PreviewBackground::Mesh()

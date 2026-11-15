@@ -84,6 +84,7 @@ cmake --build build/engine-c89 --target engine-world-camera-test
 cmake --build build/engine-c89 --target engine-world-render-test
 cmake --build build/engine-c89 --target engine-world-export-test
 cmake --build build/engine-c89 --target engine-background-camera-test
+cmake --build build/engine-c89 --target engine-background-resource-test
 cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
@@ -1199,11 +1200,9 @@ removes the original swap beyond a stack-local header and correctly normalizes
 the points. Failed reads now balance the list lock before release. Preview now
 shares Studio's rejection of a partial appended point; its existing clip-plane
 and image-admission checks remain. Background header/default-sound/palette/light
-loading, cache control, Preview image-loading/mesh control and final native
+loading, cache control, palette duplication and light attach/detach now use the
+resource controller below. Preview image-loading/mesh control and final native
 representation removal remain migration work.
-In particular, `FAddTagsToTagl`/`FCacheToHD`, `FReadBkgd`/`_FInit`, `_Ccam`,
-palette duplication and light attach/detach still contain native controllers;
-moving camera state does not convert those branches.
 
 `engine-background-camera` exercises both byte orders, scalar/angle extremes,
 maximum stream sizes, unchanged failure outputs, callback order, allocation/read
@@ -1211,6 +1210,50 @@ failures, cleanup, cycling and reuse. The native Scene-content fixture freezes
 camera changes and placement behavior and separately checks foreign-order
 appended points through the real block/list bridge. See
 `docs/tools/playback-regression.md` for validation and capture coverage.
+
+### Background resource loading, caching and light lifetime
+
+`background_resource.c` owns BKGD/BDS/LITE wire decoding, contiguous camera
+enumeration, Studio resource construction/factory control, tag-list/cache order,
+palette ownership/duplication and light attach/enable/disable/remove control.
+Studio Background embeds the C owner for SDK actor/light allocations, palette,
+default-sound metadata and light flags. Its String is a temporary native view of
+the existing C-backed string storage. Native callbacks provide file/collection
+primitives, debug output poisoning, allocation and typed SDK field operations.
+`_Ccam` and `_SetupLights` no longer have native implementations.
+
+Marcus PreviewBackground now calls the same C resource loader. The two profiles
+preserve the hosts' existing contracts and ordering: Studio counts cameras before
+loading metadata, reads the name and optional default sound, retains its palette
+and tolerates an optional palette read failure. Preview resolves its display
+palette, admits only fitting four-byte colors and at most sixteen lights, publishes
+visual entries and cameras, then selects camera zero. Both use one header/light/
+palette conversion and enumeration implementation. SDK/native representations
+and Preview vector storage remain temporary host representations; image and mesh control
+still require conversion.
+
+Factory estimates publish before allocation, partial failures invalidate outputs
+before teardown, and successful factories publish objects before final size.
+Disposal retains partial-array cleanup and off/free/free/palette-release order.
+Read-failure diagnostics precede temporary-light-list release, as in the native loader.
+Leave-on suppresses light removal without losing the enabled state. BDS wire
+pointer slots are ignored; sound tags stay unopened with null caches. The stored
+32-bit loop flag is decoded explicitly. Invalid order markers, malformed palette/
+light strides and allocation-size overflow now reject before unsafe access.
+Valid formats and the legacy tolerant palette-read path remain unchanged.
+
+Background caching builds all four BDS/GLLT/GLCR/CAM-zero child tags before any
+cache effect, then caches parent-without-children and each child-with-children.
+Like the native code, this does not close child tags; references acquired by the
+existing child-tag service retain their existing lifetime. No new ownership
+normalization or wire versions are introduced by the conversion.
+
+The Scene-content fixture freezes foreign-order palette/default-sound loading,
+independent palette copies, light flags/control and the preceding camera paths.
+`engine-background-resource` covers both stream/host byte orders, partial reads,
+load/factory/cache failures, cleanup prefixes, ownership and publication order,
+profile admission and light lifetime. Full validation evidence and coverage
+limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

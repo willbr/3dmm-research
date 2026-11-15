@@ -466,7 +466,7 @@ static PTBOX Caption(PScene scene, PChunkyResourceFile resources)
 }
 static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
 {
-    BackgroundFile header = {kboCur, koskCur, 0, 0, 0};
+    BackgroundFile header = {kboCur, koskCur, byte(id ? 0 : 20), 0, 0};
     CHECK(file->FAddPv(&header, sizeof(header), kctgBkgd, number));
     String name;
     name.SetSzs(id ? PszLit("Background B") : PszLit("Background A"));
@@ -478,11 +478,36 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
     light.rIntensity = BR_SCALAR(1);
     light.lt = BR_LIGHT_DIRECT;
     CHECK(lights->FAdd(&light));
+    if (!id)
+    {
+        light.rIntensity = BR_SCALAR(0.5);
+        light.bmat34.m[3][0] = BR_SCALAR(-3);
+        CHECK(lights->FAdd(&light));
+    }
     ChunkNumber child;
     DataBlock b;
     CHECK(file->FAddChild(kctgBkgd, *number, 0, lights->CbOnFile(), kctgGllt, &child, &b) && lights->FWrite(&b));
     ReleasePpo(&lights);
     b.Free();
+    if (!id)
+    {
+        BackgroundDefaultSoundOnFile sound = {};
+        sound.bo = kboCur;
+        sound.osk = koskCur;
+        sound.vlm = 12345;
+        sound.fLoop = true;
+        sound.tagSnd = {-1, 0x1BADB002U, kctgMsnd, 0xFEDC1234U};
+        SwapBytesBom(&sound, kbomBds);
+        CHECK(file->FAddChildPv(kctgBkgd, *number, 0, &sound, sizeof(sound), kctgBds, &child));
+        auto colors = DynamicArray::PglNew(sizeof(Color));
+        CHECK(colors);
+        Color a = {1, 2, 3, 0}, second = {4, 5, 6, 0};
+        CHECK(colors->FAdd(&a) && colors->FAdd(&second));
+        CHECK(file->FAddChild(kctgBkgd, *number, 0, colors->CbOnFile(), kctgColorTable, &child, &b) &&
+              colors->FWrite(&b, kboOther));
+        b.Free();
+        ReleasePpo(&colors);
+    }
     byte pixels[32 * 24];
     std::memset(pixels, 17 + id, sizeof(pixels));
     RC r(0, 0, 32, 24);
@@ -592,6 +617,47 @@ int main()
     {
         auto background = static_cast<PBackground>(observed->PbacoFetch(kctgBkgd, tag.cno, Background::FReadBkgd));
         CHECK(background);
+        TAG sound;
+        long volume;
+        bool loop;
+        background->GetDefaultSound(&sound, &volume, &loop);
+        Value(sound.sid);
+        Value(sound.pcrf != nullptr);
+        Value(sound.ctg);
+        Value(sound.cno);
+        Value(volume);
+        Value(loop);
+        for (int i = 0; i < 2; ++i)
+        {
+            PDynamicArray colors;
+            long base;
+            Value(background->FGetPalette(&colors, &base));
+            Value(base);
+            Value(colors->IvMac());
+            for (long j = 0; j < colors->IvMac(); ++j)
+            {
+                Color color;
+                colors->Get(j, &color);
+                Record(&color, sizeof(color));
+            }
+            if (!i)
+            {
+                Color changed = {9, 8, 7, 0};
+                colors->Put(0, &changed);
+            }
+            ReleasePpo(&colors);
+        }
+        background->TurnOffLights();
+        background->TurnOnLights(movie->Pbwld());
+        background->SetFLeaveLitesOn(true);
+        Value(background->FLeaveLitesOn());
+        background->TurnOffLights();
+        background->SetFLeaveLitesOn(false);
+        Value(background->FLeaveLitesOn());
+        background->TurnOffLights();
+        background->TurnOffLights();
+        background->TurnOnLights(movie->Pbwld());
+        background->TurnOnLights(movie->Pbwld());
         for (long camera : {0, 1, 2, 1, 0})
         {
             Value(background->FSetCamera(movie->Pbwld(), camera));
@@ -1079,5 +1145,5 @@ int main()
     std::printf("Scene content: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-        CHECK(recorded == 30976 && hash == 0x34CB17AFU);
+        CHECK(recorded == 31048 && hash == 0x5E56C170U);
 }

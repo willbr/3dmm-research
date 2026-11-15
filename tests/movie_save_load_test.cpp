@@ -214,11 +214,11 @@ class StageTestBackground : public Background
   public:
     bool Init()
     {
-        _camera.count=1; _cbactLight=1;
+        _camera.count=1; _resource.light_count=1;
         _camera.place.dxr=BR_SCALAR(100); _camera.place.dyr=BR_SCALAR(2); _camera.place.dzr=-BR_SCALAR(30);
         _camera.yaw=0x1234;
-        return FAllocPv((void **)&_prgbactLight,sizeof(BACT),fmemClear,mprNormal) &&
-               FAllocPv((void **)&_prgblitLight,sizeof(BLIT),fmemClear,mprNormal);
+        return FAllocPv(&_resource.actors,sizeof(BACT),fmemClear,mprNormal) &&
+               FAllocPv(&_resource.lights,sizeof(BLIT),fmemClear,mprNormal);
     }
 };
 class StageTestScene : public Scene

@@ -5,6 +5,7 @@
 #include <vector>
 #include "preview_background_mesh.h"
 #include "soc_core.h"
+#include "three_mm/background_resource.h"
 namespace ThreeMM
 {
 namespace Internal
@@ -22,6 +23,8 @@ class PreviewBackground
         std::unique_ptr<PreviewBackgroundMesh> mesh;
     };
     std::vector<CachedMesh> meshes; // Two most recently inspected cameras.
+    ThreeMMBackgroundResource resource = {};
+    ThreeMMBackgroundCameraState cameraState = {};
 
   public:
     CameraPosition camera = {};

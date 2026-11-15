@@ -50,6 +50,106 @@ const ChildChunkID kchidGllt = 0; // DynamicArray of LITEs
 const ChildChunkID kchidGlcr = 0; // Palette
 const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 
+namespace
+{
+struct BackgroundResourceHost
+{
+    Background *background;
+    PChunkyFile file;
+    PWorld world;
+    DataBlock block;
+};
+} // namespace
+ThreeMMBackgroundServices Background::_ResourceServices(void *host)
+{
+    ThreeMMBackgroundServices s = {};
+    s.context = host;
+    const unsigned short one = 1;
+    s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
+#ifdef DEBUG
+    s.debug_checks = 1;
+#endif
+    s.actor_bytes = sizeof(BACT);
+    s.light_bytes = sizeof(BLIT);
+    s.child = [](void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 id, ThreeMMU32 childType, ThreeMMU32 *out) {
+        ChildChunkIdentification child;
+        if (!static_cast<BackgroundResourceHost *>(p)->file->FGetKidChidCtg(type, number, id, childType, &child))
+            return 0;
+        *out = child.cki.cno;
+        return 1;
+    };
+    s.child_at = [](void *p, ThreeMMU32 type, ThreeMMU32 number, ThreeMMI32 index, ThreeMMU32 *out) {
+        ChildChunkIdentification child;
+        if (!static_cast<BackgroundResourceHost *>(p)->file->FGetKid(type, number, index, &child))
+            return 0;
+        *out = child.cki.ctg;
+        return 1;
+    };
+    s.find = [](void *p, ThreeMMU32 type, ThreeMMU32 number, int unpack) {
+        auto h = static_cast<BackgroundResourceHost *>(p);
+        return int(h->file->FFind(type, number, &h->block) && (!unpack || h->block.FUnpackData()));
+    };
+    s.stream = [](void *p) { return EngineReadStream::FromBlock(static_cast<BackgroundResourceHost *>(p)->block); };
+    s.name = [](void *p, ThreeMMU32 type, ThreeMMU32 number) {
+        auto h = static_cast<BackgroundResourceHost *>(p);
+        return int(h->file->FGetName(type, number, &h->background->_stn));
+    };
+    s.read_list = [](void *p, int *big) -> void * {
+        auto h = static_cast<BackgroundResourceHost *>(p);
+        short order = kboCur;
+        auto list = DynamicArray::PglRead(&h->block, &order);
+        const unsigned short one = 1;
+        *big = (*reinterpret_cast<const byte *>(&one) == 0) ^ (order == kboOther);
+        return list;
+    };
+    s.count = [](void *, void *p) -> ThreeMMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.stride = [](void *, void *p) -> ThreeMMI32 { return static_cast<PDynamicArray>(p)->CbEntry(); };
+    s.get = [](void *, void *p, ThreeMMI32 index, void *out, size_t bytes) {
+        std::memcpy(out, static_cast<PDynamicArray>(p)->QvGet(index), bytes);
+    };
+    s.put = [](void *, void *p, ThreeMMI32 index, const void *in, size_t bytes) {
+        std::memcpy(static_cast<PDynamicArray>(p)->QvGet(index), in, bytes);
+    };
+    s.release = [](void *, void *p) { static_cast<PDynamicArray>(p)->Release(); };
+    s.allocate = [](void *, ThreeMMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
+    s.free_memory = [](void *, void **out) { FreePpv(out); };
+    s.configure_light = [](void *, ThreeMMBackgroundResource *state, ThreeMMI32 index,
+                           const ThreeMMBackgroundLight *light) {
+        auto actor = &static_cast<BACT *>(state->actors)[index];
+        auto data = &static_cast<BLIT *>(state->lights)[index];
+        data->type = static_cast<byte>(light->type);
+        data->colour = kbrcLight;
+        data->attenuation_c = light->intensity;
+        actor->type = BR_ACTOR_LIGHT;
+        actor->type_data = data;
+        actor->t.type = BR_TRANSFORM_MATRIX34;
+        static_assert(sizeof(actor->t.t.mat) == sizeof(light->matrix), "Light matrix layout");
+        std::memcpy(&actor->t.t.mat, &light->matrix, sizeof(light->matrix));
+        return 1;
+    };
+    s.add_light = [](void *p, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+        static_cast<BackgroundResourceHost *>(p)->world->AddActor(&static_cast<BACT *>(b->actors)[i]);
+    };
+    s.enable_light = [](void *, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+        BrLightEnable(&static_cast<BACT *>(b->actors)[i]);
+    };
+    s.disable_light = [](void *, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+        BrLightDisable(&static_cast<BACT *>(b->actors)[i]);
+    };
+    s.remove_light = [](void *, ThreeMMBackgroundResource *b, ThreeMMI32 i) {
+        BrActorRemove(&static_cast<BACT *>(b->actors)[i]);
+    };
+    s.new_palette = [](void *) -> void * { return DynamicArray::PglNew(sizeof(Color)); };
+    s.duplicate_palette = [](void *, void *palette) -> void * { return static_cast<PDynamicArray>(palette)->PglDup(); };
+    s.diagnostic = [](void *, int issue) {
+        if (issue == THREE_MM_BACKGROUND_CAMERA_GAPS)
+            Bug("cam chids are not consecutive!");
+        else
+            Warn("Error reading background");
+    };
+    return s;
+}
+
 /***************************************************************************
     Add the background's chunks (excluding camera views) to the tag list
 ***************************************************************************/
@@ -57,21 +157,18 @@ bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
 {
     AssertVarMem(ptagBkgd);
     AssertPo(ptagl, 0);
-
-    if (!ptagl->FInsertTag(ptagBkgd, fFalse))
-        return fFalse;
-    if (!ptagl->FInsertChild(ptagBkgd, kchidBds, kctgBds))
-        return fFalse;
-    if (!ptagl->FInsertChild(ptagBkgd, kchidGllt, kctgGllt))
-        return fFalse;
-    if (!ptagl->FInsertChild(ptagBkgd, kchidGlcr, kctgColorTable))
-        return fFalse;
-
-    // Have to cache first camera view since scene switches to it
-    // automatically
-    if (!ptagl->FInsertChild(ptagBkgd, 0, kctgCam))
-        return fFalse;
-    return fTrue;
+    struct Host
+    {
+        PTAG tag;
+        PTagList list;
+    } host = {ptagBkgd, ptagl};
+    ThreeMMBackgroundTagServices s = {};
+    s.context = &host;
+    s.insert = [](void *p, int parent, ThreeMMU32 type) {
+        auto h = static_cast<Host *>(p);
+        return int(parent ? h->list->FInsertTag(h->tag, fFalse) : h->list->FInsertChild(h->tag, 0, type));
+    };
+    return three_mm_background_tags(&s) != 0;
 }
 
 /***************************************************************************
@@ -80,70 +177,65 @@ bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
 bool Background::FCacheToHD(PTAG ptagBkgd)
 {
     AssertVarMem(ptagBkgd);
-
-    TAG tagBds;
-    TAG tagGllt;
-    TAG tagGlcr;
-    TAG tagCam;
-
-    // Build the child tags
-    if (!vptagm->FBuildChildTag(ptagBkgd, kchidBds, kctgBds, &tagBds))
-        return fFalse;
-    if (!vptagm->FBuildChildTag(ptagBkgd, kchidGllt, kctgGllt, &tagGllt))
-        return fFalse;
-    if (!vptagm->FBuildChildTag(ptagBkgd, kchidGlcr, kctgColorTable, &tagGlcr))
-        return fFalse;
-    if (!vptagm->FBuildChildTag(ptagBkgd, 0, kctgCam, &tagCam))
-        return fFalse;
-
-    // Cache the Background chunk
-    if (!vptagm->FCacheTagToHD(ptagBkgd, fFalse))
-        return fFalse;
-
-    // Cache the child chunks
-    if (!vptagm->FCacheTagToHD(&tagBds))
-        return fFalse;
-    if (!vptagm->FCacheTagToHD(&tagGllt))
-        return fFalse;
-    if (!vptagm->FCacheTagToHD(&tagGlcr))
-        return fFalse;
-
-    // Have to cache first camera view since scene switches to it
-    // automatically
-    if (!vptagm->FCacheTagToHD(&tagCam))
-        return fFalse;
-
-    return fTrue;
+    ThreeMMBackgroundTagServices s = {};
+    s.context = ptagBkgd;
+    s.child = [](void *p, ThreeMMU32 type, ThreeMMTag *out) {
+        TAG tag = {};
+        if (!vptagm->FBuildChildTag(static_cast<PTAG>(p), 0, type, &tag))
+            return 0;
+        *out = TagToCore(tag);
+        return 1;
+    };
+    s.cache = [](void *, const ThreeMMTag *input, int children) {
+        TAG tag;
+        TagFromCore(&tag, *input);
+        return int(vptagm->FCacheTagToHD(&tag, children != 0));
+    };
+    auto tag = TagToCore(*ptagBkgd);
+    return three_mm_background_cache(&tag, &s) != 0;
 }
 
 /***************************************************************************
     A PFNRPO to read a Background from a file
 ***************************************************************************/
-bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
+                           PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-
-    Background *pbkgd;
-
-    *pcb = size(Background) + size(BACT) + size(BLIT); // estimate Background size
-    if (pvNil == ppbaco)
-        return fTrue;
-    pbkgd = NewObj Background;
-    if (pvNil == pbkgd || !pbkgd->_FInit(pcrf->Pcfl(), ctg, cno))
+    struct Host
     {
-        TrashVar(ppbaco);
-        TrashVar(pcb);
-        ReleasePpo(&pbkgd);
-        return fFalse;
-    }
-    AssertPo(pbkgd, 0);
-    *ppbaco = pbkgd;
-    *pcb =
-        size(Background) + LwMul(pbkgd->_cbactLight, size(BACT)) + LwMul(pbkgd->_cbactLight, size(BLIT)); // actual Background size
-    return fTrue;
+        PChunkyResourceFile cache;
+        PBaseCacheableObject *object;
+        LegacyLong *bytes;
+    } host = {pcrf, ppbaco, pcb};
+    ThreeMMBackgroundFactoryServices s = {};
+    s.context = &host;
+    s.object_bytes = sizeof(Background);
+    s.actor_bytes = sizeof(BACT);
+    s.light_bytes = sizeof(BLIT);
+    s.create = [](void *) -> void * { return NewObj Background; };
+    s.initialize = [](void *p, void *object, ThreeMMU32 type, ThreeMMU32 number) {
+        return int(static_cast<Background *>(object)->_FInit(static_cast<Host *>(p)->cache->Pcfl(), type, number));
+    };
+    s.lights = [](void *, void *object) -> ThreeMMI32 {
+        return static_cast<Background *>(object)->_resource.light_count;
+    };
+    s.release = [](void *, void *object) { static_cast<Background *>(object)->Release(); };
+    s.size = [](void *p, ThreeMMI32 bytes) { *static_cast<Host *>(p)->bytes = bytes; };
+    s.publish = [](void *p, void *object) {
+        auto background = static_cast<Background *>(object);
+        AssertPo(background, 0);
+        *static_cast<Host *>(p)->object = background;
+    };
+    s.failure = [](void *p) {
+        auto h = static_cast<Host *>(p);
+        TrashVar(h->object);
+        TrashVar(h->bytes);
+    };
+    return three_mm_background_factory(ctg, cno, ppbaco != nullptr, &s) != 0;
 }
 
 /***************************************************************************
@@ -156,156 +248,9 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
-
-    DataBlock blck;
-    BackgroundFile bkgdf;
-    ChildChunkIdentification kid;
-    PDynamicArray pgllite = pvNil;
-    short bo;
-
-    _camera.count = _Ccam(pcfl, ctg, cno); // compute # of views in this background
-    _camera.current = ivNil;
-
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
-        goto LFail;
-    if (blck.Cb() != size(BackgroundFile))
-        goto LFail;
-    if (!blck.FReadRgb(&bkgdf, size(BackgroundFile), 0))
-        goto LFail;
-    if (kboCur != bkgdf.bo)
-        SwapBytesBom(&bkgdf, kbomBkgdf);
-    Assert(kboCur == bkgdf.bo, "bad BackgroundFile");
-
-    if (!pcfl->FGetName(ctg, cno, &_stn))
-        goto LFail;
-
-    // Get the default sound
-    if (pcfl->FGetKidChidCtg(ctg, cno, kchidBds, kctgBds, &kid))
-    {
-        BackgroundDefaultSoundOnFile bdsOnFile;
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || !blck.FUnpackData())
-            goto LFail;
-        if (blck.Cb() != size(BackgroundDefaultSoundOnFile))
-            goto LFail;
-        if (!blck.FReadRgb(&bdsOnFile, size(BackgroundDefaultSoundOnFile), 0))
-            goto LFail;
-        if (kboCur != bdsOnFile.bo)
-            SwapBytesBom(&bdsOnFile, kbomBds);
-        Assert(kboCur == bdsOnFile.bo, "bad BackgroundDefaultSound");
-        _bds.bo = bdsOnFile.bo;
-        _bds.osk = bdsOnFile.osk;
-        _bds.vlm = bdsOnFile.vlm;
-        _bds.fLoop = bdsOnFile.fLoop;
-        TagFromOnFile(&_bds.tagSnd, bdsOnFile.tagSnd);
-    }
-    else
-    {
-        _bds.tagSnd.sid = ksidInvalid;
-    }
-
-    // If there is a GLCR child, get it
-    if (pcfl->FGetKidChidCtg(ctg, cno, kchidGlcr, kctgColorTable, &kid))
-    {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-            goto LFail;
-        _pglclr = DynamicArray::PglRead(&blck, &bo);
-        if (_pglclr != pvNil)
-        {
-            if (kboOther == bo)
-                SwapBytesRglw(_pglclr->QvGet(0), _pglclr->IvMac());
-        }
-        _bIndexBase = bkgdf.bIndexBase;
-    }
-    else
-        _pglclr = pvNil;
-
-    // Read the DynamicArray of LITEs (GLLT)
-    if (!pcfl->FGetKidChidCtg(ctg, cno, kchidGllt, kctgGllt, &kid))
-        goto LFail;
-    if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
-        goto LFail;
-    pgllite = DynamicArray::PglRead(&blck, &bo);
-    if (pvNil == pgllite)
-        goto LFail;
-    Assert(pgllite->CbEntry() == size(LightPosition), "bad pgllite...you may need to update bkgds.chk");
-    AssertBomRglw(kbomLite, size(LightPosition));
-    if (kboOther == bo)
-    {
-        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LightPosition) / size(int32_t)));
-    }
-    _cbactLight = pgllite->IvMac();
-    if (!FAllocPv((void **)&_prgbactLight, LwMul(_cbactLight, size(BACT)), fmemClear, mprNormal))
-    {
-        goto LFail;
-    }
-    if (!FAllocPv((void **)&_prgblitLight, LwMul(_cbactLight, size(BLIT)), fmemClear, mprNormal))
-    {
-        goto LFail;
-    }
-    _SetupLights(pgllite);
-    ReleasePpo(&pgllite);
-    return fTrue;
-LFail:
-    Warn("Error reading background");
-    ReleasePpo(&pgllite);
-    return fFalse;
-}
-
-/***************************************************************************
-    Return the number of camera views in this scene.  CameraPosition chunks need to be
-    contiguous CHIDs starting at ChildChunkID 0.
-***************************************************************************/
-long Background::_Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-
-    ChildChunkIdentification kid;
-    long ccam;
-
-    for (ccam = 0; pcfl->FGetKidChidCtg(ctg, cno, ccam, kctgCam, &kid); ccam++)
-    {
-    }
-#ifdef DEBUG
-    // Make sure chids are consecutive
-    long ckid;
-    long ccamT = 0;
-    for (ckid = 0; pcfl->FGetKid(ctg, cno, ckid, &kid); ckid++)
-    {
-        if (kid.cki.ctg == kctgCam)
-            ccamT++;
-    }
-    Assert(ccamT == ccam, "cam chids are not consecutive!");
-#endif
-    return ccam;
-}
-
-/***************************************************************************
-    Fill _prgbactLight and _prgblitLight using a DynamicArray of LITEs
-***************************************************************************/
-void Background::_SetupLights(PDynamicArray pgllite)
-{
-    AssertBaseThis(0);
-    AssertPo(pgllite, 0);
-
-    long ilite;
-    LightPosition *qlite;
-    BACT *pbact;
-    BLIT *pblit;
-
-    for (ilite = 0; ilite < _cbactLight; ilite++)
-    {
-        qlite = (LightPosition *)pgllite->QvGet(ilite);
-        pbact = &_prgbactLight[ilite];
-        pblit = &_prgblitLight[ilite];
-        pblit->type = (byte)qlite->lt;
-        pblit->colour = kbrcLight;
-        pblit->attenuation_c = qlite->rIntensity;
-        pbact->type = BR_ACTOR_LIGHT;
-        pbact->type_data = pblit;
-        pbact->t.type = BR_TRANSFORM_MATRIX34;
-        pbact->t.t.mat = qlite->bmat34;
-    }
+    BackgroundResourceHost host = {this, pcfl, nullptr};
+    auto services = _ResourceServices(&host);
+    return three_mm_background_read(&_resource, &_camera, ctg, cno, THREE_MM_BACKGROUND_STUDIO, &services) != 0;
 }
 
 /***************************************************************************
@@ -314,14 +259,11 @@ void Background::_SetupLights(PDynamicArray pgllite)
 Background::~Background(void)
 {
     AssertBaseThis(0);
-    Assert(!_fLeaveLitesOn, "Shouldn't be freeing background now");
-    if (pvNil != _prgbactLight && pvNil != _prgblitLight)
-        TurnOffLights();
-    FreePpv((void **)&_prgbactLight);
-    FreePpv((void **)&_prgblitLight);
-    ReleasePpo(&_pglclr);
-    auto services = _CameraServices(nullptr);
-    three_mm_background_camera_dispose(&_camera, &services);
+    Assert(!_resource.leave_on, "Shouldn't be freeing background now");
+    auto services = _ResourceServices(nullptr);
+    three_mm_background_resource_dispose(&_resource, &services);
+    auto camera = _CameraServices(nullptr);
+    three_mm_background_camera_dispose(&_camera, &camera);
 }
 
 /***************************************************************************
@@ -345,17 +287,11 @@ bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
     AssertThis(0);
     AssertVarMem(ppglclr);
     AssertVarMem(piclrMin);
-
-    *piclrMin = _bIndexBase;
-    if (pvNil == _pglclr) // no custom palette
-    {
-        *ppglclr = DynamicArray::PglNew(size(Color)); // "palette" with 0 entries
-    }
-    else
-    {
-        *ppglclr = _pglclr->PglDup();
-    }
-    return (pvNil != *ppglclr);
+    *piclrMin = _resource.palette_base;
+    ThreeMMI32 base;
+    auto services = _ResourceServices(nullptr);
+    *ppglclr = static_cast<PDynamicArray>(three_mm_background_palette(&_resource, &base, &services));
+    return *ppglclr != nullptr;
 }
 
 /***************************************************************************
@@ -382,21 +318,9 @@ void Background::TurnOnLights(PWorld pbwld)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
-
-    long ilite;
-    BACT *pbact;
-
-    if (!_fLites)
-    {
-        for (ilite = 0; ilite < _cbactLight; ilite++)
-        {
-            pbact = &_prgbactLight[ilite];
-            pbwld->AddActor(pbact);
-            BrLightEnable(pbact);
-        }
-
-        _fLites = fTrue;
-    }
+    BackgroundResourceHost host = {this, nullptr, pbwld};
+    auto services = _ResourceServices(&host);
+    three_mm_background_lights_on(&_resource, &services);
 }
 
 /***************************************************************************
@@ -405,19 +329,8 @@ void Background::TurnOnLights(PWorld pbwld)
 void Background::TurnOffLights(void)
 {
     AssertThis(0);
-
-    long ilite;
-    BACT *pbact;
-
-    if (!_fLites || _fLeaveLitesOn)
-        return;
-    for (ilite = 0; ilite < _cbactLight; ilite++)
-    {
-        pbact = &_prgbactLight[ilite];
-        BrLightDisable(pbact);
-        BrActorRemove(pbact);
-    }
-    _fLites = fFalse;
+    auto services = _ResourceServices(nullptr);
+    three_mm_background_lights_off(&_resource, &services);
 }
 
 /***************************************************************************
@@ -629,11 +542,12 @@ LFail:
 void Background::AssertValid(LegacyUlong grf)
 {
     Background_PAR::AssertValid(fobjAllocated);
-    AssertIn(_cbactLight, 1, 100); // 100 is sanity check
-    AssertIn(_camera.count, 1, 100);       // 100 is sanity check
-    Assert(_camera.current == ivNil || (_camera.current >= 0 && _camera.current < _camera.count), "bad _camera.current");
-    AssertPvCb(_prgbactLight, LwMul(_cbactLight, size(BACT)));
-    AssertPvCb(_prgblitLight, LwMul(_cbactLight, size(BLIT)));
+    AssertIn(_resource.light_count, 1, 100); // 100 is sanity check
+    AssertIn(_camera.count, 1, 100);         // 100 is sanity check
+    Assert(_camera.current == ivNil || (_camera.current >= 0 && _camera.current < _camera.count),
+           "bad _camera.current");
+    AssertPvCb(_resource.actors, LwMul(_resource.light_count, size(BACT)));
+    AssertPvCb(_resource.lights, LwMul(_resource.light_count, size(BLIT)));
     AssertPo(&_stn, 0);
     AssertNilOrPo(static_cast<PDynamicArray>(_camera.points), 0);
 }
@@ -645,9 +559,9 @@ void Background::MarkMem(void)
 {
     AssertThis(0);
     Background_PAR::MarkMem();
-    MarkPv(_prgbactLight);
-    MarkPv(_prgblitLight);
-    MarkMemObj(_pglclr);
+    MarkPv(_resource.actors);
+    MarkPv(_resource.lights);
+    MarkMemObj(static_cast<PDynamicArray>(_resource.palette));
     MarkMemObj(static_cast<PDynamicArray>(_camera.points));
 }
 #endif // DEBUG

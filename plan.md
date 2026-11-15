@@ -489,8 +489,12 @@ typed operations/output marshaling or debug validation, not C-only integration.
 Background camera wire decoding is now shared C89 in Studio and Marcus.
 Studio camera metadata, placement-list ownership, camera-switch sequencing,
 mouse-matrix composition control and placement cycling/reuse also use C89.
-Native BRender math and file/list services remain adapters; background resource
-loading/cache/light policy and Preview image/mesh control still need conversion.
+Background header/default-sound/palette/light loading, contiguous camera counting,
+resource factory/partial cleanup, tag-list/cache order, palette ownership and
+light attachment/lifetime now use C89 too. Marcus Preview uses the same resource
+loader with its existing stricter visual admission profile. Native BRender math,
+file/list services and representations remain adapters; Preview image/mesh control
+and final native facade removal still need conversion.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -511,7 +515,8 @@ sound-packet, sound-editing/undo, loading/resolution, tag-collection/save,
 pause/camera/background-editing/undo, actor/caption Scene-editing/undo,
 selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
 slices and Scene query/group-loading policy are complete. Continue with
-the remaining Background resource policy and Movie control/editing/undo operations.
+Preview background image/mesh control and remaining Movie control/editing/undo
+operations. Background resource loading/cache/light policy is now C89.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

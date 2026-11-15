@@ -18,24 +18,13 @@
 
 #include "background_data.h"
 #include "three_mm/background_camera.h"
+#include "three_mm/background_resource.h"
 
 /****************************************
     Background Default Sound
 ****************************************/
-// Runtime form of the background default sound. Holds a real TAG (with
-// runtime pcrf pointer); never serialized directly. See
-// BackgroundDefaultSoundOnFile below for the wire format.
-struct BackgroundDefaultSound
-{
-    int16_t bo;
-    int16_t osk;
-    int32_t vlm;
-    bool fLoop;
-    TAG tagSnd;
-};
-
-// On-disk form: 28 bytes, TAGOnFile in place of TAG. Convert at the
-// blck.FReadRgb / blck.FWrite boundary in bkgd.cpp.
+// Authoring wire layout: 28 bytes with TAGOnFile. Runtime decoding uses
+// three_mm_background_sound_read and never copies the stored pointer slot.
 struct BackgroundDefaultSoundOnFile
 {
     int16_t bo;
@@ -60,27 +49,19 @@ class Background : public Background_PAR
     MARKMEM
 
   protected:
-    BACT *_prgbactLight; // array of light br_actors
-    BLIT *_prgblitLight; // array of light data
-    long _cbactLight;    // count of lights
-    bool _fLites;        // lights are on
-    bool _fLeaveLitesOn; // Don't turn out the lights
+    ThreeMMBackgroundResource _resource; // C-owned arrays, palette, sound and light policy.
     ThreeMMBackgroundCameraState _camera; // C-owned camera metadata/placement list.
-    ChunkNumber _cnoSnd;         // background sound
     String _stn;            // name of this background
-    PDynamicArray _pglclr;         // palette for this background
-    byte _bIndexBase;    // first index for palette
-    BackgroundDefaultSound _bds;   // background default sound
 
   protected:
     Background(void)
     {
         three_mm_background_camera_init(&_camera);
+        three_mm_background_resource_init(&_resource);
     }
     ThreeMMBackgroundCameraServices _CameraServices(void *host);
+    ThreeMMBackgroundServices _ResourceServices(void *host);
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    long _Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    void _SetupLights(PDynamicArray pgllite);
 
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl);
@@ -93,11 +74,11 @@ class Background : public Background_PAR
     void TurnOffLights(void);
     bool FLeaveLitesOn(void)
     {
-        return _fLeaveLitesOn;
+        return _resource.leave_on != 0;
     }
     void SetFLeaveLitesOn(bool fLeaveLitesOn)
     {
-        _fLeaveLitesOn = fLeaveLitesOn;
+        _resource.leave_on = fLeaveLitesOn;
     }
 
     long Ccam(void)
@@ -120,9 +101,9 @@ class Background : public Background_PAR
 
     void GetDefaultSound(PTAG ptagSnd, long *pvlm, bool *pfLoop)
     {
-        *ptagSnd = _bds.tagSnd;
-        *pvlm = _bds.vlm;
-        *pfLoop = _bds.fLoop;
+        TagFromCore(ptagSnd, _resource.sound.tag);
+        *pvlm = _resource.sound.volume;
+        *pfLoop = _resource.sound.loop != 0;
     }
 
     bool FGetPalette(PDynamicArray *ppglclr, long *piclrMin);
