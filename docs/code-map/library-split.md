@@ -1380,8 +1380,9 @@ it verifies control/publication, not ZIP contents. C-only checks exercise each
 replacement failure, irreversible prefixes, output/reference publication, retry
 limits, conservative format selection, deferred asset deletion, cache scope and
 sound purge decisions. No Marcus UI tests were added. Common Movie editing/undo,
-background-driven scene creation, composition and final C-only host/facade
-integration remain work. Evidence and coverage limits are recorded in
+background-driven creation and further edits are covered below. Composition and
+final C-only host/facade integration remain work. Evidence and coverage limits are
+recorded in
 `docs/tools/playback-regression.md`.
 
 ### Movie roll-call ownership, actor editing and common undo
@@ -1433,8 +1434,51 @@ roll-call rows/names/cache references, dirty flags and client/undo notifications
 across sixteen scenarios. C-only tests cover failure sequencing, snapshot/ref
 transfer, roll-call append cleanup, selection changes during path paste, sound
 defaults and scene creation rollback. No Marcus UI tests were added. Movie
-caption/text/template/material transactions, composition and final facade/host
-integration remain work. Verification and retail coverage limits are recorded in
+caption/text/template/material transactions are covered below. Composition and
+final facade/host integration remain work. Verification and retail coverage limits
+are recorded in
+`docs/tools/playback-regression.md`.
+
+### Movie material, 3-D text and caption transactions
+
+`movie_content.c` owns material insertion, 3-D text authoring/insertion and selected
+actor template replacement, caption insertion/removal/hiding and indexed caption
+selection. It reuses `movie_edit.c` for actor insertion/removal and snapshot
+services, and `movie_rollcall.c` for the new/old actor-ID handoff. Native services
+marshal strings, tags and caption bounds and provide C-backed resource/template/
+Actor/Scene primitives, the client default font and interactive mouse attachment.
+
+Material insertion publishes its tag only after writing succeeds, including the
+failed-open prefix. Earlier failure leaves the C output unchanged; native wrappers
+retain their debug poisoning. 3-D text creates its template before preparing the
+working file, captures that file before switching to temporary storage, releases
+the template after writing and opens the authored tag against current resources.
+Failed edits retain already-written chunks. Temporary templates now release after
+resource/temporary-file/write failure, and failed actor insertion closes its opened
+template tag; the original native paths leaked those references.
+
+Changing all-space or empty 3-D text removes the selected actor without reading
+the font input; tabs and other characters remain content. Nonblank replacement
+duplicates the actor, changes its
+template, assigns a fresh actor ID/roll-call row, then removes the old reference
+without deleting its row. Failed row insertion restores the snapshot while keeping
+the consumed Movie ID limit. Template-change failure retains its completed prefix.
+Tag/snapshot cleanup and notification/dirty order follow the original transaction.
+
+Caption insertion releases its factory reference after add/select/attach. Failed
+add now returns immediately after release, fixing the original subsequent null
+selection/mouse-attachment call. Indexed selection now advances through stored
+captions and selects the requested visible caption. The old implementation never
+advanced the storage index, returned before selection or looped indefinitely.
+Negative/missing visible indexes preserve selection. These are intentional fixes
+to broken editor paths, not claims of retail failure equivalence.
+
+The existing headless Movie save/load fixture freezes material/3-D-text and caption
+hide/remove results across eight scenarios using a synthetic positive-source font
+and placement background. It constructs the caption insertion prefix without mouse
+attachment; C tests cover full insertion, failures and visible-index selection.
+No Marcus UI tests were added. Movie composition and final C-only host/facade
+integration remain. Verification and coverage limits are in
 `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence

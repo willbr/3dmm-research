@@ -33,6 +33,12 @@ target_sources(three-mm-engine-c89 PRIVATE src/background_preview.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_scene.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_save.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_rollcall.c src/movie_edit.c)
+target_sources(three-mm-engine-c89 PRIVATE src/movie_content.c)
+get_filename_component(engine_movie_content_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_content_test.c" ABSOLUTE)
+add_executable(engine-movie-content-test EXCLUDE_FROM_ALL "${engine_movie_content_test_source}")
+target_link_libraries(engine-movie-content-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-movie-content-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-movie-content COMMAND engine-movie-content-test)
 get_filename_component(engine_movie_rollcall_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_rollcall_test.c" ABSOLUTE)
 add_executable(engine-movie-rollcall-test EXCLUDE_FROM_ALL "${engine_movie_rollcall_test_source}")
 target_link_libraries(engine-movie-rollcall-test PRIVATE three-mm-engine-c89)
@@ -647,6 +653,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_save.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_rollcall.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_edit.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_content.c"
+    "${engine_movie_content_test_source}"
     "${engine_movie_rollcall_test_source}"
     "${engine_movie_edit_test_source}"
     "${engine_movie_save_test_source}"

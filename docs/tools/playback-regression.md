@@ -8378,3 +8378,100 @@ Evidence: `tmp/c89-movie-edit-{standalone,native-tests,sdl-release-tests,sdl-deb
 `tmp/c89-movie-edit-original-capture-hashes.json`,
 `tmp/c89-movie-edit-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-movie-edit-capture-hashes-{before,after}.json`.
+
+### Movie material, 3-D text and caption transactions (15 November 2026)
+
+`movie_content.c` now owns material insertion, 3-D text authoring/insertion and
+actor template replacement, caption insertion/removal/hiding and indexed visible
+caption selection. It reuses the C Movie actor-edit and roll-call controllers;
+native callbacks provide string/tag/bounds marshaling, resource/template/Actor/
+Scene primitives, default font lookup and interactive mouse attachment. Movie
+composition and final C-only host/facade integration remain work.
+
+The original native controller leaked temporary text templates after resource/
+temporary-file/write failure and an opened tag after failed actor insertion.
+These references now release on failure while already-written chunks remain.
+Caption insertion now stops after failed Scene add, preventing its subsequent
+null selection/mouse-attachment call. Indexed caption selection advances through
+storage and selects the requested visible caption; the original repeated one
+slot, returned without selecting or looped indefinitely. These intentional fixes
+are covered in C and do not claim retail editor/failure equivalence.
+
+The existing headless Movie save/load fixture captured all three original native/
+SDL debug/release controllers before conversion. Eight scenarios record material
+tag/cache ownership, 3-D text insertion and shape/text/template/actor-ID changes,
+blank-text removal, caption hide/remove results, roll-call rows/names, dirty/undo/
+client state and ordered chunk graphs. All originals match 91,484 bytes, FNV-1a
+`B21E0181`, SHA-256
+`8C2891B41A5DEE68EE54C2B7873C3EC1E809899882ABE01BEF9F1FEBBB6CE0AF`.
+The fixture freezes that fingerprint by default on Windows x64. It uses a
+synthetic positive-source font and placement background; embedded-font and full
+retail authoring parity are unverified. The caption insertion prefix is built
+without interactive mouse attachment. C-only tests verify full insertion, failed
+add cleanup, visible-index selection, material output publication, resource-file
+capture order, tag/template/snapshot cleanup, all-space removal without inspecting
+the font input, failed new-row
+restoration and retained consumed ID/chunk prefixes. No Marcus UI tests were added.
+
+All fifteen final native/SDL debug/release trace comparisons pass: the new
+91,484-byte content trace, 61,552-byte Movie-edit trace, 29,440-byte Movie-save
+trace, 1,064-byte Movie-scene-control trace and 31,048-byte Scene-content trace
+retain their original bytes. Broad suites pass 107 standalone C, 144 selected
+native, 52 SDL release and 40 SDL debug checks. After deferring font-input access,
+final rebuilt native/SDL debug/release content, Scene-content, full Movie fixtures
+and C89 syntax checks pass (four per host, plus two standalone). The C fixture
+passes Clang strict C89 with warnings as errors and MSVC AddressSanitizer; all 51
+CLI format baselines match. Builds and file-heavy checks ran serially. Marcus
+was stopped before rebuilds and relaunched afterward.
+
+The unchanged Studio VMM workflow passes all eight checks with the original blank
+VMM and local prop VXP, private settings/package stores and fresh processes. It
+verifies authoring/save/reopen state and pixels, ordinary 3MM output, per-movie
+applied sets, package management and install/apply/remove/save across restarts.
+Reference inputs retain their hashes. Its report is
+`tmp/c89-movie-content-vmm-workflow/run-zqyfqujc/report.json`. This remains Windows
+x64 evidence; other platforms, full retail/original-v3dmm edit parity and final
+C-only host integration remain unverified.
+
+Final captures compare against the preceding `b818ac16` Movie-edit revision.
+Binaries remained fixed through all 21 fresh-process retail/SDL/Marcus captures
+(one repeat, no concurrent builds/tests). Final before/after SHA-256:
+
+- SDL release: `6B79615C47F14DB70DE42E61EDB2EF11CC4C57045F5D41546CB90569C278AD33`.
+- Marcus regression: `1E7A45D97262D54FF25A28B99DE40A67724460D9C0D26D994642314E8F49C9C5`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T053209Z-e1c11c15` | `20261115T061006Z-15e26c47` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T053328Z-0e871cb3` | `20261115T061124Z-59ca83cf` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T053646Z-933628f1` | `20261115T061440Z-d2646ff5` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T053804Z-e1688d20` | `20261115T061600Z-551a4dd7` | three retail/SDL/Marcus playback |
+
+Original/final movie identities, suite integrity, all authored frame sequences,
+540 seek images and ordered playback image changes match each player's original
+suite. Playback comparison collapses only adjacent identical scene/frame/image
+samples. Actor-audio peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus); tone detection and first-scene-only contracts
+pass. Existing cross-player differences, single-repeat timing inconclusiveness
+and presentation-marker limits remain. This does not establish PCM identity or
+full audio/timing parity. Captures use a shared warm SDL package cache with private
+processes, settings and working movies; OS caching is uncontrolled.
+
+Generated debug files were compressed before capture to recover disk space, with
+unchanged content hashes. The existing retention tool keeps one complete media
+suite per comparison group and prunes superseded media after completion. Source
+metadata and immutable database hashes remain available. Comparison assertions
+and integrity checks are unchanged.
+
+Evidence: `tmp/c89-movie-content-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
+`tmp/c89-movie-content-final-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-movie-content-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-content-{edit-final,save-final,scene-control-final,scene-final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-content-trace-comparison.json`,
+`tmp/c89-movie-content-{output-comparison,playback-comparison}.json`,
+`tmp/c89-movie-content-vmm-workflow.log`,
+`tmp/c89-movie-content-{debug,extra-debug}-compression-hashes.json`,
+`tmp/c89-movie-content-{debug,extra-debug}-compression.log`,
+`tmp/c89-movie-content-original-capture-hashes.json`,
+`tmp/c89-movie-content-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-movie-content-capture-hashes-{before,after}.json`.

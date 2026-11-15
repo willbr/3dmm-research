@@ -1499,39 +1499,73 @@ bool Movie::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
+ThreeMMMovieContentServices Movie::_ContentServices()
+{
+    ThreeMMMovieContentServices s = {};
+    s.edit = _EditServices();
+    s.ensure = [](void *p, void **out) -> int {
+        PChunkyResourceFile resources = nullptr;
+        bool ok = static_cast<PMovie>(p)->FEnsureAutosave(&resources);
+        if (ok) *out = resources;
+        return ok;
+    };
+    s.make_valid = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
+    s.use_temp = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
+    s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.write_material = [](void *p, void *file, ThreeMMU32 *out) -> int {
+        ChunkNumber number; bool ok = static_cast<PMaterial_MTRL>(p)->FWrite(static_cast<PChunkyFile>(file), kctgMtrl, &number);
+        if (ok) *out = number;
+        return ok;
+    };
+    s.new_text = [](const void *name, ThreeMMI32 shape, const void *font) -> void * {
+        return ThreeDText::PtdtNew(const_cast<PString>(static_cast<const String *>(name)), shape,
+                                  const_cast<PTAG>(static_cast<const TAG *>(font)));
+    };
+    s.write_text = [](void *p, void *file, ThreeMMU32 *out) -> int {
+        ChunkNumber number; bool ok = static_cast<PThreeDText>(p)->FWrite(static_cast<PChunkyFile>(file), kctgTmpl, &number);
+        if (ok) *out = number;
+        return ok;
+    };
+    s.release_text = [](void *p) { auto text = static_cast<PThreeDText>(p); ReleasePpo(&text); };
+    s.open_tag = [](ThreeMMTag *value, void *resources) -> int {
+        TAG tag; TagFromCore(&tag, *value);
+        bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
+        *value = TagToCore(tag); return ok;
+    };
+    s.close_tag = [](ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
+    s.length = [](const void *name) -> ThreeMMI32 { return const_cast<PString>(static_cast<const String *>(name))->Cch(); };
+    s.character = [](const void *name, ThreeMMI32 i) -> ThreeMMI32 {
+        return static_cast<unsigned char>(const_cast<PString>(static_cast<const String *>(name))->Psz()[i]);
+    };
+    s.change_template = [](void *p, const ThreeMMTag *value) -> int {
+        TAG tag; TagFromCore(&tag, *value); return static_cast<PActor>(p)->FChangeTagTmpl(&tag);
+    };
+    s.new_caption = [](void *scene, const void *bounds, int story) -> void * {
+        return TextBox::PtboxNew(static_cast<PScene>(scene), const_cast<RC *>(static_cast<const RC *>(bounds)), story != 0);
+    };
+    s.default_font = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->Pmcc()->DypTboxDef(); };
+    s.caption_font = [](void *p, ThreeMMI32 font) { static_cast<PTBOX>(p)->SetDypFontDef(font); };
+    s.add_caption = [](void *p, void *caption) -> int { return static_cast<PScene>(p)->FAddTbox(static_cast<PTBOX>(caption)); };
+    s.remove_caption = [](void *p, void *caption) -> int { return static_cast<PScene>(p)->FRemTbox(static_cast<PTBOX>(caption)); };
+    s.select_caption = [](void *p, void *caption) { static_cast<PScene>(p)->SelectTbox(static_cast<PTBOX>(caption)); };
+    s.attach_caption = [](void *p) { static_cast<PTBOX>(p)->AttachToMouse(); };
+    s.release_caption = [](void *p) { auto caption = static_cast<PTBOX>(p); ReleasePpo(&caption); };
+    s.selected_caption = [](void *p) -> void * { return static_cast<PScene>(p)->PtboxSelected(); };
+    s.caption_at = [](void *p, ThreeMMI32 i) -> void * { return static_cast<PScene>(p)->PtboxFromItbox(i); };
+    s.hide_caption = [](void *p) -> int { return static_cast<PTBOX>(p)->FHide(); };
+    s.visible_caption = [](void *p) -> int { return static_cast<PTBOX>(p)->FIsVisible(); };
+    s.missing_caption = [](void *) { PushErc(ercSocNoTboxSelected); };
+    return s;
+}
+
 bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
 {
-    AssertThis(0);
-    AssertPo(pmtrl, 0);
-    AssertVarMem(ptag);
-
-    PChunkyResourceFile pcrf;
-    PChunkyFile pcfl;
-    ChunkNumber cno;
-
-    if (!FEnsureAutosave(&pcrf))
-    {
-        TrashVar(ptag);
-        return (fFalse);
-    }
-
-    pcfl = pcrf->Pcfl();
-    if (!pmtrl->FWrite(pcfl, kctgMtrl, &cno))
-    {
-        TrashVar(ptag);
-        return fFalse;
-    }
-
-    ptag->sid = ksidUseCrf;
-    ptag->ctg = kctgMtrl;
-    ptag->cno = cno;
-
-    if (!TagManager::FOpenTag(ptag, _data.Resources()))
-    {
-        return fFalse;
-    }
-
-    return fTrue;
+    AssertThis(0); AssertPo(pmtrl, 0); AssertVarMem(ptag);
+    const auto services = _ContentServices();
+    ThreeMMTag tag = {}; int written;
+    bool ok = three_mm_movie_insert_material(pmtrl, &tag, &written, &services) != 0;
+    if (written) TagFromCore(ptag, tag); else TrashVar(ptag);
+    return ok;
 }
 
 /****************************************************
@@ -1570,60 +1604,10 @@ bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
  ****************************************************/
 bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
-    AssertIn(tdts, 0, tdtsLim);
-    AssertVarMem(ptagTdf);
-
-    PChunkyFile pcfl;
-    ChunkNumber cno;
-    PThreeDText ptdt;
-    TAG tagTdt;
-
-    ptdt = ThreeDText::PtdtNew(pstn, tdts, ptagTdf);
-    if (pvNil == ptdt)
-        return fFalse;
-
-    //
-    // Make sure we have a file to switch to
-    //
-    if (!_FMakeCrfValid())
-    {
-        return (fFalse);
-    }
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // Switch to the autosave file
-    //
-    if (!_FUseTempFile())
-    {
-        return (fFalse);
-    }
-
-    if (!ptdt->FWrite(pcfl, kctgTmpl, &cno))
-    {
-        return fFalse;
-    }
-    ReleasePpo(&ptdt);
-
-    tagTdt.sid = ksidUseCrf;
-    tagTdt.ctg = kctgTmpl;
-    tagTdt.cno = cno;
-
-    if (!TagManager::FOpenTag(&tagTdt, _data.Resources()))
-    {
-        return fFalse;
-    }
-
-    if (!FInsActr(&tagTdt))
-        return fFalse;
-
-    TagManager::CloseTag(&tagTdt);
-
-    return fTrue;
+    AssertThis(0); AssertPo(pstn, 0); Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
+    AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
+    const auto services = _ContentServices();
+    return three_mm_movie_insert_text(pstn, tdts, ptagTdf, &services) != 0;
 }
 
 /****************************************************
@@ -1642,104 +1626,11 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
  ****************************************************/
 bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 {
-    AssertThis(0);
-    AssertPo(pactr, 0);
-    Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a ThreeDText");
-    AssertPo(pstn, 0);
-    AssertIn(tdts, 0, tdtsLim);
-    AssertVarMem(ptagTdf);
-
-    long ich;
-    bool fNonSpaceFound;
-    PThreeDText ptdtNew;
-    TAG tagTdtNew;
-    PChunkyFile pcfl;
-    ChunkNumber cno;
-    PActor pactrDup;
-
+    AssertThis(0); AssertPo(pactr, 0); Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a ThreeDText");
+    AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     Assert(pactr == Pscen()->PactrSelected(), 0);
-    fNonSpaceFound = fFalse;
-    for (ich = 0; ich < pstn->Cch(); ich++)
-    {
-        if (pstn->Psz()[ich] != ChLit(' '))
-        {
-            fNonSpaceFound = fTrue;
-            break;
-        }
-    }
-    if (!fNonSpaceFound) // delete the actor
-    {
-        return FRemActr();
-    }
-
-    ptdtNew = ThreeDText::PtdtNew(pstn, tdts, ptagTdf);
-    if (pvNil == ptdtNew)
-        return fFalse;
-
-    //
-    // Make sure we have a file to switch to
-    //
-    if (!_FMakeCrfValid())
-    {
-        return (fFalse);
-    }
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // Switch to the autosave file
-    //
-    if (!_FUseTempFile())
-    {
-        return (fFalse);
-    }
-
-    if (!ptdtNew->FWrite(pcfl, kctgTmpl, &cno))
-    {
-        return fFalse;
-    }
-    ReleasePpo(&ptdtNew);
-
-    tagTdtNew.sid = ksidUseCrf;
-    tagTdtNew.ctg = kctgTmpl;
-    tagTdtNew.cno = cno;
-
-    if (!TagManager::FOpenTag(&tagTdtNew, _data.Resources()))
-    {
-        return fFalse;
-    }
-
-    if (!pactr->FDup(&pactrDup))
-    {
-        TagManager::CloseTag(&tagTdtNew);
-        return fFalse;
-    }
-
-    if (!pactr->FChangeTagTmpl(&tagTdtNew))
-    {
-        TagManager::CloseTag(&tagTdtNew);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    // this sequence is a little strange to make unwinding easier:
-    // we add the actor to the roll call with aridNil to get a new
-    // entry, then remove the old entry (using pactrDup).
-    pactr->SetArid(aridNil);
-    if (!FAddToRollCall(pactr, pstn))
-    {
-        pactr->Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        TagManager::CloseTag(&tagTdtNew);
-        return fFalse;
-    }
-    RemFromRollCall(pactrDup);
-    ReleasePpo(&pactrDup);
-
-    TagManager::CloseTag(&tagTdtNew);
-    SetDirty();
-
-    return fTrue;
+    const auto services = _ContentServices();
+    return three_mm_movie_change_text(pactr, pstn, tdts, ptagTdf, &services) != 0;
 }
 
 /****************************************************
@@ -2017,32 +1908,9 @@ bool Movie::FChangeCam(long icam)
  **************************************************************************/
 bool Movie::FInsTbox(RC *prc, bool fStory)
 {
-    AssertThis(0);
-    AssertPvCb(prc, size(RC));
-    AssertPo(Pscen(), 0);
-
-    PTBOX ptbox;
-
-    ptbox = TextBox::PtboxNew(Pscen(), prc, fStory);
-
-    if (ptbox == pvNil)
-    {
-        return (fFalse);
-    }
-    ptbox->SetDypFontDef(Pmcc()->DypTboxDef());
-
-    AssertPo(ptbox, 0);
-
-    if (!Pscen()->FAddTbox(ptbox))
-    {
-        ReleasePpo(&ptbox);
-    }
-
-    Pscen()->SelectTbox(ptbox);
-    ptbox->AttachToMouse();
-    ReleasePpo(&ptbox);
-
-    return (fTrue);
+    AssertThis(0); AssertPvCb(prc, size(RC)); AssertPo(Pscen(), 0);
+    const auto services = _ContentServices();
+    return three_mm_movie_insert_caption(prc, fStory, &services) != 0;
 }
 
 /***************************************************************************
@@ -2058,20 +1926,9 @@ bool Movie::FInsTbox(RC *prc, bool fStory)
  **************************************************************************/
 bool Movie::FNukeTbox(void)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    PTBOX ptbox;
-
-    ptbox = Pscen()->PtboxSelected();
-
-    if (ptbox == pvNil)
-    {
-        PushErc(ercSocNoTboxSelected);
-        return (fFalse);
-    }
-
-    return (Pscen()->FRemTbox(ptbox));
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _ContentServices();
+    return three_mm_movie_remove_caption(0, &services) != 0;
 }
 
 /***************************************************************************
@@ -2087,20 +1944,9 @@ bool Movie::FNukeTbox(void)
  **************************************************************************/
 bool Movie::FHideTbox(void)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    PTBOX ptbox;
-
-    ptbox = Pscen()->PtboxSelected();
-
-    if (ptbox == pvNil)
-    {
-        PushErc(ercSocNoTboxSelected);
-        return (fFalse);
-    }
-
-    return (ptbox->FHide());
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _ContentServices();
+    return three_mm_movie_remove_caption(1, &services) != 0;
 }
 
 /***************************************************************************
@@ -2116,32 +1962,9 @@ bool Movie::FHideTbox(void)
  **************************************************************************/
 void Movie::SelectTbox(long itbox)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    PTBOX ptbox;
-    long cVis = 0;
-
-    while (fTrue)
-    {
-        ptbox = Pscen()->PtboxFromItbox(itbox);
-        if (ptbox == pvNil)
-        {
-            return;
-        }
-
-        if (ptbox->FIsVisible() && (cVis == itbox))
-        {
-            return;
-        }
-
-        if (ptbox->FIsVisible())
-        {
-            cVis++;
-        }
-    }
-
-    Pscen()->SelectTbox(ptbox);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _ContentServices();
+    three_mm_movie_select_caption(itbox, &services);
 }
 
 /***************************************************************************

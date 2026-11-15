@@ -1534,6 +1534,7 @@ add_dependencies(core-checks engine-background-mesh-test engine-background-previ
 add_dependencies(core-checks engine-movie-scene-test)
 add_dependencies(core-checks engine-movie-save-test)
 add_dependencies(core-checks engine-movie-rollcall-test engine-movie-edit-test)
+add_dependencies(core-checks engine-movie-content-test)
 add_dependencies(core-checks debug-checks-test)
 add_dependencies(core-checks kidspace-descriptor-test)
 add_dependencies(core-checks mcp-io-test)

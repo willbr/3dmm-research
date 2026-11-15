@@ -526,9 +526,10 @@ and asset/sound garbage-collection control now also use C89. Physical file/path/
 block I/O and VMM packaging remain host services. Movie roll-call queries/naming,
 actor-ID/tag/reference control, actor selection/placement/edit dispatch, sound
 defaults, camera/pause/transition dispatch, background-driven scene creation and
-common undo registration/notification now also use C89. Movie caption/text/
-template/material edit transactions, composition and final host/facade integration
-still need conversion.
+common undo registration/notification now also use C89. Movie material insertion,
+3-D text creation/template replacement and caption insertion/removal/hiding/
+visible-index selection transactions now also use C89. Movie composition and
+final host/facade integration still need conversion.
 Background resource loading/cache/
 light policy and Preview background image/mesh control are now C89; broader
 Preview rendering and final host integration still need conversion.
