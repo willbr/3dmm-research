@@ -20,6 +20,8 @@ typedef struct MarcusUI
     SDL_Texture *transport_labels[2];
     SDL_Texture *transport_numbers;
     SDL_Texture *settings_icons[2]; /* Native 28px and 40px controls. */
+    SDL_Texture *dialog_icons[8]; /* Confirm/cancel, pressed, disabled at current pixel scale. */
+    int dialog_width, dialog_height;
     MarcusGlyph transport_digits[13]; /* '-' through '9'. */
     int transport_space;
     MarcusGlyph glyphs[224];

@@ -39,6 +39,10 @@ target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-co
 kauai_copy_midi_assets(marcus-preview)
 
 add_executable(marcus WIN32 main.c ui.c settings.c camera_guide.c movie_browser.cpp scene_organiser.cpp preview_worker.cpp)
+add_executable(marcus-dialog-capture EXCLUDE_FROM_ALL ../../tools/marcus_dialog_capture.c ui.c)
+set_target_properties(marcus-dialog-capture PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(marcus-dialog-capture PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(marcus-dialog-capture PRIVATE SDL3::SDL3-static freetype)
 add_dependencies(marcus marcus-preview)
 find_package(Threads REQUIRED)
 target_compile_features(marcus PRIVATE cxx_std_17)

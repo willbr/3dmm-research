@@ -222,6 +222,10 @@ int ui_init(MarcusUI *ui, SDL_Renderer *renderer, const char *font_path)
 }
 void ui_destroy(MarcusUI *ui)
 {
+    int i;
+    for (i = 0; i < 8; ++i)
+        SDL_DestroyTexture(ui->dialog_icons[i]);
+    memset(ui->dialog_icons, 0, sizeof(ui->dialog_icons));
     SDL_DestroyTexture(ui->settings_icons[0]);
     SDL_DestroyTexture(ui->settings_icons[1]);
     ui->settings_icons[0] = ui->settings_icons[1] = NULL;
@@ -565,20 +569,178 @@ void ui_transport_readout(MarcusUI *ui, float x, float y, int scene, const char 
         pen += digit->advance * scale;
     }
 }
+/* Opaque supersample scan conversion. Shared edges use the same ordered edge
+ * equation, avoiding cracks between the triangles of a curved SVG contour. */
+static void dialog_raster(Uint32 *pixels, int width, int height, const MarcusVectorVertex *source, int count,
+                          float offset, int enabled)
+{
+    double vx[3], vy[3], ax, ay, bx, by, swap, sample, hits[3], low, high;
+    unsigned long ink, grey;
+    int i, edge, n, row, first, last, left, right, column;
+    for (i = 0; i < count; i += 3)
+    {
+        ink = source[i].colour;
+        if (!enabled)
+        {
+            grey = (((ink >> 16) & 255) + ((ink >> 8) & 255) + (ink & 255) + 1) / 3;
+            ink = (grey << 16) | (grey << 8) | grey;
+        }
+        for (edge = 0; edge < 3; ++edge)
+        {
+            vx[edge] = (source[i + edge].x + offset) * width / UI_DIALOG_BUTTON_WIDTH;
+            vy[edge] = (source[i + edge].y + offset) * height / UI_DIALOG_BUTTON_HEIGHT;
+        }
+        low = high = vy[0];
+        for (edge = 1; edge < 3; ++edge)
+        {
+            if (vy[edge] < low)
+                low = vy[edge];
+            if (vy[edge] > high)
+                high = vy[edge];
+        }
+        first = (int)SDL_ceil(low - 0.5);
+        last = (int)SDL_ceil(high - 0.5);
+        if (first < 0)
+            first = 0;
+        if (last > height)
+            last = height;
+        for (row = first; row < last; ++row)
+        {
+            sample = row + 0.5;
+            n = 0;
+            for (edge = 0; edge < 3; ++edge)
+            {
+                ax = vx[edge];
+                ay = vy[edge];
+                bx = vx[(edge + 1) % 3];
+                by = vy[(edge + 1) % 3];
+                if (by < ay)
+                {
+                    swap = ax;
+                    ax = bx;
+                    bx = swap;
+                    swap = ay;
+                    ay = by;
+                    by = swap;
+                }
+                if (sample >= ay && sample < by)
+                    hits[n++] = ax + (sample - ay) * (bx - ax) / (by - ay);
+            }
+            if (n != 2)
+                continue;
+            low = hits[0] < hits[1] ? hits[0] : hits[1];
+            high = hits[0] > hits[1] ? hits[0] : hits[1];
+            left = (int)SDL_ceil(low - 0.5);
+            right = (int)SDL_ceil(high - 0.5);
+            if (left < 0)
+                left = 0;
+            if (right > width)
+                right = width;
+            for (column = left; column < right; ++column)
+                pixels[row * width + column] = (Uint32)ink;
+        }
+    }
+}
+static SDL_Texture *dialog_icon(SDL_Renderer *renderer, int width, int height, int confirm, int pressed, int enabled)
+{
+    Uint32 *samples, pixel;
+    unsigned char *out;
+    unsigned int red, green, blue, divisor;
+    SDL_Surface *surface;
+    SDL_Texture *texture;
+    int factor, sw, sh, x, y, sx, sy;
+    /* Box-filter true subpixel coverage rather than enlarging a 46x43 bitmap.
+     * Larger UI scales are rasterized again from vector coordinates. */
+    factor = width <= UI_DIALOG_BUTTON_WIDTH * 2 ? 8 : 4;
+    sw = width * factor;
+    sh = height * factor;
+    samples = (Uint32 *)calloc((size_t)sw * sh, sizeof(*samples));
+    if (!samples)
+        return NULL;
+    dialog_raster(samples, sw, sh, marcus_vector_dialog_frame, MARCUS_VECTOR_DIALOG_FRAME_COUNT, 0, enabled);
+    dialog_raster(samples, sw, sh, confirm ? marcus_vector_dialog_ok : marcus_vector_dialog_cancel,
+                  confirm ? MARCUS_VECTOR_DIALOG_OK_COUNT : MARCUS_VECTOR_DIALOG_CANCEL_COUNT, pressed ? 1.0f : 0.0f,
+                  enabled);
+    surface = SDL_CreateSurface(width, height, SDL_PIXELFORMAT_RGBA32);
+    texture = NULL;
+    if (surface)
+    {
+        divisor = (unsigned int)(factor * factor);
+        for (y = 0; y < height; ++y)
+            for (x = 0; x < width; ++x)
+            {
+                red = green = blue = 0;
+                for (sy = 0; sy < factor; ++sy)
+                    for (sx = 0; sx < factor; ++sx)
+                    {
+                        pixel = samples[(y * factor + sy) * sw + x * factor + sx];
+                        red += (pixel >> 16) & 255;
+                        green += (pixel >> 8) & 255;
+                        blue += pixel & 255;
+                    }
+                out = (unsigned char *)surface->pixels + y * surface->pitch + x * 4;
+                out[0] = (unsigned char)((red + divisor / 2) / divisor);
+                out[1] = (unsigned char)((green + divisor / 2) / divisor);
+                out[2] = (unsigned char)((blue + divisor / 2) / divisor);
+                out[3] = 255;
+            }
+        texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_DestroySurface(surface);
+        if (texture)
+        {
+            SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+        }
+    }
+    free(samples);
+    return texture;
+}
 void ui_dialog_button(MarcusUI *ui, float x, float y, int confirm, int enabled, const char *hint)
 {
-    int hovered, pressed;
-    float brightness, offset;
+    int hovered, pressed, width, height, index, i;
+    float brightness, offset, scale_x, scale_y;
+    SDL_Texture *texture;
+    SDL_FRect destination;
     hovered = ui_inside(ui->mouse_x, ui->mouse_y, x, y, UI_DIALOG_BUTTON_WIDTH, UI_DIALOG_BUTTON_HEIGHT);
     pressed = enabled && hovered && (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON_LMASK);
     brightness = !enabled ? 0.55f : pressed ? 0.80f : hovered ? 1.15f : 1;
     offset = pressed ? 1 : 0;
-    draw_vector_scaled(ui, x, y, marcus_vector_dialog_frame, MARCUS_VECTOR_DIALOG_FRAME_COUNT,
-                       1, 1, brightness, enabled);
-    draw_vector_scaled(ui, x + offset, y + offset,
-                       confirm ? marcus_vector_dialog_ok : marcus_vector_dialog_cancel,
-                       confirm ? MARCUS_VECTOR_DIALOG_OK_COUNT : MARCUS_VECTOR_DIALOG_CANCEL_COUNT,
-                       1, 1, brightness, enabled);
+    scale_x = scale_y = 1;
+    SDL_GetRenderScale(ui->renderer, &scale_x, &scale_y);
+    width = (int)SDL_ceilf(UI_DIALOG_BUTTON_WIDTH * SDL_fabsf(scale_x));
+    height = (int)SDL_ceilf(UI_DIALOG_BUTTON_HEIGHT * SDL_fabsf(scale_y));
+    width = width < 1 ? 1 : width > UI_DIALOG_BUTTON_WIDTH * 8 ? UI_DIALOG_BUTTON_WIDTH * 8 : width;
+    height = height < 1 ? 1 : height > UI_DIALOG_BUTTON_HEIGHT * 8 ? UI_DIALOG_BUTTON_HEIGHT * 8 : height;
+    if (width != ui->dialog_width || height != ui->dialog_height)
+    {
+        for (i = 0; i < 8; ++i)
+            SDL_DestroyTexture(ui->dialog_icons[i]);
+        memset(ui->dialog_icons, 0, sizeof(ui->dialog_icons));
+        ui->dialog_width = width;
+        ui->dialog_height = height;
+    }
+    index = ((confirm ? 1 : 0) * 2 + pressed) * 2 + !enabled;
+    if (!ui->dialog_icons[index])
+        ui->dialog_icons[index] = dialog_icon(ui->renderer, width, height, confirm, pressed, enabled);
+    texture = ui->dialog_icons[index];
+    if (texture)
+    {
+        SDL_SetTextureColorModFloat(texture, brightness, brightness, brightness);
+        SDL_SetTextureAlphaModFloat(texture, ui->opacity);
+        destination.x = x;
+        destination.y = y;
+        destination.w = UI_DIALOG_BUTTON_WIDTH;
+        destination.h = UI_DIALOG_BUTTON_HEIGHT;
+        SDL_RenderTexture(ui->renderer, texture, NULL, &destination);
+    }
+    else
+    {
+        draw_vector_scaled(ui, x, y, marcus_vector_dialog_frame, MARCUS_VECTOR_DIALOG_FRAME_COUNT, 1, 1, brightness,
+                           enabled);
+        draw_vector_scaled(ui, x + offset, y + offset, confirm ? marcus_vector_dialog_ok : marcus_vector_dialog_cancel,
+                           confirm ? MARCUS_VECTOR_DIALOG_OK_COUNT : MARCUS_VECTOR_DIALOG_CANCEL_COUNT, 1, 1,
+                           brightness, enabled);
+    }
     if (hovered)
         ui->hint = hint;
 }

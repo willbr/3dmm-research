@@ -787,6 +787,39 @@ curves are flattened into triangles at build time. Paths with holes, strokes,
 relative commands and gradients remain unsupported. The Cancel/OK controls use
 curved red/green contours and a narrow grey bevel, following the retail buttons;
 the artwork stays editable and scalable without shipping bitmap button images.
+Dialog controls rasterize those vectors with 8x8 subpixel coverage at native
+size, or 4x4 coverage above 2x display scale. The resulting textures are cached
+per control/state and physical pixel size; scale changes rerasterize the curves.
+This avoids jagged triangle edges and avoids enlarging a fixed native bitmap.
+
+For an RGB review of the actual controls without opening an application window:
+
+```powershell
+cmake --build build/marcus-x64 --target marcus-dialog-capture
+New-Item -ItemType Directory -Force tmp/dialog-after
+build/marcus-x64/src/marcus/marcus-dialog-capture.exe tmp/dialog-after 1
+build/marcus-x64/src/marcus/marcus-dialog-capture.exe tmp/dialog-after 4
+python tools/compare_marcus_dialogs.py --reference PATH/retail-buttons.png `
+  --cancel-box 73 37 46 43 --ok-box 130 37 46 43 `
+  --before tmp/dialog-before --after tmp/dialog-after --output tmp/dialog-diff
+```
+
+The capture helper uses `ui_dialog_button` and SDL's software renderer, with a
+normal enabled state and no mouse hover. It verifies that the supersampled
+texture has the requested physical dimensions. Capture `dialog-before` with the
+previous build before rebuilding it. The crop coordinates above refer to the
+supplied 230x112 retail screenshot; use explicit native 46x43 crops for another
+reference. The report records SHA-256 inputs, raw absolute RGB differences,
+per-channel mean errors and a separate coloured-glyph union. It never aligns,
+rescales or masks the comparison pixels. The review sheet labels native pixel
+enlargements separately from the independently rendered 4x controls.
+
+For the supplied reference, the 15 November review reduced mean absolute RGB
+channel error from 41.85 to 15.93 for Cancel and 44.88 to 20.41 for OK (0..255).
+The retail texture and some contours still differ; these numbers are an artwork
+comparison against the supplied screenshot, not a pixel-equivalence claim.
+The review artifacts are `tmp/dialog-rgb-comparison/{comparison.png,report.json}`.
+
 
 With Loop off, playback advances through scenes and stops at the movie's final
 frame. With Loop on, the current scene repeats, resetting its animation, captions

@@ -10,6 +10,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/settings.c"
   "${SOURCE}/src/marcus/camera_guide.c"
   "${SOURCE}/src/marcus/renderer_ids.c"
+  "${SOURCE}/tools/marcus_dialog_capture.c"
   "${SOURCE}/tests/marcus_player_test.c" RESULT_VARIABLE result)
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Marcus frontend/C API sources failed C89 verification: ${result}")
