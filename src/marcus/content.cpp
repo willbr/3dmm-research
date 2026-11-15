@@ -163,13 +163,16 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
                 break;
         }
     }
-    movie = impl->input->path;
+    movie = impl->input->contentOrigin.empty() ? impl->input->path : impl->input->contentOrigin;
     std::ifstream header(movie, std::ios::binary);
     char signature[6] = {};
     header.read(signature, sizeof(signature));
     bundled = header.gcount() == 6 && std::string(signature, 6) == std::string("v3dmm\1", 6);
     if (!bundled)
+    {
+        movie = impl->input->path;
         return;
+    }
     auto bundle = V::ReadBundle(movie);
     std::vector<StudioV3dmm::Installation> selection;
     std::map<std::string, std::size_t> names;
@@ -192,6 +195,7 @@ MarcusContent::MarcusContent(std::shared_ptr<MarcusMovieFile> input, const std::
     movie = impl->Working() / "movie.3mm";
     impl->ownedFiles.push_back(movie);
     V::Copy(bundle.movie, movie);
+    if (!impl->input->contentOrigin.empty()) movie = impl->input->path;
 }
 MarcusContent::~MarcusContent() = default;
 void MarcusContent::PrepareSource(const std::string &name)

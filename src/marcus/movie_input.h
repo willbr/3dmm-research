@@ -15,6 +15,8 @@ struct MarcusMovieFile
 {
     std::filesystem::path path, directory;
     std::filesystem::path fontDirectory;
+    std::filesystem::path contentOrigin;
+    std::shared_ptr<MarcusMovieFile> origin; // Retains ZIP/VMM dependencies and fonts for private edits.
     std::vector<std::filesystem::path> ownedFonts;
     std::shared_ptr<KauaiFonts::FontCatalog> fonts;
     std::shared_ptr<MM::Content::Vfs> fontFiles;

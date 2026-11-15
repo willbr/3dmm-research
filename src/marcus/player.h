@@ -223,6 +223,18 @@ extern "C"
      * supplies the four original .3cn archives. Unknown expansion sources report
      * their missing source ID, rather than silently replacing original content. */
     int marcus_open(MarcusPlayer *player, const char *movie, const char *resources, const char *content_directory);
+    typedef struct MarcusBackground
+    {
+        char name[192];
+        unsigned long chunk;
+    } MarcusBackground;
+    /* Original retail backgrounds. Listing and cancelling do not change playback. */
+    int marcus_background_count(MarcusPlayer *player, const char *content_directory);
+    int marcus_background(const MarcusPlayer *player, int index, MarcusBackground *background);
+    /* Append a one-frame scene in a private working copy and select it. No source
+     * movie is overwritten. Also creates the first scene of an empty player. */
+    int marcus_add_scene(MarcusPlayer *player, unsigned long background, const char *resources, const char *content_directory);
+    int marcus_reload(MarcusPlayer *player, const char *resources, const char *content_directory);
     /* Listing never extracts a movie. A single entry opens automatically via
      * marcus_open; multi-movie ZIPs require an explicit zero-based selection.
      * The loaded player retains the extracted file after input is destroyed. */

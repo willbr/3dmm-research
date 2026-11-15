@@ -41,6 +41,7 @@ int main(int argc, char **argv)
     MarcusInfo info;
     MarcusMovieTime movie_time;
     MarcusScene scene;
+    MarcusBackground background;
     MarcusObject first, later, prop, inactive;
     MarcusBounds first_bounds, bounds;
     MarcusAnimationInfo animation;
@@ -428,6 +429,41 @@ int main(int argc, char **argv)
     event_index = animation.event_count;
     CHECK(marcus_select_scene(player, 1));
     CHECK(marcus_animation_info(player, 1, &animation) && animation.event_count == event_index);
+    /* Scene creation uses a private copy, retains existing scenes and supports
+     * both reload and a fresh empty movie. No application UI is involved. */
+    CHECK(marcus_background_count(player, argv[3]) > 0);
+    CHECK(marcus_background(player, 0, &background));
+    CHECK(!marcus_background(player, -1, &background));
+    CHECK(marcus_info(player, &info));
+    scene_count = info.scene_count;
+    CHECK(!marcus_add_scene(player, 0xffffffffUL, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count);
+    CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count + 1 && info.scene == scene_count &&
+          info.first_frame == 1 && info.last_frame == 1 && info.object_count == 0 && info.sound_count == 0);
+    CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image) && image.rgba);
+    CHECK(marcus_reload(player, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count + 1 && info.scene == scene_count);
+    CHECK(marcus_select_scene(player, 0) && marcus_object(player, 1, &first));
+    CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count + 2 && info.scene == scene_count + 1);
+    CHECK(marcus_open(player, argv[7], argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count);
+    CHECK(marcus_open(player, argv[5], argv[2], argv[3]));
+    CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count + 1);
+    CHECK(marcus_open(player, argv[5], argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count);
+    CHECK(marcus_open(player, argv[4], argv[2], argv[3]));
+    CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == scene_count + 1);
+    CHECK(marcus_select_scene(player, 0) && marcus_render(player, 480, 270, 1, 0, 0, 1, &image));
+    marcus_destroy(player);
+    player = marcus_create();
+    CHECK(player && marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    CHECK(marcus_info(player, &info) && info.scene_count == 1 && info.frame == 1 && info.object_count == 0);
+    CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image) && image.rgba);
+    CHECK(marcus_movie_time(player, &movie_time) && fabs(movie_time.duration_seconds - 1.0 / 6) < 1e-6);
     marcus_destroy(player);
     free(pixels);
     puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "

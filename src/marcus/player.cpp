@@ -10,6 +10,7 @@
 #include "sound_timeline.h"
 #include "timing_job.h"
 #include "frame_previews.h"
+#include "scene_edit.h"
 #include "mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -69,6 +70,7 @@ struct MarcusPlayer
     MarcusPlayback playback;
     std::vector<MM::Id> scenes;
     std::vector<MarcusScene> sceneInfo;
+    std::vector<MarcusBackground> backgrounds;
     std::vector<MM::PreviewObject> objects;
     struct AnimationCache
     {
@@ -494,6 +496,78 @@ extern "C"
                 error.message = player->error;
                 return false;
             }
+            return true;
+        });
+    }
+    int marcus_reload(MarcusPlayer *player, const char *resources, const char *directory)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            auto original = player->timingInput;
+            if (!original) return false;
+            const auto scene = player->selected;
+            MarcusMovieInput input;
+            input.Open(original->path.u8string());
+            auto file = input.Materialize(0);
+            file->origin = original;
+            file->contentOrigin = original->contentOrigin;
+            file->fonts = original->fonts;
+            file->fontFiles = original->fontFiles;
+            file->fontDirectory = original->fontDirectory;
+            input.prepared = file;
+            if (!marcus_open_input(player, &input, 0, resources, directory) || !marcus_select_scene(player, scene))
+            { error.message = player->error; return false; }
+            return true;
+        });
+    }
+    int marcus_background_count(MarcusPlayer *player, const char *directory)
+    {
+        const bool ok = Guard(player, [&](MM::Error &error) {
+            if (!directory) return false;
+            MM::Archive archive;
+            if (!archive.Open((std::filesystem::u8path(directory) / "bkgds.3cn").u8string(), error)) return false;
+            std::vector<MarcusBackground> backgrounds;
+            for (const auto &chunk : archive.Chunks())
+                if (chunk.id.type == 0x424b4744)
+                {
+                    MarcusBackground background = {};
+                    background.chunk = chunk.id.number;
+                    Copy(background.name, chunk.name.empty() ? "Background " + std::to_string(chunk.id.number) : chunk.name);
+                    backgrounds.push_back(background);
+                }
+            player->backgrounds.swap(backgrounds);
+            return true;
+        });
+        return ok ? static_cast<int>(player->backgrounds.size()) : -1;
+    }
+    int marcus_background(const MarcusPlayer *player, int index, MarcusBackground *background)
+    {
+        if (!player || !background || index < 0 || static_cast<std::size_t>(index) >= player->backgrounds.size()) return 0;
+        *background = player->backgrounds[index];
+        return 1;
+    }
+    int marcus_add_scene(MarcusPlayer *player, unsigned long background, const char *resources, const char *directory)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (!resources || !directory) return false;
+            // Validate the chosen retail asset before preparing or replacing the live document.
+            if (marcus_background_count(player, directory) < 0) { error.message = player->error; return false; }
+            if (std::none_of(player->backgrounds.begin(), player->backgrounds.end(),
+                             [&](const auto &value) { return value.chunk == background; }))
+            { error.message = "The selected background is unavailable."; return false; }
+            const auto index = static_cast<int>(player->scenes.size());
+            auto file = MarcusAppendScene(player->content ? player->content->movie : std::filesystem::path{},
+                                           player->timingInput, background, index + 1);
+            MarcusMovieInput input;
+            input.Open(file->path.u8string());
+            auto materialized = input.Materialize(0);
+            materialized->origin = file;
+            materialized->contentOrigin = file->contentOrigin;
+            materialized->fonts = file->fonts;
+            materialized->fontFiles = file->fontFiles;
+            materialized->fontDirectory = file->fontDirectory;
+            input.prepared = materialized;
+            if (!marcus_open_input(player, &input, 0, resources, directory) || !marcus_select_scene(player, index))
+            { error.message = player->error; return false; }
             return true;
         });
     }

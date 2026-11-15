@@ -9,5 +9,5 @@ bool WritePreview(std::ostream &output, const BrowserPreview &preview);
 BrowserPreview ReadPreview(const std::vector<std::uint8_t> &bytes);
 BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &resources,
                                const std::function<bool()> &cancelled, const std::string &content = {}, bool duration = false,
-                               const std::string &fonts = {});
+                               const std::string &fonts = {}, bool background = false);
 #endif

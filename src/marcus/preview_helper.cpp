@@ -19,11 +19,12 @@
 
 namespace
 {
-bool OpenPlayer(MarcusPlayer *player, char **argv, const char *fonts)
+bool OpenPlayer(MarcusPlayer *player, char **argv, const char *fonts, const char *origin = nullptr)
 {
     MarcusMovieInput input;
     input.Open(argv[1]);
     auto file = input.Materialize(0);
+    if (origin && *origin) file->contentOrigin = std::filesystem::u8path(origin);
     if (fonts && *fonts) file->LoadFonts(std::filesystem::u8path(fonts));
     return marcus_open_input(player, &input, 0, argv[2], argv[4]) != 0;
 }
@@ -37,7 +38,7 @@ bool FrameResponse(const BrowserPreview &preview)
     std::cout.flush();
     return bool(std::cout);
 }
-int FramePreviews(char **argv, const char *fonts)
+int FramePreviews(char **argv, const char *fonts, const char *origin)
 {
     try
     {
@@ -47,7 +48,7 @@ int FramePreviews(char **argv, const char *fonts)
         std::size_t consumed;
         const auto scene = std::stoi(argv[5], &consumed);
         if (argv[5][consumed] || scene < 0) throw std::runtime_error("Invalid frame thumbnail scene.");
-        if (!OpenPlayer(player.get(), argv, fonts) ||
+        if (!OpenPlayer(player.get(), argv, fonts, origin) ||
             !marcus_select_scene(player.get(), scene)) throw std::runtime_error(marcus_error(player.get()));
         int requestedScene, selectedScene = scene;
         long long frame;
@@ -103,18 +104,35 @@ int FramePreviews(char **argv, const char *fonts)
 int main(int argc, char **argv)
 {
     const bool duration = (argc == 5 || argc == 6) && !std::strcmp(argv[3], "--duration");
-    const bool timeline = (argc == 6 || argc == 8 || argc == 9) && !std::strcmp(argv[3], "--timing");
-    const bool frames = (argc == 6 || argc == 7) && !std::strcmp(argv[3], "--frames");
-    if (argc != 3 && !duration && !timeline && !frames) return 2;
+    const bool timeline = (argc == 6 || argc == 8 || argc == 9 || argc == 10) && !std::strcmp(argv[3], "--timing");
+    const bool frames = (argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--frames");
+    const bool background = argc == 5 && !std::strcmp(argv[3], "--background");
+    if (argc != 3 && !duration && !timeline && !frames && !background) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
     if (frames) _setmode(_fileno(stdin), _O_BINARY);
 #endif
-    if (frames) return FramePreviews(argv, argc == 7 ? argv[6] : nullptr);
+    if (frames) return FramePreviews(argv, argc >= 7 ? argv[6] : nullptr, argc == 8 ? argv[7] : nullptr);
     BrowserPreview preview;
     try
     {
-        if (duration || timeline)
+        if (background)
+        {
+            std::size_t end;
+            const auto chunk = std::stoul(argv[1], &end);
+            std::unique_ptr<MarcusPlayer, decltype(&marcus_destroy)> player(marcus_create(), marcus_destroy);
+            MarcusImage image = {};
+            if (!player || argv[1][end] || !marcus_add_scene(player.get(), chunk, argv[2], argv[4]) ||
+                !marcus_render(player.get(), 480, 270, 1, 0, 0, 1, &image))
+                preview.error = marcus_error(player.get());
+            else
+            {
+                preview.width = image.width;
+                preview.height = image.height;
+                preview.rgba.assign(image.rgba, image.rgba + image.pitch * image.height);
+            }
+        }
+        else if (duration || timeline)
         {
             const auto started = std::chrono::steady_clock::now();
             auto player = marcus_create();
@@ -133,8 +151,8 @@ int main(int argc, char **argv)
                         return 2;
                     }
                 }
-                const char *fonts = timeline && argc == 9 ? argv[8] : duration && argc == 6 ? argv[5] : nullptr;
-                if (!OpenPlayer(player, argv, fonts) || !marcus_movie_time(player, &timing))
+                const char *fonts = timeline && argc >= 9 ? argv[8] : duration && argc == 6 ? argv[5] : nullptr;
+                if (!OpenPlayer(player, argv, fonts, timeline && argc == 10 ? argv[9] : nullptr) || !marcus_movie_time(player, &timing))
                     preview.error = marcus_error(player);
                 else
                 {

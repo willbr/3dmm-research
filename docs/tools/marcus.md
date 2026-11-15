@@ -1,7 +1,7 @@
 # Marcus
 
 Marcus is the first step toward a new Studio interface. It is currently a
-read-only movie player for original 3D Movie Maker `.3MM` files, including
+movie player with initial scene creation tools for original 3D Movie Maker `.3MM` files, including
 sampled sound, MIDI music, 2D captions, transitions and authored pauses.
 It also opens supported v1 `.vmm` bundles through the existing v3dmm library.
 The dark layout has a camera viewport, object and sound dope sheets, scene object list
@@ -106,8 +106,29 @@ Resources or Content reloads that movie.
 Use **New movie** or **Ctrl+N** (**Cmd+N** on macOS) to start a blank, unsaved
 **Untitled movie** session. This stops playback and clears the previous movie,
 scene/object/sound lists, timeline and viewport images while retaining Resources,
-Content and preferences. The new movie has no scenes; scene authoring and saving
-are not implemented yet. New movie's shortcut can be changed in Settings.
+Content and preferences. The new movie starts with no scenes; use **New scene**
+to add one. New movie's shortcut can be changed in Settings.
+
+The top ribbon follows retail's **Scenes**, **Actors & props**, **Sounds** and
+**Words** categories, with coloured icons above action labels. New/Open movie
+and Settings stay in the title row; Resources and Content remain available on
+every tab. Scene/frame organisers, object selection and sound track controls
+use the existing player actions. The Words tab selects authored 3D text objects.
+
+**New scene** opens a chooser for the original retail backgrounds, with a rendered
+preview. Use the arrows, Page Up/Down, Home/End or mouse wheel to browse, then
+**Add scene**, Enter or double-click to confirm. Escape/Cancel leaves the movie
+unchanged. Preview rendering runs in a cancellable helper process and does not
+replace the live movie. The chooser requires the original `bkgds.3cn` and normal
+Resources/Content paths.
+
+Adding a scene appends and selects a one-frame scene with the chosen background,
+camera 0, a cut transition and no actors, captions or sound cues. This works for
+a new movie and an opened movie, including ZIP/VMM inputs. Changes live in a
+private working copy; original movies, ZIPs and content files are not overwritten.
+Resource/Content reloads retain the added scenes. An **UNSAVED** indicator marks
+the working movie. Saving/export and other scene editing tools are not implemented
+yet; opening another movie, New movie or exiting discards these scene additions.
 
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape

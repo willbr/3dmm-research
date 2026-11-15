@@ -8,6 +8,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   -Werror=declaration-after-statement -Wall -Wextra -fsyntax-only ${includes}
   "-I${SOURCE}/src/marcus" "${SOURCE}/src/marcus/main.c" "${SOURCE}/src/marcus/ui.c"
   "${SOURCE}/src/marcus/settings.c"
+  "${SOURCE}/src/marcus/ribbon.c"
   "${SOURCE}/src/marcus/camera_guide.c"
   "${SOURCE}/src/marcus/renderer_ids.c"
   "${SOURCE}/tools/marcus_dialog_capture.c"

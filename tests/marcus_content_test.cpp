@@ -1,4 +1,5 @@
 #include "content.h"
+#include "movie_input.h"
 #include "studio_vxp_store.h"
 #include "studio_settings.h"
 #include <SDL3/SDL.h>
@@ -93,6 +94,15 @@ void Open(const fs::path &movie, const fs::path &first, const fs::path &second, 
         Check(Read(content.files.Resolve("v3dmm", "shared.3cn")) == shared);
         if (!installed.empty())
             Check(content.files.Resolve("v3dmm", "pkabj_stage.3cn") == installed);
+        // An edited inner movie still resolves its original VMM's embedded
+        // packages, without substituting the unedited inner movie on reload.
+        auto edited = std::make_shared<MarcusMovieFile>(movie.parent_path() / "edited.3mm");
+        Write(edited->path, "CHN2edited");
+        edited->contentOrigin = movie;
+        MarcusContent working(edited, {});
+        Check(working.bundled && working.movie == edited->path && Read(working.movie) == "CHN2edited");
+        Check(Read(working.files.Resolve("v3dmm", "pkabj_stage.3cn")) == Read(first));
+        Check(Read(working.files.Resolve("v3dmm", "Stage.3cn")) == Read(second));
     }
     Check(!fs::exists(work) && Read(movie) == before);
 }

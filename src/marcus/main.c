@@ -4,6 +4,8 @@
 #include "camera_guide.h"
 #include "movie_browser.h"
 #include "scene_organiser.h"
+#include "background_browser.h"
+#include "ribbon.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +20,10 @@
 #define MUTED 0x969da8UL
 #define ACCENT 0x78cbc4UL
 #define ROW_HEIGHT 28
-#define OBJECT_LIST_TOP 126
+#define RIBBON_DELTA (MARCUS_RIBBON_HEIGHT - 88)
+#define VIEW_TOP (MARCUS_RIBBON_HEIGHT + 1)
+#define CAMERA_BAR_Y (MARCUS_RIBBON_HEIGHT + 8)
+#define OBJECT_LIST_TOP (MARCUS_RIBBON_HEIGHT + 38)
 #define OBJECT_LIST_FOOTER 32
 #define FRAME_NAV_X 192
 #define SCENE_NAV_X FRAME_NAV_X
@@ -89,6 +94,8 @@ typedef struct App
     MarcusPlayer *player;
     MarcusBrowser *browser;
     MarcusSceneOrganiser *scene_organiser;
+    MarcusBackgroundBrowser *background_browser;
+    int ribbon_tab, modified;
     MarcusMovieInput *movie_input, *zip_input;
     int movie_entry, zip_selected, zip_scroll;
     char zip_path[1024];
@@ -320,12 +327,12 @@ static SDL_FRect viewport_rect(const App *app, int movie)
     }
     left = movie ? 0 : work_left(app);
     right = movie ? app->split_x : view_right(app);
-    height = app->viewport_bottom - 148;
+    height = app->viewport_bottom - (148 + RIBBON_DELTA);
     scale = (float)minimum((right - left - 32) / resolution->width, height / resolution->height);
     rect.w = resolution->width * scale;
     rect.h = resolution->height * scale;
     rect.x = left + (right - left - rect.w) / 2;
-    rect.y = 136 + (height - rect.h) / 2;
+    rect.y = 136 + RIBBON_DELTA + (height - rect.h) / 2;
     return rect;
 }
 static int inside_work(const App *app, float x, float y)
@@ -334,13 +341,13 @@ static int inside_work(const App *app, float x, float y)
     if (app->movie_only)
         return 0;
     left = work_left(app);
-    return ui_inside(x, y, left + 12, 132, view_right(app) - left - 24, app->viewport_bottom - 144);
+    return ui_inside(x, y, left + 12, 132 + RIBBON_DELTA, view_right(app) - left - 24, app->viewport_bottom - (144 + RIBBON_DELTA));
 }
 static int inside_movie(const App *app, float x, float y)
 {
     if (app->movie_only)
         return ui_inside(x, y, 0, 0, (float)app->width, (float)app->height);
-    return app->second_view ? ui_inside(x, y, 12, 132, app->split_x - 24, app->viewport_bottom - 144)
+    return app->second_view ? ui_inside(x, y, 12, 132 + RIBBON_DELTA, app->split_x - 24, app->viewport_bottom - (144 + RIBBON_DELTA))
                             : app->authored == 1 && inside_work(app, x, y);
 }
 static void toggle_second_view(App *app)
@@ -594,7 +601,7 @@ static SDL_FRect camera_settings_rect(const App *app, int movie)
 {
     SDL_FRect rect;
     rect.x = (movie ? 0 : work_left(app)) + 16;
-    rect.y = 96;
+    rect.y = CAMERA_BAR_Y;
     rect.w = rect.h = 28;
     return rect;
 }
@@ -698,6 +705,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
     app->movie_input = input;
     app->movie_entry = entry;
     app->blank_movie = 0;
+    app->modified = 0;
     if (path != app->movie)
         SDL_strlcpy(app->movie, path, sizeof(app->movie));
     if (marcus_input_entry(input, entry, &member) && member.zipped)
@@ -749,6 +757,7 @@ static void new_movie(App *app)
     app->movie[0] = app->zip_path[0] = app->error[0] = app->animation_hint[0] = 0;
     app->movie_entry = 0;
     app->blank_movie = 1;
+    app->modified = app->ribbon_tab = 0;
     memset(&app->info, 0, sizeof(app->info));
     memset(&app->playback, 0, sizeof(app->playback));
     memset(&app->movie_time, 0, sizeof(app->movie_time));
@@ -908,6 +917,16 @@ static void choose_file(App *app, int kind)
         SDL_ShowOpenFolderDialog(dialog_callback, request, app->window, app->content, 0);
     else
         SDL_ShowOpenFileDialog(dialog_callback, request, app->window, resources, 1, app->resources, 0);
+}
+static void choose_background(App *app)
+{
+    app->playing = 0;
+    release_camera(app);
+    finish_movie_scrub(app);
+    app->sheet_menu = app->orbit_menu = 0;
+    scene_organiser_close(app->scene_organiser);
+    if (!background_browser_show(app->background_browser, app->player, app->resources, app->content))
+        fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No backgrounds found. Choose your original 3DMM Content folder.");
 }
 static void toggle_play(App *app)
 {
@@ -1516,6 +1535,54 @@ static void pick_object(App *app, float x, float y)
     if (track_row >= *scroll + rows)
         *scroll = track_row - rows + 1;
 }
+static void ribbon_action(App *app, int action)
+{
+    MarcusObject object;
+    int index, step, match;
+    if (action == RIBBON_NEW_MOVIE) new_movie(app);
+    else if (action == RIBBON_OPEN) choose_file(app, 0);
+    else if (action == RIBBON_RESOURCES) choose_file(app, 1);
+    else if (action == RIBBON_CONTENT) choose_file(app, 2);
+    else if (action == RIBBON_SETTINGS) open_settings(app);
+    else if (action == RIBBON_NEW_SCENE) choose_background(app);
+    else if (action == RIBBON_SCENES || action == RIBBON_FRAMES)
+    {
+        app->playing = 0;
+        release_camera(app);
+        if (action == RIBBON_SCENES) scene_organiser_show(app->scene_organiser, app->player);
+        else if (!scene_organiser_show_frames(app->scene_organiser, app->player)) fail(app, "Cannot open the frame organiser.");
+    }
+    else if (action == RIBBON_PREVIOUS) perform_action(app, MARCUS_PREV_SCENE);
+    else if (action == RIBBON_NEXT) perform_action(app, MARCUS_NEXT_SCENE);
+    else if (action == RIBBON_OBJECTS) set_sheet_mode(app, SHEET_OBJECTS);
+    else if (action == RIBBON_BOTH) set_sheet_mode(app, SHEET_BOTH);
+    else if (action == RIBBON_SOUNDS) set_sheet_mode(app, SHEET_SOUNDS);
+    else if (action == RIBBON_MUTE)
+    {
+        app->muted = !app->muted;
+        marcus_set_muted(app->player, app->muted);
+    }
+    else if (action == RIBBON_RESET_MIX) marcus_reset_sound_mix(app->player);
+    else if (action == RIBBON_ACTOR || action == RIBBON_PROP || action == RIBBON_WORDS)
+    {
+        for (step = 1; step <= app->info.object_count; ++step)
+        {
+            index = (app->selected + step) % app->info.object_count;
+            if (!marcus_object(app->player, index, &object)) continue;
+            match = action == RIBBON_WORDS ? object.text : action == RIBBON_PROP ? object.prop && !object.text
+                                                                                 : !object.prop && !object.text;
+            if (match)
+            {
+                app->selected = index;
+                show_object_tracks(app);
+                scroll_objects(app, index);
+                *sheet_scroll(app) = index;
+                app->dirty = app->movie_dirty = 1;
+                break;
+            }
+        }
+    }
+}
 static void mouse_down(App *app, float x, float y, int button)
 {
     SDL_FRect rect, track, thumb;
@@ -1544,9 +1611,9 @@ static void mouse_down(App *app, float x, float y, int button)
     {
         if (button == SDL_BUTTON_LEFT)
         {
-            if (ui_inside(x, y, right - 220, 130, 180, 28))
+            if (ui_inside(x, y, right - 220, 130 + RIBBON_DELTA, 180, 28))
                 choose_orbit_mode(app, 0);
-            else if (ui_inside(x, y, right - 220, 160, 180, 28) && orbit_selection_available(app))
+            else if (ui_inside(x, y, right - 220, 160 + RIBBON_DELTA, 180, 28) && orbit_selection_available(app))
                 choose_orbit_mode(app, 1);
             else
                 app->orbit_menu = 0;
@@ -1642,13 +1709,13 @@ static void mouse_down(App *app, float x, float y, int button)
         return;
     }
     if (button == SDL_BUTTON_LEFT &&
-        ui_inside(x, y, right, 89, VIEW_STRIP_WIDTH, app->viewport_bottom - 89))
+        ui_inside(x, y, right, VIEW_TOP, VIEW_STRIP_WIDTH, app->viewport_bottom - VIEW_TOP))
     {
         toggle_second_view(app);
         return;
     }
     if (button == SDL_BUTTON_LEFT && app->second_view &&
-        ui_inside(x, y, app->split_x - 4, 89, 8, app->viewport_bottom - 89))
+        ui_inside(x, y, app->split_x - 4, VIEW_TOP, 8, app->viewport_bottom - VIEW_TOP))
     {
         app->resizing_view = 1;
         app->orbiting = app->panning = app->dragging = 0;
@@ -1701,16 +1768,8 @@ static void mouse_down(App *app, float x, float y, int button)
     }
     if (button != SDL_BUTTON_LEFT || app->flying || app->orbiting || app->panning)
         return;
-    if (ui_inside(x, y, 16, 52, 112, 28))
-        new_movie(app);
-    else if (ui_inside(x, y, 136, 52, 112, 28))
-        choose_file(app, 0);
-    else if (ui_inside(x, y, 256, 52, 104, 28))
-        choose_file(app, 1);
-    else if (ui_inside(x, y, 368, 52, 104, 28))
-        choose_file(app, 2);
-    else if (ui_inside(x, y, 480, 52, 96, 28))
-        open_settings(app);
+    if (y < MARCUS_RIBBON_HEIGHT)
+        ribbon_action(app, ribbon_hit(x, y, app->width, &app->ribbon_tab, app->loaded));
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
     {
         app->muted = !app->muted;
@@ -1718,8 +1777,8 @@ static void mouse_down(App *app, float x, float y, int button)
     }
     else if (!app->loaded)
     {
-        if (ui_inside(x, y, app->sidebar / 2 - 65, 280, 130, 28))
-            choose_file(app, 0);
+        if (ui_inside(x, y, app->sidebar / 2 - 65, 280 + RIBBON_DELTA, 130, 28))
+            choose_background(app);
     }
     else if (ui_inside(x, y, 16, app->timeline_y + FRAME_NAV_Y, 164, UI_NAVIGATION_HEIGHT))
     {
@@ -1745,29 +1804,29 @@ static void mouse_down(App *app, float x, float y, int button)
             return;
         perform_action(app, MARCUS_FIRST_SCENE + action);
     }
-    else if (app->second_view && ui_inside(x, y, right - 220, 96, 72, 28))
+    else if (app->second_view && ui_inside(x, y, right - 220, CAMERA_BAR_Y, 72, 28))
     {
         if (x >= right - 170)
             app->orbit_menu = 1;
         else
             view_mode(app, 0);
     }
-    else if (app->second_view && ui_inside(x, y, right - 140, 96, 60, 28))
+    else if (app->second_view && ui_inside(x, y, right - 140, CAMERA_BAR_Y, 60, 28))
         view_mode(app, 2);
-    else if (app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
+    else if (app->second_view && ui_inside(x, y, right - 72, CAMERA_BAR_Y, 56, 28))
         reset_camera_view(app);
-    else if (!app->second_view && ui_inside(x, y, right - 312, 96, 84, 28))
+    else if (!app->second_view && ui_inside(x, y, right - 312, CAMERA_BAR_Y, 84, 28))
         view_mode(app, 1);
-    else if (!app->second_view && ui_inside(x, y, right - 220, 96, 72, 28))
+    else if (!app->second_view && ui_inside(x, y, right - 220, CAMERA_BAR_Y, 72, 28))
     {
         if (x >= right - 170)
             app->orbit_menu = 1;
         else
             view_mode(app, 0);
     }
-    else if (!app->second_view && ui_inside(x, y, right - 140, 96, 60, 28))
+    else if (!app->second_view && ui_inside(x, y, right - 140, CAMERA_BAR_Y, 60, 28))
         view_mode(app, 2);
-    else if (!app->second_view && ui_inside(x, y, right - 72, 96, 56, 28))
+    else if (!app->second_view && ui_inside(x, y, right - 72, CAMERA_BAR_Y, 56, 28))
         reset_camera_view(app);
     else if (ui_inside(x, y, FRAME_NAV_X, app->timeline_y + FRAME_NAV_Y, NAV_STEP * 4 - 4, UI_NAVIGATION_HEIGHT))
     {
@@ -2005,6 +2064,14 @@ static void handle_event(App *app, const SDL_Event *event)
     SDL_Keymod modifiers;
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
+    else if (!app->error[0] && background_browser_event(app->background_browser, event, app->width, app->height))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
     else if (!app->error[0] && scene_organiser_event(app->scene_organiser, event, app->width, app->height))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -2035,7 +2102,13 @@ static void handle_event(App *app, const SDL_Event *event)
                 SDL_strlcpy(app->resources, request->path, sizeof(app->resources));
             else
                 SDL_strlcpy(app->content, request->path, sizeof(app->content));
-            if (app->movie[0])
+            if (app->modified)
+            {
+                if (!marcus_reload(app->player, app->resources, app->content)) fail(app, marcus_error(app->player));
+                refresh(app);
+                reset_view(app);
+            }
+            else if (app->movie[0])
                 open_input(app, app->movie_input, app->movie_entry, app->movie);
         }
         SDL_free(request->path);
@@ -2142,7 +2215,7 @@ static void handle_event(App *app, const SDL_Event *event)
                 SDL_SetCursor(app->timeline_cursor);
             else if (app->split_cursor && app->second_view &&
                      (app->resizing_view || ui_inside(event->motion.x, event->motion.y, app->split_x - 4,
-                                                       89, 8, app->viewport_bottom - 89)))
+                                                       VIEW_TOP, 8, app->viewport_bottom - VIEW_TOP)))
                 SDL_SetCursor(app->split_cursor);
             else
                 SDL_SetCursor(SDL_GetDefaultCursor());
@@ -2293,29 +2366,13 @@ static void handle_event(App *app, const SDL_Event *event)
 }
 static void draw_header(App *app)
 {
-    MarcusUI *ui;
     const char *name, *slash;
-    ui = &app->ui;
-    ui_fill(ui, 0, 0, (float)app->width, 44, 0x292c31);
-    ui_fill(ui, 16, 13, 4, 18, ACCENT);
-    ui_heading(ui, 29, 13, "MARCUS", TEXT);
-    ui_text(ui, 108, 13, "/  Movie player", MUTED);
-    name = app->movie[0] ? app->movie : app->blank_movie ? "Untitled movie" : "Untitled session";
+    name = app->movie[0] ? app->movie : "Untitled movie";
     slash = strrchr(name, '/');
-    if (slash)
-        name = slash + 1;
+    if (slash) name = slash + 1;
     slash = strrchr(name, '\\');
-    if (slash)
-        name = slash + 1;
-    ui_label(ui, 300, 13, (float)app->width - 510, name, TEXT);
-    ui_heading(ui, (float)app->width - 160, 13, "MOVIE PLAYBACK", ACCENT);
-    ui_button(ui, 16, 52, 112, "New movie", 0, 1);
-    ui_button(ui, 136, 52, 112, "Open movie", 0, 1);
-    ui_button(ui, 256, 52, 104, "Resources...", 0, 1);
-    ui_button(ui, 368, 52, 104, "Content...", 0, 1);
-    ui_button(ui, 480, 52, 96, "Settings", app->settings_open, 1);
-    ui_label(ui, 592, 58, (float)app->width - 608, "Drop a movie or ZIP here", MUTED);
-    ui_line(ui, 0, 88, (float)app->width, 88, LINE);
+    if (slash) name = slash + 1;
+    ribbon_draw(&app->ui, app->width, app->ribbon_tab, name, app->loaded, app->modified, app->muted);
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
 {
@@ -2414,25 +2471,25 @@ static void draw_movie_view(App *app)
     ui_settings_button(&app->ui, settings.x, settings.y, settings.w, 0);
     if (ui_inside(app->ui.mouse_x, app->ui.mouse_y, settings.x, settings.y, settings.w, settings.h))
         app->ui.hint = "Movie camera rendering settings";
-    ui_text(&app->ui, 52, 102, "Movie camera", MUTED);
+    ui_text(&app->ui, 52, CAMERA_BAR_Y + 6, "Movie camera", MUTED);
     ui_fill(&app->ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->movie_picture)
     {
         SDL_RenderTexture(app->renderer, app->movie_picture, NULL, &destination);
         draw_selection(app, &app->movie_image, &destination);
     }
-    ui_fill(&app->ui, app->split_x - 1, 89, 2, app->viewport_bottom - 89, LINE);
-    ui_fill(&app->ui, app->split_x - 2, (app->viewport_bottom + 89) / 2 - 15, 4, 30, MUTED);
+    ui_fill(&app->ui, app->split_x - 1, VIEW_TOP, 2, app->viewport_bottom - VIEW_TOP, LINE);
+    ui_fill(&app->ui, app->split_x - 2, (app->viewport_bottom + VIEW_TOP) / 2 - 15, 4, 30, MUTED);
 }
 static void draw_view_strip(App *app)
 {
     float x, y, tip, tail;
     int hovered;
     x = view_right(app);
-    y = (89 + app->viewport_bottom) / 2;
-    hovered = ui_inside(app->ui.mouse_x, app->ui.mouse_y, x, 89, VIEW_STRIP_WIDTH, app->viewport_bottom - 89);
-    ui_fill(&app->ui, x, 89, VIEW_STRIP_WIDTH, app->viewport_bottom - 89, hovered ? 0x343c45 : PANEL);
-    ui_line(&app->ui, x, 89, x, app->viewport_bottom, LINE);
+    y = (VIEW_TOP + app->viewport_bottom) / 2;
+    hovered = ui_inside(app->ui.mouse_x, app->ui.mouse_y, x, VIEW_TOP, VIEW_STRIP_WIDTH, app->viewport_bottom - VIEW_TOP);
+    ui_fill(&app->ui, x, VIEW_TOP, VIEW_STRIP_WIDTH, app->viewport_bottom - VIEW_TOP, hovered ? 0x343c45 : PANEL);
+    ui_line(&app->ui, x, VIEW_TOP, x, app->viewport_bottom, LINE);
     tip = x + (app->second_view ? 13 : 7);
     tail = x + (app->second_view ? 7 : 13);
     ui_line(&app->ui, tail, y - 6, tip, y, hovered ? ACCENT : TEXT);
@@ -2501,38 +2558,38 @@ static void draw_view(App *app)
     resolution = marcus_render_resolution(work ? app->shortcuts.work_render_resolution : app->shortcuts.render_resolution);
     render_width = resolution->width;
     render_height = resolution->height;
-    ui_fill(ui, 0, 89, app->sidebar, app->viewport_bottom - 89, BG);
+    ui_fill(ui, 0, VIEW_TOP, app->sidebar, app->viewport_bottom - VIEW_TOP, BG);
     draw_view_strip(app);
     settings = camera_settings_rect(app, 0);
     ui_settings_button(ui, settings.x, settings.y, settings.w, 0);
     if (ui_inside(ui->mouse_x, ui->mouse_y, settings.x, settings.y, settings.w, settings.h))
         ui->hint = work ? "Work camera rendering settings" : "Movie camera rendering settings";
-    ui_label(ui, left + 52, 102, width - (app->second_view ? 280 : 372),
+    ui_label(ui, left + 52, CAMERA_BAR_Y + 6, width - (app->second_view ? 280 : 372),
              work ? "Work camera" : "Movie camera", MUTED);
     if (app->second_view)
     {
-        ui_button(ui, right - 220, 96, 50, "Orbit", !app->authored, app->loaded);
-        ui_button(ui, right - 170, 96, 22, "", app->orbit_menu, app->loaded);
-        ui_button(ui, right - 140, 96, 60, "Fly", app->authored == 2, app->loaded);
-        ui_button(ui, right - 72, 96, 56, "Reset", 0, app->loaded);
+        ui_button(ui, right - 220, CAMERA_BAR_Y, 50, "Orbit", !app->authored, app->loaded);
+        ui_button(ui, right - 170, CAMERA_BAR_Y, 22, "", app->orbit_menu, app->loaded);
+        ui_button(ui, right - 140, CAMERA_BAR_Y, 60, "Fly", app->authored == 2, app->loaded);
+        ui_button(ui, right - 72, CAMERA_BAR_Y, 56, "Reset", 0, app->loaded);
     }
     else
     {
-        ui_button(ui, right - 312, 96, 84, "Camera", app->authored == 1, app->loaded);
-        ui_button(ui, right - 220, 96, 50, "Orbit", !app->authored, app->loaded);
-        ui_button(ui, right - 170, 96, 22, "", app->orbit_menu, app->loaded);
-        ui_button(ui, right - 140, 96, 60, "Fly", app->authored == 2, app->loaded);
-        ui_button(ui, right - 72, 96, 56, "Reset", 0, app->loaded);
+        ui_button(ui, right - 312, CAMERA_BAR_Y, 84, "Camera", app->authored == 1, app->loaded);
+        ui_button(ui, right - 220, CAMERA_BAR_Y, 50, "Orbit", !app->authored, app->loaded);
+        ui_button(ui, right - 170, CAMERA_BAR_Y, 22, "", app->orbit_menu, app->loaded);
+        ui_button(ui, right - 140, CAMERA_BAR_Y, 60, "Fly", app->authored == 2, app->loaded);
+        ui_button(ui, right - 72, CAMERA_BAR_Y, 56, "Reset", 0, app->loaded);
     }
-    ui_line(ui, right - 160, 108, right - 157, 111, MUTED);
-    ui_line(ui, right - 157, 111, right - 154, 108, MUTED);
+    ui_line(ui, right - 160, CAMERA_BAR_Y + 12, right - 157, CAMERA_BAR_Y + 15, MUTED);
+    ui_line(ui, right - 157, CAMERA_BAR_Y + 15, right - 154, CAMERA_BAR_Y + 12, MUTED);
     if (!app->loaded)
     {
-        ui_text(ui, app->sidebar / 2 - 100, 207,
+        ui_text(ui, app->sidebar / 2 - 100, 207 + RIBBON_DELTA,
                 app->blank_movie ? "Untitled movie" : "A new view of your movies", TEXT);
-        ui_text(ui, app->sidebar / 2 - 142, 239,
-                app->blank_movie ? "This new movie has no scenes yet." : "Open a movie to explore its scenes and actors.", MUTED);
-        ui_button(ui, app->sidebar / 2 - 65, 280, 130, "Open a movie", 1, 1);
+        ui_text(ui, app->sidebar / 2 - 142, 239 + RIBBON_DELTA,
+                app->blank_movie ? "Choose a background for your first scene." : "Start a scene, or open a movie to explore.", MUTED);
+        ui_button(ui, app->sidebar / 2 - 65, 280 + RIBBON_DELTA, 130, "New scene", 1, 1);
         ui_text(ui, 24, app->viewport_bottom - 30,
                 "Select Resources and Content if your original 3DMM files are elsewhere.", MUTED);
         return;
@@ -2647,8 +2704,8 @@ static void draw_view(App *app)
                                           : "Click to select / RMB orbit / Shift + RMB pan / wheel zoom";
         if (inside_movie(app, ui->mouse_x, ui->mouse_y))
             ui->hint = "Click an object to select it";
-        if (app->resizing_view || ui_inside(ui->mouse_x, ui->mouse_y, app->split_x - 4, 89, 8,
-                                           app->viewport_bottom - 89))
+        if (app->resizing_view || ui_inside(ui->mouse_x, ui->mouse_y, app->split_x - 4, VIEW_TOP, 8,
+                                           app->viewport_bottom - VIEW_TOP))
             ui->hint = "Drag to resize the movie and work camera views";
     }
 }
@@ -2766,11 +2823,11 @@ static void draw_sidebar(App *app)
     SDL_Rect clip, previous_clip;
     unsigned long tint;
     ui = &app->ui;
-    ui_fill(ui, app->sidebar, 89, 300, (float)app->height - 113, PANEL);
-    ui_line(ui, app->sidebar, 89, app->sidebar, (float)app->height - 24, LINE);
-    ui_heading(ui, app->sidebar + 18, 103, "SCENE OBJECTS", MUTED);
+    ui_fill(ui, app->sidebar, VIEW_TOP, 300, (float)app->height - VIEW_TOP - 24, PANEL);
+    ui_line(ui, app->sidebar, VIEW_TOP, app->sidebar, (float)app->height - 24, LINE);
+    ui_heading(ui, app->sidebar + 18, VIEW_TOP + 14, "SCENE OBJECTS", MUTED);
     SDL_snprintf(label, sizeof(label), "%d", app->loaded ? app->info.object_count : 0);
-    ui_text(ui, app->sidebar + 263, 103, label, MUTED);
+    ui_text(ui, app->sidebar + 263, VIEW_TOP + 14, label, MUTED);
     rows = object_list_rows(app);
     for (row = 0; row < rows && app->loaded; ++row)
     {
@@ -3692,7 +3749,7 @@ static void draw_debug_panel(App *app, float x, float y, int camera, int frozen)
 static void draw_debug_overlay(App *app)
 {
     float y;
-    y = app->movie_only ? 24.0f : 132.0f;
+    y = app->movie_only ? 24.0f : 132.0f + RIBBON_DELTA;
     if (app->shortcuts.debug_overlay)
         draw_debug_panel(app, (float)app->width - 328, app->movie_only ? 80.0f : y, -1, 0);
     if (!app->loaded || app->settings_open)
@@ -3738,12 +3795,12 @@ static void draw(App *app)
     {
         float menu_x;
         menu_x = view_right(app) - 220;
-        ui_fill(&app->ui, menu_x - 2, 128, 184, 62, LINE);
-        ui_fill(&app->ui, menu_x - 1, 129, 182, 60, PANEL);
-        ui_button_sized(&app->ui, menu_x, 130, 180, 28, "Scene centre", !app->orbit_selection, 1);
-        ui_button_sized(&app->ui, menu_x, 160, 180, 28, "Selection", app->orbit_selection,
+        ui_fill(&app->ui, menu_x - 2, 128 + RIBBON_DELTA, 184, 62, LINE);
+        ui_fill(&app->ui, menu_x - 1, 129 + RIBBON_DELTA, 182, 60, PANEL);
+        ui_button_sized(&app->ui, menu_x, 130 + RIBBON_DELTA, 180, 28, "Scene centre", !app->orbit_selection, 1);
+        ui_button_sized(&app->ui, menu_x, 160 + RIBBON_DELTA, 180, 28, "Selection", app->orbit_selection,
                         orbit_selection_available(app));
-        if (!orbit_selection_available(app) && ui_inside(app->ui.mouse_x, app->ui.mouse_y, menu_x, 160, 180, 28))
+        if (!orbit_selection_available(app) && ui_inside(app->ui.mouse_x, app->ui.mouse_y, menu_x, 160 + RIBBON_DELTA, 180, 28))
             app->ui.hint = "Select an on-stage actor or prop to orbit it";
     }
     ui_fill(&app->ui, 0, (float)app->height - 24, (float)app->width, 24, 0x303339);
@@ -3759,7 +3816,7 @@ static void draw(App *app)
             : app->playback.wait == 1 ? "CLICK / SPACE TO CONTINUE"
             : app->playback.wait == 2 ? "WAITING FOR SOUND"
             : app->playback.wait == 3 ? "TIMED PAUSE"
-            : "READ ONLY", ACCENT);
+            : app->modified ? "UNSAVED MOVIE" : "MOVIE PLAYBACK", ACCENT);
     draw_debug_overlay(app);
     if (app->settings_open)
         draw_settings(app);
@@ -3767,6 +3824,7 @@ static void draw(App *app)
         draw_zip(app);
     scene_organiser_draw(app->scene_organiser, &app->ui, app->width, app->height);
     browser_draw(app->browser, &app->ui, app->width, app->height);
+    background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
 }
@@ -3829,7 +3887,7 @@ static void initialize_shortcuts(App *app)
 }
 static void usage(void)
 {
-    puts("Marcus - read-only 3D Movie Maker player\n"
+    puts("Marcus - 3D Movie Maker player\n"
          "Usage: marcus [movie.3mm|movie.vmm|movies.zip] [--resources 3dmovie.chk] [--content-dir folder]\n"
          "              [--font font.ttf] [--scene N] [--frame N] [--object N] [--orbit|--fly]\n"
          "              [--screenshot output.bmp] [--show-settings] [--sounds|--both] [--second-view]\n"
@@ -4031,6 +4089,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.background_browser = background_browser_create();
+    if (!app.background_browser)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.dialog_event = SDL_RegisterEvents(1);
     layout(&app);
     reset_view(&app);
@@ -4087,6 +4151,30 @@ int main(int argc, char **argv)
         {
             SDL_ConvertEventToRenderCoordinates(app.renderer, &event);
             handle_event(&app, &event);
+        }
+        {
+            unsigned long background;
+            if (background_browser_take(app.background_browser, &background))
+            {
+                if (!marcus_add_scene(app.player, background, app.resources, app.content))
+                {
+                    fail(&app, marcus_error(app.player));
+                    refresh(&app);
+                    app.dirty = 1;
+                }
+                else
+                {
+                    app.modified = 1;
+                    app.blank_movie = 0;
+                    app.ribbon_tab = 0;
+                    app.selected = app.selected_sound = app.selected_sound_track = -1;
+                    app.row_scroll = app.object_scroll = app.sound_scroll = app.both_scroll = 0;
+                    refresh(&app);
+                    reset_view(&app);
+                    fit_timeline(&app);
+                    SDL_SetWindowTitle(app.window, app.movie[0] ? "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
+                }
+            }
         }
         i = scene_organiser_take(app.scene_organiser);
         if (i >= 0)
@@ -4163,6 +4251,7 @@ cleanup:
     if (result && !app.error[0])
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
+    background_browser_destroy(app.background_browser);
     scene_organiser_destroy(app.scene_organiser);
     ui_destroy(&app.ui);
     SDL_DestroyTexture(app.picture);

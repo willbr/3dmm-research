@@ -156,6 +156,26 @@ int main(int argc, char **argv)
         marcus_frame_previews_request(previews.get(), frames.data(), int(frames.size()));
         previews.reset();
         check(SDL_GetTicks() - cancelStarted < 5000, "Prompt cancellation");
+        MarcusBackground background = {};
+        check(marcus_background_count(player.get(), argv[3]) > 0 && marcus_background(player.get(), 0, &background),
+              "List scene backgrounds");
+        check(marcus_add_scene(player.get(), background.chunk, argv[2], argv[3]), "Append a scene before helper preview");
+        previews.reset(marcus_frame_previews_create(player.get()));
+        check(bool(previews), "Start edited-movie preview");
+        const long newFrame = 1;
+        marcus_frame_previews_request(previews.get(), &newFrame, 1);
+        check(marcus_open(player.get(), argv[1], argv[2], argv[3]), "Release live edited document while helper retains it");
+        bool editedReady = false;
+        const auto editedDeadline = SDL_GetTicks() + 30000;
+        while (SDL_GetTicks() < editedDeadline)
+        {
+            const auto status = marcus_frame_previews_take(previews.get(), &image, error, sizeof(error));
+            if (status < 0) throw std::runtime_error(error);
+            if (status > 0) { check(image.scene == 2 && image.frame == 1 && image.rgba, "Edited scene identity"); editedReady = true; break; }
+            SDL_Delay(5);
+        }
+        check(editedReady, "Edited scene preview completes after reopening");
+        previews.reset();
         puts("Frame previews: authored pixels, scene isolation, live image and ZIP leases, errors and cancellation passed.");
         return 0;
     }
