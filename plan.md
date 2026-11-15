@@ -523,8 +523,10 @@ resource ownership and write rollback now also use C89. Live rich-text chunk sav
 text redirection and text-box adoption/rollback now also use C89. Plain/rich text
 file-save transactions, base initialization/loading, rich initialization/factories
 and stream/file/archive/property/argument release control now also use C89.
-Typed resource/track/archive/path providers, live property/font/argument
-materialization, text editing/undo, display formatting/output containers, remaining
+Stored-to-live rich-text loading, property/argument byte normalization and default
+font argument opening now also use C89, preserving virtual extension hooks.
+Typed resource/track/archive/path providers, help-document argument extensions,
+text editing/undo, display formatting/output containers, remaining
 document/UI lifecycle and final facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
@@ -575,8 +577,10 @@ Caption text/property traversal, stable ordering, audio envelope/payload/MIDI
 loading and public sound remapping now also use C89. Stored rich-text/text-box
 persistence now also uses C89. Live rich-text chunk save/redirection and text-box
 adoption/rollback now also use C89. Text document file saves, initialization/loading,
-factory cleanup and resource release now also use C89. Live property/font/argument
-materialization, text editing/undo, display/output representations, remaining
+factory cleanup and resource release now also use C89. Stored-to-live rich-text
+loading, property/argument normalization and default font argument opening now
+also use C89. Help-document argument extensions, text editing/undo,
+display/output representations, remaining
 document/UI lifecycle and final host integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using

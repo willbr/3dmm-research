@@ -1628,7 +1628,7 @@ legacy collection padding. C-only fault tests cover all read/write effects, nega
 exception results, partially returned owners, copy cleanup, output publication and
 one-/two-byte counted fonts. The regular asset-preview harness also runs the fixture.
 Live chunk saving, text-box adoption and text document transactions are covered
-below. Live materialization, editing/font/argument transformations, native descriptor/output
+below. Editing and help-document argument extensions, native descriptor/output
 representations, physical providers and final C-only facade removal remain work.
 Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
@@ -1670,9 +1670,9 @@ and SDL font-table ordinals differ, so each host is compared with its own origin
 trace. C-only tests cover ordinary/allocation/foreign failures at every effect,
 number/error publication, post-commit redirection, partially returned locations,
 empty content/arguments, both byte orders/native text-unit sizes and adoption/
-metadata cleanup order. Document transactions are covered below. Live materialization,
-text editing/font/argument
-transformations, native descriptor/output representations, physical providers and
+metadata cleanup order. Document transactions and materialization are covered below.
+Text editing and help-document argument extensions, native descriptor/output
+representations, physical providers and
 final C-only host/facade removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
@@ -1717,10 +1717,48 @@ empty and embedded-null/CRLF/ANSI content, dirty/name behavior, borrowed-stream
 reference/sentinel changes, reopen, and fresh rich-document creation. C-only tests
 cover every fallible effect, partial returned/published owners, translation owner
 replacement, redirection before failed rename, BOM/endian rules, factory error/
-release ordering and plain/rich name policies. Live `_FReadChunk`/`_FOpenArg`
-materialization, editing/undo, native representations, physical providers,
+release ordering and plain/rich name policies. Materialization is covered below.
+Editing/undo, native representations, physical providers,
 document/view/parent lifecycle and final C-only host/facade removal remain work.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Rich-text materialization and default font arguments
+
+`text_materialize.c` controls stored-to-live rich-text loading, property/fixed-word
+byte normalization and default font argument opening. Native adapters supply
+typed collections, font-table and string primitives, owner slots and virtual
+argument dispatch. Stored reads use the shared `text_store.c` transaction;
+base initialization and translation reuse the document services.
+
+Base initialization precedes reading. Defaults and the mapped default font publish
+before text translation. A separate retained location follows translated owner
+replacement, and releases before property/argument ownership transfers. Copying
+is requested only when translation retains the original file identity. The legacy
+`CpMac()-1` value remains the replacement byte count, including two-byte units.
+Properties transfer before byte normalization; arguments transfer before their
+descending traversal. Free slots are skipped, and each visited fixed word is
+normalized before the virtual hook. Failure retains the published defaults, text,
+collections and normalized prefix for later document destruction. Exceptions clean
+temporary owners before returning to the native rethrow boundary.
+
+Default argument opening queries size even for unknown kinds. Font entries require
+the six-byte font-ID/system prefix, use its native short system without applying
+the collection byte order, and decode the following serialized string while locked.
+Malformed-data diagnostics occur before unlock; font mapping and runtime-ID storage
+occur after unlock. Decode exceptions unlock without an ordinary diagnostic.
+Help-document subclasses still receive their virtual hooks and retain their own
+object/group argument policy.
+
+The engine movie save/load fixture freezes ten success/failure cases against the
+original native/SDL paths, including foreign properties/fixed words, translation
+failure, unknown argument kinds, subclass rejection and free slots. Logical group
+payloads exclude legacy padding. C-only checks cover fallible effects and cleanup,
+partial publication/normalization, translated owner identity, copy flags, both
+text-unit sizes and byte orders, and font lock/diagnostic/map ordering.
+Editing/undo, help-document argument extensions, native output/descriptor storage,
+physical providers, document/view/parent lifecycle and final C-only host/facade
+removal remain work. Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

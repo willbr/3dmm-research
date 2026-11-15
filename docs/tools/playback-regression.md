@@ -9459,3 +9459,70 @@ baseline `*.log`/`*-errors.log` and `tmp/c89-text-document-{native,sdl-release,s
 `tmp/c89-text-document-hook-{native,sdl-release,sdl-debug}{,-build,-errors}.log`,
 `tmp/c89-text-document-asan.log`, `tmp/c89-text-document-trace-comparison.json`,
 `tmp/c89-text-document-regular-tests.log` and `tmp/c89-text-document-identities.json`.
+
+### Rich-text materialization and default font arguments (15 November 2026)
+
+`text_materialize.c` now controls stored-to-live rich-text loading, property and
+argument fixed-word byte normalization, and default font argument opening.
+Native adapters retain typed groups/streams, font and serialized-string primitives,
+and virtual argument hooks. The loader calls the shared C stored-reader and base
+initialization/translation services. Help-document object/group argument extensions
+still receive their original virtual dispatch and remain native work.
+
+Defaults publish before text translation. The separate translated file reference
+releases before properties and arguments transfer. Copying is requested only if
+translation preserves the original file identity. The legacy `CpMac()-1` remains
+the replacement byte count, including two-byte units. Arguments open in descending
+order, skipping free slots and normalizing each visited fixed word first. Failures
+retain published defaults, text, groups and already visited argument changes.
+Temporary owners release before native exception rethrow.
+
+Default argument opening queries size even for unknown kinds. Font entries use
+their native short system without collection-order swapping. Serialized-name
+failure diagnoses while locked and then unlocks; mapping and font-ID replacement
+occur unlocked. Decode exceptions unlock without an ordinary diagnostic.
+
+Before conversion, ten engine movie save/load cases recorded 1,551-byte traces
+covering foreign property/fixed-word data, embedded-null/CR text, UTF-16 translation,
+missing/empty collections, translation failure, unknown argument kinds, subclass
+rejection, free slots and both copy flags. Native Debug records FNV-1a `2573FB83`,
+SHA-256 `1FD0792B27044B3B4B07AC673C17C9B4A0B272528AE8FB9925895F1D61CD7BED`.
+SDL Release and Debug record FNV-1a `CFB08F3A`, SHA-256
+`FAB0FBE5BD3E3729A6A3BE9FB9AF5E04E02F2C55B341F1ECACB9134D962E88EC`.
+Each host is compared with its own original font-table baseline. Logical argument
+payloads exclude native alignment padding.
+
+C-only checks inject ordinary/allocation/foreign failures at fallible effects,
+including owned group outputs returned on failure, translated file replacement,
+partial default/group publication and normalization, descending virtual hooks,
+free slots, copy identity and nonempty base-stream replacement counts. Both native
+text-unit sizes and byte orders are covered in C. Font tests cover all unknown
+kinds, short entries and zero-byte decode inputs, negative native system values, lock/diagnostic/
+map ordering and exception cleanup. MSVC AddressSanitizer passes.
+
+All thirty-six original/converted materialization/document/live-text/stored-text/
+media/metadata/session/admission/live/camera/picking/rendering trace pairs match
+across the three hosts. Prior hashes remain unchanged. Background checks retain
+301,996,032 bytes/FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host.
+All 121 standalone C checks, including strict C89 syntax, pass. Twenty-six selected
+native checks and twenty-two checks in each SDL configuration pass, including the
+existing core-link, scene load/store/content, movie save/load and native playback/
+player regressions. Retained input identities are unchanged; identities for 28
+rebuilt binaries are recorded.
+
+The regular asset-preview harness passes headlessly with fresh metadata inputs.
+Test processes use private temporary directories. No Marcus UI tests were added;
+the workspace Marcus was stopped before rebuilding and relaunched afterward.
+Retained retail captures remain the playback reference. This is Windows x64
+fixture evidence, not complete retail editing or allocator equivalence. Other
+platforms remain unverified. Editing/undo, help-document argument extensions,
+native descriptor/output representations, physical providers, document/view/parent
+lifecycle and final C-only host/facade removal remain conversion work.
+
+Evidence: `tmp/c89-text-materialize-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline/final logs, `tmp/c89-text-materialize-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-materialize-standalone-tests.log`,
+`tmp/c89-text-materialize-{document,live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-materialize-asan.log`, `tmp/c89-text-materialize-regular-tests.log`,
+`tmp/c89-text-materialize-trace-comparison.json` and
+`tmp/c89-text-materialize-identities.json`.

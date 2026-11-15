@@ -16,6 +16,7 @@
 ASSERTNAME
 #include "rich_text_live_store_host.h"
 #include "text_document_host.h"
+#include "text_materialize_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -1087,73 +1088,14 @@ PRichTextDocument RichTextDocument::PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrT
 bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    FileLocation floText;
-    PFileObject pfilT;
-    long icact;
-    LegacyLong cact;
-    RDOP rdop;
-    short bo, osk;
-
-    if (!RichTextDocument_PAR::_FInit())
-        return fFalse;
-
-    RichTextData stored;
-    if (!stored.FRead(pcfl, ctg, cno))
-        return fFalse;
-    rdop = stored.defaults;
-    _dxpDef = rdop.dxpDef;
-    _dypFontDef = rdop.dypFont;
-    _acrBack.SetFromLw(rdop.lwAcrBack);
-
-    _stnFontDef = stored.fontName;
-    _oskFont = stored.defaults.oskFont;
-    _onnDef = vntl.OnnMapStn(&_stnFontDef, _oskFont);
-
-    // get the text
-    floText = stored.text;
-    osk = stored.textOsk;
-    floText.pfil->AddRef();
-    pfilT = floText.pfil;
-    if (!floText.FTranslate(osk) || !_pbsf->FReplaceFlo(&floText, fCopyText && pfilT == floText.pfil, 0, CpMac() - 1))
-    {
-        ReleasePpo(&floText.pfil);
-        return fFalse;
-    }
-    ReleasePpo(&floText.pfil);
-
-    // get the text properties
-    _pglmpe = stored.properties;
-    stored.properties = pvNil;
-    bo = stored.propertyBo;
-    if (bo == kboOther)
-    {
-        SwapBytesRglw(_pglmpe->QvGet(0), LwMul(_pglmpe->IvMac(), size(MPE)) / size(int32_t));
-    }
-
-    // get the text property arguments
-    if (stored.arguments != pvNil)
-    {
-        _pagcact = stored.arguments;
-        stored.arguments = pvNil;
-        bo = stored.argumentBo;
-        osk = stored.argumentOsk;
-        for (icact = _pagcact->IvMac(); icact-- > 0;)
-        {
-            if (_pagcact->FFree(icact))
-                continue;
-            _pagcact->GetFixed(icact, &cact);
-            if (bo == kboOther)
-            {
-                SwapBytesRglw(&cact, 1);
-                _pagcact->PutFixed(icact, &cact);
-            }
-            if (!_FOpenArg(icact, B3Lw(cact), bo, osk))
-                return fFalse;
-        }
-    }
-
-    AssertThis(fobjAssertFull);
-    return fTrue;
+    MaterializeHost host(this, pcfl);
+    auto config = host.Config();
+    auto services = host.Read();
+    int result = mm_text_materialize(&config, ctg, cno, fCopyText, &services);
+    host.Rethrow();
+    if (result > 0)
+        AssertThis(fobjAssertFull);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1163,39 +1105,11 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNu
 bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
     AssertBaseThis(0);
-    LegacyLong onn, cb;
-    byte *prgb;
-    String stn;
-
-    cb = _pagcact->Cb(icact);
-    switch (sprm)
-    {
-    case sprmFont:
-        cb -= size(LegacyLong) + size(short); // onn, osk
-        if (cb < 0)
-        {
-            Bug("bad font entry");
-            return fFalse;
-        }
-        _pagcact->GetRgb(icact, size(LegacyLong), size(short), &osk);
-        prgb = (byte *)PvAddBv(_pagcact->PvLock(icact), size(LegacyLong) + size(short));
-        if (!stn.FSetData(prgb, cb))
-        {
-            Bug("bad font entry");
-            _pagcact->Unlock();
-            return fFalse;
-        }
-        _pagcact->Unlock();
-
-        onn = vntl.OnnMapStn(&stn, osk);
-        _pagcact->PutRgb(icact, 0, size(LegacyLong), &onn);
-        break;
-
-    default:
-        return fFalse;
-    }
-
-    return fTrue;
+    MaterializeHost host(this);
+    auto services = host.Argument();
+    int result = mm_text_open_font_argument(sizeof(achar), icact, sprm, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
