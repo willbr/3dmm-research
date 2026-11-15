@@ -40,6 +40,7 @@ typedef struct MarcusShortcuts
     int playback_rate, playback_modifier;
     int debug_overlay;
     int movie_debug_overlay, work_debug_overlay;
+    int show_cameras;
     int renderer;
     int render_resolution;
     int work_renderer;

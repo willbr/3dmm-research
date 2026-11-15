@@ -1112,6 +1112,23 @@ catch (const std::bad_alloc &)
     _impl->ready = false;
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to evaluate scene frame.");
 }
+bool Preview::CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error)
+try
+{
+    projection = {};
+    error = {};
+    Internal::ClearDiagnostic();
+    if (!_impl->ready || !_impl->background || camera >= _impl->info.cameraCount)
+        return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
+    if (!_impl->background->CameraProjection(camera, projection))
+        return Fail(error, ErrorCode::decode_failed, "Cannot read the background camera projection.");
+    return true;
+}
+catch (const std::bad_alloc &)
+{
+    projection = {};
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to read camera guides.");
+}
 bool Preview::SetCamera(std::uint32_t camera, Error &error)
 try
 {

@@ -48,6 +48,7 @@ void shortcuts_defaults(MarcusShortcuts *shortcuts)
                                                           SDLK_G, SDLK_G, SDLK_SPACE, SDLK_C, SDLK_R, SDLK_O, SDLK_N};
     int i;
     memset(shortcuts, 0, sizeof(*shortcuts));
+    shortcuts->show_cameras = 1;
     shortcuts->render_resolution = MARCUS_DEFAULT_RESOLUTION;
     shortcuts->work_render_resolution = MARCUS_DEFAULT_RESOLUTION;
     for (i = 0; i < MARCUS_ACTION_COUNT; ++i)
@@ -150,7 +151,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     unsigned long key;
     unsigned int modifiers, seen;
     int i, j, valid, pause_seen, debug_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work, view_seen;
-    int camera_debug_seen, playback_seen;
+    int camera_debug_seen, playback_seen, cameras_seen;
     MarcusRenderOptions *view;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
@@ -177,6 +178,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     work_resolution_seen = 0;
     view_seen = 0;
     playback_seen = 0;
+    cameras_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
@@ -280,6 +282,17 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
             camera_debug_seen |= 1 << work;
             continue;
         }
+        if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "show_cameras"))
+        {
+            if (cameras_seen || SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > 1)
+            {
+                valid = 0;
+                break;
+            }
+            loaded.show_cameras = (int)key;
+            cameras_seen = 1;
+            continue;
+        }
         if (SDL_sscanf(line, "%63s", id) == 1 && !strcmp(id, "debug_overlay"))
         {
             if (debug_seen || SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > 1)
@@ -375,12 +388,12 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
     }
     SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\ndebug_overlay %d\nrenderer %s\nrender_resolution %s\n"
                  "work_renderer %s\nwork_render_resolution %s\nmovie_debug_overlay %d\nwork_debug_overlay %d\n"
-                 "playback_rate %d\nplayback_modifier %d\n",
+                 "playback_rate %d\nplayback_modifier %d\nshow_cameras %d\n",
                  shortcuts->pause_on_focus_loss != 0, shortcuts->debug_overlay != 0,
                  marcus_renderer_id(shortcuts->renderer), resolution->name,
                  marcus_renderer_id(shortcuts->work_renderer), work_resolution->name,
                  shortcuts->movie_debug_overlay != 0, shortcuts->work_debug_overlay != 0,
-                 shortcuts->playback_rate, shortcuts->playback_modifier);
+                 shortcuts->playback_rate, shortcuts->playback_modifier, shortcuts->show_cameras != 0);
     length = strlen(data);
     for (i = 0; i < 2; ++i)
     {

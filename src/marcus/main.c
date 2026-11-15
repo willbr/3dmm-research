@@ -108,8 +108,7 @@ typedef struct App
     int movie_time_status;
     MarcusCamera camera, flight;
     MarcusImage work_image, movie_image; /* Retained camera metadata; no borrowed pixels. */
-    MarcusProjection projection, scene_camera;
-    MarcusCameraGuide camera_guide;
+    MarcusProjection scene_camera;
     MarcusShortcuts shortcuts, edited_shortcuts;
     double frame_ms[DEBUG_HISTORY];
     int frame_next, frame_count;
@@ -765,7 +764,6 @@ static void new_movie(App *app)
     memset(&app->movie_time, 0, sizeof(app->movie_time));
     memset(&app->work_image, 0, sizeof(app->work_image));
     memset(&app->movie_image, 0, sizeof(app->movie_image));
-    memset(&app->projection, 0, sizeof(app->projection));
     memset(&app->scene_camera, 0, sizeof(app->scene_camera));
     SDL_DestroyTexture(app->picture);
     SDL_DestroyTexture(app->movie_picture);
@@ -1559,6 +1557,12 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_SETTINGS) open_settings(app);
     else if (action == RIBBON_NEW_SCENE) choose_background(app);
     else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
+    else if (action == RIBBON_CAMERA_GUIDES)
+    {
+        app->shortcuts.show_cameras = !app->shortcuts.show_cameras;
+        if (!shortcuts_save(app->settings_path, &app->shortcuts, app->settings_message, sizeof(app->settings_message)))
+            fail(app, app->settings_message);
+    }
     else if (action == RIBBON_SCENES || action == RIBBON_FRAMES)
     {
         app->playing = 0;
@@ -2395,7 +2399,7 @@ static void draw_header(App *app)
     slash = strrchr(name, '\\');
     if (slash) name = slash + 1;
     ribbon_draw(&app->ui, app->width, app->ribbon_tab, name, app->loaded, app->modified, app->muted,
-                app->info.camera_count);
+                app->info.camera_count, app->shortcuts.show_cameras);
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
 {
@@ -2542,12 +2546,69 @@ static int match_work_camera(App *app)
     app->work_needs_match = 0;
     return 1;
 }
+static void draw_camera_guides(App *app, const SDL_FRect *destination)
+{
+    MarcusProjection camera;
+    MarcusCameraGuide guide;
+    SDL_Rect clip;
+    SDL_FRect labels[64], label_rect;
+    unsigned long index, colour;
+    int pass, line, label_count, placed, active;
+    float x, y;
+    char label[64];
+    const MarcusGuideLine *segment;
+    if (!app->shortcuts.show_cameras || !app->loaded || app->authored == 1 || !app->picture) return;
+    clip.x = (int)destination->x;
+    clip.y = (int)destination->y;
+    clip.w = (int)destination->w;
+    clip.h = (int)destination->h;
+    label_count = 0;
+    SDL_SetRenderClipRect(app->renderer, &clip);
+    /* Draw the active camera last so its highlight remains visible. */
+    for (pass = 0; pass < 2; ++pass)
+        for (index = 0; index < app->info.camera_count; ++index)
+        {
+            active = index == app->info.camera;
+            if (active != pass || (active && app->work_matched)) continue;
+            if (active) camera = app->scene_camera;
+            else if (!marcus_camera_projection(app->player, index, &camera)) continue;
+            camera_guide_build_image(&app->work_image, &camera, &guide);
+            colour = active ? 0xefbd78 : 0x78b7c4;
+            for (line = 0; line < guide.line_count; ++line)
+            {
+                segment = &guide.lines[line];
+                ui_line(&app->ui, destination->x + segment->x1 * destination->w, destination->y + segment->y1 * destination->h,
+                        destination->x + segment->x2 * destination->w, destination->y + segment->y2 * destination->h, colour);
+            }
+            if (!guide.has_label) continue;
+            x = destination->x + guide.label_x * destination->w;
+            y = destination->y + guide.label_y * destination->h;
+            label_rect.x = (float)maximum(destination->x + 4, minimum(x + 8, destination->x + destination->w - 100));
+            label_rect.y = (float)maximum(destination->y + 4, minimum(y - 22, destination->y + destination->h - 20));
+            label_rect.w = 96;
+            label_rect.h = 18;
+            for (placed = 0; placed < label_count; ++placed)
+                if (label_rect.x < labels[placed].x + labels[placed].w && label_rect.x + label_rect.w > labels[placed].x &&
+                    label_rect.y < labels[placed].y + labels[placed].h && label_rect.y + label_rect.h > labels[placed].y)
+                {
+                    label_rect.y = labels[placed].y + labels[placed].h;
+                    if (label_rect.y + label_rect.h > destination->y + destination->h) break;
+                    placed = -1;
+                }
+            label_rect.y = (float)minimum(label_rect.y, destination->y + destination->h - 20);
+            if (label_count < 64) labels[label_count++] = label_rect;
+            ui_fill(&app->ui, x - 2, y - 2, 5, 5, colour);
+            ui_fill(&app->ui, label_rect.x - 2, label_rect.y, label_rect.w, label_rect.h, BG);
+            SDL_snprintf(label, sizeof(label), "Camera %02lu", index + 1);
+            ui_text(&app->ui, label_rect.x, label_rect.y + 1, label, colour);
+        }
+    SDL_SetRenderClipRect(app->renderer, NULL);
+}
 static void draw_view(App *app)
 {
     const MarcusRenderResolution *resolution;
     MarcusImage image;
     SDL_FRect destination, settings;
-    char label[256];
     int rendered, render_width, render_height, work, target;
     float left, width, right;
     MarcusUI *ui;
@@ -2662,7 +2723,6 @@ static void draw_view(App *app)
                 app->yaw = image.camera.yaw;
                 app->pitch = image.camera.pitch;
             }
-            app->projection = image.projection;
             app->scene_camera = image.scene_camera;
             app->camera_ready = 1;
             if (!update_picture(app, &app->picture, &image))
@@ -2679,37 +2739,7 @@ static void draw_view(App *app)
     ui_fill(ui, destination.x - 1, destination.y - 1, destination.w + 2, destination.h + 2, 0x111316);
     if (app->picture)
         SDL_RenderTexture(app->renderer, app->picture, NULL, &destination);
-    memset(&app->camera_guide, 0, sizeof(app->camera_guide));
-    if (app->authored != 1 && !app->work_matched && app->picture)
-    {
-        SDL_Rect clip;
-        int line;
-        float x, y;
-        const MarcusGuideLine *segment;
-        camera_guide_build(&app->projection, &app->scene_camera, &app->camera_guide);
-        clip.x = (int)destination.x;
-        clip.y = (int)destination.y;
-        clip.w = (int)destination.w;
-        clip.h = (int)destination.h;
-        SDL_SetRenderClipRect(app->renderer, &clip);
-        for (line = 0; line < app->camera_guide.line_count; ++line)
-        {
-            segment = &app->camera_guide.lines[line];
-            ui_line(ui, destination.x + segment->x1 * destination.w, destination.y + segment->y1 * destination.h,
-                    destination.x + segment->x2 * destination.w, destination.y + segment->y2 * destination.h, 0xefbd78);
-        }
-        if (app->camera_guide.has_label)
-        {
-            x = destination.x + app->camera_guide.label_x * destination.w;
-            y = destination.y + app->camera_guide.label_y * destination.h;
-            ui_fill(ui, x - 2, y - 2, 5, 5, 0xefbd78);
-            SDL_snprintf(label, sizeof(label), "Camera %02lu", app->info.camera + 1);
-            ui_text(ui, (float)maximum(destination.x + 4, minimum(x + 8, destination.x + destination.w - 100)),
-                    (float)maximum(destination.y + 4, minimum(y - 22, destination.y + destination.h - 20)), label,
-                    0xefbd78);
-        }
-        SDL_SetRenderClipRect(app->renderer, NULL);
-    }
+    draw_camera_guides(app, &destination);
     if (app->picture)
         draw_selection(app, &app->work_image, &destination);
     if (app->flying)

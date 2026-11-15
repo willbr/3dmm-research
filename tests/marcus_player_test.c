@@ -50,6 +50,7 @@ int main(int argc, char **argv)
     MarcusImage image, pick_image, thumbnail;
     MarcusCamera camera, moved;
     MarcusProjection authored, orbit, manual, flight, panned;
+    MarcusProjection guide_projection;
     float guide_depth[2];
     const long frames[] = {1, 5, 10, 16, 25, 30, 1};
     unsigned char *pixels;
@@ -475,6 +476,17 @@ int main(int argc, char **argv)
     CHECK(pixels);
     memcpy(pixels, image.rgba, bytes);
     CHECK(marcus_camera_thumbnail(player, 1, &thumbnail) && thumbnail.width == 160 && thumbnail.rgba);
+    for (index = 0; index < (int)info.camera_count; ++index)
+    {
+        CHECK(marcus_camera_projection(player, (unsigned long)index, &guide_projection) && guide_projection.valid);
+        CHECK(marcus_camera_thumbnail(player, (unsigned long)index, &thumbnail));
+        CHECK(!memcmp(guide_projection.transform, thumbnail.scene_camera.transform, sizeof(guide_projection.transform)));
+        CHECK(guide_projection.vertical_fov == thumbnail.scene_camera.vertical_fov &&
+              guide_projection.aspect == thumbnail.scene_camera.aspect &&
+              guide_projection.near_clip == thumbnail.scene_camera.near_clip &&
+              guide_projection.far_clip == thumbnail.scene_camera.far_clip && guide_projection.display_depth == 10);
+    }
+    CHECK(!marcus_camera_projection(player, info.camera_count, &guide_projection) && !guide_projection.valid);
     CHECK(marcus_info(player, &info) && info.frame == 10 && info.camera == 0);
     CHECK(!memcmp(pixels, image.rgba, bytes));
     CHECK(!marcus_set_scene_camera(player, info.camera_count));

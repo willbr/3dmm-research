@@ -9,6 +9,7 @@
 #include "mm/background_preview.h"
 namespace MM
 {
+struct PreviewProjection;
 namespace Internal
 {
 // Resolve indexed movie colours using Studio's truecolour display policy.
@@ -22,6 +23,8 @@ class PreviewBackground
     void Publish(const MMBackgroundPreview &);
     MMBackgroundResource resource = {};
     MMBackgroundCameraState cameraState = {};
+    std::vector<PreviewProjection> cameraProjections;
+    std::vector<unsigned char> projectionRead;
 
   public:
     CameraPosition camera = {};
@@ -37,6 +40,7 @@ class PreviewBackground
     PreviewBackground &operator=(const PreviewBackground &) = delete;
     bool Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette);
     bool SetCamera(std::uint32_t slot);
+    bool CameraProjection(std::uint32_t slot, PreviewProjection &projection);
     PreviewBackgroundMesh &Mesh();
 };
 } // namespace Internal

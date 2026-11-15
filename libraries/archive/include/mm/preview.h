@@ -223,6 +223,9 @@ class Preview
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);
     bool SetFrame(std::int32_t frame, Error &error);
     bool SetCamera(std::uint32_t camera, Error &error);
+    // Read an authored background camera without selecting it, rendering, or
+    // changing frame/pose state. Metadata is cached for the loaded background.
+    bool CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error);
     void ResetOrbitFraming();
     // Seed inspection position, orientation, lens and orbit pivot from the shot.
     bool MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error);

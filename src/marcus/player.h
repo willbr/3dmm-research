@@ -240,6 +240,8 @@ extern "C"
     int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera);
     /* Camera thumbnails leave the live scene/frame/camera and rendered view intact. */
     int marcus_camera_thumbnail(MarcusPlayer *player, unsigned long camera, MarcusImage *image);
+    /* Read-only, cached background camera metadata; no rendering or selection. */
+    int marcus_camera_projection(MarcusPlayer *player, unsigned long camera, MarcusProjection *projection);
     /* Use frame_previews_request_positions with scene = camera index, frame =
      * preview frame. Returned image.scene identifies the requested camera. */
     MarcusFramePreviews *marcus_camera_previews_create(MarcusPlayer *player);

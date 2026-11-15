@@ -1,4 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
+#include "mm/preview.h"
 #include "preview_background.h"
 #include "zbmp.h"
 #include "palette_state.h"
@@ -20,6 +21,8 @@ void ResolveDisplayPalette(Color *palette)
 }
 bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette)
 {
+    cameraProjections.clear();
+    projectionRead.clear();
     source = file;
     number = background;
     std::memcpy(palette, basePalette, sizeof(palette));
@@ -120,6 +123,49 @@ void PreviewBackground::Publish(const MMBackgroundPreview &p)
     lights.Reset(reinterpret_cast<const MMBackgroundLight *>(p.metadata.buffers[1].data), p.light_count);
     colours.Reset(p.images.buffers[0].data, p.rgb_count);
     depths.Reset(reinterpret_cast<const std::uint16_t *>(p.images.buffers[1].data), p.depth_count);
+}
+bool PreviewBackground::CameraProjection(std::uint32_t slot, PreviewProjection &projection)
+{
+    projection = {};
+    if (slot >= cameras.size()) return false;
+    if (cameraProjections.size() != cameras.size())
+    {
+        cameraProjections.resize(cameras.size());
+        projectionRead.resize(cameras.size());
+    }
+    if (!projectionRead[slot])
+    {
+        projectionRead[slot] = 2; // Cache failed metadata reads as well.
+        DataBlock block;
+        MMBackgroundCameraData data = {};
+        if (!source->Pcfl()->FFind(kctgCam, cameras[slot], &block) || !block.FUnpackData()) return false;
+        const auto stream = EngineReadStream::FromBlock(block);
+        if (!mm_background_camera_decode(&stream, &data)) return false;
+        ChildChunkIdentification child;
+        if (!source->Pcfl()->FGetKidChidCtg(kctgCam, cameras[slot], 0, kctgMbmp, &child)) return false;
+        // Fetch only this camera's colour bitmap bounds. Do not select its
+        // background, decode its depth image, or rebuild the active scenery.
+        auto bitmap = static_cast<PMaskedBitmapMBMP>(source->PbacoFetch(kctgMbmp, child.cki.cno, MaskedBitmapMBMP::FReadMbmp));
+        if (!bitmap) return false;
+        RC bounds;
+        bitmap->GetRc(&bounds);
+        ReleasePpo(&bitmap);
+        if (bounds.Dxp() <= 0 || bounds.Dyp() <= 0) return false;
+        auto &result = cameraProjections[slot];
+        for (int row = 0; row < 4; ++row)
+            for (int axis = 0; axis < 3; ++axis)
+                result.transform[row * 3 + axis] = BrScalarToFloat(data.matrix.m[row][axis]);
+        result.verticalFov = data.fov * (360.f / 65536.f);
+        result.nearClip = BrScalarToFloat(data.near_z);
+        result.farClip = BrScalarToFloat(data.far_z);
+        result.aspect = float(bounds.Dxp()) / bounds.Dyp();
+        result.displayDepth = 10.f; // Same compact marker size as the active camera.
+        result.valid = result.verticalFov > 0 && result.verticalFov < 179 &&
+                       result.nearClip > 0 && result.farClip > result.nearClip;
+        projectionRead[slot] = result.valid ? 1 : 2;
+    }
+    projection = cameraProjections[slot];
+    return projectionRead[slot] == 1;
 }
 MMBackgroundPreviewServices PreviewBackground::Services(void *host)
 {

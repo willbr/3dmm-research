@@ -54,6 +54,7 @@ int main(int argc, char **argv)
     CHECK(!shortcuts.debug_overlay);
     CHECK(!shortcuts.playback_rate && !shortcuts.playback_modifier);
     CHECK(!shortcuts.movie_debug_overlay && !shortcuts.work_debug_overlay);
+    CHECK(shortcuts.show_cameras);
     CHECK(shortcuts.renderer == MARCUS_RENDERER_BRENDER);
     CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(shortcuts.work_renderer == MARCUS_RENDERER_BRENDER);
@@ -81,6 +82,7 @@ int main(int argc, char **argv)
     shortcuts.work_renderer = MARCUS_RENDERER_BRENDER_COMPUTE;
     shortcuts.debug_overlay = 1;
     shortcuts.movie_debug_overlay = 1;
+    shortcuts.show_cameras = 0;
     CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
@@ -88,15 +90,18 @@ int main(int argc, char **argv)
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
     CHECK(loaded.debug_overlay);
     CHECK(loaded.movie_debug_overlay && !loaded.work_debug_overlay);
+    CHECK(!loaded.show_cameras);
     shortcuts.debug_overlay = 0;
     shortcuts.movie_debug_overlay = 0;
     shortcuts.work_debug_overlay = 1;
+    shortcuts.show_cameras = 1;
     shortcuts.movie_view = {MARCUS_DISPLAY_FLAT, 1, 1, 1, 0, 0};
     shortcuts.work_view = {MARCUS_DISPLAY_NORMALS, 0, 2, 1, 1, 3};
     CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(!loaded.debug_overlay);
     CHECK(!loaded.movie_debug_overlay && loaded.work_debug_overlay);
+    CHECK(loaded.show_cameras);
     CHECK(!std::memcmp(&loaded.movie_view, &shortcuts.movie_view, sizeof(MarcusRenderOptions)));
     CHECK(!std::memcmp(&loaded.work_view, &shortcuts.work_view, sizeof(MarcusRenderOptions)));
     constexpr int nativeSizes[][2] = {{272, 153}, {544, 306}, {1088, 612}, {1632, 918}, {2176, 1224}};
@@ -181,13 +186,16 @@ int main(int argc, char **argv)
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
+    CHECK(loaded.show_cameras);
     CHECK(!loaded.playback_rate && !loaded.playback_modifier);
     CHECK(!loaded.debug_overlay);
     CHECK(!loaded.movie_debug_overlay && !loaded.work_debug_overlay);
     CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     for (const char *invalid :
-         {"marcus-shortcuts 1\nplayback_rate -1\n", "marcus-shortcuts 1\nplayback_rate 5\n",
+         {"marcus-shortcuts 1\nshow_cameras 2\n", "marcus-shortcuts 1\nshow_cameras -1\n",
+          "marcus-shortcuts 1\nshow_cameras 0\nshow_cameras 1\n", "marcus-shortcuts 1\nshow_cameras 1 extra\n",
+          "marcus-shortcuts 1\nplayback_rate -1\n", "marcus-shortcuts 1\nplayback_rate 5\n",
           "marcus-shortcuts 1\nplayback_modifier 3\n", "marcus-shortcuts 1\nplayback_modifier -1\n",
           "marcus-shortcuts 1\nplayback_rate 2 extra\n", "marcus-shortcuts 1\nplayback_modifier\n",
           "marcus-shortcuts 1\nplayback_rate 1\nplayback_rate 2\n",

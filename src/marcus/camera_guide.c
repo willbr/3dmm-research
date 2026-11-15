@@ -188,6 +188,38 @@ void camera_guide_build(const MarcusProjection *projection, const MarcusProjecti
         }
     }
 }
+void camera_guide_build_image(const MarcusImage *image, const MarcusProjection *camera, MarcusCameraGuide *guide)
+{
+    double width, height, left, top;
+    int i;
+    MarcusGuideLine *line;
+    memset(guide, 0, sizeof(*guide));
+    if (!image || image->width <= 0 || image->height <= 0) return;
+    camera_guide_build(&image->projection, camera, guide);
+    if (!image->authored_camera || !guide->line_count) return;
+    width = image->width;
+    height = width / image->projection.aspect;
+    if (height > image->height)
+    {
+        height = image->height;
+        width = height * image->projection.aspect;
+    }
+    left = (image->width - width) / 2;
+    top = (image->height - height) / 2;
+    for (i = 0; i < guide->line_count; ++i)
+    {
+        line = &guide->lines[i];
+        line->x1 = (float)((left + line->x1 * width) / image->width);
+        line->x2 = (float)((left + line->x2 * width) / image->width);
+        line->y1 = (float)((top + line->y1 * height) / image->height);
+        line->y2 = (float)((top + line->y2 * height) / image->height);
+    }
+    if (guide->has_label)
+    {
+        guide->label_x = (float)((left + guide->label_x * width) / image->width);
+        guide->label_y = (float)((top + guide->label_y * height) / image->height);
+    }
+}
 void object_bounds_build(const MarcusImage *image, const MarcusBounds *bounds, MarcusCameraGuide *guide)
 {
     GuideView view;

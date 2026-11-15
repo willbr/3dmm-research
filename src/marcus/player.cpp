@@ -544,6 +544,17 @@ extern "C"
             return true;
         });
     }
+    int marcus_camera_projection(MarcusPlayer *player, unsigned long camera, MarcusProjection *projection)
+    {
+        if (projection) *projection = {};
+        return Guard(player, [&](MM::Error &error) {
+            if (!projection || player->selected < 0) return false;
+            MM::PreviewProjection value;
+            if (!player->preview.CameraProjection(camera, value, error)) return false;
+            *projection = CopyProjection(value);
+            return true;
+        });
+    }
     int marcus_camera_thumbnail(MarcusPlayer *player, unsigned long camera, MarcusImage *image)
     {
         if (image) *image = {};

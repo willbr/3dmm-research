@@ -11,6 +11,7 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_SCENES, 1, "Scenes", "Browse the movie's scenes", 0xe9bc75},
     {RIBBON_FRAMES, 1, "Frames", "Browse scene frames", 0x96aee6},
     {RIBBON_CAMERAS, 9, "Camera angles", "Choose a camera angle at this frame", 0xe9bc75},
+    {RIBBON_CAMERA_GUIDES, 9, "Cameras: On", "Show or hide all camera guides in the work view", 0x78cbc4},
     {RIBBON_PREVIOUS, 2, "Previous", "Go to the previous scene", 0xaeb6c0},
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
@@ -122,7 +123,7 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
     }
 }
 void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded, int modified, int muted,
-                 unsigned long cameras)
+                 unsigned long cameras, int show_cameras)
 {
     static const char *tabs[] = {"SCENES", "ACTORS & PROPS", "SOUNDS", "WORDS"};
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
@@ -154,11 +155,14 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
         x = 16 + index * 104.0f;
         enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE;
         hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, 78, 96, 58);
-        active = tools[index].action == RIBBON_MUTE && muted;
+        active = (tools[index].action == RIBBON_MUTE && muted) ||
+                 (tools[index].action == RIBBON_CAMERA_GUIDES && show_cameras);
         if (hovered || active) ui_fill(ui, x, 78, 96, 58, active ? 0x375e64 : 0x3d4650);
         colour = enabled ? tools[index].colour : 0x59616c;
         icon(ui, x + 29, 79, tools[index].icon, colour);
-        ui_label(ui, x + 4, 117, 92, tools[index].label, enabled ? 0xdde0e5 : 0x737b86);
+        ui_label(ui, x + 4, 117, 92,
+                 tools[index].action == RIBBON_CAMERA_GUIDES ? (show_cameras ? "Cameras: On" : "Cameras: Off") : tools[index].label,
+                 enabled ? 0xdde0e5 : 0x737b86);
         if (hovered) ui->hint = tools[index].hint;
     }
     ui_line(ui, (float)width - 254, 82, (float)width - 254, 131, 0x424952);
