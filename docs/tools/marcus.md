@@ -781,9 +781,12 @@ Editable transport artwork lives in `src/marcus/icons/*.svg`. Marcus draws nativ
 SDL triangles from the checked-in `src/marcus/ui_vectors.h`, keeping the artwork
 scalable without a runtime SVG loader or bitmap icon. After editing an SVG, run
 `python tools/compile_marcus_vectors.py`; `--check` verifies the generated data.
-The current asset compiler accepts explicit RGB fills on rectangles and convex
-polygons, and rejects unsupported SVG features such as paths, strokes and
-gradients. Extending the compiler is required before using those features.
+The asset compiler accepts explicit RGB fills on rectangles, convex polygons
+and simple closed paths using absolute M/L/Q/C/Z commands. Quadratic and cubic
+curves are flattened into triangles at build time. Paths with holes, strokes,
+relative commands and gradients remain unsupported. The Cancel/OK controls use
+curved red/green contours and a narrow grey bevel, following the retail buttons;
+the artwork stays editable and scalable without shipping bitmap button images.
 
 With Loop off, playback advances through scenes and stops at the movie's final
 frame. With Loop on, the current scene repeats, resetting its animation, captions

@@ -1,6 +1,7 @@
 """Compile Marcus's flat SVG artwork to portable C89 triangle data.
 
-The current icons use rectangles and convex polygons, with explicit RGB fills.
+The icons use rectangles, convex polygons and simple closed absolute M/L/Q/C/Z
+paths, with explicit RGB fills. Curves are flattened before ear triangulation.
 Other SVG features are rejected, so unsupported artwork cannot silently change.
 The generated header is checked in; building Marcus needs no SVG loader/Python.
 """
@@ -19,6 +20,88 @@ def number(value):
     if not (-10000 < result < 10000):
         raise ValueError('SVG coordinates must be finite and within the icon budget')
     return result
+
+
+def path_points(data):
+    tokens = []
+    cursor = 0
+    for match in re.finditer(r'[MLCQZ]|[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?', data):
+        if data[cursor:match.start()].strip(' \t\r\n,'):
+            raise ValueError('Paths support only absolute M/L/Q/C/Z commands')
+        tokens.append(match.group())
+        cursor = match.end()
+    if data[cursor:].strip() or not tokens or tokens[0] != 'M' or tokens[-1] != 'Z':
+        raise ValueError('Expected one closed M/L/Q/C/Z path')
+    points = []
+    cursor = 0
+    while cursor < len(tokens):
+        command = tokens[cursor]
+        cursor += 1
+        if command == 'Z':
+            if cursor != len(tokens):
+                raise ValueError('Only one path contour is supported')
+            break
+        sizes = {'M': 2, 'L': 2, 'Q': 4, 'C': 6}
+        if command not in sizes or (command == 'M' and points) or (command != 'M' and not points):
+            raise ValueError('Expected an explicit path command in a single contour')
+        size = sizes[command]
+        values = [number(v) for v in tokens[cursor:cursor + size]]
+        if len(values) != size:
+            raise ValueError('Incomplete path command')
+        cursor += size
+        controls = list(zip(values[::2], values[1::2]))
+        if command in ('M', 'L'):
+            points.append(controls[0])
+        else:
+            start = points[-1]
+            for sample in range(1, 13):
+                t = sample / 12
+                u = 1 - t
+                if command == 'Q':
+                    points.append(tuple(u*u*start[a] + 2*u*t*controls[0][a] + t*t*controls[1][a] for a in (0, 1)))
+                else:
+                    points.append(tuple(u*u*u*start[a] + 3*u*u*t*controls[0][a] +
+                                        3*u*t*t*controls[1][a] + t*t*t*controls[2][a] for a in (0, 1)))
+    # Collinear joins and repeated closing points do not create usable ears.
+    changed = True
+    while changed and len(points) >= 3:
+        changed = False
+        for i, b in enumerate(points):
+            a, c = points[i - 1], points[(i + 1) % len(points)]
+            if abs(cross(a, b, c)) < 1e-9:
+                del points[i]
+                changed = True
+                break
+    return points
+
+
+def cross(a, b, c):
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def triangulate(points):
+    if len(points) < 3:
+        raise ValueError('Path has no filled area')
+    area = sum(a[0]*b[1] - b[0]*a[1] for a, b in zip(points, points[1:] + points[:1]))
+    if abs(area) < 1e-9:
+        raise ValueError('Path has no filled area')
+    direction = 1 if area > 0 else -1
+    pending = list(points)
+    triangles = []
+    while len(pending) > 3:
+        for i, b in enumerate(pending):
+            a, c = pending[i - 1], pending[(i + 1) % len(pending)]
+            if direction * cross(a, b, c) <= 1e-9:
+                continue
+            if any(p not in (a, b, c) and all(direction * cross(x, y, p) >= -1e-9
+                   for x, y in ((a, b), (b, c), (c, a))) for p in pending):
+                continue
+            triangles.extend((a, b, c))
+            del pending[i]
+            break
+        else:
+            raise ValueError('Path must describe a simple non-intersecting contour')
+    return triangles + pending
 
 
 def vertices(path, view_box='0 0 40 44'):
@@ -40,6 +123,9 @@ def vertices(path, view_box='0 0 40 44'):
             if width <= 0 or height <= 0:
                 raise ValueError(f'{path.name}: rectangles must have positive dimensions')
             points = [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+        elif kind == 'path':
+            permitted.add('d')
+            points = path_points(shape.get('d', ''))
         elif kind == 'polygon':
             permitted.add('points')
             coordinates = [number(v) for v in re.split(r'[\s,]+', shape.get('points', '').strip())]
@@ -58,10 +144,11 @@ def vertices(path, view_box='0 0 40 44'):
         for i, a in enumerate(points):
             b, c = points[(i + 1) % len(points)], points[(i + 2) % len(points)]
             turns.append((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]))
-        if not (all(t > 0 for t in turns) or all(t < 0 for t in turns)):
+        if kind != 'path' and not (all(t > 0 for t in turns) or all(t < 0 for t in turns)):
             raise ValueError(f'{path.name}: use strictly convex polygons')
-        for i in range(1, len(points) - 1):
-            result.extend((x, y, colour) for x, y in (points[0], points[i], points[i + 1]))
+        triangles = triangulate(points) if kind == 'path' else [p for i in range(1, len(points) - 1)
+                                                              for p in (points[0], points[i], points[i + 1])]
+        result.extend((x, y, colour) for x, y in triangles)
         if len(result) > 1536:
             raise ValueError(f'{path.name}: icon exceeds the triangle budget')
     if not result:
