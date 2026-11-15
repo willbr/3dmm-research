@@ -1507,8 +1507,9 @@ framing preservation, errors and rendered output against all three original host
 C fault checks cover every fallible open/add stage, palette byte order/admission,
 lease transfer/rejection, release order, registry storage exhaustion and retry.
 Native resource/track/archive/path representations, asset-cleanup primitives,
-rich-text/text-box persistence, display/output representations and final C-only
-host/facade removal remain dependencies. Metadata and media control are covered below.
+live rich-text document save/runtime control, display/output representations and
+final C-only host/facade removal remain dependencies. Metadata, media and stored
+caption persistence are covered below.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Preview timeline replay and presentation cue traversal
@@ -1580,10 +1581,55 @@ The headless media fixture freezes native/foreign envelopes, malformed/empty MID
 time boundaries, ANSI/UTF-16 captions, font arguments, stable ties and failure
 prefixes against three original hosts. It runs in the regular asset-preview harness.
 C-only tests exercise effect/allocation failures, cleanup, conversion/publication
-prefixes, sort fallback, MIDI budgets and source remapping. Rich-text/text-box
-persistence, display formatting/output representations, physical providers and
-final C-only host/facade removal remain dependencies. Evidence and platform limits
+prefixes, sort fallback, MIDI budgets and source remapping. Stored rich-text/text-box
+persistence is covered below. Live document save/runtime control, display/output
+representations, physical providers and final C-only host/facade removal remain
+dependencies. Evidence and platform limits
 are in `docs/tools/playback-regression.md`.
+
+### Stored rich-text and text-box persistence
+
+`text_store.c` implements RTXT/TBOX wire codecs, the stored rich-text owning record,
+read replacement transactions, file/collection release order and write rollback.
+Native `RichTextData`/`TextBoxData` methods marshal values and supply file/block,
+counted-string and C-backed collection primitives. Studio's rich-text document
+reader and Marcus's caption loader use the same stored-text reader; root creation
+also serves Studio's live document writer. Native descriptor fields remain temporary
+representations for existing consumers.
+
+TBOX requires exactly 36 bytes, either byte order, a first frame other than
+`INT32_MIN` and a zero/one story flag. It ignores OS/reserved fields, accepts a
+backward lifetime or `INT32_MIN` end, and only resolves a rich-text child when
+requested. Successful reads publish `first-1` as the current frame. Writes normalize
+reserved bytes and byte order without adding range/bounds policy.
+
+RTXT admits at least its 16-byte header, font heights 4 through 255 and widths
+1 through `kcbMax-1`. Unreadable/empty fonts retain the empty-name/current-system
+fallback. TEXT's raw system marker, property/argument byte orders, argument fixed
+words and payload bytes remain unchanged. A borrowed text location is retained
+before reading its marker; GLMP must have eight-byte entries, optional AGPA must
+have four-byte fixed data. Failure releases only the temporary file/property/argument
+owners. Success releases the old owners in that order and publishes the complete
+replacement. Native exceptions rethrow after C cleanup.
+
+Stored writes validate before touching the output identity. Root creation publishes
+RTXT before allocation, nil after add/write failure, and removes a partial root
+after failed header/font writes. Child order remains TEXT, GLMP, then nonempty
+AGPA. C owns the acquired copy destination through text copying and releases it
+before tree rollback. Later failure removes the entire new tree and publishes nil.
+Native wrappers use an internal untouched identity marker so they never read an
+uninitialized caller output while preserving early-failure outputs.
+
+The headless stored-text fixture freezes decoded state and complete written chunk
+payloads, both byte orders, malformed input, font fallback, retained state and round
+trips. Argument bytes are explicitly aligned so the trace does not capture uninitialized
+legacy collection padding. C-only fault tests cover all read/write effects, negative
+exception results, partially returned owners, copy cleanup, output publication and
+one-/two-byte counted fonts. The regular asset-preview harness also runs the fixture.
+Live rich-text document save/redirection, editing/font/argument transformations,
+native descriptor/output representations, physical providers and final C-only facade
+removal remain work. Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

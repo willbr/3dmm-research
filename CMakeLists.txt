@@ -1181,6 +1181,8 @@ target_link_libraries(preview-metadata-test PRIVATE MM::Preview)
 add_executable(preview-media-test EXCLUDE_FROM_ALL tests/preview_media_test.cpp)
 target_include_directories(preview-media-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src")
 target_link_libraries(preview-media-test PRIVATE MM::Preview engine-core)
+add_executable(text-store-test EXCLUDE_FROM_ALL tests/text_store_test.cpp)
+target_link_libraries(text-store-test PRIVATE engine-core)
 add_executable(preview-background-test EXCLUDE_FROM_ALL tests/preview_background_test.cpp)
 target_link_libraries(preview-background-test PRIVATE MM::Preview)
 add_executable(preview-background-mesh-test EXCLUDE_FROM_ALL tests/preview_background_mesh_test.cpp)
@@ -1190,7 +1192,7 @@ target_link_libraries(preview-background-mesh-test PRIVATE MM::Preview engine-co
 add_executable(preview-actor-tree-test EXCLUDE_FROM_ALL tests/preview_actor_tree_test.cpp)
 target_include_directories(preview-actor-tree-test PRIVATE "${PROJECT_SOURCE_DIR}/libraries/archive/src")
 target_link_libraries(preview-actor-tree-test PRIVATE MM::Preview engine-core)
-add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-session-test preview-metadata-test preview-media-test preview-background-test
+add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-session-test preview-metadata-test preview-media-test text-store-test preview-background-test
   preview-background-mesh-test preview-actor-tree-test preview-scene-fixture)
 add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)
 add_executable(portfolio-data-test EXCLUDE_FROM_ALL tests/portfolio_data_test.cpp)
@@ -1542,6 +1544,7 @@ add_dependencies(core-checks engine-movie-scene-test)
 add_dependencies(core-checks engine-movie-save-test)
 add_dependencies(core-checks engine-movie-rollcall-test engine-movie-edit-test)
 add_dependencies(core-checks engine-movie-content-test)
+add_dependencies(core-checks engine-text-store-test text-store-test)
 add_dependencies(core-checks engine-movie-compose-test engine-preview-render-test engine-preview-pick-test engine-preview-camera-test engine-preview-live-test engine-preview-admission-test engine-preview-actor-test engine-preview-session-test engine-preview-metadata-test engine-preview-media-test)
 add_dependencies(core-checks debug-checks-test)
 add_dependencies(core-checks kidspace-descriptor-test)
@@ -1931,6 +1934,7 @@ if(BUILD_TESTING)
   endforeach()
   add_test(NAME preview-background-mesh COMMAND preview-background-mesh-test)
   add_test(NAME preview-actor-tree COMMAND preview-actor-tree-test)
+  add_test(NAME text-store COMMAND text-store-test)
   set(TEST_CONTENT_DIR "${PROJECT_SOURCE_DIR}/content-files" CACHE PATH "Original 3DMM content fixtures")
   set(TEST_MAIN_CHK "${PROJECT_SOURCE_DIR}/dist/Microsoft Kids/3D Movie Maker/3dmovie.chk"
     CACHE FILEPATH "Main chunky file with shade table for the actor render test")
@@ -1953,6 +1957,7 @@ if(BUILD_TESTING)
       -DSESSION_EXE=$<TARGET_FILE:preview-session-test>
       -DMETADATA_EXE=$<TARGET_FILE:preview-metadata-test>
       -DMEDIA_EXE=$<TARGET_FILE:preview-media-test>
+      -DTEXT_STORE_EXE=$<TARGET_FILE:text-store-test>
       -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>
       -DBACKGROUND_EXE=$<TARGET_FILE:preview-background-test>
       -DMAIN_CHK=${TEST_MAIN_CHK} -DCONTENT_DIR=${TEST_CONTENT_DIR}

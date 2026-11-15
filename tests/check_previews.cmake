@@ -1,4 +1,8 @@
 file(MAKE_DIRECTORY "${TEST_DIR}")
+execute_process(COMMAND "${TEXT_STORE_EXE}" RESULT_VARIABLE result TIMEOUT 90)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "Stored rich-text/text-box persistence checks failed: ${result}")
+endif()
 execute_process(COMMAND "${MEDIA_EXE}" "${TEST_DIR}/media.3cn" RESULT_VARIABLE result TIMEOUT 90)
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Caption/audio loader checks failed: ${result}")

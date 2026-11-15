@@ -9223,3 +9223,71 @@ Evidence: `tmp/c89-preview-media-{baseline,final}-{native,sdl-release,sdl-debug}
 `tmp/c89-preview-media-regular-tests.log` and `tmp/c89-preview-media-identities.json`.
 The media fixture creates `tmp/c89-preview-media-{native,sdl-release,sdl-debug}.3cn`;
 the ten retained metadata/scene/content inputs have the identities recorded above.
+
+### Stored rich-text and text-box persistence (15 November 2026)
+
+`text_store.c` now implements the RTXT/TBOX wire codecs, stored rich-text owning
+record, read replacement transaction, file/collection disposal and stored-write
+rollback. Native data facades supply file/block, counted-string and C-backed
+collection primitives. Studio's rich-text document reader and Marcus's caption
+loader use the same C stored-text path; root creation also serves Studio's live
+document writer. Native descriptor fields remain temporary representations.
+
+TBOX retains its exact 36-byte requirement, both byte orders, `INT32_MIN` first-frame
+rejection, zero/one story validation, ignored OS/reserved bytes and optional child
+resolution. Backward lifetimes and `INT32_MIN` end frames remain accepted. Reads
+publish current frame `first-1`; writes normalize reserved bytes and byte order.
+RTXT retains a minimum 16-byte header, half-open font-height/width limits and empty/
+unreadable-font fallback. TEXT's raw system marker, property/argument byte orders,
+fixed words and payload bytes are preserved without content normalization.
+
+The C reader retains the borrowed text-file reference before reading its marker,
+checks GLMP's eight-byte entries and optional AGPA's four-byte fixed data, and
+releases temporary owners on every failure. A successful read releases the old
+file, properties and arguments, then publishes the complete replacement. Stored
+writes validate before changing the caller's identity, publish RTXT before root
+allocation and nil after failed creation, and write TEXT, GLMP and nonempty AGPA
+in that order. An acquired text-copy destination releases before partial-tree
+rollback. Native exceptions rethrow only after C cleanup. The native output adapter
+uses an untouched marker and never reads an uninitialized caller output.
+
+Before conversion, native Debug, SDL Release and SDL Debug recorded identical
+4,998-byte stored-text traces, FNV-1a `7D32092F`, SHA-256
+`ABDB53F25C473072E8FB468868E0FC4A372C70F0EAE20AEA94512CEFE8605D8C`.
+The new headless fixture freezes decoded state and complete written root/child
+payloads for native/foreign headers, malformed sizes/markers/layouts, font fallback,
+missing children, preserved state, optional/empty arguments, exact wire bytes and
+read/write/read round trips. Its argument payloads are explicitly aligned to avoid
+recording uninitialized legacy collection padding; production data is unchanged.
+
+All twenty-seven original/converted stored-text/media/metadata/session/admission/
+live/camera/picking/rendering trace pairs match across the three hosts. Prior hashes
+remain unchanged. Background checks retain 301,996,032 bytes/FNV-1a `E1A71005`
+across 12 backgrounds and 188 cameras per host. All 118 standalone C checks,
+including strict C89 syntax, pass. Twenty-three selected native checks and nineteen
+checks in each SDL configuration pass, including existing Kauai/engine core-link,
+scene load/store/content and movie save/load tests. MSVC AddressSanitizer passes.
+C-only fault checks cover every read/write effect with ordinary/allocation/foreign
+failures, owned outputs returned on failure, optional font/argument behavior,
+temporary/old owner release order, copy cleanup and output identity publication,
+both byte orders and one-/two-byte counted font units.
+
+The regular asset-preview harness now runs the stored-text fixture and passes
+headlessly in the native build, including fresh metadata document generation and
+input-hash checks. Retained input identities are unchanged. Studio and Marcus were
+rebuilt; the workspace Marcus was stopped before rebuilding and relaunched afterward.
+No Marcus UI tests were added. Retained retail captures remain the playback
+reference; no redundant capture campaign was launched.
+
+This is Windows x64 evidence within these fixtures, not complete retail editing or
+allocator equivalence. Live rich-text document save/redirection, editing/font/
+argument transformations, native descriptor/output representations, physical
+providers and final C-only host/facade removal remain work. Other platforms remain
+unverified here.
+
+Evidence: `tmp/c89-text-store-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+matching `*-errors.log` files for expected malformed-input diagnostics,
+`tmp/c89-text-store-{media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-store-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-text-store-asan.log`, `tmp/c89-text-store-trace-comparison.json`,
+`tmp/c89-text-store-regular-tests.log` and `tmp/c89-text-store-identities.json`.
