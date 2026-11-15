@@ -25,6 +25,7 @@
 #include "preview_background.h"
 #include "preview_presentation.h"
 #undef size
+#include "preview_cue_view.h"
 ASSERTNAME
 
 namespace MM
@@ -455,12 +456,7 @@ try
     if (!_impl->ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
-    for (auto &cue : presentation.sounds)
-        cue.scene = scene;
-    std::stable_sort(presentation.sounds.begin(), presentation.sounds.end(),
-                     [](const PreviewSoundCue &a, const PreviewSoundCue &b) {
-                         return a.frame != b.frame ? a.frame < b.frame : a.actorSound < b.actorSound;
-                     });
+    Internal::OrderPreviewCues(presentation.sounds, scene);
     return true;
 }
 catch (const std::bad_alloc &)
@@ -479,11 +475,7 @@ try
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the scene's sound events.");
     cues = std::move(presentation.sounds);
-    for (auto &cue : cues)
-        cue.scene = scene;
-    std::stable_sort(cues.begin(), cues.end(), [](const PreviewSoundCue &a, const PreviewSoundCue &b) {
-        return a.frame != b.frame ? a.frame < b.frame : a.actorSound < b.actorSound;
-    });
+    Internal::OrderPreviewCues(cues, scene);
     return true;
 }
 catch (const std::bad_alloc &)

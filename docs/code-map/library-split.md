@@ -1507,7 +1507,46 @@ framing preservation, errors and rendered output against all three original host
 C fault checks cover every fallible open/add stage, palette byte order/admission,
 lease transfer/rejection, release order, registry storage exhaustion and retry.
 Native resource/track/archive/path representations, asset-cleanup primitives,
-cue/timeline presentation and final C-only host/facade removal remain dependencies.
+caption/audio decoding, display/output representations and final C-only host/facade
+removal remain dependencies. Metadata control is covered below.
+Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Preview timeline replay and presentation cue traversal
+
+`preview_metadata.c` controls private actor timeline extraction, marker classification,
+span splitting, replay/output budgets, scene presentation group traversal, actor and
+scene sound-cue mapping, pause validation and stable cue ordering. Typed native
+services supply validated group/header reads, cloned track storage, shared actor
+effects, caption decoding, display labels/font names/numeric formatting and public
+output containers. Native code no longer has a second timeline or scene-cue evaluator.
+
+Timeline extraction uses the same C frame/step/effect evaluators as live playback,
+with a private cloned track, metadata-only effects and suppressed sound output.
+Frame caches mutate only that clone; live actor/cue/render state remains unchanged.
+The 100,000-frame budget is measured from the actor's first frame. Marker capacity
+is checked before classification, including ignored sound rows once the 100,000
+marker limit has been reached. Spans split on visibility gaps, action/entrance
+restarts and freeze changes. Two-word end frames retain `INT32_MAX+1` without C99
+integer types. Failure retains completed output prefixes and releases the clone.
+
+Presentation reads start then frame groups, retaining actor/caption mode gates,
+inactive-actor handling, pause bounds and queue flags from packet index. Actor cue
+flags preserve the legacy ternary interpretation; live cues and authored sound
+sheets use the same C mapper. Actor event groups release before their containing
+scene group, including allocation/foreign exceptions from output providers. This
+closes the former raw-group leaks on output-vector exceptions. Public cue ordering
+sets origin identity before a stable frame/scene-before-actor merge sort. Scratch
+failure uses an allocation-free stable merge with bounded recursion, preserving
+ties without a quadratic insertion fallback.
+
+The headless metadata fixture freezes full timeline labels/details/spans, captions/
+properties, pauses, sound sheets/audio bytes, frame cues and rendered/live-state
+isolation across batch, event, scene-audio, actor-audio and text-acid documents.
+The regular asset-preview harness generates and verifies all five documents. C-only
+fault checks cover clone/group ownership, partial output, budgets, extreme frames,
+live isolation and sort stability with/without scratch for counts zero through 64.
+Caption/audio loaders, display formatting/name-cache and output/cue representations,
+physical providers and final C-only host/facade integration remain dependencies.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo

@@ -15,13 +15,13 @@ namespace Internal
 class PreviewActor
 {
     struct Host;
+    struct TimelineHost;
     MMPreviewActor core;
     ActorTrack track;
     PTemplate tmpl = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
                     ActorSoundList *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
-    ActorStepSource Steps() const;
     ActorSoundList motionSounds;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;

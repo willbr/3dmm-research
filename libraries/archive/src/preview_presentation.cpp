@@ -5,6 +5,7 @@
 #include "preview_presentation.h"
 #include "platform_text.h"
 #undef size
+#include "preview_cue_view.h"
 ASSERTNAME
 namespace MM
 {
@@ -83,121 +84,14 @@ bool Caption(PChunkyFile file, ChunkNumber number, PreviewCaption &out)
     return true;
 }
 } // namespace
+#include "preview_presentation_host.h"
 bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out, bool soundSheet, bool includeCaptions)
 {
-    out = {};
-    SceneData metadata;
-    if (!metadata.FRead(file, scene))
-        return false;
-    out.transition = metadata.transition;
-    for (int start = 1; start >= 0; --start)
-    {
-        ChildChunkIdentification child;
-        DataBlock block;
-        if (!file->FGetKidChidCtg(kctgScen, scene, start, start ? kctgStartGg : kctgFrmGg, &child) ||
-            !file->FFind(child.cki.ctg, child.cki.cno, &block))
-            return false;
-        short order;
-        auto group = SceneData::PggReadEvents(&block, &order, start != 0);
-        if (!group)
-            return false;
-        bool ok = true;
-        for (LegacyLong i = 0; ok && i < group->IvMac(); ++i)
-        {
-            SceneEvent event;
-            group->GetFixed(i, &event);
-            if (order == kboOther)
-                SwapBytesBom(&event, kbomSev);
-            if (soundSheet && event.sevt == sevtAddActr)
-            {
-                std::uint32_t slot;
-                group->Get(i, &slot);
-                if (order == kboOther)
-                    SwapBytesRglw(&slot, 1);
-                ActorChunkOnFile header;
-                ok = file->FGetKidChidCtg(kctgScen, scene, slot, kctgActr, &child) &&
-                     file->FFind(kctgActr, child.cki.cno, &block) && ActorData::FReadHeader(&block, &header);
-                if (!ok || header.nfrmFirst == knfrmInvalid)
-                    continue;
-                ok = file->FGetKidChidCtg(kctgActr, child.cki.cno, 0, kctgGgae, &child) &&
-                     file->FFind(child.cki.ctg, child.cki.cno, &block);
-                auto events = ok ? ActorData::PggReadEvents(&block) : nullptr;
-                ok = events != nullptr;
-                for (LegacyLong row = 0; ok && row < events->IvMac(); ++row)
-                {
-                    ActorEvent::Base base;
-                    events->GetFixed(row, &base);
-                    if (base.aet != ActorEvent::aetSnd)
-                        continue;
-                    ActorEvent::Sound sound;
-                    events->Get(row, &sound);
-                    PreviewSoundCue cue;
-                    cue.frame = base.nfrm;
-                    cue.actor = header.arid;
-                    cue.actorSound = true;
-                    cue.source = sound.tag.sid;
-                    cue.sound = {sound.tag.ctg, sound.tag.cno};
-                    cue.child = sound.chid;
-                    cue.style = sound.sty;
-                    cue.volume = sound.vlm;
-                    cue.loop = sound.fLoop != tNo;
-                    cue.queue = sound.fQueue != tNo;
-                    cue.silent = sound.fNoSound == tYes;
-                    cue.motion = sound.celn != ivNil;
-                    cue.motionCel = sound.celn;
-                    out.sounds.push_back(cue);
-                }
-                ReleasePpo(&events);
-            }
-            else if ((!soundSheet || includeCaptions) && event.sevt == sevtAddTbox)
-            {
-                std::uint32_t slot;
-                group->Get(i, &slot);
-                if (order == kboOther)
-                    SwapBytesRglw(&slot, 1);
-                PreviewCaption caption;
-                ok = file->FGetKidChidCtg(kctgScen, scene, slot, kctgTbox, &child) &&
-                     Caption(file, child.cki.cno, caption);
-                if (ok)
-                    out.captions.push_back(std::move(caption));
-            }
-            else if (event.sevt == sevtPause)
-            {
-                SceneEventPause pause;
-                group->Get(i, &pause);
-                if (order == kboOther)
-                    SwapBytesRglw(&pause, 2);
-                ok = pause.wit >= witNil && pause.wit < witLim && pause.dts >= 0;
-                if (ok)
-                    out.pauses.push_back({event.nfrm, pause.wit, pause.dts});
-            }
-            else if (event.sevt == sevtPlaySnd)
-            {
-                std::vector<std::int32_t> data(group->Cb(i) / 4);
-                group->Get(i, data.data());
-                if (order == kboOther)
-                    SwapBytesRglw(data.data(), static_cast<LegacyLong>(data.size()));
-                for (int index = 0; index < data[3]; ++index)
-                {
-                    auto pair = &data[4 + index * 5]; // chid, sid, runtime-zero, ctg, cno
-                    PreviewSoundCue cue;
-                    cue.frame = event.nfrm;
-                    cue.child = pair[0];
-                    cue.source = pair[1];
-                    cue.sound = {static_cast<std::uint32_t>(pair[3]), static_cast<std::uint32_t>(pair[4])};
-                    cue.style = data[1];
-                    cue.volume = data[0];
-                    cue.loop = data[2] != 0;
-                    cue.queue = index != 0;
-                    out.sounds.push_back(cue);
-                }
-            }
-        }
-        ReleasePpo(&group);
-        if (!ok)
-            return false;
-    }
-    return true;
+    PresentationHost host = {file, &out};
+    auto services = host.Services();
+    const int result = mm_preview_presentation(scene, soundSheet, includeCaptions, &services);
+    if (host.exception) std::rethrow_exception(host.exception);
+    return result > 0;
 }
 bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, PreviewAudio &out)
 {

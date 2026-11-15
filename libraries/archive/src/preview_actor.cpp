@@ -11,6 +11,7 @@
 #include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
 #undef size
+#include "preview_cue_view.h"
 ASSERTNAME
 using namespace ActorEvent;
 
@@ -19,20 +20,12 @@ namespace MM
 namespace Internal
 {
 #include "preview_actor_host.h"
+#include "preview_timeline_host.h"
 PreviewActor::~PreviewActor()
 {
     Host host = {this};
     auto services = host.Services();
     mm_preview_actor_dispose(&core, &services);
-}
-ActorStepSource PreviewActor::Steps() const
-{
-    ActorStepSource steps;
-    steps.context = tmpl;
-    steps.resolve = [](void *value, LegacyLong action, LegacyLong cel, BRS *step) {
-        return static_cast<PTemplate>(value)->FGetDwrActnCel(action, cel, step);
-    };
-    return steps;
 }
 bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
                         std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
@@ -89,173 +82,11 @@ PreviewObject PreviewActor::Snapshot() const
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {
-    timeline = {};
-    if (core.inactive || core.header.first_frame > last)
-        return true;
-    if (int64_t(last) - core.header.first_frame > 100000)
-        return false;
-    ActorTrack copy;
-    if (!copy.FCloneFrom(track))
-        return false;
-    ActorFrameState cursor;
-    cursor.RewindRoute(copy);
-    std::map<LegacyLong, std::string> names;
-    const auto actionName = [&](LegacyLong action) {
-        auto found = names.find(action);
-        if (found != names.end())
-            return found->second;
-        std::string result = "Action " + std::to_string(action);
-        String name;
-        if (action >= 0 && action < tmpl->Cactn() && tmpl->FGetActnName(action, &name) && name.Cch())
-        {
-            const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
-            const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
-            std::u16string text(count, 0);
-            if (count && KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding,
-                                            reinterpret_cast<std::uint16_t *>(&text[0]), count))
-                result = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
-        }
-        names.emplace(action, result);
-        return result;
-    };
-    const auto describe = [&](LegacyLong index, const Base &event) {
-        PreviewAnimationEvent marker;
-        marker.frame = cursor.frame;
-        std::ostringstream detail;
-        detail.precision(4);
-        switch (event.aet)
-        {
-        case aetAdd:
-            marker.kind = PreviewAnimationKind::Entrance;
-            marker.name = "Enter stage";
-            break;
-        case aetRem:
-            marker.kind = PreviewAnimationKind::Exit;
-            marker.name = "Leave stage";
-            break;
-        case aetActn: {
-            Action action;
-            copy.Events()->Get(index, &action);
-            marker.kind = PreviewAnimationKind::Action;
-            marker.name = actionName(action.anid);
-            detail << "Action " << action.anid << ", starting cel " << action.celn;
-            break;
-        }
-        case aetCost: {
-            Costume costume;
-            copy.Events()->Get(index, &costume);
-            marker.kind = PreviewAnimationKind::Costume;
-            marker.name = "Costume";
-            detail << "Part set " << costume.ibset;
-            if (costume.fCmtl)
-                detail << ", costume " << costume.cmid;
-            else
-                detail << ", material " << costume.tag.cno << ", source " << costume.tag.sid;
-            break;
-        }
-        case aetRotF:
-        case aetRotH:
-            marker.kind = PreviewAnimationKind::Rotation;
-            marker.name = event.aet == aetRotH ? "Rotate this frame" : "Rotate";
-            break;
-        case aetSize:
-            marker.kind = PreviewAnimationKind::Scale;
-            marker.name = "Size";
-            detail << BrScalarToFloat(cursor.transform.rScaleStep) << "x";
-            break;
-        case aetPull:
-            marker.kind = PreviewAnimationKind::Stretch;
-            marker.name = "Stretch";
-            detail << "X " << BrScalarToFloat(cursor.transform.aevpull.rScaleX) << ", Y "
-                   << BrScalarToFloat(cursor.transform.aevpull.rScaleY) << ", Z "
-                   << BrScalarToFloat(cursor.transform.aevpull.rScaleZ);
-            break;
-        case aetMove:
-        case aetTweak: {
-            RoutePoint value;
-            copy.Events()->Get(index, &value);
-            marker.kind = event.aet == aetMove ? PreviewAnimationKind::Move : PreviewAnimationKind::Path;
-            marker.name = event.aet == aetMove ? "Move path" : "Adjust path";
-            detail << "X " << BrScalarToFloat(value.dxr) << ", Y " << BrScalarToFloat(value.dyr) << ", Z "
-                   << BrScalarToFloat(value.dzr);
-            break;
-        }
-        case aetStep:
-            marker.kind = PreviewAnimationKind::Step;
-            marker.name = cursor.step == rZero     ? "Stop movement"
-                          : cursor.step == kdwrNil ? "Action speed"
-                                                   : "Movement speed";
-            if (cursor.step != kdwrNil)
-                detail << BrScalarToFloat(cursor.step) << " units per frame (before size scaling)";
-            break;
-        case aetFreeze:
-            marker.kind = PreviewAnimationKind::Freeze;
-            marker.name = cursor.frozen ? "Freeze animation" : "Unfreeze animation";
-            break;
-        default:
-            return; // Actor sound events already have their own dope sheet.
-        }
-        marker.detail = detail.str();
-        timeline.events.push_back(std::move(marker));
-    };
-    // Use the same sequencer and value-event operations as live playback. Body,
-    // costume and sound effects are deliberately absent from this private host.
-    const auto apply = [&](LegacyLong index) {
-        Base event;
-        copy.Events()->GetFixed(index, &event);
-        auto value = EngineActorMotion::Core(cursor);
-        const bool ok = ApplyEvent(value, copy, index, true);
-        EngineActorMotion::Publish(cursor, value);
-        if (!ok) return false;
-        event.nfrm = cursor.frame;
-        if (cursor.frame >= first)
-        {
-            if (timeline.events.size() >= 100000)
-                return false;
-            describe(index, event);
-        }
-        return true;
-    };
-    LegacyLong previousAction = ivNil, previousEntrance = ivNil;
-    for (int64_t frame = core.header.first_frame; frame <= last; ++frame)
-    {
-        cursor.frame = static_cast<LegacyLong>(frame);
-        cursor.firstEventInFrame = cursor.nextEvent;
-        ActorFrameInputs inputs;
-        inputs.firstFrame = core.header.first_frame;
-        inputs.displayFrame = true;
-        inputs.suppressSounds = true;
-        inputs.stepSucceeded = Steps().FPlaybackStep(cursor, &inputs.step);
-        ActorFrameEvaluator evaluator(cursor, copy, inputs, true);
-        for (;;)
-        {
-            const auto command = evaluator.Next();
-            if (command.kind == ActorFrameCommandKind::Finished)
-                break;
-            if (command.kind == ActorFrameCommandKind::CheckEntrance)
-            {
-                Base event;
-                copy.Events()->GetFixed(command.eventIndex, &event);
-                evaluator.Complete(event.nfrm <= cursor.frame);
-            }
-            else
-                evaluator.Complete(apply(command.eventIndex));
-        }
-        if (!evaluator.Result().success)
-            return false;
-        if (frame >= first && cursor.onStage)
-        {
-            if (timeline.spans.empty() || timeline.spans.back().endFrame != frame ||
-                previousAction != cursor.actionEvent || previousEntrance != cursor.addEvent ||
-                timeline.spans.back().frozen != cursor.frozen)
-                timeline.spans.push_back({frame, frame + 1, cursor.action, cursor.frozen, actionName(cursor.action)});
-            else
-                timeline.spans.back().endFrame = frame + 1;
-        }
-        previousAction = cursor.actionEvent;
-        previousEntrance = cursor.addEvent;
-    }
-    return true;
+    TimelineHost host = {this, &timeline};
+    auto services = host.Services();
+    const int result = mm_preview_actor_timeline(&core, first, last, &services);
+    if (host.exception) std::rethrow_exception(host.exception);
+    return result > 0;
 }
 bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
                               ActorSoundList *motion, std::vector<PreviewSoundCue> *cues) const
@@ -387,21 +218,12 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, Leg
 }
 PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
 {
-    PreviewSoundCue cue;
-    cue.frame = core.state.frame;
-    cue.actor = core.header.actor_id;
-    cue.actorSound = true;
-    cue.sound = {sound.tag.ctg, sound.tag.cno};
-    cue.source = sound.tag.sid;
-    cue.child = sound.chid;
-    cue.style = sound.sty;
-    cue.volume = sound.vlm;
-    cue.loop = sound.fLoop != tNo;
-    cue.queue = sound.fQueue != tNo;
-    cue.silent = sound.fNoSound == tYes;
-    cue.motion = sound.celn != ivNil;
-    cue.motionCel = sound.celn;
-    return cue;
+    MMActorSound value;
+    static_assert(sizeof(value) == sizeof(sound), "Preview actor sound layout");
+    std::memcpy(&value, &sound, sizeof(value));
+    MMPreviewCue cue;
+    mm_preview_actor_cue(&cue, &value, core.state.frame, core.header.actor_id);
+    return PreviewCue(cue);
 }
 bool PreviewActor::Translate(const float delta[3])
 {

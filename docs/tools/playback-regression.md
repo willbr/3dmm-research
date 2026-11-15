@@ -9087,3 +9087,73 @@ Evidence: `tmp/c89-preview-session-{baseline,final}-{native,sdl-release,sdl-debu
 `tmp/c89-preview-session-regular-tests.log` and `tmp/c89-preview-session-identities.json`.
 Prior traces remain at the evidence
 paths recorded above.
+
+### Preview timeline replay and presentation cue traversal (15 November 2026)
+
+`preview_metadata.c` now controls private actor metadata replay, marker
+classification, span splitting, replay/output budgets, scene presentation traversal,
+actor/scene cue mapping, pause validation and stable cue ordering. Native adapters
+provide cloned/validated tables, shared actor effects, caption decoding, display
+formatting and public output containers. The native timeline/frame and scene-cue
+loops are removed; shared C frame/step/effect evaluators retain Studio playback
+policy in the private metadata host.
+
+Metadata replay changes only a private track's frame caches, suppresses sound
+effects and preserves live pose/cues/rendering. The replay budget remains 100,000
+frames from the actor's first frame. The 100,000-marker check still precedes marker
+classification, including ignored sound rows after the limit. Spans retain action/
+entrance restart, visibility-gap and freeze boundaries; two-word ends represent
+`INT32_MAX+1` without C99 types. Ordinary/exception failures retain completed output
+prefixes and release the private clone before the typed host returns/rethrows.
+
+Presentation visits start then frame groups, preserves sound-sheet/caption mode
+gates and inactive actors, validates pause bounds, and retains scene packet queue
+indices and actor ternary flags. Live actor cues and sound sheets use the same C
+mapper. Actor event groups release before containing scene groups, closing the
+previous raw-group leaks when output-vector allocation threw. Cue origin identity
+publishes before a stable frame/scene-before-actor merge sort. Scratch failure uses
+an allocation-free stable merge with bounded recursion, avoiding a quadratic
+insertion fallback for large cue sheets.
+
+Before conversion, the native Debug, SDL Release and SDL Debug metadata fixtures
+all recorded 1,045,462 bytes, FNV-1a `0BD333B2`, SHA-256
+`9C49B1E34B65B9AF9ADBB261EC4BDC03B9B8FA151B2CF8C7227A4315D112BD71`.
+Five documents exercise batch captions/pauses, actor animation events, scene audio,
+actor audio and text-acid captions/properties. The trace freezes all timeline
+labels/details/spans, caption properties, pauses, sound-sheet ordering and audio
+bytes, repeated seeks/frame cues, actor state and rendered output before/after
+metadata reads. Its Windows x64 fingerprint is checked by the new headless fixture.
+The regular asset-preview harness generates all five documents, runs this fixture
+and verifies that input document hashes remain unchanged.
+
+All twenty-one original/converted metadata/session/admission/live/camera/picking/
+rendering trace pairs match across the three builds. Prior hashes remain unchanged.
+The background check retains 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras per build. All 116 standalone C checks including strict
+C89 syntax, fourteen selected native checks, ten SDL release and ten SDL debug
+checks pass. MSVC AddressSanitizer passes. C-only checks cover clone/live isolation,
+ordinary/allocation/foreign effect failures, partial output, group release order,
+inactive and clipped timelines, frame/marker budgets, `INT32_MAX+1` spans, pause
+rejection, actor cue flags/packet queueing and sort stability with full/partial/no
+scratch for every count from zero through 64. Input identities are unchanged.
+Studio and Marcus were rebuilt; Marcus was stopped before rebuilding and relaunched
+afterward. The expanded regular asset-preview harness passes headlessly in the
+native build, including fresh generation and input-hash checks for all five
+metadata documents. No Marcus UI tests were added.
+
+This is Windows x64 evidence within these fixtures, not complete retail editing
+or allocator equivalence. Clone/sort storage changes allocation attempt ordinals.
+Retained retail captures remain the playback reference; no redundant capture
+campaign was launched. Caption/audio loaders, label/font/numeric formatting,
+name-cache/output/cue representations, physical providers and final C-only host/
+facade integration remain work. Other platforms remain unverified here.
+
+Evidence: `tmp/c89-preview-metadata-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+`tmp/c89-preview-metadata-{session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-metadata-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-metadata-asan.log`, `tmp/c89-preview-metadata-trace-comparison.json`,
+`tmp/c89-preview-metadata-regular-tests.log`
+and `tmp/c89-preview-metadata-identities.json`. The five metadata input documents
+and their generation logs are retained as `tmp/c89-preview-metadata-{batch,events,audio,actor-audio,text-acid}.3mm`
+and matching `*-fixture.log` files. Prior original traces remain at the evidence
+paths recorded above.
