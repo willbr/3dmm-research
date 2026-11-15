@@ -8957,3 +8957,64 @@ Evidence: `tmp/c89-preview-admission-{baseline,final}-{native,sdl-release,sdl-de
 `tmp/c89-preview-admission-{native,sdl-release,sdl-debug,standalone}-tests.log`,
 `tmp/c89-preview-admission-asan.log`, `tmp/c89-preview-admission-trace-comparison.json`
 and `tmp/c89-preview-admission-identities.json`.
+
+### Preview actor ownership, loading and live playback (15 November 2026)
+
+`preview_actor.c` now owns the actor header, evaluated state, saved orientation,
+edit shape, original placement and template/body handles. It controls loading,
+prop creation, live frame evaluation/seeking, positioning, translation, absolute
+offsets and shape basis queries. Native PreviewActor keeps borrowed typed resource
+views and supplies track/resource/SDK/effect primitives. It has no second evaluated
+state or live replay/placement loop. Shared C actor timeline/frame/seek/effect/
+sound/pose modules retain the Studio playback policy and fixed matrix arithmetic.
+
+Loading preserves header/route/event/template/body prefixes on failure, reads
+inactive roll-call actors without requiring templates, overrides embedded template
+numbers only for the local source, and validates node references after body
+creation. Old-header lifetimes use the same shared evaluator with the original
+100,000-frame work bound. Prop creation retains template admission and stationary
+route/entrance/action/zero-step insertion order, including partial insertion on
+failure. Disposal releases the body before its template, followed by the existing
+C-backed native track facade's authored tables.
+
+Live replay retains cue clearing/display gates, costume reset, entrance and held-
+rotation orientation resets, frame failure/retry, quick backup and full replay.
+Shape editing composes onto saved orientation while retaining the current animation
+stretch/scale. Placement validates all axes before publishing. Untouched retail
+placements still bypass editor limits and requantization; zero-axis absolute
+offsets preserve authored fixed bits. Completed actor state/effects remain after
+provider failure; typed adapters transport allocation/foreign exceptions after
+the C controller returns.
+
+All fifteen original/converted admission/live/camera/picking/rendering trace pairs
+match across native Debug, SDL Release and SDL Debug. Their prior 17,862,716,
+819,080, 5,728,850, 74,816 and 18,029,304-byte outputs retain their recorded
+fingerprints and SHA-256 hashes. This includes ordinary/old/inactive actors,
+3-D text/font resolution, seeks/rewind, live prop replacement, camera edits,
+held-orientation shape/placement edits, picking and subsequent rendered output.
+Each background check retains 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras.
+
+All 114 standalone C checks including strict C89 syntax, twelve selected native
+checks, eight SDL release and eight SDL debug checks pass. MSVC AddressSanitizer
+passes. The C actor fixture covers ordinary/allocation/foreign failures at load,
+create and replay effects; resource release order and idempotent disposal; inactive
+and corrupt routes; lifetime boundaries and resolver exceptions; event insertion
+prefixes; replay/backup/hide; orientation resets; atomic rejected movement; untouched
+retail coordinates; shape edits and pose failure. Input identities are unchanged.
+Studio and Marcus were rebuilt; Marcus was stopped before rebuilding and relaunched
+afterward. No Marcus UI tests were added.
+
+This is Windows x64 evidence within these fixtures, not complete retail allocator
+or editing equivalence. Retained retail captures remain the playback reference;
+no redundant capture campaign was launched. Typed effect/resource primitives,
+track representations, visibility-clock/cue containers, timeline extraction/
+presentation, source/session setup and final C-only host/facade integration remain
+dependencies. Other platforms remain unverified here.
+
+Evidence: `tmp/c89-preview-actor-{final,live-final,camera-final,pick-final,render-final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-actor-{api,background}-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-actor-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-actor-asan.log`, `tmp/c89-preview-actor-trace-comparison.json`
+and `tmp/c89-preview-actor-identities.json`. Original traces are retained under
+the admission/live/camera evidence paths recorded above.

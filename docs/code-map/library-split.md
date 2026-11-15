@@ -1389,8 +1389,8 @@ The headless Scene fixture freezes definition reuse/replacement/removal/rollback
 virtual scene lifetime, range edits, camera edits, seeks, actor state and rendered
 output against all three original builds. C-only fault checks cover ownership,
 retained prefixes, assignment/snapshot failures, retry, stable-sort fallback and
-read/allocation/foreign-exception publication ordering. PreviewActor construction,
-loading/evaluation and resource/track representations remain native provider
+read/allocation/foreign-exception publication ordering. PreviewActor control and
+ownership are covered below; resource/track representations remain typed provider
 dependencies. Admission control is described below; source registration/session
 setup, presentation and final C-only facade integration remain work. Evidence is
 in `docs/tools/playback-regression.md`.
@@ -1430,9 +1430,46 @@ rendered initial/last poses, raw models and selection/pose errors against all th
 original builds. Existing scene/live/camera/pick/render/background fixtures cover
 timeline and render integration. C fault checks cover effect exceptions, C-storage
 failures, group cleanup, adoption, partial loads, virtual scenes and pose readiness.
-PreviewActor loading/evaluation, resource representations, source/session setup,
-presentation and final facade removal remain native dependencies. Evidence and
+PreviewActor playback control is covered below. Resource representations,
+source/session setup, presentation and final facade removal remain native dependencies. Evidence and
 platform limits are in `docs/tools/playback-regression.md`.
+
+### Preview actor loading, replay and placement
+
+`preview_actor.c` owns the Preview actor header, evaluated state, saved orientation
+context, edit shape, original placement and template/body handles. The native
+PreviewActor exposes borrowed typed resource views, validated track-table services,
+resource resolution/binding, SDK operations and cue/timeline presentation. It no
+longer owns a second evaluated state, shape or playback/placement controller.
+Resource disposal releases the body before the template; the existing C-backed
+track facade disposes its authored tables afterward.
+
+Loading retains header/route/event/resource prefixes on failure, accepts invisible
+roll-call actors after route/event reads, resolves embedded templates only for the
+local source, validates node references after body creation, and computes old-header
+lifetimes through the shared C actor timeline with the 100,000-frame work bound.
+Creation admits ordinary prop templates and inserts a stationary route plus the
+original entrance/action/zero-step events in order. Failed insertion retains the
+completed table prefix until actor disposal.
+
+Live frame and seek control call the same C frame/seek/effect/sound/pose evaluators
+as Studio. Ordinary effect failures follow the shared sequencer's retry/publication
+rules; exceptions return through the typed provider after completed state/effects.
+The controller retains cue clearing/display gates, costume resets, entrance/held-
+rotation orientation resets, quick backup and full replay ordering. Shape edits
+compose onto the saved orientation without changing authored animation. Relative
+translation and absolute offsets validate all axes before publication. Untouched
+retail placements bypass editor coordinate limits and requantization; absolute
+zero-axis offsets retain their original fixed bits. Posing uses shared C fixed
+matrix arithmetic and retains SDK operation order.
+
+The C-only actor fixture covers construction/load failure prefixes, resource release
+order, corrupt routes, old lifetimes and resolver exceptions, replay/backup/hide,
+provider failures, orientation resets and placement/shape behavior. Existing headless
+and Marcus integration fixtures retain their original outputs. Native effect/resource
+primitives, track representations, visibility clock/cue containers, timeline extraction/
+display, source/session setup and final host/facade removal remain dependencies.
+Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

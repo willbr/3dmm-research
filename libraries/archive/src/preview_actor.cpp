@@ -8,6 +8,7 @@
 #include <sstream>
 #include "preview_actor.h"
 #include "engine_actor_motion.h"
+#include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
 #undef size
 ASSERTNAME
@@ -17,10 +18,12 @@ namespace MM
 {
 namespace Internal
 {
+#include "preview_actor_host.h"
 PreviewActor::~PreviewActor()
 {
-    ReleasePpo(&body);
-    ReleasePpo(&tmpl);
+    Host host = {this};
+    auto services = host.Services();
+    mm_preview_actor_dispose(&core, &services);
 }
 ActorStepSource PreviewActor::Steps() const
 {
@@ -38,56 +41,9 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
     this->visibilityClock = &visibilityClock;
     this->number = number;
     resolve = resolver;
-    auto chunky = file->Pcfl();
-    DataBlock block;
-    ChildChunkIdentification child;
-    if (!chunky->FFind(kctgActr, number, &block) || !ActorData::FReadHeader(&block, &header) ||
-        !chunky->FGetKidChidCtg(kctgActr, number, 0, kctgPath, &child) ||
-        !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !track.AdoptRoute(ActorData::PglReadRoute(&block)) ||
-        !chunky->FGetKidChidCtg(kctgActr, number, 0, kctgGgae, &child) ||
-        !chunky->FFind(child.cki.ctg, child.cki.cno, &block) || !track.AdoptEvents(ActorData::PggReadEvents(&block)))
-        return false;
-    originalPlacement[0] = header.dxyzFullRte.dxr;
-    originalPlacement[1] = header.dxyzFullRte.dyr;
-    originalPlacement[2] = header.dxyzFullRte.dzr;
-    if (header.nfrmFirst == knfrmInvalid)
-    {
-        inactive = true; // Roll-call actors with no entrance are valid and invisible.
-        return true;
-    }
-    if (header.tagTmpl.sid == ksidUseCrf && chunky->FGetKidChidCtg(kctgActr, number, 0, kctgTmpl, &child))
-        header.tagTmpl.cno = child.cki.cno;
-    auto source = resolve(header.tagTmpl);
-    if (!source)
-        return false;
-    tmpl = static_cast<PTemplate>(source->PbacoFetch(header.tagTmpl.ctg, header.tagTmpl.cno, Template::FReadTmpl));
-    if (!tmpl)
-        return false;
-    bindTemplate(tmpl);
-    if (!(body = tmpl->PbodyCreate()) || (track.Events()->IvMac() && !track.Route()->IvMac()))
-        return false;
-    // Route/event readers validate row widths. Validate node references before
-    // evaluation; reject impossible timelines rather than running unbounded.
-    for (LegacyLong i = 0; i < track.Events()->IvMac(); ++i)
-    {
-        Base event;
-        track.Events()->GetFixed(i, &event);
-        if (event.rtel.irpt < 0 || event.rtel.irpt >= track.Route()->IvMac())
-            return false;
-    }
-    // Old actor headers omit nfrmLast. Recompute through Studio's evaluator,
-    // with an explicit host work budget rather than rejecting the old format.
-    if (header.nfrmLast == knfrmInvalid)
-    {
-        LegacyLong last;
-        if (!ActorTimeline::FComputeLifetime(track, header.nfrmFirst, false, Steps(), &last, 100000))
-            return false;
-        header.nfrmLast = last;
-    }
-    if (header.nfrmLast < header.nfrmFirst || int64_t(header.nfrmLast) - header.nfrmFirst > 100000)
-        return false;
-    state.RewindRoute(track);
-    return true;
+    Host host = {this, file, &bindTemplate};
+    auto services = host.Services();
+    return host.Result(mm_preview_actor_load(&core, number, &services));
 }
 bool PreviewActor::Create(const PreviewPropDefinition &definition,
                           std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
@@ -96,60 +52,47 @@ bool PreviewActor::Create(const PreviewPropDefinition &definition,
     resolve = std::move(resolver);
     visibilityClock = &clock;
     number = definition.number;
-    header.bo = kboCur; header.osk = koskCur;
-    header.arid = definition.actorId;
-    header.nfrmFirst = definition.first; header.nfrmLast = definition.last;
-    header.tagTmpl = {definition.source, 0, kctgTmpl, definition.templateNumber};
-    header.dxyzFullRte = {BrFloatToScalar(definition.point[0]), BrFloatToScalar(definition.point[1]), BrFloatToScalar(definition.point[2])};
-    originalPlacement[0] = header.dxyzFullRte.dxr;
-    originalPlacement[1] = header.dxyzFullRte.dyr;
-    originalPlacement[2] = header.dxyzFullRte.dzr;
-    auto source = resolve(header.tagTmpl);
-    if (!source) return false;
-    tmpl = static_cast<PTemplate>(source->PbacoFetch(kctgTmpl, definition.templateNumber, Template::FReadTmpl));
-    if (!tmpl || !tmpl->FIsProp() || tmpl->FIsTdt()) return false;
-    bindTemplate(tmpl);
-    if (!(body = tmpl->PbodyCreate()) || !track.FCreate()) return false;
-    RouteDistancePoint route = {};
-    ActorEvent::Base event = {ActorEvent::aetAdd, definition.first, {0, rZero, 0}};
-    ActorEvent::Add addition = {};
-    tmpl->GetRestOrien(&addition.xa, &addition.ya, &addition.za);
-    ActorEvent::Action action = {0, 0};
-    BRS step = rZero;
-    if (!track.Route()->FInsert(0, &route) || !track.Events()->FInsert(0, sizeof(addition), &addition, &event)) return false;
-    event.aet = ActorEvent::aetActn;
-    if (!track.Events()->FInsert(1, sizeof(action), &action, &event)) return false;
-    event.aet = ActorEvent::aetStep;
-    if (!track.Events()->FInsert(2, sizeof(step), &step, &event)) return false;
-    state.RewindRoute(track);
-    return true;
+    MMPreviewActorDefinition d = {};
+    d.header.order = kboCur;
+    d.header.system = koskCur;
+    d.header.actor_id = definition.actorId;
+    d.header.first_frame = definition.first;
+    d.header.last_frame = definition.last;
+    d.header.source_id = definition.source;
+    d.header.template_type = kctgTmpl;
+    d.header.template_number = definition.templateNumber;
+    std::copy(definition.point, definition.point + 3, d.point);
+    Host host = {this, nullptr, &bindTemplate};
+    auto services = host.Services();
+    return host.Result(mm_preview_actor_create(&core, &d, &services));
 }
+
 PreviewObject PreviewActor::Snapshot() const
 {
     PreviewObject object;
     object.asset = {kctgActr, number};
-    object.templateAsset = {header.tagTmpl.ctg, header.tagTmpl.cno};
-    object.actorId = header.arid;
-    object.sourceId = header.tagTmpl.sid;
-    object.hasLifetime = !inactive;
-    object.firstFrame = inactive ? 0 : header.nfrmFirst;
-    object.lastFrame = inactive ? 0 : header.nfrmLast;
+    object.templateAsset = {core.header.template_type, core.header.template_number};
+    object.actorId = core.header.actor_id;
+    object.sourceId = core.header.source_id;
+    object.hasLifetime = !core.inactive;
+    object.firstFrame = core.inactive ? 0 : core.header.first_frame;
+    object.lastFrame = core.inactive ? 0 : core.header.last_frame;
     object.prop = tmpl && tmpl->FIsProp();
     object.text = tmpl && tmpl->FIsTdt();
-    object.visible = !inactive && state.onStage;
-    object.action = state.action;
-    object.cel = state.cel;
-    object.x = BrScalarToFloat(BrsAdd(state.routeTranslation.dxr, state.position.dxr));
-    object.y = BrScalarToFloat(BrsAdd(state.routeTranslation.dyr, state.position.dyr));
-    object.z = BrScalarToFloat(BrsAdd(state.routeTranslation.dzr, state.position.dzr));
+    object.visible = !core.inactive && core.state.onStage;
+    object.action = core.state.action;
+    object.cel = core.state.cel;
+    object.x = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dxr, core.state.position.dxr));
+    object.y = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dyr, core.state.position.dyr));
+    object.z = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dzr, core.state.position.dzr));
     return object;
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {
     timeline = {};
-    if (inactive || header.nfrmFirst > last)
+    if (core.inactive || core.header.first_frame > last)
         return true;
-    if (int64_t(last) - header.nfrmFirst > 100000)
+    if (int64_t(last) - core.header.first_frame > 100000)
         return false;
     ActorTrack copy;
     if (!copy.FCloneFrom(track))
@@ -260,8 +203,10 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
     const auto apply = [&](LegacyLong index) {
         Base event;
         copy.Events()->GetFixed(index, &event);
-        if (!ApplyEvent(cursor, copy, index, true))
-            return false;
+        auto value = EngineActorMotion::Core(cursor);
+        const bool ok = ApplyEvent(value, copy, index, true);
+        EngineActorMotion::Publish(cursor, value);
+        if (!ok) return false;
         event.nfrm = cursor.frame;
         if (cursor.frame >= first)
         {
@@ -272,12 +217,12 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
         return true;
     };
     LegacyLong previousAction = ivNil, previousEntrance = ivNil;
-    for (int64_t frame = header.nfrmFirst; frame <= last; ++frame)
+    for (int64_t frame = core.header.first_frame; frame <= last; ++frame)
     {
         cursor.frame = static_cast<LegacyLong>(frame);
         cursor.firstEventInFrame = cursor.nextEvent;
         ActorFrameInputs inputs;
-        inputs.firstFrame = header.nfrmFirst;
+        inputs.firstFrame = core.header.first_frame;
         inputs.displayFrame = true;
         inputs.suppressSounds = true;
         inputs.stepSucceeded = Steps().FPlaybackStep(cursor, &inputs.step);
@@ -312,29 +257,19 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
     }
     return true;
 }
-bool PreviewActor::Apply(LegacyLong index)
-{
-    Base event;
-    track.Events()->GetFixed(index,&event);
-    if (event.aet==aetAdd) orientationReset=1;
-    if (event.aet==aetRotH) orientationReset=2;
-    return ApplyEvent(state, track, index, false, &motionSounds, &sounds);
-}
-bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
+bool PreviewActor::ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
                               ActorSoundList *motion, std::vector<PreviewSoundCue> *cues) const
 {
     struct Host
     {
         const PreviewActor *actor;
         const ActorTrack *track;
-        ActorFrameState *view;
         ActorSoundList *motion;
         std::vector<PreviewSoundCue> *cues;
         BodyCostume costume;
     } host;
     host.actor = this;
     host.track = &events;
-    host.view = &value;
     host.motion = motion;
     host.cues = cues;
     MMActorEffectServices effects = {};
@@ -343,9 +278,6 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
         Base event;
         std::memcpy(&event, value, sizeof(event));
         static_cast<PGeneralGroup>(group)->PutFixed(row, &event);
-    };
-    effects.publish = [](void *context, const MMActorState *state) {
-        EngineActorMotion::Publish(*static_cast<Host *>(context)->view, *state);
     };
     effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
         auto &host = *static_cast<Host *>(context);
@@ -437,7 +369,7 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
                 auto &host = *static_cast<Host *>(context);
                 Sound sound;
                 std::memcpy(&sound, value, sizeof(sound));
-                if (host.actor->soundDisplay)
+                if (host.actor->core.sound_display)
                     host.cues->push_back(host.actor->SoundCue(sound));
                 return 1;
             };
@@ -446,19 +378,18 @@ bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, 
         }
         }
     };
-    auto core = EngineActorMotion::Core(value);
-    const auto origin = EngineActorMotion::Point(header.dxyzFullRte);
+    const MMActorPoint origin = {MMI32(core.header.translation[0]), MMI32(core.header.translation[1]),
+                                 MMI32(core.header.translation[2])};
     const auto tables = EngineActorMotion::Services();
-    bool success = mm_actor_effect_apply(&core, events.Route(), events.Events(), index, &origin,
-                                               body != nullptr, metadataOnly, &tables, &effects) != 0;
-    EngineActorMotion::Publish(value, core);
+    bool success = mm_actor_effect_apply(&value, events.Route(), events.Events(), index, &origin, body != nullptr,
+                                         metadataOnly, &tables, &effects) != 0;
     return success;
 }
 PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
 {
     PreviewSoundCue cue;
-    cue.frame = state.frame;
-    cue.actor = header.arid;
+    cue.frame = core.state.frame;
+    cue.actor = core.header.actor_id;
     cue.actorSound = true;
     cue.sound = {sound.tag.ctg, sound.tag.cno};
     cue.source = sound.tag.sid;
@@ -474,211 +405,39 @@ PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
 }
 bool PreviewActor::Translate(const float delta[3])
 {
-    if (!body || !tmpl) return false;
-    BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
-    BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
-    BRS nextOrigin[3], nextTranslation[3];
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        const double a = double(BrScalarToFloat(*origin[axis])) + delta[axis];
-        const double b = double(BrScalarToFloat(*translation[axis])) + delta[axis];
-        if (!std::isfinite(a) || !std::isfinite(b) || std::abs(a) > 32700 || std::abs(b) > 32700) return false;
-        nextOrigin[axis] = BrFloatToScalar(static_cast<float>(a));
-        nextTranslation[axis] = BrFloatToScalar(static_cast<float>(b));
-    }
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        *origin[axis] = nextOrigin[axis];
-        *translation[axis] = nextTranslation[axis];
-    }
-    return !state.onStage || Position(false);
+    Host host = {this};
+    auto services = host.Services();
+    return host.Result(mm_preview_actor_translate(&core, delta, &services));
 }
 bool PreviewActor::SetOffset(const float offset[3])
 {
-    if (!body || !tmpl) return false;
-    BRS *origin[3] = {&header.dxyzFullRte.dxr, &header.dxyzFullRte.dyr, &header.dxyzFullRte.dzr};
-    BRS *translation[3] = {&state.routeTranslation.dxr, &state.routeTranslation.dyr, &state.routeTranslation.dzr};
-    // Unedited retail placements must not be re-quantized or subjected to
-    // the editor's coordinate limits merely because a scene was selected.
-    if (offset[0] == 0 && offset[1] == 0 && offset[2] == 0 &&
-        *origin[0] == originalPlacement[0] && *origin[1] == originalPlacement[1] && *origin[2] == originalPlacement[2])
-        return true;
-    BRS nextOrigin[3], nextTranslation[3];
-    bool changed = false;
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        const double a = double(BrScalarToFloat(originalPlacement[axis])) + offset[axis];
-        const double b = double(BrScalarToFloat(*translation[axis])) + a - BrScalarToFloat(*origin[axis]);
-        if (!std::isfinite(a) || !std::isfinite(b) || std::abs(a) > 32700 || std::abs(b) > 32700) return false;
-        nextOrigin[axis] = offset[axis] == 0 ? originalPlacement[axis] : BrFloatToScalar(static_cast<float>(a));
-        nextTranslation[axis] = BrFloatToScalar(static_cast<float>(b));
-    }
-    for (int axis = 0; axis < 3; ++axis)
-        changed = changed || *origin[axis] != nextOrigin[axis] || *translation[axis] != nextTranslation[axis];
-    if (!changed) return true;
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        *origin[axis] = nextOrigin[axis];
-        *translation[axis] = nextTranslation[axis];
-    }
-    return !state.onStage || Position(false);
-}
-bool PreviewActor::Position(bool selectCel)
-{
-    ActorPoseInputs pose;
-    tmpl->GetRestOrien(&pose.restX, &pose.restY, &pose.restZ);
-    pose.fixedPathOrientation = tmpl->FIsTdt();
-    BMAT34 matrix;
-    ActorPoseEvaluator::Update(state, track, pose, &state.position, &matrix);
-    if (!state.useCurrentRotation || orientationReset)
-    {
-        orientationContext=state;
-        if (orientationReset==1) orientationContext.useCurrentRotation=false;
-        orientationReset=0;
-    }
-    const PreviewObjectShape identity;
-    if (!std::equal(shape.rotation, shape.rotation + 9, identity.rotation) ||
-        !std::equal(shape.scale, shape.scale + 3, identity.scale))
-    {
-        auto edited = orientationContext;
-        edited.transform.aevpull=state.transform.aevpull;
-        edited.transform.rScaleStep=state.transform.rScaleStep;
-        BMAT34 rotation = {}, combined;
-        for (int i = 0; i < 9; ++i) rotation.m[i / 3][i % 3] = BrFloatToScalar(shape.rotation[i]);
-        auto &basis = edited.useCurrentRotation ? edited.transform.bmat34Cur : edited.transform.bmat34Fwd;
-        BrMatrix34Mul(&combined, &rotation, &basis);
-        basis = combined;
-        edited.transform.aevpull.rScaleX = BrsMul(edited.transform.aevpull.rScaleX, BrFloatToScalar(shape.scale[0]));
-        edited.transform.aevpull.rScaleY = BrsMul(edited.transform.aevpull.rScaleY, BrFloatToScalar(shape.scale[1]));
-        edited.transform.aevpull.rScaleZ = BrsMul(edited.transform.aevpull.rScaleZ, BrFloatToScalar(shape.scale[2]));
-        ActorPoseEvaluator::Update(edited, track, pose, &state.position, &matrix);
-    }
-    body->LocateOrient(BrsAdd(state.routeTranslation.dxr, state.position.dxr),
-                       BrsAdd(state.routeTranslation.dyr, state.position.dyr),
-                       BrsAdd(state.routeTranslation.dzr, state.position.dzr), &matrix);
-    return !selectCel || !state.onStage || tmpl->FSetActnCel(body, state.action, state.cel);
+    Host host = {this};
+    auto services = host.Services();
+    return host.Result(mm_preview_actor_offset(&core, offset, &services));
 }
 bool PreviewActor::SetShape(const PreviewObjectShape &value)
 {
-    if (!body || !tmpl) return false;
-    if (std::equal(value.rotation, value.rotation+9, shape.rotation) && std::equal(value.scale, value.scale+3, shape.scale)) return true;
-    shape = value;
-    return !state.onStage || Position(false);
+    MMPreviewActorShape shape;
+    static_assert(sizeof(shape) == sizeof(value), "Preview shape layout");
+    std::memcpy(&shape, &value, sizeof(shape));
+    Host host = {this};
+    auto services = host.Services();
+    return host.Result(mm_preview_actor_set_shape(&core, &shape, &services));
 }
 void PreviewActor::Shape(PreviewObjectShape &value, float left[9], float right[9]) const
 {
-    value = shape;
-    BMAT34 a, b;
-    BrMatrix34Identity(&a);
-    const auto &context=orientationContext;
-    b = context.useCurrentRotation ? context.transform.bmat34Cur : context.transform.bmat34Fwd;
-    if (!context.useCurrentRotation && context.addEvent >= 0)
-    {
-        Base event;
-        track.Events()->GetFixed(context.addEvent, &event);
-        if (tmpl->FIsTdt() || (context.location.irpt == event.rtel.irpt && !context.location.dwrOffset))
-        {
-            Add add;
-            track.Events()->Get(context.addEvent, &add);
-            BrMatrix34PostRotateX(&b, add.xa);
-            BrMatrix34PostRotateY(&b, add.ya);
-            BrMatrix34PostRotateZ(&b, add.za);
-        }
-        else
-        {
-            BRA x, y, z;
-            ActorPoseEvaluator::RouteOrientation(context, track, nullptr, &x, &y, &z, nullptr);
-            BrMatrix34RotateX(&a, x);
-            BrMatrix34PostRotateY(&b, y);
-        }
-    }
-    for (int i = 0; i < 9; ++i)
-    {
-        if (left) left[i] = BrScalarToFloat(a.m[i / 3][i % 3]);
-        if (right) right[i] = BrScalarToFloat(b.m[i / 3][i % 3]);
-    }
-}
-bool PreviewActor::Evaluate(bool display)
-{
-    sounds.clear();
-    soundDisplay = display;
-    ActorFrameInputs inputs;
-    inputs.firstFrame = header.nfrmFirst;
-    inputs.displayFrame = display;
-    inputs.suppressSounds = false;
-    inputs.stepSucceeded = Steps().FPlaybackStep(state, &inputs.step);
-    ActorFrameEvaluator evaluator(state, track, inputs, true);
-    for (;;)
-    {
-        auto command = evaluator.Next();
-        if (command.kind == ActorFrameCommandKind::Finished)
-            break;
-        if (command.kind == ActorFrameCommandKind::CheckEntrance)
-        {
-            Base event;
-            track.Events()->GetFixed(command.eventIndex, &event);
-            evaluator.Complete(event.nfrm <= state.frame);
-        }
-        else
-            evaluator.Complete(Apply(command.eventIndex));
-    }
-    const auto &result = evaluator.Result();
-    if (!result.success)
-        return false;
-    if (result.considerMotionSounds && state.frame <= header.nfrmLast && state.celCount > 0)
-    {
-        MMActorSoundServices services = {};
-        services.context = this;
-        services.cues_only = 1;
-        services.cel_count = [](void *context, MMI32, MMI32 *out) {
-            *out = static_cast<PreviewActor *>(context)->state.celCount;
-            return 1;
-        };
-        services.cue = [](void *context, const MMActorSound *value) {
-            auto actor = static_cast<PreviewActor *>(context);
-            Sound sound;
-            std::memcpy(&sound, value, sizeof(sound));
-            actor->sounds.push_back(actor->SoundCue(sound));
-            return 1;
-        };
-        if (!mm_actor_sound_motion(motionSounds.Core(), state.action, state.cel, &services))
-            return false;
-    }
-    return (!result.positionBody && !result.updatePose) || Position(result.selectCel);
+    MMPreviewActorShape shape;
+    Host host = {const_cast<PreviewActor *>(this)};
+    auto services = host.Services();
+    mm_preview_actor_shape(&core, &shape, left, right, &services);
+    std::memcpy(&value, &shape, sizeof(shape));
 }
 bool PreviewActor::Seek(LegacyLong frame)
 {
-    if (frame != state.frame)
-        sounds.clear();
-    if (inactive)
-        return true;
-    if (int64_t(frame) - header.nfrmFirst > 100000)
-        return false;
-    ActorSeekEvaluator seek(state, track, header.nfrmFirst, header.nfrmLast, frame, Steps());
-    for (;;)
-    {
-        auto command = seek.Next();
-        switch (command.kind)
-        {
-        case ActorSeekCommandKind::Hide:
-            state.onStage = false;
-            seek.Complete(true);
-            break;
-        case ActorSeekCommandKind::ResetCostume:
-            orientationReset=1;
-            motionSounds.Clear();
-            seek.Complete(tmpl->FSetDefaultCost(body));
-            break;
-        case ActorSeekCommandKind::ApplyQuickEffects:
-            seek.Complete(Position(true));
-            break;
-        case ActorSeekCommandKind::EvaluateFrame:
-            seek.Complete(Evaluate(command.displayFrame));
-            break;
-        case ActorSeekCommandKind::Finished:
-            return seek.Success();
-        }
-    }
+    Host host = {this};
+    auto services = host.Services();
+    return host.Result(mm_preview_actor_seek(&core, frame, &services));
 }
+
 } // namespace Internal
 } // namespace MM

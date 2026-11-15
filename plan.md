@@ -510,9 +510,10 @@ now also use C89. Persistent live definitions, actor handle ownership and camera
 cue snapshots, prop reconciliation/rollback, range/camera edits and frame-seek
 failure/publication control now also use C89. Preview dependency budgets, asset/
 scene admission, template action discovery/rest pose, pose validation and geometry
-counts now use C89. PreviewActor construction/loading/
-evaluation providers, source registration/session setup, presentation and final facade
-removal remain work.
+counts now use C89. PreviewActor header/evaluated-state/shape and body/template
+handle ownership, loading/creation, live frame/seek replay, pose and placement
+control now use C89 too. Typed resource/track providers, source registration/
+session setup, cue/timeline presentation and final facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -553,8 +554,9 @@ C89; Preview picking, camera interaction and guide metadata caching are now C89
 too. Live definition/actor ownership, reconciliation and timeline editing/seeking
 control are now C89 as well. Dependency budgets, asset/scene selection, template
 action/rest-pose control, pose validation and geometry counts now use C89 too.
-PreviewActor providers, source registration/session setup, presentation and final
-host integration still need conversion.
+PreviewActor state/resource ownership and load/create/frame/seek/placement control
+now use C89 as well. Typed resource/track providers, source registration/session
+setup, cue/timeline presentation and final host integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

@@ -5,6 +5,7 @@
 #include "mm/preview.h"
 #include "soc_core.h"
 #include "actor_sound.h"
+#include "mm/preview_actor.h"
 
 namespace MM
 {
@@ -13,32 +14,24 @@ namespace Internal
 // Engine adapter for the pure frame/pose evaluators. No Studio, World or audio.
 class PreviewActor
 {
-    ActorChunkOnFile header = {};
-    BRS originalPlacement[3] = {};
-    PreviewObjectShape shape;
+    struct Host;
+    MMPreviewActor core;
     ActorTrack track;
-    ActorFrameState state;
-    // Keep the source of a held orientation so edits also respect the last
-    // path tangent when an actor stops moving.
-    ActorFrameState orientationContext;
-    int orientationReset = 1;
-    bool inactive = false;
     PTemplate tmpl = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
-    bool Apply(LegacyLong index);
-    bool ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
-                    ActorSoundList *motion = nullptr,
-                    std::vector<PreviewSoundCue> *cues = nullptr) const;
-    bool Position(bool selectCel);
-    bool Evaluate(bool display);
+    bool ApplyEvent(MMActorState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
+                    ActorSoundList *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
     ActorStepSource Steps() const;
     ActorSoundList motionSounds;
-    bool soundDisplay = false;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;
     PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
 
   public:
+    PreviewActor()
+    {
+        mm_preview_actor_init(&core);
+    }
     ChunkNumber number = 0;
     PBody body = nullptr;
     std::vector<PreviewSoundCue> sounds;
@@ -57,16 +50,19 @@ class PreviewActor
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const
     {
-        return state.onStage;
+        return core.state.onStage != 0;
     }
-    std::uint64_t DrawOrder() const { return lastShown; }
+    std::uint64_t DrawOrder() const
+    {
+        return lastShown;
+    }
     LegacyLong FirstFrame() const
     {
-        return header.nfrmFirst;
+        return core.header.first_frame;
     }
     LegacyLong LastFrame() const
     {
-        return header.nfrmLast;
+        return core.header.last_frame;
     }
 };
 } // namespace Internal
