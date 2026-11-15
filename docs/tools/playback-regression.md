@@ -8894,3 +8894,66 @@ Evidence: `tmp/c89-preview-live-{baseline,final}-{native,sdl-release,sdl-debug}.
 `tmp/c89-preview-live-background-{native,sdl-release,sdl-debug}.log`,
 `tmp/c89-preview-live-asan.log`, `tmp/c89-preview-live-trace-comparison.json`
 and `tmp/c89-preview-live-identities.json`.
+
+### Preview dependency budgets and asset/scene admission (15 November 2026)
+
+`preview_admission.c` now controls archive dependency budgets, asset selection,
+template action discovery/rest pose, scene start/frame traversal, actor adoption,
+virtual scene admission, pose validation and geometry counts. Native code supplies
+typed resource/group/actor/SDK primitives, normalized event fields, display strings
+and status marshaling. Admission reuses the C live owner for actors, camera cues,
+snapshots, reconciliation and seeking. Stored actor resolvers capture the session
+owner by value rather than a temporary admission host.
+
+Budgets retain packed-header-before-size-check ordering, inclusive 64 MiB stored/
+decoded chunk and 512 MiB decoded archive limits, and the original chunk-marking
+policy. Template discovery stops on failed/nonpositive cel count, selects the
+first matching nonempty action name, applies the initial cel before the X/post-Y/
+post-Z rest orientation, and preserves fallback display names. Scene admission
+retains wire actor/camera order, last start background/opening camera, evaluated
+standalone actor ranges and offstage-actor rejection. Geometry statistics retain
+visible-body counting and the standalone model override.
+
+Early failures retain completed metadata/resource prefixes; actor-load failures
+save the source error before clearing the asset. Final dependency failures clear
+and mark the selected chunk. Selection allocation failures clear; foreign
+exceptions retain completed prefixes. Acquired groups and unadopted actors are
+released before the typed adapter reports/rethrows failure. This closes the old
+start-group leak when the actor-number vector threw during event traversal.
+Pose exceptions retain state; an ordinary pose-effect failure clears ready.
+Virtual selection retains its nested-seek diagnostic policy.
+
+Before conversion, the native, SDL release and SDL debug API fixtures recorded
+identical 17,862,716-byte traces, FNV-1a `D363793C`, SHA-256
+`AB94395A3F9157BE62F2E81A0787C08F8ED63632A2D110E26CCA60235CF3FCFE`.
+The trace includes all 45 actor and 21 prop templates, action names/cel counts,
+geometry metadata, initial rendered poses, one final action/cel pose, raw model
+output, invalid pose indices and failed selections. Its Windows x64 fingerprint
+is frozen in the existing headless API fixture. All fifteen original/converted
+admission/live/camera/picking/rendering trace pairs match across the three hosts.
+The background check retains 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras per build.
+
+All 113 standalone C checks including strict C89 syntax, eleven selected native
+checks, seven SDL release and seven SDL debug checks pass. MSVC AddressSanitizer
+passes. C fault checks cover exact budget boundaries/header failures, action
+truncation/naming/rest order, ordinary and allocation/foreign effect failures,
+storage exhaustion, event-group cleanup, failed actor prefixes, adoption/sealing,
+sync/seek failure, virtual scenes, pose readiness and statistics. Input hashes are
+unchanged. Studio and Marcus were rebuilt; Marcus was stopped before rebuilding
+and relaunched afterward. No Marcus UI tests were added.
+
+This is Windows x64 evidence within these fixtures, not a new retail editing or
+allocator-equivalence claim. C storage changes allocation attempt ordinals.
+Retained retail captures remain the playback reference; no redundant capture
+campaign was launched. PreviewActor construction/loading/evaluation and resource/
+track representations remain native providers. Source registration/session setup,
+presentation and final C-only host/facade integration remain work. Other platforms
+remain unverified here.
+
+Evidence: `tmp/c89-preview-admission-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-admission-{live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-admission-{api,background}-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-admission-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-admission-asan.log`, `tmp/c89-preview-admission-trace-comparison.json`
+and `tmp/c89-preview-admission-identities.json`.

@@ -17,6 +17,8 @@
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"
 #include "mm/preview_live.h"
+#include "mm/preview_admission.h"
+#include "mm/scene_data.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -39,28 +41,29 @@ bool Fail(Error &error, ErrorCode code, const char *message)
 }
 bool WithinBudget(const Archive &archive, PChunkyFile file, Error &error)
 {
-    std::uint64_t total = 0;
-    for (const auto &chunk : archive.Chunks())
+    struct Host { const Archive *archive; PChunkyFile file; } host = {&archive, file};
+    MMPreviewBudgetServices services = {};
+    services.context = &host;
+    services.count = static_cast<MMU32>(archive.Chunks().size());
+    services.chunk = [](void *v, MMU32 i, MMPreviewChunk *out) {
+        const auto &c = static_cast<Host *>(v)->archive->Chunks()[i];
+        *out = {c.id.type, c.id.number, c.storedBytes, c.packed, !c.name.empty()};
+    };
+    services.header = [](void *v, const MMPreviewChunk *c, unsigned char *bytes) -> int {
+        DataBlock block;
+        return static_cast<Host *>(v)->file->FFind(c->type, c->number, &block) &&
+               block.FReadRgb(bytes, 8, 0, fTrue);
+    };
+    MMU32 failed = 0;
+    const int result = mm_preview_budget(&services, &failed);
+    if (result == MM_PREVIEW_BUDGET_HEADER)
+        return Fail(error, ErrorCode::decode_failed, "Invalid compressed preview dependency.");
+    if (result == MM_PREVIEW_BUDGET_LIMIT)
     {
-        std::uint32_t decoded = chunk.storedBytes;
-        if (chunk.packed)
-        {
-            DataBlock block;
-            byte header[8];
-            if (chunk.storedBytes < sizeof(header) || !file->FFind(chunk.id.type, chunk.id.number, &block) ||
-                !block.FReadRgb(header, sizeof(header), 0, fTrue))
-                return Fail(error, ErrorCode::decode_failed, "Invalid compressed preview dependency.");
-            decoded = (std::uint32_t(header[4]) << 24) | (std::uint32_t(header[5]) << 16) |
-                      (std::uint32_t(header[6]) << 8) | header[7];
-        }
-        total += decoded;
-        if (chunk.storedBytes > 64u * 1024 * 1024 || decoded > 64u * 1024 * 1024 || total > 512u * 1024 * 1024)
-        {
-            error.hasChunk = true;
-            error.chunk = chunk.id;
-            return Fail(error, ErrorCode::resource_limit,
-                        "Preview archives are limited to 64 MiB per chunk and 512 MiB of decoded dependencies.");
-        }
+        error.hasChunk = true;
+        error.chunk = archive.Chunks()[failed].id;
+        return Fail(error, ErrorCode::resource_limit,
+                    "Preview archives are limited to 64 MiB per chunk and 512 MiB of decoded dependencies.");
     }
     return true;
 }
@@ -70,6 +73,7 @@ struct Preview::Impl
     struct RenderHost;
     struct PickHost;
     struct LiveHost;
+    struct AdmissionHost;
     struct Source
     {
         std::int32_t id = 0;
@@ -172,25 +176,15 @@ struct Preview::Impl
     }
     void RefreshStats()
     {
-        info.parts = info.triangles = 0;
-        const auto count = [&](PBody value) {
-            for (LegacyLong i = 0; i < value->Cbact() - 2; ++i)
-                if (auto model = value->PbactPart(i)->model)
-                {
-                    ++info.parts;
-                    info.triangles += model->nprepared_faces;
-                }
-        };
-        if (body)
-            count(body);
-        for (const auto &actor : actors)
-            if (actor->Visible())
-                count(actor->body);
-        if (model)
-        {
-            info.parts = 1;
-            info.triangles = model->Pbmdl()->nprepared_faces;
-        }
+        MMPreviewStatsServices s = {};
+        s.context = this; s.body = body; s.model = model ? model->Pbmdl() : nullptr;
+        s.actors = static_cast<MMU32>(actors.size());
+        s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
+        s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->body; };
+        s.body_parts = [](void *, void *b) -> MMI32 { return static_cast<PBody>(b)->Cbact(); };
+        s.part_model = [](void *, void *b, MMI32 i) -> void * { return static_cast<PBody>(b)->PbactPart(i)->model; };
+        s.faces = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_faces; };
+        mm_preview_stats(&s, &info.parts, &info.triangles);
     }
     void ClearAsset(bool preserveFraming = false)
     {
@@ -229,6 +223,7 @@ struct Preview::Impl
 #include "preview_render_host.h"
 #include "preview_pick_host.h"
 #include "preview_live_host.h"
+#include "preview_admission_host.h"
 Preview::Preview() : _impl(new Impl)
 {
 }
@@ -742,221 +737,10 @@ bool Preview::Select(Id asset, Error &error, bool preserveFraming)
 try
 {
     error = {};
-    Internal::ClearDiagnostic();
-    _impl->ClearAsset(preserveFraming);
-    _impl->info.asset = asset;
-    if (_impl->IsVirtualScene(asset))
-    {
-        const auto definition = mm_preview_live_scene(&_impl->live, asset.number);
-        TAGOnFile tag = {definition->source, 0, kctgBkgd, definition->background};
-        auto source = _impl->Resolve(tag);
-        if (!source || !_impl->LoadBackground(source, tag.cno)) return Fail(error, ErrorCode::decode_failed, "Cannot load the new scene background.");
-        _impl->info.scene = _impl->info.timeline = true;
-        _impl->info.firstFrame = _impl->info.lastFrame = _impl->info.currentFrame = 1;
-        _impl->live.original_first = _impl->live.original_last = 1;
-        _impl->live.virtual_scene = _impl->ready = true;
-        if (!_impl->SyncActors(error) || !SetFrame(1, error)) return false;
-        _impl->RefreshStats();
-        return true;
-    }
-    if (!_impl->cache)
-        return Fail(error, ErrorCode::invalid_argument, "Open preview resources first.");
-    bool ok = false;
-    if (asset.type == kctgTmpl)
-    {
-        _impl->tmpl = static_cast<PTemplate>(_impl->cache->PbacoFetch(asset.type, asset.number, Template::FReadTmpl));
-        if (_impl->tmpl)
-        {
-            _impl->BindTemplate(_impl->tmpl);
-            _impl->body = _impl->tmpl->PbodyCreate();
-            auto &info = _impl->info;
-            info.prop = _impl->tmpl->FIsProp();
-            for (LegacyLong i = 0; i < _impl->tmpl->Cactn(); ++i)
-            {
-                LegacyLong count = 0;
-                if (!_impl->tmpl->FGetCcelActn(i, &count) || count <= 0)
-                    break;
-                PreviewAction action;
-                action.name = "Action " + std::to_string(i);
-                ChildChunkIdentification child;
-                if (_impl->cache->Pcfl()->FGetKidChidCtg(asset.type, asset.number, i, kctgActn, &child))
-                    for (const auto &chunk : _impl->assets.Chunks())
-                        if (chunk.id == Id{child.cki.ctg, child.cki.cno} && !chunk.name.empty())
-                        {
-                            action.name = std::to_string(i) + ": " + chunk.name;
-                            break;
-                        }
-                action.celCount = static_cast<std::uint32_t>(count);
-                info.actions.push_back(action);
-            }
-            ok = _impl->body && !info.actions.empty() && _impl->tmpl->FSetActnCel(_impl->body, 0, 0);
-            if (ok)
-            {
-                BRA x, y, z;
-                _impl->tmpl->GetRestOrien(&x, &y, &z);
-                BMAT34 rest;
-                BrMatrix34RotateX(&rest, x);
-                BrMatrix34PostRotateY(&rest, y);
-                BrMatrix34PostRotateZ(&rest, z);
-                _impl->body->LocateOrient(rZero, rZero, rZero, &rest);
-            }
-        }
-    }
-    else if (asset.type == kctgBmdl)
-    {
-        _impl->model = static_cast<PModel>(_impl->cache->PbacoFetch(asset.type, asset.number, Model::FReadModl));
-        ok = _impl->model != nullptr;
-    }
-    else if (asset.type == kctgBkgd)
-        ok = _impl->LoadBackground(_impl->cache, asset.number);
-    else if (asset.type == kctgScen || asset.type == kctgActr)
-    {
-        auto file = _impl->cache->Pcfl();
-        std::vector<ChunkNumber> actorChunks;
-        if (asset.type == kctgScen)
-        {
-            SceneData scene;
-            if (!scene.FRead(file, asset.number))
-                return Fail(error, ErrorCode::decode_failed, "Cannot read the scene header.");
-            _impl->info.scene = true;
-            _impl->info.firstFrame = scene.firstFrame;
-            _impl->info.lastFrame = scene.lastFrame;
-            _impl->live.original_first = scene.firstFrame;
-            _impl->live.original_last = scene.lastFrame;
-            ChildChunkIdentification child;
-            DataBlock block;
-            if (!file->FGetKidChidCtg(asset.type, asset.number, 1, kctgStartGg, &child) ||
-                !file->FFind(child.cki.ctg, child.cki.cno, &block))
-                return Fail(error, ErrorCode::decode_failed, "Scene start events are missing.");
-            short order;
-            auto starts = SceneData::PggReadEvents(&block, &order, true);
-            if (!starts)
-                return Fail(error, ErrorCode::decode_failed, "Cannot read scene start events.");
-            TAGOnFile backgroundTag = {};
-            bool hasBackground = false;
-            for (LegacyLong i = 0; i < starts->IvMac(); ++i)
-            {
-                SceneEvent event;
-                starts->GetFixed(i, &event);
-                if (order == kboOther)
-                    SwapBytesBom(&event, kbomSev);
-                if (event.sevt == sevtAddActr)
-                {
-                    std::uint32_t slot;
-                    starts->Get(i, &slot);
-                    if (order == kboOther)
-                        SwapBytesRglw(&slot, 1);
-                    if (!file->FGetKidChidCtg(asset.type, asset.number, slot, kctgActr, &child))
-                    {
-                        ReleasePpo(&starts);
-                        error.hasChunk = true;
-                        error.chunk = asset;
-                        return Fail(error, ErrorCode::decode_failed,
-                                    ("Scene references missing actor child " + std::to_string(slot) + ".").c_str());
-                    }
-                    actorChunks.push_back(child.cki.cno);
-                }
-                else if (event.sevt == sevtSetBkgd)
-                {
-                    starts->Get(i, &backgroundTag);
-                    if (order == kboOther)
-                        SwapBytesRglw(&backgroundTag, sizeof(backgroundTag) / 4);
-                    hasBackground = true;
-                }
-                else if (event.sevt == sevtChngCamera)
-                {
-                    starts->Get(i, &_impl->live.initial_camera);
-                    if (order == kboOther)
-                        SwapBytesRglw(&_impl->live.initial_camera, 1);
-                }
-            }
-            ReleasePpo(&starts);
-            if (hasBackground)
-            {
-                auto source = _impl->Resolve(backgroundTag);
-                if (!source || !_impl->LoadBackground(source, backgroundTag.cno))
-                    return Fail(error, ErrorCode::decode_failed,
-                                source ? "Cannot load scene background." : _impl->resolveError.c_str());
-            }
-            if (!file->FGetKidChidCtg(asset.type, asset.number, 0, kctgFrmGg, &child) ||
-                !file->FFind(child.cki.ctg, child.cki.cno, &block))
-                return Fail(error, ErrorCode::decode_failed, "Scene frame events are missing.");
-            auto frames = SceneData::PggReadEvents(&block, &order, false);
-            if (!frames)
-                return Fail(error, ErrorCode::decode_failed, "Cannot read scene frame events.");
-            for (LegacyLong i = 0; i < frames->IvMac(); ++i)
-            {
-                SceneEvent event;
-                frames->GetFixed(i, &event);
-                if (order == kboOther)
-                    SwapBytesBom(&event, kbomSev);
-                if (event.sevt == sevtChngCamera)
-                {
-                    std::uint32_t camera;
-                    frames->Get(i, &camera);
-                    if (order == kboOther)
-                        SwapBytesRglw(&camera, 1);
-                    if (mm_preview_live_camera_add(&_impl->live, event.nfrm, camera) != MM_PREVIEW_LIVE_OK)
-                    { ReleasePpo(&frames); throw std::bad_alloc(); }
-                }
-            }
-            ReleasePpo(&frames);
-        }
-        else
-        {
-            DataBlock block;
-            ActorChunkOnFile header;
-            if (!file->FFind(asset.type, asset.number, &block) || !ActorData::FReadHeader(&block, &header))
-                return Fail(error, ErrorCode::decode_failed, "Cannot read the actor header.");
-            if (header.nfrmFirst == knfrmInvalid)
-                return Fail(error, ErrorCode::unsupported_format,
-                            "This actor has no on-stage frames. Select its template to inspect its geometry.");
-            _impl->info.firstFrame = header.nfrmFirst;
-            _impl->info.lastFrame = header.nfrmLast;
-            actorChunks.push_back(asset.number);
-        }
-        for (const auto number : actorChunks)
-        {
-            std::unique_ptr<Internal::PreviewActor> actor(new Internal::PreviewActor);
-            if (!actor->Load(
-                    _impl->cache, number, [&](const TAGOnFile &tag) { return _impl->Resolve(tag); },
-                    [&](PTemplate value) { _impl->BindTemplate(value); }, _impl->visibilityClock))
-            {
-                const auto message = _impl->resolveError.empty() ? "Cannot load the actor route, events or template."
-                                                                 : _impl->resolveError;
-                _impl->ClearAsset();
-                return Fail(error, ErrorCode::decode_failed, message.c_str());
-            }
-            if (mm_preview_live_adopt(&_impl->live, actor.get()) != MM_PREVIEW_LIVE_OK) throw std::bad_alloc();
-            actor.release();
-        }
-        if (asset.type == kctgActr)
-        {
-            _impl->info.firstFrame = _impl->actors[0]->FirstFrame();
-            _impl->info.lastFrame = _impl->actors[0]->LastFrame();
-        }
-        if (mm_preview_live_seal(&_impl->live) != MM_PREVIEW_LIVE_OK) throw std::bad_alloc();
-        if (asset.type == kctgScen && !_impl->SyncActors(error)) return false;
-        _impl->info.timeline = true;
-        _impl->info.actors = static_cast<std::uint32_t>(_impl->actors.size());
-        _impl->ready = true;
-        ok = SetFrame(_impl->info.firstFrame, error);
-    }
-    else
-        return Fail(error, ErrorCode::unsupported_format, "This chunk does not yet have a 3D preview.");
-    if (!ok || Internal::AssertionFailed())
-    {
-        _impl->ClearAsset();
-        error.hasChunk = true;
-        error.chunk = asset;
-        if (error)
-            return false;
-        return Fail(error, ErrorCode::decode_failed, "The engine could not load this asset and its pose dependencies.");
-    }
-    _impl->info.asset = asset;
-    _impl->RefreshStats();
-    _impl->ready = true;
-    return true;
+    Impl::AdmissionHost host = {this, _impl.get(), &error};
+    auto state = host.State(asset);
+    auto services = host.Services();
+    return host.Result(state, mm_preview_admit(&state, preserveFraming, &services));
 }
 catch (const std::bad_alloc &)
 {
@@ -966,17 +750,12 @@ catch (const std::bad_alloc &)
 bool Preview::SetPose(std::uint32_t action, std::uint32_t cel, Error &error)
 {
     error = {};
-    Internal::ClearDiagnostic();
-    if (!_impl->ready || !_impl->tmpl || action >= _impl->info.actions.size() ||
-        cel >= _impl->info.actions[action].celCount)
-        return Fail(error, ErrorCode::invalid_argument, "Action or cel is out of range.");
-    if (!_impl->tmpl->FSetActnCel(_impl->body, action, cel) || Internal::AssertionFailed())
-    {
-        _impl->ready = false;
-        return Fail(error, ErrorCode::decode_failed, "Cannot apply this action pose.");
-    }
-    _impl->RefreshStats();
-    return true;
+    Impl::AdmissionHost host = {this, _impl.get(), &error};
+    auto state = host.State(_impl->info.asset);
+    auto services = host.Services();
+    const int result = mm_preview_admission_pose(&state, action, cel, &services);
+    if (host.exception) std::rethrow_exception(host.exception);
+    return host.Result(state, result);
 }
 bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
                              const std::vector<PreviewPropDefinition> &props, Error &error)

@@ -1310,8 +1310,8 @@ Native adapters supply typed BRender camera/inverse/projection and pick calls,
 face copying and pivot-plane repair using SDK fixed arithmetic, material/texture
 field views and the SDK UV transform. Source geometry and textures stay borrowed.
 No native picking evaluator or picking owner map remains. Camera interaction is
-covered below. Asset/scene admission, presentation and final facade integration
-remain work.
+covered below, together with asset/scene admission. Source/session setup,
+presentation and final facade integration remain work.
 
 The headless Scene Preview fixture records per-build original/converted hit,
 distance and error traces across authored/output, orbit, free, axis and
@@ -1350,8 +1350,8 @@ The headless Scene fixture records matching, perspective/orthographic panning,
 roll/zoom/aspect changes, clamping, invalid inputs, guide queries, bounds and
 placement/shape edits with subsequent render output. C-only tests cover atomic
 pan rejection, metadata failure caching, reset, partial allocation recovery,
-bitmap reference balance and camera selection failures. Preview asset/scene
-admission, presentation and final facade
+bitmap reference balance and camera selection failures. Admission control is
+covered below. Source/session setup, presentation and final facade
 removal remain work. Evidence and limits are recorded in
 `docs/tools/playback-regression.md`.
 
@@ -1391,8 +1391,48 @@ output against all three original builds. C-only fault checks cover ownership,
 retained prefixes, assignment/snapshot failures, retry, stable-sort fallback and
 read/allocation/foreign-exception publication ordering. PreviewActor construction,
 loading/evaluation and resource/track representations remain native provider
-dependencies. Asset/source/scene admission, presentation and final C-only facade
-integration remain work. Evidence is in `docs/tools/playback-regression.md`.
+dependencies. Admission control is described below; source registration/session
+setup, presentation and final C-only facade integration remain work. Evidence is
+in `docs/tools/playback-regression.md`.
+
+### Preview asset and scene admission
+
+`preview_admission.c` controls dependency budgets, selection of templates/models/
+backgrounds/scenes/actors, virtual scene selection, template action discovery and
+rest orientation, pose validation and geometry statistics. The typed native host
+supplies immutable chunk descriptors, resource fetches, validated event groups,
+normalized fixed/payload fields, actor providers, SDK primitives and display text.
+Admission uses the existing C live owner for actor adoption, camera cues, snapshots,
+reconciliation and seeking. Its temporary actor-number list uses C storage.
+
+Packed dependency headers are read before limit rejection. Limits remain inclusive
+at 64 MiB stored/decoded per chunk and 512 MiB decoded per archive. Header failures
+do not mark a chunk; limit failures mark the violating descriptor. Template actions
+stop at the first failed/nonpositive cel count. The first matching nonempty chunk
+name wins, with the original fallback text retained by the display adapter. The
+initial pose precedes X, post-Y and post-Z rest rotations. Geometry counts include
+isolated and visible actor bodies, excluding their two auxiliary nodes; a standalone
+model replaces those counts.
+
+Scene admission retains wire actor/camera ordering, the last start background and
+opening camera, the offstage-actor rejection, and evaluated standalone actor ranges.
+Early failures retain completed metadata/resource prefixes. Ordinary actor-load
+failure clears prior actors after saving the resolver error; final dependency
+failure clears the asset and marks the selection. Selection allocation failure
+clears the asset. Other exceptions retain completed prefixes and cross the typed
+boundary only after C releases groups and unadopted actors. This also closes the
+old start-group leak when actor-number allocation throws. Pose exceptions retain
+state; an ordinary pose-effect failure clears ready. Stored actor resolvers capture
+the session owner by value.
+
+The headless API fixture freezes template action names/counts, geometry metadata,
+rendered initial/last poses, raw models and selection/pose errors against all three
+original builds. Existing scene/live/camera/pick/render/background fixtures cover
+timeline and render integration. C fault checks cover effect exceptions, C-storage
+failures, group cleanup, adoption, partial loads, virtual scenes and pose readiness.
+PreviewActor loading/evaluation, resource representations, source/session setup,
+presentation and final facade removal remain native dependencies. Evidence and
+platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

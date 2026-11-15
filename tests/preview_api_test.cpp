@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <limits>
 #include "mm/preview.h"
+#include "preview_admission_fixture.h"
 #ifdef size
 #error Legacy macros leaked through the preview API
 #endif
@@ -29,6 +30,8 @@ int main(int argc, char **argv)
     MM::Preview preview;
     MM::Archive archive;
     MM::Error error;
+    AdmissionTrace trace;
+    if (!trace.file) return 1;
     if (!Check(archive.Open(argv[2], error), "open archive", error) ||
         !Check(preview.Open(argv[2], argv[1], error), "open preview", error))
         return 1;
@@ -47,6 +50,7 @@ int main(int argc, char **argv)
             !Check(preview.Render(view, image, error), "render", error))
             return 1;
         const auto &info = preview.Info();
+        if (!trace.Info(preview) || !trace.Image(image)) return 1;
         if (info.prop)
             ++props;
         else
@@ -78,6 +82,11 @@ int main(int argc, char **argv)
             if (!Check(preview.SetPose(last, info.actions[last].celCount - 1, error), "pose", error) ||
                 !Check(preview.Render(view, repeated, error), "render pose", error) || !repeated.coveredPixels)
                 return 1;
+            if (!trace.Info(preview) || !trace.Image(repeated)) return 1;
+            bool posed = preview.SetPose(unsigned(info.actions.size()), 0, error);
+            if (posed || !trace.Error(posed, error, preview)) return 1;
+            posed = preview.SetPose(last, info.actions[last].celCount, error);
+            if (posed || !trace.Error(posed, error, preview)) return 1;
         }
     }
     if (!actors || !props)
@@ -95,6 +104,7 @@ int main(int argc, char **argv)
                     return 1;
                 continue; // Shipped content includes intentional empty models.
             }
+            if (!trace.Info(preview) || !trace.Image(image)) return 1;
             if (!image.coveredPixels)
             {
                 std::fprintf(stderr, "Raw model %s: %u triangles, zero covered pixels\n",
@@ -127,6 +137,12 @@ int main(int argc, char **argv)
     view.zoom = 1;
     if (!Check(preview.Render(view, image, error), "render after restart", error) || !image.coveredPixels)
         return 1;
+    for (MM::Id id : {MM::Id{0x544d504c,0xfffffff0U}, MM::Id{0x424d444c,0xfffffff0U}, MM::Id{0x5343454e,0xfffffff0U}, MM::Id{0x41435452,0xfffffff0U}, MM::Id{0x12345678,0}})
+    {
+        bool selected = preview.Select(id, error);
+        if (selected || !trace.Error(selected, error, preview)) return 1;
+    }
+    if (!trace.Finish()) return 1;
     std::printf("Preview API: %u actors, %u props; poses, orbit, repeatability and runtime restart passed.\n", actors,
                 props);
     return 0;
