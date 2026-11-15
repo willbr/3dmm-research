@@ -148,7 +148,7 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     unsigned long key;
     unsigned int modifiers, seen;
     int i, j, valid, pause_seen, debug_seen, renderer_seen, resolution_seen, work_renderer_seen, work_resolution_seen, work, view_seen;
-    int camera_debug_seen;
+    int camera_debug_seen, playback_seen;
     MarcusRenderOptions *view;
     char renderer_id[64];
     if (!path[0] || !SDL_GetPathInfo(path, &info))
@@ -174,10 +174,28 @@ int shortcuts_load(const char *path, MarcusShortcuts *shortcuts, char *message, 
     work_renderer_seen = 0;
     work_resolution_seen = 0;
     view_seen = 0;
+    playback_seen = 0;
     line = SDL_strtok_r(data, "\r\n", &cursor);
     valid = line && !strcmp(line, "marcus-shortcuts 1");
     while (valid && (line = SDL_strtok_r(NULL, "\r\n", &cursor)) != NULL)
     {
+        if (SDL_sscanf(line, "%63s", id) == 1 &&
+            (!strcmp(id, "playback_rate") || !strcmp(id, "playback_modifier")))
+        {
+            work = !strcmp(id, "playback_modifier");
+            if ((playback_seen & (1 << work)) ||
+                SDL_sscanf(line, "%63s %lu %c", id, &key, &extra) != 2 || key > (work ? 2UL : 4UL))
+            {
+                valid = 0;
+                break;
+            }
+            if (work)
+                loaded.playback_modifier = (int)key;
+            else
+                loaded.playback_rate = (int)key;
+            playback_seen |= 1 << work;
+            continue;
+        }
         if (SDL_sscanf(line, "%63s", id) == 1 && (!strcmp(id, "movie_view") || !strcmp(id, "work_view")))
         {
             work = !strcmp(id, "work_view");
@@ -330,6 +348,12 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
     int i;
     resolution = marcus_render_resolution(shortcuts->render_resolution);
     work_resolution = marcus_render_resolution(shortcuts->work_render_resolution);
+    if (shortcuts->playback_rate < 0 || shortcuts->playback_rate > 4 ||
+        shortcuts->playback_modifier < 0 || shortcuts->playback_modifier > 2)
+    {
+        SDL_strlcpy(message, "Playback settings are invalid.", capacity);
+        return 0;
+    }
     if (!resolution || !work_resolution)
     {
         SDL_strlcpy(message, "The render resolution is invalid.", capacity);
@@ -348,11 +372,13 @@ int shortcuts_save(const char *path, const MarcusShortcuts *shortcuts, char *mes
         return 0;
     }
     SDL_snprintf(data, sizeof(data), "marcus-shortcuts 1\npause_on_focus_loss %d\ndebug_overlay %d\nrenderer %s\nrender_resolution %s\n"
-                 "work_renderer %s\nwork_render_resolution %s\nmovie_debug_overlay %d\nwork_debug_overlay %d\n",
+                 "work_renderer %s\nwork_render_resolution %s\nmovie_debug_overlay %d\nwork_debug_overlay %d\n"
+                 "playback_rate %d\nplayback_modifier %d\n",
                  shortcuts->pause_on_focus_loss != 0, shortcuts->debug_overlay != 0,
                  marcus_renderer_id(shortcuts->renderer), resolution->name,
                  marcus_renderer_id(shortcuts->work_renderer), work_resolution->name,
-                 shortcuts->movie_debug_overlay != 0, shortcuts->work_debug_overlay != 0);
+                 shortcuts->movie_debug_overlay != 0, shortcuts->work_debug_overlay != 0,
+                 shortcuts->playback_rate, shortcuts->playback_modifier);
     length = strlen(data);
     for (i = 0; i < 2; ++i)
     {

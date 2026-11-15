@@ -17,7 +17,7 @@ struct MarcusSoundSpan
 };
 struct MarcusSoundScene
 {
-    double start = 0;
+    double start = 0, frameSeconds = 1.0 / 6;
     MarcusScene info = {};
     std::map<long, double> holds; // Extra seconds spent on each displayed frame.
     std::vector<std::shared_ptr<MarcusSoundSpan>> sounds;
@@ -41,10 +41,11 @@ class MarcusSoundTimeline
 {
     std::vector<MarcusSoundScene> scenes;
     std::vector<std::shared_ptr<MarcusSoundSpan>> active;
-    double time = 0, transition = 0;
+    double time = 0, transition = 0, frameSeconds = 1.0 / 6;
 
   public:
     void Clear();
+    void SetRate(double fps);
     // Ephemeral IPC between matching Marcus/helper builds, never movie data.
     bool Write(std::ostream &output) const;
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);

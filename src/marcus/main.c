@@ -1218,6 +1218,12 @@ static void apply_settings(App *app)
         app->movie_dirty = app->dirty = 1;
     }
     app->shortcuts = app->edited_shortcuts;
+    if (!marcus_set_playback_rate(app->player, app->shortcuts.playback_rate, app->shortcuts.playback_modifier))
+    {
+        SDL_strlcpy(app->settings_message, marcus_error(app->player), sizeof(app->settings_message));
+        return;
+    }
+    refresh(app);
     if (work_changed)
     {
         app->work_matched = app->work_needs_match = 0;
@@ -1312,47 +1318,59 @@ static void settings_click(App *app, float x, float y)
     top = (app->height - SETTINGS_HEIGHT) / 2.0f;
     if (ui_inside(x, y, left + 618, top + 16, 28, 28))
         cancel_settings(app);
-    else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * 30))
+    else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * 24))
     {
-        app->binding_capture = (int)((y - top - 100) / 30);
+        app->binding_capture = (int)((y - top - 100) / 24);
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 24, top + 472, 610, 28))
+    else if (ui_inside(x, y, left + 24, top + 400, 610, 28))
     {
         app->edited_shortcuts.pause_on_focus_loss = !app->edited_shortcuts.pause_on_focus_loss;
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 430, top + 508, 204, 28))
+    else if (ui_inside(x, y, left + 430, top + 436, 204, 28))
     {
         app->edited_shortcuts.renderer = (app->edited_shortcuts.renderer + 1) % MARCUS_RENDERER_COUNT;
         normalize_camera_options(app->edited_shortcuts.renderer, &app->edited_shortcuts.movie_view);
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 430, top + 544, 204, 28))
+    else if (ui_inside(x, y, left + 430, top + 472, 204, 28))
     {
         app->edited_shortcuts.render_resolution = (app->edited_shortcuts.render_resolution + 1) % MARCUS_RESOLUTION_COUNT;
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 430, top + 580, 204, 28))
+    else if (ui_inside(x, y, left + 430, top + 508, 204, 28))
     {
         app->edited_shortcuts.work_renderer = (app->edited_shortcuts.work_renderer + 1) % MARCUS_RENDERER_COUNT;
         normalize_camera_options(app->edited_shortcuts.work_renderer, &app->edited_shortcuts.work_view);
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 430, top + 616, 204, 28))
+    else if (ui_inside(x, y, left + 430, top + 544, 204, 28))
     {
         app->edited_shortcuts.work_render_resolution =
             (app->edited_shortcuts.work_render_resolution + 1) % MARCUS_RESOLUTION_COUNT;
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
-    else if (ui_inside(x, y, left + 24, top + 652, 610, 28))
+    else if (ui_inside(x, y, left + 24, top + 580, 610, 28))
     {
         app->edited_shortcuts.debug_overlay = !app->edited_shortcuts.debug_overlay;
+        app->binding_capture = -1;
+        app->settings_message[0] = 0;
+    }
+    else if (ui_inside(x, y, left + 430, top + 616, 204, 28))
+    {
+        app->edited_shortcuts.playback_rate = (app->edited_shortcuts.playback_rate + 1) % 5;
+        app->binding_capture = -1;
+        app->settings_message[0] = 0;
+    }
+    else if (ui_inside(x, y, left + 430, top + 652, 204, 28))
+    {
+        app->edited_shortcuts.playback_modifier = (app->edited_shortcuts.playback_modifier + 1) % 3;
         app->binding_capture = -1;
         app->settings_message[0] = 0;
     }
@@ -3288,6 +3306,8 @@ static void draw_settings(App *app)
     float x, y, row_y;
     int row;
     char label[128];
+    static const char *rates[] = {"Original", "6 FPS", "12 FPS", "24 FPS", "Uncapped"};
+    static const char *modifiers[] = {"Normal (1x)", "Win98 -> XP (1.35805x)", "XP -> Win98 (0.918485x)"};
     if (app->rendering_settings)
     {
         draw_rendering_settings(app);
@@ -3306,30 +3326,34 @@ static void draw_settings(App *app)
             MUTED);
     for (row = 0; row < MARCUS_ACTION_COUNT; ++row)
     {
-        row_y = y + 100 + row * 30;
+        row_y = y + 100 + row * 24;
         if (row == 4 || row == 8)
             ui_line(&app->ui, x + 24, row_y - 1, x + 634, row_y - 1, LINE);
         ui_text(&app->ui, x + 28, row_y + 5, shortcuts_action_name(row), TEXT);
         shortcuts_label(&app->edited_shortcuts.binding[row], label, sizeof(label));
-        ui_button(&app->ui, x + 430, row_y, 204, row == app->binding_capture ? "Press a key..." : label,
+        ui_button_sized(&app->ui, x + 430, row_y, 204, 23, row == app->binding_capture ? "Press a key..." : label,
                   row == app->binding_capture, 1);
     }
-    ui_text(&app->ui, x + 28, y + 477, "Pause playback on focus loss", TEXT);
-    ui_button(&app->ui, x + 430, y + 472, 204, app->edited_shortcuts.pause_on_focus_loss ? "On" : "Off",
+    ui_text(&app->ui, x + 28, y + 405, "Pause playback on focus loss", TEXT);
+    ui_button(&app->ui, x + 430, y + 400, 204, app->edited_shortcuts.pause_on_focus_loss ? "On" : "Off",
               app->edited_shortcuts.pause_on_focus_loss, 1);
-    ui_text(&app->ui, x + 28, y + 513, "Movie camera renderer", TEXT);
-    ui_button(&app->ui, x + 430, y + 508, 204, marcus_renderer_name(app->edited_shortcuts.renderer), 0, 1);
-    ui_text(&app->ui, x + 28, y + 549, "Movie camera resolution", TEXT);
-    ui_button(&app->ui, x + 430, y + 544, 204,
+    ui_text(&app->ui, x + 28, y + 441, "Movie camera renderer", TEXT);
+    ui_button(&app->ui, x + 430, y + 436, 204, marcus_renderer_name(app->edited_shortcuts.renderer), 0, 1);
+    ui_text(&app->ui, x + 28, y + 477, "Movie camera resolution", TEXT);
+    ui_button(&app->ui, x + 430, y + 472, 204,
               marcus_render_resolution(app->edited_shortcuts.render_resolution)->label, 0, 1);
-    ui_text(&app->ui, x + 28, y + 585, "Work camera renderer", TEXT);
-    ui_button(&app->ui, x + 430, y + 580, 204, marcus_renderer_name(app->edited_shortcuts.work_renderer), 0, 1);
-    ui_text(&app->ui, x + 28, y + 621, "Work camera resolution", TEXT);
-    ui_button(&app->ui, x + 430, y + 616, 204,
+    ui_text(&app->ui, x + 28, y + 513, "Work camera renderer", TEXT);
+    ui_button(&app->ui, x + 430, y + 508, 204, marcus_renderer_name(app->edited_shortcuts.work_renderer), 0, 1);
+    ui_text(&app->ui, x + 28, y + 549, "Work camera resolution", TEXT);
+    ui_button(&app->ui, x + 430, y + 544, 204,
               marcus_render_resolution(app->edited_shortcuts.work_render_resolution)->label, 0, 1);
-    ui_text(&app->ui, x + 28, y + 657, "App debug overlay (FPS / frame time)", TEXT);
-    ui_button(&app->ui, x + 430, y + 652, 204, app->edited_shortcuts.debug_overlay ? "On" : "Off",
+    ui_text(&app->ui, x + 28, y + 585, "App debug overlay (FPS / frame time)", TEXT);
+    ui_button(&app->ui, x + 430, y + 580, 204, app->edited_shortcuts.debug_overlay ? "On" : "Off",
               app->edited_shortcuts.debug_overlay, 1);
+    ui_text(&app->ui, x + 28, y + 621, "Movie frame rate", TEXT);
+    ui_button(&app->ui, x + 430, y + 616, 204, rates[app->edited_shortcuts.playback_rate], 0, 1);
+    ui_text(&app->ui, x + 28, y + 657, "Compatibility speed modifier", TEXT);
+    ui_button(&app->ui, x + 430, y + 652, 204, modifiers[app->edited_shortcuts.playback_modifier], 0, 1);
     ui_label(&app->ui, x + 24, y + 682, 610, app->settings_message, 0xf2ae9b);
     ui_button(&app->ui, x + 24, y + 704, 148, "Restore defaults", 0, 1);
     ui_button(&app->ui, x + 438, y + 704, 88, "Cancel", 0, 1);
@@ -3852,6 +3876,11 @@ int main(int argc, char **argv)
     app.renderer = app.window ? SDL_CreateRenderer(app.window, NULL) : NULL;
     app.player = marcus_create();
     if (!app.renderer || !app.player)
+    {
+        result = 1;
+        goto cleanup;
+    }
+    if (!marcus_set_playback_rate(app.player, app.shortcuts.playback_rate, app.shortcuts.playback_modifier))
     {
         result = 1;
         goto cleanup;

@@ -497,6 +497,17 @@ int mm_play_complete(MMPlayEvaluator *evaluator, const MMPlaybackReply *reply)
     return 1;
 }
 
+double mm_playback_fps(int rate, int modifier)
+{
+    double fps;
+    if (rate == 4)
+        return 0;
+    if (rate == 0 && modifier == 0)
+        return -1;
+    fps = rate == 2 ? 12 : rate == 3 ? 24 : 6;
+    return fps * (modifier == 1 ? 1.35805 : modifier == 2 ? 0.918485 : 1.0);
+}
+
 void mm_frame_pacer_reset(MMFramePacer *pacer, double rate)
 {
     pacer->fps = rate;

@@ -428,6 +428,8 @@ struct MarcusPlayback::Impl
     bool entered = false, wasPlaying = false, scrolling = false, restoreMusic = true;
     int wait = 0, transition = 0;
     double frameTime = 0, waitTime = 0, transitionTime = 0, frameSeconds = 0;
+    MMFramePacer pacer = {};
+    double fps = -1, pacingTime = 0, frameCarry = 0;
     PreviewImage previous;
     void ResetTiming()
     {
@@ -437,6 +439,8 @@ struct MarcusPlayback::Impl
         scrollPlayback.Reset();
         wait = 0;
         frameTime = waitTime = transitionTime = 0;
+        pacingTime = frameCarry = 0;
+        mm_frame_pacer_reset(&pacer, fps);
         frameSeconds = 0;
         transition = 0;
         previous = {};
@@ -841,6 +845,12 @@ void MarcusPlayback::Mute(bool muted)
 {
     impl->audio.Mute(muted);
 }
+void MarcusPlayback::SetRate(double fps)
+{
+    impl->fps = fps;
+    impl->frameTime = impl->pacingTime = impl->frameCarry = 0;
+    mm_frame_pacer_reset(&impl->pacer, fps);
+}
 void MarcusPlayback::Seek(MM::Preview *preview)
 {
     impl->audio.Clear();
@@ -922,7 +932,8 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
                     !impl->audio.Play(preview, cue,
                                       cue.queue
                                           ? 0
-                                          : static_cast<std::uint64_t>(std::max(0.0, (double(frame) - musicFrame) * 8000)),
+                                          : static_cast<std::uint64_t>(std::max(0.0, (double(frame) - musicFrame) *
+                                                (impl->fps > 0 ? 48000 / impl->fps : 8000))),
                                       error))
                     return false;
         }
@@ -975,11 +986,15 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
             }
     impl->scrolling = scrollUpdate.holding;
     if (impl->scrolling)
+    {
+        impl->frameCarry = 0;
         return true;
+    }
     if (wasScrolling)
         elapsed = 0;
     if (impl->wait == 1)
     {
+        impl->frameCarry = 0;
         if (!click)
             return true;
         impl->wait = 0;
@@ -987,6 +1002,7 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     }
     else if (impl->wait == 2)
     {
+        impl->frameCarry = 0;
         if (impl->audio.Pending())
             return true;
         impl->wait = 0;
@@ -994,11 +1010,39 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     }
     else if (impl->wait == 3)
     {
+        impl->frameCarry = 0;
         impl->waitTime -= elapsed;
         if (impl->waitTime > 0)
             return true;
         impl->wait = 0;
         elapsed = 0;
+    }
+    if (impl->fps >= 0)
+    {
+        // Count only ordinary frame time: pause/resume and authored holds keep
+        // the remaining interval. Shared millisecond pacing carries fractions,
+        // retains bounded display jitter and never skips authored frames.
+        impl->pacingTime += elapsed;
+        const auto now = static_cast<MMPlaybackU32>(static_cast<std::uint64_t>(impl->pacingTime));
+        if (!impl->pacer.pending)
+        {
+            const auto start = static_cast<MMPlaybackU32>(
+                static_cast<std::uint64_t>(std::max(0.0, impl->pacingTime - impl->frameCarry)));
+            mm_frame_pacer_schedule(&impl->pacer, start);
+            impl->frameCarry = 0;
+            return true; // Also makes Uncapped advance once per host update.
+        }
+        if (mm_frame_pacer_take_due(&impl->pacer, now))
+        {
+            // A 60 Hz display should still reach 24 FPS rather than rounding
+            // every interval up to three refreshes. Discard lateness of a full
+            // frame or more so a stall cannot build up catch-up debt.
+            const double late = static_cast<MMPlaybackU32>(now - impl->pacer.due);
+            impl->frameCarry = impl->fps > 0 && late < 1000.0 / impl->fps ? late : 0;
+            advance = true;
+            impl->entered = false;
+        }
+        return true;
     }
     impl->frameTime += elapsed;
     if (impl->frameTime >= 1000.0 / 6)

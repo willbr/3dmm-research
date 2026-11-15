@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef STUDIO_PREFERENCES_H
 #define STUDIO_PREFERENCES_H
+#include "mm/playback.h"
 
 // Process preferences only: these never become part of a movie or its assets.
 struct StudioPreferences
@@ -9,12 +10,7 @@ struct StudioPreferences
     int playbackModifier = 0; // Normal, Win98 -> XP, XP -> Win98.
     double PlaybackFps() const
     {
-        if (playbackRate == 4)
-            return 0;
-        if (playbackRate == 0 && playbackModifier == 0)
-            return -1; // Preserve the original scheduling path by default.
-        const double fps = playbackRate == 2 ? 12 : playbackRate == 3 ? 24 : 6;
-        return fps * (playbackModifier == 1 ? 1.35805 : playbackModifier == 2 ? 0.918485 : 1.0);
+        return mm_playback_fps(playbackRate, playbackModifier);
     }
     bool allowMultipleInstances = false;
     bool backgroundPlayback = false;

@@ -18,7 +18,7 @@ class MarcusTimingJob
 
   public:
     MarcusTimingJob(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content,
-                    std::vector<MarcusScene> scenes);
+                    std::vector<MarcusScene> scenes, int rate = 0, int modifier = 0);
     ~MarcusTimingJob();
     // Called once on the owner thread after completion. Failure is terminal.
     bool Take(std::unique_ptr<MarcusSoundTimeline> &timeline, std::string &error);

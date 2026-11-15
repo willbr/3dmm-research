@@ -12,6 +12,7 @@
 #include "playback.h"
 #include "timing_job.h"
 #include "retail_scroll.h"
+#include "mm/playback.h"
 #include "soc_core.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -689,6 +690,118 @@ std::size_t Visible(const std::vector<byte> &pixels)
         count += pixels[i] != 0;
     return count;
 }
+void PlaybackRates(const char *path, const char *resources, const char *content)
+{
+    player = marcus_create();
+    CHECK(player && marcus_open(player, path, resources, content));
+    const auto originalDuration = MovieTime().duration_seconds;
+    for (int rate = 0; rate < 5; ++rate)
+        for (int modifier = 0; modifier < 3; ++modifier)
+        {
+            CHECK(marcus_set_playback_rate(player, rate, modifier));
+            CHECK(marcus_select_scene(player, 0) && marcus_seek(player, 3));
+            const double fps = mm_playback_fps(rate, modifier);
+            Tick(0);
+            if (fps == 0)
+                Tick(0); // Uncapped still visits every authored frame.
+            else
+            {
+                const double interval = fps > 0 ? std::floor(1000 / fps) : 1000.0 / 6;
+                Tick(interval / 2);
+                CHECK(Info().frame == 3);
+                Tick(10000, false);
+                Tick(10000); // Resume discards elapsed time spent paused.
+                CHECK(Info().frame == 3);
+                Tick(interval / 2 + 1);
+            }
+            CHECK(Info().frame == 4);
+        }
+    CHECK(marcus_set_playback_rate(player, 3, 0));
+    CHECK(!marcus_set_playback_rate(player, -1, 0));
+    CHECK(!marcus_set_playback_rate(player, 5, 0));
+    CHECK(!marcus_set_playback_rate(player, 1, 3));
+    CHECK(marcus_select_scene(player, 0) && marcus_seek(player, 3));
+    Tick(0);
+    Tick(42);
+    CHECK(Info().frame == 4); // Invalid settings retained 24 FPS.
+    CHECK(marcus_seek(player, -2));
+    Tick(0);
+    Tick(10000);
+    CHECK(Info().frame == -1); // Late callback advances one frame only.
+    CHECK(Tick(0).wait == 1); // Click wait remains a real wait.
+    CHECK(Tick(10000).wait == 1 && Info().frame == -1);
+    Tick(0, true, true);
+    CHECK(Info().frame == -1);
+    CHECK(marcus_seek(player, 1));
+    CHECK(Tick(0).wait == 3);
+    CHECK(Tick(399).wait == 3 && Info().frame == 1);
+    Tick(1);
+    CHECK(Info().frame == 1); // Timed hold retains its ordinary 400 ms.
+    Tick(42);
+    CHECK(Info().frame == 2);
+    CHECK(marcus_seek(player, 4));
+    Image();
+    Tick(0);
+    CHECK(Tick(42).scene_changed);
+    CHECK(Tick(3999).transition);
+    CHECK(!Tick(1).transition); // Scene dissolve remains four seconds at 24 FPS.
+    // Rebuild duration, waveforms and seek offsets using the selected rate.
+    const auto fastDuration = MovieTime().duration_seconds;
+    CHECK(std::abs(originalDuration - fastDuration - 35 * (1.0 / 6 - 1.0 / 24)) < 1e-6);
+    CHECK(marcus_set_playback_rate(player, 2, 1));
+    BackgroundTiming(); // The isolated helper must receive both preferences.
+    const auto asyncTime = MovieTime();
+    CHECK(marcus_set_playback_rate(player, 0, 0));
+    CHECK(marcus_set_playback_rate(player, 2, 1));
+    CHECK(std::abs(MovieTime().duration_seconds - asyncTime.duration_seconds) < 1e-6);
+    CHECK(marcus_set_playback_rate(player, 4, 2));
+    CHECK(std::abs(MovieTime().duration_seconds - originalDuration) < 1e-6); // Uncapped duration is nominal.
+    marcus_destroy(player);
+    player = nullptr;
+}
+void PlaybackCadence(const char *path, const char *resources, const char *content)
+{
+    const std::string ratePath = std::string(path) + ".fps.3mm";
+    String name;
+    name.SetSzs(const_cast<char *>(ratePath.c_str()));
+    Filename filename;
+    CHECK(filename.FBuildFromPath(&name));
+    auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
+    CHECK(file);
+    ChunkNumber root, number;
+    CHECK(MovieData::FCreateRoot(file, &root));
+    SceneData scene;
+    scene.firstFrame = 0; scene.lastFrame = 1000; scene.transition = transCut;
+    CHECK(scene.FCreate(file, &number) && file->FAdoptChild(kctgMvie, root, kctgScen, number, 0));
+    auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
+    auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
+    CHECK(starts && frames && SceneData::FWriteEvents(file, number, frames, starts));
+    ReleasePpo(&starts); ReleasePpo(&frames);
+    CHECK(file->FSave(kctgSoc));
+    ReleasePpo(&file);
+    player = marcus_create();
+    CHECK(player && marcus_open(player, ratePath.c_str(), resources, content));
+    for (int rate = 0; rate < 5; ++rate)
+        for (int modifier = 0; modifier < 3; ++modifier)
+        {
+            CHECK(marcus_set_playback_rate(player, rate, modifier) && marcus_seek(player, 0));
+            Tick(0);
+            for (int display = 0; display < 600; ++display)
+                Tick(1000.0 / 60); // Ten seconds of ordinary 60 Hz host updates.
+            const double fps = mm_playback_fps(rate, modifier);
+            const double expected = fps == 0 ? 600 : 10 * (fps < 0 ? 6 : fps);
+            CHECK(std::abs(Info().frame - expected) <= 1);
+        }
+    CHECK(marcus_set_playback_rate(player, 3, 0) && marcus_seek(player, 0));
+    Tick(0);
+    Tick(10000);
+    CHECK(Info().frame == 1);
+    Tick(1);
+    CHECK(Info().frame == 1); // A stall cannot cause a burst of overdue frames.
+    marcus_destroy(player);
+    player = nullptr;
+    CHECK(filename.FDelete());
+}
 } // namespace
 int main(int argc, char **argv)
 {
@@ -725,6 +838,8 @@ int main(int argc, char **argv)
     InvalidMovieHeaders(argv[1], argv[2], argv[3]);
     Fixture(argv[1]);
     const auto authoredTiming = FixtureTiming(argv[1], argv[2]);
+    PlaybackRates(argv[1], argv[2], argv[3]);
+    PlaybackCadence(argv[1], argv[2], argv[3]);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));

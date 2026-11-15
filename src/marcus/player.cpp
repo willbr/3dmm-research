@@ -1,5 +1,6 @@
 #include "player.h"
 #include "mm/movie_data.h"
+#include "mm/playback.h"
 #include "content.h"
 #include "movie_input.h"
 #include "playback.h"
@@ -81,6 +82,7 @@ struct MarcusPlayer
     std::vector<MM::PreviewSoundCue> soundCues;
     MarcusWaveformCache waveforms;
     MarcusSoundTimeline soundTimeline;
+    int playbackRate = 0, playbackModifier = 0;
     bool restoreAudio = true;
     bool finished = false;
     bool inspectionMatched = false;
@@ -715,7 +717,8 @@ extern "C"
             if (!player->timingStarted)
             {
                 player->timingJob = std::make_unique<MarcusTimingJob>(player->timingInput, player->timingResources,
-                                                                     player->timingContent, player->sceneInfo);
+                                                                     player->timingContent, player->sceneInfo,
+                                                                     player->playbackRate, player->playbackModifier);
                 player->timingStarted = true;
             }
             std::unique_ptr<MarcusSoundTimeline> timeline;
@@ -998,6 +1001,28 @@ extern "C"
     {
         if (player)
             player->playback.Mute(muted != 0);
+    }
+    int marcus_set_playback_rate(MarcusPlayer *player, int rate, int modifier)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (rate < 0 || rate > 4 || modifier < 0 || modifier > 2)
+            {
+                error.message = "Invalid playback frame rate or compatibility modifier.";
+                return false;
+            }
+            if (player->playbackRate == rate && player->playbackModifier == modifier)
+                return true;
+            player->timingJob.reset(); // A pending helper describes the old rate.
+            player->timingStarted = player->timingFailed = false;
+            player->playbackRate = rate;
+            player->playbackModifier = modifier;
+            const double fps = mm_playback_fps(rate, modifier);
+            player->playback.SetRate(fps);
+            player->soundTimeline.SetRate(fps);
+            player->sounds.clear();
+            player->soundTracks.clear();
+            return player->selected < 0 || ReadSoundSheet(player, player->selected, error);
+        });
     }
     int marcus_update(MarcusPlayer *player, int playing, int loop, double elapsed, int click,
                       MarcusPlaybackState *state)

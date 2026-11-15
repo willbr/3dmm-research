@@ -30,7 +30,7 @@ template <typename T> bool Get(std::istream &in, T &value)
     static_assert(std::is_trivially_copyable<T>::value, "IPC value must be flat");
     return bool(in.read(reinterpret_cast<char *>(&value), sizeof(value)));
 }
-constexpr std::uint32_t timingMagic = 0x31544d4d; // MMT1, matching-build ephemeral IPC.
+constexpr std::uint32_t timingMagic = 0x32544d4d; // MMT2, matching-build ephemeral IPC.
 } // namespace
 bool MarcusSoundTimeline::Write(std::ostream &out) const
 {
@@ -38,7 +38,8 @@ bool MarcusSoundTimeline::Write(std::ostream &out) const
         return false;
     for (const auto &scene : scenes)
     {
-        if (!Put(out, scene.info) || !Put(out, scene.start) || !Put(out, std::uint32_t(scene.holds.size())))
+        if (!Put(out, scene.info) || !Put(out, scene.start) || !Put(out, scene.frameSeconds) ||
+            !Put(out, std::uint32_t(scene.holds.size())))
             return false;
         for (const auto &hold : scene.holds)
             if (!Put(out, hold.first) || !Put(out, hold.second))
@@ -64,9 +65,14 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
         std::uint32_t holds = 0, sounds = 0;
         if (!Get(in, scene.info) || scene.info.chunk != info.chunk || scene.info.first_frame != info.first_frame ||
             scene.info.last_frame != info.last_frame || !Get(in, scene.start) || !std::isfinite(scene.start) ||
-            scene.start < 0 || !Get(in, holds) || (records += holds) > 1000000)
+            scene.start < 0 || !Get(in, scene.frameSeconds) || !std::isfinite(scene.frameSeconds) ||
+            scene.frameSeconds <= 0 || !Get(in, holds) || (records += holds) > 1000000)
             return false;
         scene.info = info;
+        if (result.scenes.empty())
+            result.frameSeconds = scene.frameSeconds;
+        else if (scene.frameSeconds != result.frameSeconds)
+            return false;
         for (std::uint32_t i = 0; i < holds; ++i)
         {
             long frame;
@@ -100,9 +106,15 @@ void MarcusSoundTimeline::Clear()
     time = 0;
     transition = 0;
 }
+void MarcusSoundTimeline::SetRate(double fps)
+{
+    Clear();
+    // Uncapped throughput depends on the host. Keep a nominal six-FPS preview.
+    frameSeconds = fps > 0 ? 1.0 / fps : 1.0 / 6;
+}
 double MarcusSoundScene::TimeAt(double frame) const
 {
-    double result = start + (frame - info.first_frame) / 6;
+    double result = start + (frame - info.first_frame) * frameSeconds;
     for (const auto &hold : holds)
     {
         if (frame <= hold.first)
@@ -116,16 +128,16 @@ double MarcusSoundScene::FrameAt(double seconds) const
     double frame = info.first_frame, at = start;
     for (const auto &hold : holds)
     {
-        const double entry = at + (hold.first - frame) / 6;
+        const double entry = at + (hold.first - frame) * frameSeconds;
         if (seconds < entry)
-            return frame + (seconds - at) * 6;
-        const double duration = 1.0 / 6 + hold.second;
+            return frame + (seconds - at) / frameSeconds;
+        const double duration = frameSeconds + hold.second;
         if (seconds < entry + duration)
             return hold.first + (seconds - entry) / duration;
         frame = double(hold.first) + 1;
         at = entry + duration;
     }
-    return frame + (seconds - at) * 6;
+    return frame + (seconds - at) / frameSeconds;
 }
 std::vector<MarcusResumeSound> MarcusSoundTimeline::Resume(std::size_t index, long frame) const
 {
@@ -156,6 +168,7 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::
 {
     MarcusSoundScene scene;
     scene.info = info;
+    scene.frameSeconds = frameSeconds;
     for (const auto &sound : active)
         if (sound->cue.loop && sound->audio.kind != MARCUS_WAVEFORM_MIDI)
             sound->end = std::min(sound->end, time);

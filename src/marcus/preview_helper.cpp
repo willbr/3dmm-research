@@ -95,7 +95,7 @@ int FramePreviews(char **argv)
 int main(int argc, char **argv)
 {
     const bool duration = argc == 5 && !std::strcmp(argv[3], "--duration");
-    const bool timeline = argc == 6 && !std::strcmp(argv[3], "--timing");
+    const bool timeline = (argc == 6 || argc == 8) && !std::strcmp(argv[3], "--timing");
     const bool frames = argc == 6 && !std::strcmp(argv[3], "--frames");
     if (argc != 3 && !duration && !timeline && !frames) return 2;
 #ifdef _WIN32
@@ -115,6 +115,16 @@ int main(int argc, char **argv)
             {
                 marcus_set_muted(player, 1);
                 MarcusMovieTime timing = {};
+                if (timeline && argc == 8)
+                {
+                    std::size_t rateEnd, modifierEnd;
+                    const int rate = std::stoi(argv[6], &rateEnd), modifier = std::stoi(argv[7], &modifierEnd);
+                    if (argv[6][rateEnd] || argv[7][modifierEnd] || !marcus_set_playback_rate(player, rate, modifier))
+                    {
+                        marcus_destroy(player);
+                        return 2;
+                    }
+                }
                 if (!marcus_open(player, argv[1], argv[2], argv[4]) || !marcus_movie_time(player, &timing))
                     preview.error = marcus_error(player);
                 else

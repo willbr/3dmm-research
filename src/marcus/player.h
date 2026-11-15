@@ -294,6 +294,10 @@ extern "C"
     void marcus_stop(MarcusPlayer *player);
     int marcus_audio_stats(MarcusPlayer *player, MarcusAudioStats *stats);
     void marcus_set_muted(MarcusPlayer *player, int muted);
+    /* Studio preference indices: Original, 6, 12, 24 FPS, Uncapped;
+     * Normal, Win98 -> XP, XP -> Win98. Invalid indices leave settings intact.
+     * Applies on the next playback update; audio rate and authored holds do not change. */
+    int marcus_set_playback_rate(MarcusPlayer *player, int rate, int modifier);
     /* Refit Orbit on its next render. */
     void marcus_reset_framing(MarcusPlayer *player);
     /* Orbit the selected object's posed bounds, following its movement.

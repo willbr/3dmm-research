@@ -140,6 +140,9 @@ extern "C"
         int phase, waiting;
     } MMPlayEvaluator;
 
+    /* Preference indices: Original/6/12/24/Uncapped and Normal/Win98->XP/XP->Win98.
+     * Negative selects the original host clock; zero removes only frame delays. */
+    double mm_playback_fps(int rate, int modifier);
     void mm_frame_pacer_init(MMFramePacer *pacer);
     void mm_frame_pacer_reset(MMFramePacer *pacer, double rate);
     void mm_frame_pacer_schedule(MMFramePacer *pacer, MMPlaybackU32 frameStart);

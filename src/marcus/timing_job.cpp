@@ -5,7 +5,7 @@
 #include <stdexcept>
 
 MarcusTimingJob::MarcusTimingJob(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content,
-                                 std::vector<MarcusScene> scenes)
+                                 std::vector<MarcusScene> scenes, int rate, int modifier)
 {
     // Resolve the sibling executable on the owner thread.
     const auto base = SDL_GetBasePath();
@@ -16,7 +16,7 @@ MarcusTimingJob::MarcusTimingJob(std::shared_ptr<MarcusMovieFile> movie, std::st
                                  : std::string();
     thread = std::thread(
         [this, movie = std::move(movie), resources = std::move(resources), content = std::move(content),
-         scenes = std::move(scenes), executable] {
+         scenes = std::move(scenes), executable, rate, modifier] {
             std::filesystem::path staging;
             SDL_Process *process = nullptr;
             try
@@ -40,8 +40,9 @@ MarcusTimingJob::MarcusTimingJob(std::shared_ptr<MarcusMovieFile> movie, std::st
                     throw std::runtime_error("Cannot reserve timing output.");
                 const auto output = (staging / "timing.bin").u8string();
                 const auto input = movie->path.u8string();
+                const auto rateText = std::to_string(rate), modifierText = std::to_string(modifier);
                 const char *args[] = {executable.c_str(), input.c_str(), resources.c_str(), "--timing", content.c_str(),
-                                      output.c_str(),     nullptr};
+                                      output.c_str(), rateText.c_str(), modifierText.c_str(), nullptr};
                 const auto properties = SDL_CreateProperties();
                 SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
                 SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);

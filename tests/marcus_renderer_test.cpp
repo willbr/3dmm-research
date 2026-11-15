@@ -52,6 +52,7 @@ int main(int argc, char **argv)
     MarcusShortcuts shortcuts = {}, loaded = {};
     shortcuts_defaults(&shortcuts);
     CHECK(!shortcuts.debug_overlay);
+    CHECK(!shortcuts.playback_rate && !shortcuts.playback_modifier);
     CHECK(!shortcuts.movie_debug_overlay && !shortcuts.work_debug_overlay);
     CHECK(shortcuts.renderer == MARCUS_RENDERER_BRENDER);
     CHECK(shortcuts.render_resolution == MARCUS_DEFAULT_RESOLUTION);
@@ -115,6 +116,22 @@ int main(int argc, char **argv)
         CHECK(loaded.work_render_resolution == MARCUS_RESOLUTION_COUNT - 1 - index &&
               loaded.work_renderer == MARCUS_RENDERER_BRENDER_COMPUTE);
     }
+    for (int rate = 0; rate < 5; ++rate)
+        for (int modifier = 0; modifier < 3; ++modifier)
+        {
+            shortcuts.playback_rate = rate;
+            shortcuts.playback_modifier = modifier;
+            CHECK(shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+            shortcuts_defaults(&loaded);
+            CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
+            CHECK(loaded.playback_rate == rate && loaded.playback_modifier == modifier);
+        }
+    shortcuts.playback_rate = 5;
+    CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+    shortcuts.playback_rate = 0;
+    shortcuts.playback_modifier = -1;
+    CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
+    shortcuts.playback_modifier = 0;
     shortcuts.render_resolution = -1;
     CHECK(!shortcuts_save(path.u8string().c_str(), &shortcuts, message, sizeof(message)));
     shortcuts.render_resolution = MARCUS_DEFAULT_RESOLUTION;
@@ -164,12 +181,18 @@ int main(int argc, char **argv)
     shortcuts_defaults(&loaded);
     CHECK(shortcuts_load(path.u8string().c_str(), &loaded, message, sizeof(message)));
     CHECK(loaded.renderer == MARCUS_RENDERER_BRENDER && loaded.pause_on_focus_loss);
+    CHECK(!loaded.playback_rate && !loaded.playback_modifier);
     CHECK(!loaded.debug_overlay);
     CHECK(!loaded.movie_debug_overlay && !loaded.work_debug_overlay);
     CHECK(loaded.render_resolution == MARCUS_DEFAULT_RESOLUTION);
     CHECK(loaded.work_renderer == MARCUS_RENDERER_BRENDER && loaded.work_render_resolution == MARCUS_DEFAULT_RESOLUTION);
     for (const char *invalid :
-         {"marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n",
+         {"marcus-shortcuts 1\nplayback_rate -1\n", "marcus-shortcuts 1\nplayback_rate 5\n",
+          "marcus-shortcuts 1\nplayback_modifier 3\n", "marcus-shortcuts 1\nplayback_modifier -1\n",
+          "marcus-shortcuts 1\nplayback_rate 2 extra\n", "marcus-shortcuts 1\nplayback_modifier\n",
+          "marcus-shortcuts 1\nplayback_rate 1\nplayback_rate 2\n",
+          "marcus-shortcuts 1\nplayback_modifier 0\nplayback_modifier 1\n",
+          "marcus-shortcuts 1\nrenderer unknown\n", "marcus-shortcuts 1\nrenderer sdl-gpu\nrenderer brender\n",
           "marcus-shortcuts 1\ndebug_overlay 2\n", "marcus-shortcuts 1\ndebug_overlay -1\n",
           "marcus-shortcuts 1\ndebug_overlay 1 extra\n", "marcus-shortcuts 1\ndebug_overlay\n",
           "marcus-shortcuts 1\ndebug_overlay 1\ndebug_overlay 0\n",

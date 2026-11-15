@@ -339,7 +339,7 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 
 | Control | Behaviour |
 |---|---|
-| Space / Play | Play or pause at the original six frames per second |
+| Space / Play | Play or pause at the configured movie frame rate (Original by default) |
 | Alt+Enter | Toggle fullscreen for the window |
 | Shift+click Play | Start or continue playback with only the movie filling the window |
 | D / F | Previous / next frame |
@@ -552,8 +552,8 @@ playback. Queued clips follow earlier sounds in their lane, replacements truncat
 earlier clips, and sampled loops repeat their waveform. MIDI continuation has a
 labelled band because it contains notes rather than samples.
 
-The sheet uses a six-fps presentation clock that includes scrolling-text holds,
-authored time/sound waits and outgoing transitions. Scrolling uses playback's
+The sheet uses the selected movie rate's presentation clock, including
+scrolling-text holds, authored time/sound waits and outgoing transitions. Scrolling uses playback's
 actual rich-text layout and scroll speed, rather than an estimate from the frame
 count. Waveforms and restart positions share this clock. Click pauses have no
 authored duration, so a direct jump assumes immediate acknowledgement; repeated
@@ -571,6 +571,40 @@ action's name. Escape, Alt+Enter and Ctrl/Command+comma are reserved for the UI.
 **Pause playback on focus loss** defaults to **Off**, so switching to another
 window keeps the movie playing. Turn it on to pause when Marcus loses focus.
 Focus loss always releases flight controls and stops mouse drags.
+
+**Movie frame rate** and **Compatibility speed modifier** mirror Studio's
+Playback & sound options. **Original** (default) keeps Marcus's existing nominal
+six-FPS scheduling; **6 FPS**, **12 FPS**, **24 FPS** and **Uncapped** select an
+explicit rate or remove the movie-frame delay. **Normal (1x)** is the default
+modifier. **Win98 -> XP (1.35805x)** and **XP -> Win98 (0.918485x)** multiply the
+selected rate; Original with a modifier uses six FPS as its base. Uncapped
+ignores the modifier. These historical conversion presets do not emulate an OS.
+
+Apply saves both choices and uses them on the next playback update; Cancel
+discards edits and Restore defaults selects Original/Normal. Older settings files
+also default to Original/Normal. Explicit rates use the same fractional
+millisecond frame pacer and rate calculation as Studio. A late update advances
+one authored frame without accumulating catch-up debt; pause/resume preserves
+the remaining interval. Actual throughput still depends on rendering and display
+updates, including when Uncapped is selected.
+
+These controls change movie-frame advancement without interpolation or changing
+audio pitch/rate. Click, sound and timed waits, scrolling captions and transitions
+retain their normal timing, so audiovisual synchronization can change. Fixed-rate
+duration calculations, sound-sheet waveforms and audio seek offsets follow the
+selected rate, including in the background timing helper. Uncapped keeps nominal
+six-FPS duration/seek previews because its actual throughput depends on the host.
+The browser's frame-count estimate and Calculate duration remain nominal six-FPS
+previews, independent of the active player's settings. Preferences never modify
+movie or asset data.
+
+Headless playback checks cover all 15 rate/modifier combinations, ten seconds of
+simulated 60 Hz display updates, pause/resume, late callbacks, authored click/time
+waits, unchanged dissolve timing and matching foreground/background duration
+calculations. Settings checks cover persistence, legacy defaults and invalid or
+duplicate entries. Marcus playback/player/renderer checks, both C89 syntax checks
+and `engine-core-link` pass; Marcus and SDL Studio build successfully. No Marcus
+UI tests were added.
 
 **App debug overlay (FPS / frame time)** defaults to **Off**. Enable it and
 Apply to show display FPS and frame time in milliseconds, with a separate live

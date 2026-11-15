@@ -36,6 +36,7 @@ typedef struct MarcusShortcuts
 {
     MarcusShortcut binding[MARCUS_ACTION_COUNT];
     int pause_on_focus_loss;
+    int playback_rate, playback_modifier;
     int debug_overlay;
     int movie_debug_overlay, work_debug_overlay;
     int renderer;
