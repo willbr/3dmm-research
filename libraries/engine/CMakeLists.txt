@@ -32,6 +32,17 @@ target_sources(three-mm-engine-c89 PRIVATE src/background_mesh.c)
 target_sources(three-mm-engine-c89 PRIVATE src/background_preview.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_scene.c)
 target_sources(three-mm-engine-c89 PRIVATE src/movie_save.c)
+target_sources(three-mm-engine-c89 PRIVATE src/movie_rollcall.c src/movie_edit.c)
+get_filename_component(engine_movie_rollcall_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_rollcall_test.c" ABSOLUTE)
+add_executable(engine-movie-rollcall-test EXCLUDE_FROM_ALL "${engine_movie_rollcall_test_source}")
+target_link_libraries(engine-movie-rollcall-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-movie-rollcall-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-movie-rollcall COMMAND engine-movie-rollcall-test)
+get_filename_component(engine_movie_edit_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_edit_test.c" ABSOLUTE)
+add_executable(engine-movie-edit-test EXCLUDE_FROM_ALL "${engine_movie_edit_test_source}")
+target_link_libraries(engine-movie-edit-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-movie-edit-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-movie-edit COMMAND engine-movie-edit-test)
 get_filename_component(engine_movie_save_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_movie_save_test.c" ABSOLUTE)
 add_executable(engine-movie-save-test EXCLUDE_FROM_ALL "${engine_movie_save_test_source}")
 target_link_libraries(engine-movie-save-test PRIVATE three-mm-engine-c89)
@@ -634,6 +645,10 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_preview.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_scene.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_save.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_rollcall.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_edit.c"
+    "${engine_movie_rollcall_test_source}"
+    "${engine_movie_edit_test_source}"
     "${engine_movie_save_test_source}"
     "${engine_movie_scene_test_source}"
     "${engine_background_preview_test_source}"

@@ -752,26 +752,186 @@ PTagList Movie::_PtaglFetch(void)
  *	 fTrue if successful, else fFalse if out of range.
  *
  ****************************************************/
+ThreeMMMovieRollCallServices Movie::_RollCallServices()
+{
+    static_assert(fbrwsProp == THREE_MM_MOVIE_PROP && fbrwsTdt == THREE_MM_MOVIE_TEXT && aridNil == -1, "Roll-call ABI");
+    ThreeMMMovieRollCallServices s = {};
+    s.context = this;
+    s.data = &_data;
+    s.count = [](void *p) -> ThreeMMI32 { return static_cast<PRollCallTable>(p)->storage.count; };
+    s.row = [](void *p, ThreeMMI32 index, ThreeMMRollCallActor *out) {
+        AssertDo(three_mm_rollcall_table_extra(&static_cast<PRollCallTable>(p)->storage, index, out), "bad actor row");
+    };
+    s.put = [](void *p, ThreeMMI32 index, const ThreeMMRollCallActor *value) {
+        AssertDo(three_mm_rollcall_table_set_extra(&static_cast<PRollCallTable>(p)->storage, index, value), "bad actor row");
+    };
+    s.name = [](void *p, ThreeMMI32 index, void *out) { static_cast<PRollCallTable>(p)->GetStn(index, static_cast<PString>(out)); };
+    s.rename = [](void *p, ThreeMMI32 index, const void *name) -> int {
+        auto value = const_cast<PString>(static_cast<const String *>(name));
+        return three_mm_rollcall_table_rename(&static_cast<PRollCallTable>(p)->storage, index, value->Prgch(), value->Cch());
+    };
+    s.append = [](void *p, const void *name, const ThreeMMRollCallActor *row) -> int {
+        auto value = const_cast<PString>(static_cast<const String *>(name));
+        AssertPo(value, 0);
+        return three_mm_rollcall_table_add(&static_cast<PRollCallTable>(p)->storage, value->Prgch(), value->Cch(), row);
+    };
+    s.erase = [](void *p, ThreeMMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    s.actor_id = [](void *p) -> ThreeMMI32 { return static_cast<PActor>(p)->Arid(); };
+    s.set_actor_id = [](void *p, ThreeMMI32 id) { static_cast<PActor>(p)->SetArid(id); };
+    s.actor_tag = [](void *p, ThreeMMTag *out) { TAG tag; static_cast<PActor>(p)->GetTagTmpl(&tag); *out = TagToCore(tag); };
+    s.is_prop = [](void *p) -> int { return static_cast<PActor>(p)->FIsPropBrws(); };
+    s.is_text = [](void *p) -> int { return static_cast<PActor>(p)->FIsTdt(); };
+    s.same_tag = [](const ThreeMMTag *a, const ThreeMMTag *b) -> int {
+        TAG first, second; TagFromCore(&first, *a); TagFromCore(&second, *b);
+        return TagManager::FcmpCompareTags(&first, &second) == fcmpEq;
+    };
+    s.open_tag = [](void *, ThreeMMTag *value, void *resources) {
+        TAG tag; TagFromCore(&tag, *value);
+        AssertDo(TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources)), "Should never fail when not copying the tag");
+        *value = TagToCore(tag);
+    };
+    s.duplicate_tag = [](const ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::DupTag(&tag); };
+    s.close_tag = [](ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
+    s.changed = [](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
+    s.diagnostic = [](void *, int issue) {
+        switch (issue)
+        {
+        case THREE_MM_ROLLCALL_NO_ACTOR: Bug("no such actor"); break;
+        case THREE_MM_ROLLCALL_BAD_REMOVE: Bug("Tried to remove an invalid actor"); break;
+        case THREE_MM_ROLLCALL_UNDERFLOW: Assert(false, "Too many removes"); break;
+        }
+    };
+    return s;
+}
+
+ThreeMMMovieUndoServices Movie::_UndoServices()
+{
+    static_assert(undoDisabled == THREE_MM_MOVIE_UNDO_DISABLED && undoUndo == THREE_MM_MOVIE_UNDO_READY, "Movie undo ABI");
+    ThreeMMMovieUndoServices s = {};
+    s.context = this;
+    s.bind_movie = [](void *p, void *u) { static_cast<PMovieUndo>(u)->SetPmvie(static_cast<PMovie>(p)); };
+    s.bind_scene = [](void *u, ThreeMMI32 index) { auto undo = static_cast<PMovieUndo>(u); undo->SetIscen(index); AssertPo(undo, 0); };
+    s.bind_frame = [](void *u, ThreeMMI32 frame) { static_cast<PMovieUndo>(u)->SetNfrm(frame); };
+    s.scene_index = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->Iscen(); };
+    s.frame = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->Pscen()->Nfrm(); };
+    s.commit = [](void *p, void *u) -> int { return static_cast<PMovie>(p)->DocumentBase::FAddUndo(static_cast<PMovieUndo>(u)); };
+    s.clear = [](void *p) { static_cast<PMovie>(p)->Movie_PAR::ClearUndo(); };
+    s.notify = [](void *p, int mode) { static_cast<PMovie>(p)->Pmcc()->SetUndo(mode); };
+    return s;
+}
+
+ThreeMMMovieEditServices Movie::_EditServices()
+{
+    static_assert(rOne == 65536 && vlmNil == -1 && styNil == 0, "Movie edit scalar/sound ABI");
+    ThreeMMMovieEditServices s = {};
+    s.context = this; s.data = &_data; s.scenes = &_scenes;
+    s.rollcall = _RollCallServices(); s.undo = _UndoServices();
+    s.selected_actor = [](void *p) -> void * { return static_cast<PScene>(p)->PactrSelected(); };
+    s.actor_from_id = [](void *p, ThreeMMI32 id) -> void * { return static_cast<PScene>(p)->PactrFromArid(id); };
+    s.select_actor = [](void *p, void *actor) { static_cast<PScene>(p)->SelectActr(static_cast<PActor>(actor)); };
+    s.first_view = [](void *p) -> void * { return static_cast<PMovieView>(static_cast<PMovie>(p)->PddgGet(0)); };
+    s.new_actor = [](void *, const ThreeMMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return Actor::PactrNew(&tag); };
+    s.actor_visible = [](void *p) -> int { return static_cast<PActor>(p)->FIsInView(); };
+    s.core_onstage = [](void *p) -> int { return static_cast<PActor>(p)->FAddOnStageCore(); };
+    s.duplicate_actor = [](void *p, int reset) -> void * {
+        PActor copy = nullptr; if (!static_cast<PActor>(p)->FDup(&copy, reset != 0)) return nullptr; return copy;
+    };
+    s.release_actor = [](void *p) { auto actor = static_cast<PActor>(p); ReleasePpo(&actor); };
+    s.restore_actor = [](void *p, void *copy) { static_cast<PActor>(p)->Restore(static_cast<PActor>(copy)); };
+    s.add_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FAddActr(static_cast<PActor>(actor)); };
+    s.remove_actor = [](void *p, ThreeMMI32 id) -> int { return static_cast<PScene>(p)->FRemActr(id); };
+    s.apply_actor = [](void *p, int kind, const ThreeMMMovieEditRequest *q) -> int {
+        auto actor = static_cast<PActor>(p); AssertPo(actor, 0);
+        TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);
+        switch (kind)
+        {
+        case THREE_MM_MOVIE_EDIT_ROTATE: return actor->FRotate(q->rotation[0], q->rotation[1], q->rotation[2], q->forward != 0);
+        case THREE_MM_MOVIE_EDIT_SQUASH: return actor->FPull(q->pull[0], q->pull[1], q->pull[2]);
+        case THREE_MM_MOVIE_EDIT_TIME: return actor->FSoonerLater(q->shift);
+        case THREE_MM_MOVIE_EDIT_SCALE: return actor->FScale(q->factor);
+        case THREE_MM_MOVIE_EDIT_COSTUME: return actor->FSetCostume(q->part, q->tag ? &tag : nullptr, q->costume, tribool(q->custom));
+        case THREE_MM_MOVIE_EDIT_ACTOR_SOUND: return actor->FSetSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), tribool(q->cel), q->volume, q->style);
+        case THREE_MM_MOVIE_EDIT_ONSTAGE: return actor->FAddOnStage();
+        default: Bug("Invalid Movie actor primitive"); return 0;
+        }
+    };
+    s.apply_scene = [](void *p, int kind, const ThreeMMMovieEditRequest *q) -> int {
+        auto scene = static_cast<PScene>(p);
+        TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);
+        switch (kind)
+        {
+        case THREE_MM_MOVIE_EDIT_CAMERA: return scene->FChangeCam(q->camera);
+        case THREE_MM_MOVIE_EDIT_PAUSE: return scene->FPause(WaitReason(q->reason), q->delay);
+        case THREE_MM_MOVIE_EDIT_TRANSITION: return scene->FSetTransition(TRANS(q->transition));
+        case THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND: return scene->FAddSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), q->volume, q->style);
+        default: Bug("Invalid Movie scene primitive"); return 0;
+        }
+    };
+    s.frame = [](void *p) -> ThreeMMI32 { return static_cast<PScene>(p)->Nfrm(); };
+    s.undo_count = [](void *p) -> ThreeMMI32 { return static_cast<PMovie>(p)->CundbUndo(); };
+    s.last_undo = [](void *p) -> void * {
+        auto movie = static_cast<PMovie>(p); PUndoBase undo;
+        movie->_pglpundb->Get(movie->_ipundbLimDone - 1, &undo); return undo;
+    };
+    s.actor_undo = [](void *p) -> int { return static_cast<PUndoBase>(p)->FIs(kclsActorUndo); };
+    s.time_undo = [](void *p) -> int { return static_cast<PActorUndo>(p)->FSoonerLater(); };
+    s.time_undo_frame = [](void *p, ThreeMMI32 frame) { static_cast<PActorUndo>(p)->SetNfrmLast(frame); };
+    s.place_actor = [](void *p, int entire) { static_cast<PMovieView>(p)->StartPlaceActor(entire != 0); };
+    s.placement_undo = [](void *p, void *owned) { static_cast<PMovieView>(p)->SetActrUndo(static_cast<PActor>(owned)); };
+    s.paste_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FPasteActr(static_cast<PActor>(actor)); };
+    s.paste_route = [](void *p, void *source) -> int { return static_cast<PActor>(p)->FPasteRte(static_cast<PActor>(source)); };
+    s.create_actor_undo = [](void *p, void *copy) -> int { return static_cast<PActor>(p)->FCreateUndo(static_cast<PActor>(copy)); };
+    s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
+    s.cache_tag = [](void *, const ThreeMMTag *value, int background) -> int {
+        TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
+    };
+    s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
+    s.empty_scene = [](void *p) -> int { return static_cast<PScene>(p)->FIsEmpty(); };
+    s.new_scene = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
+    s.remove_scene = [](void *p, ThreeMMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
+    s.background = [](void *p, const ThreeMMTag *value, int undoable) -> int {
+        TAG tag, old; TagFromCore(&tag, *value); auto scene = static_cast<PMovie>(p)->Pscen();
+        return undoable ? scene->FSetBkgd(&tag) : scene->FSetBkgdCore(&tag, &old);
+    };
+    s.new_scene_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
+    s.configure_scene_undo = [](void *, void *p, ThreeMMI32 index, const ThreeMMTag *value) {
+        auto undo = static_cast<PMovieSceneUndo>(p); TAG tag; TagFromCore(&tag, *value);
+        undo->SetMunst(munstInsScen); undo->SetIscen(index); undo->SetTag(&tag);
+    };
+    s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
+    s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
+    s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
+    s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
+    s.fetch_sound = [](void *, const ThreeMMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd); };
+    s.sound_volume = [](void *p) -> ThreeMMI32 { return static_cast<PMovieSoundMSND>(p)->Vlm(); };
+    s.sound_style = [](void *p) -> ThreeMMI32 { return static_cast<PMovieSoundMSND>(p)->Sty(); };
+    s.release_sound = [](void *p) { auto sound = static_cast<PMovieSoundMSND>(p); ReleasePpo(&sound); };
+    s.dirty = [](void *p) { static_cast<PMovie>(p)->SetDirty(); };
+    s.invalidate = [](void *p, int bars) { if (bars) static_cast<PMovie>(p)->InvalViewsAndScb(); else static_cast<PMovie>(p)->InvalViews(); };
+    s.actor_nuked = [](void *p) { static_cast<PMovie>(p)->Pmcc()->ActorNuked(); };
+    s.diagnostic = [](void *, int issue) {
+        switch (issue)
+        {
+        case THREE_MM_MOVIE_EDIT_NO_ACTOR: PushErc(ercSocNoActrSelected); break;
+        case THREE_MM_MOVIE_EDIT_ROLLCALL_FAILED: AssertDo(false, "Should never fail"); break;
+        case THREE_MM_MOVIE_EDIT_BACKGROUND_FAILED: Bug("warning: set background failed."); break;
+        }
+    };
+    return s;
+}
+
 bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG ptagTmpl)
 {
     AssertThis(0);
     AssertPvCb(parid, size(long));
     AssertVarMem(pcactRef);
-
-    RollCallActorEntry mactr;
-
-    if (iarid < 0 || iarid >= _data.Actors()->IvMac())
-    {
-        return fFalse;
-    }
-
-    _data.Actors()->GetStn(iarid, pstn);
-    _data.Actors()->GetExtra(iarid, &mactr);
-    *parid = mactr.arid;
-    *pcactRef = mactr.cactRef;
-    if (pvNil != ptagTmpl)
-        *ptagTmpl = mactr.tagTmpl;
-    return fTrue;
+    const auto services = _RollCallServices();
+    ThreeMMI32 id, refs;
+    ThreeMMTag tag;
+    if (!three_mm_movie_rollcall_get(iarid, &id, pstn, &refs, ptagTmpl ? &tag : nullptr, &services)) return false;
+    *parid = id; *pcactRef = refs;
+    if (ptagTmpl) TagFromCore(ptagTmpl, tag);
+    return true;
 }
 
 /****************************************************
@@ -790,87 +950,9 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
  ****************************************************/
 bool Movie::FChooseArid(long arid)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    PActor pactr, pactrDup;
-    RollCallActorEntry mactr;
-    long imactr;
-    PMovieView pmvu;
-
-    pmvu = (PMovieView)PddgGet(0);
-    if (pmvu == pvNil)
-    {
-        return (fFalse);
-    }
-    AssertPo(pmvu, 0);
-
-    pactr = Pscen()->PactrFromArid(arid);
-
-    if (pvNil != pactr)
-    {
-
-        if (!pactr->FIsInView())
-        {
-
-            if (!pactr->FDup(&pactrDup, fTrue))
-            {
-                return (fFalse);
-            }
-            AssertPo(pactrDup, 0);
-
-            if (!pactr->FAddOnStageCore())
-            {
-                ReleasePpo(&pactrDup);
-                return fFalse;
-            }
-            Pscen()->SelectActr(pactr);
-            AssertDo(FAddToRollCall(pactr, pvNil), "Should never fail");
-            pmvu->StartPlaceActor();
-            pmvu->SetActrUndo(pactrDup);
-        }
-
-        Pscen()->SelectActr(pactr);
-        InvalViews();
-        return (fTrue);
-    }
-    else
-    {
-
-        //
-        // Search roll call for actor, and create
-        // a new actor for it.
-        //
-        for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
-        {
-            _data.Actors()->GetExtra(imactr, &mactr);
-            if (mactr.arid == arid)
-            {
-                pactr = Actor::PactrNew(&(mactr.tagTmpl));
-
-                if (pactr == pvNil)
-                {
-                    return (fFalse);
-                }
-
-                AssertPo(pactr, 0);
-
-                pactr->SetArid(arid);
-
-                if (!Pscen()->FAddActr(pactr))
-                {
-                    ReleasePpo(&pactr);
-                    return (fFalse);
-                }
-
-                pmvu->StartPlaceActor();
-                ReleasePpo(&pactr);
-                return (fTrue);
-            }
-        }
-    }
-
-    return (fFalse);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    return three_mm_movie_choose_actor(arid, &services) != 0;
 }
 
 /****************************************************
@@ -887,15 +969,8 @@ bool Movie::FChooseArid(long arid)
 long Movie::AridSelected(void)
 {
     AssertThis(0);
-
-    if ((pvNil != Pscen()) && (pvNil != Pscen()->PactrSelected()))
-    {
-        return Pscen()->PactrSelected()->Arid();
-    }
-    else
-    {
-        return aridNil;
-    }
+    const auto services = _EditServices();
+    return three_mm_movie_selected_actor(&services);
 }
 
 /****************************************************
@@ -912,23 +987,9 @@ long Movie::AridSelected(void)
  ****************************************************/
 bool Movie::FGetName(long arid, PString pstn)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-
-    RollCallActorEntry mactr;
-    long imactr;
-
-    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
-    {
-        _data.Actors()->GetExtra(imactr, &mactr);
-        if (mactr.arid == arid)
-        {
-            _data.Actors()->GetStn(imactr, pstn);
-            return (fTrue);
-        }
-    }
-
-    return (fFalse);
+    AssertThis(0); AssertPo(pstn, 0);
+    const auto services = _RollCallServices();
+    return three_mm_movie_rollcall_name(arid, pstn, &services) != 0;
 }
 
 /****************************************************
@@ -945,32 +1006,9 @@ bool Movie::FGetName(long arid, PString pstn)
  ****************************************************/
 bool Movie::FNameActr(long arid, PString pstn)
 {
-    AssertThis(0);
-    AssertIn(arid, 0, 500);
-    AssertPo(pstn, 0);
-
-    RollCallActorEntry mactr;
-    long imactr;
-
-    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
-    {
-
-        _data.Actors()->GetExtra(imactr, &mactr);
-        if (mactr.arid == arid)
-        {
-
-            if (_data.Actors()->FPutStn(imactr, pstn))
-            {
-
-                _pmcc->UpdateRollCall();
-                return (fTrue);
-            }
-
-            return (fFalse);
-        }
-    }
-
-    return (fFalse);
+    AssertThis(0); AssertIn(arid, 0, 500); AssertPo(pstn, 0);
+    const auto services = _RollCallServices();
+    return three_mm_movie_rollcall_rename(arid, pstn, &services) != 0;
 }
 
 /****************************************************
@@ -986,12 +1024,9 @@ bool Movie::FNameActr(long arid, PString pstn)
  ****************************************************/
 bool Movie::FIsPropBrwsIarid(long iarid)
 {
-    AssertThis(0);
-    AssertIn(iarid, 0, _data.Actors()->IvMac());
-
-    RollCallActorEntry mactr;
-    _data.Actors()->GetExtra(iarid, &mactr);
-    return FPure(mactr.grfbrws & fbrwsProp);
+    AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
+    const auto services = _RollCallServices();
+    return three_mm_movie_rollcall_has(iarid, THREE_MM_MOVIE_PROP, &services) != 0;
 }
 
 /****************************************************
@@ -1007,12 +1042,9 @@ bool Movie::FIsPropBrwsIarid(long iarid)
  ****************************************************/
 bool Movie::FIsIaridTdt(long iarid)
 {
-    AssertThis(0);
-    AssertIn(iarid, 0, _data.Actors()->IvMac());
-
-    RollCallActorEntry mactr;
-    _data.Actors()->GetExtra(iarid, &mactr);
-    return FPure(mactr.grfbrws & fbrwsTdt);
+    AssertThis(0); AssertIn(iarid, 0, _data.Actors()->IvMac());
+    const auto services = _RollCallServices();
+    return three_mm_movie_rollcall_has(iarid, THREE_MM_MOVIE_TEXT, &services) != 0;
 }
 
 /****************************************************
@@ -1029,27 +1061,10 @@ bool Movie::FIsIaridTdt(long iarid)
  ****************************************************/
 void Movie::ChangeActrTag(long arid, PTAG ptag)
 {
-    AssertThis(0);
-    AssertIn(arid, 0, 500);
-    AssertVarMem(ptag);
-
-    RollCallActorEntry mactr;
-    long imactr;
-
-    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
-    {
-
-        _data.Actors()->GetExtra(imactr, &mactr);
-        if (mactr.arid == arid)
-        {
-
-            mactr.tagTmpl = *ptag;
-            _data.Actors()->PutExtra(imactr, &mactr);
-            return;
-        }
-    }
-
-    Bug("no such actor");
+    AssertThis(0); AssertIn(arid, 0, 500); AssertVarMem(ptag);
+    const auto services = _RollCallServices();
+    const auto tag = TagToCore(*ptag);
+    three_mm_movie_rollcall_change_tag(arid, &tag, &services);
 }
 
 /****************************************************
@@ -1066,72 +1081,9 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
  ****************************************************/
 bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
 {
-    AssertThis(0);
-    AssertPo(pactr, 0);
-    AssertNilOrPo(pstn, 0); // can be pvNil if the actor is already in the movie.
-
-    RollCallActorEntry mactr;
-    long imactr;
-
-    if (pactr->Arid() != aridNil)
-    {
-        //
-        // Search for an actor with the same arid
-        //
-        for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
-        {
-
-            _data.Actors()->GetExtra(imactr, &mactr);
-            if (mactr.arid == pactr->Arid())
-            {
-                TAG tagTmpl;
-                mactr.cactRef++;
-                // ThreeDTexts sometimes need to update tagTmpl
-                pactr->GetTagTmpl(&tagTmpl);
-                if (fcmpEq != TagManager::FcmpCompareTags(&mactr.tagTmpl, &tagTmpl))
-                {
-                    TagManager::CloseTag(&mactr.tagTmpl);
-                    mactr.tagTmpl = tagTmpl;
-                    // Actor::GetTagTmpl doesn't AddRef the pcrf, so do it here:
-                    TagManager::DupTag(&tagTmpl);
-                }
-                _data.Actors()->PutExtra(imactr, &mactr);
-                Pmcc()->UpdateRollCall();
-                return (fTrue);
-            }
-        }
-    }
-    else
-    {
-        pactr->SetArid(_data.actorIdLimit++);
-    }
-
-    AssertPo(pstn, 0);
-
-    //
-    // This is a new actor, add it to the roll call
-    //
-    mactr.arid = pactr->Arid();
-    mactr.grfbrws = fbrwsNil;
-    if (pactr->FIsPropBrws())
-    {
-        mactr.grfbrws |= fbrwsProp;
-        if (pactr->FIsTdt())
-        {
-            mactr.grfbrws |= fbrwsTdt;
-        }
-    }
-    mactr.cactRef = 1;
-    pactr->GetTagTmpl(&mactr.tagTmpl);
-    // Open the tag, since it might be a ThreeDText
-    AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _data.Resources()), "Should never fail when not copying the tag");
-    if (_data.Actors()->FAddStn(pstn, &mactr))
-    {
-        Pmcc()->UpdateRollCall();
-        return (fTrue);
-    }
-
-    return (fFalse);
+    AssertThis(0); AssertPo(pactr, 0); AssertNilOrPo(pstn, 0);
+    const auto services = _RollCallServices();
+    return three_mm_movie_rollcall_add(pactr, pstn, &services) != 0;
 }
 
 /****************************************************
@@ -1148,41 +1100,9 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
  ****************************************************/
 void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
 {
-    AssertThis(0);
-    AssertPo(pactr, 0);
-
-    RollCallActorEntry mactr;
-    long imactr;
-
-    //
-    // Search for the actor in the roll call
-    //
-    for (imactr = 0; imactr < _data.Actors()->IvMac(); imactr++)
-    {
-        _data.Actors()->GetExtra(imactr, &mactr);
-        if (mactr.arid == pactr->Arid())
-        {
-            mactr.cactRef--;
-            Assert(mactr.cactRef >= 0, "Too many removes");
-            if (fDelIfOnlyRef && mactr.cactRef == 0)
-            {
-                vptagm->CloseTag(&mactr.tagTmpl);
-                _data.Actors()->Delete(imactr);
-            }
-            else
-            {
-                _data.Actors()->PutExtra(imactr, &mactr);
-            }
-
-            if (mactr.cactRef == 0)
-            {
-                Pmcc()->UpdateRollCall();
-            }
-            return;
-        }
-    }
-
-    Bug("Tried to remove an invalid actor");
+    AssertThis(0); AssertPo(pactr, 0);
+    const auto services = _RollCallServices();
+    three_mm_movie_rollcall_remove(pactr, fDelIfOnlyRef, &services);
 }
 
 /****************************************************
@@ -2041,25 +1961,8 @@ PDocumentMDIWindow Movie::PdmdNew(void)
 bool Movie::FAddUndo(PMovieUndo pmunb)
 {
     AssertThis(0);
-
-    pmunb->SetPmvie(this);
-    pmunb->SetIscen(Iscen());
-
-    AssertPo(pmunb, 0);
-
-    if (Iscen() != ivNil)
-    {
-        pmunb->SetNfrm(Pscen()->Nfrm());
-    }
-
-    if (!DocumentBase::FAddUndo(pmunb))
-    {
-        Pmcc()->SetUndo(undoDisabled);
-        return (fFalse);
-    }
-
-    Pmcc()->SetUndo(undoUndo);
-    return (fTrue);
+    const auto services = _UndoServices();
+    return three_mm_movie_undo_add(pmunb, &services) != 0;
 }
 
 /****************************************************
@@ -2076,9 +1979,8 @@ bool Movie::FAddUndo(PMovieUndo pmunb)
 void Movie::ClearUndo(void)
 {
     AssertThis(0);
-
-    Movie_PAR::ClearUndo();
-    Pmcc()->SetUndo(undoDisabled);
+    const auto services = _UndoServices();
+    three_mm_movie_undo_clear(&services);
 }
 
 /***************************************************************************
@@ -2094,18 +1996,11 @@ void Movie::ClearUndo(void)
  **************************************************************************/
 bool Movie::FChangeCam(long icam)
 {
-    AssertThis(0);
-    AssertIn(icam, 0, kccamMax);
-    AssertPo(Pscen(), 0);
-
-    if (!Pscen()->FChangeCam(icam))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViews();
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0); AssertIn(icam, 0, kccamMax);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.camera = icam;
+    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_CAMERA, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2359,44 +2254,10 @@ PMovieView Movie::PmvuFirst(void)
  **************************************************************************/
 bool Movie::FInsActr(PTAG ptag)
 {
-    AssertThis(0);
-    AssertPvCb(ptag, size(TAG));
-    AssertPo(Pscen(), 0);
-
-    PActor pactr;
-
-    vpappb->BeginLongOp();
-
-    //
-    // Create the actor.
-    //
-    if (!vptagm->FCacheTagToHD(ptag))
-    {
-        vpappb->EndLongOp();
-        return (fFalse);
-    }
-
-    vpappb->EndLongOp();
-
-    pactr = Actor::PactrNew(ptag);
-    if (pactr == pvNil)
-    {
-        return (fFalse);
-    }
-
-    AssertPo(pactr, 0);
-    if (!Pscen()->FAddActr(pactr))
-    {
-        ReleasePpo(&pactr);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pactr);
-
-    SetDirty();
-    InvalViewsAndScb();
-
-    return (fTrue);
+    AssertThis(0); AssertPvCb(ptag, size(TAG)); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    const auto tag = TagToCore(*ptag);
+    return three_mm_movie_insert_actor(&tag, &services) != 0;
 }
 
 /***************************************************************************
@@ -2413,40 +2274,9 @@ bool Movie::FInsActr(PTAG ptag)
  **************************************************************************/
 bool Movie::FAddOnstage(long arid)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    Actor *pactr;
-    //
-    // Get the actor
-    //
-    if (arid == aridNil)
-    {
-        pactr = Pscen()->PactrSelected();
-    }
-    else
-    {
-        pactr = Pscen()->PactrFromArid(arid);
-        Pscen()->SelectActr(pactr);
-    }
-
-    if (pactr == pvNil)
-    {
-        PushErc(ercSocNoActrSelected);
-        return (fFalse);
-    }
-
-    AssertPo(pactr, 0);
-
-    if (!pactr->FAddOnStage())
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViews();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    return three_mm_movie_onstage(arid, &services) != 0;
 }
 
 /***************************************************************************
@@ -2462,26 +2292,11 @@ bool Movie::FAddOnstage(long arid)
  **************************************************************************/
 bool Movie::FRemActr()
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
 
-    Actor *pactr;
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-    if (!Pscen()->FRemActr(pactr->Arid()))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViewsAndScb();
-    Pmcc()->ActorNuked();
-
-    return (fTrue);
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_REMOVE, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2500,26 +2315,11 @@ bool Movie::FRemActr()
  **************************************************************************/
 bool Movie::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    Actor *pactr;
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-
-    if (!pactr->FRotate(xa, ya, za, fFromHereFwd))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViews();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.rotation[0] = xa; q.rotation[1] = ya; q.rotation[2] = za; q.forward = fFromHereFwd;
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_ROTATE, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2535,33 +2335,11 @@ bool Movie::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
  **************************************************************************/
 bool Movie::FSquashStretchActr(BRS brs)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    Actor *pactr;
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-
-    if (brs == rZero)
-    {
-        return (fTrue);
-    }
-
-    BRS brsy = BrsDiv(rOne, brs);
-
-    if (!pactr->FPull(brs, brsy, brs))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViews();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.factor = brs;
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_SQUASH, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2577,41 +2355,11 @@ bool Movie::FSquashStretchActr(BRS brs)
  **************************************************************************/
 bool Movie::FSoonerLaterActr(long nfrm)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    Actor *pactr;
-    PActorUndo paund;
-
-    long dnfrm = nfrm - Pscen()->Nfrm();
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-
-    if (!pactr->FSoonerLater(dnfrm))
-    {
-        return (fFalse);
-    }
-
-    if (CundbUndo() > 0)
-    {
-
-        _pglpundb->Get(_ipundbLimDone - 1, &paund);
-
-        if (paund->FIs(kclsActorUndo) && paund->FSoonerLater())
-        {
-            AssertPo(paund, 0);
-            paund->SetNfrmLast(nfrm);
-        }
-    }
-
-    SetDirty();
-    InvalViews();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.frame = nfrm;
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_TIME, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -2627,26 +2375,11 @@ bool Movie::FSoonerLaterActr(long nfrm)
  **************************************************************************/
 bool Movie::FScaleActr(BRS brs)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    Actor *pactr;
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-
-    if (!pactr->FScale(brs))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViewsAndScb();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.factor = brs;
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_SCALE, &q, &services) != 0;
 }
 
 /****************************************************
@@ -2666,24 +2399,11 @@ bool Movie::FScaleActr(BRS brs)
  ****************************************************/
 bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long sty)
 {
-    AssertThis(0);
-    Assert(Pscen(), 0);
-
-    if (vlm == vlmNil || sty == styNil)
-    {
-        PMovieSoundMSND pmsnd;
-
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
-        if (pmsnd == pvNil)
-            return fFalse;
-        if (vlm == vlmNil)
-            vlm = pmsnd->Vlm();
-        if (sty == styNil)
-            sty = pmsnd->Sty();
-        ReleasePpo(&pmsnd);
-    }
-
-    return Pscen()->FAddSnd(ptag, fLoop, fQueue, vlm, sty);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    ThreeMMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.loop = fLoop; q.queue = fQueue; q.volume = vlm; q.style = sty;
+    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &services) != 0;
 }
 
 /****************************************************
@@ -2704,16 +2424,11 @@ bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long
  ****************************************************/
 bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty)
 {
-    AssertThis(0);
-    Actor *pactr;
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-
-    return pactr->FSetSnd(ptag, fLoop, fQueue, fActnCel, vlm, sty);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    ThreeMMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.loop = fLoop; q.queue = fQueue; q.cel = fActnCel; q.volume = vlm; q.style = sty;
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_ACTOR_SOUND, &q, &services) != 0;
 }
 
 /****************************************************
@@ -2752,103 +2467,10 @@ bool Movie::FInsScenCore(long iscen, Scene *pscen)
  **************************************************************************/
 bool Movie::FAddScen(PTAG ptag)
 {
-    AssertThis(0);
-    AssertPvCb(ptag, size(TAG));
-
-    long iscen;
-    TAG tagOld;
-    PMovieSceneUndo pmuns;
-
-    vpappb->BeginLongOp();
-
-    //
-    // Set the background
-    //
-    if (!Background::FCacheToHD(ptag))
-    {
-        vpappb->EndLongOp();
-        return (fFalse);
-    }
-
-    vpappb->EndLongOp();
-
-    //
-    // Set default name
-    //
-    if ((Pscen() == pvNil) && (_data.title.count == 0))
-    {
-        _SetTitle();
-    }
-
-    //
-    // Check if this is supposed to overwrite the current scene
-    //
-    if ((Pscen() == pvNil) || (!Pscen()->FIsEmpty()))
-    {
-
-        iscen = Iscen();
-        if (iscen == ivNil)
-        {
-            iscen = -1;
-        }
-
-        if (!FNewScenInsCore(iscen + 1))
-        {
-            return (fFalse);
-        }
-
-        if (!Pscen()->FSetBkgdCore(ptag, &tagOld))
-        {
-            FRemScenCore(iscen + 1);
-            return (fFalse);
-        }
-
-        if (FSoundsEnabled())
-        {
-            _pmsq->PlayMsq();
-        }
-        else
-        {
-            _pmsq->FlushMsq();
-        }
-
-        pmuns = MovieSceneUndo::PmunsNew();
-
-        if (pmuns != pvNil)
-        {
-            pmuns->SetMunst(munstInsScen);
-            pmuns->SetIscen(iscen + 1);
-            pmuns->SetTag(ptag);
-
-            if (!FAddUndo(pmuns))
-            {
-                ReleasePpo(&pmuns);
-                FRemScenCore(iscen + 1);
-                return (fFalse);
-            }
-
-            ReleasePpo(&pmuns);
-        }
-        else
-        {
-            FRemScenCore(iscen + 1);
-            return (fFalse);
-        }
-    }
-    else
-    {
-
-        if (!Pscen()->FSetBkgd(ptag))
-        {
-            Bug("warning: set background failed.");
-            return (fFalse);
-        }
-    }
-
-    SetDirty();
-    InvalViewsAndScb();
-
-    return (fTrue);
+    AssertThis(0); AssertPvCb(ptag, size(TAG));
+    const auto services = _EditServices();
+    const auto tag = TagToCore(*ptag);
+    return three_mm_movie_add_background(&tag, &services) != 0;
 }
 
 /***************************************************************************
@@ -3444,26 +3066,11 @@ void Movie::StopPlaybackTest()
  **************************************************************************/
 bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    Actor *pactr;
-
-    //
-    // Get the current actor
-    //
-    pactr = Pscen()->PactrSelected();
-    AssertPo(pactr, 0);
-
-    if (!pactr->FSetCostume(ibprt, ptag, cmid, fCustom))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViews();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    ThreeMMTag tag = {}; if (ptag) tag = TagToCore(*ptag); q.tag = ptag ? &tag : nullptr; q.part = ibprt; q.costume = cmid; q.custom = fCustom;
+    return three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_COSTUME, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -3480,16 +3087,11 @@ bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
  **************************************************************************/
 bool Movie::FPause(WaitReason wit, long dts)
 {
-    AssertThis(0);
-    AssertPo(Pscen(), 0);
-
-    if (!Pscen()->FPause(wit, dts))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.reason = wit; q.delay = dts;
+    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_PAUSE, &q, &services) != 0;
 }
 
 #ifdef DEBUG
@@ -4109,17 +3711,11 @@ void Movie::_DeleteScend(PDynamicArray pglscend, long iscend)
  **************************************************************************/
 bool Movie::FSetTransition(TRANS trans)
 {
-    AssertThis(0);
-    AssertIn(trans, 0, transLim);
-    AssertPo(Pscen(), 0);
-
-    if (!Pscen()->FSetTransition(trans))
-    {
-        return (fFalse);
-    }
-
-    SetDirty();
-    return (fTrue);
+    AssertThis(0); AssertPo(Pscen(), 0); AssertIn(trans, 0, transLim);
+    const auto services = _EditServices();
+    ThreeMMMovieEditRequest q = {};
+    q.transition = trans;
+    return three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_TRANSITION, &q, &services) != 0;
 }
 
 /***************************************************************************
@@ -4135,38 +3731,9 @@ bool Movie::FSetTransition(TRANS trans)
  **************************************************************************/
 bool Movie::FPasteActr(PActor pactr)
 {
-    AssertThis(0);
-    AssertPo(pactr, 0);
-    AssertPo(Pscen(), 0);
-
-    PMovieView pmvu;
-
-    pmvu = (PMovieView)PddgGet(0);
-    if (pmvu == pvNil)
-    {
-        return (fFalse);
-    }
-    AssertPo(pmvu, 0);
-
-    //
-    // Paste this actor in and select it.
-    //
-    if (!Pscen()->FPasteActr(pactr))
-    {
-        return (fFalse);
-    }
-
-    Pscen()->SelectActr(pactr);
-
-    //
-    // Positioning a pasted actor must translate all subroutes
-    //
-    pmvu->StartPlaceActor(fTrue);
-
-    SetDirty();
-    InvalViewsAndScb();
-
-    return (fTrue);
+    AssertThis(0); AssertPo(pactr, 0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    return three_mm_movie_paste_actor(pactr, &services) != 0;
 }
 
 /***************************************************************************
@@ -4182,47 +3749,9 @@ bool Movie::FPasteActr(PActor pactr)
  **************************************************************************/
 bool Movie::FPasteActrPath(PActor pactr)
 {
-    AssertThis(0);
-    AssertPo(pactr, 0);
-    AssertPo(Pscen(), 0);
-    AssertNilOrPo(Pscen()->PactrSelected(), 0);
-
-    PActor pactrDup;
-
-    // REVIEW SeanSe(seanse): This is wrong.  Move the undo stuff into
-    //     Actor::FPasteRte() and make Actor::FPasteRte into FPasteRteCore.
-    if (Pscen()->PactrSelected() == pvNil)
-    {
-        PushErc(ercSocNoActrSelected);
-        return (fFalse);
-    }
-
-    if (!Pscen()->PactrSelected()->FDup(&pactrDup))
-    {
-        return (fFalse);
-    }
-
-    //
-    // Paste this actor in and select it.
-    //
-    if (!Pscen()->PactrSelected()->FPasteRte(pactr))
-    {
-        ReleasePpo(&pactrDup);
-        return (fFalse);
-    }
-
-    if (!Pscen()->PactrSelected()->FCreateUndo(pactrDup))
-    {
-        Pscen()->PactrSelected()->Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return (fFalse);
-    }
-
-    SetDirty();
-    InvalViewsAndScb();
-    ReleasePpo(&pactrDup);
-
-    return (fTrue);
+    AssertThis(0); AssertPo(pactr, 0); AssertPo(Pscen(), 0);
+    const auto services = _EditServices();
+    return three_mm_movie_paste_route(pactr, &services) != 0;
 }
 
 /***************************************************************************

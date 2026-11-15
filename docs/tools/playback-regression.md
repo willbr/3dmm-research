@@ -8289,3 +8289,92 @@ Evidence: `tmp/c89-movie-save-{standalone,native-tests,sdl-release-tests,sdl-deb
 `tmp/c89-movie-save-original-capture-hashes.json`,
 `tmp/c89-movie-save-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-movie-save-capture-hashes-{before,after}.json`.
+
+### Movie roll call, actor edits and common undo (15 November 2026)
+
+`movie_rollcall.c` now owns row/name lookup, rename notification, browser flags,
+actor-ID publication, tag refresh and reference-count changes. Failed insertion
+closes the tag opened for its uncommitted row, fixing a reference leak in the
+original native path; its assigned actor ID and limit remain published on failure.
+Existing-row tag replacement closes the old owner before duplicating the new one.
+Shallow ChangeActrTag replacement retains its caller-managed ownership contract.
+
+`movie_edit.c` owns selection/placement sequencing, actor rotate/pull/scale/time/
+costume/sound dispatch, scene camera/pause/transition/sound dispatch, actor/path
+paste, background-driven scene creation and common undo registration/notification.
+Services call the existing C-backed Actor/Scene operations and retain native view,
+client, undo-object and list primitives. Path paste rereads selection after nested
+operations, including failed undo creation; it restores the snapshot only for that
+failure. New-scene background/undo failures remove the new scene after preserving
+their completed title/sound/mutation prefixes. Caption/text/template/material
+Movie transactions, composition and final C-only host/facade integration remain.
+
+The existing headless Movie save/load fixture captured the original native and
+SDL debug/release controllers before conversion. Sixteen scenarios record actor
+state/routes/events, roll-call names/rows/cache references, dirty flags and client/
+undo notifications. All three originals and final converted traces match 61,552
+bytes, FNV-1a `85C0C7B5`, SHA-256
+`9B5962814AE9C4099AFD8E7357474DB62AEC960D8507DAEA14CE80E184D1B92D`.
+The fixture enforces this fingerprint by default on Windows x64. Separate C-only
+fixtures verify failure ordering, tag cleanup, snapshot transfer, mutable path-
+paste selection, sound defaults and background rollback. No Marcus UI tests were
+added. Native happy paths and C service failures do not prove retail edit/failure
+equivalence.
+
+All twelve native/SDL debug/release trace comparisons pass: the new edit trace,
+29,440-byte Movie-save trace, 1,064-byte Movie-scene-control trace and 31,048-byte
+Scene-content trace retain their original bytes. All 106 standalone C, 143 selected
+native, 51 SDL release and 39 SDL debug checks pass. Both new C fixtures pass Clang
+strict C89 with warnings as errors and MSVC AddressSanitizer. All 51 CLI format
+baselines match. Builds and file-heavy checks ran serially; Marcus was stopped
+before rebuilding and relaunched afterward.
+
+The unchanged Studio VMM workflow passes all eight checks using the original
+blank VMM and local prop VXP, private settings/package stores and fresh processes.
+It verifies authoring/save/reopen actor state and pixels, ordinary 3MM output,
+per-movie applied sets, two-list package management, standalone install/apply/
+remove/save across restarts and unchanged reference inputs. Its report is
+`tmp/c89-movie-edit-vmm-workflow/run-ut6k4is2/report.json`. This remains Windows
+x64 evidence; other platforms, full retail/original-v3dmm edit parity and C-only
+host integration remain unverified.
+
+Before rebuilding, the source SDL/Marcus executables matched the preceding
+Movie-save captures. Final binaries remained fixed through all 21 fresh-process
+retail/SDL/Marcus captures (one repeat, no concurrent builds/tests). Final
+before/after SHA-256:
+
+- SDL release: `7895B1937EEE6B992A500FAF491890395547F112D9531CDE5ABBE28AEE547079`.
+- Marcus regression: `B1E4461CD7DADF154AC77FBAFB7917CB230062AB9BAB819727461BC3C46A33C7`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T042000Z-e95b1a1d` | `20261115T053209Z-e1c11c15` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T042118Z-25c90023` | `20261115T053328Z-0e871cb3` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T042433Z-9c09e905` | `20261115T053646Z-933628f1` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T042550Z-7d148573` | `20261115T053804Z-e1688d20` | three retail/SDL/Marcus playback |
+
+Original/final movie identities, suite integrity, all authored frame sequences,
+540 seek images and ordered playback image changes match each player's original
+suite. Playback comparison collapses only adjacent identical scene/frame/image
+samples. Actor-audio peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus); tone detection and first-scene-only contracts
+pass. Existing cross-player differences, single-repeat timing inconclusiveness
+and presentation-marker limits remain. This does not establish PCM identity or
+full audio/timing parity. Captures use a shared warm SDL package cache with private
+processes, settings and working movies; OS caching is uncontrolled.
+
+Six older task-generated raw Preview traces were compressed in place before
+capture to recover disk space; their content hashes remain unchanged. The existing
+retention tool keeps one complete media suite per comparison group and prunes
+superseded media after each suite. Source metadata and immutable database hashes
+remain available. No comparison assertions or integrity checks were weakened.
+
+Evidence: `tmp/c89-movie-edit-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
+`tmp/c89-movie-edit-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-edit-{save-final,scene-control-final,scene-final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-edit-trace-comparison.json`,
+`tmp/c89-movie-edit-{output-comparison,playback-comparison}.json`,
+`tmp/c89-movie-edit-vmm-workflow.log`, `tmp/c89-movie-edit-trace-compression.log`,
+`tmp/c89-movie-edit-original-capture-hashes.json`,
+`tmp/c89-movie-edit-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-movie-edit-capture-hashes-{before,after}.json`.

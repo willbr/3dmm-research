@@ -1384,6 +1384,59 @@ background-driven scene creation, composition and final C-only host/facade
 integration remain work. Evidence and coverage limits are recorded in
 `docs/tools/playback-regression.md`.
 
+### Movie roll-call ownership, actor editing and common undo
+
+`movie_rollcall.c` owns actor lookup, row/name queries, rename notification,
+browser classification, actor-ID publication, tag refresh and reference-count
+updates. Its native services read/write the existing C-owned roll-call table
+directly and marshal SDK strings/tags. Actor IDs remain assigned after failed
+insertion. Existing rows increment before tag refresh; different tags close the
+old owner before duplicating the new one. Rename and successful add always notify;
+removal notifies only when the reference count reaches zero. Last-reference
+deletion closes the tag before erasing the row. ChangeActrTag retains its shallow
+replacement contract, with ownership arranged by its caller.
+
+Failed insertion now closes the tag opened for its uncommitted row. The original
+native path leaked that cache reference. Successful behavior and the assigned-ID
+failure prefix remain unchanged. Opening a tag without copying is a must-succeed
+service, retaining the native diagnostic. Counter arithmetic uses explicit
+32-bit word wrapping through the shared C arithmetic helpers.
+
+`movie_edit.c` owns selected-actor queries, choose/insert/onstage control,
+rotation/scale/pull/time/costume/sound edit sequencing, camera/pause/transition/
+background-sound dispatch, actor/path paste, background-driven scene creation and
+common undo registration/notification. Underlying Actor/Scene operations already
+use the C controllers described above; native services provide typed operations,
+view placement, client notifications and undo factories/list primitives.
+
+Missing first views reject choose/paste before actor mutation. Offstage choice
+duplicates with reset, brings the actor onstage, selects it, refreshes roll call,
+starts placement, transfers the snapshot owner, then selects again and invalidates.
+Ordinary actor paste places all subroutes. Path paste duplicates without reset,
+rereads selection after nested operations, and restores only after undo creation
+fails; failed route application retains its own completed prefix. Zero squash
+does not edit or mark dirty. Time shifts use shared fixed arithmetic and update
+the latest undo frame only for a matching actor/time undo. Nullable sound/costume
+tags and tri-state flags retain their SDK meaning. Missing sound metadata is
+fetched selectively and released before Scene sound editing.
+
+Background-driven creation preserves cache/long-operation order, default-title
+publication, empty-scene overwrite, preview sound before undo creation, and new
+scene removal after background/undo failure. Completed prefixes are not rolled
+back implicitly. Common undo binds movie/scene/frame before committing and setting
+the client mode; an absent scene leaves the saved frame unchanged. ClearUndo
+clears the host list before publishing its disabled state. Native undo objects
+and list ownership remain temporary host representations.
+
+The existing headless Movie save/load fixture freezes native/SDL actor state,
+roll-call rows/names/cache references, dirty flags and client/undo notifications
+across sixteen scenarios. C-only tests cover failure sequencing, snapshot/ref
+transfer, roll-call append cleanup, selection changes during path paste, sound
+defaults and scene creation rollback. No Marcus UI tests were added. Movie
+caption/text/template/material transactions, composition and final facade/host
+integration remain work. Verification and retail coverage limits are recorded in
+`docs/tools/playback-regression.md`.
+
 ### Actor header, route and event persistence
 
 `actor_data.c` replaces the actor persistence policy formerly in native ActorData.

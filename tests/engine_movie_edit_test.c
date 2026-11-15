@@ -1,0 +1,900 @@
+/* Movie edit sequencing, placement ownership and undo failure contracts. */
+#include "three_mm/movie_edit.h"
+#include <stdio.h>
+#include <string.h>
+#define CHECK(x)                                                                                                       \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if (!(x))                                                                                                      \
+        {                                                                                                              \
+            fprintf(stderr, "line %d: %s\n", __LINE__, #x);                                                            \
+            return 1;                                                                                                  \
+        }                                                                                                              \
+    } while (0)
+enum
+{
+    FAIL_CACHE = 1,
+    FAIL_NEW_ACTOR,
+    FAIL_ADD,
+    FAIL_DUP,
+    FAIL_STAGE,
+    FAIL_APPLY,
+    FAIL_COMMIT,
+    FAIL_PASTE,
+    FAIL_UNDO,
+    FAIL_NEW_SCENE,
+    FAIL_BACKGROUND,
+    FAIL_NEW_UNDO,
+    FAIL_SOUND
+};
+enum
+{
+    VIEW = 100,
+    LOOKUP,
+    SELECT,
+    DUP,
+    RELEASE,
+    PLACE,
+    TRANSFER,
+    APPLY,
+    FRAME,
+    DIRTY,
+    INVALIDATE,
+    NUKED,
+    RESTORE,
+    MAKE_UNDO,
+    BEGIN,
+    END,
+    CACHE,
+    TITLE,
+    NEW_SCENE,
+    REMOVE_SCENE,
+    BACKGROUND,
+    NEW_UNDO,
+    CONFIGURE,
+    BIND_MOVIE,
+    BIND_SCENE,
+    BIND_FRAME,
+    COMMIT,
+    NOTIFY,
+    CLEAR,
+    UNDO_RELEASE,
+    SOUND_FETCH,
+    SOUND_VOLUME,
+    SOUND_STYLE,
+    SOUND_RELEASE,
+    ROLL_PUT,
+    ROLL_CHANGED
+};
+typedef struct Test Test;
+typedef struct Actor
+{
+    Test *test;
+    int id, refs, visible, value;
+    ThreeMMTag tag;
+} Actor;
+typedef struct Undo
+{
+    Test *test;
+    int refs, bound, scene, frame, actor, time, last;
+} Undo;
+struct Test
+{
+    ThreeMMMovieEditServices s;
+    ThreeMMMovieState data;
+    ThreeMMMovieScenes scenes;
+    ThreeMMRollCallActor row;
+    Actor actor, fresh, copy;
+    Actor *selected, *placement;
+    Undo undo;
+    int view, inScene, fail, selectedCalls, selectionCalls, frame, kind, actorCalls, sceneCalls;
+    int dirty, invalidates, bars, nuked, error, diagnostics, entire, resets, restore, placeCalls, undoCount;
+    int undoTypeCalls, undoTimeCalls, undoFrameCalls, notify, commits, clears, rowChanges;
+    int begin, end, cacheBackground, defaults, empty, newScene, removeScene, removedIndex, backgroundUndoable;
+    int soundEnabled, played, flushed, soundRefs, volumeCalls, styleCalls;
+    int switchSelection, undoOnFresh;
+    int events[128], eventCount;
+    ThreeMMMovieEditRequest request;
+};
+static void event(Test *t, int e)
+{
+    t->events[t->eventCount++] = e;
+}
+static void *selected(void *p)
+{
+    Test *t = p;
+    ++t->selectedCalls;
+    event(t, SELECT);
+    return t->selected;
+}
+static void *lookup(void *p, ThreeMMI32 id)
+{
+    Test *t = p;
+    event(t, LOOKUP);
+    return t->inScene && id == t->actor.id ? &t->actor : 0;
+}
+static void select_actor(void *p, void *a)
+{
+    Test *t = p;
+    t->selected = a;
+    ++t->selectionCalls;
+    event(t, SELECT);
+}
+static void *view(void *p)
+{
+    Test *t = p;
+    event(t, VIEW);
+    return t->view ? t : 0;
+}
+static void *new_actor(void *p, const ThreeMMTag *tag)
+{
+    Test *t = p;
+    if (t->fail == FAIL_NEW_ACTOR)
+        return 0;
+    t->fresh.refs = 1;
+    t->fresh.tag = *tag;
+    return &t->fresh;
+}
+static int visible(void *p)
+{
+    return ((Actor *)p)->visible;
+}
+static int onstage(void *p)
+{
+    Actor *a = p;
+    a->value = 444;
+    return a->test->fail != FAIL_STAGE;
+}
+static void *duplicate(void *p, int reset)
+{
+    Actor *a = p;
+    Test *t = a->test;
+    event(t, DUP);
+    t->resets = reset;
+    if (t->fail == FAIL_DUP)
+        return 0;
+    t->copy.refs = 1;
+    return &t->copy;
+}
+static void release(void *p)
+{
+    Actor *a = p;
+    --a->refs;
+    event(a->test, RELEASE);
+}
+static void restore(void *p, void *copy)
+{
+    Actor *a = p;
+    (void)copy;
+    ++a->test->restore;
+    a->value = 0;
+    event(a->test, RESTORE);
+}
+static int add_actor(void *p, void *a)
+{
+    Test *t = p;
+    if (t->fail == FAIL_ADD)
+        return 0;
+    ++((Actor *)a)->refs;
+    t->inScene = 1;
+    return 1;
+}
+static int remove_actor(void *p, ThreeMMI32 id)
+{
+    Test *t = p;
+    if (id != t->actor.id)
+        return 0;
+    t->selected = 0;
+    t->inScene = 0;
+    return t->fail != FAIL_APPLY;
+}
+static int apply_actor(void *p, int kind, const ThreeMMMovieEditRequest *q)
+{
+    Actor *a = p;
+    Test *t = a->test;
+    ++t->actorCalls;
+    t->kind = kind;
+    t->request = *q;
+    a->value = 555;
+    event(t, APPLY);
+    return t->fail != FAIL_APPLY;
+}
+static int apply_scene(void *p, int kind, const ThreeMMMovieEditRequest *q)
+{
+    Test *t = p;
+    ++t->sceneCalls;
+    t->kind = kind;
+    t->request = *q;
+    event(t, APPLY);
+    return t->fail != FAIL_APPLY;
+}
+static ThreeMMI32 frame(void *p)
+{
+    Test *t = p;
+    event(t, FRAME);
+    return t->frame;
+}
+static ThreeMMI32 undo_count(void *p)
+{
+    return ((Test *)p)->undoCount;
+}
+static void *last_undo(void *p)
+{
+    return &((Test *)p)->undo;
+}
+static int actor_undo(void *p)
+{
+    Undo *u = p;
+    ++u->test->undoTypeCalls;
+    return u->actor;
+}
+static int time_undo(void *p)
+{
+    Undo *u = p;
+    ++u->test->undoTimeCalls;
+    return u->time;
+}
+static void time_frame(void *p, ThreeMMI32 value)
+{
+    Undo *u = p;
+    ++u->test->undoFrameCalls;
+    u->last = value;
+}
+static void place(void *p, int entire)
+{
+    Test *t = p;
+    ++t->placeCalls;
+    t->entire = entire;
+    event(t, PLACE);
+}
+static void placement(void *p, void *owned)
+{
+    Test *t = p;
+    t->placement = owned;
+    event(t, TRANSFER);
+}
+static int paste_actor(void *p, void *a)
+{
+    Test *t = p;
+    (void)a;
+    return t->fail != FAIL_PASTE;
+}
+static int paste_route(void *p, void *source)
+{
+    Actor *a = p;
+    (void)source;
+    a->value = 777;
+    if (a->test->switchSelection)
+        a->test->selected = &a->test->fresh;
+    return a->test->fail != FAIL_PASTE;
+}
+static int make_undo(void *p, void *copy)
+{
+    Actor *a = p;
+    (void)copy;
+    event(a->test, MAKE_UNDO);
+    a->test->undoOnFresh = a == &a->test->fresh;
+    return a->test->fail != FAIL_UNDO;
+}
+static void long_op(void *p, int begin)
+{
+    Test *t = p;
+    if (begin)
+    {
+        ++t->begin;
+        event(t, BEGIN);
+    }
+    else
+    {
+        ++t->end;
+        event(t, END);
+    }
+}
+static int cache(void *p, const ThreeMMTag *tag, int background)
+{
+    Test *t = p;
+    (void)tag;
+    t->cacheBackground = background;
+    event(t, CACHE);
+    return t->fail != FAIL_CACHE;
+}
+static void title(void *p)
+{
+    Test *t = p;
+    ++t->defaults;
+    t->data.title.count = 7;
+    event(t, TITLE);
+}
+static int empty(void *p)
+{
+    return ((Test *)p)->empty;
+}
+static int new_scene(void *p, ThreeMMI32 index)
+{
+    Test *t = p;
+    ++t->newScene;
+    event(t, NEW_SCENE);
+    if (t->fail == FAIL_NEW_SCENE)
+        return 0;
+    t->scenes.open = t;
+    t->scenes.index = index;
+    ++t->data.sceneCount;
+    return 1;
+}
+static int remove_scene(void *p, ThreeMMI32 index)
+{
+    Test *t = p;
+    ++t->removeScene;
+    t->removedIndex = index;
+    --t->data.sceneCount;
+    event(t, REMOVE_SCENE);
+    return 1;
+}
+static int background(void *p, const ThreeMMTag *tag, int undoable)
+{
+    Test *t = p;
+    (void)tag;
+    t->backgroundUndoable = undoable;
+    event(t, BACKGROUND);
+    return t->fail != FAIL_BACKGROUND;
+}
+static void *new_undo(void *p)
+{
+    Test *t = p;
+    event(t, NEW_UNDO);
+    if (t->fail == FAIL_NEW_UNDO)
+        return 0;
+    t->undo.refs = 1;
+    return &t->undo;
+}
+static void configure(void *p, void *u, ThreeMMI32 index, const ThreeMMTag *tag)
+{
+    Test *t = p;
+    (void)u;
+    (void)tag;
+    t->removedIndex = index;
+    event(t, CONFIGURE);
+}
+static void release_undo(void *p)
+{
+    Undo *u = p;
+    --u->refs;
+    event(u->test, UNDO_RELEASE);
+}
+static int sounds(void *p)
+{
+    return ((Test *)p)->soundEnabled;
+}
+static void play(void *p)
+{
+    ++((Test *)p)->played;
+}
+static void flush(void *p)
+{
+    ++((Test *)p)->flushed;
+}
+static void *sound(void *p, const ThreeMMTag *tag)
+{
+    Test *t = p;
+    (void)tag;
+    event(t, SOUND_FETCH);
+    if (t->fail == FAIL_SOUND)
+        return 0;
+    ++t->soundRefs;
+    return t;
+}
+static ThreeMMI32 volume(void *p)
+{
+    Test *t = p;
+    ++t->volumeCalls;
+    event(t, SOUND_VOLUME);
+    return 83;
+}
+static ThreeMMI32 style(void *p)
+{
+    Test *t = p;
+    ++t->styleCalls;
+    event(t, SOUND_STYLE);
+    return 4;
+}
+static void release_sound(void *p)
+{
+    Test *t = p;
+    --t->soundRefs;
+    event(t, SOUND_RELEASE);
+}
+static void dirty(void *p)
+{
+    Test *t = p;
+    ++t->dirty;
+    event(t, DIRTY);
+}
+static void invalidate(void *p, int bars)
+{
+    Test *t = p;
+    ++t->invalidates;
+    t->bars = bars;
+    event(t, INVALIDATE);
+}
+static void nuked(void *p)
+{
+    Test *t = p;
+    ++t->nuked;
+    event(t, NUKED);
+}
+static void diagnostic(void *p, int issue)
+{
+    Test *t = p;
+    ++t->diagnostics;
+    t->error = issue;
+}
+static void bind_movie(void *p, void *u)
+{
+    Test *t = p;
+    ((Undo *)u)->bound = 1;
+    event(t, BIND_MOVIE);
+}
+static void bind_scene(void *p, ThreeMMI32 index)
+{
+    Undo *u = p;
+    u->scene = index;
+    event(u->test, BIND_SCENE);
+}
+static void bind_frame(void *p, ThreeMMI32 value)
+{
+    Undo *u = p;
+    u->frame = value;
+    event(u->test, BIND_FRAME);
+}
+static ThreeMMI32 scene_index(void *p)
+{
+    return ((Test *)p)->scenes.index;
+}
+static int commit(void *p, void *u)
+{
+    Test *t = p;
+    ++t->commits;
+    event(t, COMMIT);
+    if (t->fail == FAIL_COMMIT)
+        return 0;
+    ++((Undo *)u)->refs;
+    return 1;
+}
+static void clear(void *p)
+{
+    Test *t = p;
+    ++t->clears;
+    t->undo.refs = 0;
+    event(t, CLEAR);
+}
+static void notify(void *p, int value)
+{
+    Test *t = p;
+    t->notify = value;
+    event(t, NOTIFY);
+}
+static ThreeMMI32 row_count(void *p)
+{
+    (void)p;
+    return 1;
+}
+static void row(void *p, ThreeMMI32 i, ThreeMMRollCallActor *out)
+{
+    (void)i;
+    *out = ((Test *)p)->row;
+}
+static void put_row(void *p, ThreeMMI32 i, const ThreeMMRollCallActor *value)
+{
+    Test *t = p;
+    (void)i;
+    t->row = *value;
+    event(t, ROLL_PUT);
+}
+static ThreeMMI32 actor_id(void *p)
+{
+    return ((Actor *)p)->id;
+}
+static void set_id(void *p, ThreeMMI32 id)
+{
+    ((Actor *)p)->id = id;
+}
+static void actor_tag(void *p, ThreeMMTag *out)
+{
+    *out = ((Actor *)p)->tag;
+}
+static int same_tag(const ThreeMMTag *a, const ThreeMMTag *b)
+{
+    return a->sid == b->sid && a->cache == b->cache && a->type == b->type && a->number == b->number;
+}
+static void changed_row(void *p)
+{
+    Test *t = p;
+    ++t->rowChanges;
+    event(t, ROLL_CHANGED);
+}
+static void init(Test *t)
+{
+    ThreeMMMovieEditServices *s;
+    memset(t, 0, sizeof(*t));
+    t->actor.test = t->fresh.test = t->copy.test = t;
+    t->actor.id = 5;
+    t->actor.refs = 1;
+    t->actor.tag.sid = 2;
+    t->actor.tag.type = 1;
+    t->actor.tag.number = 1;
+    t->row.data.actor_id = 5;
+    t->row.data.reference_count = 1;
+    t->row.data.source_id = 2;
+    t->row.data.template_type = t->row.data.template_number = 1;
+    t->undo.test = t;
+    t->undo.actor = t->undo.time = 1;
+    t->undo.frame = 77;
+    t->selected = &t->actor;
+    t->scenes.open = t;
+    t->scenes.index = 2;
+    t->data.sceneCount = 3;
+    t->data.actors = t;
+    t->data.title.count = 4;
+    t->view = t->inScene = 1;
+    t->frame = 9;
+    s = &t->s;
+    s->context = t;
+    s->data = &t->data;
+    s->scenes = &t->scenes;
+    s->rollcall.context = t;
+    s->rollcall.data = &t->data;
+    s->rollcall.count = row_count;
+    s->rollcall.row = row;
+    s->rollcall.put = put_row;
+    s->rollcall.actor_id = actor_id;
+    s->rollcall.set_actor_id = set_id;
+    s->rollcall.actor_tag = actor_tag;
+    s->rollcall.same_tag = same_tag;
+    s->rollcall.changed = changed_row;
+    s->undo.context = t;
+    s->undo.bind_movie = bind_movie;
+    s->undo.bind_scene = bind_scene;
+    s->undo.bind_frame = bind_frame;
+    s->undo.scene_index = scene_index;
+    s->undo.frame = frame;
+    s->undo.commit = commit;
+    s->undo.clear = clear;
+    s->undo.notify = notify;
+    s->selected_actor = selected;
+    s->actor_from_id = lookup;
+    s->select_actor = select_actor;
+    s->first_view = view;
+    s->new_actor = new_actor;
+    s->actor_visible = visible;
+    s->core_onstage = onstage;
+    s->duplicate_actor = duplicate;
+    s->release_actor = release;
+    s->restore_actor = restore;
+    s->add_actor = add_actor;
+    s->remove_actor = remove_actor;
+    s->apply_actor = apply_actor;
+    s->apply_scene = apply_scene;
+    s->frame = frame;
+    s->undo_count = undo_count;
+    s->last_undo = last_undo;
+    s->actor_undo = actor_undo;
+    s->time_undo = time_undo;
+    s->time_undo_frame = time_frame;
+    s->place_actor = place;
+    s->placement_undo = placement;
+    s->paste_actor = paste_actor;
+    s->paste_route = paste_route;
+    s->create_actor_undo = make_undo;
+    s->long_op = long_op;
+    s->cache_tag = cache;
+    s->default_title = title;
+    s->empty_scene = empty;
+    s->new_scene = new_scene;
+    s->remove_scene = remove_scene;
+    s->background = background;
+    s->new_scene_undo = new_undo;
+    s->configure_scene_undo = configure;
+    s->release_undo = release_undo;
+    s->sounds_enabled = sounds;
+    s->play_sound = play;
+    s->flush_sound = flush;
+    s->fetch_sound = sound;
+    s->sound_volume = volume;
+    s->sound_style = style;
+    s->release_sound = release_sound;
+    s->dirty = dirty;
+    s->invalidate = invalidate;
+    s->actor_nuked = nuked;
+    s->diagnostic = diagnostic;
+}
+static int registration(void)
+{
+    Test t;
+    int current, fail;
+    for (current = 0; current <= 1; ++current)
+        for (fail = 0; fail <= 1; ++fail)
+        {
+            init(&t);
+            if (!current)
+                t.scenes.index = -1;
+            if (fail)
+                t.fail = FAIL_COMMIT;
+            CHECK(three_mm_movie_undo_add(&t.undo, &t.s.undo) == !fail);
+            CHECK(t.undo.bound && t.undo.scene == (current ? 2 : -1) && t.undo.frame == (current ? 9 : 77));
+            CHECK(t.notify == (fail ? THREE_MM_MOVIE_UNDO_DISABLED : THREE_MM_MOVIE_UNDO_READY));
+            CHECK(t.events[0] == BIND_MOVIE && t.events[1] == BIND_SCENE && t.events[t.eventCount - 2] == COMMIT &&
+                  t.events[t.eventCount - 1] == NOTIFY);
+            three_mm_movie_undo_clear(&t.s.undo);
+            CHECK(t.clears == 1 && t.notify == THREE_MM_MOVIE_UNDO_DISABLED && !t.undo.refs &&
+                  t.events[t.eventCount - 2] == CLEAR);
+        }
+    return 0;
+}
+static int choosing(void)
+{
+    Test t;
+    int fault;
+    init(&t);
+    t.scenes.open = 0;
+    CHECK(three_mm_movie_selected_actor(&t.s) == -1 && !t.selectedCalls);
+    init(&t);
+    t.selected = 0;
+    CHECK(three_mm_movie_selected_actor(&t.s) == -1);
+    init(&t);
+    CHECK(three_mm_movie_selected_actor(&t.s) == 5);
+    init(&t);
+    t.view = 0;
+    CHECK(!three_mm_movie_choose_actor(5, &t.s) && t.eventCount == 1 && t.events[0] == VIEW);
+    init(&t);
+    t.actor.visible = 1;
+    CHECK(three_mm_movie_choose_actor(5, &t.s) && t.selectionCalls == 1 && t.invalidates == 1 && !t.placeCalls &&
+          !t.dirty);
+    for (fault = 0; fault <= 2; ++fault)
+    {
+        init(&t);
+        t.fail = fault == 1 ? FAIL_DUP : fault == 2 ? FAIL_STAGE : 0;
+        CHECK(three_mm_movie_choose_actor(5, &t.s) == !fault);
+        CHECK(t.resets == 1 && !t.dirty);
+        if (fault)
+            CHECK(!t.copy.refs && !t.selectionCalls && !t.placeCalls && !t.invalidates);
+        else
+        {
+            CHECK(t.copy.refs == 1 && t.placement == &t.copy && t.selectionCalls == 2 && t.placeCalls == 1 &&
+                  !t.entire);
+            CHECK(t.row.data.reference_count == 2 && t.rowChanges == 1 && t.invalidates == 1);
+            release(t.placement);
+            CHECK(!t.copy.refs);
+        }
+        if (fault == 2)
+            CHECK(t.actor.value == 444); /* Core failure keeps its completed prefix. */
+    }
+    for (fault = 0; fault <= 2; ++fault)
+    {
+        init(&t);
+        t.inScene = 0;
+        t.fail = fault == 1 ? FAIL_NEW_ACTOR : fault == 2 ? FAIL_ADD : 0;
+        CHECK(three_mm_movie_choose_actor(5, &t.s) == !fault);
+        CHECK(t.fresh.refs == !fault && !t.dirty && !t.invalidates && t.placeCalls == !fault);
+        if (!fault)
+        {
+            CHECK(t.fresh.id == 5);
+            release(&t.fresh);
+            CHECK(!t.fresh.refs);
+        }
+    }
+    init(&t);
+    t.inScene = 0;
+    CHECK(!three_mm_movie_choose_actor(6, &t.s) && !t.fresh.refs && !t.placeCalls);
+    return 0;
+}
+static int actor_edits(void)
+{
+    Test t;
+    ThreeMMMovieEditRequest q;
+    int kind, fail, type;
+    memset(&q, 0, sizeof(q));
+    q.factor = 49152;
+    q.frame = 17;
+    q.custom = 2;
+    q.loop = 2;
+    for (kind = THREE_MM_MOVIE_EDIT_ROTATE; kind <= THREE_MM_MOVIE_EDIT_REMOVE; ++kind)
+        for (fail = 0; fail <= 1; ++fail)
+        {
+            init(&t);
+            if (fail)
+                t.fail = FAIL_APPLY;
+            CHECK(three_mm_movie_edit_actor(kind, &q, &t.s) == !fail);
+            CHECK(t.dirty == (!fail && kind != THREE_MM_MOVIE_EDIT_ACTOR_SOUND));
+            CHECK(t.invalidates == t.dirty && t.nuked == (!fail && kind == THREE_MM_MOVIE_EDIT_REMOVE));
+            if (t.invalidates)
+                CHECK(t.bars == (kind == THREE_MM_MOVIE_EDIT_SCALE || kind == THREE_MM_MOVIE_EDIT_REMOVE));
+            if (kind == THREE_MM_MOVIE_EDIT_SQUASH)
+                CHECK(t.request.pull[0] == 49152 && t.request.pull[1] == 87381 && t.request.pull[2] == 49152);
+            if (kind == THREE_MM_MOVIE_EDIT_TIME)
+                CHECK(t.request.shift == 8 && t.events[0] == FRAME && t.events[1] == SELECT);
+            if (kind == THREE_MM_MOVIE_EDIT_ACTOR_SOUND)
+                CHECK(!t.request.tag && t.request.loop == 2);
+            if (fail && kind != THREE_MM_MOVIE_EDIT_REMOVE)
+                CHECK(t.actor.value == 555);
+        }
+    init(&t);
+    q.factor = 0;
+    CHECK(three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_SQUASH, &q, &t.s) && !t.actorCalls && !t.dirty &&
+          t.selectedCalls == 1);
+    for (type = 0; type < 4; ++type)
+    {
+        init(&t);
+        t.undoCount = 1;
+        t.undo.actor = type & 1;
+        t.undo.time = (type & 2) != 0;
+        CHECK(three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_TIME, &q, &t.s));
+        CHECK(t.undoTypeCalls == 1 && t.undoTimeCalls == !!(type & 1) && t.undoFrameCalls == (type == 3));
+        if (type == 3)
+            CHECK(t.undo.last == 17);
+    }
+    init(&t);
+    t.frame = 2147483647;
+    q.frame = (-2147483647 - 1);
+    CHECK(three_mm_movie_edit_actor(THREE_MM_MOVIE_EDIT_TIME, &q, &t.s) && t.request.shift == 1);
+    init(&t);
+    t.selected = 0;
+    CHECK(!three_mm_movie_onstage(-1, &t.s) && t.error == THREE_MM_MOVIE_EDIT_NO_ACTOR && !t.selectionCalls);
+    init(&t);
+    CHECK(!three_mm_movie_onstage(99, &t.s) && !t.selected && t.selectionCalls == 1 &&
+          t.error == THREE_MM_MOVIE_EDIT_NO_ACTOR);
+    init(&t);
+    CHECK(three_mm_movie_onstage(5, &t.s) && t.dirty && t.invalidates && !t.bars && t.selectionCalls == 1);
+    return 0;
+}
+static int scene_edits(void)
+{
+    Test t;
+    ThreeMMMovieEditRequest q;
+    ThreeMMTag tag;
+    int kind, fail, missing;
+    memset(&q, 0, sizeof(q));
+    q.volume = 101;
+    q.style = 3;
+    q.queue = 2;
+    for (kind = THREE_MM_MOVIE_EDIT_CAMERA; kind <= THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND; ++kind)
+        for (fail = 0; fail <= 1; ++fail)
+        {
+            init(&t);
+            if (fail)
+                t.fail = FAIL_APPLY;
+            CHECK(three_mm_movie_edit_scene(kind, &q, &t.s) == !fail);
+            CHECK(t.dirty == (!fail && kind != THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND));
+            CHECK(t.invalidates == (!fail && kind == THREE_MM_MOVIE_EDIT_CAMERA));
+        }
+    memset(&tag, 0, sizeof(tag));
+    tag.sid = 2;
+    q.tag = &tag;
+    for (missing = 0; missing < 4; ++missing)
+    {
+        init(&t);
+        q.volume = (missing & 1) ? -1 : 101;
+        q.style = (missing & 2) ? 0 : 3;
+        CHECK(three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s));
+        CHECK(t.request.volume == ((missing & 1) ? 83 : 101) && t.request.style == ((missing & 2) ? 4 : 3));
+        CHECK(t.volumeCalls == !!(missing & 1) && t.styleCalls == !!(missing & 2) && !t.soundRefs && !t.dirty &&
+              t.request.queue == 2);
+        CHECK(q.volume == ((missing & 1) ? -1 : 101) && q.style == ((missing & 2) ? 0 : 3));
+        if (missing)
+            CHECK(t.events[t.eventCount - 2] == SOUND_RELEASE && t.events[t.eventCount - 1] == APPLY);
+    }
+    init(&t);
+    t.fail = FAIL_SOUND;
+    q.volume = -1;
+    CHECK(!three_mm_movie_edit_scene(THREE_MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s) && !t.sceneCalls && !t.soundRefs &&
+          !t.dirty);
+    return 0;
+}
+static int pasting(void)
+{
+    Test t;
+    int fault;
+    for (fault = 0; fault <= 3; ++fault)
+    {
+        init(&t);
+        t.fail = fault == 1 ? FAIL_DUP : fault == 2 ? FAIL_PASTE : fault == 3 ? FAIL_UNDO : 0;
+        CHECK(three_mm_movie_paste_route(&t.fresh, &t.s) == !fault);
+        CHECK(!t.copy.refs && t.restore == (fault == 3) && t.dirty == !fault && t.invalidates == !fault);
+        if (fault == 2)
+            CHECK(t.actor.value == 777);
+        if (fault == 3)
+            CHECK(t.actor.value == 0 && t.events[t.eventCount - 2] == RESTORE && t.events[t.eventCount - 1] == RELEASE);
+    }
+    init(&t);
+    t.selected = 0;
+    CHECK(!three_mm_movie_paste_route(&t.fresh, &t.s) && t.error == THREE_MM_MOVIE_EDIT_NO_ACTOR);
+    init(&t);
+    t.view = 0;
+    CHECK(!three_mm_movie_paste_actor(&t.actor, &t.s) && !t.selectionCalls && !t.dirty);
+    init(&t);
+    t.fail = FAIL_PASTE;
+    CHECK(!three_mm_movie_paste_actor(&t.actor, &t.s) && !t.selectionCalls && !t.placeCalls);
+    init(&t);
+    CHECK(three_mm_movie_paste_actor(&t.actor, &t.s) && t.selectionCalls == 1 && t.entire && t.dirty && t.bars &&
+          t.actor.refs == 1);
+    init(&t);
+    t.switchSelection = 1;
+    t.fail = FAIL_UNDO;
+    t.fresh.value = 123;
+    CHECK(!three_mm_movie_paste_route(&t.fresh, &t.s) && t.undoOnFresh && t.actor.value == 777 && t.fresh.value == 0 &&
+          !t.copy.refs && !t.dirty);
+    return 0;
+}
+static int insertion(void)
+{
+    Test t;
+    ThreeMMTag tag;
+    int fault;
+    memset(&tag, 0, sizeof(tag));
+    for (fault = 0; fault <= 3; ++fault)
+    {
+        init(&t);
+        t.fail = fault == 1 ? FAIL_CACHE : fault == 2 ? FAIL_NEW_ACTOR : fault == 3 ? FAIL_ADD : 0;
+        CHECK(three_mm_movie_insert_actor(&tag, &t.s) == !fault);
+        CHECK(t.begin == 1 && t.end == 1 && t.events[0] == BEGIN && t.events[1] == CACHE && t.events[2] == END &&
+              !t.cacheBackground);
+        CHECK(t.fresh.refs == !fault && t.dirty == !fault && t.invalidates == !fault);
+        if (!fault)
+            release(&t.fresh);
+    }
+    return 0;
+}
+static int backgrounds(void)
+{
+    Test t;
+    ThreeMMTag tag;
+    int fault, enabled;
+    memset(&tag, 0, sizeof(tag));
+    for (enabled = 0; enabled <= 1; ++enabled)
+        for (fault = 0; fault < 6; ++fault)
+        {
+            init(&t);
+            t.soundEnabled = enabled;
+            t.fail = fault == 1   ? FAIL_CACHE
+                     : fault == 2 ? FAIL_NEW_SCENE
+                     : fault == 3 ? FAIL_BACKGROUND
+                     : fault == 4 ? FAIL_NEW_UNDO
+                     : fault == 5 ? FAIL_COMMIT
+                                  : 0;
+            CHECK(three_mm_movie_add_background(&tag, &t.s) == !fault);
+            CHECK(t.begin == 1 && t.end == 1 && t.cacheBackground && t.dirty == !fault && t.invalidates == !fault);
+            CHECK(t.newScene == (fault != 1) && t.removeScene == (fault >= 3));
+            CHECK(t.played == (enabled && (fault == 0 || fault >= 4)) &&
+                  t.flushed == (!enabled && (fault == 0 || fault >= 4)));
+            CHECK(t.undo.refs == !fault && !t.clears);
+            if (fault >= 3)
+                CHECK(t.removedIndex == 3);
+            if (fault == 5)
+                CHECK(t.notify == THREE_MM_MOVIE_UNDO_DISABLED && t.events[t.eventCount - 2] == UNDO_RELEASE &&
+                      t.events[t.eventCount - 1] == REMOVE_SCENE);
+            if (!fault)
+                CHECK(t.undo.scene == 3 && t.undo.frame == 9 && t.bars && !t.backgroundUndoable);
+        }
+    init(&t);
+    t.scenes.open = 0;
+    t.scenes.index = -1;
+    t.data.title.count = 0;
+    t.fail = FAIL_NEW_SCENE;
+    CHECK(!three_mm_movie_add_background(&tag, &t.s) && t.defaults == 1 && t.data.title.count == 7 && !t.removeScene);
+    init(&t);
+    t.empty = 1;
+    CHECK(three_mm_movie_add_background(&tag, &t.s) && t.backgroundUndoable && !t.newScene && !t.undo.refs &&
+          !t.played && t.dirty);
+    init(&t);
+    t.empty = 1;
+    t.fail = FAIL_BACKGROUND;
+    CHECK(!three_mm_movie_add_background(&tag, &t.s) && !t.removeScene &&
+          t.error == THREE_MM_MOVIE_EDIT_BACKGROUND_FAILED && !t.dirty);
+    return 0;
+}
+int main(void)
+{
+    if (registration() || choosing() || actor_edits() || scene_edits() || pasting() || insertion() || backgrounds())
+        return 1;
+    puts("Movie actor/scene edits, placement, sound defaults and undo control passed");
+    return 0;
+}

@@ -12,6 +12,7 @@ class MovieSaveProbe
     {
         return &movie->_data;
     }
+    static bool AutosaveDirty(PMovie movie) { return movie->_save.autosaveDirty != 0; }
     static void Record(PMovie movie, std::vector<LegacyLong> &trace, int operation, bool result)
     {
         Filename path;

@@ -28,6 +28,7 @@
 #include "three_mm/movie_sound.h"
 #include "three_mm/movie_scene.h"
 #include "three_mm/movie_save.h"
+#include "three_mm/movie_edit.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -640,6 +641,9 @@ class Movie : public Movie_PAR
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
     ThreeMMMovieSoundServices _SoundServices();
     ThreeMMMovieSceneServices _SceneServices();
+    ThreeMMMovieRollCallServices _RollCallServices();
+    ThreeMMMovieUndoServices _UndoServices();
+    ThreeMMMovieEditServices _EditServices();
     struct SaveHost;
     ThreeMMMovieSaveServices _SaveServices(SaveHost *);
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
