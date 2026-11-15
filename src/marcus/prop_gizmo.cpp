@@ -59,7 +59,8 @@ MarcusPropGizmo *prop_gizmo_create(SDL_Window *window, SDL_Renderer *renderer)
     auto &style = ImGui::GetStyle();
     style.WindowPadding = ImVec2(0, 0);
     style.WindowBorderSize = 0;
-    style.WindowMinSize = ImVec2(0, 0);
+    // Keep clipped position fields compact while satisfying ImGui's >=1 minimum.
+    style.WindowMinSize = ImVec2(1, 1);
     style.FrameRounding = 2;
     style.Colors[ImGuiCol_FrameBg] = ImVec4(.15f, .18f, .21f, 1);
     gizmo->platform = ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
