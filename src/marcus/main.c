@@ -1918,6 +1918,54 @@ static void mouse_down(App *app, float x, float y, int button)
     else if (inside_movie(app, x, y) || inside_work(app, x, y))
         pick_object(app, x, y);
 }
+static void undo_edit(App *app)
+{
+    MarcusObject selected, object;
+    char title[2200];
+    int had_selection, index;
+    if (!marcus_can_undo(app->player)) return;
+    had_selection = marcus_object(app->player, app->selected, &selected);
+    app->playing = app->continue_click = 0;
+    release_camera(app);
+    finish_movie_scrub(app);
+    scene_organiser_close(app->scene_organiser);
+    if (!marcus_undo(app->player))
+    {
+        fail(app, marcus_error(app->player));
+        return;
+    }
+    memset(&app->info, 0, sizeof(app->info));
+    refresh(app);
+    app->modified = marcus_modified(app->player);
+    app->blank_movie = !app->loaded && !app->movie[0];
+    app->selected = app->selected_sound = app->selected_sound_track = -1;
+    if (had_selection)
+        for (index = 0; index < app->info.object_count; ++index)
+            if (marcus_object(app->player, index, &object) && object.actor_id == selected.actor_id)
+            {
+                app->selected = index;
+                break;
+            }
+    app->row_scroll = app->object_scroll = app->sound_scroll = app->both_scroll = 0;
+    app->properties_scroll = 0;
+    app->animation_hint[0] = 0;
+    memset(&app->playback, 0, sizeof(app->playback));
+    memset(&app->work_image, 0, sizeof(app->work_image));
+    memset(&app->movie_image, 0, sizeof(app->movie_image));
+    SDL_DestroyTexture(app->picture);
+    SDL_DestroyTexture(app->movie_picture);
+    app->picture = app->movie_picture = NULL;
+    if (app->loaded)
+    {
+        fit_timeline(app);
+        if (app->selected >= 0) scroll_objects(app, app->selected);
+    }
+    if (app->movie_only) editor_view(app);
+    app->dirty = app->movie_dirty = 1;
+    SDL_snprintf(title, sizeof(title), "Marcus - %s%s", app->movie[0] ? app->movie : "Untitled movie",
+                 app->modified ? " (unsaved changes)" : "");
+    SDL_SetWindowTitle(app->window, title);
+}
 static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
 {
     long step;
@@ -1985,6 +2033,12 @@ static void key_down(App *app, SDL_Keycode key, SDL_Keymod modifiers)
             open_rendering_settings(app, 0);
         else
             open_settings(app);
+        return;
+    }
+    if (key == SDLK_Z && (shortcuts_modifiers(modifiers) == MARCUS_MOD_CTRL ||
+                          shortcuts_modifiers(modifiers) == MARCUS_MOD_GUI))
+    {
+        undo_edit(app);
         return;
     }
     action = shortcuts_match(&app->shortcuts, key, modifiers);
@@ -3869,7 +3923,7 @@ static void draw(App *app)
     shortcuts_label(&app->shortcuts.binding[MARCUS_PLAY], play, sizeof(play));
     shortcuts_label(&app->shortcuts.binding[MARCUS_VIEW], view, sizeof(view));
     SDL_snprintf(hint, sizeof(hint),
-                 "%s / %s  Frame    %s / %s  Scene    %s  Play / pause    %s  View    Ctrl+,  Settings", previous, next,
+                 "%s / %s  Frame    %s / %s  Scene    %s  Play / pause    %s  View    Ctrl+Z  Undo    Ctrl+,  Settings", previous, next,
                  previous_scene, next_scene, play, view);
     app->ui.hint = NULL;
     ui_fill(&app->ui, 0, 0, (float)app->width, (float)app->height, BG);

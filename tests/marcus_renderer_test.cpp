@@ -51,6 +51,9 @@ int main(int argc, char **argv)
 
     MarcusShortcuts shortcuts = {}, loaded = {};
     shortcuts_defaults(&shortcuts);
+    CHECK(shortcuts_reserved(SDLK_Z, MARCUS_MOD_CTRL));
+    CHECK(shortcuts_reserved(SDLK_Z, MARCUS_MOD_GUI));
+    CHECK(!shortcuts_reserved(SDLK_Z, 0));
     CHECK(!shortcuts.debug_overlay);
     CHECK(!shortcuts.playback_rate && !shortcuts.playback_modifier);
     CHECK(!shortcuts.movie_debug_overlay && !shortcuts.work_debug_overlay);

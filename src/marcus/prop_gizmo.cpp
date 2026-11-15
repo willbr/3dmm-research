@@ -88,6 +88,10 @@ int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event)
     if (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_ESCAPE && gizmo->editing)
     { gizmo->cancel = true; return 1; }
     const auto &io = ImGui::GetIO();
+    if (event->type == SDL_EVENT_KEY_DOWN && event->key.scancode == SDL_SCANCODE_Z &&
+        (event->key.mod & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) &&
+        !(event->key.mod & (SDL_KMOD_SHIFT | SDL_KMOD_ALT)) && gizmo->editing && !io.WantTextInput)
+    { gizmo->cancel = true; return 1; }
     if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP || event->type == SDL_EVENT_TEXT_INPUT)
         return gizmo->editing || io.WantCaptureKeyboard;
     if (event->type == SDL_EVENT_MOUSE_WHEEL) return gizmo->editing != 0;

@@ -235,6 +235,12 @@ extern "C"
      * movie is overwritten. Also creates the first scene of an empty player. */
     int marcus_add_scene(MarcusPlayer *player, unsigned long background, const char *resources, const char *content_directory);
     int marcus_reload(MarcusPlayer *player, const char *resources, const char *content_directory);
+    /* Up to 64 completed edits. Restores the pre-edit scene/frame and movie,
+     * keeping inspection framing. Open/new movie clears history; reload retains it.
+     * Returns 0 on failure or when history is empty. Source files are untouched. */
+    int marcus_can_undo(const MarcusPlayer *player);
+    int marcus_modified(const MarcusPlayer *player);
+    int marcus_undo(MarcusPlayer *player);
     typedef struct MarcusProp
     {
         char name[192];

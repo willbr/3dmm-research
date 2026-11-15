@@ -646,6 +646,63 @@ int main(int argc, char **argv)
     added_index = marcus_add_prop(player, prop_asset.chunk);
     CHECK(added_index == 0 && marcus_object(player, added_index, &later) && later.prop && later.visible);
     CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image));
+    /* Undo retains private leases, including ZIP members, and records completed
+     * edits only. Each call restores the scene/frame where the edit began. */
+    CHECK(marcus_can_undo(player) && marcus_modified(player));
+    CHECK(marcus_undo(player) && marcus_info(player, &info) && info.object_count == 0 && info.scene_count == 1);
+    CHECK(marcus_undo(player) && !marcus_info(player, &info) && !marcus_can_undo(player) && !marcus_modified(player));
+    CHECK(!marcus_undo(player));
+    CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]) && marcus_undo(player));
+    CHECK(!marcus_info(player, &info) && !marcus_can_undo(player));
+    CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(!marcus_can_undo(player) && !marcus_modified(player));
+    CHECK(marcus_object(player, 1, &move_before));
+    CHECK(marcus_render(player, 160, 90, 1, 0, 0, 1, &image));
+    free(pixels);
+    bytes = (size_t)image.pitch * image.height;
+    pixels = (unsigned char *)malloc(bytes);
+    CHECK(pixels);
+    memcpy(pixels, image.rgba, bytes);
+    CHECK(marcus_preview_prop_position(player, 1, move_before.x + 2, move_before.y, move_before.z));
+    CHECK(!marcus_can_undo(player) && !marcus_modified(player));
+    CHECK(marcus_preview_prop_position(player, 1, move_before.x, move_before.y, move_before.z));
+    CHECK(marcus_move_prop(player, 1, move_before.x, move_before.y, move_before.z));
+    CHECK(marcus_add_prop(player, 0xffffffffUL) < 0 && !marcus_can_undo(player));
+    CHECK(marcus_match_camera(player, 480, 270, &camera));
+    CHECK(marcus_render(player, 480, 270, 0, 25, -10, 1.2f, &image));
+    panned = image.projection;
+    CHECK(marcus_move_prop(player, 1, move_before.x + 3, move_before.y, move_before.z));
+    CHECK(marcus_move_prop(player, 1, move_before.x + 8, move_before.y, move_before.z));
+    CHECK(marcus_can_undo(player) && marcus_modified(player));
+    CHECK(marcus_undo(player) && marcus_info(player, &info) && info.frame == 10 && info.scene == 0);
+    CHECK(marcus_object(player, 1, &later) && fabs(later.x - move_before.x - 3) < .0001);
+    CHECK(marcus_render(player, 480, 270, 0, 25, -10, 1.2f, &image));
+    for (index = 0; index < 12; ++index) CHECK(fabs(image.projection.transform[index] - panned.transform[index]) < .001);
+    CHECK(marcus_modified(player) && marcus_can_undo(player));
+    CHECK(marcus_reload(player, argv[2], argv[3]) && marcus_can_undo(player) && marcus_modified(player));
+    CHECK(marcus_undo(player) && !marcus_can_undo(player) && !marcus_modified(player));
+    CHECK(marcus_object(player, 1, &later) && later.chunk == move_before.chunk && later.x == move_before.x &&
+          later.y == move_before.y && later.z == move_before.z);
+    CHECK(marcus_render(player, 160, 90, 1, 0, 0, 1, &image) && !memcmp(pixels, image.rgba, bytes));
+    added_index = marcus_add_prop(player, prop_asset.chunk);
+    CHECK(added_index >= 0 && marcus_set_scene_camera(player, 1));
+    CHECK(marcus_add_scene(player, background.chunk, argv[2], argv[3]));
+    CHECK(marcus_undo(player) && marcus_info(player, &info) && info.scene_count == 2 && info.scene == 0 &&
+          info.frame == 10 && info.object_count == 5 && info.camera == 1);
+    CHECK(marcus_select_scene(player, 1) && marcus_seek(player, 20)); /* Navigation is not an undo step. */
+    CHECK(!marcus_set_scene_camera(player, 0xffffffffUL)); /* Failed edits do not consume an undo step. */
+    CHECK(marcus_undo(player) && marcus_info(player, &info) && info.scene == 0 && info.frame == 10 && info.camera == 0);
+    CHECK(marcus_object(player, added_index, &later) && later.visible && marcus_modified(player));
+    CHECK(marcus_undo(player) && marcus_info(player, &info) && info.object_count == 4);
+    CHECK(!marcus_can_undo(player) && !marcus_modified(player));
+    CHECK(marcus_render(player, 160, 90, 1, 0, 0, 1, &image) && !memcmp(pixels, image.rgba, bytes));
+    CHECK(marcus_add_prop(player, prop_asset.chunk) >= 0);
+    CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && !marcus_can_undo(player) && !marcus_modified(player));
+    CHECK(marcus_open(player, argv[5], argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(marcus_add_prop(player, prop_asset.chunk) >= 0 && marcus_reload(player, argv[2], argv[3]));
+    CHECK(marcus_undo(player) && marcus_info(player, &info) && info.object_count == 4 && info.frame == 10);
+    CHECK(marcus_render(player, 160, 90, 1, 0, 0, 1, &image) && !memcmp(pixels, image.rgba, bytes));
+    CHECK(!marcus_can_undo(player) && !marcus_modified(player));
     marcus_destroy(player);
     free(pixels);
     puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "

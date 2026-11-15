@@ -91,6 +91,16 @@ struct MarcusPlayer
     bool finished = false;
     bool inspectionMatched = false;
     bool preserveEditFraming = false;
+    unsigned internalOpenDepth = 0;
+    bool modified = false;
+    struct UndoState
+    {
+        std::shared_ptr<MarcusMovieFile> file;
+        int scene;
+        long frame;
+        bool modified;
+    };
+    std::vector<UndoState> undo;
     float inspectionRoll = 0, inspectionFov = 45;
     std::map<std::int32_t, std::string> names;
     char error[1024] = {};
@@ -102,6 +112,45 @@ struct MarcusPlayer
     // Cancel/join before releasing movie/content leases and the live preview.
     std::unique_ptr<MarcusTimingJob> timingJob;
 };
+namespace
+{
+// Internal reopens retain history; ordinary opens start a new document session.
+struct KeepHistory
+{
+    MarcusPlayer &player;
+    explicit KeepHistory(MarcusPlayer &value) : player(value) { ++player.internalOpenDepth; }
+    ~KeepHistory() { --player.internalOpenDepth; }
+};
+struct EditHistory : KeepHistory
+{
+    MarcusPlayer::UndoState before;
+    explicit EditHistory(MarcusPlayer &value) : KeepHistory(value),
+        before{value.timingInput, value.selected, value.selected < 0 ? 0 : value.preview.Info().currentFrame, value.modified}
+    {
+        // Reserve before replacing the live document, so recording success cannot allocate.
+        player.undo.reserve(player.undo.size() + 1);
+    }
+    void Commit()
+    {
+        if (player.undo.size() == 64) player.undo.erase(player.undo.begin());
+        player.undo.push_back(std::move(before));
+        player.modified = true;
+    }
+};
+MarcusMovieInput &PrepareInput(MarcusMovieInput &input, const std::shared_ptr<MarcusMovieFile> &file)
+{
+    input.Open(file->path.u8string());
+    // Materialize a new wrapper: never make a retained history lease point to itself.
+    auto prepared = input.Materialize(0);
+    prepared->origin = file;
+    prepared->contentOrigin = file->contentOrigin;
+    prepared->fonts = file->fonts;
+    prepared->fontFiles = file->fontFiles;
+    prepared->fontDirectory = file->fontDirectory;
+    input.prepared = std::move(prepared);
+    return input;
+}
+}
 bool MarcusWriteTiming(MarcusPlayer *player, std::ostream &output)
 {
     return player && player->soundTimeline.Size() == player->scenes.size() && player->soundTimeline.Write(output);
@@ -527,6 +576,7 @@ extern "C"
         return Guard(player, [&](MM::Error &error) {
             auto original = player->timingInput;
             if (!original) return false;
+            KeepHistory history(*player);
             const auto scene = player->selected;
             MarcusMovieInput input;
             input.Open(original->path.u8string());
@@ -539,6 +589,50 @@ extern "C"
             input.prepared = file;
             if (!marcus_open_input(player, &input, 0, resources, directory) || !marcus_select_scene(player, scene))
             { error.message = player->error; return false; }
+            return true;
+        });
+    }
+    int marcus_can_undo(const MarcusPlayer *player) { return player && !player->undo.empty(); }
+    int marcus_modified(const MarcusPlayer *player) { return player && player->modified; }
+    int marcus_undo(MarcusPlayer *player)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (player->undo.empty()) return false;
+            const auto before = player->undo.back();
+            KeepHistory history(*player);
+            if (before.file)
+            {
+                MarcusMovieInput input;
+                PrepareInput(input, before.file);
+                const auto resources = player->timingResources, directory = player->timingContent;
+                struct Restore { bool &flag; bool value; ~Restore() { flag = value; } } restore{
+                    player->preserveEditFraming, player->preserveEditFraming};
+                player->preserveEditFraming = true;
+                if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
+                    !marcus_select_scene_keep_view(player, before.scene) || !marcus_seek(player, before.frame))
+                { error.message = player->error; return false; }
+            }
+            else
+            {
+                // Undoing the first scene returns an untitled movie to its empty state.
+                player->timingJob.reset();
+                player->playback.Stop();
+                player->asmRenderer.reset();
+                player->preview.Close();
+                player->content.reset();
+                player->timingInput.reset();
+                player->selected = player->orbitObject = player->movieImageScene = -1;
+                player->scenes.clear(); player->sceneInfo.clear(); player->objects.clear();
+                player->propPreviews.clear(); player->animations.clear(); player->names.clear();
+                player->sounds.clear(); player->soundTracks.clear(); player->soundCues.clear();
+                player->soundTimeline.Clear(); player->waveforms.Clear();
+                player->image = {}; player->thumbnail = {}; player->movieImage = {};
+                player->inspectionMatched = player->timingStarted = player->timingFailed = player->finished = false;
+                player->restoreAudio = true;
+                ++player->document;
+            }
+            player->modified = before.modified;
+            player->undo.pop_back();
             return true;
         });
     }
@@ -594,6 +688,7 @@ extern "C"
             auto file = MarcusAppendProp(player->content->movie, player->timingInput,
                 std::filesystem::u8path(player->timingContent) / "tmpls.3cn", player->scenes[scene].number,
                 frame, chunk, found->name, point, actorId);
+            EditHistory history(*player);
             MarcusMovieInput input;
             input.Open(file->path.u8string());
             auto materialized = input.Materialize(0);
@@ -608,7 +703,7 @@ extern "C"
                 !marcus_select_scene(player, scene) || !marcus_seek(player, frame))
             { error.message = player->error; return false; }
             for (std::size_t index = 0; index < player->objects.size(); ++index)
-                if (player->objects[index].actorId == actorId) { result = static_cast<int>(index); return true; }
+                if (player->objects[index].actorId == actorId) { result = static_cast<int>(index); history.Commit(); return true; }
             error.message = "The new prop could not be selected.";
             return false;
         });
@@ -653,6 +748,7 @@ extern "C"
             const auto scene = player->selected;
             const auto frame = player->preview.Info().currentFrame;
             auto file = MarcusMoveProp(player->content->movie, player->timingInput, player->scenes[scene].number, before.chunk, delta);
+            EditHistory history(*player);
             MarcusMovieInput input;
             input.Open(file->path.u8string());
             auto materialized = input.Materialize(0);
@@ -668,6 +764,7 @@ extern "C"
             if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
                 !marcus_select_scene_keep_view(player, scene) || !marcus_seek(player, frame))
             { error.message = player->error; return false; }
+            history.Commit();
             return true;
         });
     }
@@ -680,6 +777,7 @@ extern "C"
             const auto frame = player->preview.Info().currentFrame;
             auto file = MarcusSetSceneCamera(player->content->movie, player->timingInput,
                 player->scenes[scene].number, frame, camera);
+            EditHistory history(*player);
             MarcusMovieInput input;
             input.Open(file->path.u8string());
             auto materialized = input.Materialize(0);
@@ -693,6 +791,7 @@ extern "C"
             if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
                 !marcus_select_scene(player, scene) || !marcus_seek(player, frame))
             { error.message = player->error; return false; }
+            history.Commit();
             return true;
         });
     }
@@ -773,6 +872,7 @@ extern "C"
             const auto index = static_cast<int>(player->scenes.size());
             auto file = MarcusAppendScene(player->content ? player->content->movie : std::filesystem::path{},
                                            player->timingInput, background, index + 1);
+            EditHistory history(*player);
             MarcusMovieInput input;
             input.Open(file->path.u8string());
             auto materialized = input.Materialize(0);
@@ -784,6 +884,7 @@ extern "C"
             input.prepared = materialized;
             if (!marcus_open_input(player, &input, 0, resources, directory) || !marcus_select_scene(player, index))
             { error.message = player->error; return false; }
+            history.Commit();
             return true;
         });
     }
@@ -935,6 +1036,11 @@ extern "C"
             player->selected = 0;
             player->finished = false;
             player->restoreAudio = true;
+            if (!player->internalOpenDepth)
+            {
+                player->undo.clear();
+                player->modified = false;
+            }
             return true;
         });
     }

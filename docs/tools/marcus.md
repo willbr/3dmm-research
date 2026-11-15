@@ -1134,6 +1134,16 @@ their original placement. Actors, 3D text and off-stage props are read-only.
 Coordinates are limited to +/-32700 world units. Original movies, ZIPs and content
 archives remain unchanged. These session edits still have no Save/Export command.
 
+Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed prop move, prop insertion,
+camera change or new scene. Each drag or completed position-field edit is one
+step. Up to 64 steps are retained in the current session, including after a
+resource reload. Undo restores the movie and the pre-edit scene/frame, retaining
+the inspection view. Undoing the first scene returns an untitled movie to its
+empty state. Returning to the original state clears the unsaved marker.
+Opening or creating a new movie clears history. Playback, selection and navigation do not add steps.
+During a drag, Ctrl+Z cancels that drag; while typing a position, it uses the
+field's local text undo. Original movie and content files remain unchanged.
+
 ## Current limits
 
 - Scene creation, camera changes, prop insertion and prop translation are session
