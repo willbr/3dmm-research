@@ -1,0 +1,30 @@
+#ifndef MARCUS_LIVE_EDITS_H
+#define MARCUS_LIVE_EDITS_H
+#include "mm/preview.h"
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+struct MarcusNamedProp
+{
+    MM::PreviewPropDefinition definition;
+    std::string name;
+};
+struct MarcusCameraKey
+{
+    unsigned long scene;
+    long frame;
+    bool operator<(const MarcusCameraKey &other) const
+    { return scene < other.scene || (scene == other.scene && frame < other.frame); }
+};
+struct MarcusLiveEdits
+{
+    using Scenes = std::vector<MM::PreviewSceneDefinition>;
+    using Props = std::vector<MarcusNamedProp>;
+    using Cameras = std::map<MarcusCameraKey, unsigned long>;
+    std::shared_ptr<const Scenes> scenes = std::make_shared<Scenes>();
+    std::shared_ptr<const Props> props = std::make_shared<Props>();
+    std::shared_ptr<const Cameras> cameras = std::make_shared<Cameras>();
+    std::uint64_t revision = 0;
+};
+#endif

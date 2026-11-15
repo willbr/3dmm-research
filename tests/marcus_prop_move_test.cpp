@@ -109,6 +109,105 @@ int main(int argc, char **argv)
               marcus_info(player.get(), &info) && info.frame == 40 && info.last_frame == 40,
               "Timing import applies the latest live range");
 
+        // Structural editor actions must keep using the same live scene and
+        // timing cache. Report warmed operations separately from asset loading.
+        auto report = [&](const char *label, std::vector<double> times) {
+            std::sort(times.begin(), times.end());
+            std::printf("%s: median %.3f ms, max %.3f ms\n", label, times[times.size()/2], times.back());
+        };
+        open();
+        check(marcus_movie_time(player.get(), &timing) && marcus_set_scene_camera(player.get(), 1) &&
+              marcus_set_scene_camera(player.get(), 0), "Warm camera assets");
+        std::vector<double> editTimes;
+        for (int i = 0; i < 100; ++i)
+        {
+            const auto start = Clock::now();
+            check(marcus_set_scene_camera(player.get(), i % 2), "Change live camera cue");
+            editTimes.push_back(std::chrono::duration<double, std::milli>(Clock::now() - start).count());
+            check(marcus_movie_time_async(player.get(), &after) == 1 && after.duration_seconds == timing.duration_seconds,
+                  "Camera edit preserves ready timing");
+        }
+        report("100 live camera edits", editTimes);
+        for (int i = 0; i < 64; ++i) check(marcus_undo(player.get()), "Undo live camera edit");
+        open();
+        check(marcus_movie_time(player.get(), &timing) && marcus_info(player.get(), &info), "Prime insertion timing");
+        const auto insertionSoundCount = info.sound_count;
+        const auto insertionTrackCount = info.sound_track_count;
+        const int warmProp = marcus_add_prop(player.get(), 0x1020);
+        check(warmProp >= 0 && marcus_undo(player.get()), "Warm prop template");
+        editTimes.clear();
+        for (int i = 0; i < 20; ++i)
+        {
+            const auto start = Clock::now();
+            check(marcus_add_prop(player.get(), 0x1020) >= 0, "Insert live prop instance");
+            editTimes.push_back(std::chrono::duration<double, std::milli>(Clock::now() - start).count());
+            check(marcus_info(player.get(), &info) && info.object_count == 5 + i && info.frame == 10 &&
+                  marcus_movie_time_async(player.get(), &after) == 1 && after.duration_seconds == timing.duration_seconds,
+                  "Prop insertion retains frame and ready timing");
+        }
+        report("20 live prop insertions", editTimes);
+        for (int i = 0; i < 20; ++i) check(marcus_undo(player.get()), "Undo live prop insertion");
+        check(marcus_info(player.get(), &info) && info.object_count == 4 && !marcus_modified(player.get()) &&
+              info.sound_count == insertionSoundCount && info.sound_track_count == insertionTrackCount,
+              "Insertion undo restores base state without duplicating sound lanes");
+        open();
+        check(marcus_movie_time(player.get(), &timing), "Prime new-scene timing");
+        MarcusBackground sceneBackground;
+        check(marcus_background_count(player.get(), argv[3]) > 0 && marcus_background(player.get(), 0, &sceneBackground), "Read scene background");
+        editTimes.clear();
+        for (int i = 0; i < 10; ++i)
+        {
+            const auto start = Clock::now();
+            check(marcus_add_scene(player.get(), sceneBackground.chunk, argv[2], argv[3]), "Create live scene");
+            editTimes.push_back(std::chrono::duration<double, std::milli>(Clock::now() - start).count());
+            check(marcus_info(player.get(), &info) && info.scene_count == 3 + i && info.scene == 2 + i &&
+                  info.first_frame == 1 && info.last_frame == 1 &&
+                  marcus_movie_time_async(player.get(), &after) == 1 && after.duration_seconds > timing.duration_seconds,
+                  "New scenes extend ready duration without reanalysis");
+        }
+        report("10 live scene creations", editTimes);
+        for (int i = 0; i < 10; ++i) check(marcus_undo(player.get()), "Undo live scene creation");
+        check(marcus_info(player.get(), &info) && info.scene_count == 2 && info.scene == 0 && info.frame == 10 &&
+              !marcus_modified(player.get()), "Scene undo restores original selection and frame");
+
+        auto checkNativeSnapshot = [&] {
+            check(marcus_set_renderer(player.get(), MARCUS_RENDERER_BRENDER) &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "Render live structural edits");
+            const long frame = image.frame;
+            const std::vector<unsigned char> expected(image.rgba, image.rgba + image.pitch * image.height);
+            std::unique_ptr<MarcusFramePreviews, decltype(&marcus_frame_previews_destroy)> helper(
+                marcus_frame_previews_create(player.get()), marcus_frame_previews_destroy);
+            check(bool(helper), "Materialize live scene, prop and camera together");
+            marcus_frame_previews_request(helper.get(), &frame, 1);
+            char error[1024] = {};
+            int ready = 0;
+            const auto deadline = Clock::now() + std::chrono::seconds(20);
+            while (!(ready = marcus_frame_previews_take(helper.get(), &image, error, sizeof(error))) && Clock::now() < deadline)
+                SDL_Delay(5);
+            check(ready == 1 && image.width == 160 && image.height == 90 &&
+                  std::equal(expected.begin(), expected.end(), image.rgba), "Native snapshot matches the live structural edits");
+        };
+        // Undo leaves holes in object/scene IDs; the native snapshot must keep
+        // those IDs and combine placement, range and camera journals correctly.
+        check(marcus_add_scene(player.get(), sceneBackground.chunk, argv[2], argv[3]), "Create scene after undo");
+        const int snapshotProp = marcus_add_prop(player.get(), 0x1020);
+        check(snapshotProp >= 0 && marcus_object(player.get(), snapshotProp, &object) &&
+              marcus_move_prop(player.get(), snapshotProp, object.x + 3, object.y, object.z) &&
+              marcus_set_scene_camera(player.get(), 1) && marcus_add_frame(player.get(), -1) &&
+              marcus_seek(player.get(), 1), "Compose live structural edits");
+        checkNativeSnapshot();
+
+        open();
+        check(marcus_movie_time_async(player.get(), &after) == 0 &&
+              marcus_add_scene(player.get(), sceneBackground.chunk, argv[2], argv[3]) &&
+              marcus_add_prop(player.get(), 0x1020) >= 0 && marcus_undo(player.get()) &&
+              marcus_add_prop(player.get(), 0x1020) >= 0 && marcus_set_scene_camera(player.get(), 1),
+              "Create scene while base timing analysis runs");
+        const auto sceneTimingDeadline = Clock::now() + std::chrono::seconds(20);
+        while (!(timingReady = marcus_movie_time_async(player.get(), &after)) && Clock::now() < sceneTimingDeadline) SDL_Delay(5);
+        check(timingReady == 1 && after.duration_seconds > timing.duration_seconds &&
+              marcus_info(player.get(), &info) && info.scene == 2, "Base timing import includes a newly authored scene");
+
         // Headless camera regression: selection tracking must not chase edits.
         // Check scene/selection pivots, pan, perspective and all axis views.
         for (int axisView = 0; axisView <= 3; ++axisView)
@@ -344,6 +443,23 @@ int main(int argc, char **argv)
             check(marcus_undo(player.get()) && marcus_undo(player.get()) && marcus_info(player.get(), &info) &&
                   info.first_frame == 1 && info.last_frame == 30 &&
                   marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM worker accepts range undo");
+            check(marcus_seek(player.get(), 10), "Select ASM insertion frame");
+            const int asmProp = marcus_add_prop(player.get(), 0x1020);
+            check(asmProp >= 0 && marcus_set_scene_camera(player.get(), 1) &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM receives live props and camera edits");
+            check(marcus_add_scene(player.get(), sceneBackground.chunk, argv[2], argv[3]) &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image) &&
+                  marcus_add_prop(player.get(), 0x1020) >= 0 && marcus_set_scene_camera(player.get(), 1) &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM receives a live scene and its prop");
+            for (int i = 0; i < 5; ++i) check(marcus_undo(player.get()), "Undo ASM live structure");
+            check(marcus_info(player.get(), &info) && info.scene_count == 2 && info.object_count == 4 &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM accepts structural undo without reopening");
+            player.reset(marcus_create());
+            check(marcus_set_renderer(player.get(), MARCUS_RENDERER_BRENDER_ASM) &&
+                  marcus_add_scene(player.get(), sceneBackground.chunk, argv[2], argv[3]) &&
+                  marcus_add_prop(player.get(), 0x1020) >= 0 && marcus_set_scene_camera(player.get(), 1) &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM supports a new movie without a base file");
+            checkNativeSnapshot();
         }
         std::puts("Actor/prop/text moves and undo retain timing; scene isolation, helper materialization, structural edits, reload and ASM passed");
         return 0;

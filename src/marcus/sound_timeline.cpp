@@ -95,14 +95,14 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
 }
 bool MarcusSoundTimeline::Reframe(const std::vector<MarcusScene> &ranges)
 {
-    if (ranges.size() < sources.size()) return false;
     MarcusSoundTimeline result;
     result.frameSeconds = frameSeconds;
-    for (std::size_t i = 0; i < sources.size(); ++i)
+    for (std::size_t i = 0; i < std::min(sources.size(), ranges.size()); ++i)
     {
         if (ranges[i].chunk != scenes[i].info.chunk) return false;
         result.AppendPrepared(ranges[i], sources[i]);
     }
+    sources.resize(std::min(sources.size(), ranges.size()));
     result.sources = std::move(sources);
     *this = std::move(result);
     return true;

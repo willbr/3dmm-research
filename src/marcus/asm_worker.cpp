@@ -16,24 +16,33 @@ int main(int argc, char **argv)
     _setmode(_fileno(stdout), _O_BINARY);
     std::unique_ptr<MarcusPlayer, decltype(&marcus_destroy)> player(marcus_create(), marcus_destroy);
     const std::uint32_t hello[2] = {MarcusASM::Magic, 32};
-    if (!player || !marcus_open(player.get(), argv[1], argv[2], argv[3]))
-        return 1;
+    MM::Error openingError;
+    if (!player || (argv[1][0] ? !marcus_open(player.get(), argv[1], argv[2], argv[3])
+                             : !MarcusPrepareEmpty(player.get(), argv[2], argv[3], openingError))) return 1;
     marcus_set_muted(player.get(), 1);
     std::cout.write(reinterpret_cast<const char *>(hello), sizeof(hello)).flush();
     MarcusASM::Request request;
     while (std::cin.read(reinterpret_cast<char *>(&request), sizeof(request)))
     {
         if (request.magic != MarcusASM::Magic || request.width < 64 || request.height < 64 || request.width > 4096 ||
-            request.height > 4096 || request.propCount > 100000)
+            request.height > 4096 || request.propCount > 100000 || request.sceneCount > 100000 ||
+            request.addedPropCount > 100000 || request.cameraCount > 100000)
             return 2;
         std::vector<MarcusASM::PropOffset> offsets(request.propCount);
         if (!offsets.empty() && !std::cin.read(reinterpret_cast<char *>(offsets.data()), offsets.size() * sizeof(offsets[0])))
             return 2;
+        std::vector<MM::PreviewSceneDefinition> scenes(request.sceneCount);
+        std::vector<MM::PreviewPropDefinition> props(request.addedPropCount);
+        std::vector<MarcusASM::CameraEdit> cameras(request.cameraCount);
+        for (auto &scene : scenes) if (!std::cin.read(reinterpret_cast<char *>(&scene), sizeof(scene))) return 2;
+        for (auto &prop : props) if (!std::cin.read(reinterpret_cast<char *>(&prop), sizeof(prop))) return 2;
+        for (auto &camera : cameras) if (!std::cin.read(reinterpret_cast<char *>(&camera), sizeof(camera))) return 2;
         MM::PreviewImage image;
         MM::Error error;
         MarcusInfo info = {};
-        marcus_info(player.get(), &info);
-        bool ok = info.scene == request.scene || marcus_select_scene(player.get(), request.scene);
+        bool ok = !(request.flags & 256) || MarcusApplyLiveEdits(player.get(), scenes, props, cameras, request.editRevision, error);
+        const bool loaded = marcus_info(player.get(), &info) != 0;
+        if (ok) ok = (loaded && info.scene == request.scene) || marcus_select_scene(player.get(), request.scene);
         if (ok && request.firstFrame <= request.lastFrame)
             ok = MarcusApplySceneRange(player.get(), request.firstFrame, request.lastFrame, error);
         if (ok)

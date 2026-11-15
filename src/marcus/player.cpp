@@ -11,6 +11,7 @@
 #include "timing_job.h"
 #include "frame_previews.h"
 #include "scene_edit.h"
+#include "live_edits.h"
 #include "mm/preview.h"
 #include <algorithm>
 #include <array>
@@ -73,6 +74,7 @@ struct MarcusPlayer
     std::vector<MarcusScene> sceneInfo, baseSceneInfo;
     std::vector<MarcusBackground> backgrounds;
     std::vector<MarcusProp> props;
+    std::string propCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::map<int, MM::PreviewObject> propPreviews;
     struct AnimationCache
@@ -101,11 +103,17 @@ struct MarcusPlayer
     using FrameRanges = std::map<unsigned long, FrameRange>;
     std::shared_ptr<const FrameRanges> frameRanges = std::make_shared<FrameRanges>();
     std::shared_ptr<const FrameRanges> materializedFrameRanges;
+    std::shared_ptr<const MarcusLiveEdits> edits = std::make_shared<MarcusLiveEdits>();
+    std::shared_ptr<const MarcusLiveEdits> materializedEdits;
+    std::uint64_t nextScene = 0, nextObject = 0, nextEditRevision = 1;
+    std::int64_t nextActorId = 0;
+    std::int32_t retailSource = 2;
+    bool resourcesReady = false, retailPrepared = false;
     std::shared_ptr<const Placements> materializedPlacements;
     std::shared_ptr<MarcusMovieFile> materializedFile;
     struct UndoState
     {
-        std::shared_ptr<MarcusMovieFile> file;
+        std::shared_ptr<const MarcusLiveEdits> edits;
         std::shared_ptr<const Placements> placements;
         std::shared_ptr<const FrameRanges> frameRanges;
         int scene;
@@ -137,7 +145,7 @@ struct EditHistory : KeepHistory
 {
     MarcusPlayer::UndoState before;
     explicit EditHistory(MarcusPlayer &value) : KeepHistory(value),
-        before{value.timingInput, value.placements, value.frameRanges, value.selected, value.selected < 0 ? 0 : value.preview.Info().currentFrame, value.modified}
+        before{value.edits, value.placements, value.frameRanges, value.selected, value.selected < 0 ? 0 : value.preview.Info().currentFrame, value.modified}
     {
         // Reserve before replacing the live document, so recording success cannot allocate.
         player.undo.reserve(player.undo.size() + 1);
@@ -154,23 +162,37 @@ struct EditHistory : KeepHistory
 // movie once; cached timing inputs are rescheduled for live frame ranges.
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
-    if (player.placements->empty() && player.frameRanges->empty()) return player.timingInput;
-    if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges &&
+    if (player.placements->empty() && player.frameRanges->empty() && player.edits->scenes->empty() &&
+        player.edits->props->empty() && player.edits->cameras->empty()) return player.timingInput;
+    if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     std::vector<MarcusPropPlacement> changes;
     for (const auto &entry : *player.placements)
         changes.push_back({entry.first.first, entry.first.second, {entry.second[0], entry.second[1], entry.second[2]}});
     std::vector<MarcusSceneRange> ranges;
     for (const auto &entry : *player.frameRanges) ranges.push_back({entry.first, entry.second.first, entry.second.last});
-    auto file = MarcusMaterializeEdits(player.content->movie, player.timingInput, changes, ranges);
+    auto file = MarcusMaterializeEdits(player.content ? player.content->movie : std::filesystem::path{}, player.timingInput,
+        changes, ranges, *player.edits, std::filesystem::u8path(player.timingContent) / "tmpls.3cn");
     player.materializedFile = file;
     player.materializedPlacements = player.placements;
     player.materializedFrameRanges = player.frameRanges;
+    player.materializedEdits = player.edits;
     return file;
 }
 void UpdateSceneRanges(MarcusPlayer &player)
 {
     player.sceneInfo = player.baseSceneInfo;
+    player.scenes.clear();
+    for (const auto &scene : player.baseSceneInfo) player.scenes.push_back({sceneType, static_cast<std::uint32_t>(scene.chunk)});
+    for (const auto &definition : *player.edits->scenes)
+    {
+        MarcusScene scene = {};
+        scene.chunk = definition.number;
+        scene.first_frame = scene.last_frame = 1;
+        Copy(scene.name, "Scene " + std::to_string(player.sceneInfo.size() + 1));
+        player.sceneInfo.push_back(scene);
+        player.scenes.push_back({sceneType, definition.number});
+    }
     for (auto &scene : player.sceneInfo)
     {
         const auto range = player.frameRanges->find(scene.chunk);
@@ -178,6 +200,48 @@ void UpdateSceneRanges(MarcusPlayer &player)
         scene.first_frame = range->second.first;
         scene.last_frame = range->second.last;
     }
+}
+bool EnsureRetailContent(MarcusPlayer &player, MM::Error &error)
+{
+    if (!player.resourcesReady)
+    {
+        auto lease = std::make_shared<MarcusMovieFile>(std::filesystem::path{});
+        auto content = std::make_unique<MarcusContent>(lease, player.timingContent);
+        if (!player.preview.OpenEmpty(player.timingResources, error)) return false;
+        player.content = std::move(content);
+        player.resourcesReady = true;
+    }
+    if (player.retailPrepared) return true;
+    player.content->PrepareSource("3dmovie");
+    const auto paths = player.content->files.Files("3dmovie", ".3cn");
+    if (paths.empty()) { error.message = "The original 3DMM content files are unavailable."; return false; }
+    for (const auto &path : paths)
+        if (!player.preview.AddContent(player.retailSource, path.u8string(), error)) return false;
+    player.retailPrepared = true;
+    return true;
+}
+std::vector<MM::PreviewPropDefinition> PropDefinitions(const MarcusLiveEdits &edits)
+{
+    std::vector<MM::PreviewPropDefinition> result;
+    result.reserve(edits.props->size());
+    for (const auto &prop : *edits.props) result.push_back(prop.definition);
+    return result;
+}
+bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
+{
+    if ((!player.edits->scenes->empty() || !player.edits->props->empty()) && !EnsureRetailContent(player, error)) return false;
+    if (!player.preview.SetDefinitions(*player.edits->scenes, PropDefinitions(*player.edits), error)) return false;
+    for (const auto &prop : *player.edits->props) player.names[prop.definition.actorId] = prop.name;
+    UpdateSceneRanges(player);
+    return true;
+}
+bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
+{
+    std::vector<MM::PreviewCameraEdit> changes;
+    const auto scene = player.scenes[index].number;
+    for (const auto &entry : *player.edits->cameras)
+        if (entry.first.scene == scene) changes.push_back({static_cast<std::int32_t>(entry.first.frame), static_cast<std::uint32_t>(entry.second)});
+    return player.preview.SetCameraEdits(changes, error);
 }
 bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placements &placements, MM::Error &error)
 {
@@ -211,13 +275,36 @@ MarcusMovieInput &PrepareInput(MarcusMovieInput &input, const std::shared_ptr<Ma
 }
 // Worker-side IPC adapter: absolute placements avoid both archive reloads and
 // accumulating an offset each time the host renders another frame/camera.
+bool MarcusPrepareEmpty(MarcusPlayer *player, const char *resources, const char *content, MM::Error &error)
+{
+    player->timingResources = resources; player->timingContent = content;
+    return EnsureRetailContent(*player, error);
+}
+bool MarcusApplyLiveEdits(MarcusPlayer *player, const std::vector<MM::PreviewSceneDefinition> &scenes,
+                         const std::vector<MM::PreviewPropDefinition> &props,
+                         const std::vector<MarcusASM::CameraEdit> &cameras, std::uint64_t revision, MM::Error &error)
+{
+    auto edits = std::make_shared<MarcusLiveEdits>();
+    edits->scenes = std::make_shared<MarcusLiveEdits::Scenes>(scenes);
+    auto named = std::make_shared<MarcusLiveEdits::Props>();
+    for (const auto &prop : props) named->push_back({prop, {}});
+    edits->props = named;
+    auto changes = std::make_shared<MarcusLiveEdits::Cameras>();
+    for (const auto &camera : cameras) (*changes)[{camera.scene, camera.frame}] = camera.camera;
+    edits->cameras = changes; edits->revision = revision;
+    player->edits = edits;
+    if (!ApplyDefinitions(*player, error)) return false;
+    if (!player->preview.Info().scene) player->selected = -1;
+    player->objects = player->preview.Objects();
+    return true;
+}
 bool MarcusApplySceneRange(MarcusPlayer *player, std::int32_t first, std::int32_t last, MM::Error &error)
 {
     if (!player || player->selected < 0 || !player->preview.SetSceneRange(first, last, error)) return false;
     auto &scene = player->sceneInfo[player->selected];
     scene.first_frame = first;
     scene.last_frame = last;
-    return true;
+    return ApplyCameras(*player, player->selected, error);
 }
 bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::PropOffset> &offsets, MM::Error &error)
 {
@@ -274,7 +361,7 @@ bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
         MM::PreviewPresentation presentation;
         MarcusSoundTiming timing;
         if (!player->preview.ReadTimingPresentation(player->scenes[next], presentation, error) ||
-            !MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput->fonts))
+            !MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput ? player->timingInput->fonts : nullptr))
             return false;
         player->soundTimeline.Append(player->sceneInfo[next], presentation.sounds, [&](const MM::PreviewSoundCue &cue) {
             return player->waveforms.Length(player->preview, cue);
@@ -284,7 +371,13 @@ bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
 }
 bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
 {
+    player->sounds.clear();
+    player->soundTracks.clear();
     player->soundCues.clear();
+    // A new empty scene has no authored cues. Let the pending base analysis
+    // finish before deriving any sounds carried from earlier scenes.
+    if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size() &&
+        player->soundTimeline.Size() < player->baseSceneInfo.size()) return true;
     if (!ReadSoundTimeline(player, index, error))
         return false;
     const auto &scene = player->soundTimeline.Scene(index);
@@ -425,7 +518,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         }
         const auto &range = player->sceneInfo[player->selected];
         if (!player->asmRenderer->Render(player->selected, player->preview.Info().currentFrame, options, player->image, error,
-                                         offsets, range.first_frame, range.last_frame))
+                                         offsets, range.first_frame, range.last_frame, player->edits.get()))
         { player->asmRenderer.reset(); return false; }
     }
     else if (!player->preview.Render(options, player->image, error)) return false;
@@ -546,6 +639,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
         if (!player->preview.SetSceneRange(range.first_frame, range.last_frame, error) ||
             (player->preview.Info().currentFrame != range.first_frame && !player->preview.SetFrame(range.first_frame, error)))
             return false;
+        if (!ApplyCameras(*player, index, error)) return false;
         if (!ApplyPlacements(*player, index, *player->placements, error)) return false;
         if (!preserveFraming)
             player->inspectionMatched = false;
@@ -689,28 +783,36 @@ extern "C"
     int marcus_reload(MarcusPlayer *player, const char *resources, const char *directory)
     {
         return Guard(player, [&](MM::Error &error) {
-            auto original = player->timingInput;
-            if (!original) return false;
+            if (!resources || !directory) return false;
             KeepHistory history(*player);
             const auto scene = player->selected;
             const auto placements = player->placements;
             const auto ranges = player->frameRanges;
-            MarcusMovieInput input;
-            input.Open(original->path.u8string());
-            auto file = input.Materialize(0);
-            file->origin = original;
-            file->contentOrigin = original->contentOrigin;
-            file->fonts = original->fonts;
-            file->fontFiles = original->fontFiles;
-            file->fontDirectory = original->fontDirectory;
-            input.prepared = file;
-            if (!marcus_open_input(player, &input, 0, resources, directory))
-            { error.message = player->error; return false; }
-            player->placements = placements;
-            player->frameRanges = ranges;
-            UpdateSceneRanges(*player);
-            if (!player->soundTimeline.Reframe(player->sceneInfo)) return false;
-            if (!marcus_select_scene(player, scene)) { error.message = player->error; return false; }
+            const auto edits = player->edits;
+            const auto nextScene = player->nextScene, nextObject = player->nextObject;
+            const auto nextActor = player->nextActorId;
+            if (player->timingInput)
+            {
+                MarcusMovieInput input;
+                PrepareInput(input, player->timingInput);
+                if (!marcus_open_input(player, &input, 0, resources, directory))
+                { error.message = player->error; return false; }
+            }
+            else
+            {
+                if (!player->preview.OpenEmpty(resources, error)) return false;
+                auto lease = std::make_shared<MarcusMovieFile>(std::filesystem::path{});
+                player->content = std::make_unique<MarcusContent>(lease, directory);
+                player->resourcesReady = true; player->retailPrepared = false;
+                player->timingResources = resources; player->timingContent = directory;
+                player->selected = -1; player->asmRenderer.reset();
+            }
+            player->placements = placements; player->frameRanges = ranges; player->edits = edits;
+            player->nextScene = std::max(nextScene, player->nextScene);
+            player->nextObject = std::max(nextObject, player->nextObject);
+            player->nextActorId = std::max(nextActor, player->nextActorId);
+            if (!ApplyDefinitions(*player, error) || !player->soundTimeline.Reframe(player->sceneInfo)) return false;
+            if (scene >= 0 && !marcus_select_scene(player, scene)) { error.message = player->error; return false; }
             return true;
         });
     }
@@ -721,32 +823,32 @@ extern "C"
         return Guard(player, [&](MM::Error &error) {
             if (player->undo.empty()) return false;
             const auto before = player->undo.back();
-            KeepHistory history(*player);
-            struct Restore { bool &flag; bool value; ~Restore() { flag = value; } } restore{
-                player->preserveEditFraming, player->preserveEditFraming};
-            player->preserveEditFraming = true;
-            if (before.file)
+            if (!CancelPropPreviews(player, error)) return false;
+            const auto previousEdits = player->edits;
+            const bool definitionsChanged = previousEdits->scenes != before.edits->scenes || previousEdits->props != before.edits->props;
+            const bool rangesChanged = player->frameRanges != before.frameRanges;
+            player->edits = before.edits;
+            player->placements = before.placements;
+            player->frameRanges = before.frameRanges;
+            if (definitionsChanged) { if (!ApplyDefinitions(*player, error)) return false; }
+            else UpdateSceneRanges(*player);
+            if (rangesChanged || definitionsChanged)
             {
-                const bool sameBase = player->timingInput && before.file->path == player->timingInput->path;
-                if (!sameBase)
-                {
-                    MarcusMovieInput input;
-                    PrepareInput(input, before.file);
-                    const auto resources = player->timingResources, directory = player->timingContent;
-                    if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()))
-                    { error.message = player->error; return false; }
-                }
-                if (!CancelPropPreviews(player, error)) return false;
-                const bool rangesChanged = player->frameRanges != before.frameRanges;
-                player->placements = before.placements;
-                player->frameRanges = before.frameRanges;
-                if (rangesChanged)
-                {
-                    UpdateSceneRanges(*player);
-                    if (!player->soundTimeline.Reframe(player->sceneInfo)) return false;
-                    player->animations.clear();
-                }
-                if (!sameBase || player->selected != before.scene)
+                if (!player->soundTimeline.Reframe(player->sceneInfo)) return false;
+                player->animations.clear();
+            }
+            if (before.scene < 0)
+            {
+                player->preview.ClearScene();
+                player->selected = -1;
+                player->objects.clear();
+                player->sounds.clear(); player->soundTracks.clear(); player->soundCues.clear();
+                player->playback.Stop();
+            }
+            else
+            {
+                if (player->selected != before.scene || !player->preview.Info().scene ||
+                    player->preview.Info().asset.number != player->scenes[before.scene].number)
                 {
                     if (!marcus_select_scene_keep_view(player, before.scene)) { error.message = player->error; return false; }
                 }
@@ -754,37 +856,16 @@ extern "C"
                 {
                     const auto &range = player->sceneInfo[before.scene];
                     if (!player->preview.SetSceneRange(range.first_frame, range.last_frame, error) ||
+                        !ApplyCameras(*player, before.scene, error) ||
                         !ApplyPlacements(*player, before.scene, *before.placements, error)) return false;
-                    if (rangesChanged && !ReadSoundSheet(player, before.scene, error)) return false;
+                    if ((rangesChanged || definitionsChanged) && !ReadSoundSheet(player, before.scene, error)) return false;
                 }
-                if (player->preview.Info().currentFrame != before.frame && !marcus_seek(player, before.frame))
-                { error.message = player->error; return false; }
-                ++player->document;
+                if (!marcus_seek(player, before.frame)) { error.message = player->error; return false; }
             }
-            else
-            {
-                // Undoing the first scene returns an untitled movie to its empty state.
-                player->timingJob.reset();
-                player->playback.Stop();
-                player->asmRenderer.reset();
-                player->preview.Close();
-                player->content.reset();
-                player->timingInput.reset();
-                player->placements = before.placements;
-                player->frameRanges = before.frameRanges;
-                player->selected = player->orbitObject = player->movieImageScene = -1;
-                player->scenes.clear(); player->sceneInfo.clear(); player->baseSceneInfo.clear(); player->objects.clear();
-                player->propPreviews.clear(); player->animations.clear(); player->names.clear();
-                player->sounds.clear(); player->soundTracks.clear(); player->soundCues.clear();
-                player->soundTimeline.Clear(); player->waveforms.Clear();
-                player->image = {}; player->thumbnail = {}; player->movieImage = {};
-                player->inspectionMatched = player->timingStarted = player->timingFailed = player->finished = false;
-                player->restoreAudio = true;
-                ++player->document;
-            }
-            player->materializedFile.reset();
-            player->materializedPlacements.reset();
-            player->materializedFrameRanges.reset();
+            ++player->document;
+            player->movieImageScene = -1;
+            player->materializedFile.reset(); player->materializedPlacements.reset();
+            player->materializedFrameRanges.reset(); player->materializedEdits.reset();
             player->modified = before.modified;
             player->undo.pop_back();
             return true;
@@ -814,6 +895,7 @@ extern "C"
             }
             std::sort(props.begin(), props.end(), [](const auto &a, const auto &b) { return std::strcmp(a.name, b.name) < 0; });
             player->props.swap(props);
+            player->propCatalogDirectory = directory;
             return true;
         });
         return ok ? static_cast<int>(player->props.size()) : -1;
@@ -829,38 +911,42 @@ extern "C"
         int result = -1;
         const bool ok = Guard(player, [&](MM::Error &error) {
             if (player->selected < 0) { error.message = "Create or open a scene before adding a prop."; return false; }
-            if (marcus_prop_count(player, player->timingContent.c_str()) < 0) { error.message = player->error; return false; }
+            if ((player->props.empty() || player->propCatalogDirectory != player->timingContent) &&
+                marcus_prop_count(player, player->timingContent.c_str()) < 0)
+            { error.message = player->error; return false; }
             const auto found = std::find_if(player->props.begin(), player->props.end(), [&](const auto &prop) { return prop.chunk == chunk; });
             if (found == player->props.end()) { error.message = "The selected prop is unavailable."; return false; }
-            float point[3];
-            if (!player->preview.PlacementPoint(point)) { error.message = "This scene has no background placement point."; return false; }
-            for (const auto value : point)
-                if (!std::isfinite(value) || std::abs(value) > 32700) { error.message = "The background placement point is out of range."; return false; }
-            const auto scene = player->selected;
-            const auto frame = player->preview.Info().currentFrame;
-            long actorId;
-            auto working = MaterializedMovie(*player);
-            auto file = MarcusAppendProp(player->placements->empty() && player->frameRanges->empty() ? player->content->movie : working->path, working,
-                std::filesystem::u8path(player->timingContent) / "tmpls.3cn", player->scenes[scene].number,
-                frame, chunk, found->name, point, actorId);
+            if (!EnsureRetailContent(*player, error)) return false;
+            if (player->nextObject > 0xffffffffULL || player->nextActorId > std::numeric_limits<std::int32_t>::max())
+            { error.message = "No object IDs are available."; return false; }
+            MarcusNamedProp prop;
+            auto &definition = prop.definition;
+            if (!player->preview.PlacementPoint(definition.point)) { error.message = "This scene has no background placement point."; return false; }
+            for (const auto value : definition.point)
+                if (!std::isfinite(value) || std::abs(value) > 32700) { error.message = "The placement point is out of range."; return false; }
+            definition.scene = player->scenes[player->selected].number;
+            definition.number = static_cast<std::uint32_t>(player->nextObject++);
+            definition.actorId = static_cast<std::int32_t>(player->nextActorId++);
+            definition.source = player->retailSource;
+            definition.templateNumber = static_cast<std::uint32_t>(chunk);
+            definition.first = player->preview.Info().currentFrame;
+            definition.last = player->preview.Info().lastFrame;
+            prop.name = found->name;
+            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+            auto props = std::make_shared<MarcusLiveEdits::Props>(*edits->props);
+            props->push_back(prop); edits->props = props; edits->revision = player->nextEditRevision++;
             EditHistory history(*player);
-            MarcusMovieInput input;
-            input.Open(file->path.u8string());
-            auto materialized = input.Materialize(0);
-            materialized->origin = file;
-            materialized->contentOrigin = file->contentOrigin;
-            materialized->fonts = file->fonts;
-            materialized->fontFiles = file->fontFiles;
-            materialized->fontDirectory = file->fontDirectory;
-            input.prepared = materialized;
-            const auto resources = player->timingResources, directory = player->timingContent;
-            if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
-                !marcus_select_scene(player, scene) || !marcus_seek(player, frame))
-            { error.message = player->error; return false; }
+            const auto previous = player->edits;
+            player->edits = edits;
+            if (!ApplyDefinitions(*player, error)) { player->edits = previous; return false; }
+            player->objects = player->preview.Objects();
+            player->animations.clear();
             for (std::size_t index = 0; index < player->objects.size(); ++index)
-                if (player->objects[index].actorId == actorId) { result = static_cast<int>(index); history.Commit(); return true; }
-            error.message = "The new prop could not be selected.";
-            return false;
+                if (player->objects[index].actorId == definition.actorId) result = static_cast<int>(index);
+            if (result < 0) { error.message = "The prop could not be selected."; return false; }
+            ++player->document; player->movieImageScene = -1;
+            history.Commit();
+            return true;
         });
         return ok ? result : -1;
     }
@@ -956,25 +1042,18 @@ extern "C"
         return Guard(player, [&](MM::Error &error) {
             if (player->selected < 0 || camera >= player->preview.Info().cameraCount)
             { error.message = "Camera angle is out of range."; return false; }
-            const auto scene = player->selected;
-            const auto frame = player->preview.Info().currentFrame;
-            auto working = MaterializedMovie(*player);
-            auto file = MarcusSetSceneCamera(player->placements->empty() && player->frameRanges->empty() ? player->content->movie : working->path, working,
-                player->scenes[scene].number, frame, camera);
+            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+            auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*edits->cameras);
+            const auto &info = player->preview.Info();
+            const auto frame = info.currentFrame == info.firstFrame ? std::numeric_limits<std::int32_t>::min() : info.currentFrame;
+            (*cameras)[{player->scenes[player->selected].number, frame}] = camera;
+            edits->cameras = cameras; edits->revision = player->nextEditRevision++;
             EditHistory history(*player);
-            MarcusMovieInput input;
-            input.Open(file->path.u8string());
-            auto materialized = input.Materialize(0);
-            materialized->origin = file;
-            materialized->contentOrigin = file->contentOrigin;
-            materialized->fonts = file->fonts;
-            materialized->fontFiles = file->fontFiles;
-            materialized->fontDirectory = file->fontDirectory;
-            input.prepared = materialized;
-            const auto resources = player->timingResources, directory = player->timingContent;
-            if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
-                !marcus_select_scene(player, scene) || !marcus_seek(player, frame))
-            { error.message = player->error; return false; }
+            const auto previous = player->edits;
+            player->edits = edits;
+            if (!ApplyCameras(*player, player->selected, error)) { player->edits = previous; return false; }
+            player->movieImageScene = -1;
+            ++player->document;
             history.Commit();
             return true;
         });
@@ -1073,6 +1152,7 @@ extern "C"
                     backgrounds.push_back(background);
                 }
             player->backgrounds.swap(backgrounds);
+            player->backgroundCatalogDirectory = directory;
             return true;
         });
         return ok ? static_cast<int>(player->backgrounds.size()) : -1;
@@ -1087,28 +1167,38 @@ extern "C"
     {
         return Guard(player, [&](MM::Error &error) {
             if (!resources || !directory) return false;
-            // Validate the chosen retail asset before preparing or replacing the live document.
-            if (marcus_background_count(player, directory) < 0) { error.message = player->error; return false; }
-            if (std::none_of(player->backgrounds.begin(), player->backgrounds.end(),
-                             [&](const auto &value) { return value.chunk == background; }))
+            if ((player->backgrounds.empty() || player->backgroundCatalogDirectory != directory) &&
+                marcus_background_count(player, directory) < 0) { error.message = player->error; return false; }
+            if (std::none_of(player->backgrounds.begin(), player->backgrounds.end(), [&](const auto &value) { return value.chunk == background; }))
             { error.message = "The selected background is unavailable."; return false; }
-            const auto index = static_cast<int>(player->scenes.size());
-            auto working = MaterializedMovie(*player);
-            auto file = MarcusAppendScene(player->placements->empty() && player->frameRanges->empty() ?
-                (player->content ? player->content->movie : std::filesystem::path{}) : working->path,
-                working, background, index + 1);
+            if (!player->resourcesReady) { player->timingResources = resources; player->timingContent = directory; }
+            if (!EnsureRetailContent(*player, error)) return false;
+            if (player->nextScene > 0xffffffffULL) { error.message = "No scene IDs are available."; return false; }
+            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+            auto scenes = std::make_shared<MarcusLiveEdits::Scenes>(*edits->scenes);
+            scenes->push_back({static_cast<std::uint32_t>(player->nextScene++), static_cast<std::uint32_t>(background), player->retailSource});
+            edits->scenes = scenes; edits->revision = player->nextEditRevision++;
             EditHistory history(*player);
-            MarcusMovieInput input;
-            input.Open(file->path.u8string());
-            auto materialized = input.Materialize(0);
-            materialized->origin = file;
-            materialized->contentOrigin = file->contentOrigin;
-            materialized->fonts = file->fonts;
-            materialized->fontFiles = file->fontFiles;
-            materialized->fontDirectory = file->fontDirectory;
-            input.prepared = materialized;
-            if (!marcus_open_input(player, &input, 0, resources, directory) || !marcus_select_scene(player, index))
-            { error.message = player->error; return false; }
+            const auto previous = player->edits;
+            player->edits = edits;
+            if (!ApplyDefinitions(*player, error)) { player->edits = previous; return false; }
+            if (!marcus_select_scene(player, static_cast<int>(player->scenes.size()) - 1))
+            {
+                const auto failure = std::string(player->error);
+                player->edits = previous;
+                MM::Error ignored;
+                ApplyDefinitions(*player, ignored);
+                player->soundTimeline.Reframe(player->sceneInfo);
+                if (history.before.scene >= 0)
+                {
+                    marcus_select_scene_keep_view(player, history.before.scene);
+                    marcus_seek(player, history.before.frame);
+                }
+                else { player->preview.ClearScene(); player->selected = -1; }
+                error.message = failure;
+                return false;
+            }
+            ++player->document; player->movieImageScene = -1;
             history.Commit();
             return true;
         });
@@ -1213,6 +1303,26 @@ extern "C"
                 Copy(scene.name, name.empty() ? "Scene " + std::to_string(sceneInfo.size() + 1) : name);
                 sceneInfo.push_back(scene);
             }
+            std::uint64_t nextScene = 0, nextObject = 0;
+            std::int64_t nextActor = 0;
+            for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
+            {
+                const auto &chunk = archive.Chunks()[index];
+                if (chunk.id.type == sceneType) nextScene = std::max(nextScene, std::uint64_t(chunk.id.number) + 1);
+                if (chunk.id.type == 0x41435452)
+                {
+                    nextObject = std::max(nextObject, std::uint64_t(chunk.id.number) + 1);
+                    MM::RecordHeader record;
+                    if (!archive.ReadRecord(index, record, error)) return false;
+                    nextActor = std::max(nextActor, std::int64_t(record.actor.actorId) + 1);
+                }
+            }
+            for (const auto &name : names) nextActor = std::max(nextActor, std::int64_t(name.first) + 1);
+            std::int32_t retailSource = 2;
+            bool retailPrepared = false;
+            for (const auto &source : sources) retailSource = std::max(retailSource, source.first + 1);
+            for (const auto &source : sources)
+                if (MM::Content::SourceKey(source.second) == "3dmovie") { retailSource = source.first; retailPrepared = true; break; }
             for (const auto &source : sources)
                 content->PrepareSource(source.second);
             if (!player->preview.Open(std::move(archive), resources, error, player->preserveEditFraming))
@@ -1234,6 +1344,10 @@ extern "C"
             player->propPreviews.clear();
             player->placements = std::make_shared<MarcusPlayer::Placements>();
             player->frameRanges = std::make_shared<MarcusPlayer::FrameRanges>();
+            player->edits = std::make_shared<MarcusLiveEdits>();
+            player->materializedEdits.reset();
+            player->nextScene = nextScene; player->nextObject = nextObject; player->nextActorId = nextActor;
+            player->resourcesReady = true; player->retailPrepared = retailPrepared; player->retailSource = retailSource;
             player->materializedFrameRanges.reset();
             player->materializedPlacements.reset();
             player->materializedFile.reset();
@@ -1286,7 +1400,7 @@ extern "C"
     {
         MarcusFramePreviews *result = nullptr;
         Guard(player, [&](MM::Error &) {
-            if (!player->timingInput || player->selected < 0) return false;
+            if (player->selected < 0) return false;
             result = new MarcusFramePreviews(MaterializedMovie(*player), player->timingResources,
                                              player->timingContent, player->selected);
             return true;
@@ -1297,7 +1411,7 @@ extern "C"
     {
         MarcusFramePreviews *result = nullptr;
         Guard(player, [&](MM::Error &) {
-            if (!player->timingInput || player->selected < 0) return false;
+            if (player->selected < 0) return false;
             result = new MarcusFramePreviews(MaterializedMovie(*player), player->timingResources,
                                              player->timingContent, player->selected, true);
             return true;
@@ -1314,6 +1428,14 @@ extern "C"
                 return false;
             const auto first = player->placements->lower_bound({player->scenes[index].number, 0});
             if (first != player->placements->end() && first->first.first == player->scenes[index].number) return true;
+            if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size()) return true;
+            for (const auto &prop : *player->edits->props)
+                if (prop.definition.scene == player->scenes[index].number && prop.definition.first <= player->sceneInfo[index].first_frame)
+                    return true;
+            for (const auto &camera : *player->edits->cameras)
+                if (camera.first.scene == player->scenes[index].number &&
+                    (camera.first.frame == std::numeric_limits<std::int32_t>::min() || camera.first.frame == player->sceneInfo[index].first_frame))
+                    return true;
             if (player->sceneInfo[index].first_frame != player->baseSceneInfo[index].first_frame) return true;
             if (!player->preview.ReadSceneThumbnail(player->scenes[index], player->thumbnail, error))
                 return false;

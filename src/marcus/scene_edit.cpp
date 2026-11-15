@@ -96,23 +96,14 @@ static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong f
     Require(file->FAdoptChild(kctgMvie, movie, kctgGst, sourceChunk, 1), "Cannot link movie content sources.");
     return sourceId;
 }
-std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, unsigned long background, int ordinal)
+static void ApplyNewScene(PChunkyFile file, const MM::PreviewSceneDefinition &definition, int ordinal, bool emptyMovie)
 {
-    auto result = WorkingCopy(source, std::move(origin));
-    String path;
-    Filename filename;
-    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&path), "The movie working path is not supported.");
-    std::unique_ptr<ChunkyFile, Release> file(source.empty() ? ChunkyFile::PcflCreate(&filename, fcflWriteEnable)
-                                                          : ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
-    Require(bool(file), "Cannot open the movie working file.");
     ChunkIdentification root;
     const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
     if (!hadRoot)
     {
         root.ctg = kctgMvie;
-        Require(MovieData::FCreateRoot(file.get(), &root.cno), "Cannot create the movie header.");
+        Require(MovieData::FCreateRoot(file, &root.cno), "Cannot create the movie header.");
         // Headless scene-only inputs retain their original ordered scene list.
         ChunkIdentification existing;
         for (LegacyLong index = 0; file->FGetCkiCtg(kctgScen, index, &existing); ++index)
@@ -126,7 +117,7 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &
             Require(child.chid < 0x7fffffffUL, "This movie has no available scene slots.");
             slot = std::max(slot, child.chid + 1);
         }
-    const auto sourceId = RetailSource(file.get(), root.cno, hadRoot || source.empty() ? 2 : 1);
+    const auto sourceId = RetailSource(file, root.cno, hadRoot || emptyMovie ? 2 : 1);
     SceneData scene;
     scene.firstFrame = scene.lastFrame = scene.currentFrame = 1;
     scene.transition = transCut;
@@ -137,24 +128,16 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &
     ChunkNumber number;
     std::unique_ptr<GeneralGroup, Release> starts(GeneralGroup::PggNew(sizeof(SceneEvent)));
     std::unique_ptr<GeneralGroup, Release> frames(GeneralGroup::PggNew(sizeof(SceneEvent)));
-    TAGOnFile tag = {sourceId, 0, kctgBkgd, static_cast<ChunkNumber>(background)};
+    TAGOnFile tag = {sourceId, 0, kctgBkgd, definition.background};
     SceneEvent event = {1, sevtSetBkgd};
-    Require(starts && frames && starts->FInsert(0, sizeof(tag), &tag, &event) &&
-            scene.FCreate(file.get(), &number) && SceneData::FWriteEvents(file.get(), number, frames.get(), starts.get()) &&
-            file->FAdoptChild(kctgMvie, root.cno, kctgScen, number, slot) && file->FSave(kctgSoc),
-            "Cannot add the new scene to the movie.");
-    return result;
+    Require(!file->FFind(kctgScen, definition.number) && starts && frames &&
+            starts->FInsert(0, sizeof(tag), &tag, &event) && scene.FCreate(file, &number), "Cannot create the new scene.");
+    if (number != definition.number) { file->Move(kctgScen, number, kctgScen, definition.number); number = definition.number; }
+    Require(SceneData::FWriteEvents(file, number, frames.get(), starts.get()) &&
+            file->FAdoptChild(kctgMvie, root.cno, kctgScen, number, slot), "Cannot add the new scene to the movie.");
 }
-std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, unsigned long scene, long frame, unsigned long camera)
+static void ApplyCamera(PChunkyFile file, unsigned long scene, long frame, unsigned long camera)
 {
-    auto result = WorkingCopy(source, std::move(origin));
-    String path;
-    Filename filename;
-    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&path), "The movie working path is not supported.");
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
-    Require(bool(file), "Cannot open the movie working file.");
     ChildChunkIdentification child;
     DataBlock block;
     Require(file->FGetKidChidCtg(kctgScen, scene, 0, kctgFrmGg, &child) &&
@@ -189,11 +172,9 @@ std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::pat
     file->DeleteChild(kctgScen, scene, kctgFrmGg, child.cki.cno, 0);
     Require(file->FAdoptChild(kctgScen, scene, kctgFrmGg, number, 0), "Cannot link the scene camera change.");
     SceneData metadata;
-    Require(metadata.FRead(file.get(), scene), "Cannot read scene metadata.");
+    Require(metadata.FRead(file, scene), "Cannot read scene metadata.");
     if (frame == metadata.firstFrame && file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
         file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
-    Require(file->FSave(kctgSoc), "Cannot save the scene camera working copy.");
-    return result;
 }
 static void ApplySceneRange(PChunkyFile file, const MarcusSceneRange &range)
 {
@@ -247,20 +228,13 @@ static void ApplySceneRange(PChunkyFile file, const MarcusSceneRange &range)
     scene.lastFrame = static_cast<MMI32>(range.last);
     Require(scene.FWrite(file, sceneNumber), "Cannot write the extended scene.");
 }
-std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, const std::filesystem::path &templates,
-    unsigned long sceneNumber, long frame, unsigned long prop, const char *name, const float point[3], long &actorId)
+static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusNamedProp &propEdit)
 {
-    auto result = WorkingCopy(source, std::move(origin));
-    const auto open = [](const std::filesystem::path &value, bool write) {
-        String path;
-        Filename filename;
-        path.SetSzs(const_cast<char *>(value.u8string().c_str()));
-        Require(filename.FBuildFromPath(&path), "The prop working path is not supported.");
-        return std::unique_ptr<ChunkyFile, Release>(ChunkyFile::PcflOpen(&filename, write ? fcflWriteEnable : fcflNil));
-    };
-    auto file = open(result->path, true), library = open(templates, false);
-    Require(file && library, "Cannot open the prop library or movie working file.");
+    const auto &definition = propEdit.definition;
+    const auto prop = definition.templateNumber, sceneNumber = definition.scene;
+    const long frame = definition.first;
+    const auto point = definition.point;
+    const auto name = propEdit.name.c_str();
     DataBlock block;
     TemplateOnFile tmpl;
     Require(library->FFind(kctgTmpl, prop, &block) && block.FUnpackData() && block.FReadRgb(&tmpl, sizeof(tmpl), 0),
@@ -269,19 +243,19 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &s
     Require(tmpl.bo == kboCur && (tmpl.grftmpl & ftmplProp) && !(tmpl.grftmpl & ftmplTdt),
             "The selected template is not a prop.");
     SceneData scene;
-    Require(scene.FRead(file.get(), sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
+    Require(scene.FRead(file, sceneNumber) && frame >= scene.firstFrame && frame <= scene.lastFrame,
             "The prop insertion frame is outside this scene.");
     ChunkIdentification root;
     const bool hadRoot = file->FGetCkiCtg(kctgMvie, 0, &root);
     if (!hadRoot)
     {
         root.ctg = kctgMvie;
-        Require(MovieData::FCreateRoot(file.get(), &root.cno), "Cannot create the movie header.");
+        Require(MovieData::FCreateRoot(file, &root.cno), "Cannot create the movie header.");
         ChunkIdentification existing;
         for (LegacyLong index = 0; file->FGetCkiCtg(kctgScen, index, &existing); ++index)
             Require(file->FAdoptChild(kctgMvie, root.cno, kctgScen, existing.cno, index), "Cannot retain an existing scene.");
     }
-    const auto sourceId = RetailSource(file.get(), root.cno, hadRoot ? 2 : 1);
+    const auto sourceId = RetailSource(file, root.cno, hadRoot ? 2 : 1);
     ChildChunkIdentification rollChild;
     const bool hadRoll = file->FGetKidChidCtg(kctgMvie, root.cno, 0, kctgGst, &rollChild);
     std::unique_ptr<RollCallTable, Release> roll(RollCallTable::New());
@@ -335,13 +309,15 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &s
         }
     ActorChunkOnFile header = {};
     header.bo = kboCur; header.osk = koskCur;
-    header.arid = maximumId + 1;
-    header.nfrmFirst = static_cast<int32_t>(frame); header.nfrmLast = scene.lastFrame;
+    header.arid = definition.actorId;
+    header.nfrmFirst = static_cast<int32_t>(frame); header.nfrmLast = definition.last;
     header.tagTmpl = {sourceId, 0, kctgTmpl, static_cast<ChunkNumber>(prop)};
     header.dxyzFullRte = {BrFloatToScalar(point[0]), BrFloatToScalar(point[1]), BrFloatToScalar(point[2])};
     ChunkNumber actorNumber, childNumber;
-    Require(file->FAdd(sizeof(header), kctgActr, &actorNumber) && ActorData::FWriteHeader(file.get(), actorNumber, &header),
+    Require(file->FAdd(sizeof(header), kctgActr, &actorNumber) && ActorData::FWriteHeader(file, actorNumber, &header),
             "Cannot create the prop instance.");
+    Require(actorNumber == definition.number || !file->FFind(kctgActr, definition.number), "The new object ID is already in use.");
+    if (actorNumber != definition.number) { file->Move(kctgActr, actorNumber, kctgActr, definition.number); actorNumber = definition.number; }
     ActorTrack track;
     Require(track.FCreate(), "Cannot create the prop's stationary track.");
     RouteDistancePoint route = {};
@@ -381,26 +357,38 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &s
     entry.tagTmpl = {sourceId, nullptr, kctgTmpl, static_cast<ChunkNumber>(prop)};
     Require(roll->FAddStn(&propName, &entry), "Cannot name the new prop.");
     if (hadRoll) file->DeleteChild(kctgMvie, root.cno, kctgGst, rollChild.cki.cno, 0);
-    Require(MovieData::FWriteRollCall(file.get(), root.cno, roll.get(), &childNumber), "Cannot write the movie's object names.");
+    Require(MovieData::FWriteRollCall(file, root.cno, roll.get(), &childNumber), "Cannot write the movie's object names.");
     if (frame == scene.firstFrame && file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
         file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
-    Require(file->FSave(kctgSoc), "Cannot save the prop working copy.");
-    actorId = header.arid;
-    return result;
 }
 
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
-    const std::vector<MarcusSceneRange> &ranges)
+    const std::vector<MarcusSceneRange> &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
 {
     auto result = WorkingCopy(source, std::move(origin));
     String path;
     Filename filename;
     path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
     Require(filename.FBuildFromPath(&path), "The object working path is not supported.");
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    std::unique_ptr<ChunkyFile, Release> file(source.empty() ? ChunkyFile::PcflCreate(&filename, fcflWriteEnable)
+                                                         : ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     Require(bool(file), "Cannot open the movie working file.");
+    ChunkIdentification existing;
+    int ordinal = 1;
+    while (file->FGetCkiCtg(kctgScen, ordinal - 1, &existing)) ++ordinal;
+    for (const auto &scene : *edits.scenes) ApplyNewScene(file.get(), scene, ordinal++, source.empty());
     for (const auto &range : ranges) ApplySceneRange(file.get(), range);
+    if (!edits.props->empty())
+    {
+        String templatePath;
+        Filename templateFile;
+        templatePath.SetSzs(const_cast<char *>(templates.u8string().c_str()));
+        Require(templateFile.FBuildFromPath(&templatePath), "The template path is invalid.");
+        std::unique_ptr<ChunkyFile, Release> library(ChunkyFile::PcflOpen(&templateFile, fcflNil));
+        Require(bool(library), "Cannot open the prop library.");
+        for (const auto &prop : *edits.props) ApplyNewProp(file.get(), library.get(), prop);
+    }
     for (const auto &placement : placements)
     {
         const auto scene = placement.scene, actor = placement.actor;
@@ -431,6 +419,17 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
         Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved object.");
         if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
             file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+    }
+    for (const auto &entry : *edits.cameras)
+    {
+        auto frame = entry.first.frame;
+        if (frame == std::numeric_limits<std::int32_t>::min())
+        {
+            SceneData scene;
+            Require(scene.FRead(file.get(), entry.first.scene), "Cannot read the opening camera frame.");
+            frame = scene.firstFrame;
+        }
+        ApplyCamera(file.get(), entry.first.scene, frame, entry.second);
     }
     Require(file->FSave(kctgSoc), "Cannot save the object working copy.");
     return result;

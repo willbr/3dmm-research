@@ -41,6 +41,8 @@ class PreviewActor
     bool Load(PChunkyResourceFile file, ChunkNumber number,
               std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
               std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
+    bool Create(const PreviewPropDefinition &, std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+                std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
     bool Seek(LegacyLong frame);
     bool Translate(const float delta[3]);
     bool SetOffset(const float offset[3]);

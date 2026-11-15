@@ -1,5 +1,6 @@
 #include "asm_renderer.h"
 #include "asm_protocol.h"
+#include "live_edits.h"
 #include <SDL3/SDL.h>
 #include <filesystem>
 #include <stdexcept>
@@ -40,6 +41,7 @@ void Transfer(SDL_IOStream *stream, void *data, std::size_t bytes, bool write)
 } // namespace
 struct MarcusASMRenderer::Impl
 {
+    std::uint64_t sentRevision = ~std::uint64_t(0);
     SDL_Process *process = nullptr;
     SDL_IOStream *input = nullptr, *output = nullptr;
     ~Impl()
@@ -99,7 +101,7 @@ MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string
 MarcusASMRenderer::~MarcusASMRenderer() = default;
 bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view, MM::PreviewImage &image,
                                MM::Error &error, const std::vector<MarcusASM::PropOffset> &offsets,
-                               std::int32_t firstFrame, std::int32_t lastFrame)
+                               std::int32_t firstFrame, std::int32_t lastFrame, const MarcusLiveEdits *edits)
 {
     try
     {
@@ -107,8 +109,32 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
         request.propCount = static_cast<std::uint32_t>(offsets.size());
         request.firstFrame = firstFrame;
         request.lastFrame = lastFrame;
+        const bool sendEdits = edits && edits->revision != impl->sentRevision;
+        if (sendEdits)
+        {
+            request.flags |= 256;
+            request.editRevision = edits->revision;
+            request.sceneCount = static_cast<std::uint32_t>(edits->scenes->size());
+            request.addedPropCount = static_cast<std::uint32_t>(edits->props->size());
+            request.cameraCount = static_cast<std::uint32_t>(edits->cameras->size());
+        }
         Transfer(impl->input, &request, sizeof(request), true);
         if (!offsets.empty()) Transfer(impl->input, const_cast<MarcusASM::PropOffset *>(offsets.data()), offsets.size() * sizeof(offsets[0]), true);
+        if (sendEdits)
+        {
+            for (auto scene : *edits->scenes) Transfer(impl->input, &scene, sizeof(scene), true);
+            for (const auto &prop : *edits->props)
+            {
+                auto definition = prop.definition;
+                Transfer(impl->input, &definition, sizeof(definition), true);
+            }
+            for (const auto &entry : *edits->cameras)
+            {
+                MarcusASM::CameraEdit camera{static_cast<std::uint32_t>(entry.first.scene),
+                    static_cast<std::int32_t>(entry.first.frame), static_cast<std::uint32_t>(entry.second)};
+                Transfer(impl->input, &camera, sizeof(camera), true);
+            }
+        }
         SDL_FlushIO(impl->input);
         MarcusASM::Reply reply;
         Transfer(impl->output, &reply, sizeof(reply), false);
@@ -137,6 +163,7 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
             image.depth.resize(std::size_t(reply.width) * reply.height);
             Transfer(impl->output, image.depth.data(), image.depth.size() * sizeof(float), false);
         }
+        if (sendEdits) impl->sentRevision = edits->revision;
         return true;
     }
     catch (const std::exception &e)

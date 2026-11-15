@@ -132,8 +132,8 @@ Resources/Content paths.
 
 Adding a scene appends and selects a one-frame scene with the chosen background,
 camera 0, a cut transition and no actors, captions or sound cues. This works for
-a new movie and an opened movie, including ZIP/VMM inputs. Changes live in a
-private working copy; original movies, ZIPs and content files are not overwritten.
+a new movie and an opened movie, including ZIP/VMM inputs. Changes live in
+memory; original movies, ZIPs and content files are not overwritten.
 Resource/Content reloads retain the added scenes. An **UNSAVED** indicator marks
 the working movie. Saving/export and other scene editing tools are not implemented
 yet; opening another movie, New movie or exiting discards these scene additions.
@@ -145,7 +145,7 @@ double-click applies the selected angle at that frame; Escape/Cancel leaves the
 movie unchanged. Selecting the current angle also leaves it unchanged. Thumbnail
 rendering uses the isolated preview helper and does not alter the live camera.
 
-Camera choices are authored changes in the same private working copy as new
+Camera choices are authored changes in the same live session as new
 scenes. A choice replaces any camera changes at that exact frame and lasts until
 the next authored camera change. Other frame events and later camera cuts are
 retained. The movie is marked **UNSAVED**; saving/export is still unavailable.
@@ -170,8 +170,9 @@ object placement point, and remains through the scene's last frame. It uses its
 default pose/action on a stationary track. The new prop is selected in the object
 list and its bounds are highlighted in the movie view. Each insertion has a
 unique movie-wide object ID and roll-call name. Other scenes and existing tracks
-are retained. Props share the private **UNSAVED** working copy with scene and
-camera edits; saving/export and moving placed props are not implemented yet.
+are retained. Props share the **UNSAVED** session with scene and camera edits;
+placed props can be moved with the gizmo or position fields. Saving/export is
+not implemented yet.
 
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape
@@ -1145,7 +1146,7 @@ are retained. Orbit selection keeps its camera and pivot fixed while placing an
 object, including release, cancellation and undo. Animation playback still follows
 the selected object's posed bounds; refitting explicitly recenters the view.
 Native private snapshots are materialized lazily for frame/camera thumbnail
-helpers and structural edits. In the x86 ASM renderer, live and committed
+helpers. In the x86 ASM renderer, live and committed
 placements use the same existing worker over IPC, retaining its orbit framing
 throughout a drag; moving an object does not restart that worker.
 
@@ -1188,12 +1189,34 @@ A headless Debug-build check measured 100 frame additions at 0.321 ms median and
 0.407 ms maximum on the synthetic two-scene fixture, excluding scene rendering.
 Duration remained immediately available after every addition and undo. Native
 frame ranges are written in one deferred snapshot alongside object placements
-when a thumbnail helper or structural edit needs a native movie.
+when a thumbnail helper needs a native movie.
 
-Scene creation, prop insertion and authored camera changes still create and
-reopen private native working copies. Undoing those structural edits reopens
-an earlier copy. Object movement, frame-edge edits and ordinary navigation use
-the live evaluator.
+Scene creation, prop insertion, authored camera changes and their undo also use
+the live evaluator. Scene and prop definitions and camera cues use small shared
+session journals; undo retains those records rather than copies of the movie.
+Adding a prop creates its instance while keeping existing actors and loaded
+templates. Creating a scene loads its chosen background through the open content
+caches. Camera changes replace only the cue data. These actions preserve timing
+analysis and the running ASM worker, which receives the edited definitions over
+IPC. New movies need no initial movie file. Asset loading and journal updates
+still allocate memory; whole-movie copies and content reloads are deferred.
+
+A headless Debug-build check on the synthetic two-scene fixture measured:
+
+| Warm edit | Median | Maximum |
+| --- | ---: | ---: |
+| Camera cue, 100 changes | 0.257 ms | 0.420 ms |
+| Prop instance, 20 insertions | 0.163 ms | 0.171 ms |
+| Scene, 10 creations | 0.496 ms | 0.865 ms |
+
+These measurements exclude rendering and initial catalogue/template loading.
+Duration remained ready throughout, including after undo. Headless checks also
+cover edits during timing analysis, mixed undo/reload, portable and ASM rendering,
+new movies without a base file, and matching pixels from deferred native snapshots.
+
+Frame/camera thumbnail helpers receive one cached native snapshot containing all
+scene, prop, camera, placement and frame-range edits. The snapshot is rebuilt
+only after further edits, and its creation does not replace the live movie.
 
 Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, prop insertion,
 frame addition, camera change or new scene. Each drag or completed position-field edit is one

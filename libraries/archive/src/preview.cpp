@@ -168,6 +168,37 @@ struct Preview::Impl
     MMPreviewOrbit orbit = {0, 0, -1, {0, 0, 0}, 1, {0, 0, 0}};
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
+    std::size_t originalActors = 0;
+    bool virtualScene = false;
+    std::vector<PreviewSceneDefinition> sceneDefinitions;
+    std::vector<PreviewPropDefinition> propDefinitions;
+    bool IsVirtualScene(Id scene) const
+    {
+        return scene.type == kctgScen && std::any_of(sceneDefinitions.begin(), sceneDefinitions.end(),
+            [&](const auto &value) { return value.number == scene.number; });
+    }
+    bool SyncActors(Error &error)
+    {
+        std::vector<const PreviewPropDefinition *> desired;
+        for (const auto &prop : propDefinitions) if (prop.scene == info.asset.number) desired.push_back(&prop);
+        std::size_t kept = 0;
+        while (kept < desired.size() && originalActors + kept < actors.size() &&
+               actors[originalActors + kept]->number == desired[kept]->number) ++kept;
+        std::vector<std::unique_ptr<Internal::PreviewActor>> added;
+        for (std::size_t i = kept; i < desired.size(); ++i)
+        {
+            auto actor = std::make_unique<Internal::PreviewActor>();
+            if (!actor->Create(*desired[i], [&](const TAGOnFile &tag) { return Resolve(tag); },
+                              [&](PTemplate value) { BindTemplate(value); }, visibilityClock) || !actor->Seek(info.currentFrame))
+                return Fail(error, ErrorCode::decode_failed, "Cannot create the selected prop and its pose dependencies.");
+            added.push_back(std::move(actor));
+        }
+        actors.reserve(originalActors + desired.size());
+        actors.resize(originalActors + kept);
+        for (auto &actor : added) actors.push_back(std::move(actor));
+        info.actors = actors.size();
+        return true;
+    }
     // Explicit placement edits move the prop through the existing camera.
     // Advance the tracked anchor by the edit only, retaining animation follow.
     void PreserveOrbitForPlacement(int object, const PreviewObject &before)
@@ -199,7 +230,7 @@ struct Preview::Impl
         std::int32_t frame;
         std::uint32_t camera;
     };
-    std::vector<CameraChange> cameraChanges;
+    std::vector<CameraChange> cameraChanges, originalCameraChanges;
     std::uint32_t initialCamera = 0;
     std::int32_t originalFirstFrame = 0, originalLastFrame = 0;
     bool LoadBackground(PChunkyResourceFile source, ChunkNumber number)
@@ -213,7 +244,7 @@ struct Preview::Impl
     }
     PChunkyResourceFile Resolve(const TAGOnFile &tag)
     {
-        if (tag.sid == 0 && cache->Pcfl()->FFind(tag.ctg, tag.cno))
+        if (tag.sid == 0 && cache && cache->Pcfl()->FFind(tag.ctg, tag.cno))
             return cache;
         for (const auto &source : sources)
             if (source->id == tag.sid && source->cache->Pcfl()->FFind(tag.ctg, tag.cno))
@@ -281,6 +312,9 @@ struct Preview::Impl
     void ClearAsset(bool preserveFraming = false)
     {
         actors.clear();
+        originalActors = 0;
+        virtualScene = false;
+        originalCameraChanges.clear();
         visibilityClock = 0;
         background.reset();
         cameraChanges.clear();
@@ -628,6 +662,7 @@ try
 {
     error = {};
     presentation = {};
+    if (_impl->IsVirtualScene(scene)) return true;
     if (!_impl->ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
@@ -653,6 +688,7 @@ try
 {
     error = {};
     presentation = {};
+    if (_impl->IsVirtualScene(scene)) return true;
     if (!_impl->ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
@@ -674,6 +710,7 @@ try
 {
     error = {};
     cues.clear();
+    if (_impl->IsVirtualScene(scene)) return true;
     PreviewPresentation presentation;
     if (!_impl->ready || scene.type != kctgScen ||
         !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true))
@@ -750,18 +787,27 @@ bool Preview::Open(const std::string &archivePath, const std::string &resourcesP
     return Open(std::move(archive), resourcesPath, error);
 }
 bool Preview::Open(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming)
+{
+    if (!archive.NativeFile()) return Fail(error, ErrorCode::invalid_argument, "Open the movie archive before transferring it to preview.");
+    return OpenCore(std::move(archive), resourcesPath, error, preserveFraming);
+}
+bool Preview::OpenEmpty(const std::string &resourcesPath, Error &error)
+{
+    Archive empty;
+    return OpenCore(std::move(empty), resourcesPath, error, false);
+}
+void Preview::ClearScene() { _impl->ClearAsset(); }
+bool Preview::OpenCore(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming)
 try
 {
     error = {};
     Internal::ClearDiagnostic();
     // Validate both paths before touching the live renderer or session.
-    if (!archive.NativeFile())
-        return Fail(error, ErrorCode::invalid_argument, "Open the movie archive before transferring it to preview.");
     std::unique_ptr<Impl> opened(new Impl);
     opened->assets._impl.swap(archive._impl);
     if (!opened->resources.Open(resourcesPath, error))
         return false;
-    if (!WithinBudget(opened->assets, static_cast<PChunkyFile>(opened->assets.NativeFile()), error) ||
+    if ((opened->assets.NativeFile() && !WithinBudget(opened->assets, static_cast<PChunkyFile>(opened->assets.NativeFile()), error)) ||
         !WithinBudget(opened->resources, static_cast<PChunkyFile>(opened->resources.NativeFile()), error))
         return false;
     DataBlock block;
@@ -792,8 +838,9 @@ try
         BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
         opened->running = runtimeOwned = true;
     }
-    opened->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(opened->assets.NativeFile()), 32L << 20);
-    if (!opened->cache || Internal::AssertionFailed())
+    if (opened->assets.NativeFile())
+        opened->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(opened->assets.NativeFile()), 32L << 20);
+    if ((opened->assets.NativeFile() && !opened->cache) || Internal::AssertionFailed())
         return Fail(error, ErrorCode::decode_failed, "Cannot initialize the asset resource reader.");
     if (!Material_MTRL::FSetShadeTable(file, kctgTmap, 0))
         return Fail(error, ErrorCode::decode_failed, "Cannot load the resource shade table.");
@@ -814,6 +861,7 @@ try
 {
     image = {};
     error = {};
+    if (_impl->IsVirtualScene(scene)) return true;
     auto file = static_cast<PChunkyFile>(_impl->assets.NativeFile());
     if (!file || scene.type != kctgScen)
         return Fail(error, ErrorCode::invalid_argument, "Open a movie before reading scene thumbnails.");
@@ -903,6 +951,22 @@ try
     error = {};
     Internal::ClearDiagnostic();
     _impl->ClearAsset(preserveFraming);
+    _impl->info.asset = asset;
+    if (_impl->IsVirtualScene(asset))
+    {
+        const auto definition = std::find_if(_impl->sceneDefinitions.begin(), _impl->sceneDefinitions.end(),
+            [&](const auto &value) { return value.number == asset.number; });
+        TAGOnFile tag = {definition->source, 0, kctgBkgd, definition->background};
+        auto source = _impl->Resolve(tag);
+        if (!source || !_impl->LoadBackground(source, tag.cno)) return Fail(error, ErrorCode::decode_failed, "Cannot load the new scene background.");
+        _impl->info.scene = _impl->info.timeline = true;
+        _impl->info.firstFrame = _impl->info.lastFrame = _impl->info.currentFrame = 1;
+        _impl->originalFirstFrame = _impl->originalLastFrame = 1;
+        _impl->virtualScene = _impl->ready = true;
+        if (!_impl->SyncActors(error) || !SetFrame(1, error)) return false;
+        _impl->RefreshStats();
+        return true;
+    }
     if (!_impl->cache)
         return Fail(error, ErrorCode::invalid_argument, "Open preview resources first.");
     bool ok = false;
@@ -1077,6 +1141,9 @@ try
             _impl->info.firstFrame = _impl->actors[0]->FirstFrame();
             _impl->info.lastFrame = _impl->actors[0]->LastFrame();
         }
+        _impl->originalActors = _impl->actors.size();
+        _impl->originalCameraChanges = _impl->cameraChanges;
+        if (asset.type == kctgScen && !_impl->SyncActors(error)) return false;
         _impl->info.timeline = true;
         _impl->info.actors = static_cast<std::uint32_t>(_impl->actors.size());
         _impl->ready = true;
@@ -1117,6 +1184,41 @@ bool Preview::SetPose(std::uint32_t action, std::uint32_t cel, Error &error)
     }
     _impl->RefreshStats();
     return true;
+}
+bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
+                             const std::vector<PreviewPropDefinition> &props, Error &error)
+{
+    error = {};
+    const auto oldScenes = _impl->sceneDefinitions;
+    const auto oldProps = _impl->propDefinitions;
+    _impl->sceneDefinitions = scenes;
+    _impl->propDefinitions = props;
+    if (_impl->virtualScene && !_impl->IsVirtualScene(_impl->info.asset)) { _impl->ClearAsset(); return true; }
+    if (_impl->ready && _impl->info.scene && !_impl->SyncActors(error))
+    { _impl->sceneDefinitions = oldScenes; _impl->propDefinitions = oldProps; return false; }
+    return true;
+}
+bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
+{
+    error = {};
+    if (!_impl->ready || !_impl->info.scene) return Fail(error, ErrorCode::invalid_argument, "Select a scene before editing its cameras.");
+    for (const auto &edit : edits)
+        if (edit.camera >= _impl->info.cameraCount) return Fail(error, ErrorCode::invalid_argument, "The camera index is out of range.");
+    auto first = _impl->info.firstFrame;
+    auto last = _impl->info.lastFrame;
+    _impl->cameraChanges = _impl->originalCameraChanges;
+    _impl->info.firstFrame = _impl->originalFirstFrame;
+    _impl->info.lastFrame = _impl->originalLastFrame;
+    if (!SetSceneRange(first, last, error)) return false;
+    for (const auto &edit : edits)
+    {
+        const auto frame = edit.frame == std::numeric_limits<std::int32_t>::min() ? first : edit.frame;
+        auto &changes = _impl->cameraChanges;
+        changes.erase(std::remove_if(changes.begin(), changes.end(), [&](const auto &value) { return value.frame == frame; }), changes.end());
+        changes.push_back({frame, edit.camera});
+    }
+    std::stable_sort(_impl->cameraChanges.begin(), _impl->cameraChanges.end(), [](const auto &a, const auto &b) { return a.frame < b.frame; });
+    return SetFrame(std::max(first, std::min(last, _impl->info.currentFrame)), error);
 }
 bool Preview::SetSceneRange(std::int32_t first, std::int32_t last, Error &error)
 {

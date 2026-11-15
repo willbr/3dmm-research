@@ -128,7 +128,12 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
 }
 MarcusFramePreviews::~MarcusFramePreviews()
 {
-    cancel = true;
+    {
+        // Change the wait predicate under its mutex so cancellation cannot
+        // slip between the worker's predicate check and going to sleep.
+        std::lock_guard<std::mutex> lock(mutex);
+        cancel = true;
+    }
     wake.notify_all();
     if (thread.joinable()) thread.join();
 }

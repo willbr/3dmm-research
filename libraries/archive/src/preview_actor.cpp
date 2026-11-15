@@ -88,6 +88,41 @@ bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
     state.RewindRoute(track);
     return true;
 }
+bool PreviewActor::Create(const PreviewPropDefinition &definition,
+                          std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+                          std::function<void(PTemplate)> bindTemplate, std::uint64_t &clock)
+{
+    resolve = std::move(resolver);
+    visibilityClock = &clock;
+    number = definition.number;
+    header.bo = kboCur; header.osk = koskCur;
+    header.arid = definition.actorId;
+    header.nfrmFirst = definition.first; header.nfrmLast = definition.last;
+    header.tagTmpl = {definition.source, 0, kctgTmpl, definition.templateNumber};
+    header.dxyzFullRte = {BrFloatToScalar(definition.point[0]), BrFloatToScalar(definition.point[1]), BrFloatToScalar(definition.point[2])};
+    originalPlacement[0] = header.dxyzFullRte.dxr;
+    originalPlacement[1] = header.dxyzFullRte.dyr;
+    originalPlacement[2] = header.dxyzFullRte.dzr;
+    auto source = resolve(header.tagTmpl);
+    if (!source) return false;
+    tmpl = static_cast<PTemplate>(source->PbacoFetch(kctgTmpl, definition.templateNumber, Template::FReadTmpl));
+    if (!tmpl || !tmpl->FIsProp() || tmpl->FIsTdt()) return false;
+    bindTemplate(tmpl);
+    if (!(body = tmpl->PbodyCreate()) || !track.FCreate()) return false;
+    RouteDistancePoint route = {};
+    ActorEvent::Base event = {ActorEvent::aetAdd, definition.first, {0, rZero, 0}};
+    ActorEvent::Add addition = {};
+    tmpl->GetRestOrien(&addition.xa, &addition.ya, &addition.za);
+    ActorEvent::Action action = {0, 0};
+    BRS step = rZero;
+    if (!track.Route()->FInsert(0, &route) || !track.Events()->FInsert(0, sizeof(addition), &addition, &event)) return false;
+    event.aet = ActorEvent::aetActn;
+    if (!track.Events()->FInsert(1, sizeof(action), &action, &event)) return false;
+    event.aet = ActorEvent::aetStep;
+    if (!track.Events()->FInsert(2, sizeof(step), &step, &event)) return false;
+    state.RewindRoute(track);
+    return true;
+}
 PreviewObject PreviewActor::Snapshot() const
 {
     PreviewObject object;

@@ -84,6 +84,23 @@ struct PreviewObject
     bool prop = false, text = false, visible = false, hasLifetime = false;
     float x = 0, y = 0, z = 0;
 };
+// Flat live-edit definitions; native snapshots can be generated on demand.
+struct PreviewSceneDefinition
+{
+    std::uint32_t number = 0, background = 0;
+    std::int32_t source = 2;
+};
+struct PreviewPropDefinition
+{
+    std::uint32_t scene = 0, number = 0, templateNumber = 0;
+    std::int32_t source = 2, actorId = 0, first = 1, last = 1;
+    float point[3] = {};
+};
+struct PreviewCameraEdit
+{
+    std::int32_t frame = 0;
+    std::uint32_t camera = 0;
+};
 struct PreviewBounds
 {
     bool valid = false;
@@ -176,6 +193,7 @@ struct PreviewAudio
 // from Studio's renderer. The public boundary contains no native/UI types.
 class Preview
 {
+    bool OpenCore(Archive &&, const std::string &, Error &, bool);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 
@@ -192,6 +210,11 @@ class Preview
     // Register an external source archive. Source IDs are preserved from TAGs;
     // 0 refers to the opened document and positive IDs identify content packs.
     bool AddContent(std::int32_t sourceId, const std::string &archivePath, Error &error);
+    bool OpenEmpty(const std::string &resourcesPath, Error &error);
+    void ClearScene();
+    // Reconcile added objects while retaining bodies and templates already loaded.
+    bool SetDefinitions(const std::vector<PreviewSceneDefinition> &, const std::vector<PreviewPropDefinition> &, Error &);
+    bool SetCameraEdits(const std::vector<PreviewCameraEdit> &, Error &);
     void Close();
     // BMDL models, TMPL actors/props/text, ACTR instances, SCEN scenes and
     // BKGD backgrounds. Failed selection clears the old asset.
