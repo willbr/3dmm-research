@@ -16,3 +16,11 @@ projected origin. These handles use captured screen-space translation, while
 ordinary handles retain the upstream ray/plane solver. Both solvers assign the
 same translation delta; neither branch shadows it. Zero keeps upstream behavior.
 Marcus also disables axis flipping so arrow directions represent positive axes.
+
+`SetTranslationPlaneMinimumSize(pixels)` keeps all unmasked translation planes
+visible. Narrow plane quads expand about their projected centers with a minimum
+edge length and perpendicular thickness. Drawing and picking share those quads;
+expanded planes capture their inverse screen basis at drag start so edge-on
+planes remain movable without parallel ray/plane intersections. The unrelated
+world coordinate remains fixed. The enabled axis and plane options also keep
+other handles visible during manipulation. Zero preserves upstream behavior.

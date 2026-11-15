@@ -1123,8 +1123,12 @@ Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap.
 Arrows retain the real positive world-axis directions. Foreshortened arrows have
 a minimum pickable length along their actual projection; exactly end-on axes
 show their circular end cap at the gizmo origin, draggable up/down for depth.
-There are no separate axis buttons or replacement arrows. Invalid or out-of-range
-drag samples keep the last valid pose; releasing commits that pose.
+All three plane squares remain visible from the fixed movie camera and work
+camera, including during a drag. Narrow or edge-on squares expand around their
+projected centers to retain a minimum pickable thickness. Their hit regions
+match the displayed squares, and dragging uses the expanded geometry to avoid
+unstable ray/plane intersections. Invalid or out-of-range drag samples keep the
+last valid pose; releasing commits that pose.
 The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.
 The prop updates live; releasing the handle or finishing a field commits one

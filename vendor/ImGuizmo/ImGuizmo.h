@@ -303,6 +303,9 @@ namespace IMGUIZMO_NAMESPACE
    // Minimum size for the original projected translation arrows (pixels).
    // Zero preserves upstream behavior. Exactly end-on axes use a circular end cap.
    IMGUI_API void SetTranslationAxisMinimumSize(float pixels);
+   // Keep all translation plane quads visible with a minimum projected thickness.
+   // Zero preserves upstream behavior. Drawing, picking and dragging share the quad.
+   IMGUI_API void SetTranslationPlaneMinimumSize(float pixels);
    // from a x,y,z point in space and using Manipulation view/projection matrix, check if mouse is in pixel radius distance of that projected point
    IMGUI_API bool IsOver(float* position, float pixelRadius);
 

@@ -725,6 +725,9 @@ namespace IMGUIZMO_NAMESPACE
       vec_t mMatrixOrigin;
       vec_t mTranslationLastDelta;
       float mTranslationAxisMinimumSize = 0.f;
+      float mTranslationPlaneMinimumSize = 0.f;
+      bool mTranslationPlaneScreenDrag = false;
+      vec_t mTranslationPlaneScreenX, mTranslationPlaneScreenY;
       bool mTranslationScreenDrag = false;
       ImVec2 mTranslationMouseOrigin, mTranslationScreenDirection;
       float mTranslationWorldPerPixel = 0.f;
@@ -1363,6 +1366,59 @@ namespace IMGUIZMO_NAMESPACE
       return true;
    }
 
+   // Drawing and picking share the original plane quad. Widen a collapsed
+   // projection around its own center so it stays usable from a fixed camera.
+   static bool TranslationPlaneHandle(int plane, ImVec2* corners, bool& enlarged)
+   {
+      enlarged = false;
+      vec_t axis, planeX, planeY;
+      bool visibleAxis, visiblePlane;
+      ComputeTripodAxisAndVisibility(plane, axis, planeX, planeY, visibleAxis, visiblePlane);
+      const float minimum = gContext.mTranslationPlaneMinimumSize;
+      const bool masked = gContext.mAxisMask && gContext.mAxisMask != (1 << plane);
+      if (masked || (!visiblePlane && minimum <= 0.f)) return false;
+      for (int j = 0; j < 4; ++j)
+         corners[j] = worldToPos((planeX * quadUV[j * 2] + planeY * quadUV[j * 2 + 1]) *
+                                gContext.mScreenFactor, gContext.mMVP);
+      if (minimum <= 0.f) return true;
+
+      ImVec2 edgeX = corners[3] - corners[0], edgeY = corners[1] - corners[0];
+      const bool xLonger = ImLengthSqr(edgeX) >= ImLengthSqr(edgeY);
+      ImVec2& longer = xLonger ? edgeX : edgeY;
+      ImVec2& shorter = xLonger ? edgeY : edgeX;
+      const float length = sqrtf(ImLengthSqr(longer));
+      const ImVec2 direction = length > 0.001f ? longer / length : ImVec2(1.f, 0.f);
+      const ImVec2 perpendicular(-direction.y, direction.x);
+      const float along = ImDot(shorter, direction);
+      const float across = ImDot(shorter, perpendicular);
+      enlarged = length < minimum || fabsf(across) < minimum;
+      if (!enlarged) return true;
+
+      longer = direction * ImMax(length, minimum);
+      const float sign = across < -0.001f ? -1.f : 1.f;
+      shorter = direction * along + perpendicular * (sign * ImMax(fabsf(across), minimum));
+      const ImVec2 center = (corners[0] + corners[1] + corners[2] + corners[3]) * 0.25f;
+      corners[0] = center - (edgeX + edgeY) * 0.5f;
+      corners[1] = corners[0] + edgeY;
+      corners[2] = corners[1] + edgeX;
+      corners[3] = corners[0] + edgeX;
+      return true;
+   }
+
+   static bool TranslationPlaneContains(const ImVec2* corners, const ImVec2& point)
+   {
+      float minimum = FLT_MAX, maximum = -FLT_MAX;
+      for (int j = 0; j < 4; ++j)
+      {
+         const ImVec2 edge = corners[(j + 1) % 4] - corners[j];
+         const ImVec2 offset = point - corners[j];
+         const float cross = edge.x * offset.y - edge.y * offset.x;
+         minimum = ImMin(minimum, cross);
+         maximum = ImMax(maximum, cross);
+      }
+      return minimum >= 0.f || maximum <= 0.f;
+   }
+
    static void ComputeSnap(float* value, float snap)
    {
       if (snap <= FLT_EPSILON)
@@ -1731,7 +1787,7 @@ namespace IMGUIZMO_NAMESPACE
          vec_t dirPlaneX, dirPlaneY, dirAxis;
          ComputeTripodAxisAndVisibility(i, dirAxis, dirPlaneX, dirPlaneY, belowAxisLimit, belowPlaneLimit);
 
-         if (!gContext.mbUsing || (gContext.mbUsing && type == MT_MOVE_X + i))
+         if (gContext.mTranslationAxisMinimumSize > 0.f || !gContext.mbUsing || type == MT_MOVE_X + i)
          {
             // draw axis
             ImVec2 baseSSpace, worldDirSSpace;
@@ -1772,16 +1828,12 @@ namespace IMGUIZMO_NAMESPACE
             }
          }
          // draw plane
-         if (!gContext.mbUsing || (gContext.mbUsing && type == MT_MOVE_YZ + i))
+         if (gContext.mTranslationPlaneMinimumSize > 0.f || !gContext.mbUsing || type == MT_MOVE_YZ + i)
          {
-            if (belowPlaneLimit && Contains(op, TRANSLATE_PLANS[i]))
+            ImVec2 screenQuadPts[4];
+            bool enlarged;
+            if (Contains(op, TRANSLATE_PLANS[i]) && TranslationPlaneHandle(i, screenQuadPts, enlarged))
             {
-               ImVec2 screenQuadPts[4];
-               for (int j = 0; j < 4; ++j)
-               {
-                  vec_t cornerWorldPos = (dirPlaneX * quadUV[j * 2] + dirPlaneY * quadUV[j * 2 + 1]) * gContext.mScreenFactor;
-                  screenQuadPts[j] = worldToPos(cornerWorldPos, gContext.mMVP);
-               }
 #if IMGUI_VERSION_NUM < 19276
                drawList->AddPolyline(screenQuadPts, 4, GetColorU32(DIRECTION_X + i), ImDrawFlags_Closed, 1.0f );
 #else
@@ -2332,6 +2384,18 @@ namespace IMGUIZMO_NAMESPACE
          type = MT_MOVE_SCREEN;
       }
 
+      if (type == MT_NONE && gContext.mTranslationPlaneMinimumSize > 0.f)
+      {
+         for (int plane = 0; plane < 3; ++plane)
+         {
+            ImVec2 corners[4];
+            bool enlarged;
+            if (Contains(op, TRANSLATE_PLANS[plane]) && TranslationPlaneHandle(plane, corners, enlarged) &&
+                TranslationPlaneContains(corners, io.MousePos))
+               return static_cast<MOVETYPE>(MT_MOVE_YZ + plane);
+         }
+      }
+
       const vec_t screenCoord = makeVect(io.MousePos - ImVec2(gContext.mX, gContext.mY));
 
       // compute
@@ -2403,7 +2467,13 @@ namespace IMGUIZMO_NAMESPACE
          ImGui::CaptureMouseFromApp();
 #endif
          vec_t delta;
-         if (gContext.mTranslationScreenDrag)
+         if (gContext.mTranslationPlaneScreenDrag)
+         {
+            const ImVec2 mouse = io.MousePos - gContext.mTranslationMouseOrigin;
+            delta = gContext.mMatrixOrigin + gContext.mTranslationPlaneScreenX * mouse.x +
+                    gContext.mTranslationPlaneScreenY * mouse.y - gContext.mModel.v.position;
+         }
+         else if (gContext.mTranslationScreenDrag)
          {
             const ImVec2 mouse = io.MousePos - gContext.mTranslationMouseOrigin;
             const float distance = (mouse.x * gContext.mTranslationScreenDirection.x + mouse.y * gContext.mTranslationScreenDirection.y) *
@@ -2502,7 +2572,27 @@ namespace IMGUIZMO_NAMESPACE
             gContext.mTranslationScreenDrag = type >= MT_MOVE_X && type <= MT_MOVE_Z &&
                TranslationAxisHandle(type - MT_MOVE_X, start, end, endOn);
             gContext.mMatrixOrigin = gContext.mModel.v.position;
-            if (gContext.mTranslationScreenDrag)
+            ImVec2 corners[4];
+            bool enlarged = false;
+            gContext.mTranslationPlaneScreenDrag = type >= MT_MOVE_YZ && type <= MT_MOVE_XY &&
+               TranslationPlaneHandle(type - MT_MOVE_YZ, corners, enlarged) && enlarged;
+            if (gContext.mTranslationPlaneScreenDrag)
+            {
+               const int plane = type - MT_MOVE_YZ;
+               const ImVec2 edgeX = corners[3] - corners[0], edgeY = corners[1] - corners[0];
+               const float determinant = edgeX.x * edgeY.y - edgeX.y * edgeY.x;
+               vec_t axis, planeX, planeY;
+               bool visibleAxis, visiblePlane;
+               ComputeTripodAxisAndVisibility(plane, axis, planeX, planeY, visibleAxis, visiblePlane);
+               planeX.TransformVector(gContext.mModel);
+               planeY.TransformVector(gContext.mModel);
+               const float scale = gContext.mScreenFactor * (quadMax - quadMin) / determinant;
+               gContext.mTranslationPlaneScreenX = (planeX * edgeY.y - planeY * edgeX.y) * scale;
+               gContext.mTranslationPlaneScreenY = (planeY * edgeX.x - planeX * edgeY.x) * scale;
+               gContext.mTranslationMouseOrigin = io.MousePos;
+               gContext.mTranslationLastDelta = makeVect(0.f, 0.f, 0.f);
+            }
+            else if (gContext.mTranslationScreenDrag)
             {
                gContext.mTranslationMouseOrigin = io.MousePos;
                if (endOn)
@@ -2914,6 +3004,11 @@ namespace IMGUIZMO_NAMESPACE
    void SetTranslationAxisMinimumSize(float pixels)
    {
       gContext.mTranslationAxisMinimumSize = ImMax(0.f, pixels);
+   }
+
+   void SetTranslationPlaneMinimumSize(float pixels)
+   {
+      gContext.mTranslationPlaneMinimumSize = ImMax(0.f, pixels);
    }
 
    void SetAxisMask(bool x, bool y, bool z)
