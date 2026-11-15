@@ -51,6 +51,64 @@ int main(int argc, char **argv)
         std::sort(releases.begin(), releases.end());
         std::printf("100 prop releases: median %.3f ms, max %.3f ms; ready duration retained\n", releases[50], releases.back());
 
+        // Repeated frame additions and Undo must stay in the live evaluator.
+        open();
+        check(marcus_seek(player.get(), 30) && marcus_movie_time(player.get(), &timing), "Prime frame-add timing cache");
+        std::vector<double> additions;
+        for (int step = 1; step <= 100; ++step)
+        {
+            const auto start = Clock::now();
+            check(marcus_add_frame(player.get(), 1), "Add live frame");
+            additions.push_back(std::chrono::duration<double, std::milli>(Clock::now() - start).count());
+            check(marcus_info(player.get(), &info) && info.frame == 30 + step && info.last_frame == 30 + step,
+                  "Live frame range advances once per addition");
+            check(marcus_movie_time_async(player.get(), &after) == 1 && after.duration_seconds > timing.duration_seconds,
+                  "Frame additions keep duration immediately available");
+        }
+        for (int step = 0; step < 64; ++step)
+        {
+            check(marcus_undo(player.get()), "Undo live frame addition");
+            check(marcus_movie_time_async(player.get(), &after) == 1, "Frame undo retains timing analysis");
+        }
+        check(marcus_info(player.get(), &info) && info.last_frame == 66 && info.frame == 66 && !marcus_can_undo(player.get()),
+              "Frame additions use bounded undo without losing the live range");
+        std::sort(additions.begin(), additions.end());
+        std::printf("100 live frame additions: median %.3f ms, max %.3f ms; ready duration retained\n",
+                    additions[50], additions.back());
+        check(marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "Render extended live frame");
+        const std::vector<unsigned char> rangeImage(image.rgba, image.rgba + image.pitch * image.height);
+        {
+            std::unique_ptr<MarcusFramePreviews, decltype(&marcus_frame_previews_destroy)> helper(
+                marcus_frame_previews_create(player.get()), marcus_frame_previews_destroy);
+            check(bool(helper), "Materialize the complete live range once for a helper");
+            const long frame = 66;
+            marcus_frame_previews_request(helper.get(), &frame, 1);
+            char error[1024] = {};
+            int ready = 0;
+            const auto deadline = Clock::now() + std::chrono::seconds(15);
+            while (!(ready = marcus_frame_previews_take(helper.get(), &image, error, sizeof(error))) && Clock::now() < deadline)
+                SDL_Delay(5);
+            check(ready == 1 && image.frame == 66 && image.width == 160 && image.height == 90 &&
+                  std::equal(rangeImage.begin(), rangeImage.end(), image.rgba), "Deferred helper snapshot retains the final range");
+        }
+        check(marcus_set_scene_camera(player.get(), 1) && marcus_info(player.get(), &info) && info.last_frame == 66,
+              "Structural edits bake the live frame range");
+        check(marcus_undo(player.get()) && marcus_info(player.get(), &info) && info.frame == 66 && info.last_frame == 66,
+              "Undo structural edit restores the range journal");
+
+        // An already-running timing helper analyzes the immutable base; import
+        // must apply edits made while it was running rather than restart it.
+        open();
+        check(marcus_seek(player.get(), 30), "Seek before asynchronous range edits");
+        check(marcus_movie_time_async(player.get(), &after) == 0, "Start base timing helper");
+        for (int step = 0; step < 10; ++step) check(marcus_add_frame(player.get(), 1), "Edit during timing analysis");
+        const auto timingDeadline = Clock::now() + std::chrono::seconds(20);
+        int timingReady;
+        while (!(timingReady = marcus_movie_time_async(player.get(), &after)) && Clock::now() < timingDeadline) SDL_Delay(5);
+        check(timingReady == 1 && after.duration_seconds > timing.duration_seconds &&
+              marcus_info(player.get(), &info) && info.frame == 40 && info.last_frame == 40,
+              "Timing import applies the latest live range");
+
         // Headless camera regression: selection tracking must not chase edits.
         // Check scene/selection pivots, pan, perspective and all axis views.
         for (int axisView = 0; axisView <= 3; ++axisView)
@@ -271,6 +329,21 @@ int main(int argc, char **argv)
                   std::equal(original.begin(), original.end(), image.rgba), "ASM placement undo restores exact image");
             exerciseObject(0, MARCUS_RENDERER_BRENDER_ASM);
             exerciseObject(3, MARCUS_RENDERER_BRENDER_ASM);
+            open();
+            check(marcus_set_renderer(player.get(), MARCUS_RENDERER_BRENDER_ASM) &&
+                  marcus_select_scene(player.get(), 1) && marcus_seek(player.get(), 1), "Open ASM live-range scene");
+            check(marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM opening camera before extension");
+            const auto opening = image.projection;
+            check(marcus_add_frame(player.get(), -1) && marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image) &&
+                  image.frame == 0, "ASM worker accepts prepended live frame");
+            for (int i = 0; i < 12; ++i)
+                check(image.projection.transform[i] == opening.transform[i], "ASM opening camera follows live range");
+            check(marcus_seek(player.get(), 30) && marcus_add_frame(player.get(), 1) &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image) && image.frame == 31,
+                  "ASM worker accepts appended live frame");
+            check(marcus_undo(player.get()) && marcus_undo(player.get()) && marcus_info(player.get(), &info) &&
+                  info.first_frame == 1 && info.last_frame == 30 &&
+                  marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "ASM worker accepts range undo");
         }
         std::puts("Actor/prop/text moves and undo retain timing; scene isolation, helper materialization, structural edits, reload and ASM passed");
         return 0;

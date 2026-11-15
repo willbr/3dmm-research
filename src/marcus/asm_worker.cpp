@@ -33,9 +33,14 @@ int main(int argc, char **argv)
         MM::Error error;
         MarcusInfo info = {};
         marcus_info(player.get(), &info);
-        bool ok =
-            (info.scene == request.scene || marcus_select_scene(player.get(), request.scene)) &&
-            (info.scene == request.scene && info.frame == request.frame || marcus_seek(player.get(), request.frame));
+        bool ok = info.scene == request.scene || marcus_select_scene(player.get(), request.scene);
+        if (ok && request.firstFrame <= request.lastFrame)
+            ok = MarcusApplySceneRange(player.get(), request.firstFrame, request.lastFrame, error);
+        if (ok)
+        {
+            marcus_info(player.get(), &info);
+            ok = info.frame == request.frame || marcus_seek(player.get(), request.frame);
+        }
         if (ok) ok = MarcusApplyPropOffsets(player.get(), offsets, error);
         if (ok)
             ok = MarcusRenderLocalWorld(player.get(), MarcusASM::Decode(request), image, error);

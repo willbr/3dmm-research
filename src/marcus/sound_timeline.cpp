@@ -30,25 +30,25 @@ template <typename T> bool Get(std::istream &in, T &value)
     static_assert(std::is_trivially_copyable<T>::value, "IPC value must be flat");
     return bool(in.read(reinterpret_cast<char *>(&value), sizeof(value)));
 }
-constexpr std::uint32_t timingMagic = 0x32544d4d; // MMT2, matching-build ephemeral IPC.
+constexpr std::uint32_t timingMagic = 0x33544d4d; // MMT3, matching-build ephemeral IPC.
 } // namespace
 bool MarcusSoundTimeline::Write(std::ostream &out) const
 {
-    if (!Put(out, timingMagic) || !Put(out, std::uint32_t(scenes.size())))
-        return false;
-    for (const auto &scene : scenes)
+    if (sources.size() != scenes.size() || !Put(out, timingMagic) || !Put(out, frameSeconds) ||
+        !Put(out, std::uint32_t(scenes.size()))) return false;
+    for (std::size_t index = 0; index < sources.size(); ++index)
     {
-        if (!Put(out, scene.info) || !Put(out, scene.start) || !Put(out, scene.frameSeconds) ||
-            !Put(out, std::uint32_t(scene.holds.size())))
-            return false;
-        for (const auto &hold : scene.holds)
-            if (!Put(out, hold.first) || !Put(out, hold.second))
-                return false;
-        if (!Put(out, std::uint32_t(scene.sounds.size())))
-            return false;
-        for (const auto &span : scene.sounds)
-            if (!Put(out, *span))
-                return false;
+        const auto &source = sources[index];
+        if (!Put(out, scenes[index].info) || !Put(out, source.timing.transition) ||
+            !Put(out, std::uint32_t(source.timing.scrolling.size()))) return false;
+        for (const auto &scroll : source.timing.scrolling)
+            if (!Put(out, scroll.first) || !Put(out, scroll.second)) return false;
+        if (!Put(out, std::uint32_t(source.timing.pauses.size()))) return false;
+        for (const auto &pause : source.timing.pauses)
+            if (!Put(out, pause)) return false;
+        if (!Put(out, std::uint32_t(source.cues.size()))) return false;
+        for (std::size_t cue = 0; cue < source.cues.size(); ++cue)
+            if (!Put(out, source.cues[cue]) || !Put(out, source.audio[cue])) return false;
     }
     return bool(out);
 }
@@ -56,51 +56,60 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
 {
     MarcusSoundTimeline result;
     std::uint32_t magic = 0, count = 0;
-    if (!Get(in, magic) || magic != timingMagic || !Get(in, count) || count != expected.size())
-        return false;
+    if (!Get(in, magic) || magic != timingMagic || !Get(in, result.frameSeconds) ||
+        !std::isfinite(result.frameSeconds) || result.frameSeconds <= 0 ||
+        !Get(in, count) || count != expected.size()) return false;
     std::size_t records = 0;
+    auto readCount = [&](std::uint32_t &size) { return Get(in, size) && (records += size) <= 1000000; };
     for (const auto &info : expected)
     {
-        MarcusSoundScene scene;
-        std::uint32_t holds = 0, sounds = 0;
-        if (!Get(in, scene.info) || scene.info.chunk != info.chunk || scene.info.first_frame != info.first_frame ||
-            scene.info.last_frame != info.last_frame || !Get(in, scene.start) || !std::isfinite(scene.start) ||
-            scene.start < 0 || !Get(in, scene.frameSeconds) || !std::isfinite(scene.frameSeconds) ||
-            scene.frameSeconds <= 0 || !Get(in, holds) || (records += holds) > 1000000)
-            return false;
-        scene.info = info;
-        if (result.scenes.empty())
-            result.frameSeconds = scene.frameSeconds;
-        else if (scene.frameSeconds != result.frameSeconds)
-            return false;
-        for (std::uint32_t i = 0; i < holds; ++i)
+        MarcusScene stored;
+        Source source;
+        std::uint32_t size = 0;
+        if (!Get(in, stored) || stored.chunk != info.chunk || stored.first_frame != info.first_frame ||
+            stored.last_frame != info.last_frame || !Get(in, source.timing.transition) ||
+            !std::isfinite(source.timing.transition) || source.timing.transition < 0 || !readCount(size)) return false;
+        for (std::uint32_t i = 0; i < size; ++i)
         {
             long frame;
             double seconds;
-            if (!Get(in, frame) || !Get(in, seconds) || frame < info.first_frame || frame > info.last_frame ||
-                !std::isfinite(seconds) || seconds < 0 || !scene.holds.emplace(frame, seconds).second)
-                return false;
+            if (!Get(in, frame) || !Get(in, seconds) || !std::isfinite(seconds) || seconds < 0 ||
+                !source.timing.scrolling.emplace(frame, seconds).second) return false;
         }
-        if (!Get(in, sounds) || (records += sounds) > 1000000)
-            return false;
-        for (std::uint32_t i = 0; i < sounds; ++i)
-        {
-            auto span = std::make_shared<MarcusSoundSpan>();
-            if (!Get(in, *span) || span->scene < 0 || static_cast<std::size_t>(span->scene) >= expected.size() ||
-                std::isnan(span->start) || std::isnan(span->end) || !std::isfinite(span->audio.seconds) ||
-                span->audio.seconds < 0)
-                return false;
-            scene.sounds.push_back(std::move(span));
-        }
-        result.scenes.push_back(std::move(scene));
+        if (!readCount(size)) return false;
+        source.timing.pauses.resize(size);
+        for (auto &pause : source.timing.pauses)
+            if (!Get(in, pause) || pause.kind < 0 || pause.kind > 3 || pause.milliseconds < 0) return false;
+        if (!readCount(size)) return false;
+        source.cues.resize(size);
+        source.audio.resize(size);
+        for (std::uint32_t i = 0; i < size; ++i)
+            if (!Get(in, source.cues[i]) || !Get(in, source.audio[i]) ||
+                !std::isfinite(source.audio[i].seconds) || source.audio[i].seconds < 0) return false;
+        result.AppendPrepared(info, source);
+        result.sources.push_back(std::move(source));
     }
-    if (in.peek() != std::char_traits<char>::eof())
-        return false;
+    if (in.peek() != std::char_traits<char>::eof()) return false;
+    *this = std::move(result);
+    return true;
+}
+bool MarcusSoundTimeline::Reframe(const std::vector<MarcusScene> &ranges)
+{
+    if (ranges.size() < sources.size()) return false;
+    MarcusSoundTimeline result;
+    result.frameSeconds = frameSeconds;
+    for (std::size_t i = 0; i < sources.size(); ++i)
+    {
+        if (ranges[i].chunk != scenes[i].info.chunk) return false;
+        result.AppendPrepared(ranges[i], sources[i]);
+    }
+    result.sources = std::move(sources);
     *this = std::move(result);
     return true;
 }
 void MarcusSoundTimeline::Clear()
 {
+    sources.clear();
     scenes.clear();
     active.clear();
     time = 0;
@@ -166,6 +175,19 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::
                                 const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
                                 const MarcusSoundTiming &timing)
 {
+    Source source;
+    source.cues = cues;
+    source.timing = timing;
+    source.audio.reserve(cues.size());
+    for (const auto &cue : cues) source.audio.push_back(read(cue));
+    sources.reserve(sources.size() + 1);
+    AppendPrepared(info, source);
+    sources.push_back(std::move(source));
+}
+void MarcusSoundTimeline::AppendPrepared(const MarcusScene &info, const Source &source)
+{
+    const auto &cues = source.cues;
+    const auto &timing = source.timing;
     MarcusSoundScene scene;
     scene.info = info;
     scene.frameSeconds = frameSeconds;
@@ -193,11 +215,11 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::
         return sound->end <= time;
     }), active.end());
     scene.sounds = active;
-    std::map<long, std::vector<MM::PreviewSoundCue>> frames;
+    std::map<long, std::vector<std::size_t>> frames;
     std::map<long, MM::PreviewPause> pauses;
-    for (const auto &cue : cues)
-        if (cue.frame <= info.last_frame)
-            frames[std::max<long>(info.first_frame, cue.frame)].push_back(cue);
+    for (std::size_t index = 0; index < cues.size(); ++index)
+        if (cues[index].frame <= info.last_frame)
+            frames[std::max<long>(info.first_frame, cues[index].frame)].push_back(index);
     for (const auto &scroll : timing.scrolling)
         if (scroll.first >= info.first_frame && scroll.first <= info.last_frame)
             frames[scroll.first];
@@ -212,11 +234,12 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::
         const double at = scene.TimeAt(frame.first);
         active.erase(std::remove_if(active.begin(), active.end(), [&](const auto &sound) { return sound->end <= at; }),
                      active.end());
-        for (const auto &cue : frame.second)
+        for (const auto index : frame.second)
         {
+            const auto &cue = cues[index];
             auto span = std::make_shared<MarcusSoundSpan>();
             span->cue = cue;
-            span->audio = read(cue);
+            span->audio = source.audio[index];
             span->scene = static_cast<int>(scenes.size());
             span->start = at;
             const bool playable =

@@ -195,22 +195,15 @@ std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::pat
     Require(file->FSave(kctgSoc), "Cannot save the scene camera working copy.");
     return result;
 }
-std::shared_ptr<MarcusMovieFile> MarcusExtendScene(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, unsigned long sceneNumber, long frame)
+static void ApplySceneRange(PChunkyFile file, const MarcusSceneRange &range)
 {
-    auto result = WorkingCopy(source, std::move(origin));
-    String path;
-    Filename filename;
-    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&path), "The movie working path is not supported.");
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
-    Require(bool(file), "Cannot open the movie working file.");
+    const auto sceneNumber = range.scene;
     SceneData scene;
-    Require(scene.FRead(file.get(), sceneNumber), "Cannot read the scene frame range.");
-    Require(frame > std::numeric_limits<std::int32_t>::min() && frame <= std::numeric_limits<std::int32_t>::max() &&
-            (std::int64_t(frame) == std::int64_t(scene.firstFrame) - 1 ||
-             std::int64_t(frame) == std::int64_t(scene.lastFrame) + 1), "Add a frame only at a scene edge.");
-    if (frame < scene.firstFrame)
+    Require(scene.FRead(file, sceneNumber), "Cannot read the scene frame range.");
+    Require(range.first > std::numeric_limits<std::int32_t>::min() && range.first <= scene.firstFrame &&
+            range.last >= scene.lastFrame && range.last <= std::numeric_limits<std::int32_t>::max(),
+            "The scene range must retain its original frames.");
+    if (range.first < scene.firstFrame)
     {
         ChildChunkIdentification child;
         DataBlock block;
@@ -242,7 +235,7 @@ std::shared_ptr<MarcusMovieFile> MarcusExtendScene(const std::filesystem::path &
             host.frames->Move(index, 0);
         };
         // Share retail's opening-camera policy, including event ordering.
-        mm_scene_move_first(&scene, static_cast<MMI32>(frame), &services);
+        mm_scene_move_first(&scene, static_cast<MMI32>(range.first), &services);
         ChunkNumber number;
         Require(file->FAdd(frames->CbOnFile(), kctgFrmGg, &number, &block) && frames->FWrite(&block, order),
                 "Cannot write the extended scene frame events.");
@@ -251,9 +244,8 @@ std::shared_ptr<MarcusMovieFile> MarcusExtendScene(const std::filesystem::path &
         if (file->FGetKidChidCtg(kctgScen, sceneNumber, 0, kctgThumbMbmp, &child))
             file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
     }
-    else scene.lastFrame = static_cast<MMI32>(frame);
-    Require(scene.FWrite(file.get(), sceneNumber) && file->FSave(kctgSoc), "Cannot save the extended scene.");
-    return result;
+    scene.lastFrame = static_cast<MMI32>(range.last);
+    Require(scene.FWrite(file, sceneNumber), "Cannot write the extended scene.");
 }
 std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::filesystem::path &templates,
@@ -397,8 +389,9 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendProp(const std::filesystem::path &s
     return result;
 }
 
-std::shared_ptr<MarcusMovieFile> MarcusPlaceProps(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements)
+std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
+    const std::vector<MarcusSceneRange> &ranges)
 {
     auto result = WorkingCopy(source, std::move(origin));
     String path;
@@ -407,6 +400,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPlaceProps(const std::filesystem::path &s
     Require(filename.FBuildFromPath(&path), "The object working path is not supported.");
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     Require(bool(file), "Cannot open the movie working file.");
+    for (const auto &range : ranges) ApplySceneRange(file.get(), range);
     for (const auto &placement : placements)
     {
         const auto scene = placement.scene, actor = placement.actor;

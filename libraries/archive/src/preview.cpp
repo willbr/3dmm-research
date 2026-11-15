@@ -13,6 +13,7 @@
 #include <map>
 #include <utility>
 #include "soc_core.h"
+#include "mm/scene_runtime.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -200,6 +201,7 @@ struct Preview::Impl
     };
     std::vector<CameraChange> cameraChanges;
     std::uint32_t initialCamera = 0;
+    std::int32_t originalFirstFrame = 0, originalLastFrame = 0;
     bool LoadBackground(PChunkyResourceFile source, ChunkNumber number)
     {
         std::unique_ptr<Internal::PreviewBackground> loaded(new Internal::PreviewBackground);
@@ -963,6 +965,8 @@ try
             _impl->info.scene = true;
             _impl->info.firstFrame = scene.firstFrame;
             _impl->info.lastFrame = scene.lastFrame;
+            _impl->originalFirstFrame = scene.firstFrame;
+            _impl->originalLastFrame = scene.lastFrame;
             ChildChunkIdentification child;
             DataBlock block;
             if (!file->FGetKidChidCtg(asset.type, asset.number, 1, kctgStartGg, &child) ||
@@ -1112,6 +1116,32 @@ bool Preview::SetPose(std::uint32_t action, std::uint32_t cel, Error &error)
         return Fail(error, ErrorCode::decode_failed, "Cannot apply this action pose.");
     }
     _impl->RefreshStats();
+    return true;
+}
+bool Preview::SetSceneRange(std::int32_t first, std::int32_t last, Error &error)
+{
+    error = {};
+    if (!_impl->ready || !_impl->info.scene || first == std::numeric_limits<std::int32_t>::min() ||
+        first > _impl->originalFirstFrame || last < _impl->originalLastFrame)
+        return Fail(error, ErrorCode::invalid_argument, "The scene range must retain the original frames.");
+    if (first == _impl->info.firstFrame && last == _impl->info.lastFrame) return true;
+    SceneData scene;
+    scene.firstFrame = _impl->info.firstFrame;
+    MMSceneRuntimeServices services = {};
+    services.context = _impl.get();
+    services.event_count = [](void *p) -> MMI32 { return static_cast<Impl *>(p)->cameraChanges.size(); };
+    services.event = [](void *p, MMI32 index, MMI32 *frame, int *kind) {
+        *frame = static_cast<Impl *>(p)->cameraChanges[index].frame;
+        *kind = MM_SCENE_CHANGE_CAMERA;
+    };
+    services.move_camera = [](void *p, MMI32 index, MMI32 frame) {
+        auto &changes = static_cast<Impl *>(p)->cameraChanges;
+        changes[index].frame = frame;
+        std::rotate(changes.begin(), changes.begin() + index, changes.begin() + index + 1);
+    };
+    if (first != _impl->info.firstFrame) mm_scene_move_first(&scene, first, &services);
+    _impl->info.firstFrame = first;
+    _impl->info.lastFrame = last;
     return true;
 }
 bool Preview::SetFrame(std::int32_t frame, Error &error)

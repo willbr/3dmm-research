@@ -226,6 +226,9 @@ class Preview
     std::uint32_t PresentationColour(std::uint32_t colour) const;
     bool SetPose(std::uint32_t action, std::uint32_t cel, Error &error);
     bool SetFrame(std::int32_t frame, Error &error);
+    // Adjust scene edges in memory. Opening camera cues follow the first frame;
+    // actor tracks and other authored event times are retained.
+    bool SetSceneRange(std::int32_t first, std::int32_t last, Error &error);
     bool SetCamera(std::uint32_t camera, Error &error);
     // Read an authored background camera without selecting it, rendering, or
     // changing frame/pose state. Metadata is cached for the loaded background.

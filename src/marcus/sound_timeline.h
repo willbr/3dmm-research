@@ -39,13 +39,23 @@ struct MarcusResumeSound
 // same lifetime policy as playback: sampled loops stop, other voices continue.
 class MarcusSoundTimeline
 {
+    struct Source
+    {
+        std::vector<MM::PreviewSoundCue> cues;
+        std::vector<MarcusWaveformInfo> audio;
+        MarcusSoundTiming timing;
+    };
+    std::vector<Source> sources;
     std::vector<MarcusSoundScene> scenes;
+    void AppendPrepared(const MarcusScene &, const Source &);
     std::vector<std::shared_ptr<MarcusSoundSpan>> active;
     double time = 0, transition = 0, frameSeconds = 1.0 / 6;
 
   public:
     void Clear();
     void SetRate(double fps);
+    // Reschedule cached cues/lengths after edge edits, without decoding media.
+    bool Reframe(const std::vector<MarcusScene> &ranges);
     // Ephemeral IPC between matching Marcus/helper builds, never movie data.
     bool Write(std::ostream &output) const;
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);

@@ -1177,6 +1177,23 @@ and negative numbers, while the scene counter still starts at 1. Existing actor
 entrances, animation, captions and sound cues retain their authored frame numbers.
 The opening camera cue follows the new beginning using retail's shared scene
 policy; later camera cuts retain their timing. Each added frame is one undo step.
+Frame additions and their undo update the live scene range and a small session
+journal. They do not copy/reopen the movie, reload content, restart the ASM worker
+or launch another timing analysis. Duration and sound scheduling reuse cached
+cue lengths, pauses, scrolling holds and transitions. A timing helper already
+running against the original movie finishes normally and applies the latest
+range edits when its result arrives.
+
+A headless Debug-build check measured 100 frame additions at 0.321 ms median and
+0.407 ms maximum on the synthetic two-scene fixture, excluding scene rendering.
+Duration remained immediately available after every addition and undo. Native
+frame ranges are written in one deferred snapshot alongside object placements
+when a thumbnail helper or structural edit needs a native movie.
+
+Scene creation, prop insertion and authored camera changes still create and
+reopen private native working copies. Undoing those structural edits reopens
+an earlier copy. Object movement, frame-edge edits and ordinary navigation use
+the live evaluator.
 
 Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, prop insertion,
 frame addition, camera change or new scene. Each drag or completed position-field edit is one
@@ -1191,7 +1208,8 @@ field's local text undo. Original movie and content files remain unchanged.
 ## Current limits
 
 - Scene creation, frame additions, camera changes, prop insertion and object translation are session
-  edits in a private working copy. Movie save/export commands are not implemented.
+  edits; native working copies are materialized as needed. Movie save/export
+  commands are not implemented.
 - Actor/prop animation, costume changes, 3D text, authored cameras and
   prerendered backgrounds/depth use the existing preview evaluator.
 - Caption glyphs use bundled ZIP fonts or available host fonts, and MIDI uses a software instrument

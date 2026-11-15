@@ -270,6 +270,78 @@ void CarryScheduling()
     CHECK(timeline.Scene(1).sounds.size() == 1 && timeline.Scene(1).sounds[0]->cue.queue);
     CHECK(timeline.Scene(1).sounds[0]->start == 1 && timeline.Scene(1).sounds[0]->end == 2);
 }
+void RangeScheduling()
+{
+    std::vector<MarcusScene> ranges(2);
+    ranges[0].chunk = 10; ranges[0].first_frame = 10; ranges[0].last_frame = 15;
+    ranges[1].chunk = 20; ranges[1].first_frame = -5; ranges[1].last_frame = 0;
+    MM::PreviewSoundCue loop, queued, speech, late;
+    loop.frame = 10; loop.loop = true; loop.style = MARCUS_SOUND_EFFECT; loop.sound.number = 1;
+    queued = loop; queued.frame = 12; queued.loop = false; queued.queue = true; queued.sound.number = 2;
+    speech.frame = 14; speech.style = MARCUS_SOUND_SPEECH; speech.sound.number = 3;
+    late = speech; late.frame = 17; late.sound.number = 4;
+    const std::vector<std::vector<MM::PreviewSoundCue>> cues = {{loop, queued, speech, late}, {}};
+    std::vector<MarcusSoundTiming> timing(2);
+    timing[0].scrolling = {{11, .5}, {17, .25}};
+    timing[0].pauses = {{12, 2, 0}, {18, 3, 400}};
+    timing[0].transition = .75;
+    timing[1].pauses = {{-4, 2, 0}};
+    int reads = 0;
+    auto read = [&](const MM::PreviewSoundCue &cue) {
+        ++reads;
+        MarcusWaveformInfo audio = {};
+        audio.kind = MARCUS_WAVEFORM_SAMPLED;
+        audio.seconds = cue.sound.number == 2 ? .75 : 2;
+        audio.resolved_chunk = cue.sound.number;
+        return audio;
+    };
+    auto build = [&](const std::vector<MarcusScene> &info) {
+        MarcusSoundTimeline result;
+        result.SetRate(8);
+        for (std::size_t i = 0; i < info.size(); ++i) result.Append(info[i], cues[i], read, timing[i]);
+        return result;
+    };
+    auto original = build(ranges);
+    std::ostringstream encoded(std::ios::binary);
+    CHECK(original.Write(encoded));
+    MarcusSoundTimeline cached;
+    std::istringstream input(encoded.str(), std::ios::binary);
+    CHECK(cached.Read(input, ranges));
+    for (int edit = 0; edit < 3; ++edit)
+    {
+        auto changed = ranges;
+        if (edit != 2)
+        {
+            changed[0].first_frame -= edit + 1;
+            changed[0].last_frame += 4;
+            changed[1].first_frame -= 2;
+            changed[1].last_frame += 3;
+        }
+        const auto priorReads = reads;
+        CHECK(cached.Reframe(changed) && reads == priorReads);
+        const auto fresh = build(changed);
+        for (std::size_t i = 0; i < changed.size(); ++i)
+        {
+            const auto &actual = cached.Scene(i), &expected = fresh.Scene(i);
+            CHECK(actual.start == expected.start && actual.holds == expected.holds &&
+                  actual.frameSeconds == expected.frameSeconds && actual.sounds.size() == expected.sounds.size());
+            CHECK(actual.TimeAt(double(changed[i].last_frame) + 1) == expected.TimeAt(double(changed[i].last_frame) + 1));
+            for (std::size_t cue = 0; cue < actual.sounds.size(); ++cue)
+            {
+                CHECK(actual.sounds[cue]->start == expected.sounds[cue]->start &&
+                      actual.sounds[cue]->end == expected.sounds[cue]->end &&
+                      actual.sounds[cue]->cue.frame == expected.sounds[cue]->cue.frame);
+            }
+            const auto resume = cached.Resume(i, changed[i].first_frame), expectedResume = fresh.Resume(i, changed[i].first_frame);
+            CHECK(resume.size() == expectedResume.size());
+            for (std::size_t cue = 0; cue < resume.size(); ++cue)
+                CHECK(resume[cue].seconds == expectedResume[cue].seconds && resume[cue].cue.queue == expectedResume[cue].cue.queue);
+        }
+    }
+    auto invalid = ranges;
+    invalid[0].chunk = 999;
+    CHECK(!cached.Reframe(invalid) && cached.Scene(0).info.chunk == ranges[0].chunk);
+}
 void PresentationClock()
 {
     MarcusScene first = {}, later = {};
@@ -1003,6 +1075,7 @@ int main(int argc, char **argv)
     WaveformPeaks();
     FailedTiming();
     CarryScheduling();
+    RangeScheduling();
     PresentationClock();
     InvalidMovieHeaders(argv[1], argv[2], argv[3]);
     Fixture(argv[1]);
