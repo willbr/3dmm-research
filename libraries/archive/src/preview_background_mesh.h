@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include "three_mm/background_mesh.h"
+#include "preview_buffer_view.h"
 
 struct br_actor;
 
@@ -15,38 +17,36 @@ namespace Internal
 using BackgroundMatrix = std::array<double, 16>;
 class PreviewBackgroundMesh
 {
-    struct Native;
-    std::unique_ptr<Native> native;
-    struct Vertex
-    {
-        double x, y, z, u, v;
-    };
-    std::vector<Vertex> vertices;
-    std::vector<std::array<std::uint32_t, 3>> triangles;
-    std::vector<std::uint8_t> texture;
-    std::vector<std::uint8_t> infiniteColours;
-    unsigned textureWidth = 0, textureHeight = 0;
+    friend struct BackgroundMeshProbe;
+    ThreeMMBackgroundMesh core;
+    PreviewBufferView<std::uint8_t> infiniteColours;
+    static ThreeMMBackgroundMeshServices Services();
 
   public:
     PreviewBackgroundMesh();
     ~PreviewBackgroundMesh();
+    PreviewBackgroundMesh(const PreviewBackgroundMesh &) = delete;
+    PreviewBackgroundMesh &operator=(const PreviewBackgroundMesh &) = delete;
     std::array<float, 3> low = {}, high = {};
     // Missing depth stays missing. Coarse cells subdivide at depth edges;
     // triangles crossing a discontinuity are discarded even at pixel scale.
     void Build(unsigned width, unsigned height, const std::vector<std::uint8_t> &colours,
                const std::vector<std::uint16_t> &depths, const BackgroundMatrix &cameraToWorld,
                const BackgroundMatrix &projection);
+    void Build(unsigned width, unsigned height, const std::uint8_t *colors, std::uint32_t colorCount,
+               const std::uint16_t *depths, std::uint32_t depthCount, const BackgroundMatrix &,
+               const BackgroundMatrix &);
     bool Empty() const
     {
-        return triangles.empty();
+        return core.triangle_count == 0;
     }
     std::size_t TriangleCount() const
     {
-        return triangles.size();
+        return core.triangle_count;
     }
     // Screen-fixed backdrop, extended only from pixels with infinite depth.
     // Empty when this camera has no infinite background pixels.
-    const std::vector<std::uint8_t> &InfiniteColours() const
+    const PreviewBufferView<std::uint8_t> &InfiniteColours() const
     {
         return infiniteColours;
     }

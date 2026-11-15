@@ -8026,3 +8026,92 @@ Evidence: `tmp/c89-background-resource-{strict-build,strict,asan,standalone,nati
 `tmp/c89-background-resource-{trace-comparison,output-comparison,playback-comparison}.json`,
 `tmp/c89-background-resource-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-background-resource-capture-hashes-{before,after}.json`.
+
+### Preview background image/mesh C89 conversion (15 November 2026)
+
+Source baseline: `d5917a4b`. `background_preview.c` now owns camera/light arrays,
+image buffers, decoded camera/image state, selection sequencing and the two-entry
+mesh LRU. `background_mesh.c` owns depth reconstruction, discontinuity subdivision,
+infinite-backdrop flood fill, ordered geometry generation, bounds, model chunking,
+SDK preparation/rollback and registration lifetime. Persistent native vectors and
+the native mesh-preparation owner were removed. The remaining native classes
+translate SDK types and expose borrowed views. Broader Preview frame rendering/
+depth fitting, Movie operations and final native facade removal remain work.
+
+The existing mesh fixture adds a raw trace of vertices, triangles, texture and
+infinite-backdrop bytes, dimensions/bounds and rendered colour/depth samples.
+Original native and original SDL debug/release traces match 5,284,385 bytes,
+FNV-1a `9B1D8E3E`, SHA-256
+`A32C2EE4E1215C9EEC58B0A18A2CF0CFC2BF3827B5D92FC1667C1B8F045B76AA`.
+The fixture retains analytic parallax/UV/occlusion/clip checks, discontinuity
+holes, maximum-size multi-model preparation, cache reuse and SDK registration
+balance. Its exact trace guard is restricted to Windows x64.
+
+The shipped-background fixture adds every authored/orbit/free-camera RGBA/depth
+image, including camera revisits after eviction. Original native and SDL debug/
+release traces match 301,996,032 bytes, FNV-1a `E1A71005`, SHA-256
+`C66A9715F7F6BF0B2396C5486185E1E99B673A928240A4020F4318F3C2FE24FE`.
+It covers twelve backgrounds, 188 cameras, 184 with finite depth/meshes and 68 with
+static backdrops. These traces use the local shipped `bkgds.3cn` and built
+`utest.chk`; the test still accepts other resource collections without imposing
+that collection's fingerprint. Final native and both SDL traces match all three
+originals byte for byte. The existing Scene-content trace remains unchanged too.
+
+C-only checks independently cover analytic plane geometry/UVs, topology order,
+infinite fill, malformed/nonfinite inputs, geometry allocation failures,
+map/material/model/preparation-storage failures, rollback and retry, bounded model
+chunks, actor attachment prefixes and SDK disposal order. Image/cache checks cover
+metadata copies, camera/image publication order, reference balance, every fetch/
+lookup/image-allocation failure, malformed bounds, retained RGB/active-camera
+prefixes, cache hits/eviction and failed creation/build preservation. Image-buffer
+allocation failure now releases fetched bitmap references; the old native vector
+exception path leaked them. Bounds reject before signed difference/negation
+overflow, and nonfinite geometry rejects before unsafe float bounds conversion.
+No valid input normalization or wire versions changed. No Marcus UI tests were
+added; existing headless API/preview checks were extended.
+
+All 102 standalone C checks, 139 selected native, 47 SDL release and 35 SDL debug
+checks pass. Both hosts, core checks, directly/indirectly invoked test executables
+and CLI targets were rebuilt. Both new C fixtures pass Clang strict C89 with
+warnings as errors and MSVC AddressSanitizer. All 51 CLI baselines match. Builds
+and file-heavy suites ran serially; Marcus was stopped before rebuilding and
+relaunched afterward. Validation is native Windows x64 and SDL Windows x64
+debug/release; it does not establish other platform/toolchain floating-point
+identity or complete C-only host integration.
+
+The original SDL/Marcus binaries were verified byte-identical to the preceding
+Background-resource captures before rebuilding. Final binaries stayed fixed
+through all 21 fresh-process captures (one repeat, no concurrent builds/tests).
+SHA-256 before/after:
+
+- SDL release: `F6BEB70D59B631384CAE5EAA232FDD6D3F1F9C17F1F0458C11941A8DE0393608`.
+- Marcus regression: `4690DA24F4D95183CB6ABB018B105955B66E1DF7C1DC0E1ABD39E53765C9EBE6`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T015813Z-5d50bff8` | `20261115T024948Z-38e6f099` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T015926Z-3ba53e35` | `20261115T025106Z-25459966` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T020227Z-63212132` | `20261115T025427Z-dd4e7830` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T020340Z-5bc34309` | `20261115T025546Z-639fde6b` | three retail/SDL/Marcus playback |
+
+Original/final movie identity and suite integrity pass. All authored frame
+sequences, 540 seek images and ordered playback image changes match each player's
+original suite. Playback comparison collapses only adjacent identical scene/frame/
+image samples. Actor-audio peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus); actor tone detection and first-scene-only
+contracts pass. Summaries moved by normal retention are read from retained
+metadata. Existing cross-player differences, inconclusive single-repeat timing
+and presentation-marker limitations remain. These captures do not establish full
+audio/timing parity, retail editing/failure behavior or free-camera visual parity
+with retail. The independent native fixture covers free-camera geometry/rendering.
+Captures use a shared warm SDL package cache with private processes, settings and
+working movies; OS caching is uncontrolled.
+
+Evidence: `tmp/c89-background-{mesh,preview}-asan.log`,
+`tmp/c89-background-preview-{standalone,native-tests,sdl-debug-tests,sdl-release-tests}.log`,
+`tmp/c89-background-{mesh,preview}-*.bin`,
+`tmp/c89-background-{mesh,preview}-trace-comparison.json`,
+`tmp/c89-background-preview-{output-comparison,playback-comparison}.json`,
+`tmp/c89-background-preview-original-capture-hashes.json`,
+`tmp/c89-background-preview-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-background-preview-capture-hashes-{before,after}.json`.

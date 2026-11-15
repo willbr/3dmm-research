@@ -1463,15 +1463,16 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
         {
             for (std::size_t i = 0; i < lights.size(); ++i)
             {
-                lights[i].type = static_cast<br_uint_8>(lighting->lights[i].lt);
+                lights[i].type = static_cast<br_uint_8>(lighting->lights[i].type);
                 lights[i].colour = BR_COLOUR_RGB(255, 255, 255);
-                lights[i].attenuation_c = lighting->lights[i].rIntensity;
+                lights[i].attenuation_c = lighting->lights[i].intensity;
                 auto actor = BrActorAllocate(BR_ACTOR_LIGHT, &lights[i]);
                 if (!actor)
                     return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene lighting.");
                 BrActorAdd(frame.world, actor);
                 actor->t.type = BR_TRANSFORM_MATRIX34;
-                actor->t.t.mat = lighting->lights[i].bmat34;
+                static_assert(sizeof(actor->t.t.mat) == sizeof(lighting->lights[i].matrix), "Light matrix layout");
+                std::memcpy(&actor->t.t.mat, &lighting->lights[i].matrix, sizeof(actor->t.t.mat));
                 frame.lights.push_back(actor);
                 BrLightEnable(actor);
             }

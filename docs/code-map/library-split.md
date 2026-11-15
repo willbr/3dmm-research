@@ -85,6 +85,7 @@ cmake --build build/engine-c89 --target engine-world-render-test
 cmake --build build/engine-c89 --target engine-world-export-test
 cmake --build build/engine-c89 --target engine-background-camera-test
 cmake --build build/engine-c89 --target engine-background-resource-test
+cmake --build build/engine-c89 --target engine-background-mesh-test engine-background-preview-test
 cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
@@ -1124,8 +1125,8 @@ dirty marking through an offscreen engine MovieView. C-only tests cover every
 gate/allocation/seek/bitmap failure branch, selection mode changes, publication/
 unlock order, graphics-environment references and sound restoration. No Marcus UI
 tests were added. Scene query/group gates and the bridge audit are covered below.
-Background resource policy, other Movie operations and final C-only integration
-remain conversion work.
+Background resource controllers are covered below. Other Movie operations and
+final C-only integration remain conversion work.
 
 ### Scene queries and loaded-group acceptance
 
@@ -1172,7 +1173,7 @@ storage, object lifetime or UI/resource dependencies.
 | Native output guards, actor/text dispatch and optional lifetime outputs | Typed adaptation/publication; no independent Scene edit/replay choice |
 | Native debug MarkMem/AssertValid/diagnostic switches | C++ object/debug instrumentation, including typed pointer traversals; not converted into C policy |
 
-Remaining work includes Background resource policy, native actor/caption internals,
+Background resource controllers are covered below. Remaining work includes native actor/caption internals,
 Movie control/editing/undo, native representation/facade removal and final C-only
 integration. No Marcus UI tests were added.
 
@@ -1201,8 +1202,8 @@ the points. Failed reads now balance the list lock before release. Preview now
 shares Studio's rejection of a partial appended point; its existing clip-plane
 and image-admission checks remain. Background header/default-sound/palette/light
 loading, cache control, palette duplication and light attach/detach now use the
-resource controller below. Preview image-loading/mesh control and final native
-representation removal remain migration work.
+resource controller below. Preview image/mesh control is described below;
+final native representation removal remains migration work.
 
 `engine-background-camera` exercises both byte orders, scalar/angle extremes,
 maximum stream sizes, unchanged failure outputs, callback order, allocation/read
@@ -1229,8 +1230,8 @@ and tolerates an optional palette read failure. Preview resolves its display
 palette, admits only fitting four-byte colors and at most sixteen lights, publishes
 visual entries and cameras, then selects camera zero. Both use one header/light/
 palette conversion and enumeration implementation. SDK/native representations
-and Preview vector storage remain temporary host representations; image and mesh control
-still require conversion.
+are temporary host representations. Preview vector storage and image/mesh control
+have since moved to the C owners below.
 
 Factory estimates publish before allocation, partial failures invalidate outputs
 before teardown, and successful factories publish objects before final size.
@@ -1254,6 +1255,43 @@ independent palette copies, light flags/control and the preceding camera paths.
 load/factory/cache failures, cleanup prefixes, ownership and publication order,
 profile admission and light lifetime. Full validation evidence and coverage
 limits are recorded in `docs/tools/playback-regression.md`.
+
+### Preview background images, geometry and mesh lifetime
+
+`background_preview.c` owns camera/light metadata buffers, decoded camera and
+image state, RGB/depth buffer replacement, bitmap-reference cleanup and the
+two-entry mesh LRU. Camera headers publish before clip validation, dimensions
+before RGB allocation, and the active index after both image draws. Missing
+depth lookup retains completed RGB work and the earlier active index. Image
+allocation failures now release fetched bitmap references rather than leaking
+them through native vector exceptions. Malformed bounds reject before signed
+subtraction/negation overflow. Native PreviewBackground exposes borrowed typed
+views; it no longer owns persistent vectors or cache-replacement decisions.
+
+`background_mesh.c` owns depth reconstruction, nearest-colour flood fill for
+infinite backgrounds, discontinuity subdivision, ordered vertex/triangle
+generation, pixel-centre UVs and bounds. Persistent and scratch storage use the
+existing C allocator contract. It preserves signed 16-bit depth interpretation,
+integer viewport half-sizes, the `.02`/eight-percent continuity threshold,
+left/right/up/down flood-fill order and triangle/vertex insertion order.
+Nonfinite input/computed bounds reject before unsafe float conversion.
+
+C also controls indexed texture/material/model construction, rollback and SDK
+registration lifetime. Models have at most 4096 faces, bounding SDK signed-16-bit
+intermediates even for disconnected geometry. Preparation publishes only after
+every model succeeds. Actor allocation failure retains the cached preparation
+and attached prefix owned by the caller's frame. Cache misses build before
+eviction; hits move to the most recent end. BRender callbacks only allocate,
+register, free, convert scalar representations and assign typed fields.
+
+The remaining native mesh/background classes are temporary service/type adapters.
+Borrowed buffer views and bounds mirror C owners. Preview's broader frame
+rendering, projection/depth fitting and other native engine/host integration still
+need conversion; these owners do not establish a complete C-only Preview engine.
+Existing analytic/native renderer tests and exact geometry/image traces cover
+these paths. C-only tests inject storage/SDK/actor/image/cache failures and check
+ownership, rollback, retained prefixes, bounds and LRU behavior. Coverage and
+retail comparison limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence
 

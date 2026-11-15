@@ -28,6 +28,8 @@ target_sources(three-mm-engine-c89 PRIVATE src/scene_control.c)
 target_sources(three-mm-engine-c89 PRIVATE src/scene_thumbnail.c)
 target_sources(three-mm-engine-c89 PRIVATE src/background_camera.c)
 target_sources(three-mm-engine-c89 PRIVATE src/background_resource.c)
+target_sources(three-mm-engine-c89 PRIVATE src/background_mesh.c)
+target_sources(three-mm-engine-c89 PRIVATE src/background_preview.c)
 get_filename_component(engine_scene_runtime_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_scene_runtime_test.c" ABSOLUTE)
 add_executable(engine-scene-runtime-test EXCLUDE_FROM_ALL "${engine_scene_runtime_test_source}")
 target_link_libraries(engine-scene-runtime-test PRIVATE three-mm-engine-c89)
@@ -558,6 +560,16 @@ add_executable(engine-background-resource-test EXCLUDE_FROM_ALL "${engine_backgr
 target_link_libraries(engine-background-resource-test PRIVATE three-mm-engine-c89)
 set_target_properties(engine-background-resource-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-background-resource COMMAND engine-background-resource-test)
+get_filename_component(engine_background_mesh_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_background_mesh_test.c" ABSOLUTE)
+add_executable(engine-background-mesh-test EXCLUDE_FROM_ALL "${engine_background_mesh_test_source}")
+target_link_libraries(engine-background-mesh-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-background-mesh-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-background-mesh COMMAND engine-background-mesh-test)
+get_filename_component(engine_background_preview_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_background_preview_test.c" ABSOLUTE)
+add_executable(engine-background-preview-test EXCLUDE_FROM_ALL "${engine_background_preview_test_source}")
+target_link_libraries(engine-background-preview-test PRIVATE three-mm-engine-c89)
+set_target_properties(engine-background-preview-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-background-preview COMMAND engine-background-preview-test)
 
 # These tests use assert for checks and some setup calls. Keep them active in
 # Release builds too; NDEBUG otherwise turns passing tests into partial no-ops.
@@ -605,6 +617,10 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_thumbnail.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_camera.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_resource.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/background_mesh.c"
+    "${engine_background_mesh_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/background_preview.c"
+    "${engine_background_preview_test_source}"
     "${engine_background_resource_test_source}"
     "${engine_background_camera_test_source}"
     "${engine_scene_thumbnail_test_source}"

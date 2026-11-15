@@ -493,8 +493,11 @@ Background header/default-sound/palette/light loading, contiguous camera countin
 resource factory/partial cleanup, tag-list/cache order, palette ownership and
 light attachment/lifetime now use C89 too. Marcus Preview uses the same resource
 loader with its existing stricter visual admission profile. Native BRender math,
-file/list services and representations remain adapters; Preview image/mesh control
-and final native facade removal still need conversion.
+file/list services and representations remain adapters. Preview background image/
+metadata buffers, image-selection control, mesh reconstruction, infinite-backdrop
+fill, SDK preparation/lifetime and the two-entry mesh cache now also use C89.
+Native background/mesh classes expose typed SDK services and borrowed views.
+Broader Preview rendering/depth fitting and final facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -515,8 +518,9 @@ sound-packet, sound-editing/undo, loading/resolution, tag-collection/save,
 pause/camera/background-editing/undo, actor/caption Scene-editing/undo,
 selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
 slices and Scene query/group-loading policy are complete. Continue with
-Preview background image/mesh control and remaining Movie control/editing/undo
-operations. Background resource loading/cache/light policy is now C89.
+remaining Movie control/editing/undo operations. Background resource loading/cache/
+light policy and Preview background image/mesh control are now C89; broader
+Preview rendering and final host integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

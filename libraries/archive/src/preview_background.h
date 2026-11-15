@@ -6,6 +6,7 @@
 #include "preview_background_mesh.h"
 #include "soc_core.h"
 #include "three_mm/background_resource.h"
+#include "three_mm/background_preview.h"
 namespace ThreeMM
 {
 namespace Internal
@@ -16,24 +17,24 @@ class PreviewBackground
 {
     PChunkyResourceFile source = nullptr; // Borrowed from the preview's source set.
     ChunkNumber number = 0;
-    std::uint32_t activeCamera = 0;
-    struct CachedMesh
-    {
-        std::uint32_t camera;
-        std::unique_ptr<PreviewBackgroundMesh> mesh;
-    };
-    std::vector<CachedMesh> meshes; // Two most recently inspected cameras.
+    ThreeMMBackgroundPreview preview;
+    ThreeMMBackgroundPreviewServices Services(void *host);
+    void Publish(const ThreeMMBackgroundPreview &);
     ThreeMMBackgroundResource resource = {};
     ThreeMMBackgroundCameraState cameraState = {};
 
   public:
     CameraPosition camera = {};
-    std::vector<ChunkNumber> cameras;
-    std::vector<LightPosition> lights;
-    std::vector<byte> colours;
-    std::vector<std::uint16_t> depths;
+    PreviewBufferView<ChunkNumber> cameras;
+    PreviewBufferView<ThreeMMBackgroundLight> lights;
+    PreviewBufferView<byte> colours;
+    PreviewBufferView<std::uint16_t> depths;
     std::uint32_t width = 0, height = 0;
     Color palette[256] = {};
+    PreviewBackground();
+    ~PreviewBackground();
+    PreviewBackground(const PreviewBackground &) = delete;
+    PreviewBackground &operator=(const PreviewBackground &) = delete;
     bool Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette);
     bool SetCamera(std::uint32_t slot);
     PreviewBackgroundMesh &Mesh();

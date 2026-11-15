@@ -22,6 +22,29 @@ void Check(bool value, int line)
     }
 }
 #define CHECK(value) Check((value), __LINE__)
+static FILE *snapshot;
+static std::uint32_t recorded, fingerprint=2166136261U;
+static void Record(const void *data,std::size_t bytes)
+{
+    auto p=static_cast<const unsigned char *>(data);
+    for(std::size_t i=0;i<bytes;++i)fingerprint=(fingerprint^p[i])*16777619U;
+    recorded+=static_cast<std::uint32_t>(bytes);
+    if(snapshot)CHECK(std::fwrite(data,1,bytes,snapshot)==bytes);
+}
+namespace ThreeMM { namespace Internal {
+struct BackgroundMeshProbe {
+    static void RecordMesh(const PreviewBackgroundMesh &m)
+    {
+        const auto &c=m.core;
+        std::uint32_t counts[]={c.vertex_count,c.triangle_count,c.width*c.height,c.infinite_count,c.width,c.height};
+        Record(counts,sizeof(counts));
+        Record(c.geometry.buffers[0].data,c.vertex_count*sizeof(ThreeMMBackgroundVertex));
+        Record(c.geometry.buffers[1].data,c.triangle_count*sizeof(ThreeMMBackgroundTriangle));
+        Record(c.pixels.buffers[0].data,c.width*c.height);Record(c.pixels.buffers[1].data,c.infinite_count);
+        Record(m.low.data(),sizeof(m.low));Record(m.high.data(),sizeof(m.high));
+    }
+};
+}}
 BackgroundMatrix Identity()
 {
     BackgroundMatrix result = {};
@@ -77,6 +100,7 @@ struct Target
                 CHECK(colour[y * stride + x] == 199);
                 CHECK(depth[y * stride + x] == 0xffff);
             }
+        Record(colour.data(),colour.size());Record(depth.data(),depth.size()*sizeof(depth[0]));
     }
     unsigned Covered() const
     {
@@ -86,6 +110,7 @@ struct Target
 };
 int main()
 {
+    if(auto path=std::getenv("THREE_MM_BACKGROUND_MESH_SNAPSHOT")){snapshot=std::fopen(path,"wb");CHECK(snapshot);}
     // Raw movie indices must resolve like the original Windows Studio palette.
     Color display[256] = {};
     display[10] = {91, 114, 128, 231};
@@ -130,6 +155,7 @@ int main()
         colours[i] = static_cast<std::uint8_t>(i);
     PreviewBackgroundMesh mesh;
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     CHECK(!mesh.Empty() && mesh.TriangleCount() < 100);
     CHECK(mesh.InfiniteColours().empty());
     CHECK(std::abs(mesh.low[2] + 10) < .01 && std::abs(mesh.high[2] + 10) < .01);
@@ -164,6 +190,7 @@ int main()
     auto placement = Identity();
     placement[12] = 3;
     mesh.Build(Target::width, Target::height, colours, depths, placement, Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     Target restored;
     restored.Render(mesh, translated);
     CHECK(restored.colour == same.colour && restored.depth == same.depth);
@@ -176,6 +203,7 @@ int main()
     rear[14] = -18;
     rear[15] = 20;
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     Target backside;
     backside.Render(mesh, rear);
     CHECK(backside.Covered());
@@ -252,6 +280,7 @@ int main()
     for (unsigned y = 0; y < Target::height; ++y)
         depths[y * Target::width + 7] = 0xffff;
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     Target holes;
     holes.Render(mesh, Projection());
     CHECK(holes.Covered() && holes.Covered() < same.Covered());
@@ -269,6 +298,7 @@ int main()
         for (unsigned x = 0; x < Target::width; ++x)
             depths[y * Target::width + x] = x < 8 ? 19660 : 29491; // 5 / 20 units.
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     auto oblique = Projection();
     oblique[0] = .8;
     oblique[2] = .6;
@@ -294,6 +324,7 @@ int main()
     std::vector<std::uint8_t> largeColours(1024 * 1024, 42);
     std::vector<std::uint16_t> largeDepths(largeColours.size(), 26214);
     mesh.Build(1024, 1024, largeColours, largeDepths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     CHECK(mesh.InfiniteColours().empty());
     CHECK(mesh.TriangleCount() > 65535);
     Target large;
@@ -307,17 +338,25 @@ int main()
     // Empty / malformed inputs clear an earlier cached result safely.
     std::fill(depths.begin(), depths.end(), 0xffff);
     mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     CHECK(mesh.Empty());
-    CHECK(mesh.InfiniteColours() == colours); // Includes opaque palette index zero.
+    CHECK(std::vector<std::uint8_t>(mesh.InfiniteColours().begin(),mesh.InfiniteColours().end()) == colours); // Includes opaque palette index zero.
     CHECK(BrModelCount(nullptr) == initialModels && BrMapCount(nullptr) == initialMaps &&
           BrMaterialCount(nullptr) == initialMaterials);
     mesh.Build(1025, 2, colours, depths, Identity(), Projection());
+    BackgroundMeshProbe::RecordMesh(mesh);
     CHECK(mesh.Empty());
     CHECK(mesh.InfiniteColours().empty());
     mesh.Build(1, 1, {0}, {0xffff}, Identity(), Projection());
-    CHECK(mesh.Empty() && mesh.InfiniteColours() == std::vector<std::uint8_t>{0});
+    BackgroundMeshProbe::RecordMesh(mesh);
+    CHECK(mesh.Empty() && std::vector<std::uint8_t>(mesh.InfiniteColours().begin(),mesh.InfiniteColours().end()) == std::vector<std::uint8_t>{0});
     BrZbEnd();
     BrEnd();
+    if(snapshot)CHECK(!std::fclose(snapshot));
+    std::printf("Background mesh trace: bytes=%u fingerprint=%08X\n",recorded,fingerprint);
+#ifdef _WIN64
+    CHECK(recorded==5284385 && fingerprint==0x9B1D8E3EU);
+#endif
     std::puts("Background mesh: reconstruction, parallax, transforms, depth, texture, gaps and clipping passed.");
     return 0;
 }

@@ -4,10 +4,20 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+static FILE *snapshot;
+static unsigned bytesRecorded, fingerprint=2166136261U;
+static void Record(const void *data,std::size_t bytes)
+{
+    auto p=static_cast<const unsigned char *>(data);
+    for(std::size_t i=0;i<bytes;++i)fingerprint=(fingerprint^p[i])*16777619U;
+    bytesRecorded+=unsigned(bytes);
+    if(snapshot && std::fwrite(data,1,bytes,snapshot)!=bytes)std::exit(1);
+}
 int main(int argc, char **argv)
 {
     if (argc != 3)
         return 2;
+    if(auto path=std::getenv("THREE_MM_BACKGROUND_PREVIEW_SNAPSHOT")){snapshot=std::fopen(path,"wb");if(!snapshot)return 1;}
     ThreeMM::Preview preview;
     ThreeMM::Archive archive;
     ThreeMM::Error error;
@@ -24,6 +34,11 @@ int main(int argc, char **argv)
     view.height = 192;
     view.includeDepth = true;
     ThreeMM::PreviewImage image;
+    auto render=[&](const ThreeMM::PreviewView &v,ThreeMM::PreviewImage &out) {
+        bool ok=preview.Render(v,out,error);
+        if(ok){Record(&out.width,sizeof(out.width));Record(&out.height,sizeof(out.height));Record(out.rgba.data(),out.rgba.size());Record(out.depth.data(),out.depth.size()*sizeof(out.depth[0]));}
+        return ok;
+    };
     for (const auto &chunk : archive.Chunks())
     {
         if (ThreeMM::TypeLabel(chunk.id.type) != "BKGD")
@@ -37,7 +52,7 @@ int main(int argc, char **argv)
         ThreeMM::PreviewImage firstOrbit;
         for (unsigned camera = 0; camera < count; ++camera)
         {
-            if (!check(preview.SetCamera(camera, error)) || !check(preview.Render(view, image, error)) ||
+            if (!check(preview.SetCamera(camera, error)) || !check(render(view, image)) ||
                 !image.coveredPixels)
                 return 1;
             // An opaque single-colour placeholder cannot pass as a background.
@@ -74,7 +89,7 @@ int main(int argc, char **argv)
             orbit.frameSceneCamera = true;
             orbit.yaw = 20;
             orbit.pitch = 15;
-            if (!check(preview.Render(orbit, image, error)) || finiteDepth(image) != hasDepth ||
+            if (!check(render(orbit, image)) || finiteDepth(image) != hasDepth ||
                 (hasInfinite && image.coveredPixels != view.width * view.height))
                 return 1;
             if (finiteDepth(image))
@@ -88,7 +103,7 @@ int main(int argc, char **argv)
             fly.cameraX = image.camera.x;
             fly.cameraY = image.camera.y;
             fly.cameraZ = image.camera.z;
-            if (!check(preview.Render(fly, image, error)) || finiteDepth(image) != hasDepth ||
+            if (!check(render(fly, image)) || finiteDepth(image) != hasDepth ||
                 (hasInfinite && image.coveredPixels != view.width * view.height))
                 return 1;
             if (!hasDepth && hasInfinite)
@@ -98,10 +113,10 @@ int main(int argc, char **argv)
                 fly.pitch = -30;
                 fly.cameraX += 100;
                 fly.cameraY -= 50;
-                if (!check(preview.Render(fly, image, error)) || image.rgba != backdrop || finiteDepth(image))
+                if (!check(render(fly, image)) || image.rgba != backdrop || finiteDepth(image))
                     return 1;
             }
-            if (!check(preview.Render(view, image, error)) || image.rgba != authored)
+            if (!check(render(view, image)) || image.rgba != authored)
                 return 1;
             ++cameras;
         }
@@ -112,7 +127,7 @@ int main(int argc, char **argv)
         orbit.frameSceneCamera = true;
         orbit.yaw = 20;
         orbit.pitch = 15;
-        if (!check(preview.SetCamera(0, error)) || !check(preview.Render(orbit, image, error)) ||
+        if (!check(preview.SetCamera(0, error)) || !check(render(orbit, image)) ||
             image.rgba != firstOrbit.rgba || image.depth != firstOrbit.depth)
             return 1;
         if (preview.SetCamera(count, error) || error.code != ThreeMM::ErrorCode::invalid_argument)
@@ -126,5 +141,7 @@ int main(int argc, char **argv)
     std::printf("Background preview: %u backgrounds, %u cameras with palette, %u with finite depth, %u with meshes, "
                 "%u with static backdrops.\n",
                 backgrounds, cameras, depthCameras, meshCameras, backdropCameras);
+    if(snapshot && std::fclose(snapshot))return 1;
+    std::printf("Background preview trace: bytes=%u fingerprint=%08X\n",bytesRecorded,fingerprint);
     return 0;
 }
