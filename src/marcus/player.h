@@ -115,6 +115,9 @@ extern "C"
     {
         char name[192];
         int cue_count;
+        long actor_id, style;
+        int actor_sound;
+        int muted, solo, audible; /* Layer mix state; audible excludes global mute. */
     } MarcusSoundTrack;
     typedef struct MarcusSound
     {
@@ -273,6 +276,12 @@ extern "C"
     /* Authored cue markers, not waveform durations. Motion cues mark bindings;
      * queued cues share their authored start. Reading never seeks or plays. */
     int marcus_sound_track(const MarcusPlayer *player, int index, MarcusSoundTrack *track);
+    /* Temporary movie-wide layer controls, keyed by scene/actor owner and style.
+     * Muting silences output without stopping voices, queues or authored waits.
+     * Any solo excludes non-solo layers; mute overrides solo. Opening a movie resets both. */
+    int marcus_set_sound_track_mix(MarcusPlayer *player, int index, int muted, int solo);
+    void marcus_reset_sound_mix(MarcusPlayer *player);
+    int marcus_sound_mix_active(const MarcusPlayer *player);
     int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound);
     /* Lazy, cached, silent decoding. Sampled peaks cover successive clip-relative
      * windows; loops repeat and other out-of-clip columns are zero. MIDI,

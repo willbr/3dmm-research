@@ -1041,6 +1041,7 @@ static int select_timeline_row(App *app, float x, float y, int grid)
     int row, index, previous, closest, fallback, lane, object, rows, kind, visible_row, *scroll;
     MarcusAnimationEvent event;
     MarcusSound sound;
+    MarcusSoundTrack mix_track;
     MarcusWaveformInfo waveform;
     MarcusWaveformColumn peak;
     float center, marker_y;
@@ -1079,6 +1080,22 @@ static int select_timeline_row(App *app, float x, float y, int grid)
             }
         }
         return 0;
+    }
+    if (!grid && marcus_sound_track(app->player, object, &mix_track))
+    {
+        center = app->timeline_y + 83 + visible_row * ROW_HEIGHT;
+        if (ui_inside(x, y, app->grid_x - 58, center, 24, 22) ||
+            ui_inside(x, y, app->grid_x - 30, center, 24, 22))
+        {
+            if (x < app->grid_x - 34)
+                mix_track.solo = !mix_track.solo;
+            else
+                mix_track.muted = !mix_track.muted;
+            if (!marcus_set_sound_track_mix(app->player, object, mix_track.muted, mix_track.solo))
+                fail(app, marcus_error(app->player));
+            app->dragging = 0;
+            return 1;
+        }
     }
     row = object;
     app->sound_inspector = 1;
@@ -1543,8 +1560,15 @@ static void mouse_down(App *app, float x, float y, int button)
         start_movie_scrub(app, x);
         return;
     }
+    if (button == SDL_BUTTON_LEFT && app->loaded &&
+        ui_inside(x, y, 124, app->timeline_y + 50, 80, 28))
+    {
+        marcus_reset_sound_mix(app->player);
+        app->dragging = 0;
+        return;
+    }
     if (button == SDL_BUTTON_LEFT && app->loaded && !app->flying && !app->orbiting && !app->panning &&
-        ui_inside(x, y, 10, app->timeline_y + 50, 194, 28))
+        ui_inside(x, y, 10, app->timeline_y + 50, 106, 28))
     {
         release_camera(app);
         app->dragging = 0;
@@ -3021,11 +3045,14 @@ static void draw_timeline(App *app)
     ui_button_sized(ui, app->sidebar - 56, y + PLAY_Y, 40, UI_PLAY_HEIGHT, "Fit", 0, app->loaded);
     draw_movie_scrubber(app, movie_available);
     ui_fill(ui, 0, y + 48, app->sidebar, 32, 0x2c2f35);
-    ui_button(ui, 10, y + 50, 194, sheet_name(app->sheet_mode), app->sheet_menu, app->loaded);
-    ui_line(ui, 185, y + 62, 190, y + 67, app->loaded ? TEXT : MUTED);
-    ui_line(ui, 190, y + 67, 195, y + 62, app->loaded ? TEXT : MUTED);
-    if (ui_inside(ui->mouse_x, ui->mouse_y, 10, y + 50, 194, 28))
+    ui_button(ui, 10, y + 50, 106, sheet_name(app->sheet_mode), app->sheet_menu, app->loaded);
+    ui_line(ui, 97, y + 62, 102, y + 67, app->loaded ? TEXT : MUTED);
+    ui_line(ui, 102, y + 67, 107, y + 62, app->loaded ? TEXT : MUTED);
+    if (ui_inside(ui->mouse_x, ui->mouse_y, 10, y + 50, 106, 28))
         ui->hint = "Choose Objects, Sounds, or Both for the dope sheet";
+    ui_button(ui, 124, y + 50, 80, "Reset mix", 0, app->loaded && marcus_sound_mix_active(app->player));
+    if (ui_inside(ui->mouse_x, ui->mouse_y, 124, y + 50, 80, 28))
+        ui->hint = "Clear all layer solos and mutes for this movie, including layers in other scenes";
     rows = (int)((app->height - y - 112) / ROW_HEIGHT);
     scroll = *sheet_scroll(app);
     for (row = 0; row < rows; ++row)
@@ -3057,7 +3084,14 @@ static void draw_timeline(App *app)
             if (marcus_sound_track(app->player, index, &track))
             {
                 ui_fill(ui, 18, y + 90 + row * ROW_HEIGHT, 7, 7, 0xe4b575);
-                ui_label(ui, 35, y + 85 + row * ROW_HEIGHT, app->grid_x - 54, track.name, TEXT);
+                ui_label(ui, 35, y + 85 + row * ROW_HEIGHT, app->grid_x - 99, track.name,
+                         track.audible ? TEXT : MUTED);
+                ui_button_sized(ui, app->grid_x - 58, y + 83 + row * ROW_HEIGHT, 24, 22, "S", track.solo, 1);
+                ui_button_sized(ui, app->grid_x - 30, y + 83 + row * ROW_HEIGHT, 24, 22, "M", track.muted, 1);
+                if (ui_inside(ui->mouse_x, ui->mouse_y, app->grid_x - 58, y + 83 + row * ROW_HEIGHT, 24, 22))
+                    ui->hint = "Solo this layer across scenes / multiple solos allowed / temporary for this movie";
+                if (ui_inside(ui->mouse_x, ui->mouse_y, app->grid_x - 30, y + 83 + row * ROW_HEIGHT, 24, 22))
+                    ui->hint = "Mute this layer across scenes / sounds and waits keep progressing / temporary for this movie";
             }
             continue;
         }

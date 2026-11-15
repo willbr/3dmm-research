@@ -155,6 +155,9 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, MM::Error &error)
     {
         MarcusSoundTrack track = {};
         const auto actor = std::get<1>(lane.first), style = std::get<2>(lane.first);
+        track.actor_sound = std::get<0>(lane.first);
+        track.actor_id = actor;
+        track.style = style;
         const char *kind = style == MARCUS_SOUND_MUSIC ? "Music" : style == MARCUS_SOUND_SPEECH ? "Speech"
                            : style == MARCUS_SOUND_EFFECT ? "Effects" : "Sound";
         std::string owner = "Scene";
@@ -604,6 +607,7 @@ extern "C"
             player->timingContent = directory;
             player->timingStarted = player->timingFailed = false;
             ++player->document;
+            player->playback.ResetMix();
             player->asmRenderer.reset();
             player->content = std::move(content);
             player->selected = -1;
@@ -819,7 +823,32 @@ extern "C"
             static_cast<std::size_t>(index) >= player->soundTracks.size())
             return 0;
         *track = player->soundTracks[index];
+        player->playback.TrackMix(track->actor_sound != 0, track->actor_id, track->style,
+                                  track->muted, track->solo, track->audible);
         return 1;
+    }
+    int marcus_set_sound_track_mix(MarcusPlayer *player, int index, int muted, int solo)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MarcusSoundTrack track;
+            if ((muted != 0 && muted != 1) || (solo != 0 && solo != 1) ||
+                !marcus_sound_track(player, index, &track))
+            {
+                error.message = "Choose a valid sound layer and mute/solo state.";
+                return false;
+            }
+            player->playback.SetTrackMix(track.actor_sound != 0, track.actor_id, track.style, muted != 0, solo != 0);
+            return true;
+        });
+    }
+    void marcus_reset_sound_mix(MarcusPlayer *player)
+    {
+        if (player)
+            player->playback.ResetMix();
+    }
+    int marcus_sound_mix_active(const MarcusPlayer *player)
+    {
+        return player && player->playback.MixActive();
     }
     int marcus_sound(const MarcusPlayer *player, int index, MarcusSound *sound)
     {

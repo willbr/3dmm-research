@@ -655,6 +655,12 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     CHECK(marcus_update(player, 1, 0, 170, 0, &state) && state.scene_changed);
     CHECK(marcus_info(player, &info) && info.scene == 1 && info.sound_count == 2);
     CHECK(marcus_sound(player, 0, &sound) && sound.carried && sound.origin_scene == 0);
+    CHECK(marcus_set_sound_track_mix(player, sound.track, 1, 0));
+    CHECK(marcus_select_scene(player, 2) && marcus_sound(player, 0, &sound) && sound.carried);
+    MarcusSoundTrack carriedTrack;
+    CHECK(marcus_sound_track(player, sound.track, &carriedTrack) && carriedTrack.muted && !carriedTrack.audible);
+    CHECK(marcus_select_scene(player, 0));
+    CHECK(marcus_sound_track(player, 0, &carriedTrack) && carriedTrack.muted); // Same scene-effects lane at its origin.
     marcus_destroy(player);
     player = nullptr;
 }
@@ -802,6 +808,103 @@ void PlaybackCadence(const char *path, const char *resources, const char *conten
     player = nullptr;
     CHECK(filename.FDelete());
 }
+int FindSoundTrack(bool actorSound, long actor, long style)
+{
+    for (int index = 0; index < Info().sound_track_count; ++index)
+    {
+        MarcusSoundTrack track;
+        CHECK(marcus_sound_track(player, index, &track));
+        if ((track.actor_sound != 0) == actorSound && track.actor_id == actor && track.style == style)
+            return index;
+    }
+    CHECK(false);
+    return -1;
+}
+MarcusSoundTrack SoundTrack(int index)
+{
+    MarcusSoundTrack track;
+    CHECK(marcus_sound_track(player, index, &track));
+    return track;
+}
+MarcusAudioStats AudioStats()
+{
+    MarcusAudioStats stats;
+    CHECK(marcus_audio_stats(player, &stats));
+    return stats;
+}
+void SoundMixControls(const char *path, const char *resources, const char *content)
+{
+    player = marcus_create();
+    CHECK(player && !marcus_sound_mix_active(player) && !marcus_sound_mix_active(nullptr));
+    marcus_reset_sound_mix(nullptr);
+    CHECK(marcus_open(player, path, resources, content));
+    const int effects = FindSoundTrack(false, 0, MARCUS_SOUND_EFFECT);
+    const int music = FindSoundTrack(false, 0, MARCUS_SOUND_MUSIC);
+    CHECK(!SoundTrack(music).muted && !SoundTrack(music).solo && SoundTrack(music).audible);
+    CHECK(!marcus_set_sound_track_mix(nullptr, 0, 1, 0));
+    CHECK(!marcus_set_sound_track_mix(player, -1, 1, 0));
+    CHECK(!marcus_set_sound_track_mix(player, Info().sound_track_count, 1, 0));
+    CHECK(!marcus_set_sound_track_mix(player, music, 2, 0));
+    CHECK(!marcus_set_sound_track_mix(player, music, 0, -1));
+    CHECK(!marcus_sound_mix_active(player));
+    CHECK(marcus_set_sound_track_mix(player, music, 1, 0));
+    BackgroundTiming(); // Rebuilding the sound sheet must preserve controls.
+    CHECK(SoundTrack(music).muted && !SoundTrack(music).audible);
+    CHECK(marcus_seek(player, 0));
+    Tick(0);
+    SDL_Delay(150);
+    const auto quiet = AudioStats();
+    SDL_Delay(100);
+    CHECK(AudioStats().audible_frames == quiet.audible_frames);
+    CHECK(AudioStats().rendered_frames > quiet.rendered_frames && AudioStats().midi_sounds == 1);
+    CHECK(marcus_set_sound_track_mix(player, music, 0, 0));
+    SDL_Delay(150);
+    CHECK(AudioStats().audible_frames > quiet.audible_frames && AudioStats().midi_sounds == 1);
+    // Solo suppresses already-playing MIDI without stopping its voice.
+    CHECK(marcus_set_sound_track_mix(player, effects, 0, 1));
+    CHECK(!SoundTrack(music).audible && SoundTrack(effects).solo && SoundTrack(effects).audible);
+    SDL_Delay(100);
+    const auto soloQuiet = AudioStats().audible_frames;
+    SDL_Delay(100);
+    CHECK(AudioStats().audible_frames == soloQuiet);
+    CHECK(marcus_set_sound_track_mix(player, music, 0, 1));
+    CHECK(SoundTrack(effects).audible && SoundTrack(music).audible); // Multiple solos coexist.
+    SDL_Delay(100);
+    CHECK(AudioStats().audible_frames > soloQuiet && AudioStats().midi_sounds == 1);
+    CHECK(marcus_set_sound_track_mix(player, music, 1, 1));
+    CHECK(SoundTrack(music).solo && SoundTrack(music).muted && !SoundTrack(music).audible);
+    marcus_reset_sound_mix(player);
+    CHECK(!marcus_sound_mix_active(player) && SoundTrack(music).audible && SoundTrack(effects).audible);
+    CHECK(AudioStats().midi_sounds == 1); // Toggling/resetting does not recreate voices.
+    // Muted sampled queues still finish and release authored sound waits.
+    CHECK(marcus_set_sound_track_mix(player, effects, 1, 0));
+    CHECK(marcus_set_sound_track_mix(player, music, 1, 0));
+    CHECK(marcus_seek(player, 2));
+    CHECK(Tick(0).wait == 2 && AudioStats().wave_sounds == 2);
+    const auto waiting = AudioStats().audible_frames;
+    CHECK(Tick(10000).wait == 2 && Info().frame == 2);
+    SDL_Delay(400);
+    CHECK(Tick(0).wait == 0 && AudioStats().audible_frames == waiting);
+    CHECK(marcus_select_scene(player, 1));
+    CHECK(SoundTrack(FindSoundTrack(false, 0, MARCUS_SOUND_MUSIC)).muted);
+    CHECK(marcus_set_playback_rate(player, 2, 0));
+    CHECK(SoundTrack(FindSoundTrack(false, 0, MARCUS_SOUND_MUSIC)).muted);
+    marcus_stop(player);
+    CHECK(marcus_select_scene(player, 4));
+    const int actor = FindSoundTrack(true, 42, MARCUS_SOUND_EFFECT);
+    CHECK(marcus_set_sound_track_mix(player, actor, 0, 1));
+    CHECK(SoundTrack(actor).audible && !SoundTrack(FindSoundTrack(false, 0, MARCUS_SOUND_EFFECT)).audible);
+    CHECK(marcus_select_scene(player, 0) && marcus_seek(player, -2));
+    CHECK(marcus_sound_mix_active(player) && !SoundTrack(music).audible); // Solo survives an absent layer.
+    marcus_reset_sound_mix(player);
+    CHECK(!marcus_sound_mix_active(player) && SoundTrack(music).audible);
+    CHECK(marcus_select_scene(player, 4) && !SoundTrack(FindSoundTrack(true, 42, MARCUS_SOUND_EFFECT)).solo);
+    CHECK(marcus_set_sound_track_mix(player, FindSoundTrack(false, 0, MARCUS_SOUND_MUSIC), 1, 0));
+    CHECK(marcus_open(player, path, resources, content)); // Reopen begins a new movie session.
+    CHECK(!marcus_sound_mix_active(player) && !SoundTrack(music).muted && SoundTrack(music).audible);
+    marcus_destroy(player);
+    player = nullptr;
+}
 } // namespace
 int main(int argc, char **argv)
 {
@@ -838,9 +941,10 @@ int main(int argc, char **argv)
     InvalidMovieHeaders(argv[1], argv[2], argv[3]);
     Fixture(argv[1]);
     const auto authoredTiming = FixtureTiming(argv[1], argv[2]);
+    const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     PlaybackRates(argv[1], argv[2], argv[3]);
     PlaybackCadence(argv[1], argv[2], argv[3]);
-    const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
+    SoundMixControls(argv[1], argv[2], argv[3]);
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
     // Reopening cancels and joins a pending job before releasing its leases.

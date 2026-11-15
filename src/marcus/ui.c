@@ -371,7 +371,8 @@ static void button_label(MarcusUI *ui, float x, float y, float w, float h, const
     MarcusGlyph *glyph;
     float advance, left, top, right, bottom, glyph_left, glyph_top, available;
     int visible, length;
-    available = w - 18;
+    /* Compact layer buttons still need room for their single-letter labels. */
+    available = w - (w < 32 ? 8 : 18);
     if (available <= 0)
         return;
     if (!ui->font)

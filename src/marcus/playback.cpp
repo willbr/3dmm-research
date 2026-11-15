@@ -46,9 +46,21 @@ struct AudioVoice
     float volume = 1;
     bool loop = false;
 };
+std::uint64_t SoundLane(bool actorSound, long actor, long style)
+{
+    return (std::uint64_t(actorSound ? 1 : 0) << 63) |
+           (std::uint64_t(std::uint32_t(actorSound ? actor : 0)) << 16) | std::uint32_t(style);
+}
 class Audio
 {
-    std::mutex mutex;
+    mutable std::mutex mutex;
+    struct LayerMix
+    {
+        bool muted, solo;
+    };
+    // Movie-wide owner/style identities survive scene changes, seeks and queue cleanup.
+    std::map<std::uint64_t, LayerMix> mix;
+    bool anySolo = false;
     std::map<std::uint64_t, std::deque<std::unique_ptr<AudioVoice>>> queues;
     std::map<std::tuple<int, unsigned, unsigned, int, unsigned>, std::shared_ptr<AudioClip>> clips;
     std::vector<std::uint8_t> bank;
@@ -69,6 +81,7 @@ class Audio
                 if (!self->paused)
                     for (auto &queue : self->queues)
                     {
+                        const bool audible = self->Audible(queue.first);
                         std::size_t written = 0;
                         for (auto &owner : queue.second)
                         {
@@ -92,8 +105,9 @@ class Audio
                                 else
                                     std::copy_n(voice.clip->sample->stereo.data() + voice.position * 2, count * 2,
                                                 scratch.data());
-                                for (std::size_t i = 0; i < count * 2; ++i)
-                                    output[written * 2 + i] += scratch[i] * voice.volume;
+                                if (audible)
+                                    for (std::size_t i = 0; i < count * 2; ++i)
+                                        output[written * 2 + i] += scratch[i] * voice.volume;
                                 written += count;
                                 voice.position += count;
                                 if (voice.position == voice.clip->frames && voice.loop)
@@ -141,6 +155,40 @@ class Audio
     }
 
   public:
+    // Caller holds mutex. Silenced lanes still render MIDI and advance all voices.
+    bool Audible(std::uint64_t lane) const
+    {
+        const auto found = mix.find(lane);
+        return found == mix.end() ? !anySolo : !found->second.muted && (!anySolo || found->second.solo);
+    }
+    void SetTrackMix(std::uint64_t lane, bool muted, bool solo)
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (muted || solo)
+            mix[lane] = {muted, solo};
+        else
+            mix.erase(lane);
+        anySolo = std::any_of(mix.begin(), mix.end(), [](const auto &entry) { return entry.second.solo; });
+    }
+    void TrackMix(std::uint64_t lane, int &muted, int &solo, int &audible) const
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        const auto found = mix.find(lane);
+        muted = found != mix.end() && found->second.muted;
+        solo = found != mix.end() && found->second.solo;
+        audible = Audible(lane);
+    }
+    void ResetMix()
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        mix.clear();
+        anySolo = false;
+    }
+    bool MixActive() const
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        return !mix.empty();
+    }
     void Mute(bool value)
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -254,8 +302,7 @@ class Audio
             cachedBytes += bytes;
             clips[key] = clip;
         }
-        const auto lane = (std::uint64_t(cue.actorSound ? 1 : 0) << 63) |
-                          (std::uint64_t(std::uint32_t(cue.actor)) << 16) | std::uint32_t(cue.style);
+        const auto lane = SoundLane(cue.actorSound, cue.actor, cue.style);
         std::unique_ptr<AudioVoice> voice;
         if (clip && clip->frames)
         {
@@ -844,6 +891,22 @@ void MarcusPlayback::Statistics(MarcusAudioStats &stats)
 void MarcusPlayback::Mute(bool muted)
 {
     impl->audio.Mute(muted);
+}
+void MarcusPlayback::SetTrackMix(bool actorSound, long actor, long style, bool muted, bool solo)
+{
+    impl->audio.SetTrackMix(SoundLane(actorSound, actor, style), muted, solo);
+}
+void MarcusPlayback::TrackMix(bool actorSound, long actor, long style, int &muted, int &solo, int &audible) const
+{
+    impl->audio.TrackMix(SoundLane(actorSound, actor, style), muted, solo, audible);
+}
+void MarcusPlayback::ResetMix()
+{
+    impl->audio.ResetMix();
+}
+bool MarcusPlayback::MixActive() const
+{
+    return impl->audio.MixActive();
 }
 void MarcusPlayback::SetRate(double fps)
 {

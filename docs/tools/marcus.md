@@ -356,6 +356,8 @@ No 7-Zip installation is needed for ordinary stored/deflated ZIPs.
 | Click an object name or track | Select the actor/prop and inspect its evaluated metadata |
 | Objects / Sounds / Both dropdown | Choose which tracks appear in the dope sheet |
 | Click a sound cue marker | Seek silently to its frame and inspect its owner, volume, loop, queue and trigger |
+| Sound layer S / M | Solo or mute the layer throughout the open movie |
+| Reset mix beside the track dropdown | Clear all layer solos and mutes, including layers absent from the current scene |
 | Click or drag a waveform | Select its sound and scrub silently at the pointer |
 | Timeline `-`, `+`, Fit | Zoom out, zoom in, fit the scene |
 | Timeline wheel | Scroll tracks in the active dope sheet |
@@ -523,6 +525,29 @@ resize handle. Object selection and picking keep Both active; the properties
 panel follows the last object or sound selected. Each mode retains its scroll
 position. The dropdown supports Up/Down and Enter; Escape or clicking outside
 closes it without changing the mode.
+
+Each sound layer has **S** (solo) and **M** (mute) buttons. Multiple layers can
+be soloed together; when any solo is active, only soloed, unmuted layers are
+audible. Mute takes precedence over solo. Silenced layer names are dimmed.
+Changes affect already-playing sampled audio and MIDI without pausing playback,
+seeking, restarting voices or changing their positions. Queues, looping, MIDI
+events and authored sound waits continue progressing while silenced. The global
+Mute button still silences the complete output independently of layer controls.
+
+Layer choices last for the open movie and follow the layer's owner and sound
+type across scenes: muting **Scene / Music** keeps scene music muted in later
+scenes, including music continuing through a cut. Actor layers follow their movie
+actor ID and sound type. Seeking, scene looping, background timing analysis and
+FPS changes retain these choices. A solo remains active when its layer is absent
+from the current scene; **Reset mix** beside the track dropdown clears every
+layer's solo/mute state, including absent layers. Opening or reopening a movie
+starts with all layers unmuted and no solos. These temporary choices are never
+written to movie files or saved application settings.
+
+Headless playback checks cover live MIDI mute/solo, multiple solos, mute taking
+precedence, muted sampled queues completing sound waits, carried layers, scene
+and FPS changes, absent-layer reset, background analysis and reopening. The
+playback/player regressions and Marcus C89 check pass; no Marcus UI tests were added.
 
 The sound sheet groups authored cues into scene and actor lanes, with separate
 music, speech and effects tracks. Sampled clips use their clickable waveform

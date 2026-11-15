@@ -20,6 +20,10 @@ class MarcusPlayback
     bool RestoreAudio(MM::Preview &preview, const std::vector<MarcusResumeSound> &sounds, MM::Error &error);
     void Statistics(MarcusAudioStats &stats);
     void Mute(bool muted);
+    void SetTrackMix(bool actorSound, long actor, long style, bool muted, bool solo);
+    void TrackMix(bool actorSound, long actor, long style, int &muted, int &solo, int &audible) const;
+    void ResetMix();
+    bool MixActive() const;
     void SetRate(double fps);
     // Advance one displayed frame only after its sounds, scrolling and waits
     // have been serviced. The host supplies elapsed milliseconds, so backend
