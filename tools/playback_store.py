@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS comparisons (
  id INTEGER PRIMARY KEY, reference_run INTEGER NOT NULL REFERENCES runs,
  candidate_run INTEGER NOT NULL REFERENCES runs, component TEXT NOT NULL,
  status TEXT NOT NULL, policy_json TEXT NOT NULL, metrics_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS capture_cache (
+ run_id INTEGER PRIMARY KEY REFERENCES runs, key TEXT NOT NULL, inputs_json TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS capture_cache_key ON capture_cache(key);
 CREATE VIEW IF NOT EXISTS run_review AS
  SELECT r.id, r.suite_id, r.case_name, r.player, r.mode, r.preparation,
  r.repetition, r.status, (SELECT count(*) FROM frames f WHERE f.run_id=r.id) frames,

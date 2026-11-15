@@ -70,16 +70,45 @@ python -B tools/playback_regression.py run `
   --v3dmm tmp/v3dmm-research/unpacked/Virtual3DMM `
   --sdl tmp/studio-batch-release/3dmovie-sdl.exe `
   --output tmp/playback-regression `
-  --environment-notes 'Record GPU/driver, audio endpoint, MIDI mapper/bank and fonts here'
+  --capture-environment 'Stable GPU/driver, audio endpoint, MIDI bank and fonts identity' `
+  --environment-notes 'Optional revision or experiment notes'
 ```
 
 By default every case has separate **absolute-seek** and **normal-speed playback**
-passes, each repeated in two fresh processes. Seek inspection never precedes
+passes, each with two independent fresh-process repetitions. Matching retained
+captures are reused by default; `--force-capture` requests new processes. Seek inspection never precedes
 Play in the playback process. `--case NAME` is repeatable; `--players`, `--modes`
 and `--preparations` accept comma-separated selections. `--repeat 1` is useful
 for a smoke run but does not establish original repeatability.
 When including Marcus, supply
 `--marcus build/marcus-x64/src/marcus/marcus-regression.exe` as well.
+
+Completed captures are looked up per case/player/mode/preparation/repetition
+before any player starts. Keys contain movie and ISO hashes, the relevant player
+executable/DLLs and content, capture adapters/helpers, capture/validation behavior,
+viewport, playback/replay time limit, Python/Pillow and OS/machine identities,
+and `--capture-environment`. Rebuilding SDL or Marcus does not invalidate retail.
+Source revision, descriptive `--environment-notes`, selected player order,
+comparison tolerances and the requested number of repetitions are excluded.
+Increasing `--repeat` captures only the missing independent repetition indexes.
+
+`CACHE HIT` names the original run and suite. A new suite copies its SQLite
+observations and retains the original media paths without copying PNG/WAV files;
+comparisons are recomputed with the current policy. Reused timing/audio are
+historical observations, not a new repeatability or performance measurement.
+`CACHE MISS` captures only that missing or invalidated run. `--cache-only`
+reports misses and exits 2 without launching any player; it also skips automatic
+pruning. `--force-capture` bypasses lookup. These two options are mutually exclusive.
+
+Lookup verifies completion, full ordered frame coverage, seek-image coverage,
+media existence and every image/audio artifact hash. Incomplete, changed or
+pruned captures miss. Older runs without a recorded full cache identity remain
+available for manual review but are not guessed into the automatic cache.
+Use `--cache-only` to inspect eligibility without starting 3DMM. Changing fonts,
+audio endpoints, drivers or MIDI banks requires an updated stable
+`--capture-environment` tag or a forced capture. Descriptive notes do not substitute
+for that tag. Captures whose binary/tool inputs change during the suite are
+marked invalid and cannot be reused.
 
 SDL package data is shared by default under `OUTPUT/sdl-cache`, avoiding a
 fresh extracted copy for every player/mode/repetition. `--sdl-cache PATH` selects
@@ -91,7 +120,9 @@ cache was moved into `tmp/c89-movie-data-regression/sdl-cache` without copying i
 Raw capture retention defaults to the latest two completed runs for each
 case/player/mode/preparation/repetition key, plus the latest failure for each key,
 active runs, the latest suite and explicitly pinned suites. A suite remains while
-any of its runs is needed. Cleanup runs before and after a suite; it refuses to
+any of its runs is needed. Retained cache aliases also protect their original
+media-owning suites. Cleanup runs after a suite, once reuse dependencies have been
+recorded; it refuses to
 delete while another capture is running. SQLite observations/hashes/timestamps
 remain unchanged, and summaries/diagnostic JSON/logs are archived under
 `retained-metadata`. `pruned-suites.json` records removed raw directories.
@@ -108,8 +139,8 @@ python tools/playback_regression.py prune --database tmp/c89-movie-data-regressi
 python tools/playback_regression.py prune --database tmp/c89-movie-data-regression/playback.sqlite --apply
 ```
 
-Capture also requires 4096 MiB free before input preparation and every player
-run (`--min-free-mib` adjusts this). On 13 November, superseded captures had
+Capture also requires 4096 MiB free before ISO extraction when needed and each
+uncached player run (`--min-free-mib` adjusts this). On 13 November, superseded captures had
 grown `tmp` to roughly 90 GiB on disk; pruning them reduced it to roughly 28 GiB.
 The current baselines/results and latest failures were retained. Thirty-six
 harness tests cover retention boundaries, metadata preservation, shared-cache
@@ -8640,8 +8671,8 @@ Reuse retained reference captures when executable, movie, content, capture tools
 and relevant settings are unchanged. Rebuilds of SDL or Marcus do not invalidate
 retail reference results. Check those identities before launching a player, and
 run only missing or invalidated cases/players. A whole new retail campaign for
-every C89 slice is unnecessary. This is a workflow correction; automatic cache
-lookup has not been implemented in the regression runner by this change.
+every C89 slice is unnecessary. This Preview revision recorded the workflow
+correction; the subsequent cache implementation is described in Capture above.
 
 Evidence: `tmp/c89-preview-render-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
 `tmp/c89-preview-render-final-{native,sdl-release,sdl-debug,standalone}-tests.log`,
@@ -8649,3 +8680,20 @@ Evidence: `tmp/c89-preview-render-{standalone,native-tests,sdl-release-tests,sdl
 `tmp/c89-preview-render-background-{native,sdl-release,sdl-debug}.log`,
 `tmp/c89-preview-render-trace-comparison.json` and
 `tmp/c89-preview-render-output-comparison.json`.
+
+
+### Automatic capture lookup (15 November 2026)
+
+`playback_cache.py` adds a per-run input index to existing schema-1 databases.
+Only successful keyed captures with intact media are selected; cache reuse creates
+new run IDs and preserves source run/suite provenance. Original observations and
+comparison history remain unchanged. Repetitions keep distinct source captures,
+and reused runs resolve directly to original captures rather than alias chains.
+Retention follows those references before deleting old raw media.
+
+Nine cache tests and all 37 existing harness tests pass using tiny synthetic
+movies, images, PCM and mocked sessions. Coverage includes a no-session second
+suite, SDL-only invalidation after rebuilding SDL, fresh comparison policies,
+explicit refresh/cache-only modes, media/input corruption, independent repetition
+indexes, legacy misses, copied sound/audio metadata and original-media retention.
+No 3DMM, SDL Studio or Marcus process was launched for this verification.

@@ -24,7 +24,7 @@ def digest(path):
     return value.hexdigest()
 
 
-def prepare_iso(iso, destination):
+def prepare_iso(iso, destination, *, before_extract=None):
     """Extract developer test resources, never modify the ISO or installed 3DMM."""
     iso, destination = pathlib.Path(iso).resolve(), pathlib.Path(destination).resolve()
     product = destination / 'Microsoft Kids/3D Movie Maker'
@@ -36,6 +36,8 @@ def prepare_iso(iso, destination):
                 (destination / path).is_file() and digest(destination / path) == value
                 for path, value in manifest['files'].items()):
             return product, manifest
+    if before_extract is not None:
+        before_extract()
     extractor = shutil.which('7z')
     if not extractor:
         raise OracleError('7-Zip is required to prepare the retail test package')

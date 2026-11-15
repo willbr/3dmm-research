@@ -105,6 +105,19 @@ class Retention(unittest.TestCase):
             prune(self.store, apply=True)
         self.assertTrue((self.root / old).exists())
 
+    def test_retained_alias_keeps_its_original_media_until_alias_is_superseded(self):
+        original = self.suite(0)
+        obsolete = [self.suite(1), self.suite(2)]
+        alias = self.suite(3)
+        source = self.store.db.execute('SELECT id FROM runs WHERE suite_id=?', (original,)).fetchone()[0]
+        self.store.db.execute('UPDATE runs SET provenance_json=? WHERE suite_id=?',
+                              (json.dumps({'cache_reuse': {'source_run': source}}), alias))
+        self.store.db.commit()
+        self.assertEqual(set(prune(self.store, keep=1, apply=True)['removed']), set(obsolete))
+        self.assertTrue((self.root / original / 'image.png').is_file())
+        self.suite(4)
+        self.assertEqual(set(prune(self.store, keep=1, apply=True)['removed']), {original, alias})
+
     def test_invalid_pin_is_rejected(self):
         self.suite(0)
         with self.assertRaises(ValueError):

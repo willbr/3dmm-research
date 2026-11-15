@@ -1633,6 +1633,9 @@ if(BUILD_TESTING)
     add_test(NAME playback-regression COMMAND "${Python3_EXECUTABLE}" -B
       "${PROJECT_SOURCE_DIR}/tests/playback_regression_test.py")
     set_tests_properties(playback-regression PROPERTIES TIMEOUT 30)
+    add_test(NAME playback-cache COMMAND "${Python3_EXECUTABLE}" -B
+      "${PROJECT_SOURCE_DIR}/tests/playback_cache_test.py")
+    set_tests_properties(playback-cache PROPERTIES TIMEOUT 30)
     set_tests_properties(mcp-rig PROPERTIES TIMEOUT 15
       ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
     if(BUILD_STUDIO)

@@ -25,6 +25,7 @@ import wave
 
 from playback_store import Store, digest, encode, frame_coverage, timing_metrics
 from playback_retention import prune, shared_cache, require_space
+from playback_cache import CaptureCache, CaptureInputs
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAYERS = ('retail', 'v3dmm', 'sdl', 'marcus')
@@ -560,6 +561,39 @@ def maintain_captures(store, args):
             print('Capture retention deferred: ' + str(error), file=sys.stderr)
 
 
+def open_capture(args, case, player, mode, preparation, directory, product, resources, content, modules):
+    session_module, compare_module, _, v3dmm_module = modules
+    movie = case['path']
+    # Exercise original v3dmm with the same dependency-free v1 envelope as before.
+    if player == 'v3dmm' and movie.suffix.lower() == '.3mm':
+        wrapped = directory / 'stock.vmm'
+        wrapped.write_bytes(b'v3dmm\x01' + struct.pack('<IIH', 1, 0, 4) + b'3dmm' + movie.read_bytes())
+        movie = wrapped
+    if player == 'retail':
+        return session_module.RetailSession(args.bridge, product, movie, directory / 'process')
+    if player == 'v3dmm':
+        if not args.v3dmm:
+            raise ValueError('--v3dmm distribution is required')
+        return v3dmm_module.V3dmmSession(args.bridge, product, movie, directory / 'process', args.v3dmm, case['libraries'])
+    if player == 'sdl':
+        if not args.sdl:
+            raise ValueError('--sdl executable is required')
+        return compare_module.SDLSession(args.sdl, args.iso, movie, directory / 'process',
+            args.sdl_cache if getattr(args, 'sdl_cache', None) else directory / 'cache',
+            audio=mode == 'playback' or preparation == 'replay')
+    if not args.marcus:
+        raise ValueError('--marcus capture executable is required')
+    return MarcusSession(args.marcus, movie, resources, content, directory / 'process',
+                         args.viewport[2] - args.viewport[0], args.viewport[3] - args.viewport[1])
+
+
+def warmup_capture(active, directory, audio_module, bridge, limit):
+    _, warmup = audio_module.record(active, bridge / 'oracle-audio-capture.exe', directory / 'warmup', limit)
+    # Begin reuses presentation filenames; preserve the first pass before replay.
+    preserve_warmup_presentations(warmup['trace'], directory / 'process', directory / 'warmup')
+    (directory / 'warmup/playback.json').write_text(encode(warmup), encoding='utf-8')
+
+
 def run_suite(args):
     if os.name != 'nt':
         raise ValueError('Live capture currently requires Windows; review and SQLite are portable')
@@ -592,12 +626,14 @@ def run_suite(args):
                      manifest_json=encode(json.loads(args.manifest.read_text(encoding='utf-8'))),
                      environment_json=encode({'os': platform.platform(), 'python': platform.python_version(),
                          'machine': platform.machine(), 'os_file_cache': 'uncontrolled', 'run_order': players,
+                         'capture_environment': getattr(args, 'capture_environment', ''),
+                         'cache_policy': 'only' if getattr(args, 'cache_only', False) else
+                                         'refresh' if getattr(args, 'force_capture', False) else 'reuse',
                          'viewport': args.viewport, 'notes': args.environment_notes, 'working_tree': dirty,
                          'sdl_package_cache': str(args.sdl_cache.resolve()) if getattr(args, 'sdl_cache', None) else 'per-run',
                          'audio_format': '48000 Hz stereo signed 16-bit', 'capture_version': 2}), source_revision=revision)
-        maintain_captures(store, args)
-        require_space(output, getattr(args, 'min_free_mib', 4096))
-        product, iso_manifest = session_module.prepare_iso(args.iso, output / 'iso-package')
+        product, iso_manifest = session_module.prepare_iso(args.iso, output / 'iso-package',
+            before_extract=lambda: require_space(output, getattr(args, 'min_free_mib', 4096)))
         resources = args.resources or product / '3DMOVIE.CHK'
         content = args.content_dir or product
         identities = {'iso': iso_manifest}
@@ -614,6 +650,9 @@ def run_suite(args):
             if path.is_file() and path.suffix.lower() == '.3cn':
                 content_inputs[str(path.resolve())] = digest(path)
         identities['marcus_content'] = content_inputs
+        cache = CaptureCache(store)
+        capture_inputs = CaptureInputs(args, iso_manifest, resources, content)
+        cache_hits = cache_misses = 0
         created = []
         errors = []
         for case in selected:
@@ -623,6 +662,29 @@ def run_suite(args):
                     continue
                 for mode in modes:
                     for repetition, preparation in itertools.product(range(args.repeat), preparations):
+                        key, inputs = capture_inputs.key(case, player, mode, preparation, repetition)
+                        cached = None if getattr(args, 'force_capture', False) else cache.lookup(key)
+                        if cached is not None:
+                            created.append(cache.reuse(cached, suite))
+                            cache_hits += 1
+                            print('%s %s %s %s repeat=%d CACHE HIT run=%d suite=%s' % (
+                                case['name'], player, mode, preparation, repetition,
+                                cached['id'], cached['suite_id']), flush=True)
+                            continue
+                        cache_misses += 1
+                        print('%s %s %s %s repeat=%d CACHE MISS%s' % (
+                            case['name'], player, mode, preparation, repetition,
+                            ' (forced)' if getattr(args, 'force_capture', False) else ''), flush=True)
+                        if getattr(args, 'cache_only', False):
+                            errors.append('No reusable capture: %s %s %s %s repeat=%d' % (
+                                case['name'], player, mode, preparation, repetition))
+                            run = store.insert('runs', suite_id=suite, case_name=case['name'], player=player,
+                                mode=mode, preparation=preparation, repetition=repetition,
+                                status='cache-miss', artifact_dir=store.relative(destination),
+                                capabilities_json=encode(capabilities(player, mode)), error=errors[-1],
+                                provenance_json=encode({'capture_cache_key': key}))
+                            created.append(run)
+                            continue
                         require_space(output, getattr(args, 'min_free_mib', 4096))
                         directory = destination / case['name'] / player / mode / preparation / str(repetition)
                         directory.mkdir(parents=True)
@@ -635,41 +697,14 @@ def run_suite(args):
                         report = {}
                         try:
                             print('%s %s %s %s repeat=%d' % (case['name'], player, mode, preparation, repetition), flush=True)
-                            movie = case['path']
-                            # A .3mm can also exercise the actual patched v3dmm runtime
-                            # using a dependency-free v1 envelope. Never convert VMMs.
-                            if player == 'v3dmm' and movie.suffix.lower() == '.3mm':
-                                wrapped = directory / 'stock.vmm'
-                                wrapped.write_bytes(b'v3dmm\x01' + struct.pack('<IIH', 1, 0, 4) + b'3dmm' + movie.read_bytes())
-                                movie = wrapped
-                            if player == 'retail':
-                                if movie.suffix.lower() != '.3mm':
-                                    store.finish(run, 'unsupported', error='Retail cannot open VMM containers')
-                                    continue
-                                active = session_module.RetailSession(args.bridge, product, movie, directory / 'process')
-                            elif player == 'v3dmm':
-                                if not args.v3dmm:
-                                    raise ValueError('--v3dmm distribution is required')
-                                active = v3dmm_module.V3dmmSession(args.bridge, product, movie, directory / 'process',
-                                                                  args.v3dmm, case['libraries'])
-                            elif player == 'sdl':
-                                if not args.sdl:
-                                    raise ValueError('--sdl executable is required')
-                                active = compare_module.SDLSession(args.sdl, args.iso, movie, directory / 'process',
-                                    args.sdl_cache if getattr(args, 'sdl_cache', None) else directory / 'cache',
-                                    audio=mode == 'playback' or preparation == 'replay')
-                            else:
-                                if not args.marcus:
-                                    raise ValueError('--marcus capture executable is required')
-                                active = MarcusSession(args.marcus, movie, resources, content, directory / 'process',
-                                    args.viewport[2] - args.viewport[0], args.viewport[3] - args.viewport[1])
+                            if player == 'retail' and case['path'].suffix.lower() != '.3mm':
+                                store.finish(run, 'unsupported', error='Retail cannot open VMM containers')
+                                continue
+                            active = open_capture(args, case, player, mode, preparation, directory,
+                                                  product, resources, content,
+                                                  (session_module, compare_module, audio_module, v3dmm_module))
                             if preparation == 'replay':
-                                _, warmup = audio_module.record(active, args.bridge / 'oracle-audio-capture.exe',
-                                                                 directory / 'warmup', args.max_seconds)
-                                # The adapter reuses its presentation filenames
-                                # on Begin. Preserve the first pass before replay.
-                                preserve_warmup_presentations(warmup['trace'], directory / 'process', directory / 'warmup')
-                                (directory / 'warmup/playback.json').write_text(encode(warmup), encoding='utf-8')
+                                warmup_capture(active, directory, audio_module, args.bridge, args.max_seconds)
                             if mode == 'seek':
                                 report = seek_capture(store, run, active, directory, player, args.viewport)
                             else:
@@ -691,7 +726,9 @@ def run_suite(args):
                             if digest(case['path']) != source_hash:
                                 raise RuntimeError('Source movie changed')
                             provenance['source_unchanged'] = True
+                            provenance['capture_cache_key'] = key
                             store.finish(run, 'complete', provenance=provenance)
+                            cache.record(run, key, inputs)
                         except Exception as error:
                             errors.append(str(error))
                             # Failed captures still retain their last observations
@@ -720,25 +757,31 @@ def run_suite(args):
         source_ok = all(digest(case['path']) == case['sha256'] for case in selected)
         iso_ok = all(digest(output / 'iso-package' / path) == expected for path, expected in iso_manifest['files'].items())
         content_ok = all(Path(path).is_file() and digest(path) == expected for path, expected in content_inputs.items())
-        if not source_ok or not iso_ok or not content_ok:
-            errors.append('Movie or extracted ISO inputs changed')
+        inputs_ok = capture_inputs.unchanged()
+        if not source_ok or not iso_ok or not content_ok or not inputs_ok:
+            errors.append('Movie, ISO, content or capture inputs changed')
             store.db.execute("UPDATE runs SET status='error',error='Input integrity failure' WHERE suite_id=?", (suite,))
             store.db.execute("UPDATE comparisons SET status='inconclusive' WHERE candidate_run IN (SELECT id FROM runs WHERE suite_id=?)", (suite,))
             store.db.commit()
         summary = review(store, suite)
         summary['integrity'] = {'movies_unchanged': source_ok, 'iso_resources_unchanged': iso_ok,
-                                'marcus_content_unchanged': content_ok}
+                                'marcus_content_unchanged': content_ok, 'capture_inputs_unchanged': inputs_ok}
+        summary['cache'] = {'hits': cache_hits, 'misses': cache_misses,
+                            'forced': getattr(args, 'force_capture', False)}
         (destination / 'summary.json').write_text(encode(summary), encoding='utf-8')
         (output / 'latest.json').write_text(encode({'suite': suite, 'database': str(store.path),
                                                    'summary': str(destination / 'summary.json')}), encoding='utf-8')
         print('Suite: ' + suite)
         print('Database: ' + str(store.path))
+        print('Cache: %d reused, %d %s' % (cache_hits, cache_misses,
+              'missing (cache-only; no players launched)' if getattr(args, 'cache_only', False) else 'misses'))
         print('Status: %s; runs: %d complete, %d incomplete; comparisons: %d different, %d inconclusive' % (
             summary['status'], sum(r['status'] == 'complete' for r in summary['runs']),
             sum(r['status'] != 'complete' for r in summary['runs']),
             sum(c['status'] == 'different' for c in summary['comparisons']),
             sum(c['status'] == 'inconclusive' for c in summary['comparisons'])))
-        maintain_captures(store, args)
+        if not getattr(args, 'cache_only', False):
+            maintain_captures(store, args)
         if errors:
             return 2
         return 0 if summary['status'] == 'matched' else 1
@@ -840,15 +883,19 @@ def main():
     run.add_argument('--keep-captures', type=int, default=2,
                      help='Keep latest N completed captures per case/player/mode/preparation/repetition, plus latest failures; 0 disables pruning')
     run.add_argument('--pin-suite', action='append', default=[], help='Protect an additional suite from retention pruning')
-    run.add_argument('--min-free-mib', type=int, default=4096, help='Required free space before preparing inputs and each capture (default: 4096 MiB)')
+    run.add_argument('--min-free-mib', type=int, default=4096, help='Required free space before each uncached capture (default: 4096 MiB)')
     run.add_argument('--preparations', default='fresh-process', help='Comma-separated fresh-process,replay; replay first plays the whole movie in the same process')
     run.add_argument('--case', action='append')
     run.add_argument('--repeat', type=int, default=2, help='Independent fresh processes, including original repeatability')
+    capture_policy = run.add_mutually_exclusive_group()
+    capture_policy.add_argument('--force-capture', action='store_true', help='Bypass cached observations and capture fresh runs')
+    capture_policy.add_argument('--cache-only', action='store_true', help='Reuse retained captures; report misses without launching any player')
+    run.add_argument('--capture-environment', default='', help='Stable identity for fonts, GPU/driver, audio device, MIDI bank and other controlled capture settings; unlike descriptive notes, changes invalidate cached captures')
     run.add_argument('--max-seconds', type=int, default=120)
     run.add_argument('--viewport', type=int, nargs=4, default=[48, 100, 592, 406], help='Exact movie canvas in the original 640x480 client; no scaling')
     run.add_argument('--frame-tolerance-ms', type=float, default=25)
     run.add_argument('--sample-tolerance', type=int, default=0)
-    run.add_argument('--environment-notes', default='', help='GPU/driver, audio device, MIDI mapper/bank, fonts and other controlled settings')
+    run.add_argument('--environment-notes', default='', help='Descriptive notes, excluded from cache keys; use --capture-environment for controlled settings')
     report = commands.add_parser('review', help='Print the most recent suite or an explicit suite ID')
     report.add_argument('--database', type=Path, required=True)
     report.add_argument('--suite')

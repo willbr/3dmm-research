@@ -56,6 +56,15 @@ def plan(store, keep=2, pins=(), cache=None):
     latest = store.db.execute('SELECT id FROM suites ORDER BY started DESC LIMIT 1').fetchone()
     if latest:
         protected.add(latest[0])
+    # Cached runs share their original media instead of duplicating it. Keep the
+    # owning suite for as long as any retained suite refers to those observations.
+    dependencies = list(store.db.execute('''SELECT r.suite_id, original.suite_id FROM runs r JOIN runs original
+        ON original.id=json_extract(r.provenance_json,'$.cache_reuse.source_run')'''))
+    while True:
+        sources = {source for alias, source in dependencies if alias in protected}
+        if sources.issubset(protected):
+            break
+        protected.update(sources)
     targets = [path.name for path in root.iterdir() if SUITE.fullmatch(path.name)
                and path.name in known - protected and path.is_dir()]
     return {'root': str(root), 'keep_completed': keep, 'protected': sorted(protected), 'targets': sorted(targets)}
