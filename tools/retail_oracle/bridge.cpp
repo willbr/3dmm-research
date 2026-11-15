@@ -16,11 +16,12 @@
 using namespace RetailOracle;
 namespace
 {
-HMODULE module;
 Config config;
 std::uintptr_t base;
 HHOOK hook;
 HANDLE done;
+HANDLE pipeStarted;
+DWORD pipeStartupError;
 CRITICAL_SECTION filesLock;
 std::set<std::string> openedAssets;
 std::set<std::string> fileLookups;
@@ -964,20 +965,27 @@ std::string HelloJSON()
     out << "}}}";
     return out.str();
 }
-DWORD WINAPI PipeThread(void *)
+HANDLE CreateControlPipe()
 {
-    hook = SetWindowsHookExW(WH_GETMESSAGE, MessageHook, module, config.uiThread);
-    if (!hook)
-        return GetLastError();
     wchar_t name[128];
     swprintf_s(name, L"\\\\.\\pipe\\3dmm-retail-oracle-%lu", GetCurrentProcessId());
+    return CreateNamedPipeW(name, PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1,
+                            65536, 4096, 0, nullptr);
+}
+DWORD WINAPI PipeThread(void *)
+{
+    // Keep the installing thread alive for the lifetime of its hook. This DLL
+    // already runs in the target process, so Windows need not resolve it again
+    // as a hook module (which can fail with ERROR_MOD_NOT_FOUND).
+    hook = SetWindowsHookExW(WH_GETMESSAGE, MessageHook, nullptr, config.uiThread);
+    HANDLE pipe = hook ? CreateControlPipe() : INVALID_HANDLE_VALUE;
+    pipeStartupError = pipe == INVALID_HANDLE_VALUE ? GetLastError() : 0;
+    SetEvent(pipeStarted);
+    if (pipeStartupError)
+        return pipeStartupError;
     for (;;)
     {
-        HANDLE pipe = CreateNamedPipeW(name, PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
-                                       PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS, 1,
-                                       65536, 4096, 0, nullptr);
-        if (pipe == INVALID_HANDLE_VALUE)
-            return GetLastError();
         Request incoming;
         if (ConnectNamedPipe(pipe, nullptr) || GetLastError() == ERROR_PIPE_CONNECTED)
             while (Transfer(pipe, &incoming, sizeof(incoming), false))
@@ -1013,6 +1021,9 @@ DWORD WINAPI PipeThread(void *)
             }
         DisconnectNamedPipe(pipe);
         CloseHandle(pipe);
+        pipe = CreateControlPipe();
+        if (pipe == INVALID_HANDLE_VALUE)
+            return GetLastError();
     }
 }
 } // namespace
@@ -1108,17 +1119,30 @@ extern "C" __declspec(dllexport) DWORD WINAPI OracleStart(void *argument)
     done = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (!done)
         return 14;
+    // Finish hook/pipe setup before reporting success to the launcher. Otherwise
+    // an early worker failure is hidden behind the client's connection timeout.
+    pipeStarted = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (!pipeStarted)
+        return 1000 + GetLastError();
     HANDLE worker = CreateThread(nullptr, 0, PipeThread, nullptr, 0, nullptr);
     if (!worker)
+    {
+        CloseHandle(pipeStarted);
         return 15;
+    }
+    const auto started = WaitForSingleObject(pipeStarted, 5000);
     CloseHandle(worker);
+    if (started != WAIT_OBJECT_0)
+        return 23;
+    CloseHandle(pipeStarted);
+    if (pipeStartupError)
+        return 1000 + pipeStartupError;
     return 0;
 }
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *)
 {
     if (reason == DLL_PROCESS_ATTACH)
     {
-        module = instance;
         DisableThreadLibraryCalls(instance);
     }
     return TRUE;

@@ -18,9 +18,10 @@ build/playback-review/image-compare.exe movies/stranger1.zip
 ```
 
 Launch without arguments and use **Open movie...**, or enter a movie path and
-press **Render movie**. Progress shows completed frames for retail and all four
-Marcus renderers. Retail and Marcus capture concurrently, each retaining its
-scene and advancing in authored-frame order. Retail publishes its frames without
+press **Render movie**. The Windows viewer runs without a console window;
+capture helpers also run without consoles. Progress shows completed frames for
+retail and all four Marcus renderers. Retail and Marcus capture concurrently,
+each retaining its scene and advancing in authored-frame order. Retail publishes its frames without
 waiting for the four Marcus backends. PNG encoding uses fast, lossless compression.
 `timings.json` records each capture lane and total capture time, excluding startup.
 This avoids reopening scenes and rebuilding caption/asset caches before every
@@ -111,6 +112,11 @@ those dependency paths. The old `marcus-regression.exe` and
 so a running capture does not lock workspace build outputs and its recorded
 hashes describe the binaries actually used. Missing dependencies and failed renderers have explicit
 error/partial statuses; unavailable captures never imply a match.
+
+The retail bridge registers its UI hook within the already injected process,
+without asking Windows to resolve a second DLL module for the hook. Hook and
+control-pipe creation finish before the launcher reports success; setup failures
+report the Windows error immediately instead of a later pipe-connection timeout.
 
 Build `marcus-asm-worker` in `build/marcus-x86` as described in the Marcus guide
 to enable CPU ASM captures. Each job also snapshots and hashes this helper. If

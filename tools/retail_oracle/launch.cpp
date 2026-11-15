@@ -227,6 +227,9 @@ int wmain(int argc, wchar_t **argv)
         Check(WriteProcessMemory(child.hProcess, memory, &config, sizeof(config), nullptr) != 0,
               "Copy bridge configuration");
         const auto initialized = Invoke(child.hProcess, remoteStart, memory);
+        if (initialized >= 1000)
+            throw std::runtime_error("Oracle control pipe setup failed (Windows error " +
+                                     std::to_string(initialized - 1000) + ")");
         if (initialized)
             throw std::runtime_error("Oracle initialization returned " + std::to_string(initialized));
         VirtualFreeEx(child.hProcess, memory, 0, MEM_RELEASE);
