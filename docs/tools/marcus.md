@@ -102,6 +102,13 @@ paths. Original content is not bundled or downloaded by Marcus.
 
 Open a movie with **Open movie**, **Ctrl+O**, or drag and drop. Selecting
 Resources or Content reloads that movie.
+
+Use **New movie** or **Ctrl+N** (**Cmd+N** on macOS) to start a blank, unsaved
+**Untitled movie** session. This stops playback and clears the previous movie,
+scene/object/sound lists, timeline and viewport images while retaining Resources,
+Content and preferences. The new movie has no scenes; scene authoring and saving
+are not implemented yet. New movie's shortcut can be changed in Settings.
+
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape
 retain their open/cancel actions, with hover, pressed and disabled feedback.

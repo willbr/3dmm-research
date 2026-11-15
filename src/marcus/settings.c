@@ -6,10 +6,10 @@
 
 static const char *action_names[MARCUS_ACTION_COUNT] = {"First frame",  "Previous frame",  "Next frame", "Last frame",
                                                         "First scene",  "Previous scene",  "Next scene", "Last scene",
-                                                        "Play / pause", "Cycle view mode", "Reset view", "Open movie"};
+                                                        "Play / pause", "Cycle view mode", "Reset view", "Open movie", "New movie"};
 static const char *action_ids[MARCUS_ACTION_COUNT] = {"first_frame", "prev_frame", "next_frame", "last_frame",
                                                       "first_scene", "prev_scene", "next_scene", "last_scene",
-                                                      "play",        "view",       "reset_view", "open"};
+                                                      "play",        "view",       "reset_view", "open", "new"};
 const MarcusRenderResolution *marcus_render_resolution(int index)
 {
     static const MarcusRenderResolution resolutions[MARCUS_RESOLUTION_COUNT] = {
@@ -45,7 +45,7 @@ static SDL_Keycode normalize_key(SDL_Keycode key)
 void shortcuts_defaults(MarcusShortcuts *shortcuts)
 {
     static const SDL_Keycode keys[MARCUS_ACTION_COUNT] = {SDLK_D, SDLK_D, SDLK_F,     SDLK_F, SDLK_S, SDLK_S,
-                                                          SDLK_G, SDLK_G, SDLK_SPACE, SDLK_C, SDLK_R, SDLK_O};
+                                                          SDLK_G, SDLK_G, SDLK_SPACE, SDLK_C, SDLK_R, SDLK_O, SDLK_N};
     int i;
     memset(shortcuts, 0, sizeof(*shortcuts));
     shortcuts->render_resolution = MARCUS_DEFAULT_RESOLUTION;
@@ -58,8 +58,10 @@ void shortcuts_defaults(MarcusShortcuts *shortcuts)
     shortcuts->binding[MARCUS_LAST_SCENE].modifiers = MARCUS_MOD_SHIFT;
 #ifdef __APPLE__
     shortcuts->binding[MARCUS_OPEN].modifiers = MARCUS_MOD_GUI;
+    shortcuts->binding[MARCUS_NEW].modifiers = MARCUS_MOD_GUI;
 #else
     shortcuts->binding[MARCUS_OPEN].modifiers = MARCUS_MOD_CTRL;
+    shortcuts->binding[MARCUS_NEW].modifiers = MARCUS_MOD_CTRL;
 #endif
 }
 const char *shortcuts_action_name(int action)

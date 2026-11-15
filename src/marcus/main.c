@@ -35,6 +35,7 @@
 #define RENDER_SETTINGS_WIDTH 1064
 #define RENDER_SETTINGS_HEIGHT 620
 #define SETTINGS_HEIGHT 764
+#define SHORTCUT_ROW_HEIGHT 22
 #define DEBUG_HISTORY 180
 #define VIEW_STRIP_WIDTH 20
 #define TIMELINE_HANDLE_HEIGHT 8
@@ -110,7 +111,7 @@ typedef struct App
     char settings_path[1024], settings_message[256];
     int settings_open, rendering_settings, settings_work_camera, binding_capture;
     char movie[1024], resources[1024], content[1024], error[1024];
-    int running, loaded, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
+    int running, loaded, blank_movie, playing, loop, selected, authored, dirty, dragging, orbiting, panning;
     int orbit_selection, orbit_menu, orbit_target;
     int continue_click, muted;
     int flying, fly_ready, camera_ready, fly_keys;
@@ -696,6 +697,7 @@ static int open_input(App *app, MarcusMovieInput *input, int entry, const char *
         marcus_input_destroy(app->movie_input);
     app->movie_input = input;
     app->movie_entry = entry;
+    app->blank_movie = 0;
     if (path != app->movie)
         SDL_strlcpy(app->movie, path, sizeof(app->movie));
     if (marcus_input_entry(input, entry, &member) && member.zipped)
@@ -718,6 +720,56 @@ static void cancel_zip(App *app)
 {
     marcus_input_destroy(app->zip_input);
     app->zip_input = NULL;
+}
+static void new_movie(App *app)
+{
+    MarcusPlayer *player;
+    player = marcus_create();
+    if (!player)
+    {
+        fail(app, "Not enough memory to create a new movie.");
+        return;
+    }
+    if (!marcus_set_playback_rate(player, app->shortcuts.playback_rate, app->shortcuts.playback_modifier))
+    {
+        fail(app, marcus_error(player));
+        marcus_destroy(player);
+        return;
+    }
+    marcus_set_muted(player, app->muted);
+    scene_organiser_close(app->scene_organiser);
+    finish_movie_scrub(app);
+    release_camera(app);
+    app->playing = 0;
+    marcus_destroy(app->player);
+    app->player = player;
+    marcus_input_destroy(app->movie_input);
+    app->movie_input = NULL;
+    cancel_zip(app);
+    app->movie[0] = app->zip_path[0] = app->error[0] = app->animation_hint[0] = 0;
+    app->movie_entry = 0;
+    app->blank_movie = 1;
+    memset(&app->info, 0, sizeof(app->info));
+    memset(&app->playback, 0, sizeof(app->playback));
+    memset(&app->movie_time, 0, sizeof(app->movie_time));
+    memset(&app->work_image, 0, sizeof(app->work_image));
+    memset(&app->movie_image, 0, sizeof(app->movie_image));
+    memset(&app->projection, 0, sizeof(app->projection));
+    memset(&app->scene_camera, 0, sizeof(app->scene_camera));
+    SDL_DestroyTexture(app->picture);
+    SDL_DestroyTexture(app->movie_picture);
+    app->picture = app->movie_picture = NULL;
+    app->selected = app->selected_sound = app->selected_sound_track = -1;
+    app->row_scroll = app->object_scroll = app->sound_scroll = app->both_scroll = app->properties_scroll = 0;
+    app->animation_expanded = app->sheet_menu = app->orbit_menu = app->continue_click = 0;
+    app->resizing_view = app->resizing_timeline = 0;
+    app->timeline_start = 0;
+    app->pixels_per_frame = 24;
+    refresh(app);
+    reset_view(app);
+    if (app->movie_only)
+        editor_view(app);
+    SDL_SetWindowTitle(app->window, "Marcus - Untitled movie");
 }
 static void confirm_zip(App *app)
 {
@@ -924,6 +976,11 @@ static void perform_action(App *app, int action)
     if (action == MARCUS_OPEN)
     {
         choose_file(app, 0);
+        return;
+    }
+    if (action == MARCUS_NEW)
+    {
+        new_movie(app);
         return;
     }
     if (!app->loaded)
@@ -1335,9 +1392,9 @@ static void settings_click(App *app, float x, float y)
     top = (app->height - SETTINGS_HEIGHT) / 2.0f;
     if (ui_inside(x, y, left + 618, top + 16, 28, 28))
         cancel_settings(app);
-    else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * 24))
+    else if (ui_inside(x, y, left + 430, top + 100, 204, MARCUS_ACTION_COUNT * SHORTCUT_ROW_HEIGHT))
     {
-        app->binding_capture = (int)((y - top - 100) / 24);
+        app->binding_capture = (int)((y - top - 100) / SHORTCUT_ROW_HEIGHT);
         app->settings_message[0] = 0;
     }
     else if (ui_inside(x, y, left + 24, top + 400, 610, 28))
@@ -1645,12 +1702,14 @@ static void mouse_down(App *app, float x, float y, int button)
     if (button != SDL_BUTTON_LEFT || app->flying || app->orbiting || app->panning)
         return;
     if (ui_inside(x, y, 16, 52, 112, 28))
+        new_movie(app);
+    else if (ui_inside(x, y, 136, 52, 112, 28))
         choose_file(app, 0);
-    else if (ui_inside(x, y, 136, 52, 104, 28))
+    else if (ui_inside(x, y, 256, 52, 104, 28))
         choose_file(app, 1);
-    else if (ui_inside(x, y, 248, 52, 104, 28))
+    else if (ui_inside(x, y, 368, 52, 104, 28))
         choose_file(app, 2);
-    else if (ui_inside(x, y, 360, 52, 96, 28))
+    else if (ui_inside(x, y, 480, 52, 96, 28))
         open_settings(app);
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
     {
@@ -2241,7 +2300,7 @@ static void draw_header(App *app)
     ui_fill(ui, 16, 13, 4, 18, ACCENT);
     ui_heading(ui, 29, 13, "MARCUS", TEXT);
     ui_text(ui, 108, 13, "/  Movie player", MUTED);
-    name = app->movie[0] ? app->movie : "Untitled session";
+    name = app->movie[0] ? app->movie : app->blank_movie ? "Untitled movie" : "Untitled session";
     slash = strrchr(name, '/');
     if (slash)
         name = slash + 1;
@@ -2250,11 +2309,12 @@ static void draw_header(App *app)
         name = slash + 1;
     ui_label(ui, 300, 13, (float)app->width - 510, name, TEXT);
     ui_heading(ui, (float)app->width - 160, 13, "MOVIE PLAYBACK", ACCENT);
-    ui_button(ui, 16, 52, 112, "Open movie", 0, 1);
-    ui_button(ui, 136, 52, 104, "Resources...", 0, 1);
-    ui_button(ui, 248, 52, 104, "Content...", 0, 1);
-    ui_button(ui, 360, 52, 96, "Settings", app->settings_open, 1);
-    ui_label(ui, 472, 58, app->sidebar - 488, "Drop a movie or ZIP here", MUTED);
+    ui_button(ui, 16, 52, 112, "New movie", 0, 1);
+    ui_button(ui, 136, 52, 112, "Open movie", 0, 1);
+    ui_button(ui, 256, 52, 104, "Resources...", 0, 1);
+    ui_button(ui, 368, 52, 104, "Content...", 0, 1);
+    ui_button(ui, 480, 52, 96, "Settings", app->settings_open, 1);
+    ui_label(ui, 592, 58, (float)app->width - 608, "Drop a movie or ZIP here", MUTED);
     ui_line(ui, 0, 88, (float)app->width, 88, LINE);
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
@@ -2468,8 +2528,10 @@ static void draw_view(App *app)
     ui_line(ui, right - 157, 111, right - 154, 108, MUTED);
     if (!app->loaded)
     {
-        ui_text(ui, app->sidebar / 2 - 100, 207, "A new view of your movies", TEXT);
-        ui_text(ui, app->sidebar / 2 - 142, 239, "Open a movie to explore its scenes and actors.", MUTED);
+        ui_text(ui, app->sidebar / 2 - 100, 207,
+                app->blank_movie ? "Untitled movie" : "A new view of your movies", TEXT);
+        ui_text(ui, app->sidebar / 2 - 142, 239,
+                app->blank_movie ? "This new movie has no scenes yet." : "Open a movie to explore its scenes and actors.", MUTED);
         ui_button(ui, app->sidebar / 2 - 65, 280, 130, "Open a movie", 1, 1);
         ui_text(ui, 24, app->viewport_bottom - 30,
                 "Select Resources and Content if your original 3DMM files are elsewhere.", MUTED);
@@ -3362,12 +3424,12 @@ static void draw_settings(App *app)
             MUTED);
     for (row = 0; row < MARCUS_ACTION_COUNT; ++row)
     {
-        row_y = y + 100 + row * 24;
+        row_y = y + 100 + row * SHORTCUT_ROW_HEIGHT;
         if (row == 4 || row == 8)
             ui_line(&app->ui, x + 24, row_y - 1, x + 634, row_y - 1, LINE);
         ui_text(&app->ui, x + 28, row_y + 5, shortcuts_action_name(row), TEXT);
         shortcuts_label(&app->edited_shortcuts.binding[row], label, sizeof(label));
-        ui_button_sized(&app->ui, x + 430, row_y, 204, 23, row == app->binding_capture ? "Press a key..." : label,
+        ui_button_sized(&app->ui, x + 430, row_y, 204, SHORTCUT_ROW_HEIGHT - 1, row == app->binding_capture ? "Press a key..." : label,
                   row == app->binding_capture, 1);
     }
     ui_text(&app->ui, x + 28, y + 405, "Pause playback on focus loss", TEXT);

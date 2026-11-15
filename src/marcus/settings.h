@@ -25,6 +25,7 @@ enum MarcusAction
     MARCUS_VIEW,
     MARCUS_RESET_VIEW,
     MARCUS_OPEN,
+    MARCUS_NEW,
     MARCUS_ACTION_COUNT
 };
 typedef struct MarcusShortcut
