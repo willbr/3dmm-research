@@ -12,8 +12,11 @@
 //
 //  This file contains all functionality for text box manipulation.
 //
+#include <exception>
+#include <new>
 #include "soc.h"
 ASSERTNAME
+#include "text_box_store_host.h"
 
 RTCLASS(TextBox)
 RTCLASS(TextBoxGobject)
@@ -1913,30 +1916,12 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-
-    ChunkIdentification cki;
-    _data.textChild = 0;
-
-    if (!FSaveToChunk(pcfl, &cki))
-    {
-        return (fFalse);
-    }
-
-    Assert(cki.ctg == kctgRichText, "bad ctg");
-
-    if (!pcfl->FAdoptChild(kctgTbox, cno, cki.ctg, cki.cno, 0))
-    {
-        pcfl->Delete(cki.ctg, cki.cno);
-        return (fFalse);
-    }
-
-    if (!_data.FWrite(pcfl, cno))
-    {
-        pcfl->DeleteChild(kctgTbox, cno, cki.ctg, cki.cno, 0);
-        return (fFalse);
-    }
-
-    return (fTrue);
+    TextBoxStoreHost host = {this, &_data, pcfl};
+    auto services = host.Services();
+    const int result = mm_text_box_store(cno, &services);
+    if (host.exception)
+        std::rethrow_exception(host.exception);
+    return result > 0;
 }
 
 /****************************************************

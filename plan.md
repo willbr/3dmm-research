@@ -519,9 +519,10 @@ presentation event/cue traversal, actor-cue mapping and stable cue ordering now
 use C89 too. Caption text/property traversal, temporary buffer/input ownership,
 stable property ordering, audio envelope/payload/MIDI loading and public sound
 remapping now also use C89. Stored rich-text/text-box wire codecs, read transactions,
-resource ownership and write rollback now also use C89. Typed resource/track/archive/
-path providers, live rich-text document save/runtime control, display formatting/
-output containers and final facade removal remain work.
+resource ownership and write rollback now also use C89. Live rich-text chunk saving,
+text redirection and text-box adoption/rollback now also use C89. Typed resource/
+track/archive/path providers, document file-save/lifecycle and text editing/runtime
+control, display formatting/output containers and final facade removal remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -569,8 +570,10 @@ track/archive/path providers remain. Actor timeline replay/span/event control,
 scene cue traversal, actor-cue mapping and stable ordering now also use C89.
 Caption text/property traversal, stable ordering, audio envelope/payload/MIDI
 loading and public sound remapping now also use C89. Stored rich-text/text-box
-persistence now also uses C89. Live rich-text document save/runtime control,
-display formatting/output containers and final host integration still need conversion.
+persistence now also uses C89. Live rich-text chunk save/redirection and text-box
+adoption/rollback now also use C89. Document file-save/lifecycle, text editing/runtime
+control, display formatting/output containers and final host integration still need
+conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;

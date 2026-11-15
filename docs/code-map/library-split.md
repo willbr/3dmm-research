@@ -1507,7 +1507,7 @@ framing preservation, errors and rendered output against all three original host
 C fault checks cover every fallible open/add stage, palette byte order/admission,
 lease transfer/rejection, release order, registry storage exhaustion and retry.
 Native resource/track/archive/path representations, asset-cleanup primitives,
-live rich-text document save/runtime control, display/output representations and
+document file-save/lifecycle and text editing/runtime control, display/output representations and
 final C-only host/facade removal remain dependencies. Metadata, media and stored
 caption persistence are covered below.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
@@ -1582,7 +1582,8 @@ time boundaries, ANSI/UTF-16 captions, font arguments, stable ties and failure
 prefixes against three original hosts. It runs in the regular asset-preview harness.
 C-only tests exercise effect/allocation failures, cleanup, conversion/publication
 prefixes, sort fallback, MIDI budgets and source remapping. Stored rich-text/text-box
-persistence is covered below. Live document save/runtime control, display/output
+persistence and live chunk saving are covered below. Document file-save/lifecycle
+and text editing/runtime control, display/output
 representations, physical providers and final C-only host/facade removal remain
 dependencies. Evidence and platform limits
 are in `docs/tools/playback-regression.md`.
@@ -1626,9 +1627,52 @@ trips. Argument bytes are explicitly aligned so the trace does not capture unini
 legacy collection padding. C-only fault tests cover all read/write effects, negative
 exception results, partially returned owners, copy cleanup, output publication and
 one-/two-byte counted fonts. The regular asset-preview harness also runs the fixture.
-Live rich-text document save/redirection, editing/font/argument transformations,
-native descriptor/output representations, physical providers and final C-only facade
-removal remain work. Evidence and platform limits are in
+Live chunk save/redirection and text-box adoption are covered below. Document
+file-save/lifecycle, editing/font/argument transformations, native descriptor/output
+representations, physical providers and final C-only facade removal remain work.
+Evidence and platform limits are in
+`docs/tools/playback-regression.md`.
+
+### Live rich-text chunk save and text-box adoption
+
+`text_live.c` controls live rich-text root/TEXT/GLMP/AGPA creation, stream-window
+sequencing, save-error publication, optional text redirection and text-box adoption/
+metadata rollback. Native facades supply borrowed live groups/streams, file/block
+primitives and diagnostics. Root wire encoding/creation uses `text_store.c`.
+
+Live saves publish RTXT before validating the header. The output record tracks
+whether the number changed so native callers can preserve an untouched, potentially
+uninitialized number after early validation failure. Root creation failures retain
+the shared nil-number behavior. Later child rollback retains the created number,
+unlike stored-data writes. TEXT always writes its native system marker and moves
+past it before copying, including empty text; the stream sentinel is excluded.
+GLMP and nonempty AGPA output use native order/system. A failed move diagnoses and
+continues like the original `AssertDo`; ordinary save errors publish after rollback.
+Negative exception results clean up before native rethrow without ordinary errors.
+
+Redirection runs after the tree has committed. Ordinary replacement failure
+remains best effort, and an exception retains the saved tree. Acquired locations
+release on every exit. Failed location lookup diagnoses and returns failure without
+using a trashed native view. The native primitive still supplies its materialized
+text view; it need not alias a later writable chunk view.
+
+Text-box saves reset the child ID to zero before saving. Failed save retains the
+save primitive's own effects. Adoption failure deletes the unlinked rich-text root;
+metadata failure removes the adopted child link. Neither the child-ID reset nor
+partial metadata output is rolled back. Unexpected root types retain the legacy
+diagnostic/continue policy.
+
+The existing engine movie save/load fixture records live-save output, font/style
+arguments, empty/single/embedded-null/CRLF/ANSI text, both redirect modes, stream
+bytes after materialized-view writes and subsequent text-box saves. Allocated-group
+payloads are recorded logically to exclude uninitialized alignment padding. Native
+and SDL font-table ordinals differ, so each host is compared with its own original
+trace. C-only tests cover ordinary/allocation/foreign failures at every effect,
+number/error publication, post-commit redirection, partially returned locations,
+empty content/arguments, both byte orders/native text-unit sizes and adoption/
+metadata cleanup order. Document file-save/lifecycle, text editing/font/argument
+transformations, native descriptor/output representations, physical providers and
+final C-only host/facade removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo

@@ -9291,3 +9291,86 @@ matching `*-errors.log` files for expected malformed-input diagnostics,
 `tmp/c89-text-store-{native,sdl-release,sdl-debug,standalone}-tests.log`,
 `tmp/c89-text-store-asan.log`, `tmp/c89-text-store-trace-comparison.json`,
 `tmp/c89-text-store-regular-tests.log` and `tmp/c89-text-store-identities.json`.
+
+### Live rich-text chunk saves and text-box adoption (15 November 2026)
+
+`text_live.c` now controls live rich-text chunk creation, native stream-window
+sequencing, ordinary save-error publication, post-commit text redirection and
+text-box adoption/metadata rollback. Native `RichTextDocument::FSaveToChunk` and
+`TextBox::FWrite` marshal borrowed state and supply file/block/stream primitives.
+Root wire encoding/creation uses the shared stored-text module.
+
+Live saves publish RTXT before header validation. A number-changed flag allows
+the facade to preserve an untouched, potentially uninitialized caller number on
+early failure. Root creation retains nil on failure; later child rollback retains
+the created number. TEXT always writes its native system marker and moves past it
+before stream copying, including empty content, with the stream sentinel excluded.
+GLMP and nonempty AGPA retain native order/system. Failed move diagnoses and
+continues like `AssertDo`; ordinary save errors publish after tree rollback.
+Negative exception results clean up before native rethrow without an ordinary
+save error.
+
+Redirection occurs after the tree commits. Ordinary replacement failure remains
+best effort, exceptions retain the saved tree, and acquired locations release on
+all exits. A failed location lookup now diagnoses/returns failure without using
+a trashed native view. The file primitive still supplies a materialized text view,
+which need not alias a later writable chunk view. Text-box saving resets the child
+ID before saving, deletes an unlinked root after adoption failure and removes an
+adopted link after metadata failure. The child-ID reset and partial metadata output
+are not rolled back. Unexpected root types retain diagnostic/continue behavior.
+
+Before conversion, the expanded existing engine movie save/load fixture recorded
+2,856-byte live-caption traces in all three builds. Native Debug records FNV-1a
+`8FB30D47`, SHA-256
+`7E4F735BB4C7457D6A4CD1FCB2F245107084B52056F5D86FB8AE92F791010E5C`.
+SDL Release and SDL Debug record FNV-1a `5D914817`, SHA-256
+`38FC3C608A7FADABB3A029E9A89A740141A4CCF12F7ED9405CD1E2C3B2D471A7`.
+The only host differences are the twelve persisted runtime font-table ordinals:
+native assigns Courier New ID 92, SDL assigns ID 18. Each host is compared with
+its own original trace; no ordinal normalization was added.
+
+The fixture covers empty/single/embedded-null/CRLF/ANSI text, font/style arguments,
+both redirect modes, live stream bytes after writes through the saved chunk view,
+and subsequent text-box saves. Root/TEXT/GLMP payloads are recorded byte for byte;
+AGPA payload/fixed data are recorded logically to exclude uninitialized alignment
+padding. Authored stored inputs are loaded into live documents; editing/undo is
+outside this probe's coverage.
+
+All thirty original/converted live-text/stored-text/media/metadata/session/admission/
+live/camera/picking/rendering trace pairs match across the three hosts. All prior
+hashes remain unchanged. Background checks retain 301,996,032 bytes/FNV-1a
+`E1A71005` across 12 backgrounds and 188 cameras per host. All 119 standalone C
+checks including strict C89 syntax pass. Twenty-four selected native checks and
+twenty checks in each SDL configuration pass, including existing core-link,
+scene load/store/content, movie save/load and native playback/player regressions.
+MSVC AddressSanitizer passes. C-only tests cover every fallible effect with ordinary,
+allocation and foreign failures, output/error order, partial-tree rollback,
+post-commit redirection, partially returned owned views, empty text/arguments,
+both byte orders/native text-unit sizes and text-box reset/adoption/metadata order.
+
+The regular asset-preview harness passes headlessly with fresh metadata documents
+and input-hash checks. Its first concurrent invocation hit the legacy check-then-
+create temporary-name race; a private process-local temporary directory isolates
+the successful rerun. No production temp-name policy was changed. Retained input
+identities are unchanged. Studio and Marcus were rebuilt; the workspace Marcus was
+stopped before rebuilding and relaunched afterward. No Marcus UI tests were added.
+Retained retail captures remain the playback reference; no redundant capture
+campaign was launched.
+
+Native document dimensions marshal explicitly into the fixed-width C fields. After
+that final adapter review, both SDL Studios and all three movie save/load fixtures
+were rebuilt; each movie fixture was rerun with a private temporary directory and
+retained its original live-caption fingerprint.
+
+This is Windows x64 evidence within these fixtures, not complete retail editing
+or allocator equivalence. Document file-save/lifecycle, live editing/font/argument
+transformations, native descriptor/output representations, physical providers and
+final C-only host/facade removal remain work. Other platforms remain unverified here.
+
+Evidence: `tmp/c89-text-live-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline `*.log`/`*-errors.log` files and `tmp/c89-text-live-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-live-{store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-live-standalone-tests.log`, `tmp/c89-text-live-asan.log`,
+`tmp/c89-text-live-trace-comparison.json`, `tmp/c89-text-live-regular-tests.log`
+and `tmp/c89-text-live-identities.json`. Final adapter rebuild/rerun logs are
+`tmp/c89-text-live-marshal-{native,sdl-release,sdl-debug}{,-build,-errors}.log`.

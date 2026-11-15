@@ -10,8 +10,11 @@
     Rich text document and associated DocumentDisplayGraphicsObject.
 
 ***************************************************************************/
+#include <exception>
+#include <new>
 #include "frame.h"
 ASSERTNAME
+#include "rich_text_live_store_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -1330,63 +1333,23 @@ bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki,
     AssertThis(fobjAssertFull);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
-    RDOP rdop;
-    DataBlock blck, blckText;
-    ChunkNumber cno, cnoText;
-    LegacyLong cb;
-    short osk = koskCur;
-
-    pcki->ctg = kctgRichText;
-    rdop.bo = kboCur;
-    rdop.oskFont = _oskFont;
-    rdop.dxpDef = _dxpDef;
-    rdop.dypFont = _dypFontDef;
-    rdop.lwAcrBack = _acrBack.LwGet();
-    if (!RichTextData::FCreateRoot(pcfl, pcki, &rdop, &_stnFontDef))
-    {
-        PushErc(ercRtxdSaveFailed);
-        return fFalse;
-    }
-
-    // add the text chunk and write it
-    if (!pcfl->FAddChild(pcki->ctg, pcki->cno, 0, _pbsf->IbMac() - size(achar) + size(short), kctgText, &cnoText,
-                         &blckText) ||
-        !blckText.FWriteRgb(&osk, size(short), 0))
-    {
-        goto LFail;
-    }
-    AssertDo(blckText.FMoveMin(size(short)), 0);
-    if (!_pbsf->FWriteRgb(&blckText))
-        goto LFail;
-
-    cb = _pglmpe->CbOnFile();
-    if (!pcfl->FAddChild(pcki->ctg, pcki->cno, 0, cb, kctgTxtProps, &cno, &blck) || !_pglmpe->FWrite(&blck))
-    {
-        goto LFail;
-    }
-
-    if (pvNil != _pagcact && 0 < _pagcact->IvMac())
-    {
-        cb = _pagcact->CbOnFile();
-        if (!pcfl->FAddChild(pcki->ctg, pcki->cno, 0, cb, kctgTxtPropArgs, &cno, &blck) || !_pagcact->FWrite(&blck))
-        {
-            goto LFail;
-        }
-    }
-
-    if (fRedirectText)
-    {
-        FileLocation flo;
-        AssertDo(blckText.FGetFlo(&flo), 0);
-        _pbsf->FReplaceFlo(&flo, fFalse, 0, _pbsf->IbMac() - size(achar));
-        ReleasePpo(&flo.pfil);
-    }
-    return fTrue;
-
-LFail:
-    pcfl->Delete(pcki->ctg, pcki->cno);
-    PushErc(ercRtxdSaveFailed);
-    return fFalse;
+    RichTextStoreHost::LiveHost host(pcfl, _pbsf);
+    auto services = host.Services();
+    MMRichTextState state;
+    mm_rich_text_init(&state, sizeof(achar), koskCur);
+    state.defaults = {kboCur, _oskFont, static_cast<MMI32>(_dxpDef), static_cast<MMI32>(_dypFontDef),
+                      static_cast<MMU32>(_acrBack.LwGet())};
+    state.font = RichTextStoreHost::Font(_stnFontDef);
+    state.text.bytes = _pbsf->IbMac() - static_cast<LegacyLong>(sizeof(achar));
+    state.properties = _pglmpe;
+    state.arguments = _pagcact;
+    MMTextLiveOutput output = {};
+    const int result = mm_rich_text_save(&state, &output, RichTextStoreHost::NativeBig(), fRedirectText, &services);
+    pcki->ctg = output.chunk.type;
+    if (output.number_changed)
+        pcki->cno = output.chunk.number;
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
