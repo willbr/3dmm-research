@@ -16,6 +16,7 @@
 #include "mm/scene_runtime.h"
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"
+#include "mm/preview_live.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -68,6 +69,7 @@ struct Preview::Impl
 {
     struct RenderHost;
     struct PickHost;
+    struct LiveHost;
     struct Source
     {
         std::int32_t id = 0;
@@ -88,37 +90,40 @@ struct Preview::Impl
     bool running = false, ready = false;
     MMPreviewOrbit orbit = {0, 0, -1, {0, 0, 0}, 1, {0, 0, 0}};
     std::vector<std::unique_ptr<Source>> sources;
-    std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
-    std::size_t originalActors = 0;
-    bool virtualScene = false;
-    std::vector<PreviewSceneDefinition> sceneDefinitions;
-    std::vector<PreviewPropDefinition> propDefinitions;
-    bool IsVirtualScene(Id scene) const
+    MMPreviewLive live = {};
+    struct ActorView
     {
-        return scene.type == kctgScen && std::any_of(sceneDefinitions.begin(), sceneDefinitions.end(),
-            [&](const auto &value) { return value.number == scene.number; });
-    }
-    bool SyncActors(Error &error)
-    {
-        std::vector<const PreviewPropDefinition *> desired;
-        for (const auto &prop : propDefinitions) if (prop.scene == info.asset.number) desired.push_back(&prop);
-        std::size_t kept = 0;
-        while (kept < desired.size() && originalActors + kept < actors.size() &&
-               actors[originalActors + kept]->number == desired[kept]->number) ++kept;
-        std::vector<std::unique_ptr<Internal::PreviewActor>> added;
-        for (std::size_t i = kept; i < desired.size(); ++i)
+        MMPreviewLive *live;
+        std::size_t size() const { return live->actors.count; }
+        Internal::PreviewActor *operator[](std::size_t i) const
+        { return static_cast<Internal::PreviewActor *>(mm_preview_live_actor(live, static_cast<MMU32>(i))); }
+        struct Iterator
         {
-            auto actor = std::make_unique<Internal::PreviewActor>();
-            if (!actor->Create(*desired[i], [&](const TAGOnFile &tag) { return Resolve(tag); },
-                              [&](PTemplate value) { BindTemplate(value); }, visibilityClock) || !actor->Seek(info.currentFrame))
-                return Fail(error, ErrorCode::decode_failed, "Cannot create the selected prop and its pose dependencies.");
-            added.push_back(std::move(actor));
-        }
-        actors.reserve(originalActors + desired.size());
-        actors.resize(originalActors + kept);
-        for (auto &actor : added) actors.push_back(std::move(actor));
-        info.actors = actors.size();
-        return true;
+            const ActorView *view;
+            std::size_t index;
+            Internal::PreviewActor *operator*() const { return (*view)[index]; }
+            Iterator &operator++() { ++index; return *this; }
+            bool operator!=(const Iterator &other) const { return index != other.index; }
+        };
+        Iterator begin() const { return {this, 0}; }
+        Iterator end() const { return {this, size()}; }
+    } actors = {&live};
+    Impl() { if (!mm_preview_live_init(&live, nullptr)) throw std::bad_alloc(); }
+    bool IsVirtualScene(Id scene) const
+    { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
+    bool SyncActors(Error &error);
+    void CaptureLive()
+    {
+        auto &s = live.status;
+        s.ready = ready; s.scene = info.scene; s.timeline = info.timeline; s.background = bool(background);
+        s.scene_number = info.asset.number; s.camera_count = info.cameraCount; s.reported_actors = info.actors;
+        s.first = info.firstFrame; s.last = info.lastFrame; s.frame = info.currentFrame;
+    }
+    void PublishLive()
+    {
+        const auto &s = live.status;
+        ready = s.ready != 0; info.scene = s.scene != 0; info.timeline = s.timeline != 0;
+        info.firstFrame = s.first; info.lastFrame = s.last; info.currentFrame = s.frame; info.actors = s.reported_actors;
     }
     // Explicit placement edits move the prop through the existing camera.
     // Advance the tracked anchor by the edit only, retaining animation follow.
@@ -145,14 +150,6 @@ struct Preview::Impl
         });
     }
     std::unique_ptr<Internal::PreviewBackground> background;
-    struct CameraChange
-    {
-        std::int32_t frame;
-        std::uint32_t camera;
-    };
-    std::vector<CameraChange> cameraChanges, originalCameraChanges;
-    std::uint32_t initialCamera = 0;
-    std::int32_t originalFirstFrame = 0, originalLastFrame = 0;
     bool LoadBackground(PChunkyResourceFile source, ChunkNumber number)
     {
         std::unique_ptr<Internal::PreviewBackground> loaded(new Internal::PreviewBackground);
@@ -197,16 +194,13 @@ struct Preview::Impl
     }
     void ClearAsset(bool preserveFraming = false)
     {
-        actors.clear();
-        originalActors = 0;
-        virtualScene = false;
-        originalCameraChanges.clear();
+        MMPreviewLiveServices services = {};
+        services.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
+        mm_preview_live_clear(&live, &services);
         visibilityClock = 0;
         background.reset();
-        cameraChanges.clear();
         if (!preserveFraming)
             mm_preview_orbit_reset(&orbit);
-        initialCamera = 0;
         resolveError.clear();
         ReleasePpo(&body);
         ReleasePpo(&tmpl);
@@ -217,6 +211,9 @@ struct Preview::Impl
     ~Impl()
     {
         ClearAsset();
+        MMPreviewLiveServices services = {};
+        services.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
+        mm_preview_live_dispose(&live, &services);
         sources.clear();
         ReleasePpo(&cache);
         if (running)
@@ -231,6 +228,7 @@ struct Preview::Impl
 };
 #include "preview_render_host.h"
 #include "preview_pick_host.h"
+#include "preview_live_host.h"
 Preview::Preview() : _impl(new Impl)
 {
 }
@@ -749,15 +747,14 @@ try
     _impl->info.asset = asset;
     if (_impl->IsVirtualScene(asset))
     {
-        const auto definition = std::find_if(_impl->sceneDefinitions.begin(), _impl->sceneDefinitions.end(),
-            [&](const auto &value) { return value.number == asset.number; });
+        const auto definition = mm_preview_live_scene(&_impl->live, asset.number);
         TAGOnFile tag = {definition->source, 0, kctgBkgd, definition->background};
         auto source = _impl->Resolve(tag);
         if (!source || !_impl->LoadBackground(source, tag.cno)) return Fail(error, ErrorCode::decode_failed, "Cannot load the new scene background.");
         _impl->info.scene = _impl->info.timeline = true;
         _impl->info.firstFrame = _impl->info.lastFrame = _impl->info.currentFrame = 1;
-        _impl->originalFirstFrame = _impl->originalLastFrame = 1;
-        _impl->virtualScene = _impl->ready = true;
+        _impl->live.original_first = _impl->live.original_last = 1;
+        _impl->live.virtual_scene = _impl->ready = true;
         if (!_impl->SyncActors(error) || !SetFrame(1, error)) return false;
         _impl->RefreshStats();
         return true;
@@ -824,8 +821,8 @@ try
             _impl->info.scene = true;
             _impl->info.firstFrame = scene.firstFrame;
             _impl->info.lastFrame = scene.lastFrame;
-            _impl->originalFirstFrame = scene.firstFrame;
-            _impl->originalLastFrame = scene.lastFrame;
+            _impl->live.original_first = scene.firstFrame;
+            _impl->live.original_last = scene.lastFrame;
             ChildChunkIdentification child;
             DataBlock block;
             if (!file->FGetKidChidCtg(asset.type, asset.number, 1, kctgStartGg, &child) ||
@@ -868,9 +865,9 @@ try
                 }
                 else if (event.sevt == sevtChngCamera)
                 {
-                    starts->Get(i, &_impl->initialCamera);
+                    starts->Get(i, &_impl->live.initial_camera);
                     if (order == kboOther)
-                        SwapBytesRglw(&_impl->initialCamera, 1);
+                        SwapBytesRglw(&_impl->live.initial_camera, 1);
                 }
             }
             ReleasePpo(&starts);
@@ -899,7 +896,8 @@ try
                     frames->Get(i, &camera);
                     if (order == kboOther)
                         SwapBytesRglw(&camera, 1);
-                    _impl->cameraChanges.push_back({event.nfrm, camera});
+                    if (mm_preview_live_camera_add(&_impl->live, event.nfrm, camera) != MM_PREVIEW_LIVE_OK)
+                    { ReleasePpo(&frames); throw std::bad_alloc(); }
                 }
             }
             ReleasePpo(&frames);
@@ -929,15 +927,15 @@ try
                 _impl->ClearAsset();
                 return Fail(error, ErrorCode::decode_failed, message.c_str());
             }
-            _impl->actors.push_back(std::move(actor));
+            if (mm_preview_live_adopt(&_impl->live, actor.get()) != MM_PREVIEW_LIVE_OK) throw std::bad_alloc();
+            actor.release();
         }
         if (asset.type == kctgActr)
         {
             _impl->info.firstFrame = _impl->actors[0]->FirstFrame();
             _impl->info.lastFrame = _impl->actors[0]->LastFrame();
         }
-        _impl->originalActors = _impl->actors.size();
-        _impl->originalCameraChanges = _impl->cameraChanges;
+        if (mm_preview_live_seal(&_impl->live) != MM_PREVIEW_LIVE_OK) throw std::bad_alloc();
         if (asset.type == kctgScen && !_impl->SyncActors(error)) return false;
         _impl->info.timeline = true;
         _impl->info.actors = static_cast<std::uint32_t>(_impl->actors.size());
@@ -984,90 +982,76 @@ bool Preview::SetDefinitions(const std::vector<PreviewSceneDefinition> &scenes,
                              const std::vector<PreviewPropDefinition> &props, Error &error)
 {
     error = {};
-    const auto oldScenes = _impl->sceneDefinitions;
-    const auto oldProps = _impl->propDefinitions;
-    _impl->sceneDefinitions = scenes;
-    _impl->propDefinitions = props;
-    if (_impl->virtualScene && !_impl->IsVirtualScene(_impl->info.asset)) { _impl->ClearAsset(); return true; }
-    if (_impl->ready && _impl->info.scene && !_impl->SyncActors(error))
-    { _impl->sceneDefinitions = oldScenes; _impl->propDefinitions = oldProps; return false; }
-    return true;
+    struct Definitions
+    {
+        const std::vector<PreviewSceneDefinition> &scenes;
+        const std::vector<PreviewPropDefinition> &props;
+    } definitions = {scenes, props};
+    MMPreviewLiveDefinitions input = {};
+    input.context = &definitions;
+    input.scene_count = static_cast<MMU32>(scenes.size()); input.prop_count = static_cast<MMU32>(props.size());
+    input.scene = [](void *v, MMU32 i, MMPreviewLiveScene *out) {
+        const auto &d = static_cast<Definitions *>(v)->scenes[i];
+        out->number = d.number; out->background = d.background; out->source = d.source;
+    };
+    input.prop = [](void *v, MMU32 i, MMPreviewLiveProp *out) {
+        const auto &d = static_cast<Definitions *>(v)->props[i];
+        out->scene = d.scene; out->number = d.number; out->template_number = d.templateNumber;
+        out->source = d.source; out->actor_id = d.actorId; out->first = d.first; out->last = d.last;
+        std::copy(d.point, d.point + 3, out->point);
+    };
+    _impl->CaptureLive();
+    Impl::LiveHost host = {this, _impl.get(), &error};
+    auto services = host.Services();
+    const auto result = mm_preview_live_definitions(&_impl->live, &input, &services);
+    _impl->PublishLive();
+    host.Rethrow(result);
+    return result == MM_PREVIEW_LIVE_OK ||
+        Fail(error, ErrorCode::decode_failed, "Cannot create the selected prop and its pose dependencies.");
 }
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->info.scene) return Fail(error, ErrorCode::invalid_argument, "Select a scene before editing its cameras.");
-    for (const auto &edit : edits)
-        if (edit.camera >= _impl->info.cameraCount) return Fail(error, ErrorCode::invalid_argument, "The camera index is out of range.");
-    auto first = _impl->info.firstFrame;
-    auto last = _impl->info.lastFrame;
-    _impl->cameraChanges = _impl->originalCameraChanges;
-    _impl->info.firstFrame = _impl->originalFirstFrame;
-    _impl->info.lastFrame = _impl->originalLastFrame;
-    if (!SetSceneRange(first, last, error)) return false;
-    for (const auto &edit : edits)
-    {
-        const auto frame = edit.frame == std::numeric_limits<std::int32_t>::min() ? first : edit.frame;
-        auto &changes = _impl->cameraChanges;
-        changes.erase(std::remove_if(changes.begin(), changes.end(), [&](const auto &value) { return value.frame == frame; }), changes.end());
-        changes.push_back({frame, edit.camera});
-    }
-    std::stable_sort(_impl->cameraChanges.begin(), _impl->cameraChanges.end(), [](const auto &a, const auto &b) { return a.frame < b.frame; });
-    return SetFrame(std::max(first, std::min(last, _impl->info.currentFrame)), error);
+    _impl->CaptureLive();
+    Impl::LiveHost host = {this, _impl.get(), &error};
+    auto services = host.Services();
+    MMPreviewLiveCameraEdits input = {};
+    input.context = const_cast<std::vector<PreviewCameraEdit> *>(&edits);
+    input.count = static_cast<MMU32>(edits.size());
+    input.get = [](void *v, MMU32 i, MMPreviewLiveCamera *out) {
+        const auto &edit = (*static_cast<const std::vector<PreviewCameraEdit> *>(v))[i];
+        out->frame = edit.frame; out->camera = edit.camera;
+    };
+    const auto result = mm_preview_live_cameras(&_impl->live, &input, &services);
+    _impl->PublishLive();
+    if (result != MM_PREVIEW_LIVE_SEEK_MEMORY) host.Rethrow(result);
+    if (result == MM_PREVIEW_LIVE_SCENE)
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene before editing its cameras.");
+    if (result == MM_PREVIEW_LIVE_CAMERA_INDEX)
+        return Fail(error, ErrorCode::invalid_argument, "The camera index is out of range.");
+    if (result == MM_PREVIEW_LIVE_RANGE)
+        return Fail(error, ErrorCode::invalid_argument, "The scene range must retain the original frames.");
+    return host.FrameResult(result);
 }
 bool Preview::SetSceneRange(std::int32_t first, std::int32_t last, Error &error)
 {
     error = {};
-    if (!_impl->ready || !_impl->info.scene || first == std::numeric_limits<std::int32_t>::min() ||
-        first > _impl->originalFirstFrame || last < _impl->originalLastFrame)
-        return Fail(error, ErrorCode::invalid_argument, "The scene range must retain the original frames.");
-    if (first == _impl->info.firstFrame && last == _impl->info.lastFrame) return true;
-    SceneData scene;
-    scene.firstFrame = _impl->info.firstFrame;
-    MMSceneRuntimeServices services = {};
-    services.context = _impl.get();
-    services.event_count = [](void *p) -> MMI32 { return static_cast<Impl *>(p)->cameraChanges.size(); };
-    services.event = [](void *p, MMI32 index, MMI32 *frame, int *kind) {
-        *frame = static_cast<Impl *>(p)->cameraChanges[index].frame;
-        *kind = MM_SCENE_CHANGE_CAMERA;
-    };
-    services.move_camera = [](void *p, MMI32 index, MMI32 frame) {
-        auto &changes = static_cast<Impl *>(p)->cameraChanges;
-        changes[index].frame = frame;
-        std::rotate(changes.begin(), changes.begin() + index, changes.begin() + index + 1);
-    };
-    if (first != _impl->info.firstFrame) mm_scene_move_first(&scene, first, &services);
-    _impl->info.firstFrame = first;
-    _impl->info.lastFrame = last;
-    return true;
+    _impl->CaptureLive();
+    const auto result = mm_preview_live_range(&_impl->live, first, last);
+    _impl->PublishLive();
+    return result == MM_PREVIEW_LIVE_OK ||
+        Fail(error, ErrorCode::invalid_argument, "The scene range must retain the original frames.");
 }
 bool Preview::SetFrame(std::int32_t frame, Error &error)
 try
 {
     error = {};
-    Internal::ClearDiagnostic();
-    if (!_impl->ready || !_impl->info.timeline || frame < _impl->info.firstFrame || frame > _impl->info.lastFrame)
-        return Fail(error, ErrorCode::invalid_argument, "Scene frame is out of range.");
-    for (const auto &actor : _impl->actors)
-        if (!actor->Seek(frame) || Internal::AssertionFailed())
-        {
-            _impl->ready = false;
-            return Fail(error, ErrorCode::decode_failed,
-                        _impl->resolveError.empty() ? "Cannot evaluate this scene frame."
-                                                    : _impl->resolveError.c_str());
-        }
-    if (_impl->background)
-    {
-        auto camera = _impl->initialCamera;
-        for (const auto &change : _impl->cameraChanges)
-            if (change.frame <= frame)
-                camera = change.camera;
-        if (!SetCamera(camera, error))
-            return false;
-    }
-    _impl->info.currentFrame = frame;
-    _impl->RefreshStats();
-    return true;
+    _impl->CaptureLive();
+    Impl::LiveHost host = {this, _impl.get(), &error};
+    auto services = host.Services();
+    const auto result = mm_preview_live_seek(&_impl->live, frame, &services);
+    _impl->PublishLive();
+    return host.FrameResult(result);
 }
 catch (const std::bad_alloc &)
 {

@@ -7,6 +7,7 @@
 #include "preview_render_fixture.h"
 #include "preview_pick_fixture.h"
 #include "preview_camera_fixture.h"
+#include "preview_live_fixture.h"
 int main(int argc, char **argv)
 {
     if (argc != 6)
@@ -122,7 +123,7 @@ int main(int argc, char **argv)
     if (!check(preview.Select({0x41435452, 1}, error)) || preview.Info().firstFrame != 1 ||
         preview.Info().lastFrame <= 10 || !check(preview.Render(view, repeated, error)) || !repeated.coveredPixels)
         return 1;
-    if(!TestPreviewCamera(preview) || !TestPreviewPick(preview) || !TestPreviewRender(preview)) return 1;
+    if(!TestPreviewLive(preview) || !TestPreviewCamera(preview) || !TestPreviewPick(preview) || !TestPreviewRender(preview)) return 1;
     std::puts("Scene preview: actors, prop, 3D text/font, old actor header, inactive actor, source resolution, frames "
               "and rewind passed.");
     return 0;

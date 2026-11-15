@@ -89,7 +89,7 @@ cmake --build build/engine-c89 --target engine-background-mesh-test engine-backg
 cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
-cmake --build build/engine-c89 --target engine-preview-render-test engine-preview-pick-test engine-preview-camera-test
+cmake --build build/engine-c89 --target engine-preview-render-test engine-preview-pick-test engine-preview-camera-test engine-preview-live-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1351,9 +1351,48 @@ roll/zoom/aspect changes, clamping, invalid inputs, guide queries, bounds and
 placement/shape edits with subsequent render output. C-only tests cover atomic
 pan rejection, metadata failure caching, reset, partial allocation recovery,
 bitmap reference balance and camera selection failures. Preview asset/scene
-admission, live scene definitions/timeline edits, presentation and final facade
+admission, presentation and final facade
 removal remain work. Evidence and limits are recorded in
 `docs/tools/playback-regression.md`.
+
+### Preview live scene, prop and timeline control
+
+`preview_live.c` owns persistent scene/prop definitions, opaque actor handles,
+camera cue lists and original snapshots. Native code exposes typed borrowed
+actor views rather than a second owning vector. Added props reconcile by the
+matching number prefix; changed fields of retained definitions do not recreate
+or move the retained actors. Suffix actors are created and sought before replacing
+the previous suffix. Failure releases the current actor, then the pending prefix;
+successful replacement releases the old suffix in forward order.
+
+Definition snapshots precede scene then prop assignment. Ordinary reconciliation
+failure restores both lists and retains the live actors. Allocation/foreign
+exceptions retain the completed assignment prefix and completed creation/seek
+effects. Removing the active virtual scene clears its live actors before typed
+asset cleanup. The original actor prefix publishes before camera snapshotting;
+adoption transfers a foreign object only on success.
+
+Scene-range edits use the same `mm_scene_move_first` opening-camera policy as
+Studio, including the original prefix rotation order. Camera edits reset to the
+original cues/range, reapply range extension, replace equal-frame cues in input
+order (last edit wins), stable-sort, then seek the clamped current frame. Sort
+scratch failure falls back to an allocation-free stable sort. Original cue lookup
+retains wire order and selects its last qualifying record.
+
+Seek control preserves completed actor prefixes after failure and publishes frame
+and stats only after actor and camera effects succeed. Renderer diagnostics are
+cleared/checked for frame seeks, while reconciliation retains its original
+diagnostic policy. Allocation exceptions during camera-edit preparation remain
+distinct from errors handled by the final nested frame seek.
+
+The headless Scene fixture freezes definition reuse/replacement/removal/rollback,
+virtual scene lifetime, range edits, camera edits, seeks, actor state and rendered
+output against all three original builds. C-only fault checks cover ownership,
+retained prefixes, assignment/snapshot failures, retry, stable-sort fallback and
+read/allocation/foreign-exception publication ordering. PreviewActor construction,
+loading/evaluation and resource/track representations remain native provider
+dependencies. Asset/source/scene admission, presentation and final C-only facade
+integration remain work. Evidence is in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

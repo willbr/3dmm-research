@@ -8827,3 +8827,70 @@ Evidence: `tmp/c89-preview-camera-{baseline,final}-{native,sdl-release,sdl-debug
 `tmp/c89-preview-camera-background-{native,sdl-release,sdl-debug}.log`,
 `tmp/c89-preview-camera-asan.log`, `tmp/c89-preview-camera-trace-comparison.json`
 and `tmp/c89-preview-camera-identities.json`.
+
+### Preview live definitions, actor ownership and timeline control (15 November 2026)
+
+`preview_live.c` now owns live scene/prop definitions, opaque actor handle arrays,
+camera cues and original snapshots. It controls added-prop prefix reconciliation,
+replacement/rollback, virtual scene removal, scene range and camera edits, and
+seek failure/publication. The native owning actor/definition/camera vectors and
+their control loops are removed. Native adapters marshal fields, supply typed
+actor/resource effects and transport exceptions after the C owner has unwound.
+Native actor views read C handles without aliasing a `void **` as typed pointers.
+Stored actor resolvers capture the session owner, not a temporary service host.
+
+Retained prop numbers keep the existing added prefix even when other definition
+fields change. A mismatch creates and seeks a replacement suffix before releasing
+the old suffix. Failure releases the current actor, then the pending prefix;
+completed seek/visibility-clock effects remain. Ordinary reconciliation failure
+restores both definition snapshots. Allocation/foreign exceptions retain completed
+scene/prop assignment prefixes, including a published scene list when prop
+allocation fails. Snapshot-preparation failure retains the old lists. Adoption
+transfers ownership only after storage succeeds. Failed camera-cue adoption now
+releases the native frame-event group before the asset loader reports allocation
+failure; the previous vector exception path leaked that group.
+
+Opening camera shifts reuse Studio's `mm_scene_move_first`, including prefix
+rotation order. Camera edits restore original cues/range, reapply extensions,
+replace equal-frame cues in input order, stable-sort and seek the clamped frame.
+Sort scratch allocation failure uses a stable, allocation-free fallback. Original
+cue lookup retains wire order and its last qualifying record. Renderer diagnostic
+clearing/checking remains specific to frame seeks, rather than newly rejecting
+reconciliation work. Frame/stats publish only after all actor/camera effects
+succeed. Camera-edit preparation exceptions remain distinct from allocation
+errors handled by its final nested frame seek.
+
+The original native, SDL release and SDL debug fixtures all recorded 819,080
+bytes, FNV-1a `C3B1C4A9`, SHA-256
+`D0A9A094AB9ECDF2E34EF4ECE45B622A464AF13F14980C7BD837F1B481196F79`.
+The trace covers range extensions/rejections, unsorted/repeated/sentinel camera
+edits, seeks/replay, prop reuse/replacement/removal, failed reconciliation with a
+created prefix, definition rollback, virtual scene lifetime, actor state and
+rendered output. The Windows x64 fixture freezes this original fingerprint.
+
+All twelve original/converted live, camera, picking and rendering traces match
+across the three builds. The prior 5,728,850-byte camera, 74,816-byte picking and
+18,029,304-byte rendering traces retain their hashes. All 112 standalone C checks
+including strict C89 syntax, ten selected native checks, six SDL release and six
+SDL debug checks pass. MSVC AddressSanitizer passes. C fault checks cover snapshots,
+assignment prefixes, adoption/sealing, actor/camera failures and foreign exceptions,
+allocation retry, stable-sort fallback, release order and unpublished frame/stats.
+The background check retains 301,996,032 bytes/FNV-1a `E1A71005` across 12
+backgrounds and 188 cameras in each build. Input hashes are unchanged. Both Studio
+binaries and Marcus were rebuilt; Marcus was stopped before rebuilding and
+relaunched afterward. No Marcus UI tests were added.
+
+This is Windows x64 evidence within the stated fixtures. Allocation attempt
+ordinals change with C storage; the tests establish explicit ownership/failure
+contracts, not complete retail allocator or editing equivalence. Retained retail
+captures remain the reference; no redundant capture campaign was launched.
+PreviewActor construction/loading/evaluation and resource/track representations
+remain native providers. Asset/source/scene admission, presentation and final
+C-only host/facade integration remain work; other platforms remain unverified here.
+
+Evidence: `tmp/c89-preview-live-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+`tmp/c89-preview-live-{camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-live-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-live-background-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-live-asan.log`, `tmp/c89-preview-live-trace-comparison.json`
+and `tmp/c89-preview-live-identities.json`.

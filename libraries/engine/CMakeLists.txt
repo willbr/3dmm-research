@@ -38,7 +38,12 @@ target_sources(mm-engine-c89 PRIVATE src/movie_save.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_rollcall.c src/movie_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_content.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_compose.c)
-target_sources(mm-engine-c89 PRIVATE src/preview_geometry.c src/preview_render.c src/preview_pick.c src/preview_camera.c)
+target_sources(mm-engine-c89 PRIVATE src/preview_geometry.c src/preview_render.c src/preview_pick.c src/preview_camera.c src/preview_live.c)
+get_filename_component(engine_preview_live_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_preview_live_test.c" ABSOLUTE)
+add_executable(engine-preview-live-test EXCLUDE_FROM_ALL "${engine_preview_live_test_source}")
+target_link_libraries(engine-preview-live-test PRIVATE mm-engine-c89)
+set_target_properties(engine-preview-live-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-preview-live COMMAND engine-preview-live-test)
 get_filename_component(engine_preview_camera_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_preview_camera_test.c" ABSOLUTE)
 add_executable(engine-preview-camera-test EXCLUDE_FROM_ALL "${engine_preview_camera_test_source}")
 target_link_libraries(engine-preview-camera-test PRIVATE mm-engine-c89)
@@ -684,10 +689,12 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_render.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_pick.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_camera.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_live.c"
     "${engine_movie_compose_test_source}"
     "${engine_preview_render_test_source}"
     "${engine_preview_pick_test_source}"
     "${engine_preview_camera_test_source}"
+    "${engine_preview_live_test_source}"
     "${engine_movie_content_test_source}"
     "${engine_movie_rollcall_test_source}"
     "${engine_movie_edit_test_source}"
