@@ -8577,3 +8577,75 @@ Evidence: `tmp/c89-movie-compose-{standalone,native-tests,sdl-release-tests,sdl-
 `tmp/c89-movie-compose-original-capture-hashes.json`,
 `tmp/c89-movie-compose-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-movie-compose-capture-hashes-{before,after}.json`.
+
+
+### Preview frame rendering and depth fitting (15 November 2026)
+
+`preview_render.c` now owns frame admission, temporary world/pixelmap/light and
+material-backup lifetimes, authored/output raster sizing, background blitting,
+scene/body/model bounds, camera-guide fitting, stable-orbit state, axis/free/
+orthographic camera construction, scene/headlight policy, stable body ordering,
+material/edge overrides, clipped geometry depth fitting, raster dispatch and
+indexed/depth image composition. `preview_geometry.c` owns iterative actor-tree
+copying and six-plane triangle clipping/depth intervals. Native helpers expose
+typed SDK primitives and borrowed data. Foreign rasterizer exceptions return to
+C++ only after the C frame owner has restored shared materials, disabled lights,
+reset the process-wide triangle sink and released its world and pixelmaps.
+Light payloads now remain alive through world disposal. Native source actors,
+models and materials retain their original ownership. Actor sibling order and
+visibility-clock ties are preserved by C traversal and stable merging.
+
+Before conversion, the existing headless Scene Preview fixture captured 168
+scene renders spanning seven display modes and twelve authored/orbit/free/axis/
+orthographic configurations, two frames, guide/stable/object framing, near-clip
+overrides, output resolution and depth. Three more rasterizer cases cover success
+and Begin/End failures, followed by CPU image/depth restoration checks. All three
+original hosts match 18,029,304 bytes, FNV-1a `A31B99A6`, SHA-256
+`7AF798CC29A5020C54BFDA84A8A74A6D8673E1976AE290C24F5BDB7E18CB0943`.
+The fixture freezes this fingerprint on Windows x64. Four unrecorded foreign
+allocation-exception cases also check Frame/Begin/End/RGBA cleanup and recovery.
+No Marcus UI tests were added. Camera depth fitting retains double precision
+until the SDK fixed conversion; prematurely rounding to float changed depth
+pixels and one near-plane value and was corrected before final verification.
+
+The standalone C fixture checks six-plane perspective/parallel clipping, reverse
+sibling visitation with head insertion, stable visibility ordering, material
+backup deduplication/restoration, depth inversion, aspect fitting/letterboxing,
+headlights/scene lights, light-data lifetime and allocation/SDK/raster/output
+failure cleanup. Allocation attempt ordinals change with C scratch ownership;
+these tests establish the documented resource contracts, not retail failure or
+editor equivalence. The remaining Preview picking, asset/scene admission,
+camera interaction/presentation and final C-only host/facade integration remain
+conversion work. Evidence here is Windows x64; broader platform and retail
+editing equivalence remain unverified.
+
+
+All 109 standalone C, 147 selected native, 55 SDL release and 43 SDL debug checks
+pass. The affected C fixture, strict C89 syntax, mesh/tree and Scene Preview
+checks also pass after final adapter cleanup; MSVC AddressSanitizer passes.
+All 51 CLI baselines and all 24 original/final traces match: three hosts each
+for Scene Preview rendering, background Preview rendering, Movie composition,
+content/edit/save/scene control and Scene content. The background trace retains
+301,996,032 bytes and FNV-1a `E1A71005`, covering 12 backgrounds and 188 cameras.
+Marcus was stopped before rebuilding and relaunched afterward.
+
+A redundant fresh retail/SDL/Marcus playback campaign was stopped at the user's
+request. The actor-events suite `20261115T074322Z-cbcedaa9` completed six runs;
+scrolling-text suite `20261115T074443Z-583af7d9` was interrupted. No full playback
+campaign or new audio equivalence is claimed for this revision. Earlier retained
+retail captures remain the reference; the byte-identical original/final Preview
+traces establish preservation of the previously compared host outputs.
+
+Reuse retained reference captures when executable, movie, content, capture tools
+and relevant settings are unchanged. Rebuilds of SDL or Marcus do not invalidate
+retail reference results. Check those identities before launching a player, and
+run only missing or invalidated cases/players. A whole new retail campaign for
+every C89 slice is unnecessary. This is a workflow correction; automatic cache
+lookup has not been implemented in the regression runner by this change.
+
+Evidence: `tmp/c89-preview-render-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
+`tmp/c89-preview-render-final-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-render-scene-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-render-background-{native,sdl-release,sdl-debug}.log`,
+`tmp/c89-preview-render-trace-comparison.json` and
+`tmp/c89-preview-render-output-comparison.json`.

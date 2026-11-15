@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 #include <cmath>
+#include <cstdlib>
+#include "preview_render_fixture.h"
 int main(int argc, char **argv)
 {
     if (argc != 6)
@@ -118,6 +120,7 @@ int main(int argc, char **argv)
     if (!check(preview.Select({0x41435452, 1}, error)) || preview.Info().firstFrame != 1 ||
         preview.Info().lastFrame <= 10 || !check(preview.Render(view, repeated, error)) || !repeated.coveredPixels)
         return 1;
+    if(!TestPreviewRender(preview)) return 1;
     std::puts("Scene preview: actors, prop, 3D text/font, old actor header, inactive actor, source resolution, frames "
               "and rewind passed.");
     return 0;

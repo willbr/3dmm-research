@@ -497,7 +497,12 @@ file/list services and representations remain adapters. Preview background image
 metadata buffers, image-selection control, mesh reconstruction, infinite-backdrop
 fill, SDK preparation/lifetime and the two-entry mesh cache now also use C89.
 Native background/mesh classes expose typed SDK services and borrowed views.
-Broader Preview rendering/depth fitting and final facade removal remain work.
+Preview frame allocation/lifetime, camera framing and stable-orbit state, body
+instance ordering/tree copying, lighting/material overrides, frustum depth fitting,
+raster dispatch and indexed/depth output composition now also use C89. Typed
+BRender and host rasterizer/image services remain adapters. Preview picking,
+asset/scene admission, camera interaction/presentation and final facade removal
+remain work.
 These are completed slices
 within dependency groups 3-5; those groups are not complete as a whole.
 
@@ -533,8 +538,9 @@ descriptor lifetime/rollback, imported roll-call ownership and shared/nested
 actor-ID remapping now also use C89. Native descriptor/list representations and
 final host/facade integration still need conversion.
 Background resource loading/cache/
-light policy and Preview background image/mesh control are now C89; broader
-Preview rendering and final host integration still need conversion.
+light policy and Preview background image/mesh/frame rendering control are now
+C89; Preview picking, admission, camera interaction/presentation and final host
+integration still need conversion.
 Final removal of native representations and facades remains required.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
