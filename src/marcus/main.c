@@ -3177,10 +3177,12 @@ static void draw_timeline(App *app)
             if (ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 12, (float)app->height - y - 80))
                 ui->hint = "End of scene / after the final frame";
         }
-        x = frame_x(app, app->info.frame + 0.5);
-        ui_line(ui, x, y + 48, x, (float)app->height - 32, 0x6d77d0);
-        ui_slider_thumb(ui, x - 5, y + 48, 0, 1,
-                        app->dragging || ui_inside(ui->mouse_x, ui->mouse_y, x - 5, y + 48, 10, 20),
+        /* The thumb's one-pixel grip starts four pixels from its left edge.
+         * Snap both grip and marker to the same filled pixel column. */
+        x = floorf(frame_x(app, app->info.frame + 0.5));
+        ui_fill(ui, x, y + 48, 1, (float)app->height - y - 80, 0x6d77d0);
+        ui_slider_thumb(ui, x - 4, y + 48, 0, 1,
+                        app->dragging || ui_inside(ui->mouse_x, ui->mouse_y, x - 4, y + 48, 10, 20),
                         frame_has_sound(app));
     }
     SDL_SetRenderClipRect(app->renderer, NULL);
