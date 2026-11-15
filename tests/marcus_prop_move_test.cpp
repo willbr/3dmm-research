@@ -51,6 +51,48 @@ int main(int argc, char **argv)
         std::sort(releases.begin(), releases.end());
         std::printf("100 prop releases: median %.3f ms, max %.3f ms; ready duration retained\n", releases[50], releases.back());
 
+        // Headless camera regression: selection tracking must not chase edits.
+        // Check scene/selection pivots, pan, perspective and all axis views.
+        for (int axisView = 0; axisView <= 3; ++axisView)
+            for (int selection = 0; selection <= 1; ++selection)
+            {
+                open();
+                MarcusRenderOptions options = {};
+                options.orthographic = axisView != 0;
+                options.axis_view = axisView;
+                check(marcus_set_render_options(player.get(), &options) &&
+                      marcus_set_orbit_target(player.get(), selection ? 1 : -1), "Configure edit orbit");
+                auto render = [&] { check(marcus_render(player.get(), 160, 90, 0, 25, -10, 1.2f, &image), "Render edit orbit"); };
+                render();
+                check(marcus_pan_orbit(player.get(), .08f, -.04f, 25, -10, 1.2f), "Pan edit orbit");
+                render();
+                const auto held = image.projection;
+                const std::vector<unsigned char> original(image.rgba, image.rgba + image.pitch * image.height);
+                auto stationary = [&] {
+                    for (int i = 0; i < 12; ++i)
+                        check(std::abs(image.projection.transform[i] - held.transform[i]) < .0001f, "Placement must retain orbit camera");
+                    check(image.projection.vertical_fov == held.vertical_fov &&
+                          image.projection.orthographic == held.orthographic && image.projection.ortho_height == held.ortho_height,
+                          "Placement must retain orbit lens and scale");
+                };
+                for (int step = 1; step <= 3; ++step)
+                {
+                    check(marcus_preview_prop_position(player.get(), 1, before.x + step * 2.5f,
+                          before.y - step, before.z + step * .75f), "Preview in held orbit");
+                    render(); stationary();
+                }
+                check(marcus_preview_prop_position(player.get(), 1, before.x, before.y, before.z), "Cancel in held orbit");
+                render(); stationary();
+                check(std::equal(original.begin(), original.end(), image.rgba), "Cancel restores held-orbit image");
+                check(marcus_preview_prop_position(player.get(), 1, before.x + 4, before.y - 2, before.z + 1), "Preview final orbit placement");
+                render(); stationary();
+                check(marcus_move_prop(player.get(), 1, before.x + 4, before.y - 2, before.z + 1), "Commit in held orbit");
+                render(); stationary();
+                check(marcus_undo(player.get()), "Undo in held orbit");
+                render(); stationary();
+                check(std::equal(original.begin(), original.end(), image.rgba), "Undo restores held-orbit image");
+            }
+
         // The same ACTR is shared by two scenes. Baking a snapshot for a helper
         // or a structural edit must retain both independent scene placements.
         open();
@@ -105,6 +147,26 @@ int main(int argc, char **argv)
         {
             open();
             check(marcus_set_renderer(player.get(), MARCUS_RENDERER_BRENDER_ASM), "Select ASM renderer");
+            const MarcusRenderOptions asmOptions = {};
+            check(marcus_set_render_options(player.get(), &asmOptions), "Reset ASM render options");
+            check(marcus_set_orbit_target(player.get(), 1) &&
+                  marcus_render(player.get(), 160, 90, 0, 25, -10, 1.2f, &image), "Original ASM selection orbit");
+            const auto asmOrbit = image.projection;
+            check(marcus_preview_prop_position(player.get(), 1, before.x + 4, before.y - 2, before.z + 1) &&
+                  marcus_render(player.get(), 160, 90, 0, 25, -10, 1.2f, &image), "Preview ASM selection placement");
+            for (int i = 0; i < 12; ++i)
+                check(std::abs(image.projection.transform[i] - asmOrbit.transform[i]) < .0001f,
+                      "ASM preview must retain selection orbit camera");
+            check(marcus_move_prop(player.get(), 1, before.x + 4, before.y - 2, before.z + 1) &&
+                  marcus_render(player.get(), 160, 90, 0, 25, -10, 1.2f, &image), "Commit ASM selection placement");
+            for (int i = 0; i < 12; ++i)
+                check(std::abs(image.projection.transform[i] - asmOrbit.transform[i]) < .0001f,
+                      "ASM commit must retain selection orbit camera");
+            check(marcus_undo(player.get()) &&
+                  marcus_render(player.get(), 160, 90, 0, 25, -10, 1.2f, &image), "Undo ASM selection placement");
+            for (int i = 0; i < 12; ++i)
+                check(std::abs(image.projection.transform[i] - asmOrbit.transform[i]) < .0001f,
+                      "ASM undo must retain selection orbit camera");
             check(marcus_render(player.get(), 160, 90, 1, 0, 0, 1, &image), "Original ASM image");
             const std::vector<unsigned char> original(image.rgba, image.rgba + image.pitch * image.height);
             check(marcus_move_prop(player.get(), 1, before.x + 5, before.y, before.z), "Commit ASM placement");

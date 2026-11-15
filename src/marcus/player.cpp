@@ -371,9 +371,9 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     options.includeDepth = !view.authoredCamera || view.freeCamera;
     if (!image || player->selected < 0)
         return false;
-    // The out-of-process ASM worker reads committed archives. Live edits use
-    // the local evaluator until release/cancel, then return to the chosen backend.
-    if (player->renderer == MARCUS_RENDERER_BRENDER_ASM && player->propPreviews.empty())
+    // Send live placements to the same worker as committed ones. Switching to
+    // a different evaluator during a drag loses its cached orbit framing.
+    if (player->renderer == MARCUS_RENDERER_BRENDER_ASM)
     {
         if (!player->asmRenderer)
             player->asmRenderer = std::make_unique<MarcusASMRenderer>(player->content->movie.u8string(),
@@ -381,9 +381,19 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         std::vector<MarcusASM::PropOffset> offsets;
         for (std::size_t index = 0; index < player->objects.size(); ++index)
         {
-            const auto placement = player->placements->find({player->scenes[player->selected].number, player->objects[index].asset.number});
-            if (placement != player->placements->end())
-                offsets.push_back({static_cast<std::int32_t>(index), {placement->second[0], placement->second[1], placement->second[2]}});
+            const auto &object = player->objects[index];
+            const auto placement = player->placements->find({player->scenes[player->selected].number, object.asset.number});
+            std::array<float, 3> offset = {};
+            if (placement != player->placements->end()) offset = placement->second;
+            const auto preview = player->propPreviews.find(static_cast<int>(index));
+            if (preview != player->propPreviews.end())
+            {
+                offset[0] += object.x - preview->second.x;
+                offset[1] += object.y - preview->second.y;
+                offset[2] += object.z - preview->second.z;
+            }
+            if (offset[0] != 0 || offset[1] != 0 || offset[2] != 0)
+                offsets.push_back({static_cast<std::int32_t>(index), {offset[0], offset[1], offset[2]}});
         }
         if (!player->asmRenderer->Render(player->selected, player->preview.Info().currentFrame, options, player->image, error, offsets))
         { player->asmRenderer.reset(); return false; }

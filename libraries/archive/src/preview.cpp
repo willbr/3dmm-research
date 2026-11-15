@@ -167,6 +167,16 @@ struct Preview::Impl
     MMPreviewOrbit orbit = {0, 0, -1, {0, 0, 0}, 1, {0, 0, 0}};
     std::vector<std::unique_ptr<Source>> sources;
     std::vector<std::unique_ptr<Internal::PreviewActor>> actors;
+    // Explicit placement edits move the prop through the existing camera.
+    // Advance the tracked anchor by the edit only, retaining animation follow.
+    void PreserveOrbitForPlacement(int object, const PreviewObject &before)
+    {
+        if (!orbit.framed || orbit.object != object) return;
+        const auto after = actors[object]->Snapshot();
+        orbit.anchor[0] += after.x - before.x;
+        orbit.anchor[1] += after.y - before.y;
+        orbit.anchor[2] += after.z - before.z;
+    }
     std::uint64_t visibilityClock = 0;
     std::string resolveError;
     void BindTemplate(PTemplate value)
@@ -453,16 +463,24 @@ bool Preview::TranslateObject(int object, const float delta[3], Error &error)
 {
     error = {};
     if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
-        !delta || !_impl->actors[object]->Translate(delta))
+        !delta)
         return Fail(error, ErrorCode::invalid_argument, "Select a visible prop and a position within +/-32700 world units.");
+    const auto before = _impl->actors[object]->Snapshot();
+    if (!_impl->actors[object]->Translate(delta))
+        return Fail(error, ErrorCode::invalid_argument, "Select a visible prop and a position within +/-32700 world units.");
+    _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }
 bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
 {
     error = {};
     if (!_impl->ready || !_impl->info.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
-        !offset || !_impl->actors[object]->SetOffset(offset))
+        !offset)
         return Fail(error, ErrorCode::invalid_argument, "The prop placement is out of range.");
+    const auto before = _impl->actors[object]->Snapshot();
+    if (!_impl->actors[object]->SetOffset(offset))
+        return Fail(error, ErrorCode::invalid_argument, "The prop placement is out of range.");
+    _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)

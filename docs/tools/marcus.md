@@ -1136,11 +1136,13 @@ move to the session. The placement commits in the live scene without copying
 or reopening the movie, seeking, restarting a timing helper, or clearing the
 duration, animation, caption and waveform caches. Undoing a placement on the same
 base movie also keeps those caches. The current frame and inspection framing
-are retained. Native private snapshots are materialized lazily for frame/camera
-thumbnail helpers and structural edits. In the x86 ASM renderer, live moves temporarily render
-through the local portable CPU preview; committed positions use the selected
-renderer again. Completed placements are sent to the existing ASM worker over
-IPC; moving a prop does not restart that worker.
+are retained. Orbit selection keeps its camera and pivot fixed while placing a
+prop, including release, cancellation and undo. Animation playback still follows
+the selected object's posed bounds; refitting explicitly recenters the view.
+Native private snapshots are materialized lazily for frame/camera thumbnail
+helpers and structural edits. In the x86 ASM renderer, live and committed
+placements use the same existing worker over IPC, retaining its orbit framing
+throughout a drag; moving a prop does not restart that worker.
 
 Gizmo and position-field input is applied before rendering either viewport, so
 the prop and its handles use the current drag update in the same presented frame.
