@@ -520,8 +520,11 @@ selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
 slices and Scene query/group-loading policy are complete. Movie scene switching,
 close/new/insert/remove transactions, undoable removal and scene undo/redo dispatch
 now also use C89, including current-scene reference/index control and failure
-retry/rollback order. Movie background-driven scene creation, general control/
-editing/undo, autosave/save orchestration and composition still need conversion.
+retry/rollback order. Movie autosave/save transactions, temporary-resource setup,
+saved-file ownership/flags, VMM save-format/publication policy, scene-tag collection
+and asset/sound garbage-collection control now also use C89. Physical file/path/
+block I/O and VMM packaging remain host services. Movie background-driven scene
+creation, general control/editing/undo and composition still need conversion.
 Background resource loading/cache/
 light policy and Preview background image/mesh control are now C89; broader
 Preview rendering and final host integration still need conversion.

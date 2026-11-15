@@ -27,6 +27,7 @@
 #include "movie_container.h"
 #include "three_mm/movie_sound.h"
 #include "three_mm/movie_scene.h"
+#include "three_mm/movie_save.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -590,6 +591,7 @@ typedef class Movie *PMovie;
 #define kclsMovie 'MVIE'
 class Movie : public Movie_PAR
 {
+    friend class MovieSaveProbe;
     RTCLASS_DEC
     MARKMEM
     ASSERT
@@ -608,17 +610,12 @@ class Movie : public Movie_PAR
     std::shared_ptr<MovieContainer::Document> _container; // Outlives the working archive.
     MovieData _data;              // Archive state and roll-call ownership, independent of views.
 
-    PFileObject _pfilSave;     // User's document
+    ThreeMMMovieSaveState _save; // Save flags and saved-file reference owned by C.
     Filename _containerName;
-    bool _containerNamed = false;
     bool _FNeedsContainer();
 
     ThreeMMMovieScenes _scenes; // Current scene reference and index owned by C control.
-    bool _fAutosaveDirty : 1;    // Is the movie in memory different than disk
-    bool _fFniSaveValid : 1;     // Does _fniSave contain a file name.
-    bool _fDocClosing : 1;       // Flags doc is to be closed
     bool _fGCSndsOnClose : 1;    // Garbage collection of sounds on close
-    bool _fReadOnly : 1;         // Is the original file read-only?
 
     PWorld _pbwld;   // The brender world for this movie
     PMovieSoundQueue _pmsq;     // Message Sound Queue
@@ -640,12 +637,11 @@ class Movie : public Movie_PAR
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
-    void _MoveChids(ChildChunkID chid, bool fDown);       // Move the chids of scenes in the movie.
-    bool _FDoGarbageCollection(PChunkyFile pcfl);        // Remove unused chunks from movie.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
-    bool _FDoMtrlTmplGC(PChunkyFile pcfl);               // Material and template garbage collection
     ThreeMMMovieSoundServices _SoundServices();
     ThreeMMMovieSceneServices _SceneServices();
+    struct SaveHost;
+    ThreeMMMovieSaveServices _SaveServices(SaveHost *);
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
     bool _FSetPfilSave(PFilename pfni);
 
@@ -690,15 +686,11 @@ class Movie : public Movie_PAR
     //   pfni != pvNil
     static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PRollCallTable *ppgst, LegacyLong *paridLim = pvNil);
     // reads roll call for a given movie
-    void ForceSaveAs(void)
-    {
-        ReleasePpo(&_pfilSave);
-        _fFniSaveValid = fFalse;
-    }
+    void ForceSaveAs(void);
     void Flush(void);
     bool FReadOnly(void)
     {
-        return FPure(_fReadOnly);
+        return FPure(_save.readOnly);
     }
 
     ~Movie(void);
@@ -792,11 +784,11 @@ class Movie : public Movie_PAR
     bool FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid);
     void SetDocClosing(bool fClose)
     {
-        _fDocClosing = fClose;
+        _save.closing = fClose;
     }
     bool FQueryDocClosing(void)
     {
-        return _fDocClosing;
+        return _save.closing != 0;
     }
     bool FQueryGCSndsOnClose(void)
     {
@@ -936,11 +928,11 @@ class Movie : public Movie_PAR
     //
     virtual bool FDirty(void) // Has the movie changed since last saved?
     {
-        return _fAutosaveDirty || _fDirty;
+        return _save.autosaveDirty || _fDirty;
     }
     virtual void SetDirty(bool fDirty = fTrue) // Mark the movie as changed.
     {
-        _fAutosaveDirty = fDirty;
+        _save.autosaveDirty = fDirty;
     }
 
     //

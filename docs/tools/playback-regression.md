@@ -8189,3 +8189,103 @@ Evidence: `tmp/c89-movie-scenes-{standalone,native-tests,sdl-release-tests,sdl-d
 `tmp/c89-movie-scenes-original-capture-hashes.json`,
 `tmp/c89-movie-scenes-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
 `tmp/c89-movie-scenes-capture-hashes-{before,after}.json`.
+
+### Movie autosave, save publication and collection (15 November 2026)
+
+`movie_save.c` now owns autosave/save transactions, temporary-file and zero-cache
+resource setup, saved-file reference/flags, read-only save-as selection, VMM
+format/publication policy, stored-scene tag traversal and material/template/sound
+collection control. Source-name blocks release after the long operation ends,
+before nested autosave returns to packaging, format selection or publication.
+The blacklist uses C-owned collection storage. Empty-tag scans use an explicit
+match flag, removing the native uninitialized temporary read while preserving
+the intended deletion set. Three unused native control wrappers were removed.
+Native callbacks retain physical file/path/block I/O, typed collection/Scene
+operations, client/undo services and container packaging. Movie construction still
+publishes loaded name/read-only metadata; common DocumentBase dirty state remains
+a host field. This does not complete Movie editing/undo, background-driven scene
+creation, composition or final C-only host/facade integration.
+
+The original native and SDL debug/release save controller was captured before
+conversion through the existing headless save/load fixture. Sixteen scenarios
+cover clean/closing autosave, named/copy saves, file/name/dirty flags, ordered chunk
+graphs, VMM packaging success/failure, working-file conversion and ForceSaveAs.
+All three originals match 29,440 bytes, FNV-1a `696EAA7C`, SHA-256
+`B61DE53BDF143332B237A9DED304518314F97EC43F57CB7E1D87AF48744BAC07`.
+The fixture freezes that trace by default on Windows x64. Its deterministic
+container double verifies publication/control, not physical ZIP output.
+
+C-only fault checks cover root/scene/roll-call/source/title/physical-save failure,
+cleanup order, retained old/new graph prefixes, irreversible actor pruning,
+saved-file release/reacquisition, failed binding/name flags, borrowed output
+publication, conservative format choice, packaging failure/title restoration,
+allocator failure before deferred deletion, cache scope and reverse sound purge.
+The source-block lifetime is checked across normal/failure/retry completion and
+before packaging. Optional BUG1848 retry is capped to one retry and tested in C;
+it remains disabled in the current native configuration. Native happy-path
+traces and C service failures do not prove retail editing/failure equivalence.
+No wire versions or writer normalization changed. No Marcus UI tests were added.
+
+Final native and SDL debug/release save traces match all three original traces
+byte for byte. Existing 31,048-byte Scene-content traces also remain unchanged,
+SHA-256 `0BF35E79808D6A50ED79B1B8138AF4ED5138C1D94DB7A291FD1EE5160BFB2A89`.
+All 104 standalone C, 141 selected native, 49 SDL release and 37 SDL debug checks
+pass. The C fixture passes Clang strict C89 with warnings as errors and MSVC
+AddressSanitizer; all 51 CLI format baselines match. Checks were rerun after
+restoring the source-block cleanup boundary. Builds and file-heavy suites ran
+serially; Marcus was stopped before rebuilds and relaunched afterward.
+
+The existing Studio VMM workflow also passes all eight checks with the original
+blank VMM and a local prop VXP, using private settings/store directories. It
+verifies source-6 authoring through the save portfolio, ordinary 3MM output,
+VMM save/reopen with matching actor state and viewport pixels, per-movie applied
+sets, two-list package management and standalone install/apply/remove/save across
+restarts. Reference inputs retain their original hashes. Its final report is
+`tmp/c89-movie-save-vmm-workflow/run-qsl4pgwc/report.json`. The first invocation
+supplied plain 3MM instead of blank VMM and stopped at the VMM-only applied-set
+expectation; the unchanged workflow passes with the correct fixture. That input
+mistake remains recorded in `tmp/c89-movie-save-vmm-workflow-plain-input.log`.
+This validation covers Windows x64 native and SDL debug/release, not other
+platforms, complete original-v3dmm/retail parity or C-only host integration.
+
+Before rebuilding, the source SDL/Marcus binaries matched the preceding
+Movie-scene captures. Final binaries remained fixed through all 21 fresh-process
+retail/SDL/Marcus captures (one repeat, no concurrent builds/tests). Final
+before/after SHA-256:
+
+- SDL release: `DC72E30B3B09F3F2E38DD66C6DD69DDFC2C93796C495D4949F9DE2759D68A897`.
+- Marcus regression: `9967030AD1B8079CB426F7F0C3643D1DD2496E3BA052CA69C3B58B18BBD7E87F`.
+
+| Case | Original suite | Final suite | Final completion |
+| --- | --- | --- | --- |
+| actor-events | `20261115T031754Z-ac920e7b` | `20261115T042000Z-e95b1a1d` | six retail/SDL/Marcus seek/playback |
+| scrolling-text | `20261115T031912Z-33ce1649` | `20261115T042118Z-25c90023` | six retail/SDL/Marcus seek/playback |
+| actor-audio | `20261115T032225Z-4ca95050` | `20261115T042433Z-9c09e905` | six retail/SDL/Marcus seek/playback |
+| sampled-audio | `20261115T032343Z-d4bd4cf8` | `20261115T042550Z-7d148573` | three retail/SDL/Marcus playback |
+
+Original/final movie identities, suite integrity, all authored frame sequences,
+540 seek images and ordered playback image changes match each player's original
+suite. Playback comparison collapses only adjacent identical scene/frame/image
+samples. Actor-audio peaks are 3192/4081/4081 and sampled-audio peaks are
+2380/2176/2176 (retail/SDL/Marcus); tone detection and first-scene-only contracts
+pass. Existing cross-player differences, single-repeat timing inconclusiveness
+and presentation-marker limits remain; these results do not establish PCM
+identity or full cross-player audio/timing parity. Captures use a shared warm
+SDL package cache with private processes, settings and working movies; OS caching
+is uncontrolled.
+
+The first capture preflight stopped before player launch because free space was
+below 4 GiB. The existing retention tool then pruned only superseded task capture
+media, retaining metadata and database hashes. Final captures retain one complete
+media suite per comparison group; source summaries are read from retained
+metadata when necessary. No comparison assertions or integrity checks were
+weakened. Log readers account for Windows PowerShell UTF-16 output.
+
+Evidence: `tmp/c89-movie-save-{standalone,native-tests,sdl-release-tests,sdl-debug-tests,asan}.log`,
+`tmp/c89-movie-save-{baseline,final,scene-final}-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-movie-save-trace-comparison.json`,
+`tmp/c89-movie-save-{output-comparison,playback-comparison}.json`,
+`tmp/c89-movie-save-vmm-workflow.log`, `tmp/c89-movie-save-prune.log`,
+`tmp/c89-movie-save-original-capture-hashes.json`,
+`tmp/c89-movie-save-capture-{actor-events,scrolling-text,actor-audio,sampled-audio}.log` and
+`tmp/c89-movie-save-capture-hashes-{before,after}.json`.

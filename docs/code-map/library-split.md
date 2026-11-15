@@ -1328,8 +1328,60 @@ undo/redo and callback publication order against its original native and SDL
 debug/release trace. C-only tests exercise transaction failures, old-scene retry,
 partial publication, reference balance and undo failure/notification order.
 No Marcus UI tests were added. Background-driven scene creation, common Movie
-editing/control/undo, autosave/save orchestration, composition and final facade
-integration remain work. Verification and retail coverage limits are recorded in
+editing/control/undo, composition and final facade integration remain work.
+Autosave/save orchestration is covered below. Verification and retail coverage
+limits are recorded in `docs/tools/playback-regression.md`.
+
+### Movie autosave, save publication and garbage collection
+
+`movie_save.c` owns save flags and the saved-file reference, temporary-file and
+zero-cache working-resource setup, scene/roll-call/source replacement, rollback,
+roll-call pruning, save-as selection and named/VMM save publication. Native Movie
+methods provide typed file/path/block, Scene, registry, client, tag and packaging
+services. Public save state and reference decisions use C; physical files and
+container sessions retain their host representations. Native construction still
+publishes loaded name/read-only metadata into the C state. DocumentBase's common
+dirty flag remains a host field written by the C controller.
+
+Old children survive until title writing succeeds. Earlier failure removes new
+source, roll-call and scene links in that order; actor pruning remains committed.
+After old children are removed, physical save failure retains the new graph.
+C releases the source-name block after ending the long operation and before a
+nested autosave returns to format selection, packaging or save publication.
+Named saving releases a matching saved-file reference before saving and attempts
+reacquisition even on failure. Direct binding failure retains the previous
+name-valid/read-only flags, while autosave clears name-valid before reacquisition.
+Ensuring resources publishes the borrowed resource output before a later
+temporary-file failure. The original optional BUG1848 retry is C-controlled and
+bounded to one retry; it remains disabled in the current native configuration.
+
+VMM format selection flushes current scene references before tag inspection.
+Failed flush/tag collection conservatively requires a container. A bundled/named
+container requires VMM; ordinary native movies retain the retail save path. VMM
+saving writes a private working archive first and commits the public filename
+after successful host packaging. Packaging failure restores the display title
+while retaining the completed working-file save. File/path and ZIP packaging
+implementations are unchanged.
+
+C also collects tags across contiguous stored scene child IDs, gathers unused
+materials/templates before deleting any, and owns the deletion-list storage.
+Only deletions from the current archive toss its resource cache. Empty-tag
+scanning now uses an explicit match flag, removing an uninitialized temporary
+read while preserving the intended deletion set. Closing-time sound collection
+runs even after asset collection failure. Sound children are traversed backward;
+shared sounds survive, and unattached sound chunks are purged without a prompt.
+Native DynamicArray blacklist and unused native control wrappers were removed.
+
+The existing headless Movie save/load fixture captures flags, file state and
+ordered chunk graphs across sixteen native/VMM save scenarios, including
+packaging failure, clean autosave, close-time autosave, copy/remembered names and
+working-file conversion. Its packaging service is a deterministic test double;
+it verifies control/publication, not ZIP contents. C-only checks exercise each
+replacement failure, irreversible prefixes, output/reference publication, retry
+limits, conservative format selection, deferred asset deletion, cache scope and
+sound purge decisions. No Marcus UI tests were added. Common Movie editing/undo,
+background-driven scene creation, composition and final C-only host/facade
+integration remain work. Evidence and coverage limits are recorded in
 `docs/tools/playback-regression.md`.
 
 ### Actor header, route and event persistence

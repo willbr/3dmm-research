@@ -133,6 +133,176 @@ ON_CID_ME(cidRender, &Movie::FCmdRender, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
+struct Movie::SaveHost
+{
+    PMovie movie;
+    Filename temporary, unique;
+    DataBlock sources;
+    explicit SaveHost(PMovie value) : movie(value) {}
+};
+
+ThreeMMMovieSaveServices Movie::_SaveServices(SaveHost *host)
+{
+    static_assert(kctgScen == THREE_MM_SAVE_SCENE && kctgGst == THREE_MM_SAVE_TABLE &&
+        kctgMtrl == THREE_MM_SAVE_MATERIAL && kctgTmpl == THREE_MM_SAVE_TEMPLATE &&
+        kctgMsnd == THREE_MM_SAVE_SOUND && ksidUseCrf == 0 && kchidGstSource == 1 && cnoNil == 0xffffffffU,
+        "Movie save ABI");
+    ThreeMMMovieSaveServices s = {};
+    s.context = host;
+    s.data = &_data;
+    s.scenes = &_scenes;
+    s.state = &_save;
+    s.allocator = CollectionAllocator();
+#ifdef BUG1848
+    s.retry_enabled = 1;
+#endif
+    s.temporary_path = [](void *p) -> void * {
+        auto h = static_cast<SaveHost *>(p);
+        return h->temporary.FGetTemp() ? &h->temporary : nullptr;
+    };
+    s.unique_path = [](void *p, void *path) -> void * {
+        auto h = static_cast<SaveHost *>(p);
+        auto destination = static_cast<PFilename>(path);
+        h->unique = *destination;
+        return h->unique.FGetUnique(destination->Ftg()) ? &h->unique : nullptr;
+    };
+    s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.create_file = [](void *, void *path) -> void * {
+        auto file = ChunkyFile::PcflCreate(static_cast<PFilename>(path), fcflTemp);
+        Assert(!file || file->FTemp(), "Bad ChunkyFile");
+        return file;
+    };
+    s.release_archive = [](void *p) { auto file = static_cast<PChunkyFile>(p); ReleasePpo(&file); };
+    s.new_resources = [](void *, void *p, ThreeMMU32 cache) -> void * {
+        return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(p), cache);
+    };
+    s.is_temp = [](void *p) -> int { return static_cast<PChunkyFile>(p)->FTemp(); };
+    s.save = [](void *p, void *path) -> int { return static_cast<PChunkyFile>(p)->FSave(kctgSoc, static_cast<PFilename>(path)); };
+    s.set_temp = [](void *p, int value) { static_cast<PChunkyFile>(p)->SetTemp(value != 0); };
+    s.mark_temporary = [](void *p) { AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflTemp, fcflTemp), 0); };
+    s.persistent = [](void *p) {
+        AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
+    };
+    s.first_root = [](void *p) -> ThreeMMU32 {
+        ChunkIdentification chunk;
+        AssertDo(static_cast<PChunkyFile>(p)->FGetCkiCtg(kctgMvie, 0, &chunk), "Missing saved movie root");
+        return chunk.cno;
+    };
+    s.create_root = [](void *, void *p, ThreeMMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
+    s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
+    s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
+    s.release_saved = [](void *p) { auto file = static_cast<PFileObject>(p); ReleasePpo(&file); };
+    s.flush_saved = [](void *p) {
+        auto file = static_cast<PFileObject>(p);
+        AssertPo(file, 0);
+        file->Flush();
+    };
+    s.read_only = [](void *, void *p) -> int {
+        String path;
+        static_cast<PFilename>(p)->GetStnPath(&path);
+        KauaiFiles::PathInfo info;
+        return KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
+    };
+    s.get_name = [](void *p, void *out) { static_cast<PFileObject>(p)->GetFni(static_cast<PFilename>(out)); };
+    s.copy_path = [](void *p, void *out) { *static_cast<PFilename>(out) = *static_cast<PFilename>(p); };
+    s.container_name = [](void *p) -> void * { return &static_cast<SaveHost *>(p)->movie->_containerName; };
+    s.set_container_name = [](void *p, void *path) { static_cast<SaveHost *>(p)->movie->_containerName = *static_cast<PFilename>(path); };
+    s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
+    s.document_dirty = [](void *p, int dirty) { static_cast<SaveHost *>(p)->movie->_fDirty = dirty != 0; };
+    s.write_scene = [](void *p, void *scene, ThreeMMU32 *number) -> int {
+        return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
+    };
+    s.child = [](void *p, ThreeMMU32 root, ThreeMMU32 type, ThreeMMU32 slot, ThreeMMU32 *number) -> int {
+        ChildChunkIdentification child;
+        bool found = static_cast<PChunkyFile>(p)->FGetKidChidCtg(kctgMvie, root, slot, type, &child);
+        if (found) *number = child.cki.cno;
+        return found;
+    };
+    s.adopt = [](void *p, ThreeMMU32 root, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 slot) -> int {
+        return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie, root, type, number, slot);
+    };
+    s.delete_child = [](void *p, ThreeMMU32 root, ThreeMMU32 type, ThreeMMU32 number, ThreeMMU32 slot) {
+        static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie, root, type, number, slot);
+    };
+    s.delete_chunk = [](void *p, ThreeMMU32 type, ThreeMMU32 number) { static_cast<PChunkyFile>(p)->Delete(type, number); };
+    s.actor_count = [](void *p) -> ThreeMMI32 { return static_cast<PRollCallTable>(p)->IvMac(); };
+    s.actor_refs = [](void *p, ThreeMMI32 index, ThreeMMTag *tag) -> ThreeMMI32 {
+        RollCallActorEntry actor;
+        static_cast<PRollCallTable>(p)->GetExtra(index, &actor);
+        *tag = TagToCore(actor.tagTmpl);
+        return actor.cactRef;
+    };
+    s.erase_actor = [](void *p, ThreeMMI32 index) { static_cast<PRollCallTable>(p)->Delete(index); };
+    s.close_tag = [](void *, ThreeMMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
+    s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
+    s.write_rollcall = [](void *, void *p, ThreeMMU32 root, void *table, ThreeMMU32 *number) -> int {
+        return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, static_cast<PRollCallTable>(table), number);
+    };
+    s.source_bytes = [](void *) -> ThreeMMU32 { return vptagm->CbSourceNames(); };
+    s.add_sources = [](void *p, void *file, ThreeMMU32 bytes, ThreeMMU32 *number) -> int {
+        return static_cast<PChunkyFile>(file)->FAdd(bytes, kctgGst, number, &static_cast<SaveHost *>(p)->sources);
+    };
+    s.write_sources = [](void *p) -> int { return vptagm->FWriteSourceNames(&static_cast<SaveHost *>(p)->sources); };
+    s.release_sources = [](void *p) { static_cast<SaveHost *>(p)->sources.Free(); };
+    s.write_title = [](void *p, void *file) -> int { return static_cast<SaveHost *>(p)->movie->_data.FWriteTitle(static_cast<PChunkyFile>(file)); };
+    s.has_error = [](void *p) -> int { return static_cast<PChunkyFile>(p)->ElError() != elNil; };
+    s.reset_error = [](void *p) { static_cast<PChunkyFile>(p)->ResetEl(); };
+    s.clear_errors = [](void *) { vpers->Clear(); };
+    s.save_error = [](void *) { PushErc(ercSocSaveFailure); };
+    s.bad_file = [](void *) { PushErc(ercSocBadFile); };
+    s.update_title = [](void *p, void *path) { static_cast<SaveHost *>(p)->movie->_SetTitle(static_cast<PFilename>(path)); };
+    s.clear_undo = [](void *p) { static_cast<SaveHost *>(p)->movie->ClearUndo(); };
+    s.has_container = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->_container != nullptr; };
+    s.bundled = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->_container->Bundled(); };
+    s.is_vmm = [](void *path) -> int { return MovieContainer::IsVmm(static_cast<PFilename>(path)); };
+    s.package = [](void *p, void *working, void *destination) -> int {
+        return static_cast<SaveHost *>(p)->movie->_container->Save(static_cast<PFilename>(working), static_cast<PFilename>(destination));
+    };
+    s.source_archive = [](void *, ThreeMMI32 source) -> int {
+        Filename path;
+        return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
+    };
+    s.new_tags = [](void *) -> void * { return TagList::PtaglNew(); };
+    s.scene_tags = [](void *p, ThreeMMU32 scene, void *tags) -> int {
+        return Scene::FAddTagsToTagl(static_cast<PChunkyFile>(p), scene, static_cast<PTagList>(tags));
+    };
+    s.tag_count = [](void *p) -> ThreeMMI32 { return static_cast<PTagList>(p)->Ctag(); };
+    s.tag = [](void *p, ThreeMMI32 index, ThreeMMTag *value) { TAG tag; static_cast<PTagList>(p)->GetTag(index, &tag); *value = TagToCore(tag); };
+    s.release_tags = [](void *p) { auto tags = static_cast<PTagList>(p); ReleasePpo(&tags); };
+    s.chunk = [](void *p, ThreeMMU32 type, ThreeMMI32 index, ThreeMMU32 *number) -> int {
+        ChunkIdentification chunk;
+        if (!static_cast<PChunkyFile>(p)->FGetCkiCtg(type, index, &chunk)) return 0;
+        *number = chunk.cno;
+        return 1;
+    };
+    s.toss_cache = [](void *p, ThreeMMU32 type, ThreeMMU32 number) {
+        auto reader = type == kctgMtrl ? Material_MTRL::FReadMtrl : Template::FReadTmpl;
+        static_cast<SaveHost *>(p)->movie->_data.Resources()->FSetCrep(crepToss, type, number, reader);
+    };
+    s.child_count = [](void *p, ThreeMMU32 root) -> ThreeMMI32 { return static_cast<PChunkyFile>(p)->Ckid(kctgMvie, root); };
+    s.references = [](void *p, ThreeMMU32 type, ThreeMMU32 number) -> ThreeMMI32 { return static_cast<PChunkyFile>(p)->CckiRef(type, number); };
+    s.child_at = [](void *p, ThreeMMU32 root, ThreeMMI32 index, ThreeMMChunkChild *value) -> int {
+        ChildChunkIdentification child;
+        if (!static_cast<PChunkyFile>(p)->FGetKid(kctgMvie, root, index, &child)) return 0;
+        value->type = child.cki.ctg; value->number = child.cki.cno; value->slot = child.chid;
+        return 1;
+    };
+    s.sound_child = [](void *p, ThreeMMU32 number) -> int {
+        ChildChunkIdentification child;
+        return static_cast<PChunkyFile>(p)->FGetKidChid(kctgMsnd, number, kchidSnd, &child);
+    };
+    s.unused_sounds = [](void *p, int *valid) -> int {
+        bool haveValid;
+        bool unused = static_cast<SaveHost *>(p)->movie->FUnusedSndsUser(&haveValid);
+        *valid = haveValid;
+        return unused;
+    };
+    s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
+    s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
+    s.missing_scene = [](void *) { AssertDo(false, "Should never fail"); };
+    return s;
+}
+
 /****************************************************
  *
  * Constructor for movies.  This function is private, use PmvieNew()
@@ -142,6 +312,7 @@ END_CMD_MAP_NIL()
 Movie::Movie(void) : _clok(khidMvieClock)
 {
     three_mm_movie_scenes_init(&_scenes);
+    three_mm_movie_save_init(&_save);
     _playback.wait = witNil;
     _playback.transition = transNil;
     _playback.fadeOriginalVolume = 0;
@@ -162,24 +333,9 @@ bool Movie::_FSetPfilSave(PFilename pfni)
 {
     AssertBaseThis(0);
     AssertPo(pfni, 0);
-
-    String stnFile;
-
-    /* Look for the file and remember FileObject if found */
-    ReleasePpo(&_pfilSave);
-    _pfilSave = FileObject::PfilFromFni(pfni);
-    if (_pfilSave == pvNil)
-        return fFalse;
-    _pfilSave->AddRef();
-    _fFniSaveValid = fTrue;
-
-    /* Remember whether FileObject is read-only; only relevant if we actually found
-        the FileObject, since if we didn't, we'll prompt for a new filename later
-        anyway */
-    pfni->GetStnPath(&stnFile);
-    KauaiFiles::PathInfo info;
-    _fReadOnly = KauaiFiles::Info(stnFile.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
-    return fTrue;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_save_bind(pfni, &services) != 0;
 }
 
 /****************************************************
@@ -227,7 +383,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
         if (MovieContainer::IsVmm(pfni))
         {
             pmvie->_containerName = *pfni;
-            pmvie->_containerNamed = true;
+            pmvie->_save.containerNamed = true;
             pfni = &containerWorking;
         }
     }
@@ -347,13 +503,13 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Set the movie title
     //
-    pmvie->_SetTitle(pmvie->_containerNamed ? &pmvie->_containerName : pfni);
-    if (pmvie->_containerNamed)
+    pmvie->_SetTitle(pmvie->_save.containerNamed ? &pmvie->_containerName : pfni);
+    if (pmvie->_save.containerNamed)
     {
         String path;
         pmvie->_containerName.GetStnPath(&path);
         KauaiFiles::PathInfo info;
-        pmvie->_fReadOnly = KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
+        pmvie->_save.readOnly = KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
     }
 
     fSuccess = fTrue;
@@ -396,11 +552,16 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PRollCallTa
 ************************************************************ PETED ***********/
 void Movie::Flush(void)
 {
-    if (_fFniSaveValid)
-    {
-        AssertPo(_pfilSave, 0);
-        _pfilSave->Flush();
-    }
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    three_mm_movie_save_flush(&services);
+}
+
+void Movie::ForceSaveAs(void)
+{
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    three_mm_movie_save_release(1, &services);
 }
 
 /****************************************************
@@ -419,47 +580,9 @@ void Movie::Flush(void)
 void Movie::_DoSndGarbageCollection(bool fPurgeAll)
 {
     AssertThis(0);
-
-    // Before releasing, get rid of all msnd chunks with
-    // cactref == 1 (the refcnt from being a child of the
-    // movie chunk)
-
-    long ikid;
-
-    if (pvNil == _data.Resources())
-        return;
-
-    PChunkyFile pcfl = _data.Resources()->Pcfl();
-    if (pvNil == pcfl)
-        return;
-
-    /* Go backwards, since we might delete some */
-    ikid = pcfl->Ckid(kctgMvie, _data.movieNumber);
-    while (ikid--)
-    {
-        ChildChunkIdentification kid;
-        ChildChunkIdentification kidT;
-
-        if (!pcfl->FGetKid(kctgMvie, _data.movieNumber, ikid, &kid))
-        {
-            Bug("ChunkyFile returned bogus Ckid()");
-            break;
-        }
-
-        if (kid.cki.ctg != kctgMsnd)
-            continue;
-
-        if (pcfl->CckiRef(kctgMsnd, kid.cki.cno) > 1)
-            continue;
-
-        /* Always purge MSNDs with no actual sound attached */
-        if (fPurgeAll || !pcfl->FGetKidChid(kctgMsnd, kid.cki.cno, kchidSnd, &kidT))
-        {
-            pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgMsnd, kid.cki.cno, kid.chid);
-        }
-    }
-
-    return;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    three_mm_movie_save_sounds(fPurgeAll, &services);
 }
 
 /****************************************************
@@ -476,7 +599,9 @@ Movie::~Movie(void)
     _fUserPaused = false;
 
     _data.ReleaseResources();
-    ReleasePpo(&_pfilSave);
+    SaveHost saveHost(this);
+    auto saveServices = _SaveServices(&saveHost);
+    three_mm_movie_save_release(0, &saveServices);
 
     if (FPlaying())
     {
@@ -554,7 +679,7 @@ void Movie::MarkMem(void)
 
     MarkMemObj(_data.Resources());
 
-    MarkMemObj(_pfilSave);
+    MarkMemObj(static_cast<PFileObject>(_save.file));
 
     MarkMemObj(_data.Actors());
 
@@ -607,29 +732,10 @@ void Movie::AssertValid(LegacyUlong grf)
 PTagList Movie::_PtaglFetch(void)
 {
     AssertThis(0);
-    Assert(_data.Resources() != pvNil, "need pcrfAutosave");
-
-    PTagList ptagl;
-    ChildChunkIdentification kid;
-    ChildChunkID chid;
-
-    ptagl = TagList::PtaglNew();
-    if (pvNil == ptagl)
-        return pvNil;
-
-    //
-    // Add each scene's tags
-    //
-    for (chid = 0; _data.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, _data.movieNumber, chid, kctgScen, &kid); chid++)
-    {
-        if (!Scene::FAddTagsToTagl(_data.Resources()->Pcfl(), kid.cki.cno, ptagl))
-        {
-            ReleasePpo(&ptagl);
-            return pvNil;
-        }
-    }
-
-    return ptagl;
+    Assert(_data.Resources(), "need pcrfAutosave");
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return static_cast<PTagList>(three_mm_movie_save_tags(&services));
 }
 
 /****************************************************
@@ -1217,25 +1323,6 @@ bool Movie::FNewScenInsCore(long iscen)
     return three_mm_movie_scene_new(iscen, &services) != 0;
 }
 
-/****************************************************
- *
- * Moves up/down all the chids by one.
- *
- * Parameters:
- *	chid - chid number to start at.
- *	fDown- fTrue if move down, else move up.
- *
- * Returns:
- *  None.
- *
- ****************************************************/
-void Movie::_MoveChids(ChildChunkID chid, bool fDown)
-{
-    AssertThis(0);
-    auto services = _SceneServices();
-    three_mm_movie_scene_move(chid, fDown, _data.Resources()->Pcfl(), &services);
-}
-
 /******************************************************************************
     Native resource primitives for the shared C movie sound controller.
 
@@ -1541,23 +1628,11 @@ bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
 bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
 {
     AssertThis(0);
-
-    if (!_FMakeCrfValid())
-    {
-        return (fFalse);
-    }
-
-    if (pvNil != ppcrf)
-        *ppcrf = _data.Resources();
-
-    //
-    // Switch to the autosave file
-    //
-    if (!_FUseTempFile())
-    {
-        return (fFalse);
-    }
-    return fTrue;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_save_ensure(ppcrf, ppcrf ? +[](void *output, void *resources) {
+        *static_cast<PChunkyResourceFile *>(output) = static_cast<PChunkyResourceFile>(resources);
+    } : nullptr, &services) != 0;
 }
 
 /****************************************************
@@ -1779,40 +1854,9 @@ bool Movie::_FCloseCurrentScene(void)
 bool Movie::_FUseTempFile(void)
 {
     AssertThis(0);
-
-    PChunkyFile pcfl;
-    ChildChunkIdentification kid;
-    Filename fni;
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // Make sure we are using the temporary file
-    //
-    if (!pcfl->FTemp())
-    {
-
-        if (!fni.FGetTemp())
-        {
-            return (fFalse);
-        }
-
-        if (!pcfl->FSave(kctgSoc, &fni))
-        {
-            return (fFalse);
-        }
-
-        // Set the Temp flag
-        AssertDo(pcfl->FSetGrfcfl(fcflTemp, fcflTemp), 0);
-
-        //
-        // Update _data.movieNumber
-        //
-        AssertDo(pcfl->FGetCkiCtg(kctgMvie, 0, &(kid.cki)), "Should never fail");
-        _data.movieNumber = kid.cki.cno;
-    }
-
-    return fTrue;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_save_temporary(&services) != 0;
 }
 
 /****************************************************
@@ -1829,55 +1873,9 @@ bool Movie::_FUseTempFile(void)
 bool Movie::_FMakeCrfValid(void)
 {
     AssertThis(0);
-
-    PChunkyFile pcfl;
-    Filename fni;
-
-    if (_data.Resources() != pvNil)
-    {
-        return (fTrue);
-    }
-
-    //
-    // Get a temp file
-    //
-    if (!fni.FGetTemp())
-    {
-        return (fFalse);
-    }
-
-    pcfl = ChunkyFile::PcflCreate(&fni, fcflTemp);
-    if (pcfl == pvNil)
-    {
-        return (fFalse);
-    }
-
-    Assert(pcfl->FTemp(), "Bad ChunkyFile");
-
-    //
-    // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
-    // serious cache-coherency problems otherwise.  Template data is not
-    // read-only, and chunk numbers change over time.
-    //
-    _data.resources = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
-    if (pvNil == _data.Resources())
-    {
-        ReleasePpo(&pcfl);
-        return (fFalse);
-    }
-
-    //
-    // Create movie chunk
-    //
-    SetDirty();
-    if (!FAutoSave())
-    {
-        ReleasePpo(&pcfl);
-        return (fFalse);
-    }
-
-    ReleasePpo(&pcfl);
-    return fTrue;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_save_resources(&services) != 0;
 }
 
 /****************************************************
@@ -1894,396 +1892,12 @@ bool Movie::_FMakeCrfValid(void)
  ****************************************************/
 bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
 {
-    if (_container && MovieContainer::IsVmm(pfni))
-        return FSaveToFni(pfni, false);
     AssertThis(0);
     AssertNilOrPo(_data.Resources(), 0);
     AssertNilOrPo(pfni, ffniFile);
-
-#ifdef BUG1848
-    bool fRetry = fTrue;
-#endif // BUG1848
-    DataBlock blck;
-    ChunkNumber cno;
-    ChunkNumber cnoScen;
-    ChunkNumber cnoSource;
-    ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
-    PChunkyFile pcfl;
-
-    if (_data.Resources() == pvNil)
-    {
-        return (fFalse);
-    }
-
-    pcfl = _data.Resources()->Pcfl();
-
-    //
-    // If no changes, then quit quick.
-    //
-    if (!_fAutosaveDirty && (pfni == pvNil) && !_fDocClosing)
-    {
-        return (fTrue);
-    }
-
-    vpappb->BeginLongOp();
-
-    if ((pfni == pvNil) && !pcfl->FTemp() && !_FUseTempFile())
-    {
-        vpappb->EndLongOp();
-        return (fFalse);
-    }
-
-#ifdef BUG1848
-LRetry:
-#endif // BUG1848
-    //
-    // Ensure movie chunk exists.
-    //
-    if (_data.movieNumber == cnoNil)
-    {
-        if (!MovieData::FCreateRoot(pcfl, &_data.movieNumber))
-            goto LFail0;
-    }
-
-    //
-    // Save open scene.
-    //
-    if (Pscen() != pvNil)
-    {
-
-        //
-        // Save scene in new chunk
-        //
-        if (!Pscen()->FWrite(_data.Resources(), &cnoScen))
-        {
-            goto LFail0;
-        }
-
-        //
-        // Delete old chunk with this scene
-        //
-        AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, _scenes.index, kctgScen, &kidScen), "Should never fail");
-
-        //
-        // Update chid for movie
-        //
-        if (!pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _scenes.index))
-        {
-            pcfl->Delete(kctgScen, cnoScen);
-            goto LFail0;
-        }
-    }
-
-    //
-    // Save the movie roll-call
-    //
-    if (fCleanRollCall)
-    {
-        RollCallActorEntry mactr;
-        long imactr;
-
-        for (imactr = 0; imactr < _data.Actors()->IvMac();)
-        {
-            _data.Actors()->GetExtra(imactr, &mactr);
-            if (mactr.cactRef == 0)
-            {
-                _data.Actors()->Delete(imactr);
-                vptagm->CloseTag(&mactr.tagTmpl);
-            }
-            else
-            {
-                imactr++;
-            }
-        }
-
-        _pmcc->UpdateRollCall();
-    }
-
-    //
-    // Get old roll call if it exists.
-    //
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, 0, kctgGst, &kidGstRollCall))
-    {
-        kidGstRollCall.cki.cno = cnoNil;
-    }
-
-    if (!MovieData::FWriteRollCall(pcfl, _data.movieNumber, _data.Actors(), &cno))
-        goto LFail1;
-
-    //
-    // Save the known sources list
-    //
-
-    //
-    // Get old sources list if it exists.
-    //
-    if (!pcfl->FGetKidChidCtg(kctgMvie, _data.movieNumber, kchidGstSource, kctgGst, &kidGstSource))
-    {
-        kidGstSource.cki.cno = cnoNil;
-    }
-
-    if (!pcfl->FAdd(vptagm->CbSourceNames(), kctgGst, &cnoSource, &blck))
-    {
-        goto LFail2;
-    }
-
-    if (!vptagm->FWriteSourceNames(&blck) ||
-        !pcfl->FAdoptChild(kctgMvie, _data.movieNumber, kctgGst, cnoSource, kchidGstSource))
-    {
-        pcfl->Delete(kctgGst, cnoSource);
-        goto LFail2;
-    }
-
-    if (!_data.FWriteTitle(pcfl))
-    {
-        goto LFail3;
-    }
-
-    //
-    // Delete old scene if there is a scene.
-    //
-    if (Pscen() != pvNil)
-    {
-        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, kidScen.cki.cno, _scenes.index);
-    }
-
-    //
-    // Delete old roll call list if it exists.
-    //
-    if (kidGstRollCall.cki.cno != cnoNil)
-    {
-        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, kidGstRollCall.cki.cno, 0);
-    }
-
-    //
-    // Delete old sources list if it exists.
-    //
-    if (kidGstSource.cki.cno != cnoNil)
-    {
-        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, kidGstSource.cki.cno, kchidGstSource);
-    }
-
-    //
-    // If we fail, don't unwind, as everything is consistent.
-    // Just let the client know we failed.
-    //
-    if (pfni != pvNil)
-    {
-        bool fSuccess;
-        PFileObject pfil;
-
-        //
-        // If we have this file open, then we need to release it
-        // so we can do the save.  We will restore our open below.
-        //
-        pfil = FileObject::PfilFromFni(pfni);
-        if (pfil == _pfilSave)
-        {
-            ReleasePpo(&_pfilSave);
-            _fFniSaveValid = fFalse;
-        }
-        else
-        {
-            pfil = pvNil;
-        }
-        //
-        // All garbage collection -- ignore any errors, the file will just be
-        // a widdle bigger than it has to be.
-        //
-        _FDoGarbageCollection(pcfl);
-
-        fSuccess = pcfl->FSave(kctgSoc, pfni);
-
-        if (pfil != pvNil)
-        {
-            _pfilSave = FileObject::PfilFromFni(pfni);
-            if (_pfilSave != pvNil)
-            {
-                _pfilSave->AddRef();
-                _fFniSaveValid = fTrue;
-            }
-        }
-
-        if (!fSuccess)
-        {
-            goto LFail0;
-        }
-    }
-    else if (!pcfl->FSave(kctgSoc))
-    {
-        goto LFail0;
-    }
-
-    _fAutosaveDirty = fFalse;
-    _fDirty = fTrue;
-
-    //
-    // Set the movie title
-    //
-    _SetTitle(pfni);
-
-    vpappb->EndLongOp();
-    return (fTrue);
-
-LFail3:
-    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, cnoSource, kchidGstSource);
-
-LFail2:
-    pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgGst, cno, 0);
-
-LFail1:
-    if (Pscen() != pvNil)
-    {
-        pcfl->DeleteChild(kctgMvie, _data.movieNumber, kctgScen, cnoScen, _scenes.index);
-    }
-
-LFail0:
-    if (pcfl->ElError() != elNil)
-    {
-        pcfl->ResetEl();
-#ifdef BUG1848
-        if (fRetry && pfni != pvNil)
-        {
-            Filename fniTemp;
-
-            /* Effectively, move the temp file to the destination path */
-            /* REVIEW seanse(peted): note that the autosave file could whined up
-                on the floppy if we fail again (which SeanSe says is "Bad") */
-            fniTemp = *pfni;
-            if (fniTemp.FGetUnique(pfni->Ftg()) && pcfl->FSave(kctgSoc, &fniTemp))
-            {
-                pcfl->SetTemp(fTrue);
-                vpers->Clear();
-                fRetry = fFalse;
-                goto LRetry;
-            }
-        }
-#endif // BUG1848
-        PushErc(ercSocSaveFailure);
-    }
-
-    vpappb->EndLongOp();
-    return (fFalse);
-}
-
-/****************************************************
- *
- * Do all garbage collection
- *
- * Parameters:
- *	pfni - File to remove chunks from
- *
- * Returns:
- *  fTrue on success, fFalse on failure
- *
- ****************************************************/
-bool Movie::_FDoGarbageCollection(PChunkyFile pcfl)
-{
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-    bool fSuccess, fHaveValid;
-
-    // Material and Template garbage collection
-    fSuccess = _FDoMtrlTmplGC(pcfl);
-
-    // If closing, remove unused sounds
-    if (_fDocClosing && FUnusedSndsUser(&fHaveValid))
-        _DoSndGarbageCollection(!fHaveValid || Pmcc()->FQueryPurgeSounds());
-    return fSuccess;
-}
-
-/****************************************************
- *
- * Removes all Material_MTRL and Template chunks that are not
- * referenced by any actors in this movie.
- *
- * Parameters:
- *	pfni - File to remove chunks from
- *
- * Returns:
- *  fTrue on success, fFalse on failure
- *
- ****************************************************/
-bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
-{
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-
-    PTagList ptagl = pvNil;
-    long itag;
-    TAG tag;
-    long icki1 = 0;
-    long icki2 = 0;
-    ChunkIdentification cki;
-    PDynamicArray pglckiDoomed = pvNil;
-
-    ptagl = _PtaglFetch(); // get all tags in user's document
-    if (ptagl == pvNil)
-        goto LEnd; // no work to do
-
-    pglckiDoomed = DynamicArray::PglNew(size(ChunkIdentification), 0);
-    if (pvNil == pglckiDoomed)
-        goto LFail;
-
-    while (pcfl->FGetCkiCtg(kctgMtrl, icki1++, &cki) || pcfl->FGetCkiCtg(kctgTmpl, icki2++, &cki))
-    {
-        // We're only interested in ksidUseCrf tags
-        for (itag = 0; itag < ptagl->Ctag(); itag++)
-        {
-            ptagl->GetTag(itag, &tag);
-            if (tag.sid != ksidUseCrf)
-            {
-                break; // stop..we're out of the ksidUseCrf tags
-            }
-            if (tag.ctg == cki.ctg && tag.cno == cki.cno)
-            {
-                break; // stop..this tag is used in the movie
-            }
-        }
-        // Remember, tags are sorted by sid.  So if we got past the
-        // ksidUseCrf tags in the movie, this chunk must not be used
-        // in the movie.  So put it on the blacklist.
-        if (tag.sid != ksidUseCrf || itag == ptagl->Ctag())
-        {
-            // this chunk is not referenced by a ksidUseCrf tag, so kill it
-            if (!pglckiDoomed->FAdd(&cki))
-                goto LFail;
-        }
-    }
-    // Get rid of the blacklisted chunks
-    for (icki1 = 0; icki1 < pglckiDoomed->IvMac(); icki1++)
-    {
-        pglckiDoomed->Get(icki1, &cki);
-        pcfl->Delete(cki.ctg, cki.cno);
-        if (pcfl == _data.Resources()->Pcfl()) // remove chunk from ChunkyResourceFile cache
-        {
-            PFNRPO pfnrpo;
-
-            if (kctgMtrl == cki.ctg)
-            {
-                pfnrpo = Material_MTRL::FReadMtrl;
-            }
-            else if (kctgTmpl == cki.ctg)
-            {
-                pfnrpo = Template::FReadTmpl;
-            }
-            else
-            {
-                Bug("unexpected ctg");
-            }
-            // ignore failure of FSetCrep, because return value of fFalse
-            // just means that the chunk is not stored in the ChunkyResourceFile's cache
-            _data.Resources()->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
-        }
-    }
-LEnd:
-    ReleasePpo(&ptagl);
-    ReleasePpo(&pglckiDoomed);
-    return fTrue;
-LFail:
-    ReleasePpo(&ptagl);
-    ReleasePpo(&pglckiDoomed);
-    return fFalse;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_autosave(pfni, fCleanRollCall, &services) != 0;
 }
 
 /****************************************************
@@ -2302,19 +1916,9 @@ bool Movie::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
-
-    if (_containerNamed)
-    {
-        *pfni = _containerName;
-        return _fFniSaveValid;
-    }
-
-    if (_pfilSave != pvNil)
-    {
-        _pfilSave->GetFni(pfni);
-    }
-
-    return (_fFniSaveValid);
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_save_name(pfni, &services) != 0;
 }
 
 /***************************************************************************
@@ -2331,15 +1935,7 @@ bool Movie::FGetFni(Filename *pfni)
 bool Movie::FSave(long cid)
 {
     AssertThis(0);
-
-    // If we are processing a Save command and the current movie is read-only,
-    // then treat this as a Save-As command and invoke the Save portfolio.
-
-    if (cid == cidSave && FReadOnly())
-        cid = cidSaveAs;
-
-    // Now take the default action.
-    return Movie_PAR::FSave(cid);
+    return Movie_PAR::FSave(three_mm_movie_save_command(cid, cidSave, cidSaveAs, &_save));
 }
 
 /****************************************************
@@ -2358,86 +1954,9 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
-
-    ChunkIdentification cki;
-    PChunkyFile pcfl;
-
-    if (_data.Resources() == pvNil)
-    {
-        return (pvNil);
-    }
-
-    pcfl = _data.Resources()->Pcfl();
-
-    if (MovieContainer::IsVmm(pfni) && !_container)
-    {
-        PushErc(ercSocBadFile);
-        return false;
-    }
-    if (_container && (MovieContainer::IsVmm(pfni) || _FNeedsContainer()))
-    {
-        if (!MovieContainer::IsVmm(pfni))
-        {
-            // The host explains why an expansion movie needs the VMM extension.
-            return _container->Save(nullptr, pfni);
-        }
-        Filename working;
-        if (!working.FGetTemp() || !FAutoSave(&working, true))
-            return false;
-        AssertDo(pcfl->FGetCkiCtg(kctgMvie, 0, &cki), "Missing saved movie root");
-        _data.movieNumber = cki.cno;
-        // The chunky document remains a private working file; its public name
-        // and the outer VMM are committed only after packaging succeeds.
-        pcfl->SetTemp(true);
-        if (!_container->Save(&working, pfni))
-        {
-            _SetTitle(_containerNamed ? &_containerName : nullptr);
-            return false;
-        }
-        ClearUndo();
-        if (fSetFni)
-        {
-            _FSetPfilSave(&working);
-            _containerName = *pfni;
-            _containerNamed = true;
-            String path;
-            pfni->GetStnPath(&path);
-            KauaiFiles::PathInfo info;
-            _fReadOnly = KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
-        }
-        _SetTitle(pfni);
-        _fDirty = false;
-        return true;
-    }
-
-    //
-    // Update the file
-    //
-    if (!FAutoSave(pfni, fTrue))
-    {
-        return (fFalse);
-    }
-
-    ClearUndo();
-
-    // Set the AddToExtra flag and clear the Temp flag
-    AssertDo(pcfl->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
-
-    if (fSetFni)
-    {
-        _FSetPfilSave(pfni); // Ignore failure
-    }
-
-    //
-    // Update _data.movieNumber
-    //
-    AssertDo(pcfl->FGetCkiCtg(kctgMvie, 0, &cki), "Should never fail");
-
-    _data.movieNumber = cki.cno;
-
-    _fDirty = fFalse;
-
-    return (fTrue);
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_save_to(pfni, fSetFni, &services) != 0;
 }
 
 /***************************************************************************
@@ -2467,31 +1986,9 @@ bool Movie::FGetFniSave(Filename *pfni)
 
 bool Movie::_FNeedsContainer()
 {
-    if (!_container)
-        return false;
-    if (_containerNamed || _container->Bundled())
-        return true;
-    Filename portableArchive;
-    if (!vptagm || !vptagm->SourceArchive(6, kftgContent, 0, &portableArchive))
-        return false;
-    if (!_data.Resources())
-        return false;
-    // The current scene may have new source references absent from its stored
-    // tag list. Flush it before choosing the public save format.
-    if (!FAutoSave(nullptr, false))
-        return true;
-    auto tags = _PtaglFetch();
-    if (!tags)
-        return true;
-    bool portable = false;
-    for (LegacyLong i = 0; i < tags->Ctag(); ++i)
-    {
-        TAG tag;
-        tags->GetTag(i, &tag);
-        portable |= tag.sid == 6;
-    }
-    ReleasePpo(&tags);
-    return portable;
+    SaveHost host(this);
+    auto services = _SaveServices(&host);
+    return three_mm_movie_needs_container(&services) != 0;
 }
 
 /****************************************************
