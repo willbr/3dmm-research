@@ -529,7 +529,7 @@ void scene_organiser_draw(MarcusSceneOrganiser *s, MarcusUI *ui, int width, int 
     ui_text(ui, l.panel.x + l.panel.w - 126, l.panel.y + 16, text, 0xc5cedd);
     if (s->frames)
         ui_button_sized(ui, l.wholeMovie.x, l.wholeMovie.y, l.wholeMovie.w, l.wholeMovie.h,
-                        "Whole movie", s->wholeMovie, s->movieFrameCount > 0);
+                        s->wholeMovie ? "Whole movie" : "Current scene", s->wholeMovie, s->movieFrameCount > 0);
     bool loaded = false;
     MarcusScene selectedScene = {};
     if (!s->frames) marcus_scene(s->player, s->selected, &selectedScene);
