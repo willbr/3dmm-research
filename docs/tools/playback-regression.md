@@ -8697,3 +8697,80 @@ suite, SDL-only invalidation after rebuilding SDL, fresh comparison policies,
 explicit refresh/cache-only modes, media/input corruption, independent repetition
 indexes, legacy misses, copied sound/audio metadata and original-media retention.
 No 3DMM, SDL Studio or Marcus process was launched for this verification.
+
+### Preview picking policy and scratch ownership (15 November 2026)
+
+`preview_pick.c` now owns projection validation, viewport/letterbox coordinates,
+authored/output raster sizing, camera construction and singular-camera rejection,
+stable body copying and actor ownership, private prepared-face storage, hit
+ordering, orthographic depth normalization, authored background occlusion and
+indexed-texture transparency. Rendering and picking share stable body copying.
+Typed adapters retain BRender field access, fixed-math face-plane repair, matrix
+inversion/projection, UV transformation and SDK pick calls. The C owner frees its
+world before its scratch storage on every exit. Failed picks publish object -1
+and infinite distance. Source geometry, actors and textures remain borrowed.
+
+Before conversion, the headless Scene Preview fixture recorded 2,288 sampled
+picks and 80 invalid-projection results across two frames and eight authored,
+output-resolution, orbit, free, axis and orthographic configurations. It also
+checks that picking leaves subsequent rendered pixels unchanged. Original debug
+and optimized SDK picking differed: unguarded native/SDL debug traces contain six
+hits and FNV-1a `8F6FCC06`; unguarded SDL release contains 402 hits and FNV-1a
+`09823C62`. The conversion exposed the cause: `ActorPick2D` ignored a failed
+fixed-point inverse and passed an unwritten matrix into ray/bounds testing.
+Orthographic normalization can underflow that inverse's determinant. Changed
+stack layout changed the bogus hits, so those undefined results cannot serve as
+a preservation gate.
+
+The SDK now skips model/bounds ray tests after inverse failure and rejects a
+failed camera inverse before traversal. The bounds assertion now checks the
+current actor rather than an uninitialized iterator. A direct SDK test checks
+singular models/cameras/bounds, orthographic determinant underflow and subsequent
+valid-pick recovery. Ill-conditioned orthographic transforms yield no hit;
+higher-precision ray construction is not introduced by this slice.
+
+Both original and converted controllers are checked with the same SDK guard.
+The corrected 74,816-byte original trace has six hits and FNV-1a `8F6FCC06` on
+all three builds; the Windows MSVC fixture freezes this result. Raw unguarded
+original traces are retained separately as
+`tmp/c89-preview-pick-unguarded-original-{native,sdl-release,sdl-debug}.bin`.
+The original release discrepancy is an explicitly diagnosed SDK correction,
+not a relaxed comparison or proof of retail picking equivalence.
+
+C-only tests cover stable draw-order ties, nearest/equal-depth hits, clip limits,
+unowned mesh occlusion, transparent holes, padded texture rows/base coordinates,
+negative UV wrapping, opaque/nonindexed maps, orthographic distance conversion,
+authored depth sampling, fitted/output coordinates and letterboxes. They inject
+every C allocation failure and world/camera/inverse/tree/mesh/renderer failures,
+checking resource balance and unpublished results. Scratch reuse changes
+allocation ordinals; these checks establish resource contracts rather than
+retail allocation-failure equivalence.
+
+No Marcus UI tests were added. This slice changes picking, with unchanged render
+traces used to check the shared body-copy refactor. Retained retail playback
+evidence remains the behavioral reference; no new retail playback or editing
+equivalence is claimed. Camera interaction, asset/scene admission, presentation,
+broader platform validation and final C-only host/facade integration remain work.
+
+All 110 standalone C checks (including strict C89 syntax), 14 selected native,
+10 SDL release and 10 SDL debug checks pass. The C fixture passes MSVC
+AddressSanitizer. The SDK-dependent checks include the direct inverse test,
+existing Marcus renderer/playback/player integration and Studio's existing
+World-camera/picking trace. Both SDL Studio binaries were rebuilt; Marcus was
+stopped before rebuilding and relaunched afterward.
+
+All six original/converted trace comparisons match: picking is 74,816 bytes,
+SHA-256 `A44EF24F0F4BAD61AFB9B1D3930B9684708D3B1C0AA93E52EBAC060AF7D80722`,
+and rendering remains 18,029,304 bytes, SHA-256
+`7AF798CC29A5020C54BFDA84A8A74A6D8673E1976AE290C24F5BDB7E18CB0943`,
+on native, SDL release and SDL debug builds. The picking comparison uses the
+guarded original controller described above; render traces retain the preceding
+rendering revision's fingerprint. These are Windows x64 preservation checks,
+with the explicit invalid-inverse correction above, not new retail parity claims.
+
+Evidence: `tmp/c89-preview-pick-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+`tmp/c89-preview-pick-render-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-pick-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-pick-world-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-preview-pick-asan.log`, `tmp/c89-preview-pick-trace-comparison.json`
+and input/final-binary hashes in `tmp/c89-preview-pick-identities.json`.

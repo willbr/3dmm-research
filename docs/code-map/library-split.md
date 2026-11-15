@@ -89,6 +89,7 @@ cmake --build build/engine-c89 --target engine-background-mesh-test engine-backg
 cmake --build build/engine-c89 --target engine-scene-owner-test
 cmake --build build/engine-c89 --target engine-sound-resource-test engine-sound-payload-test
 cmake --build build/engine-c89 --target engine-audio-runtime-test
+cmake --build build/engine-c89 --target engine-preview-render-test engine-preview-pick-test
 ctest --test-dir build/engine-c89 --output-on-failure
 ```
 
@@ -1286,12 +1287,43 @@ register, free, convert scalar representations and assign typed fields.
 
 The remaining native mesh/background classes are temporary service/type adapters.
 Borrowed buffer views and bounds mirror C owners. Preview's broader frame
-rendering, projection/depth fitting and other native engine/host integration still
-need conversion; these owners do not establish a complete C-only Preview engine.
+rendering and projection/depth fitting now use `preview_render.c`; other native
+engine/host integration still needs conversion. These owners do not establish a
+complete C-only Preview engine.
 Existing analytic/native renderer tests and exact geometry/image traces cover
 these paths. C-only tests inject storage/SDK/actor/image/cache failures and check
 ownership, rollback, retained prefixes, bounds and LRU behavior. Coverage and
 retail comparison limits are recorded in `docs/tools/playback-regression.md`.
+
+### Preview picking
+
+`preview_pick.c` owns projection admission, letterbox/output-to-raster coordinates,
+pick-camera construction, singular-camera rejection, stable body copying and
+actor ownership lookup. It also owns prepared-face scratch lifetime, nearest-hit
+and equal-depth replacement, orthographic distance normalization, authored-image
+depth occlusion and indexed texture transparency with transformed, wrapped UVs.
+Rendering and picking share the same stable body-order/tree-copy implementation.
+The C owner releases the temporary world before its owner/face buffers on every
+exit and publishes no hit after an allocation or SDK failure.
+
+Native adapters supply typed BRender camera/inverse/projection and pick calls,
+face copying and pivot-plane repair using SDK fixed arithmetic, material/texture
+field views and the SDK UV transform. Source geometry and textures stay borrowed.
+No native picking evaluator or picking owner map remains. Camera interaction,
+asset/scene admission, presentation and final facade integration remain work.
+
+The headless Scene Preview fixture records per-build original/converted hit,
+distance and error traces across authored/output, orbit, free, axis and
+orthographic cameras, seeks and invalid projections. It checks that picking
+leaves rendered pixels unchanged. C-only tests cover transparent holes, padded
+texture/base coordinates, negative UV wrapping, opaque/nonindexed maps, ties,
+unowned mesh occlusion, clip limits, source depth, letterboxes and allocation/SDK
+failures. A fixed-point SDK inverse failure originally caused unwritten ray matrices and
+bogus orthographic hits. The SDK now skips failed inverses; a direct test covers
+singular models/cameras/bounds, orthographic determinant underflow and recovery.
+Original and converted controllers agree with that same guard; raw unguarded
+traces remain recorded separately. Evidence and coverage
+limits are recorded in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

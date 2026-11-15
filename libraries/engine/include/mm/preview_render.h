@@ -175,6 +175,9 @@ extern "C"
     void mm_preview_depth_fit(const MMPreviewDepthRange *, double *near_clip, double *far_clip);
     int mm_preview_render(const MMPreviewView *, MMPreviewOrbit *, MMPreviewImage *,
                                 const MMPreviewRenderServices *);
+    /* Copy described bodies in the same stable order used by rendering. The
+     * caller owns world and its attached prefix even when copying fails. */
+    int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *);
 #ifdef __cplusplus
 }
 #endif

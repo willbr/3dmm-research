@@ -14,6 +14,7 @@
 #include <utility>
 #include "soc_core.h"
 #include "mm/scene_runtime.h"
+#include "mm/preview_pick.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -33,88 +34,6 @@ bool Fail(Error &error, ErrorCode code, const char *message)
     if (code == ErrorCode::decode_failed && Internal::AssertionFailed())
         error.message += std::string(" ") + Internal::DiagnosticMessage();
     return false;
-}
-struct PickWorld
-{
-    br_actor *world = nullptr;
-    ~PickWorld()
-    {
-        if (world) BrActorFree(world);
-    }
-};
-std::pair<std::uint32_t, std::uint32_t> FittedSize(std::uint32_t sourceWidth, std::uint32_t sourceHeight,
-                                                std::uint32_t width, std::uint32_t height)
-{
-    if (std::uint64_t(width) * sourceHeight <= std::uint64_t(height) * sourceWidth)
-        return {width, std::max(1u, std::uint32_t(std::uint64_t(sourceHeight) * width / sourceWidth))};
-    return {std::max(1u, std::uint32_t(std::uint64_t(sourceWidth) * height / sourceHeight)), height};
-}
-struct PickState
-{
-    const std::map<br_actor *, int> &owners;
-    float nearClip, closest;
-    int candidate = -1, object = -1;
-    float distanceScale = 1, distanceOrigin = 0;
-};
-int BR_CALLBACK PickFace(br_model *, br_material *material, br_vector3 *, br_vector3 *, br_scalar distance, int, int,
-                         int, br_vector3 *, br_vector2 *map, void *context)
-{
-    auto &pick = *static_cast<PickState *>(context);
-    const float depth = BrScalarToFloat(distance) * pick.distanceScale + pick.distanceOrigin;
-    if (depth < pick.nearClip || depth > pick.closest)
-        return 0;
-    // Indexed texture zero is transparent unless the material makes it opaque.
-    if (auto texture = material->colour_map)
-    {
-        if (!(material->flags & BR_MATF_MAP_OPAQUE) && texture->type == BR_PMT_INDEX_8 && texture->pixels &&
-            texture->width > 0 && texture->height > 0)
-        {
-            br_vector2 uv;
-            BrMatrix23ApplyP(&uv, map, &material->map_transform);
-            const auto wrap = [](float value, int extent) {
-                const int coordinate = static_cast<int>(std::floor(value * extent));
-                return (coordinate % extent + extent) % extent;
-            };
-            const int x = wrap(BrScalarToFloat(uv.v[0]), texture->width);
-            const int y = wrap(BrScalarToFloat(uv.v[1]), texture->height);
-            const auto texel = static_cast<const byte *>(texture->pixels) + (y + texture->base_y) * texture->row_bytes +
-                               x + texture->base_x;
-            if (!*texel)
-                return 0;
-        }
-    }
-    pick.closest = depth;
-    pick.object = pick.candidate;
-    return 0;
-}
-int BR_CALLBACK PickModel(br_actor *actor, br_model *model, br_material *material, br_vector3 *position,
-                          br_vector3 *direction, br_scalar nearClip, br_scalar farClip, void *context)
-{
-    auto &pick = *static_cast<PickState *>(context);
-    const auto owner = pick.owners.find(actor);
-    pick.candidate = owner == pick.owners.end() ? -1 : owner->second;
-    // Original arrays may have been released. Pick the prepared, pivot-adjusted
-    // faces/vertices that BRender actually draws, without changing shared models.
-    auto prepared = *model;
-    prepared.faces = model->prepared_faces;
-    prepared.vertices = model->prepared_vertices;
-    prepared.nfaces = model->nprepared_faces;
-    prepared.nvertices = model->nprepared_vertices;
-    // Preparation can move vertices by the model pivot after computing face
-    // planes. Rebuild plane offsets in those same coordinates for ray tests;
-    // otherwise front faces (notably 3D letters) can reject visible hits.
-    // Keep the shared render geometry untouched.
-    std::vector<br_face> faces(prepared.faces, prepared.faces + prepared.nfaces);
-    for (auto &face : faces)
-    {
-        br_vector3 normal;
-        for (int axis = 0; axis < 3; ++axis)
-            normal.v[axis] = BrFractionToScalar(face.n.v[axis]);
-        face.d = BrVector3Dot(&normal, &prepared.vertices[face.vertices[0]].p);
-    }
-    prepared.faces = faces.data();
-    BrModelPick2D(&prepared, material, position, direction, nearClip, farClip, PickFace, context);
-    return 0;
 }
 bool WithinBudget(const Archive &archive, PChunkyFile file, Error &error)
 {
@@ -147,6 +66,7 @@ bool WithinBudget(const Archive &archive, PChunkyFile file, Error &error)
 struct Preview::Impl
 {
     struct RenderHost;
+    struct PickHost;
     struct Source
     {
         std::int32_t id = 0;
@@ -263,30 +183,6 @@ struct Preview::Impl
                 bodies.push_back(actor->body);
         return bodies;
     }
-    bool AddModels(br_actor *world, std::map<br_actor *, int> *owners = nullptr) const
-    {
-        const auto append = [&](PBody value, int owner) {
-            return Internal::CopyBodyActorTree(world, value->PbactRoot(), owners, owner);
-        };
-        if (body && !append(body, -1)) return false;
-        std::vector<std::size_t> visible;
-        for (std::size_t i = 0; i < actors.size(); ++i)
-            if (actors[i]->Visible()) visible.push_back(i);
-        std::stable_sort(visible.begin(), visible.end(), [&](std::size_t a, std::size_t b) {
-            return actors[a]->DrawOrder() < actors[b]->DrawOrder();
-        });
-        for (auto i : visible)
-            if (!append(actors[i]->body, static_cast<int>(i))) return false;
-        if (model)
-        {
-            auto actor = BrActorAllocate(BR_ACTOR_MODEL, nullptr);
-            if (!actor) return false;
-            BrActorAdd(world, actor);
-            actor->model = model->Pbmdl();
-            if (owners) owners->emplace(actor, -1);
-        }
-        return true;
-    }
     void RefreshStats()
     {
         info.parts = info.triangles = 0;
@@ -343,6 +239,8 @@ struct Preview::Impl
         }
     }
 };
+#include "preview_render_host.h"
+#include "preview_pick_host.h"
 Preview::Preview() : _impl(new Impl)
 {
 }
@@ -599,95 +497,42 @@ try
     object = -1;
     distance = std::numeric_limits<float>::infinity();
     Internal::ClearDiagnostic();
-    if (!_impl->ready || !_impl->info.scene || !projection.valid || width < 64 || height < 64 ||
-        width > PreviewMaxDimension || height > PreviewMaxDimension ||
-        !std::isfinite(projection.verticalFov) || projection.verticalFov <= 0 ||
-        projection.verticalFov >= 179 || !std::isfinite(projection.aspect) || projection.aspect <= 0 ||
-        !std::isfinite(projection.nearClip) || !std::isfinite(projection.farClip) || projection.nearClip <= 0 ||
-        projection.farClip <= projection.nearClip || projection.farClip > 32767)
+    Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
+    host.readBodyBounds = false;
+    auto render = host.Services();
+    auto services = Impl::PickHost::Services(render);
+    MMPreviewProjection p = {};
+    p.valid = projection.valid;
+    p.orthographic = projection.orthographic;
+    std::copy(projection.transform, projection.transform + 12, p.transform);
+    p.vertical_fov = projection.verticalFov;
+    p.aspect = projection.aspect;
+    p.near_clip = projection.nearClip;
+    p.far_clip = projection.farClip;
+    p.ortho_height = projection.orthoHeight;
+    MMI32 selected;
+    const auto result = mm_preview_pick(&p, authoredCamera, renderAtOutputResolution, width, height,
+                                        x, y, &selected, &distance, &services);
+    if (host.exception) std::rethrow_exception(host.exception);
+    switch (result)
+    {
+    case MM_PREVIEW_PICK_OK: object = selected; break;
+    case MM_PREVIEW_PICK_INVALID:
         return Fail(error, ErrorCode::invalid_argument, "Pick requires a rendered scene projection.");
-    for (const auto value : projection.transform)
-        if (!std::isfinite(value) || std::abs(value) > 32767)
-            return Fail(error, ErrorCode::invalid_argument, "Pick camera exceeds the renderer range.");
-    if (x < 0 || y < 0 || x >= static_cast<int>(width) || y >= static_cast<int>(height))
-        return true;
-    const auto bg = authoredCamera ? _impl->background.get() : nullptr;
-    const auto rasterSize = bg && renderAtOutputResolution ? FittedSize(bg->width, bg->height, width, height)
-        : std::make_pair(bg ? bg->width : width, bg ? bg->height : height);
-    const auto renderWidth = rasterSize.first, renderHeight = rasterSize.second;
-    const float scale = std::min(float(width) / renderWidth, float(height) / renderHeight);
-    const int fittedWidth = static_cast<int>(renderWidth * scale),
-              fittedHeight = static_cast<int>(renderHeight * scale);
-    x -= (int(width) - fittedWidth) / 2;
-    y -= (int(height) - fittedHeight) / 2;
-    if (x < 0 || y < 0 || x >= fittedWidth || y >= fittedHeight)
-        return true;
-    x = std::min(int(renderWidth) - 1, static_cast<int>(x / scale));
-    y = std::min(int(renderHeight) - 1, static_cast<int>(y / scale));
-
-    PickWorld frame;
-    frame.world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
-    br_camera camera = {};
-    camera.type = BR_CAMERA_PERSPECTIVE_FOV;
-    if (projection.orthographic)
-    {
-        if (!std::isfinite(projection.orthoHeight) || projection.orthoHeight <= 0 || projection.orthoHeight > 60000 ||
-            !std::isfinite(projection.orthoHeight * projection.aspect) || projection.orthoHeight * projection.aspect > 60000)
-            return Fail(error, ErrorCode::invalid_argument, "Invalid orthographic pick span.");
-        camera.type = BR_CAMERA_PARALLEL;
-        camera.height = BrFloatToScalar(projection.orthoHeight * .5f);
-        camera.width = BrFloatToScalar(projection.orthoHeight * projection.aspect * .5f);
-    }
-    camera.field_of_view = BR_ANGLE_DEG(projection.verticalFov);
-    camera.aspect = BrFloatToScalar(projection.aspect);
-    camera.hither_z = BrFloatToScalar(projection.nearClip);
-    camera.yon_z = BrFloatToScalar(projection.farClip);
-    auto cam = frame.world ? BrActorAllocate(BR_ACTOR_CAMERA, &camera) : nullptr;
-    if (!cam)
+    case MM_PREVIEW_PICK_RANGE:
+        return Fail(error, ErrorCode::invalid_argument, "Pick camera exceeds the renderer range.");
+    case MM_PREVIEW_PICK_SPAN:
+        return Fail(error, ErrorCode::invalid_argument, "Invalid orthographic pick span.");
+    case MM_PREVIEW_PICK_CAMERA:
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate pick camera.");
-    BrActorAdd(frame.world, cam);
-    cam->t.type = BR_TRANSFORM_MATRIX34;
-    for (int row = 0; row < 4; ++row)
-        for (int axis = 0; axis < 3; ++axis)
-            cam->t.t.mat.m[row][axis] = BrFloatToScalar(projection.transform[row * 3 + axis]);
-    // Avoid passing a singular camera matrix to the legacy fixed-point picker.
-    br_matrix34 inverse;
-    if (!BrMatrix34Inverse(&inverse, &cam->t.t.mat))
+    case MM_PREVIEW_PICK_SINGULAR:
         return Fail(error, ErrorCode::invalid_argument, "Pick camera is singular.");
-    std::map<br_actor *, int> owners;
-    if (!_impl->AddModels(frame.world, &owners) ||
-        (!bg && _impl->background && !_impl->background->Mesh().AddToScene(frame.world)))
+    case MM_PREVIEW_PICK_MODELS:
         return Fail(error, ErrorCode::out_of_memory, "Cannot prepare scene picking.");
-    PickState pick{owners, projection.nearClip, projection.farClip};
-    if (projection.orthographic)
-    {
-        pick.distanceScale = projection.farClip - projection.nearClip;
-        pick.distanceOrigin = projection.nearClip;
-    }
-    if (bg)
-    {
-        const auto sourceX = std::uint32_t(std::uint64_t(x) * bg->width / renderWidth);
-        const auto sourceY = std::uint32_t(std::uint64_t(y) * bg->height / renderHeight);
-        const auto depth = bg->depths[std::size_t(sourceY) * bg->width + sourceX];
-        if (depth != 0xffff)
-        {
-            br_matrix4 matrix;
-            BrMatrix4Perspective(&matrix, camera.field_of_view, camera.aspect, -camera.hither_z, -camera.yon_z);
-            const double denominator = BrScalarToFloat(matrix.m[2][2]) - static_cast<std::int16_t>(depth) / 32768.0;
-            const double distance = BrScalarToFloat(matrix.m[3][2]) / denominator;
-            if (std::isfinite(distance) && distance > 0)
-                pick.closest = std::min(pick.closest, static_cast<float>(distance));
-        }
-    }
-    br_pixelmap viewport = {};
-    viewport.width = static_cast<br_uint_16>(renderWidth);
-    viewport.height = static_cast<br_uint_16>(renderHeight);
-    BrScenePick2D(frame.world, cam, &viewport, x - int(renderWidth) / 2, y - int(renderHeight) / 2, PickModel, &pick);
-    if (Internal::AssertionFailed())
+    case MM_PREVIEW_PICK_RENDERER:
         return Fail(error, ErrorCode::decode_failed, "The renderer rejected scene picking.");
-    object = pick.object;
-    if (object >= 0)
-        distance = pick.closest;
+    default: return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene picking.");
+    }
     return true;
 }
 catch (const std::bad_alloc &)
@@ -1367,7 +1212,6 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to load the background camera.");
 }
-#include "preview_render_host.h"
 bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
 try
 {

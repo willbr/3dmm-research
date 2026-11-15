@@ -11,6 +11,7 @@ struct Preview::Impl::RenderHost
     br_camera camera = {};
     Internal::PreviewBackgroundMesh *mesh = nullptr;
     std::exception_ptr exception;
+    bool readBodyBounds = true;
     static PreviewProjection Projection(const MMPreviewProjection &p)
     {
         PreviewProjection out;
@@ -112,7 +113,8 @@ struct Preview::Impl::RenderHost
             return static_cast<MMU32>(static_cast<RenderHost *>(v)->impl->actors.size() + 1);
         };
         s.body = [](void *v, MMU32 index, MMPreviewBody *out) -> int {
-            auto &i = *static_cast<RenderHost *>(v)->impl;
+            auto &h = *static_cast<RenderHost *>(v);
+            auto &i = *h.impl;
             PBody body = nullptr;
             std::uint64_t order = 0;
             if (!index)
@@ -128,6 +130,8 @@ struct Preview::Impl::RenderHost
             out->owner = static_cast<MMI32>(index) - 1;
             out->order_low = static_cast<MMU32>(order);
             out->order_high = static_cast<MMU32>(order >> 32);
+            if (!h.readBodyBounds)
+                return 1;
             BCB b;
             body->GetBcbBounds(&b, fTrue);
             out->low[0] = BrScalarToFloat(b.xrMin);

@@ -38,7 +38,12 @@ target_sources(mm-engine-c89 PRIVATE src/movie_save.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_rollcall.c src/movie_edit.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_content.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_compose.c)
-target_sources(mm-engine-c89 PRIVATE src/preview_geometry.c src/preview_render.c)
+target_sources(mm-engine-c89 PRIVATE src/preview_geometry.c src/preview_render.c src/preview_pick.c)
+get_filename_component(engine_preview_pick_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_preview_pick_test.c" ABSOLUTE)
+add_executable(engine-preview-pick-test EXCLUDE_FROM_ALL "${engine_preview_pick_test_source}")
+target_link_libraries(engine-preview-pick-test PRIVATE mm-engine-c89)
+set_target_properties(engine-preview-pick-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-preview-pick COMMAND engine-preview-pick-test)
 get_filename_component(engine_preview_render_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_preview_render_test.c" ABSOLUTE)
 add_executable(engine-preview-render-test EXCLUDE_FROM_ALL "${engine_preview_render_test_source}")
 target_link_libraries(engine-preview-render-test PRIVATE mm-engine-c89)
@@ -672,8 +677,10 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_compose.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_geometry.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_render.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_pick.c"
     "${engine_movie_compose_test_source}"
     "${engine_preview_render_test_source}"
+    "${engine_preview_pick_test_source}"
     "${engine_movie_content_test_source}"
     "${engine_movie_rollcall_test_source}"
     "${engine_movie_edit_test_source}"

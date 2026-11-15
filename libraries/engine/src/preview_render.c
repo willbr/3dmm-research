@@ -269,6 +269,35 @@ static int sort_bodies(PreviewFrame *f)
     }
     return 1;
 }
+static int copy_bodies(PreviewFrame *f, void *world)
+{
+    const MMPreviewRenderServices *s = f->s;
+    MMPreviewBody *bodies;
+    MMU32 i;
+    if (!sort_bodies(f))
+        return MM_PREVIEW_MEMORY;
+    bodies = (MMPreviewBody *)data(&f->bodies);
+    for (i = 0; i < f->bodies.array.count; ++i)
+        if (!mm_preview_copy_tree(world, bodies[i].tree, bodies[i].owner,
+                                  s->allocator.resize ? &s->allocator : 0, &s->tree))
+            return MM_PREVIEW_MODELS;
+    return MM_PREVIEW_OK;
+}
+int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *s)
+{
+    PreviewFrame f;
+    MMPreviewBody body;
+    MMU32 i, n = s->body_count(s->context);
+    int ok = 1;
+    frame_init(&f, s);
+    for (i = 0; ok && i < n; ++i)
+        if (s->body(s->context, i, &body))
+            ok = add(&f.bodies, &body);
+    if (ok)
+        ok = copy_bodies(&f, world) == MM_PREVIEW_OK;
+    frame_dispose(&f);
+    return ok;
+}
 static void blit(const MMPreviewData *d, const MMPreviewBuffer *b, MMU32 width, MMU32 height,
                  int diagnostic)
 {
@@ -366,7 +395,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     MMPreviewBuffer buffers;
     MMPreviewCamera camera;
     MMPreviewProjection scene_camera;
-    MMPreviewBody body, *bodies;
+    MMPreviewBody body;
     MMBackgroundLight light;
     MMU32 width, height, i, j, n;
     int bg, has_mesh, diagnostic, infinite, first = 1, axis, corner, fits, object = -1, valid, axis_view;
@@ -624,13 +653,11 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
             return MM_PREVIEW_MEMORY;
         s->enable_light(s->context, actor);
     }
-    if (!sort_bodies(f))
-        return MM_PREVIEW_MEMORY;
-    bodies = (MMPreviewBody *)data(&f->bodies);
-    for (i = 0; i < f->bodies.array.count; ++i)
-        if (!mm_preview_copy_tree(f->world, bodies[i].tree, bodies[i].owner,
-                                        s->allocator.resize ? &s->allocator : 0, &s->tree))
-            return MM_PREVIEW_MODELS;
+    {
+        int copied = copy_bodies(f, f->world);
+        if (copied != MM_PREVIEW_OK)
+            return copied;
+    }
     if (d.model && !s->add_model(s->context, f->world, d.model))
         return MM_PREVIEW_MODELS;
     if (has_mesh && !s->add_mesh(s->context, f->world))

@@ -28,6 +28,57 @@ struct Pixels
     bool operator==(const Pixels &other) const { return colour == other.colour && depth == other.depth; }
 };
 
+static int BR_CALLBACK CountPick(br_actor *, br_model *, br_material *, br_vector3 *, br_vector3 *,
+                                 br_scalar, br_scalar, void *context)
+{
+    ++*static_cast<int *>(context);
+    return 0;
+}
+static void TestPickInverses(br_model *model)
+{
+    auto world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
+    auto eye = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, nullptr));
+    auto actor = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, nullptr));
+    auto camera = static_cast<br_camera *>(eye->type_data);
+    actor->model = model;
+    actor->t.type = eye->t.type = BR_TRANSFORM_MATRIX34;
+    BrMatrix34Translate(&actor->t.t.mat, 0, 0, BR_SCALAR(-5));
+    camera->aspect = BR_SCALAR(1);
+    camera->hither_z = BR_SCALAR(1);
+    camera->yon_z = BR_SCALAR(20);
+    br_pixelmap viewport = {};
+    viewport.width = viewport.height = 128;
+    auto count = [&]() {
+        int hits = 0;
+        BrScenePick2D(world, eye, &viewport, 0, 0, CountPick, &hits);
+        return hits;
+    };
+    CHECK(count() == 1);
+    std::memset(&actor->t.t.mat, 0, sizeof(actor->t.t.mat));
+    CHECK(count() == 0);
+    BrMatrix34Translate(&actor->t.t.mat, 0, 0, BR_SCALAR(-5));
+    CHECK(count() == 1);
+    std::memset(&eye->t.t.mat, 0, sizeof(eye->t.t.mat));
+    CHECK(count() == 0);
+    BrMatrix34Identity(&eye->t.t.mat);
+    // The camera is invertible, but normalized orthographic world-to-model
+    // scaling underflows the fixed-point determinant. No unwritten inverse
+    // may reach the bounds test or callback, regardless of stack contents.
+    camera->type = BR_CAMERA_PARALLEL;
+    camera->width = camera->height = BR_SCALAR(100);
+    camera->yon_z = BR_SCALAR(30000);
+    CHECK(count() == 0);
+    camera->width = camera->height = BR_SCALAR(1);
+    camera->yon_z = BR_SCALAR(20);
+    CHECK(count() == 1);
+    auto bounds = BrActorAdd(world, BrActorAllocate(BR_ACTOR_BOUNDS, &model->bounds));
+    bounds->t.type = BR_TRANSFORM_MATRIX34;
+    std::memset(&bounds->t.t.mat, 0, sizeof(bounds->t.t.mat));
+    BrActorRemove(actor);
+    BrActorAdd(bounds, actor);
+    CHECK(count() == 0);
+    BrActorFree(world);
+}
 void SameTree(const br_actor *source, const br_actor *copy, const std::map<br_actor *, int> &owners)
 {
     CHECK(source != copy && source->type == copy->type && source->model == copy->model);
@@ -77,6 +128,7 @@ int main()
     model->faces[0].vertices[1] = 1;
     model->faces[0].vertices[2] = 2;
     BrModelAdd(model);
+    TestPickInverses(model);
     auto red = BrMaterialAllocate(nullptr);
     auto blue = BrMaterialAllocate(nullptr);
     CHECK(red && blue);

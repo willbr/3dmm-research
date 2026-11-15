@@ -152,9 +152,9 @@ STATIC int ActorPick2D(br_actor *ap, br_model *model, br_material *material,
 		 * this coresponds to the fourth and third rows
 		 * of the v_to_m matrix
 		 */
-		BrMatrix34Inverse(&v_to_m,&pick_model_to_view);
-
-		if(PickBoundsTestRay(
+		/* A failed fixed-point inverse leaves v_to_m unwritten. Do not
+		 * form a ray from that storage (notably after parallel Z scaling). */
+		if(BrMatrix34Inverse(&v_to_m,&pick_model_to_view) && PickBoundsTestRay(
 			&this_model->bounds,
 			(br_vector3*)v_to_m.m[3],
 			(br_vector3*)v_to_m.m[2],
@@ -190,11 +190,11 @@ STATIC int ActorPick2D(br_actor *ap, br_model *model, br_material *material,
 		/*
 		 * Only recurse to children if view ray intersects bounding box
 		 */
-		UASSERT(a->type_data != NULL);
+		UASSERT(ap->type_data != NULL);
 
-		BrMatrix34Inverse(&v_to_m,&pick_model_to_view);
-
-		if(PickBoundsTestRay(
+		/* A failed fixed-point inverse leaves v_to_m unwritten. Do not
+		 * form a ray from that storage (notably after parallel Z scaling). */
+		if(BrMatrix34Inverse(&v_to_m,&pick_model_to_view) && PickBoundsTestRay(
 			ap->type_data,
 			(br_vector3*)v_to_m.m[3],
 			(br_vector3*)v_to_m.m[2],
@@ -255,7 +255,8 @@ int BR_PUBLIC_ENTRY BrScenePick2D(
  	 * Build view->world transform
 	 */
 	BrActorToRoot(camera, world, &camera_tfm);
-	BrMatrix34Inverse(&pick_model_to_view,&camera_tfm);
+	if(!BrMatrix34Inverse(&pick_model_to_view,&camera_tfm))
+		return 0;
 
 	/*
  	 * Build view to screen transform s.t. ray is along -ve Z axis
