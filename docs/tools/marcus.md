@@ -1127,8 +1127,11 @@ All three plane squares remain visible from the fixed movie camera and work
 camera, including during a drag. Narrow or edge-on squares expand around their
 projected centers to retain a minimum pickable thickness. Their hit regions
 match the displayed squares, and dragging uses the expanded geometry to avoid
-unstable ray/plane intersections. Invalid or out-of-range drag samples keep the
-last valid pose; releasing commits that pose.
+unstable ray/plane intersections. Finite coordinates stop at the +/-32700
+world-unit limits. Parallel or behind-camera drag intersections hold the last
+valid pose instead of reversing movement; dragging back resumes movement.
+Non-finite coordinates also retain the last valid value. Releasing commits the
+limited pose.
 The World Position X/Y/Z fields also support dragging, or Ctrl+click to type a precise
 coordinate. Escape cancels the current move, and losing window focus cancels it.
 The prop updates live; releasing the handle or finishing a field commits one

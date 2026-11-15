@@ -221,11 +221,12 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
     int result = gizmo->changed;
     if (gizmo->editing)
     {
-        // A rejected mouse sample must not reach the fixed-point player or
-        // discard the valid part of a drag. Releasing commits the last good pose.
-        if (!std::all_of(gizmo->value, gizmo->value + 3,
-                [](float value) { return std::isfinite(value) && std::abs(value) <= 32700.f; }))
-            std::copy(gizmo->applied, gizmo->applied + 3, gizmo->value);
+        // Saturate finite coordinates at the world limits. Overshooting must
+        // stop at the boundary instead of rejecting a whole axis/plane sample.
+        // Non-finite samples retain the last valid coordinate.
+        for (int axis = 0; axis < 3; ++axis)
+            gizmo->value[axis] = std::isfinite(gizmo->value[axis])
+                ? std::clamp(gizmo->value[axis], -32700.f, 32700.f) : gizmo->applied[axis];
         if (gizmo->cancel)
         {
             result = gizmo->Restore();

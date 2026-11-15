@@ -724,6 +724,7 @@ namespace IMGUIZMO_NAMESPACE
       vec_t mTranslationPlanOrigin;
       vec_t mMatrixOrigin;
       vec_t mTranslationLastDelta;
+      float mTranslationStartScreenFactor = 0.f;
       float mTranslationAxisMinimumSize = 0.f;
       float mTranslationPlaneMinimumSize = 0.f;
       bool mTranslationPlaneScreenDrag = false;
@@ -2484,12 +2485,18 @@ namespace IMGUIZMO_NAMESPACE
          else
          {
             const float signedLength = IntersectRayPlane(gContext.mRayOrigin, gContext.mRayVector, gContext.mTranslationPlan);
-            const float len = fabsf(signedLength); // near plan
-            const vec_t newPos = gContext.mRayOrigin + gContext.mRayVector * len;
-
-            // compute delta
-            const vec_t newOrigin = newPos - gContext.mRelativeOrigin * gContext.mScreenFactor;
-            delta = newOrigin - gContext.mModel.v.position;
+            delta = makeVect(0.f, 0.f, 0.f);
+            // Past the plane's vanishing line, the intersection lies behind the
+            // camera. Mirroring its distance makes an outward drag come back.
+            // Hold the last pose until the cursor returns to a forward ray.
+            if (signedLength >= 0.f && signedLength <= FLT_MAX)
+            {
+               const vec_t newPos = gContext.mRayOrigin + gContext.mRayVector * signedLength;
+               // Keep the initial mouse grab offset independent of the prop's
+               // changing projected scale as it moves towards/away from camera.
+               const vec_t newOrigin = newPos - gContext.mRelativeOrigin * gContext.mTranslationStartScreenFactor;
+               delta = newOrigin - gContext.mModel.v.position;
+            }
 
             // 1 axis constraint
             if (gContext.mCurrentHandleType >= MT_MOVE_X && gContext.mCurrentHandleType <= MT_MOVE_Z)
@@ -2572,6 +2579,7 @@ namespace IMGUIZMO_NAMESPACE
             gContext.mTranslationScreenDrag = type >= MT_MOVE_X && type <= MT_MOVE_Z &&
                TranslationAxisHandle(type - MT_MOVE_X, start, end, endOn);
             gContext.mMatrixOrigin = gContext.mModel.v.position;
+            gContext.mTranslationStartScreenFactor = gContext.mScreenFactor;
             ImVec2 corners[4];
             bool enlarged = false;
             gContext.mTranslationPlaneScreenDrag = type >= MT_MOVE_YZ && type <= MT_MOVE_XY &&

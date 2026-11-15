@@ -24,3 +24,9 @@ expanded planes capture their inverse screen basis at drag start so edge-on
 planes remain movable without parallel ray/plane intersections. The unrelated
 world coordinate remains fixed. The enabled axis and plane options also keep
 other handles visible during manipulation. Zero preserves upstream behavior.
+
+Translation ray/plane drags retain their initial grab-offset scale and reject
+parallel, non-finite or behind-camera intersections instead of taking the
+absolute ray distance. Crossing the plane's vanishing line holds the last pose
+until the cursor returns, preventing an outward drag from reversing direction.
+Marcus clamps finite placement coordinates at +/-32700 world units.
