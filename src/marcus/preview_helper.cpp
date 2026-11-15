@@ -38,7 +38,7 @@ bool FrameResponse(const BrowserPreview &preview)
     std::cout.flush();
     return bool(std::cout);
 }
-int FramePreviews(char **argv, const char *fonts, const char *origin)
+int FramePreviews(char **argv, const char *fonts, const char *origin, bool cameras)
 {
     try
     {
@@ -57,14 +57,15 @@ int FramePreviews(char **argv, const char *fonts, const char *origin)
             BrowserPreview preview;
             MarcusImage image = {};
             bool selected = true;
-            if (requestedScene != selectedScene)
+            if (!cameras && requestedScene != selectedScene)
             {
                 selected = marcus_select_scene(player.get(), requestedScene) != 0;
                 if (selected) selectedScene = requestedScene;
             }
             if (!selected || frame < (std::numeric_limits<long>::min)() || frame > (std::numeric_limits<long>::max)() ||
                 !marcus_seek(player.get(), static_cast<long>(frame)) ||
-                !marcus_render(player.get(), 160, 120, 1, 0, 0, 1, &image))
+                !(cameras ? requestedScene >= 0 && marcus_camera_thumbnail(player.get(), requestedScene, &image)
+                           : marcus_render(player.get(), 160, 120, 1, 0, 0, 1, &image)))
                 preview.error = marcus_error(player.get())[0] ? marcus_error(player.get()) : "Invalid preview frame.";
             else
             {
@@ -105,14 +106,15 @@ int main(int argc, char **argv)
 {
     const bool duration = (argc == 5 || argc == 6) && !std::strcmp(argv[3], "--duration");
     const bool timeline = (argc == 6 || argc == 8 || argc == 9 || argc == 10) && !std::strcmp(argv[3], "--timing");
-    const bool frames = (argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--frames");
+    const bool cameras = (argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--cameras");
+    const bool frames = cameras || ((argc == 6 || argc == 7 || argc == 8) && !std::strcmp(argv[3], "--frames"));
     const bool background = argc == 5 && !std::strcmp(argv[3], "--background");
     if (argc != 3 && !duration && !timeline && !frames && !background) return 2;
 #ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
     if (frames) _setmode(_fileno(stdin), _O_BINARY);
 #endif
-    if (frames) return FramePreviews(argv, argc >= 7 ? argv[6] : nullptr, argc == 8 ? argv[7] : nullptr);
+    if (frames) return FramePreviews(argv, argc >= 7 ? argv[6] : nullptr, argc == 8 ? argv[7] : nullptr, cameras);
     BrowserPreview preview;
     try
     {

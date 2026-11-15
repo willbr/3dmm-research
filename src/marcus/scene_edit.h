@@ -5,4 +5,6 @@
 // Writes only a newly reserved private file; the source movie is never modified.
 std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, unsigned long background, int ordinal);
+std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, unsigned long scene, long frame, unsigned long camera);
 #endif

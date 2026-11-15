@@ -15,8 +15,8 @@ void Require(bool value, const char *message)
     if (!value) throw std::runtime_error(message);
 }
 }
-std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, unsigned long background, int ordinal)
+static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin)
 {
     namespace fs = std::filesystem;
     auto result = std::make_shared<MarcusMovieFile>(fs::path{});
@@ -44,6 +44,12 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &
         fs::copy_file(source, result->path);
         fs::permissions(result->path, fs::perms::owner_write, fs::perm_options::add);
     }
+    return result;
+}
+std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, unsigned long background, int ordinal)
+{
+    auto result = WorkingCopy(source, std::move(origin));
     String path;
     Filename filename;
     path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
@@ -129,5 +135,55 @@ std::shared_ptr<MarcusMovieFile> MarcusAppendScene(const std::filesystem::path &
             scene.FCreate(file.get(), &number) && SceneData::FWriteEvents(file.get(), number, frames.get(), starts.get()) &&
             file->FAdoptChild(kctgMvie, root.cno, kctgScen, number, slot) && file->FSave(kctgSoc),
             "Cannot add the new scene to the movie.");
+    return result;
+}
+std::shared_ptr<MarcusMovieFile> MarcusSetSceneCamera(const std::filesystem::path &source,
+    std::shared_ptr<MarcusMovieFile> origin, unsigned long scene, long frame, unsigned long camera)
+{
+    auto result = WorkingCopy(source, std::move(origin));
+    String path;
+    Filename filename;
+    path.SetSzs(const_cast<char *>(result->path.u8string().c_str()));
+    Require(filename.FBuildFromPath(&path), "The movie working path is not supported.");
+    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    Require(bool(file), "Cannot open the movie working file.");
+    ChildChunkIdentification child;
+    DataBlock block;
+    Require(file->FGetKidChidCtg(kctgScen, scene, 0, kctgFrmGg, &child) &&
+            file->FFind(kctgFrmGg, child.cki.cno, &block), "Cannot read scene camera events.");
+    short order;
+    std::unique_ptr<GeneralGroup, Release> frames(SceneData::PggReadEvents(&block, &order, false));
+    Require(bool(frames), "The scene frame events are invalid.");
+    // Preserve all other events and their payload byte order, including opaque
+    // sound records. Replace every camera change at this frame with one choice.
+    for (LegacyLong index = frames->IvMac(); index-- > 0;)
+    {
+        SceneEvent event;
+        frames->GetFixed(index, &event);
+        if (order == kboOther) SwapBytesBom(&event, kbomSev);
+        if (event.nfrm == frame && event.sevt == sevtChngCamera) frames->Delete(index);
+    }
+    LegacyLong insertion = frames->IvMac();
+    for (LegacyLong index = 0; index < frames->IvMac(); ++index)
+    {
+        SceneEvent event;
+        frames->GetFixed(index, &event);
+        if (order == kboOther) SwapBytesBom(&event, kbomSev);
+        if (event.nfrm > frame) { insertion = index; break; }
+    }
+    SceneEvent event = {static_cast<int32_t>(frame), sevtChngCamera};
+    std::uint32_t value = static_cast<std::uint32_t>(camera);
+    if (order == kboOther) { SwapBytesBom(&event, kbomSev); SwapBytesRglw(&value, 1); }
+    ChunkNumber number;
+    Require(frames->FInsert(insertion, sizeof(value), &value, &event) &&
+            file->FAdd(frames->CbOnFile(), kctgFrmGg, &number, &block) && frames->FWrite(&block, order),
+            "Cannot write the scene camera change.");
+    file->DeleteChild(kctgScen, scene, kctgFrmGg, child.cki.cno, 0);
+    Require(file->FAdoptChild(kctgScen, scene, kctgFrmGg, number, 0), "Cannot link the scene camera change.");
+    SceneData metadata;
+    Require(metadata.FRead(file.get(), scene), "Cannot read scene metadata.");
+    if (frame == metadata.firstFrame && file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))
+        file->DeleteChild(kctgScen, scene, kctgThumbMbmp, child.cki.cno, 0);
+    Require(file->FSave(kctgSoc), "Cannot save the scene camera working copy.");
     return result;
 }

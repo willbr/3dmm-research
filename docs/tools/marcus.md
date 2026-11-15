@@ -130,6 +130,18 @@ Resource/Content reloads retain the added scenes. An **UNSAVED** indicator marks
 the working movie. Saving/export and other scene editing tools are not implemented
 yet; opening another movie, New movie or exiting discards these scene additions.
 
+**Scenes > Camera angles** shows a grid of rendered thumbnails for the current
+background's authored cameras, including actors and captions at the current frame.
+Use the arrows, page buttons or wheel to browse. **Use angle**, Enter or
+double-click applies the selected angle at that frame; Escape/Cancel leaves the
+movie unchanged. Selecting the current angle also leaves it unchanged. Thumbnail
+rendering uses the isolated preview helper and does not alter the live camera.
+
+Camera choices are authored changes in the same private working copy as new
+scenes. A choice replaces any camera changes at that exact frame and lasts until
+the next authored camera change. Other frame events and later camera cuts are
+retained. The movie is marked **UNSAVED**; saving/export is still unavailable.
+
 The movie browser's bottom-right actions use scalable 3DMM-style buttons: a red
 X for Cancel and green OK for Open, on beveled dark-blue faces. Enter/Escape
 retain their open/cancel actions, with hover, pressed and disabled feedback.

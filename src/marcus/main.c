@@ -6,6 +6,7 @@
 #include "scene_organiser.h"
 #include "background_browser.h"
 #include "ribbon.h"
+#include "camera_picker.h"
 #include <SDL3/SDL_main.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,6 +96,7 @@ typedef struct App
     MarcusBrowser *browser;
     MarcusSceneOrganiser *scene_organiser;
     MarcusBackgroundBrowser *background_browser;
+    MarcusCameraPicker *camera_picker;
     int ribbon_tab, modified;
     MarcusMovieInput *movie_input, *zip_input;
     int movie_entry, zip_selected, zip_scroll;
@@ -928,6 +930,17 @@ static void choose_background(App *app)
     if (!background_browser_show(app->background_browser, app->player, app->resources, app->content))
         fail(app, marcus_error(app->player)[0] ? marcus_error(app->player) : "No backgrounds found. Choose your original 3DMM Content folder.");
 }
+static void choose_camera_angle(App *app)
+{
+    if (!app->loaded || !app->info.camera_count) return;
+    finish_movie_scrub(app);
+    app->playing = 0;
+    release_camera(app);
+    app->sheet_menu = app->orbit_menu = 0;
+    scene_organiser_close(app->scene_organiser);
+    if (!camera_picker_show(app->camera_picker, app->player))
+        fail(app, "Cannot open the camera angle chooser.");
+}
 static void toggle_play(App *app)
 {
     if (!app->loaded)
@@ -1545,6 +1558,7 @@ static void ribbon_action(App *app, int action)
     else if (action == RIBBON_CONTENT) choose_file(app, 2);
     else if (action == RIBBON_SETTINGS) open_settings(app);
     else if (action == RIBBON_NEW_SCENE) choose_background(app);
+    else if (action == RIBBON_CAMERAS) choose_camera_angle(app);
     else if (action == RIBBON_SCENES || action == RIBBON_FRAMES)
     {
         app->playing = 0;
@@ -1769,7 +1783,7 @@ static void mouse_down(App *app, float x, float y, int button)
     if (button != SDL_BUTTON_LEFT || app->flying || app->orbiting || app->panning)
         return;
     if (y < MARCUS_RIBBON_HEIGHT)
-        ribbon_action(app, ribbon_hit(x, y, app->width, &app->ribbon_tab, app->loaded));
+        ribbon_action(app, ribbon_hit(x, y, app->width, &app->ribbon_tab, app->loaded, app->info.camera_count));
     else if (ui_inside(x, y, LOOP_X, app->timeline_y + SCENE_NAV_Y, 60, UI_NAVIGATION_HEIGHT))
     {
         app->muted = !app->muted;
@@ -2064,6 +2078,14 @@ static void handle_event(App *app, const SDL_Event *event)
     SDL_Keymod modifiers;
     if (event->type == SDL_EVENT_QUIT)
         app->running = 0;
+    else if (!app->error[0] && camera_picker_event(app->camera_picker, event, app->width, app->height))
+    {
+        if (event->type == SDL_EVENT_MOUSE_MOTION)
+        {
+            app->ui.mouse_x = event->motion.x;
+            app->ui.mouse_y = event->motion.y;
+        }
+    }
     else if (!app->error[0] && background_browser_event(app->background_browser, event, app->width, app->height))
     {
         if (event->type == SDL_EVENT_MOUSE_MOTION)
@@ -2372,7 +2394,8 @@ static void draw_header(App *app)
     if (slash) name = slash + 1;
     slash = strrchr(name, '\\');
     if (slash) name = slash + 1;
-    ribbon_draw(&app->ui, app->width, app->ribbon_tab, name, app->loaded, app->modified, app->muted);
+    ribbon_draw(&app->ui, app->width, app->ribbon_tab, name, app->loaded, app->modified, app->muted,
+                app->info.camera_count);
 }
 static int update_picture(App *app, SDL_Texture **texture, const MarcusImage *image)
 {
@@ -3825,6 +3848,7 @@ static void draw(App *app)
     scene_organiser_draw(app->scene_organiser, &app->ui, app->width, app->height);
     browser_draw(app->browser, &app->ui, app->width, app->height);
     background_browser_draw(app->background_browser, &app->ui, app->width, app->height);
+    camera_picker_draw(app->camera_picker, &app->ui, app->width, app->height);
     if (app->error[0])
         draw_error(app);
 }
@@ -4095,6 +4119,12 @@ int main(int argc, char **argv)
         result = 1;
         goto cleanup;
     }
+    app.camera_picker = camera_picker_create();
+    if (!app.camera_picker)
+    {
+        result = 1;
+        goto cleanup;
+    }
     app.dialog_event = SDL_RegisterEvents(1);
     layout(&app);
     reset_view(&app);
@@ -4176,6 +4206,23 @@ int main(int argc, char **argv)
                 }
             }
         }
+        {
+            unsigned long camera;
+            if (camera_picker_take(app.camera_picker, &camera))
+            {
+                scene_organiser_close(app.scene_organiser);
+                if (!marcus_set_scene_camera(app.player, camera)) fail(&app, marcus_error(app.player));
+                else
+                {
+                    app.modified = 1;
+                    app.selected = app.selected_sound = app.selected_sound_track = -1;
+                    view_mode(&app, 1);
+                    SDL_SetWindowTitle(app.window, app.movie[0] ? "Marcus - Movie (unsaved changes)" : "Marcus - Untitled movie (unsaved)");
+                }
+                refresh(&app);
+                reset_view(&app);
+            }
+        }
         i = scene_organiser_take(app.scene_organiser);
         if (i >= 0)
             select_scene(&app, i);
@@ -4252,6 +4299,7 @@ cleanup:
         fprintf(stderr, "Marcus: %s\n", SDL_GetError());
     browser_destroy(app.browser);
     background_browser_destroy(app.background_browser);
+    camera_picker_destroy(app.camera_picker);
     scene_organiser_destroy(app.scene_organiser);
     ui_destroy(&app.ui);
     SDL_DestroyTexture(app.picture);

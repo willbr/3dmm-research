@@ -10,6 +10,7 @@ static const RibbonTool scene_tools[] = {
     {RIBBON_NEW_SCENE, 0, "New scene", "Choose a background and add a new scene", 0x78cbc4},
     {RIBBON_SCENES, 1, "Scenes", "Browse the movie's scenes", 0xe9bc75},
     {RIBBON_FRAMES, 1, "Frames", "Browse scene frames", 0x96aee6},
+    {RIBBON_CAMERAS, 9, "Camera angles", "Choose a camera angle at this frame", 0xe9bc75},
     {RIBBON_PREVIOUS, 2, "Previous", "Go to the previous scene", 0xaeb6c0},
     {RIBBON_NEXT, 3, "Next", "Go to the next scene", 0xaeb6c0}};
 static const RibbonTool actor_tools[] = {
@@ -101,6 +102,18 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
         ui_fill(ui, x + 23, y + 12, 4, 9, colour);
         ui_fill(ui, x + 16, y + 21, 4, 9, colour);
     }
+    else if (kind == 9)
+    {
+        ui_fill(ui, x + 5, y + 1, 10, 8, colour);
+        ui_fill(ui, x + 20, y + 1, 10, 8, colour);
+        ui_fill(ui, x + 5, y + 11, 24, 16, colour);
+        ui_fill(ui, x + 8, y + 14, 18, 10, 0x25282d);
+        ui_line(ui, x + 29, y + 15, x + 36, y + 11, colour);
+        ui_line(ui, x + 36, y + 11, x + 36, y + 27, colour);
+        ui_line(ui, x + 36, y + 27, x + 29, y + 23, colour);
+        ui_line(ui, x + 17, y + 27, x + 11, y + 33, colour);
+        ui_line(ui, x + 17, y + 27, x + 23, y + 33, colour);
+    }
     else
     {
         ui_fill(ui, x + 2, y + 2, 32, 30, colour);
@@ -108,7 +121,8 @@ static void icon(MarcusUI *ui, float x, float y, int kind, unsigned long colour)
         ui_heading(ui, x + 8, y + 10, "Aa", colour);
     }
 }
-void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded, int modified, int muted)
+void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded, int modified, int muted,
+                 unsigned long cameras)
 {
     static const char *tabs[] = {"SCENES", "ACTORS & PROPS", "SOUNDS", "WORDS"};
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
@@ -138,13 +152,13 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
     for (index = 0; index < count; ++index)
     {
         x = 16 + index * 104.0f;
-        enabled = loaded || tools[index].action == RIBBON_NEW_SCENE;
+        enabled = (loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE;
         hovered = enabled && ui_inside(ui->mouse_x, ui->mouse_y, x, 78, 96, 58);
         active = tools[index].action == RIBBON_MUTE && muted;
         if (hovered || active) ui_fill(ui, x, 78, 96, 58, active ? 0x375e64 : 0x3d4650);
         colour = enabled ? tools[index].colour : 0x59616c;
         icon(ui, x + 29, 79, tools[index].icon, colour);
-        ui_label(ui, x + 7, 117, 86, tools[index].label, enabled ? 0xdde0e5 : 0x737b86);
+        ui_label(ui, x + 4, 117, 92, tools[index].label, enabled ? 0xdde0e5 : 0x737b86);
         if (hovered) ui->hint = tools[index].hint;
     }
     ui_line(ui, (float)width - 254, 82, (float)width - 254, 131, 0x424952);
@@ -153,7 +167,7 @@ void ribbon_draw(MarcusUI *ui, int width, int tab, const char *name, int loaded,
     ui_text(ui, (float)width - 238, 120, "Original 3DMM content", 0x969da8);
     ui_line(ui, 0, MARCUS_RIBBON_HEIGHT, (float)width, MARCUS_RIBBON_HEIGHT, 0x424952);
 }
-int ribbon_hit(float x, float y, int width, int *tab, int loaded)
+int ribbon_hit(float x, float y, int width, int *tab, int loaded, unsigned long cameras)
 {
     static const float tab_x[] = {16, 148, 336, 468}, tab_w[] = {124, 180, 124, 124};
     const RibbonTool *tools;
@@ -167,7 +181,8 @@ int ribbon_hit(float x, float y, int width, int *tab, int loaded)
         if (ui_inside(x, y, tab_x[index], 40, tab_w[index], 30)) { *tab = index; return RIBBON_NONE; }
     tools = tools_for(*tab, &count);
     for (index = 0; index < count; ++index)
-        if ((loaded || tools[index].action == RIBBON_NEW_SCENE) && ui_inside(x, y, 16 + index * 104.0f, 78, 96, 58))
+        if (((loaded && (tools[index].action != RIBBON_CAMERAS || cameras > 0)) || tools[index].action == RIBBON_NEW_SCENE) &&
+            ui_inside(x, y, 16 + index * 104.0f, 78, 96, 58))
             return tools[index].action;
     return RIBBON_NONE;
 }

@@ -176,6 +176,47 @@ int main(int argc, char **argv)
         }
         check(editedReady, "Edited scene preview completes after reopening");
         previews.reset();
+        check(marcus_seek(player.get(), 10), "Choose the camera preview frame");
+        std::array<Expected, 2> angles;
+        for (int angle = 0; angle < 2; ++angle)
+        {
+            check(marcus_camera_thumbnail(player.get(), angle, &image), "Camera thumbnail reference");
+            int left = image.width, top = image.height, right = 0, bottom = 0;
+            for (int y = 0; y < image.height; ++y)
+                for (int x = 0; x < image.width; ++x)
+                    if (image.rgba[y * image.pitch + x * 4 + 3])
+                    { left = std::min(left, x); top = std::min(top, y); right = std::max(right, x + 1); bottom = std::max(bottom, y + 1); }
+            angles[angle].width = right - left; angles[angle].height = bottom - top;
+            for (int y = top; y < bottom; ++y)
+            {
+                const auto row = image.rgba + y * image.pitch + left * 4;
+                angles[angle].pixels.insert(angles[angle].pixels.end(), row, row + angles[angle].width * 4);
+            }
+        }
+        check(angles[0].pixels != angles[1].pixels, "Camera angles must differ");
+        previews.reset(marcus_camera_previews_create(player.get()));
+        check(bool(previews), "Start camera preview helper");
+        const MarcusFramePosition cameraRequests[] = {{0, 10}, {1, 10}};
+        marcus_frame_previews_request_positions(previews.get(), cameraRequests, 2);
+        std::array<bool, 2> cameraReceived = {};
+        int cameraCount = 0;
+        const auto cameraDeadline = SDL_GetTicks() + 30000;
+        while (cameraCount < 2 && SDL_GetTicks() < cameraDeadline)
+        {
+            const auto status = marcus_frame_previews_take(previews.get(), &image, error, sizeof(error));
+            if (status < 0) throw std::runtime_error(error);
+            if (!status) { SDL_Delay(5); continue; }
+            check(image.scene >= 0 && image.scene < 2 && image.frame == 10 && !cameraReceived[image.scene], "Camera preview identity");
+            const auto &reference = angles[image.scene];
+            check(image.width == reference.width && image.height == reference.height && reference.pixels ==
+                  std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height), "Camera helper pixels");
+            cameraReceived[image.scene] = true; ++cameraCount;
+            MarcusInfo info = {};
+            check(marcus_info(player.get(), &info) && info.scene == 0 && info.frame == 10 && info.camera == 0,
+                  "Camera chooser leaves live scene, frame and camera unchanged");
+        }
+        check(cameraCount == 2, "Camera preview completion");
+        previews.reset();
         puts("Frame previews: authored pixels, scene isolation, live image and ZIP leases, errors and cancellation passed.");
         return 0;
     }

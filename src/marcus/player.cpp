@@ -519,6 +519,59 @@ extern "C"
             return true;
         });
     }
+    int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            if (player->selected < 0 || camera >= player->preview.Info().cameraCount)
+            { error.message = "Camera angle is out of range."; return false; }
+            const auto scene = player->selected;
+            const auto frame = player->preview.Info().currentFrame;
+            auto file = MarcusSetSceneCamera(player->content->movie, player->timingInput,
+                player->scenes[scene].number, frame, camera);
+            MarcusMovieInput input;
+            input.Open(file->path.u8string());
+            auto materialized = input.Materialize(0);
+            materialized->origin = file;
+            materialized->contentOrigin = file->contentOrigin;
+            materialized->fonts = file->fonts;
+            materialized->fontFiles = file->fontFiles;
+            materialized->fontDirectory = file->fontDirectory;
+            input.prepared = materialized;
+            const auto resources = player->timingResources, directory = player->timingContent;
+            if (!marcus_open_input(player, &input, 0, resources.c_str(), directory.c_str()) ||
+                !marcus_select_scene(player, scene) || !marcus_seek(player, frame))
+            { error.message = player->error; return false; }
+            return true;
+        });
+    }
+    int marcus_camera_thumbnail(MarcusPlayer *player, unsigned long camera, MarcusImage *image)
+    {
+        if (image) *image = {};
+        return Guard(player, [&](MM::Error &error) {
+            if (!image || player->selected < 0 || camera >= player->preview.Info().cameraCount) return false;
+            const auto previous = player->preview.Info().currentCamera;
+            struct Restore
+            {
+                MM::Preview &preview;
+                std::uint32_t camera;
+                ~Restore() { MM::Error ignored; preview.SetCamera(camera, ignored); }
+            } restore{player->preview, previous};
+            if (!player->preview.SetCamera(camera, error)) return false;
+            MM::PreviewView view;
+            view.width = 160; view.height = 120;
+            view.renderAtOutputResolution = true;
+            if (!player->preview.Render(view, player->thumbnail, error) ||
+                !player->playback.Composite(player->preview, true, player->thumbnail, error)) return false;
+            image->width = player->thumbnail.width;
+            image->height = player->thumbnail.height;
+            image->pitch = image->width * 4;
+            image->rgba = player->thumbnail.rgba.data();
+            image->scene_camera = CopyProjection(player->thumbnail.sceneCamera);
+            image->scene = player->selected;
+            image->frame = player->preview.Info().currentFrame;
+            return true;
+        });
+    }
     int marcus_background_count(MarcusPlayer *player, const char *directory)
     {
         const bool ok = Guard(player, [&](MM::Error &error) {
@@ -735,6 +788,17 @@ extern "C"
             if (!player->timingInput || player->selected < 0) return false;
             result = new MarcusFramePreviews(player->timingInput, player->timingResources,
                                              player->timingContent, player->selected);
+            return true;
+        });
+        return result;
+    }
+    MarcusFramePreviews *marcus_camera_previews_create(MarcusPlayer *player)
+    {
+        MarcusFramePreviews *result = nullptr;
+        Guard(player, [&](MM::Error &) {
+            if (!player->timingInput || player->selected < 0) return false;
+            result = new MarcusFramePreviews(player->timingInput, player->timingResources,
+                                             player->timingContent, player->selected, true);
             return true;
         });
         return result;

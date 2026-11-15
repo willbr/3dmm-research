@@ -24,7 +24,8 @@ struct MarcusFramePreviews
     std::string failure;
     Result output;
     std::thread thread;
-    MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content, int scene);
+    MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content, int scene,
+                        bool cameras = false);
     ~MarcusFramePreviews();
 };
 #endif

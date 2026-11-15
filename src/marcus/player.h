@@ -235,6 +235,14 @@ extern "C"
      * movie is overwritten. Also creates the first scene of an empty player. */
     int marcus_add_scene(MarcusPlayer *player, unsigned long background, const char *resources, const char *content_directory);
     int marcus_reload(MarcusPlayer *player, const char *resources, const char *content_directory);
+    /* Author a camera change at the current scene frame in a private copy.
+     * Later authored camera changes are retained. Camera indices are zero-based. */
+    int marcus_set_scene_camera(MarcusPlayer *player, unsigned long camera);
+    /* Camera thumbnails leave the live scene/frame/camera and rendered view intact. */
+    int marcus_camera_thumbnail(MarcusPlayer *player, unsigned long camera, MarcusImage *image);
+    /* Use frame_previews_request_positions with scene = camera index, frame =
+     * preview frame. Returned image.scene identifies the requested camera. */
+    MarcusFramePreviews *marcus_camera_previews_create(MarcusPlayer *player);
     /* Listing never extracts a movie. A single entry opens automatically via
      * marcus_open; multi-movie ZIPs require an explicit zero-based selection.
      * The loaded player retains the extracted file after input is destroyed. */

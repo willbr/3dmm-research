@@ -464,6 +464,36 @@ int main(int argc, char **argv)
     CHECK(marcus_info(player, &info) && info.scene_count == 1 && info.frame == 1 && info.object_count == 0);
     CHECK(marcus_render(player, 480, 270, 1, 0, 0, 1, &image) && image.rgba);
     CHECK(marcus_movie_time(player, &movie_time) && fabs(movie_time.duration_seconds - 1.0 / 6) < 1e-6);
+    /* Camera thumbnails are isolated from the live render. Authored camera
+     * changes replace same-frame choices and preserve later cuts. */
+    CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(marcus_info(player, &info) && info.camera == 0 && info.camera_count >= 2);
+    CHECK(marcus_render(player, 160, 120, 1, 0, 0, 1, &image));
+    free(pixels);
+    bytes = (size_t)image.pitch * image.height;
+    pixels = (unsigned char *)malloc(bytes);
+    CHECK(pixels);
+    memcpy(pixels, image.rgba, bytes);
+    CHECK(marcus_camera_thumbnail(player, 1, &thumbnail) && thumbnail.width == 160 && thumbnail.rgba);
+    CHECK(marcus_info(player, &info) && info.frame == 10 && info.camera == 0);
+    CHECK(!memcmp(pixels, image.rgba, bytes));
+    CHECK(!marcus_set_scene_camera(player, info.camera_count));
+    CHECK(marcus_info(player, &info) && info.frame == 10 && info.camera == 0);
+    CHECK(marcus_set_scene_camera(player, 1));
+    CHECK(marcus_info(player, &info) && info.scene == 0 && info.frame == 10 && info.camera == 1);
+    CHECK(marcus_scene_thumbnail(player, 0, &thumbnail) && thumbnail.rgba); /* First frame is unchanged. */
+    CHECK(marcus_reload(player, argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(marcus_info(player, &info) && info.camera == 1);
+    CHECK(marcus_seek(player, 9) && marcus_info(player, &info) && info.camera == 0);
+    CHECK(marcus_seek(player, 10) && marcus_set_scene_camera(player, 0));
+    CHECK(marcus_seek(player, 14) && marcus_info(player, &info) && info.camera == 0);
+    CHECK(marcus_seek(player, 15) && marcus_info(player, &info) && info.camera == 1);
+    CHECK(marcus_seek(player, 1) && marcus_set_scene_camera(player, 1));
+    CHECK(marcus_scene_thumbnail(player, 0, &thumbnail) && !thumbnail.rgba); /* Stale saved preview removed. */
+    CHECK(marcus_select_scene(player, 1) && marcus_select_scene(player, 0));
+    CHECK(marcus_info(player, &info) && info.camera == 1);
+    CHECK(marcus_open(player, argv[1], argv[2], argv[3]) && marcus_seek(player, 10));
+    CHECK(marcus_info(player, &info) && info.camera == 0);
     marcus_destroy(player);
     free(pixels);
     puts("Marcus C API: scenes, actor/prop metadata, viewport picking, evaluated motion, image rewind, invalid input "

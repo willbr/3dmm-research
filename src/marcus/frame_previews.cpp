@@ -31,7 +31,7 @@ void ReadExact(SDL_IOStream *stream, void *data, std::size_t size, const std::at
 }
 }
 MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources,
-                                       std::string content, int scene)
+                                       std::string content, int scene, bool cameras)
     : sourceScene(scene)
 {
     const auto base = SDL_GetBasePath();
@@ -41,7 +41,7 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
 #endif
         : std::string();
     thread = std::thread([this, movie = std::move(movie), resources = std::move(resources),
-                          content = std::move(content), scene, executable] {
+                          content = std::move(content), scene, cameras, executable] {
         SDL_Process *process = nullptr;
         try
         {
@@ -49,7 +49,7 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
             const auto path = movie->path.u8string(), sceneText = std::to_string(scene);
             const auto fonts = movie->fontDirectory.u8string();
             const auto origin = movie->contentOrigin.u8string();
-            const char *args[] = {executable.c_str(), path.c_str(), resources.c_str(), "--frames", content.c_str(),
+            const char *args[] = {executable.c_str(), path.c_str(), resources.c_str(), cameras ? "--cameras" : "--frames", content.c_str(),
                                   sceneText.c_str(), fonts.c_str(), origin.c_str(), nullptr};
             const auto properties = SDL_CreateProperties();
             SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
