@@ -1,4 +1,8 @@
 file(MAKE_DIRECTORY "${TEST_DIR}")
+execute_process(COMMAND "${MEDIA_EXE}" "${TEST_DIR}/media.3cn" RESULT_VARIABLE result TIMEOUT 90)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "Caption/audio loader checks failed: ${result}")
+endif()
 set(inputs "${MAIN_CHK}" "${CONTENT_DIR}/tmpls.3cn" "${CONTENT_DIR}/bkgds.3cn" "${CONTENT_DIR}/tdfs.3cn" "${CONTENT_DIR}/mtrls.3cn")
 foreach(input IN LISTS inputs)
   file(SHA256 "${input}" before)

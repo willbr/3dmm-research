@@ -19,6 +19,7 @@
 #include "mm/preview_live.h"
 #include "mm/preview_admission.h"
 #include "mm/preview_session.h"
+#include "mm/preview_media.h"
 #include "mm/scene_data.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
@@ -76,6 +77,7 @@ struct Preview::Impl
     struct LiveHost;
     struct AdmissionHost;
     struct SessionHost;
+    struct SoundHost;
     struct Source
     {
         Archive archive;
@@ -200,6 +202,7 @@ struct Preview::Impl
 #include "preview_live_host.h"
 #include "preview_admission_host.h"
 #include "preview_session_host.h"
+#include "preview_sound_host.h"
 Preview::Preview() : _impl(new Impl)
 {
 }
@@ -496,39 +499,19 @@ bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &
 try
 {
     error = {};
-    audio = {};
-    if (cue.silent)
-    {
-        audio.silent = true;
-        return true;
-    }
-    if (!_impl->ready)
+    Impl::SoundHost host = {_impl.get(), &audio};
+    auto services = host.Services();
+    const auto input = Internal::PreviewCueCore(cue);
+    MMU32 number;
+    const int result = mm_preview_sound(&input, _impl->ready, _impl->info.asset.number, &number, &services);
+    if (host.exception) std::rethrow_exception(host.exception);
+    if (result > 0) return true;
+    if (result == MM_PREVIEW_SOUND_NOT_READY)
         return Fail(error, ErrorCode::invalid_argument, "Select a scene before reading its sounds.");
-    TAGOnFile tag = {cue.source, 0, cue.sound.type, cue.sound.number};
-    if (cue.source == 0)
-    {
-        auto file = _impl->cache->Pcfl();
-        ChildChunkIdentification child;
-        const auto scene = cue.scene.type == kctgScen ? cue.scene.number : _impl->info.asset.number;
-        if (file->FGetKidChidCtg(kctgScen, scene, cue.child, kctgMsnd, &child))
-            tag.cno = child.cki.cno;
-        else
-            for (const auto &chunk : _impl->assets.Chunks())
-                if (chunk.id.type == kctgMvie &&
-                    file->FGetKidChidCtg(kctgMvie, chunk.id.number, cue.child, kctgMsnd, &child))
-                {
-                    tag.cno = child.cki.cno;
-                    break;
-                }
-    }
-    auto source = _impl->Resolve(tag);
-    if (!source)
+    if (result == MM_PREVIEW_SOUND_MISSING)
         return Fail(error, ErrorCode::decode_failed, _impl->resolveError.c_str());
-    if (!Internal::ReadAudio(source->Pcfl(), tag.ctg, tag.cno, audio))
-        return Fail(error, ErrorCode::decode_failed,
-                    ("Cannot decode sound " + Identity({tag.ctg, tag.cno}) + ".").c_str());
-    audio.source = cue.source;
-    return true;
+    return Fail(error, ErrorCode::decode_failed,
+                ("Cannot decode sound " + Identity({cue.sound.type, number}) + ".").c_str());
 }
 catch (const std::bad_alloc &)
 {

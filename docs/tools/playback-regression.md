@@ -9157,3 +9157,69 @@ and `tmp/c89-preview-metadata-identities.json`. The five metadata input document
 and their generation logs are retained as `tmp/c89-preview-metadata-{batch,events,audio,actor-audio,text-acid}.3mm`
 and matching `*-fixture.log` files. Prior original traces remain at the evidence
 paths recorded above.
+
+### Preview caption and audio loader control (15 November 2026)
+
+`preview_media.c` now controls caption input/scratch ownership, text limits and
+UTF-16 conversion sequencing, property positions/byte order, font-argument
+admission and stable ordering. Native services retain rich-text/text-box
+persistence, serialized font-name decoding, display conversion and output storage.
+The C controller releases scratch before its input owner on all exits. Completed
+output prefixes remain observable on failure; native exceptions rethrow after
+cleanup. Caption scratch exhaustion keeps allocation-exception classification.
+Property sorting preserves ties and formatted font names, with a bounded-recursion
+stable in-place merge when either sort scratch allocation fails.
+
+Audio loading now controls the single MSND envelope, byte-order/invalid checks,
+silent success for invalid/missing children, 64 MiB payload limit and raw wave
+publication in C. It reads MIDI into C-owned bytes and uses the shared C parser
+directly, removing Preview's native MidiStream/parser/HQ dependency. Empty MIDI
+and malformed tails retain parser-exhaustion success. The million-channel-event
+and 24-hour budgets precede channel filtering; exactly 24 hours is accepted.
+MIDI scratch exhaustion retains the former payload factory's decode-failure
+classification. Device/codec policy is unchanged.
+
+Public sound lookup also uses C control. Silent cues bypass readiness/source
+publication; imported-scene children precede the first matching movie child.
+Failed child lookups leave the requested sound number intact, and source identity
+publishes only after successful decoding. A typed null-cache guard handles ready
+sessions without a backing archive by reporting the missing source.
+
+Before conversion, native Debug, SDL Release and SDL Debug recorded identical
+1,275-byte media traces, FNV-1a `1B3D6107`, SHA-256
+`40046FD25856E960E30A610CAB007C2F80BCF329F08002C88363055FC7155C4B`.
+The new headless fixture freezes native/foreign/invalid/missing-child MSND,
+wrong marker/size, raw wave bytes, MIDI running/system/tempo records, empty and
+malformed tails, time boundaries, ANSI/UTF-16 captions, foreign properties,
+font arguments and partial failure output. The regular asset-preview harness
+runs this fixture as well as the existing five-document metadata probe.
+
+All twenty-four original/converted media/metadata/session/admission/live/camera/
+picking/rendering trace pairs match across the three builds. Prior hashes remain
+unchanged. The background check retains 301,996,032 bytes/FNV-1a `E1A71005` across
+12 backgrounds and 188 cameras per build. All 117 standalone C checks including
+strict C89 syntax, fifteen selected native checks, eleven SDL release and eleven
+SDL debug checks pass. MSVC AddressSanitizer passes. C-only failure checks cover
+every fallible caption/audio effect, scratch exhaustion and release order,
+conversion/publication prefixes, property byte order/arguments, stable sorting
+with full/partial/no scratch for counts zero through 64, MIDI event/time limits,
+silent/readiness gates, scene/movie remapping and successful-source publication.
+Input identities are unchanged. Studio and Marcus were rebuilt; Marcus was
+stopped before rebuilding and relaunched afterward. The expanded regular
+asset-preview harness passes headlessly in the native build, including fresh
+document generation and input-hash checks. No Marcus UI tests were added.
+
+This is Windows x64 evidence within these fixtures, not complete retail editing
+or allocator equivalence. Input/scratch storage changes allocation attempt
+ordinals. Retained retail captures remain the playback reference; no redundant
+capture campaign was launched. Rich-text/text-box persistence, label/font/numeric
+formatting, name-cache/output/cue representations, physical providers and final
+C-only host/facade integration remain work. Other platforms remain unverified here.
+
+Evidence: `tmp/c89-preview-media-{baseline,final}-{native,sdl-release,sdl-debug}.{bin,log}`,
+`tmp/c89-preview-media-{metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-preview-media-{native,sdl-release,sdl-debug,standalone}-tests.log`,
+`tmp/c89-preview-media-asan.log`, `tmp/c89-preview-media-trace-comparison.json`,
+`tmp/c89-preview-media-regular-tests.log` and `tmp/c89-preview-media-identities.json`.
+The media fixture creates `tmp/c89-preview-media-{native,sdl-release,sdl-debug}.3cn`;
+the ten retained metadata/scene/content inputs have the identities recorded above.

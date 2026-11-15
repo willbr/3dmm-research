@@ -1507,8 +1507,8 @@ framing preservation, errors and rendered output against all three original host
 C fault checks cover every fallible open/add stage, palette byte order/admission,
 lease transfer/rejection, release order, registry storage exhaustion and retry.
 Native resource/track/archive/path representations, asset-cleanup primitives,
-caption/audio decoding, display/output representations and final C-only host/facade
-removal remain dependencies. Metadata control is covered below.
+rich-text/text-box persistence, display/output representations and final C-only
+host/facade removal remain dependencies. Metadata and media control are covered below.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Preview timeline replay and presentation cue traversal
@@ -1517,7 +1517,7 @@ Evidence and platform limits are in `docs/tools/playback-regression.md`.
 span splitting, replay/output budgets, scene presentation group traversal, actor and
 scene sound-cue mapping, pause validation and stable cue ordering. Typed native
 services supply validated group/header reads, cloned track storage, shared actor
-effects, caption decoding, display labels/font names/numeric formatting and public
+effects, caption storage, display labels/font names/numeric formatting and public
 output containers. Native code no longer has a second timeline or scene-cue evaluator.
 
 Timeline extraction uses the same C frame/step/effect evaluators as live playback,
@@ -1545,9 +1545,45 @@ isolation across batch, event, scene-audio, actor-audio and text-acid documents.
 The regular asset-preview harness generates and verifies all five documents. C-only
 fault checks cover clone/group ownership, partial output, budgets, extreme frames,
 live isolation and sort stability with/without scratch for counts zero through 64.
-Caption/audio loaders, display formatting/name-cache and output/cue representations,
-physical providers and final C-only host/facade integration remain dependencies.
+Caption/audio loader control is covered below. Display formatting/name-cache and
+output/cue representations, physical providers and final C-only host/facade
+integration remain dependencies.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
+
+### Preview caption and audio loader control
+
+`preview_media.c` owns caption input/scratch lifetime, text limits and conversion
+sequencing, UTF-16 property validation, font-argument admission and stable property
+ordering. Typed native services supply rich-text/text-box persistence, serialized
+font-name decoding, UTF-16 conversion and public descriptor storage. The C controller
+releases scratch before the input owner on every exit, then the facade rethrows
+native exceptions. Failures retain completed output prefixes. Sort scratch failure
+uses a stable in-place merge with bounded recursion; successful sorting moves each
+property together with its formatted font name.
+
+Audio loading admits one MSND envelope, validates its byte-order marker and invalid
+flag, treats invalid/missing children as silent success, and caps decoded payloads
+at 64 MiB. MIDI uses C-owned bytes and the shared C parser directly, removing the
+Preview path's native MidiStream/parser/HQ dependency. Empty streams and malformed
+tails retain parser-exhaustion success. The million-channel-event and 24-hour
+budgets precede channel filtering; events at exactly 24 hours remain valid. MIDI
+scratch exhaustion retains decode failure, while caption scratch exhaustion keeps
+the former vector allocation exception classification.
+
+Public sound lookup also runs in C: silent cues bypass readiness and source
+publication, imported-scene children take precedence over the first matching movie
+child, and the source field publishes only after successful decoding. Failed child
+lookups cannot overwrite the original sound number. The typed lookup tolerates a
+ready session without a backing archive and reports a missing source.
+
+The headless media fixture freezes native/foreign envelopes, malformed/empty MIDI,
+time boundaries, ANSI/UTF-16 captions, font arguments, stable ties and failure
+prefixes against three original hosts. It runs in the regular asset-preview harness.
+C-only tests exercise effect/allocation failures, cleanup, conversion/publication
+prefixes, sort fallback, MIDI budgets and source remapping. Rich-text/text-box
+persistence, display formatting/output representations, physical providers and
+final C-only host/facade removal remain dependencies. Evidence and platform limits
+are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 
