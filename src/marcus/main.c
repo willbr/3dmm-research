@@ -99,6 +99,7 @@ typedef struct App
     MarcusBackgroundBrowser *background_browser;
     MarcusCameraPicker *camera_picker;
     MarcusPropGizmo *prop_gizmo;
+    int prop_fields, prop_interacting;
     int ribbon_tab, modified;
     MarcusMovieInput *movie_input, *zip_input;
     int movie_entry, zip_selected, zip_scroll;
@@ -2820,7 +2821,6 @@ static void draw_view(App *app)
     if (app->picture)
         SDL_RenderTexture(app->renderer, app->picture, NULL, &destination);
     draw_camera_guides(app, &destination);
-    if (app->picture) prop_gizmo_view(app->prop_gizmo, &app->work_image, &destination);
     if (app->picture)
         draw_selection(app, &app->work_image, &destination);
     if (app->flying)
@@ -2912,7 +2912,6 @@ static void draw_object_properties(App *app, float offset)
     MarcusUI *ui;
     MarcusObject object;
     char label[192];
-    SDL_Rect clip;
     int editable;
     ui = &app->ui;
     ui_heading(ui, app->sidebar + 18, offset + 340, "OBJECT PROPERTIES", MUTED);
@@ -2927,11 +2926,7 @@ static void draw_object_properties(App *app, float offset)
     ui_line(ui, app->sidebar + 18, offset + 435, (float)app->width - 18, offset + 435, LINE);
     property(app, 450, "Visibility", object.visible ? "On stage" : "Off stage");
     ui_heading(ui, app->sidebar + 18, offset + 484, "WORLD POSITION", MUTED);
-    clip.x = (int)app->sidebar + 1;
-    clip.y = (int)app->object_split + 5;
-    clip.w = 299;
-    clip.h = (int)maximum(0, app->height - 24 - clip.y);
-    editable = prop_gizmo_properties(app->prop_gizmo, app->sidebar + 120, offset + 507, &clip);
+    editable = app->prop_fields;
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.x);
     property(app, 511, "X", editable ? "" : object.has_lifetime ? label : "--");
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.y);
@@ -3970,6 +3965,50 @@ static void draw(App *app)
     if (app->error[0])
         draw_error(app);
 }
+/* Sample the controls against the displayed camera, then update the world
+ * before either viewport renders. Only the overlay submission happens later. */
+static void update_prop_gizmo(App *app)
+{
+    SDL_FRect viewport;
+    SDL_Rect clip;
+    float offset;
+    int moved;
+    prop_gizmo_begin(app->prop_gizmo, app->player, app->selected,
+        app->loaded && !app->playing && !app->movie_only && !app->error[0] && !app->settings_open &&
+        !app->zip_input && !browser_visible(app->browser) && !background_browser_visible(app->background_browser) &&
+        !camera_picker_visible(app->camera_picker) && !scene_organiser_visible(app->scene_organiser) &&
+        !app->orbit_menu && !app->sheet_menu && !app->flying && !app->orbiting && !app->panning &&
+        !app->resizing_view && !app->resizing_objects && !app->resizing_timeline && !app->dragging,
+        app->width, app->height);
+    if (app->picture)
+    {
+        viewport = viewport_rect(app, 0);
+        prop_gizmo_view(app->prop_gizmo, &app->work_image, &viewport);
+    }
+    app->prop_fields = 0;
+    if (app->sheet_mode != SHEET_SOUNDS && !(app->sheet_mode == SHEET_BOTH && app->sound_inspector))
+    {
+        offset = app->object_split - 326 - app->properties_scroll;
+        clip.x = (int)app->sidebar + 1;
+        clip.y = (int)app->object_split + 5;
+        clip.w = 299;
+        clip.h = (int)maximum(0, app->height - 24 - clip.y);
+        app->prop_fields = prop_gizmo_properties(app->prop_gizmo, app->sidebar + 120, offset + 507, &clip);
+    }
+    app->prop_interacting = prop_gizmo_active(app->prop_gizmo);
+    moved = prop_gizmo_update(app->prop_gizmo);
+    if (moved)
+    {
+        app->prop_interacting = 1;
+        app->dirty = app->movie_dirty = 1;
+        if (moved < 0) fail(app, prop_gizmo_error(app->prop_gizmo));
+        else if (moved == 2)
+        {
+            app->modified = 1;
+            marcus_info(app->player, &app->info);
+        }
+    }
+}
 static int screenshot(App *app, const char *path)
 {
     SDL_Surface *surface;
@@ -4420,28 +4459,9 @@ int main(int argc, char **argv)
         app.movie_time_available = app.movie_time_status == 1;
         update_movie_controls(&app, now, now - previous_tick);
         previous_tick = now;
-        prop_gizmo_begin(app.prop_gizmo, app.player, app.selected,
-            app.loaded && !app.playing && !app.movie_only && !app.error[0] && !app.settings_open &&
-            !app.zip_input && !browser_visible(app.browser) && !background_browser_visible(app.background_browser) &&
-            !camera_picker_visible(app.camera_picker) && !scene_organiser_visible(app.scene_organiser) &&
-            !app.orbit_menu && !app.sheet_menu && !app.flying && !app.orbiting && !app.panning &&
-            !app.resizing_view && !app.resizing_objects && !app.resizing_timeline && !app.dragging,
-            app.width, app.height);
+        update_prop_gizmo(&app);
         draw(&app);
-        {
-            int moved;
-            moved = prop_gizmo_end(app.prop_gizmo);
-            if (moved)
-            {
-                app.dirty = app.movie_dirty = 1;
-                if (moved < 0) fail(&app, prop_gizmo_error(app.prop_gizmo));
-                else if (moved == 2)
-                {
-                    app.modified = 1;
-                    marcus_info(app.player, &app.info);
-                }
-            }
-        }
+        prop_gizmo_end(app.prop_gizmo);
         /* The native browser owns text input while its search field is open. */
         if (browser_visible(app.browser) && !SDL_TextInputActive(app.window))
             SDL_StartTextInput(app.window);
@@ -4458,7 +4478,7 @@ int main(int argc, char **argv)
         }
         SDL_RenderPresent(app.renderer);
         ++frames;
-        SDL_Delay(10);
+        if (!app.prop_interacting) SDL_Delay(10);
         completed_tick = SDL_GetTicksNS();
         record_frame(&app, (double)(completed_tick - frame_tick) / 1000000.0);
         frame_tick = completed_tick;

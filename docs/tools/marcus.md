@@ -1133,6 +1133,11 @@ through the local portable CPU preview; committed positions use the selected
 renderer again. Completed placements are sent to the existing ASM worker over
 IPC; moving a prop does not restart that worker.
 
+Gizmo and position-field input is applied before rendering either viewport, so
+the prop and its handles use the current drag update in the same presented frame.
+The loop skips its 10 ms idle pause during a prop interaction, and holding a
+stationary handle no longer triggers redundant scene renders.
+
 A headless Debug-build check on 15 November 2026 measured 100 release commits at
 0.008 ms median and 0.100 ms maximum on the synthetic two-scene fixture. These
 measure commit work, excluding scene rendering. It also verifies that duration

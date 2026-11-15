@@ -20,7 +20,7 @@ struct MarcusPropGizmo
     bool enabled = false, cancel = false, finish = false, platform = false, render = false;
     bool over = false, fields = false;
     SDL_FRect fieldRect = {};
-    float original[3] = {}, value[3] = {};
+    float original[3] = {}, value[3] = {}, applied[3] = {};
     char error[1024] = {};
 
     void StoreError() { SDL_strlcpy(error, marcus_error(player), sizeof(error)); }
@@ -36,6 +36,7 @@ struct MarcusPropGizmo
     {
         if (editing) return;
         std::copy(value, value + 3, original);
+        std::copy(value, value + 3, applied);
         editing = kind;
     }
     int Restore()
@@ -212,7 +213,7 @@ int prop_gizmo_properties(MarcusPropGizmo *gizmo, float x, float y, const SDL_Re
     ImGui::End();
     return 1;
 }
-int prop_gizmo_end(MarcusPropGizmo *gizmo)
+int prop_gizmo_update(MarcusPropGizmo *gizmo)
 {
     int result = gizmo->changed;
     if (gizmo->editing)
@@ -236,17 +237,25 @@ int prop_gizmo_end(MarcusPropGizmo *gizmo)
             else result = gizmo->Restore();
             gizmo->editing = 0;
         }
-        else
+        else if (!std::equal(gizmo->value, gizmo->value + 3, gizmo->applied))
         {
-            if (marcus_preview_prop_position(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2])) result = 1;
+            if (marcus_preview_prop_position(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2]))
+            {
+                std::copy(gizmo->value, gizmo->value + 3, gizmo->applied);
+                result = 1;
+            }
             else { gizmo->StoreError(); gizmo->Restore(); gizmo->editing = 0; result = -1; ImGuizmo::Enable(false); }
         }
     }
     if (result < 0 && !gizmo->error[0]) gizmo->StoreError();
     gizmo->cancel = false;
+    return result;
+}
+int prop_gizmo_active(const MarcusPropGizmo *gizmo) { return gizmo && gizmo->editing != 0; }
+void prop_gizmo_end(MarcusPropGizmo *gizmo)
+{
     ImGui::Render();
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), gizmo->renderer);
-    return result;
 }
 
 const char *prop_gizmo_error(const MarcusPropGizmo *gizmo) { return gizmo ? gizmo->error : "Prop controls are unavailable."; }
