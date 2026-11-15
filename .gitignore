@@ -6,6 +6,7 @@ out/
 dist/
 dist-x64/
 /movies/
+/ref-movies/
 # Local expansion installers, conversion fixups and generated copyrighted assets.
 /expansions/
 build/
