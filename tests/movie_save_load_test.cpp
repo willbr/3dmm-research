@@ -28,6 +28,7 @@ ASSERTNAME
 #include <cstring>
 #include <cstdlib>
 #include "text_live_fixture.h"
+#include "text_document_fixture.h"
 
 /* WinMain (in kauai/src/appbwin.cpp) references FrameMain -- but we
  * never run WinMain since we provide our own main() and link as a
@@ -2342,6 +2343,8 @@ static bool TestCaptionPersistence(PScene scene)
     if (!exported.text.FReadRgb(actual, 5, 0) || std::memcmp(actual, text, 5) != 0)
         goto done;
     if (!TestLiveCaptionSaving(scene, file))
+        goto done;
+    if (!TestTextDocumentFiles(scene, file))
         goto done;
     ok = true;
 done:

@@ -9374,3 +9374,88 @@ baseline `*.log`/`*-errors.log` files and `tmp/c89-text-live-{native,sdl-release
 `tmp/c89-text-live-trace-comparison.json`, `tmp/c89-text-live-regular-tests.log`
 and `tmp/c89-text-live-identities.json`. Final adapter rebuild/rerun logs are
 `tmp/c89-text-live-marshal-{native,sdl-release,sdl-debug}{,-build,-errors}.log`.
+
+### Text document file saves and resource lifecycle (15 November 2026)
+
+`text_document.c` now controls plain/rich text file saves, base initialization/
+loading, rich initialization, factory failure cleanup and stream/file/archive/
+property/argument release. Native typed owner slots remain the storage adapter;
+C controls reference transfers and publication. Virtual load/read dispatch is
+preserved. The default load hook and chunk save delegate to converted C policies.
+Stored-to-live rich property/font/argument materialization remains native work.
+
+Base initialization opens its file before validating a borrowed stream, retains
+before publishing that stream and appends a native CR sentinel to it. Published
+partial owners remain until object destruction. Default loading retains a mutable
+file location across translation and releases its final owner even when translation
+replaces it or fails. Empty files skip translation; empty translated results skip
+replacement. A virtual load hook may replace the published stream, so sentinel
+insertion fetches its current owner again after the hook returns.
+
+Rich open holds the archive privately until its root read succeeds. Ordinary
+failure releases it before the read error, while partial live effects remain for
+object cleanup. Fresh rich documents retain width-eight entries, grow ten and
+height twelve independently of application text size. Factories release partial
+objects on initialization/exception failure; chunk-read ordinary errors precede
+object release, while constructor allocation failure does not report a read error.
+Destruction retains property/argument/archive then base stream/file release order.
+
+Both file-save profiles select the current name and force adoption for normal
+saves. Copy saves preserve owner and dirty state. Plain name queries reject
+temporary files, although direct normal save still accepts an existing temporary
+owner. Plain writes omit the stream sentinel and prepend a native UTF-16 BOM for
+two-byte units. Plain redirection and rich chunk redirection precede rename;
+ordinary redirect failure remains best effort. Failure releases the temporary
+owner without undoing prior stream redirection. Successful rename clears temporary
+status, then either releases a copy or releases the old owner, transfers the new
+one and clears the dirty bit. Only rich ordinary failures publish save errors.
+
+Before conversion, the expanded existing engine movie save/load fixture recorded
+1,612-byte document traces in all three builds. Native Debug records FNV-1a
+`88276D87`, SHA-256
+`4C7A104FEF7E18153E67C7E2C4238B1995039622A7B196163E69CAD355574A1D`.
+SDL Release and SDL Debug record FNV-1a `85C06CCF`, SHA-256
+`6CDE541DB16D080E9CF925B28F2D104BEE6EDB39D6CB56D65946EA7A6CB1DE17`.
+Each host retains its own font-table baseline. The fixture covers empty and
+embedded-null/CRLF/ANSI content, copy/adopt/normal saves, dirty/name semantics,
+borrowed-stream reference/sentinel changes, raw file bytes, rich archive payloads,
+close/reopen and fresh rich-document creation. Generated files are deleted only
+after their owners close. Prior live-caption traces remain unchanged.
+
+All thirty-three original/converted document/live-text/stored-text/media/metadata/
+session/admission/live/camera/picking/rendering trace pairs match across the three
+hosts. Prior hashes remain unchanged. Background checks retain 301,996,032 bytes/
+FNV-1a `E1A71005` across 12 backgrounds and 188 cameras per host. All 120 standalone
+C checks including strict C89 syntax pass. Twenty-five selected native checks and
+twenty-one checks in each SDL configuration pass, including existing core-link,
+scene load/store/content, movie save/load and native playback/player regressions.
+MSVC AddressSanitizer passes.
+
+C-only fault checks cover every fallible effect with ordinary/allocation/foreign
+failures, partially returned/published owners, translated owner replacement,
+redirection retained after failed rename, factory error/release ordering, name
+policies, both native text-unit sizes and byte orders, BOM/sentinel bytes and
+virtual-load stream replacement. After the final hook review, the affected C tests,
+movie save/load fixtures and both SDL Studios were rebuilt and rechecked, retaining
+their original document/live-caption traces. The standalone C suite was rerun.
+
+The regular asset-preview harness passes headlessly with fresh metadata documents
+and input-hash checks. Test processes use private temporary directories. Retained
+input identities are unchanged. Studio and Marcus were rebuilt; the workspace
+Marcus was stopped before rebuilding and relaunched afterward. No Marcus UI tests
+were added. Retained retail captures remain the playback reference; no redundant
+capture campaign was launched.
+
+This is Windows x64 evidence within these fixtures, not complete retail editing
+or allocator equivalence. Native `_FReadChunk`/`_FOpenArg` materialization,
+editing/undo, descriptor/output representations, physical providers,
+document/view/parent lifecycle and final C-only host/facade removal remain work.
+Other platforms remain unverified here.
+
+Evidence: `tmp/c89-text-document-{baseline,final}-{native,sdl-release,sdl-debug}.bin`,
+baseline `*.log`/`*-errors.log` and `tmp/c89-text-document-{native,sdl-release,sdl-debug}-tests.log`,
+`tmp/c89-text-document-{live-text,store,media,metadata,session,admission,live,camera,pick,render}-final-{native,sdl-release,sdl-debug}.bin`,
+`tmp/c89-text-document-{standalone,hook-native,hook-sdl-release,hook-sdl-debug}-tests.log`,
+`tmp/c89-text-document-hook-{native,sdl-release,sdl-debug}{,-build,-errors}.log`,
+`tmp/c89-text-document-asan.log`, `tmp/c89-text-document-trace-comparison.json`,
+`tmp/c89-text-document-regular-tests.log` and `tmp/c89-text-document-identities.json`.

@@ -1507,7 +1507,7 @@ framing preservation, errors and rendered output against all three original host
 C fault checks cover every fallible open/add stage, palette byte order/admission,
 lease transfer/rejection, release order, registry storage exhaustion and retry.
 Native resource/track/archive/path representations, asset-cleanup primitives,
-document file-save/lifecycle and text editing/runtime control, display/output representations and
+live property/font/argument materialization, text editing/undo, display/output representations and
 final C-only host/facade removal remain dependencies. Metadata, media and stored
 caption persistence are covered below.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.
@@ -1582,8 +1582,8 @@ time boundaries, ANSI/UTF-16 captions, font arguments, stable ties and failure
 prefixes against three original hosts. It runs in the regular asset-preview harness.
 C-only tests exercise effect/allocation failures, cleanup, conversion/publication
 prefixes, sort fallback, MIDI budgets and source remapping. Stored rich-text/text-box
-persistence and live chunk saving are covered below. Document file-save/lifecycle
-and text editing/runtime control, display/output
+persistence, live chunk saving and text document transactions are covered below.
+Live property/font/argument materialization, text editing/undo and display/output
 representations, physical providers and final C-only host/facade removal remain
 dependencies. Evidence and platform limits
 are in `docs/tools/playback-regression.md`.
@@ -1627,8 +1627,8 @@ trips. Argument bytes are explicitly aligned so the trace does not capture unini
 legacy collection padding. C-only fault tests cover all read/write effects, negative
 exception results, partially returned owners, copy cleanup, output publication and
 one-/two-byte counted fonts. The regular asset-preview harness also runs the fixture.
-Live chunk save/redirection and text-box adoption are covered below. Document
-file-save/lifecycle, editing/font/argument transformations, native descriptor/output
+Live chunk saving, text-box adoption and text document transactions are covered
+below. Live materialization, editing/font/argument transformations, native descriptor/output
 representations, physical providers and final C-only facade removal remain work.
 Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
@@ -1670,10 +1670,57 @@ and SDL font-table ordinals differ, so each host is compared with its own origin
 trace. C-only tests cover ordinary/allocation/foreign failures at every effect,
 number/error publication, post-commit redirection, partially returned locations,
 empty content/arguments, both byte orders/native text-unit sizes and adoption/
-metadata cleanup order. Document file-save/lifecycle, text editing/font/argument
+metadata cleanup order. Document transactions are covered below. Live materialization,
+text editing/font/argument
 transformations, native descriptor/output representations, physical providers and
 final C-only host/facade removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
+
+### Text document file saves and resource lifecycle
+
+`text_document.c` controls plain/rich file-save transactions, base initialization/
+loading, rich initialization, document factory cleanup and stream/file/archive/
+property/argument release. Native host slots retain the current typed storage;
+C controls reference transfers and publication. File/stream/collection operations,
+font-table queries and virtual dispatch remain host services. The default load
+hook now uses C; subclass load/read hooks retain their dispatch behavior.
+
+Base initialization opens the file before validating a borrowed stream, retains
+the stream before publishing it, and appends a native CR sentinel to that same
+stream. A virtual load hook may replace that owner; sentinel insertion uses the
+current stream after the hook returns. Failure leaves partial owners for destruction. Default
+loading retains a mutable file location across translation, allows the translator
+to replace its owner, replaces the full stream, and releases the final location
+on every exit. Empty files skip translation; empty translated output skips replace.
+
+Rich opening holds its archive privately until the root read succeeds. Ordinary
+failure releases that archive before reporting a read error; partial live stream/
+group effects remain for object destruction. New documents use eight-byte property
+entries, grow by ten and use height twelve independently of application text size.
+Factories release partial objects after failed initialization. The chunk-read
+factory reports an ordinary read error before release; allocation failure does not
+report a read error. Negative exception results unwind before native rethrow.
+
+Both file-save profiles select the current name and force adoption for normal
+saves. Copies preserve current owner and dirty state. Plain name queries reject
+temporary files; direct normal save still accepts an existing temporary owner.
+Plain output omits the sentinel and writes a native UTF-16 BOM for two-byte units.
+Plain stream redirection and rich chunk redirection precede renaming; ordinary
+redirect failure remains best effort. Rename failure releases the temporary owner
+without rolling back prior stream redirection. Success clears temporary status,
+then either releases a copy or releases the old owner, transfers the new owner and
+clears the dirty bit. Only rich ordinary failures report save errors. Destruction
+releases properties, arguments, archive, then base stream/file in the original order.
+
+The expanded engine movie save/load fixture freezes copy/adopt/normal saves,
+empty and embedded-null/CRLF/ANSI content, dirty/name behavior, borrowed-stream
+reference/sentinel changes, reopen, and fresh rich-document creation. C-only tests
+cover every fallible effect, partial returned/published owners, translation owner
+replacement, redirection before failed rename, BOM/endian rules, factory error/
+release ordering and plain/rich name policies. Live `_FReadChunk`/`_FOpenArg`
+materialization, editing/undo, native representations, physical providers,
+document/view/parent lifecycle and final C-only host/facade removal remain work.
+Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 ### Movie scene-container control and undo
 

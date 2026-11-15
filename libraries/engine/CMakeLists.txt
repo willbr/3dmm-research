@@ -40,6 +40,12 @@ target_sources(mm-engine-c89 PRIVATE src/movie_content.c)
 target_sources(mm-engine-c89 PRIVATE src/movie_compose.c)
 target_sources(mm-engine-c89 PRIVATE src/text_store.c)
 target_sources(mm-engine-c89 PRIVATE src/text_live.c)
+target_sources(mm-engine-c89 PRIVATE src/text_document.c)
+get_filename_component(engine_text_document_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_document_test.c" ABSOLUTE)
+add_executable(engine-text-document-test EXCLUDE_FROM_ALL "${engine_text_document_test_source}")
+target_link_libraries(engine-text-document-test PRIVATE mm-engine-c89)
+set_target_properties(engine-text-document-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-text-document COMMAND engine-text-document-test)
 get_filename_component(engine_text_live_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_live_test.c" ABSOLUTE)
 add_executable(engine-text-live-test EXCLUDE_FROM_ALL "${engine_text_live_test_source}")
 target_link_libraries(engine-text-live-test PRIVATE mm-engine-c89)
@@ -734,6 +740,8 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_media.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_store.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_live.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/text_document.c"
+    "${engine_text_document_test_source}"
     "${engine_text_live_test_source}"
     "${engine_text_store_test_source}"
     "${engine_movie_compose_test_source}"

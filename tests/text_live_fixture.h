@@ -7,9 +7,9 @@ struct LiveTextTrace
 {
     FILE *file;
     unsigned bytes = 0, hash = 2166136261U;
-    LiveTextTrace()
+    LiveTextTrace(const char *variable = "MM_TEXT_LIVE_SNAPSHOT")
     {
-        const char *p = std::getenv("MM_TEXT_LIVE_SNAPSHOT");
+        const char *p = std::getenv(variable);
         file = p ? std::fopen(p, "wb") : std::tmpfile();
     }
     ~LiveTextTrace()
@@ -103,18 +103,18 @@ struct LiveTextTrace
         }
         return true;
     }
-    bool Finish()
+    bool Finish(const char *label = "Live text", bool liveGolden = true)
     {
         bool ok = file && std::fclose(file) == 0;
         file = nullptr;
 #ifdef _WIN64
 #ifdef KAUAI_SDL3
-        ok = ok && bytes == 2856 && hash == 0x5D914817U;
+        ok = ok && (!liveGolden || (bytes == 2856 && hash == 0x5D914817U));
 #else
-        ok = ok && bytes == 2856 && hash == 0x8FB30D47U;
+        ok = ok && (!liveGolden || (bytes == 2856 && hash == 0x8FB30D47U));
 #endif
 #endif
-        std::fprintf(stderr, "Live text trace: bytes=%u fingerprint=%08X\n", bytes, hash);
+        std::fprintf(stderr, "%s trace: bytes=%u fingerprint=%08X\n", label, bytes, hash);
         return ok;
     }
 };

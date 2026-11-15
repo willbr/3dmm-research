@@ -99,6 +99,7 @@ class TextDocumentBase : public TextDocumentBase_PAR
     MARKMEM
 
   protected:
+    struct DocumentHost;
     PFileObject _pfil;
     PFileByteStream _pbsf;
     AbstractColor _acrBack;
@@ -211,6 +212,7 @@ class RichTextDocument : public RichTextDocument_PAR
     MARKMEM
 
   protected:
+    struct DocumentHost;
     // WARNING: changing these values affects the file format
     // NOTE: Originally, _FSprmInAg was a virtual RichTextDocument method called to
     // determine if a sprm stored its value in the AllocatedGroup. This didn't work

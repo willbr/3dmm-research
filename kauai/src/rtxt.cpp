@@ -15,6 +15,7 @@
 #include "frame.h"
 ASSERTNAME
 #include "rich_text_live_store_host.h"
+#include "text_document_host.h"
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
@@ -93,8 +94,9 @@ TextDocumentBase::TextDocumentBase(PDocumentBase pdocb, ulong grfdoc) : TextDocu
 ***************************************************************************/
 TextDocumentBase::~TextDocumentBase(void)
 {
-    ReleasePpo(&_pbsf);
-    ReleasePpo(&_pfil);
+    DocumentHost host(this);
+    auto objects = host.Objects();
+    mm_text_document_dispose(0, &objects);
 }
 
 /***************************************************************************
@@ -104,38 +106,14 @@ bool TextDocumentBase::_FInit(PFilename pfni, PFileByteStream pbsf, short osk)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
-    achar ch;
-
-    if (pvNil != pfni && pvNil == (_pfil = FileObject::PfilOpen(pfni)))
-        return fFalse;
-
-    if (pvNil != pbsf)
-    {
-        if (osk != koskCur)
-        {
-            Bug("Can't translate a FileByteStream");
-            return fFalse;
-        }
-        if (pbsf->IbMac() % size(achar) != 0)
-        {
-            Bug("FileByteStream has a partial character");
-            return fFalse;
-        }
-        pbsf->AddRef();
-        _pbsf = pbsf;
-    }
-    else if (pvNil == (_pbsf = NewObj FileByteStream))
-        return fFalse;
-    else if (!_FLoad(osk))
-        return fFalse;
-
-    // append a return character
-    ch = kchReturn;
-    if (!_pbsf->FReplace(&ch, size(achar), _pbsf->IbMac(), 0))
-        return fFalse;
-
-    AssertThis(fobjAssertFull);
-    return fTrue;
+    DocumentHost host(this);
+    auto services = host.Base();
+    auto config = host.Config();
+    int result = mm_text_base_init(&config, pfni, pbsf, osk, &services);
+    host.Rethrow();
+    if (result > 0)
+        AssertThis(fobjAssertFull);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -143,22 +121,11 @@ bool TextDocumentBase::_FInit(PFilename pfni, PFileByteStream pbsf, short osk)
 ***************************************************************************/
 bool TextDocumentBase::_FLoad(short osk)
 {
-    // initialize the FileByteStream to just point to the file
-    FileLocation flo;
-    bool fRet = fFalse;
-
-    if (pvNil == (flo.pfil = _pfil) || 0 == (flo.cb = _pfil->FpMac()))
-        return fTrue;
-
-    flo.pfil->AddRef();
-    flo.fp = 0;
-    if (flo.FTranslate(osk))
-    {
-        fRet = flo.cb == 0 || _pbsf->FReplaceFlo(&flo, fFalse, 0, _pbsf->IbMac());
-    }
-
-    ReleasePpo(&flo.pfil);
-    return fRet;
+    DocumentHost host(this);
+    auto services = host.Base();
+    int result = mm_text_base_load(osk, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -857,12 +824,11 @@ bool TextDocumentBase::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
-
-    if (pvNil == _pfil || _pfil->FTemp())
-        return fFalse;
-
-    _pfil->GetFni(pfni);
-    return fTrue;
+    DocumentHost host(this);
+    auto services = host.File();
+    int result = mm_text_document_name(MM_TEXT_PLAIN, pfni, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -897,18 +863,44 @@ PlainTextDocument::PlainTextDocument(PDocumentBase pdocb, ulong grfdoc) : PlainT
 /***************************************************************************
     Static method to create a new plain text document.
 ***************************************************************************/
-PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PFileByteStream pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
+PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PFileByteStream pbsf, short osk, PDocumentBase pdocb,
+                                               ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
     AssertNilOrPo(pdocb, 0);
-    PPlainTextDocument ptxpd;
-
-    if (pvNil != (ptxpd = NewObj PlainTextDocument(pdocb, grfdoc)) && !ptxpd->_FInit(pfni, pbsf, osk))
+    struct Factory : TextDocumentFactoryHost
     {
-        ReleasePpo(&ptxpd);
-    }
-    return ptxpd;
+        PFilename name;
+        PFileByteStream stream;
+        short system;
+        PDocumentBase parent;
+        ulong flags;
+    };
+    Factory host;
+    host.name = pfni;
+    host.stream = pbsf;
+    host.system = osk;
+    host.parent = pdocb;
+    host.flags = grfdoc;
+    MMTextFactoryServices services = {
+        &host,
+        [](void *v, void **out) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] {
+                *out = NewObj PlainTextDocument(h.parent, h.flags);
+                return *out != nullptr;
+            });
+        },
+        [](void *v, void *p) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] { return static_cast<PPlainTextDocument>(p)->_FInit(h.name, h.stream, h.system); });
+        },
+        [](void *, void *p) { static_cast<BASE *>(p)->Release(); }, [](void *) { PushErc(ercRtxdReadFailed); }};
+    void *object;
+    mm_text_document_create(&object, 0, &services);
+    host.Rethrow();
+    return static_cast<PPlainTextDocument>(object);
 }
 
 /***************************************************************************
@@ -934,62 +926,13 @@ bool PlainTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
-    FileLocation flo;
-    Filename fniT;
-
-    if (pvNil == pfni)
-    {
-        if (pvNil == _pfil)
-        {
-            Bug("Can't do a normal save - no file");
-            return fFalse;
-        }
-        _pfil->GetFni(&fniT);
-        pfni = &fniT;
-        fSetFni = fTrue;
-    }
-
-    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp(pfni)))
-        goto LFail;
-
-    flo.fp = 0;
-    flo.cb = _pbsf->IbMac() - size(achar);
-#ifdef UNICODE
-    flo.cb += size(achar);
-    achar ch;
-
-    ch = kchwUnicode;
-    if (!flo.FWriteRgb(&ch, size(achar), 0))
-        goto LFail;
-    flo.fp += size(achar);
-    flo.cb -= size(achar);
-#endif // UNICODE
-
-    if (!_pbsf->FWriteRgb(&flo))
-        goto LFail;
-
-    // redirect the FileByteStream to the new file
-    if (fSetFni)
-        _pbsf->FReplaceFlo(&flo, fFalse, 0, flo.cb);
-
-    if (!flo.pfil->FSetFni(pfni))
-    {
-    LFail:
-        ReleasePpo(&flo.pfil);
-        return fFalse;
-    }
-    flo.pfil->SetTemp(fFalse);
-
-    if (fSetFni)
-    {
-        ReleasePpo(&_pfil);
-        _pfil = flo.pfil;
-        _fDirty = fFalse;
-    }
-    else
-        ReleasePpo(&flo.pfil);
-
-    return fTrue;
+    DocumentHost host(this);
+    auto services = host.File();
+    auto config = host.Config();
+    Filename fallback;
+    int result = mm_text_document_save(MM_TEXT_PLAIN, &config, pfni, &fallback, fSetFni, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1004,9 +947,9 @@ RichTextDocument::RichTextDocument(PDocumentBase pdocb, ulong grfdoc) : RichText
 ***************************************************************************/
 RichTextDocument::~RichTextDocument(void)
 {
-    ReleasePpo(&_pglmpe);
-    ReleasePpo(&_pagcact);
-    ReleasePpo(&_pcfl);
+    DocumentHost host(this);
+    auto objects = host.Objects();
+    mm_text_document_dispose(1, &objects);
 }
 
 #ifdef DEBUG
@@ -1055,11 +998,30 @@ void RichTextDocument::MarkMem(void)
 PRichTextDocument RichTextDocument::PtxrdNew(PFilename pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
-    PRichTextDocument ptxrd;
-
-    if (pvNil != (ptxrd = NewObj RichTextDocument) && !ptxrd->_FInit(pfni))
-        ReleasePpo(&ptxrd);
-    return ptxrd;
+    struct Factory : TextDocumentFactoryHost
+    {
+        PFilename name;
+    };
+    Factory host;
+    host.name = pfni;
+    MMTextFactoryServices services = {
+        &host,
+        [](void *v, void **out) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] {
+                *out = NewObj RichTextDocument;
+                return *out != nullptr;
+            });
+        },
+        [](void *v, void *p) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] { return static_cast<PRichTextDocument>(p)->_FInit(h.name); });
+        },
+        [](void *, void *p) { static_cast<BASE *>(p)->Release(); }, [](void *) { PushErc(ercRtxdReadFailed); }};
+    void *object;
+    mm_text_document_create(&object, 0, &services);
+    host.Rethrow();
+    return static_cast<PRichTextDocument>(object);
 }
 
 /***************************************************************************
@@ -1069,59 +1031,54 @@ bool RichTextDocument::_FInit(PFilename pfni, ChunkTagOrType ctg)
 {
     AssertBaseThis(0);
     AssertNilOrPo(pfni, 0);
-
-    if (pvNil != pfni)
-    {
-        PChunkyFile pcfl;
-        ChunkIdentification cki;
-
-        if (pvNil == (pcfl = ChunkyFile::PcflOpen(pfni, fcflNil)))
-        {
-            PushErc(ercRtxdReadFailed);
-            return fFalse;
-        }
-        if (!pcfl->FGetCkiCtg(ctg, 0, &cki) || !_FReadChunk(pcfl, cki.ctg, cki.cno, fFalse))
-        {
-            ReleasePpo(&pcfl);
-            PushErc(ercRtxdReadFailed);
-            return fFalse;
-        }
-        _pcfl = pcfl;
+    DocumentHost host(this);
+    auto services = host.Init();
+    auto config = host.Config();
+    int result = mm_text_rich_init(&config, pfni, ctg, &services);
+    host.Rethrow();
+    if (result > 0)
         AssertThis(fobjAssertFull);
-        return fTrue;
-    }
-
-    if (!RichTextDocument_PAR::_FInit())
-        return fFalse;
-    if (pvNil == (_pglmpe = DynamicArray::PglNew(size(MPE))))
-        return fFalse;
-    _pglmpe->SetMinGrow(10);
-    _onnDef = vpappb->OnnDefVariable();
-    _oskFont = koskCur;
-    vntl.GetStn(_onnDef, &_stnFontDef);
-
-    // NOTE: don't use vpappb->DypTextDef() so all RichTextDocument's will have the
-    // same _dypFontDef unless explicitly changed in code.
-    _dypFontDef = 12;
-
-    AssertThis(fobjAssertFull);
-    return fTrue;
+    return result > 0;
 }
 
 /***************************************************************************
     Static method to read a rich text document from a chunk.
 ***************************************************************************/
-PRichTextDocument RichTextDocument::PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText)
+PRichTextDocument RichTextDocument::PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno,
+                                                   bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    PRichTextDocument ptxrd;
-
-    if (pvNil != (ptxrd = NewObj RichTextDocument) && !ptxrd->_FReadChunk(pcfl, ctg, cno, fCopyText))
+    struct Factory : TextDocumentFactoryHost
     {
-        PushErc(ercRtxdReadFailed);
-        ReleasePpo(&ptxrd);
-    }
-    return ptxrd;
+        PChunkyFile file;
+        ChunkTagOrType type;
+        ChunkNumber number;
+        bool copy;
+    };
+    Factory host;
+    host.file = pcfl;
+    host.type = ctg;
+    host.number = cno;
+    host.copy = fCopyText;
+    MMTextFactoryServices services = {
+        &host,
+        [](void *v, void **out) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] {
+                *out = NewObj RichTextDocument;
+                return *out != nullptr;
+            });
+        },
+        [](void *v, void *p) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard(
+                [&] { return static_cast<PRichTextDocument>(p)->_FReadChunk(h.file, h.type, h.number, h.copy); });
+        },
+        [](void *, void *p) { static_cast<BASE *>(p)->Release(); }, [](void *) { PushErc(ercRtxdReadFailed); }};
+    void *object;
+    mm_text_document_create(&object, 1, &services);
+    host.Rethrow();
+    return static_cast<PRichTextDocument>(object);
 }
 
 /***************************************************************************
@@ -1249,12 +1206,11 @@ bool RichTextDocument::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
-
-    if (pvNil == _pcfl)
-        return fFalse;
-
-    _pcfl->GetFni(pfni);
-    return fTrue;
+    DocumentHost host(this);
+    auto services = host.File();
+    int result = mm_text_document_name(MM_TEXT_RICH, pfni, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1281,47 +1237,13 @@ bool RichTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
-    Filename fni;
-    PChunkyFile pcfl;
-    ChunkIdentification cki;
-
-    if (pvNil == pfni)
-    {
-        if (pvNil == _pcfl)
-        {
-            Bug("Can't do a normal save - no file");
-            return fFalse;
-        }
-        fSetFni = fTrue;
-        _pcfl->GetFni(&fni);
-        pfni = &fni;
-    }
-
-    if (pvNil == (pcfl = ChunkyFile::PcflCreateTemp(pfni)))
-        goto LFail;
-
-    if (!FSaveToChunk(pcfl, &cki, fSetFni) || !pcfl->FSave(kctgFramework, pvNil))
-        goto LFail;
-
-    if (!pcfl->FSetFni(pfni))
-    {
-    LFail:
-        ReleasePpo(&pcfl);
-        PushErc(ercRtxdSaveFailed);
-        return fFalse;
-    }
-    pcfl->SetTemp(fFalse);
-
-    if (fSetFni)
-    {
-        ReleasePpo(&_pcfl);
-        _pcfl = pcfl;
-        _fDirty = fFalse;
-    }
-    else
-        ReleasePpo(&pcfl);
-
-    return fTrue;
+    DocumentHost host(this);
+    auto services = host.File();
+    auto config = host.Config();
+    Filename fallback;
+    int result = mm_text_document_save(MM_TEXT_RICH, &config, pfni, &fallback, fSetFni, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
