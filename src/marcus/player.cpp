@@ -77,6 +77,7 @@ struct MarcusPlayer
     std::string propCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::map<int, MM::PreviewObject> propPreviews;
+    std::map<int, MM::PreviewObjectShape> shapePreviews;
     struct AnimationCache
     {
         MM::PreviewAnimationTimeline timeline;
@@ -163,12 +164,19 @@ struct EditHistory : KeepHistory
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
     if (player.placements->empty() && player.frameRanges->empty() && player.edits->scenes->empty() &&
-        player.edits->props->empty() && player.edits->cameras->empty()) return player.timingInput;
+        player.edits->props->empty() && player.edits->cameras->empty() && player.edits->shapes->empty()) return player.timingInput;
     if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     std::vector<MarcusPropPlacement> changes;
+    std::map<MarcusPlayer::PlacementKey, MarcusPropPlacement> combined;
     for (const auto &entry : *player.placements)
-        changes.push_back({entry.first.first, entry.first.second, {entry.second[0], entry.second[1], entry.second[2]}});
+        combined[entry.first] = {entry.first.first, entry.first.second, {entry.second[0], entry.second[1], entry.second[2]}};
+    for (const auto &entry : *player.edits->shapes)
+    {
+        auto &change = combined[entry.first];
+        change.scene = entry.first.first; change.actor = entry.first.second; change.shape = entry.second;
+    }
+    for (const auto &entry : combined) changes.push_back(entry.second);
     std::vector<MarcusSceneRange> ranges;
     for (const auto &entry : *player.frameRanges) ranges.push_back({entry.first, entry.second.first, entry.second.last});
     auto file = MarcusMaterializeEdits(player.content ? player.content->movie : std::filesystem::path{}, player.timingInput,
@@ -254,6 +262,9 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placem
         const auto found = placements.find({player.scenes[scene].number, object.asset.number});
         if (!player.preview.SetObjectOffset(static_cast<int>(index), found == placements.end() ? zero : found->second.data(), error))
             return false;
+        const auto shape = player.edits->shapes->find({player.scenes[scene].number, object.asset.number});
+        if (!player.preview.SetObjectShape(static_cast<int>(index), shape == player.edits->shapes->end() ? MM::PreviewObjectShape{} : shape->second, error))
+            return false;
     }
     player.objects = player.preview.Objects();
     player.movieImageScene = -1;
@@ -324,6 +335,7 @@ bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::P
         if (!object.hasLifetime) continue;
         const bool placed = next < offsets.size() && offsets[next].object == static_cast<int>(index);
         if (!player->preview.SetObjectOffset(static_cast<int>(index), placed ? offsets[next].offset : zero, error)) return false;
+        if (!player->preview.SetObjectShape(static_cast<int>(index), placed ? offsets[next].shape : MM::PreviewObjectShape{}, error)) return false;
         if (placed) ++next;
     }
     player->objects = player->preview.Objects();
@@ -513,8 +525,13 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
                 offset[1] += object.y - preview->second.y;
                 offset[2] += object.z - preview->second.z;
             }
-            if (offset[0] != 0 || offset[1] != 0 || offset[2] != 0)
-                offsets.push_back({static_cast<std::int32_t>(index), {offset[0], offset[1], offset[2]}});
+            const bool shaped = player->edits->shapes->count({player->scenes[player->selected].number, object.asset.number}) || player->shapePreviews.count(static_cast<int>(index));
+            if (offset[0] != 0 || offset[1] != 0 || offset[2] != 0 || shaped)
+            {
+                MarcusASM::PropOffset change{static_cast<std::int32_t>(index), {offset[0], offset[1], offset[2]}};
+                if (shaped && !player->preview.ObjectShape(static_cast<int>(index), change.shape, nullptr, nullptr, error)) return false;
+                offsets.push_back(change);
+            }
         }
         const auto &range = player->sceneInfo[player->selected];
         if (!player->asmRenderer->Render(player->selected, player->preview.Info().currentFrame, options, player->image, error,
@@ -601,6 +618,10 @@ template <typename F> int Guard(MarcusPlayer *player, F operation)
 }
 bool CancelPropPreviews(MarcusPlayer *player, MM::Error &error)
 {
+    for (const auto &entry : player->shapePreviews)
+        if (!player->preview.SetObjectShape(entry.first, entry.second, error)) return false;
+    if (!player->shapePreviews.empty()) player->movieImageScene = -1;
+    player->shapePreviews.clear();
     for (const auto &entry : player->propPreviews)
     {
         const auto &before = entry.second;
@@ -624,6 +645,7 @@ int SelectScene(MarcusPlayer *player, int index, bool preserveFraming, bool pres
         player->selected = -1;
         player->objects.clear();
         player->propPreviews.clear();
+        player->shapePreviews.clear();
         if (!player->preserveEditFraming) player->orbitObject = -1;
         player->animations.clear();
         player->sounds.clear();
@@ -951,6 +973,65 @@ extern "C"
         return ok ? result : -1;
     }
     unsigned long marcus_document(const MarcusPlayer *player) { return player ? player->document : 0; }
+    int marcus_object_shape(MarcusPlayer *player, int object, MarcusObjectShape *shape, float left[9], float right[9])
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MM::PreviewObjectShape value;
+            if (!shape || !player->preview.ObjectShape(object, value, left, right, error)) return false;
+            std::copy(value.rotation, value.rotation+9, shape->rotation);
+            std::copy(value.scale, value.scale+3, shape->scale);
+            return true;
+        });
+    }
+    int marcus_preview_object_shape(MarcusPlayer *player, int object, const MarcusObjectShape *shape)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MarcusObject current;
+            if (!shape || !marcus_object(player, object, &current) || !current.visible) return false;
+            MM::PreviewObjectShape before, value;
+            if (!player->preview.ObjectShape(object, before, nullptr, nullptr, error)) return false;
+            std::copy(shape->rotation, shape->rotation+9, value.rotation);
+            std::copy(shape->scale, shape->scale+3, value.scale);
+            if (!player->preview.SetObjectShape(object, value, error)) return false;
+            const auto saved=player->shapePreviews.emplace(object,before);
+            if (std::equal(value.rotation,value.rotation+9,saved.first->second.rotation) &&
+                std::equal(value.scale,value.scale+3,saved.first->second.scale)) player->shapePreviews.erase(saved.first);
+            player->movieImageScene = -1;
+            return true;
+        });
+    }
+    int marcus_set_object_shape(MarcusPlayer *player, int object, const MarcusObjectShape *shape)
+    {
+        return Guard(player, [&](MM::Error &error) {
+            MarcusObject current;
+            if (!shape || !marcus_object(player, object, &current) || !current.visible) return false;
+            MM::PreviewObjectShape value, before;
+            if (!player->preview.ObjectShape(object, before, nullptr, nullptr, error)) return false;
+            const auto preview = player->shapePreviews.find(object);
+            if (preview != player->shapePreviews.end()) before = preview->second;
+            std::copy(shape->rotation, shape->rotation+9, value.rotation);
+            std::copy(shape->scale, shape->scale+3, value.scale);
+            if (std::equal(value.rotation,value.rotation+9,before.rotation) && std::equal(value.scale,value.scale+3,before.scale))
+            {
+                if (!player->preview.SetObjectShape(object, before, error)) return false;
+                player->shapePreviews.erase(object);
+                player->movieImageScene = -1;
+                return true;
+            }
+            auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
+            auto shapes = std::make_shared<MarcusLiveEdits::Shapes>(*edits->shapes);
+            (*shapes)[{player->scenes[player->selected].number, current.chunk}] = value;
+            edits->shapes = shapes;
+            EditHistory history(*player);
+            if (!player->preview.SetObjectShape(object, value, error)) return false;
+            player->edits = edits;
+            player->shapePreviews.erase(object);
+            player->movieImageScene = -1;
+            ++player->document;
+            history.Commit();
+            return true;
+        });
+    }
     int marcus_preview_object_position(MarcusPlayer *player, int object, float x, float y, float z)
     {
         return Guard(player, [&](MM::Error &error) {
@@ -1342,6 +1423,7 @@ extern "C"
             player->sceneInfo.clear();
             player->objects.clear();
             player->propPreviews.clear();
+            player->shapePreviews.clear();
             player->placements = std::make_shared<MarcusPlayer::Placements>();
             player->frameRanges = std::make_shared<MarcusPlayer::FrameRanges>();
             player->edits = std::make_shared<MarcusLiveEdits>();
@@ -1428,6 +1510,8 @@ extern "C"
                 return false;
             const auto first = player->placements->lower_bound({player->scenes[index].number, 0});
             if (first != player->placements->end() && first->first.first == player->scenes[index].number) return true;
+            const auto shaped = player->edits->shapes->lower_bound({player->scenes[index].number, 0});
+            if (shaped != player->edits->shapes->end() && shaped->first.first == player->scenes[index].number) return true;
             if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size()) return true;
             for (const auto &prop : *player->edits->props)
                 if (prop.definition.scene == player->scenes[index].number && prop.definition.first <= player->sceneInfo[index].first_frame)

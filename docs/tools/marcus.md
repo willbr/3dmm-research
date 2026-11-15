@@ -86,7 +86,7 @@ The executable is `build/marcus/src/marcus/marcus` (`marcus.exe` on Windows).
 The current development build in this workspace uses `build/marcus-x64`.
 
 SDL 3.4.8 is built from `vendor/SDL3` by the shared dependency module, including
-for Studio and the inspector. Marcus's translation controls use the vendored
+for Studio and the inspector. Marcus's transform controls use the vendored
 ImGuizmo core in `vendor/ImGuizmo` with the existing pinned Dear ImGui dependency.
 Both vendor directories record their upstream revision, archive checksum and
 license. Their original source/license notices are preserved; runtime licenses
@@ -1122,6 +1122,22 @@ Original coordinates are retained. Selection uses viewport picking, the list or
 the timeline.
 
 Select a visible actor, prop or 3D text while paused to show its world-axis translation handles.
+The viewport's **Move / Rotate / Size** toolbar chooses the active tool. **Rotate**
+shows local rotation rings; **Size** shows per-axis handles and a centre handle
+for uniform sizing. Rotation and size apply to the whole object track while
+preserving its position, path, action/cel timing and lifetime. Size uses positive
+multipliers from 1% to 1000% of the authored dimensions. Foreshortened scale axes
+keep a minimum projected length; exactly end-on axes use a ring around the centre
+handle and drag vertically. All scale handles remain visible during a drag.
+Hold Ctrl to snap rotation to 15 degrees or size to 10% increments. The properties
+fields follow the selected tool, showing world position, rotation in degrees or
+size percentages. Drag a field or Ctrl+click to type a precise value. Escape or
+focus loss cancels a preview; release commits one Ctrl+Z undo step. Preview,
+commit and undo remain in memory, retain the duration cache and hold the work
+camera fixed. Scene changes and resource reloads preserve committed transforms.
+Native thumbnail snapshots encode these edits as rotation and stretch events;
+size changes preserve the retail movement speed instead of changing the step size.
+
 Drag an axis or plane to move it; hold Ctrl for a one-world-unit snap.
 Arrows retain the real positive world-axis directions. Foreshortened arrows have
 a minimum pickable length along their actual projection; exactly end-on axes
@@ -1218,7 +1234,7 @@ Frame/camera thumbnail helpers receive one cached native snapshot containing all
 scene, prop, camera, placement and frame-range edits. The snapshot is rebuilt
 only after further edits, and its creation does not replace the live movie.
 
-Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, prop insertion,
+Ctrl+Z (Cmd+Z on macOS) undoes the most recent completed object move, rotation, resize, prop insertion,
 frame addition, camera change or new scene. Each drag or completed position-field edit is one
 step. Up to 64 steps are retained in the current session, including after a
 resource reload. Undo restores the movie and the pre-edit scene/frame, retaining
@@ -1230,7 +1246,7 @@ field's local text undo. Original movie and content files remain unchanged.
 
 ## Current limits
 
-- Scene creation, frame additions, camera changes, prop insertion and object translation are session
+- Scene creation, frame additions, camera changes, prop insertion and object transforms are session
   edits; native working copies are materialized as needed. Movie save/export
   commands are not implemented.
 - Actor/prop animation, costume changes, 3D text, authored cameras and

@@ -187,14 +187,17 @@ int main(int argc, char **argv)
             check(ready == 1 && image.width == 160 && image.height == 90 &&
                   std::equal(expected.begin(), expected.end(), image.rgba), "Native snapshot matches the live structural edits");
         };
-        // Undo leaves holes in object/scene IDs; the native snapshot must keep
-        // those IDs and combine placement, range and camera journals correctly.
+        // Combine a new scene's placement, shape, range and camera journals.
         check(marcus_add_scene(player.get(), sceneBackground.chunk, argv[2], argv[3]), "Create scene after undo");
         const int snapshotProp = marcus_add_prop(player.get(), 0x1020);
         check(snapshotProp >= 0 && marcus_object(player.get(), snapshotProp, &object) &&
               marcus_move_prop(player.get(), snapshotProp, object.x + 3, object.y, object.z) &&
               marcus_set_scene_camera(player.get(), 1) && marcus_add_frame(player.get(), -1) &&
               marcus_seek(player.get(), 1), "Compose live structural edits");
+        MarcusObjectShape newShape;
+        check(marcus_object_shape(player.get(),snapshotProp,&newShape,nullptr,nullptr),"Read newly inserted shape");
+        newShape.scale[0]=2;
+        check(marcus_set_object_shape(player.get(),snapshotProp,&newShape),"Resize a newly inserted prop");
         checkNativeSnapshot();
 
         open();

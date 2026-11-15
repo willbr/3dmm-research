@@ -22,9 +22,11 @@ struct MarcusLiveEdits
     using Scenes = std::vector<MM::PreviewSceneDefinition>;
     using Props = std::vector<MarcusNamedProp>;
     using Cameras = std::map<MarcusCameraKey, unsigned long>;
+    using Shapes = std::map<std::pair<unsigned long, unsigned long>, MM::PreviewObjectShape>;
     std::shared_ptr<const Scenes> scenes = std::make_shared<Scenes>();
     std::shared_ptr<const Props> props = std::make_shared<Props>();
     std::shared_ptr<const Cameras> cameras = std::make_shared<Cameras>();
+    std::shared_ptr<const Shapes> shapes = std::make_shared<Shapes>();
     std::uint64_t revision = 0;
 };
 #endif

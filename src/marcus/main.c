@@ -2946,7 +2946,8 @@ static void draw_object_properties(App *app, float offset)
     ui_heading(ui, app->sidebar + 18, offset + 400, object.text ? "3D TEXT" : object.prop ? "PROP" : "ACTOR", ACCENT);
     ui_line(ui, app->sidebar + 18, offset + 435, (float)app->width - 18, offset + 435, LINE);
     property(app, 450, "Visibility", object.visible ? "On stage" : "Off stage");
-    ui_heading(ui, app->sidebar + 18, offset + 484, "WORLD POSITION", MUTED);
+    ui_heading(ui, app->sidebar + 18, offset + 484, app->prop_fields && prop_gizmo_mode(app->prop_gizmo)==1 ? "ROTATION (DEGREES)" :
+        app->prop_fields && prop_gizmo_mode(app->prop_gizmo)==2 ? "SIZE (PERCENT)" : "WORLD POSITION", MUTED);
     editable = app->prop_fields;
     SDL_snprintf(label, sizeof(label), "%.3f", (double)object.x);
     property(app, 511, "X", editable ? "" : object.has_lifetime ? label : "--");

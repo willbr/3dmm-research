@@ -8,6 +8,38 @@
 #include <cmath>
 #include <memory>
 
+namespace
+{
+void Multiply(const float a[9], const float b[9], float out[9])
+{
+    float result[9] = {};
+    for (int i=0;i<3;++i) for (int j=0;j<3;++j) for (int k=0;k<3;++k) result[i*3+j] += a[i*3+k]*b[k*3+j];
+    std::copy(result,result+9,out);
+}
+bool Inverse(const float a[9], float out[9])
+{
+    const float det = a[0]*(a[4]*a[8]-a[5]*a[7])-a[1]*(a[3]*a[8]-a[5]*a[6])+a[2]*(a[3]*a[7]-a[4]*a[6]);
+    if (!std::isfinite(det) || std::abs(det)<.001f) return false;
+    const float v[9] = {a[4]*a[8]-a[5]*a[7],a[2]*a[7]-a[1]*a[8],a[1]*a[5]-a[2]*a[4],
+        a[5]*a[6]-a[3]*a[8],a[0]*a[8]-a[2]*a[6],a[2]*a[3]-a[0]*a[5],
+        a[3]*a[7]-a[4]*a[6],a[1]*a[6]-a[0]*a[7],a[0]*a[4]-a[1]*a[3]};
+    for (int i=0;i<9;++i) out[i]=v[i]/det;
+    return true;
+}
+void Matrix(const float rotation[9], const float scale[3], const float position[3], float out[16])
+{
+    std::fill(out,out+16,0.f); out[15]=1;
+    for (int i=0;i<9;++i) out[(i/3)*4+i%3]=rotation[i]*scale[i/3];
+    std::copy(position,position+3,out+12);
+}
+void Angles(const MarcusObjectShape &shape, float out[3])
+{
+    const float one[3]={1,1,1},zero[3]={}; float matrix[16],position[3],scale[3];
+    Matrix(shape.rotation,one,zero,matrix);
+    ImGuizmo::DecomposeMatrixToComponents(matrix,position,out,scale);
+}
+}
+
 struct MarcusPropGizmo
 {
     SDL_Window *window = nullptr;
@@ -15,12 +47,16 @@ struct MarcusPropGizmo
     ImGuiContext *context = nullptr;
     MarcusPlayer *player = nullptr;
     int object = -1, scene = -1, editing = 0, changed = 0;
+    int mode = 0;
     long frame = 0;
     unsigned long document = 0, chunk = 0;
     bool enabled = false, cancel = false, finish = false, platform = false, render = false;
     bool over = false, fields = false;
     SDL_FRect fieldRect = {};
+    SDL_FRect controlRect = {};
     float original[3] = {}, value[3] = {}, applied[3] = {};
+    float position[3] = {}, left[9] = {}, right[9] = {};
+    MarcusObjectShape shape = {}, originalShape = {}, appliedShape = {};
     char error[1024] = {};
 
     void StoreError() { SDL_strlcpy(error, marcus_error(player), sizeof(error)); }
@@ -37,12 +73,14 @@ struct MarcusPropGizmo
         if (editing) return;
         std::copy(value, value + 3, original);
         std::copy(value, value + 3, applied);
+        originalShape = appliedShape = shape;
         editing = kind;
     }
     int Restore()
     {
         if (!editing || !SameContext()) return 0;
-        return marcus_preview_object_position(player, object, original[0], original[1], original[2]) ? 1 : -1;
+        return (mode ? marcus_preview_object_shape(player, object, &originalShape) :
+            marcus_preview_object_position(player, object, original[0], original[1], original[2])) ? 1 : -1;
     }
 };
 
@@ -105,8 +143,10 @@ int prop_gizmo_event(MarcusPropGizmo *gizmo, const SDL_Event *event)
         if (event->type == SDL_EVENT_MOUSE_MOTION) { x = event->motion.x; y = event->motion.y; }
         const auto &r = gizmo->fieldRect;
         const bool inFields = gizmo->fields && x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+        const auto &c = gizmo->controlRect;
+        const bool inControls = x >= c.x && x < c.x+c.w && y >= c.y && y < c.y+c.h;
         const bool left = event->type == SDL_EVENT_MOUSE_MOTION || event->button.button == SDL_BUTTON_LEFT;
-        return gizmo->editing || (left && (gizmo->over || inFields));
+        return gizmo->editing || (left && (gizmo->over || inFields || inControls));
     }
     return 0;
 }
@@ -138,7 +178,14 @@ void prop_gizmo_begin(MarcusPropGizmo *gizmo, MarcusPlayer *player, int object, 
         gizmo->scene = info.scene;
         gizmo->frame = info.frame;
         gizmo->chunk = prop.chunk;
-        if (!gizmo->editing) { gizmo->value[0] = prop.x; gizmo->value[1] = prop.y; gizmo->value[2] = prop.z; }
+        gizmo->position[0]=prop.x; gizmo->position[1]=prop.y; gizmo->position[2]=prop.z;
+        if (!gizmo->editing)
+        {
+            marcus_object_shape(player,object,&gizmo->shape,gizmo->left,gizmo->right);
+            if (gizmo->mode==1) Angles(gizmo->shape,gizmo->value);
+            else if (gizmo->mode==2) for (int i=0;i<3;++i) gizmo->value[i]=gizmo->shape.scale[i]*100;
+            else std::copy(gizmo->position,gizmo->position+3,gizmo->value);
+        }
     }
     ImGui_ImplSDLRenderer3_NewFrame();
     ImGui_ImplSDL3_NewFrame();
@@ -166,7 +213,29 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
         if (rect.w / rect.h > aspect) { const auto w = rect.h * aspect; rect.x += (rect.w - w) / 2; rect.w = w; }
         else { const auto h = rect.w / aspect; rect.y += (rect.h - h) / 2; rect.h = h; }
     }
-    float matrix[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, gizmo->value[0],gizmo->value[1],gizmo->value[2],1};
+    gizmo->controlRect={rect.x+8,rect.y+8,196,28};
+    ImGui::SetNextWindowPos(ImVec2(gizmo->controlRect.x,gizmo->controlRect.y));
+    ImGui::SetNextWindowSize(ImVec2(196,28));
+    ImGui::Begin("Object tools",nullptr,ImGuiWindowFlags_NoDecoration|ImGuiWindowFlags_NoSavedSettings|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoNav);
+    ImGui::BeginDisabled(gizmo->editing!=0);
+    const char *labels[]={"Move","Rotate","Size"};
+    for (int i=0;i<3;++i)
+    {
+        if (i) ImGui::SameLine();
+        if (ImGui::Selectable(labels[i],gizmo->mode==i,0,ImVec2(56,24)))
+        {
+            gizmo->mode=i;
+            if (i==1) Angles(gizmo->shape,gizmo->value);
+            else if (i==2) for (int a=0;a<3;++a) gizmo->value[a]=gizmo->shape.scale[a]*100;
+            else std::copy(gizmo->position,gizmo->position+3,gizmo->value);
+        }
+    }
+    gizmo->over=ImGui::IsWindowHovered();
+    ImGui::EndDisabled(); ImGui::End();
+    const float one[3]={1,1,1};
+    float rotation[9],matrix[16];
+    Multiply(gizmo->left,gizmo->shape.rotation,rotation); Multiply(rotation,gizmo->right,rotation);
+    Matrix(rotation,gizmo->mode ? gizmo->shape.scale : one,gizmo->mode ? gizmo->position : gizmo->value,matrix);
     auto draw = ImGui::GetForegroundDrawList();
     draw->PushClipRect(ImVec2(rect.x, rect.y), ImVec2(rect.x + rect.w, rect.y + rect.h), true);
     ImGuizmo::SetDrawlist(draw);
@@ -175,14 +244,36 @@ void prop_gizmo_view(MarcusPropGizmo *gizmo, const MarcusImage *image, const SDL
     ImGuizmo::AllowAxisFlip(false);
     ImGuizmo::SetTranslationAxisMinimumSize(24.f);
     ImGuizmo::SetTranslationPlaneMinimumSize(12.f);
-    const float snap[3] = {1, 1, 1};
-    const bool moved = ImGuizmo::Manipulate(view, projection, ImGuizmo::TRANSLATE, ImGuizmo::WORLD, matrix,
+    const float step=gizmo->mode==1 ? 15.f : gizmo->mode==2 ? .1f : 1.f;
+    const float snap[3] = {step,step,step};
+    const auto operation=gizmo->mode==1 ? ImGuizmo::ROTATE : gizmo->mode==2 ? ImGuizmo::SCALE : ImGuizmo::TRANSLATE;
+    const bool moved = ImGuizmo::Manipulate(view, projection, operation, gizmo->mode ? ImGuizmo::LOCAL : ImGuizmo::WORLD, matrix,
                                            nullptr, ImGui::GetIO().KeyCtrl ? snap : nullptr);
     if (ImGuizmo::IsUsing() || moved) gizmo->Start(1);
-    if (moved) std::copy(matrix + 12, matrix + 15, gizmo->value);
-    gizmo->over = ImGuizmo::IsOver();
+    if (moved)
+    {
+        if (!gizmo->mode) std::copy(matrix + 12, matrix + 15, gizmo->value);
+        else
+        {
+            float p[3],angles[3],scale[3],unit[16],inverseLeft[9],inverseRight[9],basis[9];
+            ImGuizmo::DecomposeMatrixToComponents(matrix,p,angles,scale);
+            if (gizmo->mode==1 && Inverse(gizmo->left,inverseLeft) && Inverse(gizmo->right,inverseRight))
+            {
+                const float zero[3]={};
+                ImGuizmo::RecomposeMatrixFromComponents(zero,angles,one,unit);
+                for (int i=0;i<9;++i) basis[i]=unit[(i/3)*4+i%3];
+                Multiply(inverseLeft,basis,basis); Multiply(basis,inverseRight,gizmo->shape.rotation);
+                Angles(gizmo->shape,gizmo->value);
+            }
+            else if (gizmo->mode==2)
+                for (int i=0;i<3;++i) gizmo->value[i]=scale[i]*100;
+        }
+    }
+    gizmo->over |= ImGuizmo::IsOver();
     if (gizmo->over && !gizmo->editing)
-        ImGui::SetTooltip("Drag an axis or plane to move the object. Ctrl snaps to 1 unit. Escape cancels.");
+        ImGui::SetTooltip(gizmo->mode==1 ? "Drag a ring to rotate. Ctrl snaps to 15 degrees. Escape cancels." : gizmo->mode==2 ?
+            "Drag an axis to resize, or the centre for uniform size. Ctrl snaps to 10%%. Escape cancels." :
+            "Drag an axis or plane to move the object. Ctrl snaps to 1 unit. Escape cancels.");
     if (gizmo->editing == 1 && !ImGuizmo::IsUsing()) gizmo->finish = true;
     draw->PopClipRect();
 }
@@ -205,11 +296,14 @@ int prop_gizmo_properties(MarcusPropGizmo *gizmo, float x, float y, const SDL_Re
         ImGui::SetCursorScreenPos(ImVec2(x, y + axis * 26));
         ImGui::SetNextItemWidth(162);
         float value = gizmo->value[axis];
-        const bool updated = ImGui::DragFloat("##position", &value, .1f, -32700, 32700, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        const bool updated = ImGui::DragFloat("##position", &value, gizmo->mode ? .5f : .1f,
+            gizmo->mode==2 ? 1.f : gizmo->mode==1 ? -36000.f : -32700.f,
+            gizmo->mode==2 ? 1000.f : gizmo->mode==1 ? 36000.f : 32700.f,
+            gizmo->mode==2 ? "%.1f %%" : gizmo->mode==1 ? "%.2f deg" : "%.3f", ImGuiSliderFlags_AlwaysClamp);
         if (ImGui::IsItemActivated()) gizmo->Start(2);
         if (updated && std::isfinite(value)) { gizmo->Start(2); gizmo->value[axis] = value; }
         if (ImGui::IsItemDeactivated() && gizmo->editing == 2) gizmo->finish = true;
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Drag to move; Ctrl+click to type. Escape cancels. Moves the whole prop track.");
+        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Drag to adjust; Ctrl+click to type. Escape cancels. Applies to the whole object track.");
         ImGui::PopID();
     }
     ImGui::EndDisabled();
@@ -226,7 +320,15 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
         // Non-finite samples retain the last valid coordinate.
         for (int axis = 0; axis < 3; ++axis)
             gizmo->value[axis] = std::isfinite(gizmo->value[axis])
-                ? std::clamp(gizmo->value[axis], -32700.f, 32700.f) : gizmo->applied[axis];
+                ? std::clamp(gizmo->value[axis], gizmo->mode==2 ? 1.f : gizmo->mode==1 ? -36000.f : -32700.f,
+                    gizmo->mode==2 ? 1000.f : gizmo->mode==1 ? 36000.f : 32700.f) : gizmo->applied[axis];
+        if (gizmo->mode==2) for (int i=0;i<3;++i) gizmo->shape.scale[i]=gizmo->value[i]/100;
+        if (gizmo->mode==1 && gizmo->editing==2)
+        {
+            const float zero[3]={},one[3]={1,1,1}; float matrix[16];
+            ImGuizmo::RecomposeMatrixFromComponents(zero,gizmo->value,one,matrix);
+            for (int i=0;i<9;++i) gizmo->shape.rotation[i]=matrix[(i/3)*4+i%3];
+        }
         if (gizmo->cancel)
         {
             result = gizmo->Restore();
@@ -240,7 +342,8 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
                 std::abs(gizmo->value[2] - gizmo->original[2]) > .00002f;
             if (moved)
             {
-                if (marcus_move_object(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2])) result = 2;
+                if (gizmo->mode ? marcus_set_object_shape(gizmo->player,gizmo->object,&gizmo->shape) :
+                    marcus_move_object(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2])) result = 2;
                 else { gizmo->StoreError(); gizmo->Restore(); result = -1; }
             }
             else result = gizmo->Restore();
@@ -248,7 +351,8 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
         }
         else if (!std::equal(gizmo->value, gizmo->value + 3, gizmo->applied))
         {
-            if (marcus_preview_object_position(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2]))
+            if (gizmo->mode ? marcus_preview_object_shape(gizmo->player,gizmo->object,&gizmo->shape) :
+                marcus_preview_object_position(gizmo->player, gizmo->object, gizmo->value[0], gizmo->value[1], gizmo->value[2]))
             {
                 std::copy(gizmo->value, gizmo->value + 3, gizmo->applied);
                 result = 1;
@@ -261,6 +365,7 @@ int prop_gizmo_update(MarcusPropGizmo *gizmo)
     return result;
 }
 int prop_gizmo_active(const MarcusPropGizmo *gizmo) { return gizmo && gizmo->editing != 0; }
+int prop_gizmo_mode(const MarcusPropGizmo *gizmo) { return gizmo ? gizmo->mode : 0; }
 void prop_gizmo_end(MarcusPropGizmo *gizmo)
 {
     ImGui::Render();

@@ -15,8 +15,13 @@ class PreviewActor
 {
     ActorChunkOnFile header = {};
     BRS originalPlacement[3] = {};
+    PreviewObjectShape shape;
     ActorTrack track;
     ActorFrameState state;
+    // Keep the source of a held orientation so edits also respect the last
+    // path tangent when an actor stops moving.
+    ActorFrameState orientationContext;
+    int orientationReset = 1;
     bool inactive = false;
     PTemplate tmpl = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
@@ -46,6 +51,8 @@ class PreviewActor
     bool Seek(LegacyLong frame);
     bool Translate(const float delta[3]);
     bool SetOffset(const float offset[3]);
+    bool SetShape(const PreviewObjectShape &);
+    void Shape(PreviewObjectShape &, float left[9], float right[9]) const;
     PreviewObject Snapshot() const;
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const

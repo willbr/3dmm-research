@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "platform_text.h"
 #include <codecvt>
+#include <algorithm>
 #include <cmath>
 #include <locale>
 #include <map>
@@ -313,6 +314,10 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
 }
 bool PreviewActor::Apply(LegacyLong index)
 {
+    Base event;
+    track.Events()->GetFixed(index,&event);
+    if (event.aet==aetAdd) orientationReset=1;
+    if (event.aet==aetRotH) orientationReset=2;
     return ApplyEvent(state, track, index, false, &motionSounds, &sounds);
 }
 bool PreviewActor::ApplyEvent(ActorFrameState &value, const ActorTrack &events, LegacyLong index, bool metadataOnly,
@@ -525,10 +530,73 @@ bool PreviewActor::Position(bool selectCel)
     pose.fixedPathOrientation = tmpl->FIsTdt();
     BMAT34 matrix;
     ActorPoseEvaluator::Update(state, track, pose, &state.position, &matrix);
+    if (!state.useCurrentRotation || orientationReset)
+    {
+        orientationContext=state;
+        if (orientationReset==1) orientationContext.useCurrentRotation=false;
+        orientationReset=0;
+    }
+    const PreviewObjectShape identity;
+    if (!std::equal(shape.rotation, shape.rotation + 9, identity.rotation) ||
+        !std::equal(shape.scale, shape.scale + 3, identity.scale))
+    {
+        auto edited = orientationContext;
+        edited.transform.aevpull=state.transform.aevpull;
+        edited.transform.rScaleStep=state.transform.rScaleStep;
+        BMAT34 rotation = {}, combined;
+        for (int i = 0; i < 9; ++i) rotation.m[i / 3][i % 3] = BrFloatToScalar(shape.rotation[i]);
+        auto &basis = edited.useCurrentRotation ? edited.transform.bmat34Cur : edited.transform.bmat34Fwd;
+        BrMatrix34Mul(&combined, &rotation, &basis);
+        basis = combined;
+        edited.transform.aevpull.rScaleX = BrsMul(edited.transform.aevpull.rScaleX, BrFloatToScalar(shape.scale[0]));
+        edited.transform.aevpull.rScaleY = BrsMul(edited.transform.aevpull.rScaleY, BrFloatToScalar(shape.scale[1]));
+        edited.transform.aevpull.rScaleZ = BrsMul(edited.transform.aevpull.rScaleZ, BrFloatToScalar(shape.scale[2]));
+        ActorPoseEvaluator::Update(edited, track, pose, &state.position, &matrix);
+    }
     body->LocateOrient(BrsAdd(state.routeTranslation.dxr, state.position.dxr),
                        BrsAdd(state.routeTranslation.dyr, state.position.dyr),
                        BrsAdd(state.routeTranslation.dzr, state.position.dzr), &matrix);
     return !selectCel || !state.onStage || tmpl->FSetActnCel(body, state.action, state.cel);
+}
+bool PreviewActor::SetShape(const PreviewObjectShape &value)
+{
+    if (!body || !tmpl) return false;
+    if (std::equal(value.rotation, value.rotation+9, shape.rotation) && std::equal(value.scale, value.scale+3, shape.scale)) return true;
+    shape = value;
+    return !state.onStage || Position(false);
+}
+void PreviewActor::Shape(PreviewObjectShape &value, float left[9], float right[9]) const
+{
+    value = shape;
+    BMAT34 a, b;
+    BrMatrix34Identity(&a);
+    const auto &context=orientationContext;
+    b = context.useCurrentRotation ? context.transform.bmat34Cur : context.transform.bmat34Fwd;
+    if (!context.useCurrentRotation && context.addEvent >= 0)
+    {
+        Base event;
+        track.Events()->GetFixed(context.addEvent, &event);
+        if (tmpl->FIsTdt() || (context.location.irpt == event.rtel.irpt && !context.location.dwrOffset))
+        {
+            Add add;
+            track.Events()->Get(context.addEvent, &add);
+            BrMatrix34PostRotateX(&b, add.xa);
+            BrMatrix34PostRotateY(&b, add.ya);
+            BrMatrix34PostRotateZ(&b, add.za);
+        }
+        else
+        {
+            BRA x, y, z;
+            ActorPoseEvaluator::RouteOrientation(context, track, nullptr, &x, &y, &z, nullptr);
+            BrMatrix34RotateX(&a, x);
+            BrMatrix34PostRotateY(&b, y);
+        }
+    }
+    for (int i = 0; i < 9; ++i)
+    {
+        if (left) left[i] = BrScalarToFloat(a.m[i / 3][i % 3]);
+        if (right) right[i] = BrScalarToFloat(b.m[i / 3][i % 3]);
+    }
 }
 bool PreviewActor::Evaluate(bool display)
 {
@@ -597,6 +665,7 @@ bool PreviewActor::Seek(LegacyLong frame)
             seek.Complete(true);
             break;
         case ActorSeekCommandKind::ResetCostume:
+            orientationReset=1;
             motionSounds.Clear();
             seek.Complete(tmpl->FSetDefaultCost(body));
             break;

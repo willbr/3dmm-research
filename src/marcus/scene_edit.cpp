@@ -362,6 +362,60 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
         file->DeleteChild(kctgScen, sceneNumber, kctgThumbMbmp, child.cki.cno, 0);
 }
 
+static void ApplyShape(PChunkyFile file, ChunkNumber actor, const MM::PreviewObjectShape &shape)
+{
+    const MM::PreviewObjectShape identity;
+    const bool rotate = !std::equal(shape.rotation,shape.rotation+9,identity.rotation);
+    const bool resize = !std::equal(shape.scale,shape.scale+3,identity.scale);
+    if (!rotate && !resize) return;
+    ChildChunkIdentification child;
+    DataBlock block;
+    Require(file->FGetKidChidCtg(kctgActr,actor,0,kctgGgae,&child) && file->FFind(kctgGgae,child.cki.cno,&block), "Cannot read the object transforms.");
+    std::unique_ptr<GeneralGroup,Release> events(ActorData::PggReadEvents(&block));
+    Require(bool(events),"Cannot decode the object transforms.");
+    BMAT34 rotation = {};
+    for (int i=0;i<9;++i) rotation.m[i/3][i%3]=BrFloatToScalar(shape.rotation[i]);
+    ActorEvent::Stretch stretch={BrFloatToScalar(shape.scale[0]),BrFloatToScalar(shape.scale[1]),BrFloatToScalar(shape.scale[2])};
+    for (LegacyLong i=0;i<events->IvMac();++i)
+    {
+        ActorEvent::Base event;
+        events->GetFixed(i,&event);
+        if (rotate && (event.aet==ActorEvent::aetRotF || event.aet==ActorEvent::aetRotH))
+        {
+            BMAT34 original,combined;
+            events->Get(i,&original);
+            BrMatrix34Mul(&combined,&rotation,&original);
+            events->Put(i,&combined);
+        }
+        if (resize && event.aet==ActorEvent::aetPull)
+        {
+            ActorEvent::Stretch value;
+            events->Get(i,&value);
+            value.rScaleX=BrsMul(value.rScaleX,stretch.rScaleX);
+            value.rScaleY=BrsMul(value.rScaleY,stretch.rScaleY);
+            value.rScaleZ=BrsMul(value.rScaleZ,stretch.rScaleZ);
+            events->Put(i,&value);
+        }
+        if (event.aet==ActorEvent::aetAdd)
+        {
+            if (rotate)
+            {
+                event.aet=ActorEvent::aetRotF;
+                Require(events->FInsert(++i,sizeof(rotation),&rotation,&event),"Cannot write the object rotation.");
+            }
+            if (resize)
+            {
+                event.aet=ActorEvent::aetPull;
+                Require(events->FInsert(++i,sizeof(stretch),&stretch,&event),"Cannot write the object size.");
+            }
+        }
+    }
+    std::unique_ptr<GeneralGroup,Release> wire(ActorData::PggWriteEvents(events.get()));
+    ChunkNumber number;
+    Require(wire && file->FAdd(wire->CbOnFile(),kctgGgae,&number,&block) && wire->FWrite(&block),"Cannot write the transformed track.");
+    file->DeleteChild(kctgActr,actor,kctgGgae,child.cki.cno,0);
+    Require(file->FAdoptChild(kctgActr,actor,kctgGgae,number,0),"Cannot link the transformed track.");
+}
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
     const std::vector<MarcusSceneRange> &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
@@ -415,6 +469,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
                 "Cannot write the object placement.");
         for (LegacyLong index = 0; file->FGetKid(kctgActr, actor, index, &child); ++index)
             Require(file->FAdoptChild(kctgActr, number, child.cki.ctg, child.cki.cno, child.chid), "Cannot retain the object animation.");
+        ApplyShape(file.get(),number,placement.shape);
         file->DeleteChild(kctgScen, scene, kctgActr, actor, link.chid);
         Require(file->FAdoptChild(kctgScen, scene, kctgActr, number, link.chid), "Cannot link the moved object.");
         if (file->FGetKidChidCtg(kctgScen, scene, 0, kctgThumbMbmp, &child))

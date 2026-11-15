@@ -7,6 +7,7 @@ struct MarcusPropPlacement
 {
     unsigned long scene, actor;
     float delta[3];
+    MM::PreviewObjectShape shape;
 };
 struct MarcusSceneRange
 {

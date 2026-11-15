@@ -744,6 +744,8 @@ namespace IMGUIZMO_NAMESPACE
       vec_t mScaleValueOrigin;
       vec_t mScaleLast;
       float mSaveMousePosx;
+      bool mScaleScreenDrag = false;
+      ImVec2 mScaleMouseOrigin, mScaleScreenDirection;
 
       int mAxisMask = 0;
       // Current camera-dependent state and the frozen state of the active drag.
@@ -1617,11 +1619,25 @@ namespace IMGUIZMO_NAMESPACE
             continue;
          }
          const bool usingAxis = (gContext.mbUsing && type == MT_SCALE_X + i);
-         if (!gContext.mbUsing || usingAxis)
+         if (gContext.mTranslationAxisMinimumSize > 0.f || !gContext.mbUsing || usingAxis)
          {
             vec_t dirPlaneX, dirPlaneY, dirAxis;
             bool belowAxisLimit, belowPlaneLimit;
             ComputeTripodAxisAndVisibility(i, dirAxis, dirPlaneX, dirPlaneY, belowAxisLimit, belowPlaneLimit, true);
+
+            ImVec2 start, end;
+            bool endOn;
+            if (TranslationAxisHandle(i, start, end, endOn))
+            {
+               if (endOn)
+                  drawList->AddCircle(end, 14.f + i * 4.f, colors[i + 1], 32, gContext.mStyle.ScaleLineThickness);
+               else
+               {
+                  drawList->AddLine(start, end, colors[i + 1], gContext.mStyle.ScaleLineThickness);
+                  drawList->AddCircleFilled(end, gContext.mStyle.ScaleLineCircleSize, colors[i + 1]);
+               }
+               continue;
+            }
 
             // draw axis
             if (belowAxisLimit)
@@ -2221,6 +2237,16 @@ namespace IMGUIZMO_NAMESPACE
          }
          bool isAxisMasked = ((1 << i) & gContext.mAxisMask) != 0;
 
+         ImVec2 start, end;
+         bool endOn;
+         if (TranslationAxisHandle(i, start, end, endOn))
+         {
+            const float distance = endOn ? fabsf(sqrtf(ImLengthSqr(io.MousePos - end)) - (14.f + i * 4.f)) :
+               (PointOnSegment(makeVect(io.MousePos), makeVect(start), makeVect(end)) - makeVect(io.MousePos)).Length();
+            if (!isAxisMasked && distance < (endOn ? 2.f : 9.f)) type = static_cast<MOVETYPE>(MT_SCALE_X + i);
+            continue;
+         }
+
          vec_t dirPlaneX, dirPlaneY, dirAxis;
          bool belowAxisLimit, belowPlaneLimit;
          ComputeTripodAxisAndVisibility(i, dirAxis, dirPlaneX, dirPlaneY, belowAxisLimit, belowPlaneLimit, true);
@@ -2682,6 +2708,17 @@ namespace IMGUIZMO_NAMESPACE
             gContext.mRelativeOrigin = (gContext.mTranslationPlanOrigin - gContext.mModelLocal.v.position) * (1.f / gContext.mScreenFactor);
             gContext.mScaleValueOrigin = makeVect(gContext.mModelSource.v.right.Length(), gContext.mModelSource.v.up.Length(), gContext.mModelSource.v.dir.Length());
             gContext.mSaveMousePosx = io.MousePos.x;
+            ImVec2 start, end;
+            bool endOn;
+            gContext.mScaleScreenDrag = type >= MT_SCALE_X && type <= MT_SCALE_Z &&
+               TranslationAxisHandle(type - MT_SCALE_X, start, end, endOn);
+            if (gContext.mScaleScreenDrag)
+            {
+               gContext.mScaleMouseOrigin = io.MousePos;
+               gContext.mScaleScreenDirection = endOn ? ImVec2(0.f, -1.f) : end - start;
+               const float length = sqrtf(ImLengthSqr(gContext.mScaleScreenDirection));
+               if (length > 0.f) gContext.mScaleScreenDirection /= length;
+            }
          }
       }
       // scale
@@ -2706,9 +2743,12 @@ namespace IMGUIZMO_NAMESPACE
             delta = axisValue * lengthOnAxis;
 
             vec_t baseVector = gContext.mTranslationPlanOrigin - gContext.mModelLocal.v.position;
-            float ratio = Dot(axisValue, baseVector + delta) / Dot(axisValue, baseVector);
-
-            gContext.mScale[axisIndex] = max(ratio, 0.001f);
+            const float denominator = Dot(axisValue, baseVector);
+            const ImVec2 mouseDelta = io.MousePos - gContext.mScaleMouseOrigin;
+            const float ratio = gContext.mScaleScreenDrag ? 1.f +
+               (mouseDelta.x * gContext.mScaleScreenDirection.x + mouseDelta.y * gContext.mScaleScreenDirection.y) /
+                  gContext.mTranslationAxisMinimumSize : Dot(axisValue, baseVector + delta) / denominator;
+            if (ratio > -FLT_MAX && ratio < FLT_MAX) gContext.mScale[axisIndex] = max(ratio, 0.001f);
          }
          else
          {

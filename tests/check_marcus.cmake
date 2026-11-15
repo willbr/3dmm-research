@@ -62,6 +62,11 @@ execute_process(COMMAND "${PROP_MOVE_EXE}" "${movie}" "${RESOURCES}" "${CONTENT}
 if(NOT result EQUAL 0)
   message(FATAL_ERROR "Marcus prop release/cache integration failed: ${result}")
 endif()
+execute_process(COMMAND "${SHAPE_EXE}" "${movie}" "${RESOURCES}" "${CONTENT}" "${animation_movie}"
+  RESULT_VARIABLE result TIMEOUT 90)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "Marcus rotation/size integration failed: ${result}")
+endif()
 file(SHA256 "${single_zip}" single_zip_after)
 file(SHA256 "${multi_zip}" multi_zip_after)
 if(NOT single_zip_before STREQUAL single_zip_after OR NOT multi_zip_before STREQUAL multi_zip_after)

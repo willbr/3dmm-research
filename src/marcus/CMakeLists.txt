@@ -144,6 +144,9 @@ if(BUILD_TESTING)
   add_executable(marcus-prop-move-test EXCLUDE_FROM_ALL ../../tests/marcus_prop_move_test.cpp)
   target_compile_features(marcus-prop-move-test PRIVATE cxx_std_17)
   target_link_libraries(marcus-prop-move-test PRIVATE marcus-player MM::Preview SDL3::SDL3-static)
+  add_executable(marcus-shape-test EXCLUDE_FROM_ALL ../../tests/marcus_shape_test.cpp)
+  target_compile_features(marcus-shape-test PRIVATE cxx_std_17)
+  target_link_libraries(marcus-shape-test PRIVATE marcus-player MM::Preview SDL3::SDL3-static)
   add_executable(marcus-player-test EXCLUDE_FROM_ALL ../../tests/marcus_player_test.c)
   set_target_properties(marcus-player-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_link_libraries(marcus-player-test PRIVATE marcus-player)
@@ -152,7 +155,7 @@ if(BUILD_TESTING)
   target_compile_features(marcus-frame-previews-test PRIVATE cxx_std_17)
   target_link_libraries(marcus-frame-previews-test PRIVATE marcus-player SDL3::SDL3-static)
   add_dependencies(marcus-frame-previews-test marcus-preview)
-  add_dependencies(marcus-player-test marcus-frame-previews-test marcus-prop-move-test)
+  add_dependencies(marcus-player-test marcus-frame-previews-test marcus-prop-move-test marcus-shape-test)
   if(EXISTS "${PROJECT_SOURCE_DIR}/content-files/bkgds.3cn")
     set(marcus_resources "${PROJECT_SOURCE_DIR}/build/studio-portable-x64/3dmovie/utest.chk"
       CACHE FILEPATH "3dmovie.chk or built utest.chk for Marcus integration tests")
@@ -165,6 +168,7 @@ if(BUILD_TESTING)
       add_test(NAME marcus-player COMMAND ${CMAKE_COMMAND}
         -DAPI_EXE=$<TARGET_FILE:marcus-player-test>
         -DPROP_MOVE_EXE=$<TARGET_FILE:marcus-prop-move-test>
+        -DSHAPE_EXE=$<TARGET_FILE:marcus-shape-test>
         -DFRAME_PREVIEW_EXE=$<TARGET_FILE:marcus-frame-previews-test>
         -DFIXTURE_EXE=$<TARGET_FILE:preview-scene-fixture>
         -DRESOURCES=${marcus_resources} -DCONTENT=${PROJECT_SOURCE_DIR}/content-files

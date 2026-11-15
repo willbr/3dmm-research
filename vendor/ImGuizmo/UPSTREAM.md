@@ -30,3 +30,10 @@ parallel, non-finite or behind-camera intersections instead of taking the
 absolute ray distance. Crossing the plane's vanishing line holds the last pose
 until the cursor returns, preventing an outward drag from reversing direction.
 Marcus clamps finite placement coordinates at +/-32700 world units.
+
+The minimum projected axis length also applies to scale handles. Drawing and
+picking use the same enlarged handle; an exactly end-on scale axis uses a ring
+around the centre handle, with vertical dragging. Short scale projections use
+captured screen-space dragging to avoid unstable ray/plane ratios. Other scale
+handles remain visible during a drag. Ordinary projected axes retain the upstream
+scale solver, with non-finite ratios rejected.

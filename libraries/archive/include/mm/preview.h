@@ -90,6 +90,11 @@ struct PreviewSceneDefinition
     std::uint32_t number = 0, background = 0;
     std::int32_t source = 2;
 };
+struct PreviewObjectShape
+{
+    float rotation[9] = {1,0,0, 0,1,0, 0,0,1};
+    float scale[3] = {1,1,1};
+};
 struct PreviewPropDefinition
 {
     std::uint32_t scene = 0, number = 0, templateNumber = 0;
@@ -228,6 +233,8 @@ class Preview
     bool TranslateObject(int object, const float delta[3], Error &error);
     // Idempotent placement relative to the loaded actor header, including off-stage objects.
     bool SetObjectOffset(int object, const float offset[3], Error &error);
+    bool SetObjectShape(int object, const PreviewObjectShape &, Error &);
+    bool ObjectShape(int object, PreviewObjectShape &, float left[9], float right[9], Error &) const;
     bool ObjectBounds(int object, PreviewBounds &bounds, Error &error);
     // Evaluate a private track copy; leaves live frame, pose and sounds unchanged.
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);

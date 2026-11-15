@@ -51,6 +51,11 @@ extern "C"
         int prop, text, visible, has_lifetime;
         float x, y, z;
     } MarcusObject;
+    typedef struct MarcusObjectShape
+    {
+        float rotation[9]; /* Row-major orthonormal rotation relative to the authored track. */
+        float scale[3];    /* Positive size multipliers; 1 is the authored size. */
+    } MarcusObjectShape;
 
     typedef struct MarcusInfo
     {
@@ -258,6 +263,13 @@ extern "C"
     /* Commit the whole-track placement, including an active live preview.
      * Retains frame, view and timing caches; no archive write or reload. */
     int marcus_move_object(MarcusPlayer *player, int object, float x, float y, float z);
+    /* Whole-track rotation/size relative to the authored pose. Optional left/right
+     * matrices map the edit rotation into its evaluated gizmo frame: L * R_edit * R.
+     * Preview is cancelled by seek/playback; commit creates one undo step. Neither
+     * changes the route, step speed, animation timing or object lifetime. */
+    int marcus_object_shape(MarcusPlayer *, int object, MarcusObjectShape *, float left[9], float right[9]);
+    int marcus_preview_object_shape(MarcusPlayer *, int object, const MarcusObjectShape *);
+    int marcus_set_object_shape(MarcusPlayer *, int object, const MarcusObjectShape *);
     /* Compatibility entry points restricted to ordinary props. */
     int marcus_preview_prop_position(MarcusPlayer *player, int object, float x, float y, float z);
     int marcus_move_prop(MarcusPlayer *player, int object, float x, float y, float z);

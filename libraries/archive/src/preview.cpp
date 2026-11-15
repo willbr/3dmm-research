@@ -519,6 +519,47 @@ bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
     _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }
+bool Preview::ObjectShape(int object, PreviewObjectShape &shape, float left[9], float right[9], Error &error) const
+{
+    error = {};
+    if (!_impl->ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+        !_impl->actors[object]->body) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
+    _impl->actors[object]->Shape(shape, left, right);
+    return true;
+}
+bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error &error)
+{
+    error = {};
+    if (!_impl->ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
+        !_impl->actors[object]->body) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
+    for (float n : shape.scale)
+        if (!std::isfinite(n) || n < .01f || n > 10) return Fail(error, ErrorCode::invalid_argument, "Size must be between 1% and 1000%.");
+    for (float n : shape.rotation)
+        if (!std::isfinite(n) || std::abs(n) > 1.01f) return Fail(error, ErrorCode::invalid_argument, "Invalid object rotation.");
+    const auto r=shape.rotation;
+    const float determinant=r[0]*(r[4]*r[8]-r[5]*r[7])-r[1]*(r[3]*r[8]-r[5]*r[6])+r[2]*(r[3]*r[7]-r[4]*r[6]);
+    if (determinant<.99f) return Fail(error, ErrorCode::invalid_argument, "Object rotation cannot mirror or collapse an axis.");
+    for (int a = 0; a < 3; ++a) for (int b = a; b < 3; ++b)
+    {
+        float dot = 0;
+        for (int c = 0; c < 3; ++c) dot += shape.rotation[a*3+c] * shape.rotation[b*3+c];
+        if (std::abs(dot - (a == b ? 1.f : 0.f)) > .003f) return Fail(error, ErrorCode::invalid_argument, "Rotation must be orthonormal.");
+    }
+    BCB before, after;
+    auto &actor = *_impl->actors[object];
+    const bool hold = _impl->orbit.framed && _impl->orbit.object == object && actor.Visible();
+    if (hold) actor.body->GetBcbBounds(&before, fTrue);
+    if (!actor.SetShape(shape)) return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
+    if (hold)
+    {
+        actor.body->GetBcbBounds(&after, fTrue);
+        const BRS a[6] = {before.xrMin,before.yrMin,before.zrMin,before.xrMax,before.yrMax,before.zrMax};
+        const BRS b[6] = {after.xrMin,after.yrMin,after.zrMin,after.xrMax,after.yrMax,after.zrMax};
+        for (int i = 0; i < 3; ++i)
+            _impl->orbit.anchor[i] += (BrScalarToFloat(b[i])-BrScalarToFloat(a[i]) + BrScalarToFloat(b[i+3])-BrScalarToFloat(a[i+3])) * .5f;
+    }
+    return true;
+}
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
     bounds = {};
